@@ -84,12 +84,22 @@ class _NarratesTheBrowsing:
             # to believe — 3 of 5" and then the identical sentence again.
             return ""
         else:
+            # What is done, named as it will be done. A scroll that names a
+            # control is still a scroll: LIVE 2026-10-02 the card said "more,
+            # more, more, more" while the page was scrolled four times.
             naming = [
-                str(elements[int(item["index"])].get("name") or "").strip()
+                f"scroll {str(item.get('value') or 'down').lower()}"
+                if str(item.get("type") or "click").lower() == "scroll"
+                else str(elements[int(item["index"])].get("name") or "").strip()
                 for item in (decision.get("actions") or [])
                 if isinstance(item, dict)
-                and str(item.get("index", "")).lstrip("-").isdigit()
-                and 0 <= int(item["index"]) < len(elements)
+                and (
+                    str(item.get("type") or "click").lower() == "scroll"
+                    or (
+                        str(item.get("index", "")).lstrip("-").isdigit()
+                        and 0 <= int(item["index"]) < len(elements)
+                    )
+                )
             ]
             doing = ", ".join(name for name in naming if name)
             # Nothing to report is not worth a line. "I am deciding what to do

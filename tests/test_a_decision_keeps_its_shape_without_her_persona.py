@@ -94,11 +94,14 @@ def test_every_page_call_says_the_turn_is_waiting_on_it():
     for method in (
         u._UnderstandsThePage._understand_page,
         u._UnderstandsThePage._decide_on_the_fast_lane,
-        u._UnderstandsThePage._decide_next_actions,
         u._UnderstandsThePage._asked_of_her,
     ):
         body = inspect.getsource(method)
         assert "serves_current_turn=True" in body, (
             f"{method.__name__} asks for work the turn is waiting on without saying so"
         )
-    assert source.count("serves_current_turn=True") >= 4
+    # A page decision asks through those two, which say it for it.
+    decide = inspect.getsource(u._UnderstandsThePage._decide_next_actions)
+    assert "self._asked_of_her(prompt, mind, shaped=True)" in decide
+    assert "self._decide_on_the_fast_lane(" in decide
+    assert source.count("serves_current_turn=True") >= 3

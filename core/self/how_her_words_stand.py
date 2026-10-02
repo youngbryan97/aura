@@ -95,9 +95,27 @@ def where_her_words_put_her(words: str, first: str, second: str) -> float | None
 
 
 def whether_her_words_bear_it_out(words: str, statement: str) -> float | None:
-    """+1 her sentence affirms the statement, -1 it denies it, 0 it says neither."""
-    borne = _how_far_it_bears_out(words, [statement])
-    return None if borne is None else max(-1.0, min(1.0, borne[0]))
+    """+1 her sentence affirms the statement, -1 it denies it, 0 it says neither.
+
+    Held against the statement and against its own denial, both built from the
+    statement. Entailment is strict where contradiction is not: LIVE 2026-10-02
+    "I take the extra load because I value coherence" read as neither for "I
+    carry additional workload on team projects to achieve better results", the
+    specifics she did not repeat being enough to call it neutral. The same
+    sentence contradicts "It is not true that I carry ...", and that is the
+    affirmation read the way contradiction is read. On run 5's statements this
+    took clear, correct readings from 13 of 25 to 18 of 25.
+    """
+    said = " ".join(str(statement or "").split())
+    if not said:
+        return None
+    # "I" keeps its capital; any other first word is now mid-sentence.
+    keeps_its_capital = said.split(" ", 1)[0] == "I" or said.startswith("I'")
+    denied = f"It is not true that {said if keeps_its_capital else said[0].lower() + said[1:]}"
+    borne = _how_far_it_bears_out(words, [said, denied])
+    if borne is None:
+        return None
+    return max(-1.0, min(1.0, (borne[0] - borne[1]) / 2.0))
 
 
 def can_read_her_words() -> bool:

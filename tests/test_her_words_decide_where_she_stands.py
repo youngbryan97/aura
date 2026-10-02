@@ -68,7 +68,8 @@ def test_a_hedged_sentence_lands_near_the_middle(monkeypatch):
 
 
 def test_a_statement_she_affirms_goes_to_the_end_that_means_yes(monkeypatch):
-    monkeypatch.setattr(reading, "_how_far_it_bears_out", lambda words, hyps: [0.8])
+    # The statement borne out, its denial contradicted.
+    monkeypatch.setattr(reading, "_how_far_it_bears_out", lambda words, hyps: [0.8, -0.8])
     monkeypatch.setattr(
         S, "_a_statement_on_a_named_scale", staticmethod(lambda options: ("I overextend myself.", "Disagree", "Agree"))
     )
@@ -138,3 +139,17 @@ def test_she_is_not_told_the_record_s_place_when_her_words_decide(monkeypatch):
     asyncio.run(S()._her_thinking_about("take it", [item], "mind", about=item))
     assert "5 of 5" not in seen["prompt"]
     assert "procrastinates" in seen["prompt"]
+
+
+def test_a_statement_is_held_against_its_own_denial(monkeypatch):
+    asked: list[list[str]] = []
+
+    def _borne(words, hyps):
+        asked.append(list(hyps))
+        return [0.0, -0.9]  # neither entailed nor denied, but the denial is contradicted
+
+    monkeypatch.setattr(reading, "_how_far_it_bears_out", _borne)
+    assert reading.whether_her_words_bear_it_out("I take the extra load.", "I carry extra work.") == pytest.approx(0.45)
+    assert asked == [["I carry extra work.", "It is not true that I carry extra work."]]
+    reading.whether_her_words_bear_it_out("x", "When playing, I care.")
+    assert asked[-1][1] == "It is not true that when playing, I care."

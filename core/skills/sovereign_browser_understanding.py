@@ -1595,13 +1595,14 @@ class _UnderstandsThePage(_PlacesHerself):
                     # is classified background, deferred under headroom
                     # pressure and comes back empty: LIVE 2026-09-28 18:29,
                     # "empty_decision" on the index page, nothing clicked.
+                    #
+                    # Asked the way every question to her is asked, so the room
+                    # her reasoning takes is declared and bounded and the answer's
+                    # room is bought on top. Called bare, she reasoned inside the
+                    # JSON: LIVE 2026-10-02, three attempts at one Continue, each
+                    # 799 tokens into an unterminated string, 8.5 minutes in all.
+                    raw, _lane = await self._asked_of_her(prompt, mind, shaped=True)
                     answered_by = "whole_page_think"
-                    raw = self._the_text_of(await think(
-                        prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
-                        origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
-                        serves_current_turn=True,
-                        max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
-                    ))
                     if not self._decision_is_usable(raw, observation, goal):
                         answered_by = "fast_lane"
                         raw = await self._decide_on_the_fast_lane(router, prompt, mind)

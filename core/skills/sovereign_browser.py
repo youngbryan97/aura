@@ -34,6 +34,7 @@ from .sovereign_browser_understanding import (
     _UnderstandsThePage,
 )
 from .sovereign_browser_what_it_did import (
+    _go_back_to_the_last_good_page,
     every_way_on_led_back,
     names_of_the_moves,
     remember_what_was_seen,
@@ -347,33 +348,6 @@ async def _understand_the_page_again(
             str(observation.get("url") or ""), understanding, shape
         )
     return surprised, understanding
-
-
-async def _go_back_to_the_last_good_page(
-    *,
-    browser: Any,
-    last_good_url: Any,
-    observation: Any,
-    self: Any,
-) -> Any:
-    """Return to the last page that could be read when this one cannot.
-
-    Moved out of ``_handle_pursue`` by tools/extract_seam.py, which
-    checks the body against the original token for token before
-    writing. It reads 4 name(s) from the turn and hands back
-    1.
-    """
-    if (not observation or not observation.get("elements")) and last_good_url:
-        # A reload, a navigation, or a renderer that went away mid-run.
-        # The page being momentarily unreadable is not the end of the
-        # task — go back to where the work was and look again.
-        logger.info(
-            "🌐 Pursuit lost the page; returning to %s to continue.",
-            last_good_url,
-        )
-        if await self._safe_browse(browser, last_good_url):
-            observation = await browser.observe(principal="owner")
-    return observation
 
 
 def _moves_from_the_decision(

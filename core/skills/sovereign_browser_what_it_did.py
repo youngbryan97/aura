@@ -170,3 +170,39 @@ def with_what_was_seen_here(
         "(Shown on this page earlier in this run, hidden now:)\n" + "\n".join(hidden)
     )
     return shown
+
+
+async def _go_back_to_the_last_good_page(
+    *,
+    browser: Any,
+    last_good_url: Any,
+    observation: Any,
+    self: Any,
+) -> Any:
+    """Return to the last page that could be read when this one cannot.
+
+    Not reached when the page is only scrolled past its controls; see below.
+    """
+    from .sovereign_browser import logger
+
+    if (not observation or not observation.get("elements")) and last_good_url:
+        # Still on the page, scrolled past everything on it: scroll back, never
+        # reload. A reload throws away what was done there. LIVE 2026-10-02 four
+        # scrolls put her result's "more" links above the view, the page read
+        # as lost, and the reload closed the sections she had opened.
+        scrolled = int((observation or {}).get("scroll_y") or 0)
+        if scrolled > 0 and str((observation or {}).get("url") or "") == str(last_good_url):
+            if await browser.scroll(direction="up", amount=scrolled, principal="owner"):
+                again = await browser.observe(principal="owner")
+                if again and again.get("elements"):
+                    return again
+        # A reload, a navigation, or a renderer that went away mid-run.
+        # The page being momentarily unreadable is not the end of the
+        # task — go back to where the work was and look again.
+        logger.info(
+            "🌐 Pursuit lost the page; returning to %s to continue.",
+            last_good_url,
+        )
+        if await self._safe_browse(browser, last_good_url):
+            observation = await browser.observe(principal="owner")
+    return observation

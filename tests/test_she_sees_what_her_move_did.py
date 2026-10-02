@@ -228,3 +228,65 @@ def test_a_toggle_pair_costs_her_two_decisions_not_four(monkeypatch):
     skill = _skill(monkeypatch, browser, noticed, judged)
     asyncio.run(skill._handle_pursue(browser, None, "take the test", 40, said_before="INTJ"))
     assert len(noticed) == 2, f"she was asked {len(noticed)} times on a page of two states"
+
+
+class _Scrolled:
+    """A page scrolled past its controls; scrolling back up shows them again."""
+
+    def __init__(self) -> None:
+        self.scrolled: list[tuple[str, int]] = []
+
+    async def scroll(self, direction: str = "down", amount: int = 500, *, principal: str = "") -> bool:
+        self.scrolled.append((direction, amount))
+        return True
+
+    async def observe(self, **_kw: Any) -> dict[str, Any]:
+        return _page(_SHUT, ("#short", "more"))
+
+
+def test_a_page_scrolled_past_its_controls_is_scrolled_back_not_reloaded():
+    from core.skills.sovereign_browser_what_it_did import _go_back_to_the_last_good_page
+
+    browser = _Scrolled()
+    reloaded: list[str] = []
+
+    class _Skill:
+        async def _safe_browse(self, _browser, url):
+            reloaded.append(url)
+            return True
+
+    seen = asyncio.run(
+        _go_back_to_the_last_good_page(
+            browser=browser,
+            last_good_url=_URL,
+            observation={"url": _URL, "text": "Your type is INTJ.", "scroll_y": 1200, "elements": []},
+            self=_Skill(),
+        )
+    )
+    assert browser.scrolled == [("up", 1200)]
+    assert reloaded == [], "a reload would close what she opened"
+    assert seen["elements"]
+
+    # Somewhere else entirely is still a page to go back to.
+    asyncio.run(
+        _go_back_to_the_last_good_page(
+            browser=_Scrolled(),
+            last_good_url=_URL,
+            observation={"url": "https://elsewhere.test", "scroll_y": 0, "elements": []},
+            self=_Skill(),
+        )
+    )
+    assert reloaded == [_URL]
+
+
+def test_a_scroll_is_said_as_a_scroll(monkeypatch):
+    said: list[str] = []
+    skill = SovereignBrowserSkill()
+    monkeypatch.setattr(skill, "_narrate", lambda *_a, **_k: None)
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, parts=None: said.append(line))
+    decision = {
+        "why": "I need to read the rest.",
+        "actions": [{"index": 0, "type": "scroll", "value": "down"}],
+    }
+    skill._narrate_decision(decision, _page(_SHUT, ("#short", "more")), "take the test")
+    assert said and "scroll down" in said[0] and "more" not in said[0]
