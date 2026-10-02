@@ -583,10 +583,10 @@ class _PlacesHerself:
         )
 
     @staticmethod
-    def _unanswered_questions(
+    def _questions_on_the_screen(
         observation: Mapping[str, Any]
     ) -> list[tuple[str, list[Mapping[str, Any]]]]:
-        """The question groups still open, each with its own options."""
+        """Every question group on the screen, answered or not, each with its own options."""
         groups: dict[str, list[Mapping[str, Any]]] = {}
         for element in observation.get("elements") or []:
             if not isinstance(element, Mapping):
@@ -594,9 +594,16 @@ class _PlacesHerself:
             group = str(element.get("group") or "")
             if group:
                 groups.setdefault(group, []).append(element)
+        return list(groups.items())
+
+    @classmethod
+    def _unanswered_questions(
+        cls, observation: Mapping[str, Any]
+    ) -> list[tuple[str, list[Mapping[str, Any]]]]:
+        """The question groups still open, each with its own options."""
         return [
             (group, options)
-            for group, options in groups.items()
+            for group, options in cls._questions_on_the_screen(observation)
             if not any(option.get("checked") is True for option in options)
         ]
 

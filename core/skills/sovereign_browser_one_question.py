@@ -19,12 +19,19 @@ __all__ = [
     "measure_the_screen",
     "note_the_size_of_her_mind",
     "while_she_writes",
+    "SCREENS_MEASURED",
 ]
 
 #: How a pursuit running here says it is still getting somewhere, for the
 #: model calls made inside it. Set by `_handle_pursue`; None outside one.
 SAYING_IT_MOVES: ContextVar[Callable[[str], None] | None] = ContextVar(
     "aura_pursuit_says_it_moves", default=None
+)
+
+#: The screens a pursuit has measured whole, by the questions on them. Set by
+#: `_handle_pursue`; outside one nothing is kept. See `measure_the_screen`.
+SCREENS_MEASURED: ContextVar[dict[tuple[Any, ...], list[dict[str, Any]]] | None] = ContextVar(
+    "aura_pursuit_screens_measured", default=None
 )
 
 #: How long her assembled mind was the last time it was built, in characters.
@@ -222,15 +229,55 @@ async def measure_the_screen(
     skill: Any,
     questions: list[tuple[Any, list[dict[str, Any]]]],
     *,
+    among: list[tuple[Any, list[dict[str, Any]]]] | None = None,
     on_progress: Callable[[str], None] | None = None,
 ) -> list[dict[str, Any]]:
-    """Where her record puts her on each question here, with no model in it.
+    """Where her record puts her on each of ``questions``, measured among ``among``.
 
-    Placed against one another, so the strongest lean on the screen is as far
-    as she goes and the rest are in proportion. Used before she answers, and
-    before she says what she expects the instrument to conclude: a forecast
-    made from these is a forecast from her record, not a guess.
+    A question is placed against the others on its page: the strongest lean
+    there is as far as she goes, and a statement in a grid is placed by how
+    it stands beside the rest of the grid. So what it is measured among is
+    every question on the screen, answered or not. Measuring each round's
+    batch on its own gave a statement different neighbours from one round to
+    the next. LIVE 2026-10-02, "I study how to hold on to my money" read
+    +0.99 against the whole page and was answered Disagree, measured among
+    the last four statements left open.
+
+    The whole screen is measured once in a pursuit and its questions answered
+    from that, however many rounds it takes. Measured on her record, one
+    screen of thirty-two questions is 17 s.
     """
+    whole = list(among or [])
+    listed = {str(group) for group, _options in whole}
+    whole += [(group, options) for group, options in questions if str(group) not in listed]
+    screen = tuple(
+        (str(group), str((options[0] if options else {}).get("asks") or ""), len(options))
+        for group, options in whole
+    )
+    kept = SCREENS_MEASURED.get()
+    everything = kept.get(screen) if kept is not None else None
+    if everything is None:
+        from core.self.where_i_stand import one_measurement
+
+        with one_measurement():
+            everything = await _every_question_measured(skill, whole, on_progress=on_progress)
+        if kept is not None:
+            kept[screen] = everything
+    current = {str(group): options for group, options in questions}
+    return [
+        dict(item, options=current[item["group"]])
+        for item in everything
+        if item["group"] in current
+    ]
+
+
+async def _every_question_measured(
+    skill: Any,
+    questions: list[tuple[Any, list[dict[str, Any]]]],
+    *,
+    on_progress: Callable[[str], None] | None = None,
+) -> list[dict[str, Any]]:
+    """Every question placed from her record, against the others; see `measure_the_screen`."""
     asked_now = list(questions)
     # A grid of statements is measured as a grid, because that is what it is.
     #

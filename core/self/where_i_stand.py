@@ -23,9 +23,11 @@ from the page and the record comes from her.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import math
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -40,6 +42,7 @@ __all__ = [
     "Piece",
     "her_record",
     "how_much_it_is_her",
+    "one_measurement",
     "against_the_rest",
     "themes_among",
     "where_she_stands",
@@ -227,6 +230,39 @@ def her_record() -> list[Piece]:
     return pieces
 
 
+#: The vectors already worked out in the measurement under way, by their words.
+#:
+#: Every question on a screen is asked of the same twenty pieces of her record,
+#: and each one embedded all twenty again: thirty-two questions were 704
+#: embeddings where 84 were distinct, and measured on 2 Oct they took 110 s. A
+#: batch of eight cost her about half a minute of every round. Scoped to one
+#: measurement, so it holds one screen's words and is gone when that is done.
+_VECTORS: ContextVar[dict[str, Any] | None] = ContextVar("where_i_stand_vectors", default=None)
+
+
+class _Remembering:
+    """An embedder that works each text out once in the measurement under way."""
+
+    def __init__(self, embedder: Any, held: dict[str, Any]) -> None:
+        self._embedder = embedder
+        self._held = held
+
+    def embed(self, text: str) -> Any:
+        if text not in self._held:
+            self._held[text] = self._embedder.embed(text)
+        return self._held[text]
+
+
+@contextlib.contextmanager
+def one_measurement() -> Iterator[None]:
+    """Measure everything inside this with each text embedded only once."""
+    token = _VECTORS.set({})
+    try:
+        yield
+    finally:
+        _VECTORS.reset(token)
+
+
 def _embedder() -> Any:
     """The organ that turns words into something comparable.
 
@@ -236,6 +272,13 @@ def _embedder() -> Any:
     shared embedding engine is acquired directly rather than doing without,
     because without it there is no measurement at all.
     """
+    found = _the_embedder()
+    held = _VECTORS.get()
+    return _Remembering(found, held) if found is not None and held is not None else found
+
+
+def _the_embedder() -> Any:
+    """The shared embedder itself; see `_embedder`."""
     engine = optional_service("vector_memory_engine", "vector_memory", default=None)
     held = getattr(engine, "embedder", None)
     if hasattr(held, "embed"):

@@ -282,7 +282,9 @@ def test_she_places_herself_before_she_thinks_about_it():
     measured = body.index("measure_the_screen")
     reasoned = body.index("_thinking_for_one_answer")
     assert measured < reasoned
-    assert "_measure_where_she_stands" in inspect.getsource(u.measure_the_screen)
+    from core.skills import sovereign_browser_one_question as one
+
+    assert "_measure_where_she_stands" in inspect.getsource(one._every_question_measured)
     thinking = inspect.getsource(u._thinking_for_one_answer)
     assert "_her_thinking_about" in thinking
 

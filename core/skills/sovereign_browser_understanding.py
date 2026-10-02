@@ -22,6 +22,7 @@ from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
 from .sovereign_browser_one_question import (  # noqa: F401  (re-exported: the pursuit and tests read them here)
     SAYING_IT_MOVES,
+    SCREENS_MEASURED,
     _room_for_page_text,
     _the_question_and_the_answer,
     _thinking_for_one_answer,
@@ -1249,7 +1250,10 @@ class _UnderstandsThePage(_PlacesHerself):
         # one at a time, and it is also the honest order: the position comes
         # from her record, and the thinking is about what the position means.
         measured = await measure_the_screen(
-            self, open_questions[: self.PURSUE_PARALLEL_ITEMS], on_progress=on_progress
+            self,
+            open_questions[: self.PURSUE_PARALLEL_ITEMS],
+            among=self._questions_on_the_screen(observation),
+            on_progress=on_progress,
         )
         if measured:
             # Her whole mind, the same assembly a conversation uses, because

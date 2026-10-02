@@ -52,7 +52,7 @@ class _Browser:
 def _skill_with(decisions, executed):
     skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
 
-    async def _decide(goal, observation, history, understanding=None, *, said_before=""):
+    async def _decide(goal, observation, history, understanding=None, *, said_before="", noticed=""):
         return decisions.pop(0) if decisions else {"done": True, "actions": []}
 
     async def _understand(goal, observation, prior, mind, recalled=""):

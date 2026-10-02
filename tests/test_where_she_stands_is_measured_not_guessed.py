@@ -249,8 +249,10 @@ def test_a_page_with_nothing_measured_places_nothing():
 def test_the_live_path_places_them_together():
     import inspect
 
+    from core.skills import sovereign_browser_one_question as one
     from core.skills import sovereign_browser_understanding as u
 
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
-    assert "against_the_rest" in inspect.getsource(u.measure_the_screen)
+    assert "against_the_rest" in inspect.getsource(one._every_question_measured)
+    assert "_every_question_measured" in inspect.getsource(one.measure_the_screen)
     assert body.index("measure_the_screen") < body.index("_thinking_for_one_answer")
