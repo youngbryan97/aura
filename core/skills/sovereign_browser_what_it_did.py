@@ -127,6 +127,20 @@ def every_way_on_led_back(observation: Mapping[str, Any], went_nowhere: set[str]
     )
 
 
+def the_ones_tried_here(tried_from: set[tuple[str, str]], signature: str) -> set[str]:
+    """The controls already used from this exact page state.
+
+    A page answers the same press the same way, so pressing one again from a
+    state it was pressed in can only lead where it led before. LIVE 2026-10-02:
+    with her scores open she pressed "less", was back on the closed page, and
+    pressed "more" again from there; the opened page was one she had already
+    read, and the round, two and a half minutes of her model, showed her
+    nothing new. Retiring a control only once it led back took four rounds to
+    close a pair that two rounds had already explored.
+    """
+    return {selector for state, selector in tried_from if state == signature}
+
+
 def remember_what_was_seen(seen: dict[str, list[str]], observation: Mapping[str, Any]) -> None:
     """Keep every line of text each page has shown in this run."""
     url = str(observation.get("url") or "")

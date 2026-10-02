@@ -168,3 +168,17 @@ def test_a_pair_is_a_choice_and_gets_no_positions():
         ],
     }
     assert "position 1 of 2" not in S._render_observation(observation, "take it")
+
+
+def test_a_side_that_carries_quote_marks_is_kept_whole():
+    """LIVE 2026-10-02: 'likes to know "who?", "what?", "when?"' was cut at its first quote."""
+    left = 'likes to know "who?", "what?", "when?"'
+    options = _row(left=left, right='likes to know "why?"')
+    assert S._the_two_sides(options) == (left, 'likes to know "why?"')
+    said = S._an_answer_in_words(options, 4, "")
+    assert 'nearer "likes to know "why?"" than' in said
+
+
+def test_labelled_options_have_no_two_sides():
+    assert S._the_two_sides(_row(count=3, labels=["agree", "neutral", "disagree"])) is None
+    assert S._the_two_sides(_row(count=3, right="")) is None

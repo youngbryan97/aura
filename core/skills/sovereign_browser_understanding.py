@@ -1186,8 +1186,7 @@ class _UnderstandsThePage(_PlacesHerself):
         # the words the page puts on either side are what it is between. What
         # the position MEANS is hers, and it is in the reason she gives.
         if not labelled:
-            laid_out = cls._how_the_options_are_laid_out(options)
-            between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+            between = cls._the_two_sides(options)
             ends = cls._the_ends_the_page_names(options)
             if between:
                 # And which end it is nearer, which "between" alone does not
@@ -1195,7 +1194,7 @@ class _UnderstandsThePage(_PlacesHerself):
                 # 'relies on memory'", and her reason began "That's the list
                 # side" — the dot was a step from the other end, and neither
                 # she nor anyone watching could tell from the words.
-                first, second = between.group(1), between.group(2)
+                first, second = between
                 middle = (len(options) - 1) / 2.0
                 if index < middle:
                     picked = f'{picked}, nearer "{first}" than "{second}"'

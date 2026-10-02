@@ -207,7 +207,24 @@ def test_a_toggle_pair_ends_the_run_and_she_saw_each_press(monkeypatch):
     assert len(noticed) < 8, f"the pair ran {len(noticed)} rounds"
     assert noticed[0] == "", "nothing was done before the first round"
     assert f"+ {_OPEN}" in noticed[1], "she was not shown what pressing it opened"
-    assert f"+ {_SHUT}" in noticed[2]
     assert any(step.get("error") == "no_progress" for step in result["steps"])
     # And the verdict read the opened lines, whichever state the run ended in.
     assert judged and _OPEN in judged[0]
+
+
+def test_a_control_already_pressed_from_this_state_is_spent_here_only():
+    from core.skills.sovereign_browser_what_it_did import the_ones_tried_here
+
+    tried = {("shut", "#short"), ("open", "#long")}
+    assert the_ones_tried_here(tried, "shut") == {"#short"}
+    assert the_ones_tried_here(tried, "elsewhere") == set()
+
+
+def test_a_toggle_pair_costs_her_two_decisions_not_four(monkeypatch):
+    """Open, close: both ways explored. The closed page offers nothing untried."""
+    browser = _Toggle()
+    noticed: list[str] = []
+    judged: list[str] = []
+    skill = _skill(monkeypatch, browser, noticed, judged)
+    asyncio.run(skill._handle_pursue(browser, None, "take the test", 40, said_before="INTJ"))
+    assert len(noticed) == 2, f"she was asked {len(noticed)} times on a page of two states"

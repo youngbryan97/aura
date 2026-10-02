@@ -37,6 +37,7 @@ from .sovereign_browser_what_it_did import (
     every_way_on_led_back,
     names_of_the_moves,
     remember_what_was_seen,
+    the_ones_tried_here,
     what_the_move_did,
     with_what_was_seen_here,
 )
@@ -1551,6 +1552,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         before_move: Mapping[str, Any] = {}
         last_done: list[str] = []
         seen_here: dict[str, list[str]] = {}
+        tried_from: set[tuple[str, str]] = set()
         observation: dict[str, Any] = {}
         completed = False
 
@@ -1647,10 +1649,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     expected=str((steps[-1] if steps else {}).get("expected") or ""),
                 )
                 last_done = []
-                exhausted = every_way_on_led_back(observation, went_nowhere)
-                observation = self._without_the_moves_that_go_nowhere(
-                    observation, went_nowhere
-                )
+                spent = went_nowhere | the_ones_tried_here(tried_from, signature)
+                exhausted = every_way_on_led_back(observation, spent)
+                observation = self._without_the_moves_that_go_nowhere(observation, spent)
                 if signature == last_signature or exhausted:
                     stalled += 1
                     if stalled >= self.PURSUE_STALL_LIMIT:
@@ -1662,6 +1663,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 current_url = str(observation.get("url") or "")
                 if current_url:
                     last_good_url = current_url
+                if exhausted:
+                    continue  # nothing here is untried: look again, do not ask
 
                 # Form the understanding on arrival, and revise it when the page
                 # surprises her — not every round. A person does not re-derive what
@@ -1820,6 +1823,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     if getattr(action, "selector", "")
                 ]
                 before_move, last_done = observation, names_of_the_moves(moves, elements)
+                tried_from.update((signature, selector) for selector in last_moves)
                 planned = [action for action, _said in moves]
                 asked = str(observation.get("text") or "").strip().splitlines()
                 _record_the_round(

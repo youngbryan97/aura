@@ -49,19 +49,8 @@ class _PlacesHerself:
             if roles & {"checkbox", "switch"}
             else "one may be chosen"
         )
-        asks = str(options[0].get("asks") or "")
-        # Every control in one unbroken run is what makes a dimension: the page
-        # puts words on either side of the whole set. Controls separated by
-        # their own words are not that shape — they are a statement with
-        # labelled answers, and reading the first bracket run as one end of a
-        # dimension turned "I make plans well in advance. strongly disagree [1]
-        # disagree [2] ..." into a scale between the statement and its own
-        # second option.
-        runs = list(re.finditer(r"(?:\s*\[[^\]]*\])+", asks)) if asks else []
+        runs, left, right = cls._the_words_around_the_run(options)
         if len(runs) == 1:
-            run = runs[0]
-            left = " ".join(asks[: run.start()].split()).strip()
-            right = " ".join(asks[run.end() :].split()).strip()
             ends = cls._the_ends_the_page_names(options)
             if left and right:
                 facts.append(f"laid out between \"{left}\" and \"{right}\"")
@@ -82,6 +71,49 @@ class _PlacesHerself:
         elif runs:
             facts.append("each set out beside its own words")
         return ", ".join(facts)
+
+    @staticmethod
+    def _the_words_around_the_run(
+        options: list[Mapping[str, Any]],
+    ) -> tuple[list[Any], str, str]:
+        """The runs of controls in a question's words, and the words either side of a lone run.
+
+        Every control in one unbroken run is what makes a dimension: the page
+        puts words on either side of the whole set. Controls separated by their
+        own words are not that shape — they are a statement with labelled
+        answers, and reading the first bracket run as one end of a dimension
+        turned "I make plans well in advance. strongly disagree [1] disagree
+        [2] ..." into a scale between the statement and its own second option.
+        """
+        asks = str((options[0] if options else {}).get("asks") or "")
+        runs = list(re.finditer(r"(?:\s*\[[^\]]*\])+", asks)) if asks else []
+        if len(runs) != 1:
+            return runs, "", ""
+        run = runs[0]
+        return (
+            runs,
+            " ".join(asks[: run.start()].split()).strip(),
+            " ".join(asks[run.end() :].split()).strip(),
+        )
+
+    @classmethod
+    def _the_two_sides(
+        cls, options: list[Mapping[str, Any]]
+    ) -> tuple[str, str] | None:
+        """The words on either side of a run of unlabelled controls, as they are.
+
+        Read back out of the layout sentence, a side that carried its own quote
+        marks was cut at the first one: LIVE 2026-10-02, 'likes to know "who?",
+        "what?", "when?"' came back as 'likes to know ', and the question was
+        measured, and said, between the wrong two things.
+        """
+        named = {str(option.get("name") or "").strip() for option in options}
+        named.discard("")
+        group = str(options[0].get("group") or "") if options else ""
+        if len(options) < 2 or (len(named) == len(options) and named != {group}):
+            return None
+        _runs, left, right = cls._the_words_around_the_run(options)
+        return (left, right) if left and right else None
 
     @staticmethod
     def _the_ends_the_page_names(
@@ -201,10 +233,9 @@ class _PlacesHerself:
         except ImportError as exc:
             record_degradation("sovereign_browser.where_i_stand", exc, severity="debug")
             return None
-        laid_out = self._how_the_options_are_laid_out(options)
-        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+        between = self._the_two_sides(options)
         if between is not None:
-            first, second = between.group(1), between.group(2)
+            first, second = between
             lean = where_she_stands(first, second)
             index = lean.position_in(len(options))
             if index is None:
@@ -524,11 +555,10 @@ class _PlacesHerself:
         group = str(options[0].get("group") or "") if options else ""
         if len(named) == len(options) and named != {group}:
             return ""
-        laid_out = cls._how_the_options_are_laid_out(options)
-        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+        between = cls._the_two_sides(options)
         if between is None or not str(why or "").strip():
             return ""
-        left, right = between.group(1), between.group(2)
+        left, right = between
         said = cls._words_of(why)
         toward_left = len(said & cls._words_of(left))
         toward_right = len(said & cls._words_of(right))
