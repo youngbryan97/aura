@@ -165,7 +165,7 @@ def test_her_reply_is_said_before_a_page_is_worked_and_not_before_other_work(mon
     from interface.routes.chat_desktop_objective import _say_before_working_a_page
 
     said: list[str] = []
-    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(said.append))
+    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(lambda line, *_a, **_k: said.append(line)))
     _say_before_working_a_page("Take the personality test on openpsychometrics.org", SAID)
     assert said == [SAID]
     said.clear()

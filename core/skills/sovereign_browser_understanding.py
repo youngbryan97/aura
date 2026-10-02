@@ -1169,6 +1169,15 @@ class _UnderstandsThePage(_PlacesHerself):
         why = " ".join(why.split())
         return f"{said}. {why}" if why else said
 
+    @classmethod
+    def _the_question_and_the_answer(
+        cls, options: list[Mapping[str, Any]], index: int
+    ) -> tuple[str, str]:
+        """The question and the answer, apart: the two halves of `_an_answer_in_words`."""
+        joined = cls._an_answer_in_words(options, index, "")
+        question, _dash, picked = joined.rpartition(" \u2014 ")
+        return (question, picked) if question else ("", joined)
+
     def _thinking_for_one_answer(
         self,
         goal: str,
@@ -1231,6 +1240,7 @@ class _UnderstandsThePage(_PlacesHerself):
                 else ""
             )
             words = self._an_answer_in_words(options, index, why)
+            asks, picked = self._the_question_and_the_answer(options, index)
             resolved["said"] = words
             resolved["why"] = why
             resolved["because"] = list(lean.because)
@@ -1246,7 +1256,7 @@ class _UnderstandsThePage(_PlacesHerself):
             )[:400]
             if on_progress is not None:
                 on_progress("a question thought about")
-            return words
+            return words, {"asks": asks, "chose": picked, "said": " ".join(why.split())}
 
         return _think
 

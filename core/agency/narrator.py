@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -241,8 +242,13 @@ class Narrator:
         self.say_everywhere(line)
 
     @staticmethod
-    def say_everywhere(line: str) -> None:
+    def say_everywhere(line: str, parts: Mapping[str, Any] | None = None) -> None:
         """Put one line on every surface a person might be watching.
+
+        ``parts`` are the same line taken apart — what was asked, what she
+        chose, what she said, what she does next, a label — so the chat can lay
+        it out rather than show one run-on string. The line itself still goes
+        everywhere, whole, for every surface that only reads text.
 
         The bubble and the conversation are two views of the same her, and a
         commentary that only reaches one of them is invisible to whoever is
@@ -275,7 +281,15 @@ class Narrator:
                     # can arrive over two channels — but a commentary is a
                     # stream of events, and pressing the same key twice is
                     # two things that happened, not one thing said twice.
-                    "metadata": {"autonomic": True, "narration": True},
+                    "metadata": {
+                        "autonomic": True,
+                        "narration": True,
+                        **(
+                            {"narrated": {k: str(v) for k, v in parts.items() if v}}
+                            if parts
+                            else {}
+                        ),
+                    },
                 }
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

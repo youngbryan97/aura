@@ -7906,3 +7906,61 @@ body.theme-light .skill-card::before {
         to { opacity: 1; transform: translate(-50%, 0); }
     }
 }
+
+
+/* ── A line of commentary she was asked to give ─────────────────
+ * The question she is answering sits above, quiet; where she put herself is
+ * a chip; her reasons are the body, at reading size; what she does next is a
+ * small footer. See narrationCardHtml in aura.js. */
+.msg.aura.narration .msg-content {
+    padding-top: 10px;
+}
+
+.narration-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.narration-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--accent, #00e5ff);
+    opacity: 0.8;
+}
+
+.narration-asks {
+    font-size: 0.78rem;
+    color: var(--text-dim, #8e86a4);
+    letter-spacing: 0.2px;
+    line-height: 1.35;
+}
+
+.narration-chose {
+    align-self: flex-start;
+    font-size: 0.76rem;
+    padding: 2px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border-glow, #6e2fd140);
+    color: var(--accent, #00e5ff);
+    background: rgba(0, 229, 255, 0.06);
+    line-height: 1.5;
+}
+
+.narration-said {
+    color: var(--text, #d8d4e8);
+    line-height: 1.55;
+}
+
+.narration-doing {
+    font-size: 0.74rem;
+    color: var(--text-dim, #8e86a4);
+    opacity: 0.85;
+}
+
+.narration-arrow {
+    color: var(--accent, #00e5ff);
+    margin-right: 2px;
+}

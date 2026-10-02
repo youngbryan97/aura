@@ -70,7 +70,7 @@ def _transcript(monkeypatch) -> tuple[SovereignBrowserSkill, list[str]]:
     monkeypatch.setattr(skill, "_asks_about_the_one_answering", lambda *_a: False)
     monkeypatch.setattr(skill, "_narrate", lambda *_a, **_k: None)
     monkeypatch.setattr(skill, "_narrate_decision", lambda *_a, **_k: "")
-    monkeypatch.setattr(skill, "_say_out_loud", lambda line: seen.append(f"say {line}"))
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, *_a, **_k: seen.append(f"say {line}"))
     monkeypatch.setattr(skill, "_hold_for_reading", _held)
     monkeypatch.setattr(skill, "_remember_the_place", lambda *_a, **_k: None)
     monkeypatch.setattr(skill, "_recall_about", lambda *_a, **_k: "")

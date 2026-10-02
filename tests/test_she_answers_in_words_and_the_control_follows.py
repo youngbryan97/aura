@@ -138,7 +138,7 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     handed["spoken"] = []
     monkeypatch.setattr(skill, "_asked_of_her", _asked)
     monkeypatch.setattr(skill, "_assembled_mind", _mind)
-    monkeypatch.setattr(skill, "_say_out_loud", lambda line: handed["spoken"].append(str(line)))
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, *_a, **_k: handed["spoken"].append(str(line)))
 
     async def _held(_said: str) -> None:
         return None
@@ -199,7 +199,7 @@ def test_each_question_is_thought_about_said_answered_and_left_up_in_turn(monkey
     monkeypatch.setattr(skill, "_asked_of_her", _asked)
     monkeypatch.setattr(skill, "_handle_interact", _interact)
     monkeypatch.setattr(skill, "_hold_for_reading", _held)
-    monkeypatch.setattr(skill, "_say_out_loud", lambda line: happened.append(f"say {line}"))
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line, *_a, **_k: happened.append(f"say {line}"))
     elements = _row("Q1") + _row("Q2", left="sceptical", right="wants to believe")
 
     async def _go():

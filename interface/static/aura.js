@@ -1293,8 +1293,38 @@ function replyConfidenceBadgeHtml(confidence) {
 function messageBadgeHtml(metadata = {}) {
     if (metadata.diagnostic) return '<span class="aura-badge diagnostic">Diagnostic</span>';
     if (metadata.reflex) return '<span class="aura-badge reflex">Reflex</span>';
+    // A commentary the person asked for is not something she did unprompted,
+    // and "AUTONOMIC" over every line of it read as though it were.
+    if (metadata.narration) return '';
     if (metadata.autonomic) return '<span class="aura-badge autonomic">Autonomic</span>';
     return replyConfidenceBadgeHtml(metadata.responseConfidence);
+}
+
+// One line of a commentary, laid out by its parts rather than as one string.
+//
+// A narrated answer arrived as "makes lists … relies on memory — 4 of 5,
+// nearer … than …. I audit my own state…": the question, her place on it and
+// her reasons run together in one paragraph, and a decision ended on "I am
+// going to Start." (1 Oct, "a little ugly when they come in"). The parts come
+// with the line; the question sits above, what she chose is a chip, her words
+// are the body, and what she does next is a quiet footer.
+function narrationCardHtml(parts, fallbackText, render) {
+    const label = parts.label
+        ? `<div class="narration-label">${escHtml(String(parts.label))}</div>` : '';
+    const asks = parts.asks
+        ? `<div class="narration-asks">${escHtml(String(parts.asks))}</div>` : '';
+    const chose = parts.chose
+        ? `<div class="narration-chose">${escHtml(String(parts.chose))}</div>` : '';
+    const words = String(parts.said || fallbackText || '').trim();
+    const said = words ? `<div class="narration-said">${render(words)}</div>` : '';
+    const doing = parts.doing
+        ? `<div class="narration-doing"><span class="narration-arrow">→</span> ${escHtml(String(parts.doing))}</div>` : '';
+    return `<div class="narration-card">${label}${asks}${chose}${said}${doing}</div>`;
+}
+
+function narrationPartsOf(metadata = {}) {
+    const parts = metadata && metadata.narrated;
+    return parts && typeof parts === 'object' ? parts : null;
 }
 
 const VISIBLE_CHAT_EXCHANGES = 100;
@@ -6317,9 +6347,12 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
 
     // The whole reply, rendered at once. The typewriter below is decoration on
     // top of this — it must never be the only path that can produce the text.
+    const narrated = isAura ? narrationPartsOf(metadata) : null;
+    if (narrated) div.classList.add('narration');
     const renderFinal = () => {
         if (isAura) {
-            div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + `<div class="msg-content">` + render(text) + thoughtHtml + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
+            const body = narrated ? narrationCardHtml(narrated, text, render) : render(text);
+            div.innerHTML = `<div class="aura-avatar"></div>` + badgeHtml + `<div class="msg-content">` + body + thoughtHtml + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         } else {
             div.innerHTML = `<div class="msg-content">` + render(text) + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         }
@@ -6329,6 +6362,9 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
 
     const canTypewriterRender = (
         isAura
+        // A card is laid out by its parts; typing out the joined string first
+        // and then swapping in the card is the flicker it exists to remove.
+        && !narrated
         && text.length > 5
         && !isHtml
         && !metadata.historyTurnId

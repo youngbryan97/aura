@@ -535,10 +535,14 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         errors: list[str] = []
         any_ok = False
         for action, said in moves:
+            parts: Mapping[str, Any] | None = None
             if callable(said):
-                said = str(await said() or "")
+                said = await said()
+            if isinstance(said, tuple):
+                said, parts = said
+            said = str(said or "")
             if said:
-                self._say_out_loud(said)
+                self._say_out_loud(said, parts)
             report = await self._handle_interact(
                 browser, None, [action], action_context=action_context
             )
@@ -612,7 +616,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             await asyncio.sleep(pause)
 
     @staticmethod
-    def _say_out_loud(line: str) -> None:
+    def _say_out_loud(line: str, parts: Mapping[str, Any] | None = None) -> None:
         """One line where a person watching her can hear it, as her play is said.
 
         Bounded by what a watcher can read, which is the same policy that decides
@@ -627,10 +631,13 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         said = as_much_as_can_be_read(line)
         if not said:
             return
+        laid_out = dict(parts or {})
+        if laid_out.get("said"):
+            laid_out["said"] = as_much_as_can_be_read(str(laid_out["said"]))
         try:
             from core.agency.narrator import Narrator
 
-            Narrator.say_everywhere(said)
+            Narrator.say_everywhere(said, parts=laid_out or None)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("sovereign_browser", exc, severity="info", action="answered without saying so")
 
@@ -1682,7 +1689,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         # one, which reads as though it appeared from nowhere.
                         read_it = read_it or said_before
                         if read_it:
-                            self._say_out_loud(read_it)
+                            self._say_out_loud(
+                                read_it, {"label": "What I expect", "said": read_it}
+                            )
                             await self._hold_for_reading(read_it)
                     decision = await self._answer_each_question(
                         goal, observation, steps, understanding, on_progress=still_going
@@ -1859,7 +1868,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 goal, said_before, final or observation, mind
             )
             if concluded:
-                self._say_out_loud(concluded)
+                self._say_out_loud(
+                    concluded, {"label": "What it said, and what I make of it", "said": concluded}
+                )
                 await self._hold_for_reading(concluded)
 
         _seam_early_response = _account_of_the_pursuit(

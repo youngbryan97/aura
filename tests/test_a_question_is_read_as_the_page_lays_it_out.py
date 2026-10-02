@@ -177,7 +177,7 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
     from core.agency.narrator import Narrator
 
     said: list[str] = []
-    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(said.append))
+    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(lambda line, *_a, **_k: said.append(line)))
 
     skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
 
