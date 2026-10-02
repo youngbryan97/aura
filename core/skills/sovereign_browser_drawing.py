@@ -16,7 +16,6 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
-
 #: The selector the observer gives what a page draws. Not a CSS selector: a move
 #: on it is a hand-over, never a click.
 DRAWING = "::drawing"
