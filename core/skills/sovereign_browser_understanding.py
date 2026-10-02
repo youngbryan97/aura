@@ -1580,23 +1580,31 @@ class _UnderstandsThePage(_PlacesHerself):
                             "error": f"not_her_own_reasoning:{answered_by or 'unattributed'}"
                         }
                 else:
-                    answered_by = "fast_lane"
-                    raw = await self._decide_on_the_fast_lane(router, prompt, mind)
+                    # Her own cortex first, now that it is no slower.
+                    #
+                    # The small lane was taken for speed when every item of a
+                    # form went through here. Items have their own path now,
+                    # and a whole-page decision is a handful a run. LIVE
+                    # 2026-10-02 the small lane took 30 to 100 s each on an
+                    # 11k-token page and decided the result page wrongly: "I'm
+                    # clicking all four 'more' buttons to expand", pressing
+                    # the four "less". What the page asks of her and how she
+                    # moves through it are one mind's decisions.
+                    #
+                    # The turn is waiting on this one too. Without saying so it
+                    # is classified background, deferred under headroom
+                    # pressure and comes back empty: LIVE 2026-09-28 18:29,
+                    # "empty_decision" on the index page, nothing clicked.
+                    answered_by = "whole_page_think"
+                    raw = self._the_text_of(await think(
+                        prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
+                        origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
+                        serves_current_turn=True,
+                        max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
+                    ))
                     if not self._decision_is_usable(raw, observation, goal):
-                        answered_by = "whole_page_think"
-                        # The turn is waiting on this one too. Without saying
-                        # so it is classified background, deferred under
-                        # headroom pressure and comes back empty: LIVE
-                        # 2026-09-28 18:29, "Decision by the mechanics lane on
-                        # fast_lane: empty_decision" on the index page, nothing
-                        # clicked. The claim is checked against whether a user
-                        # turn is actually in flight.
-                        raw = self._the_text_of(await think(
-                            prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
-                            origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
-                            serves_current_turn=True,
-                            max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
-                        ))
+                        answered_by = "fast_lane"
+                        raw = await self._decide_on_the_fast_lane(router, prompt, mind)
             elif asks_about_her:
                 # Nothing left that could answer AS her. A bare call would
                 # produce something, and what it produces is a stand-in's
