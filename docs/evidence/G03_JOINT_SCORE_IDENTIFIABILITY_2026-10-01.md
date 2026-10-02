@@ -123,3 +123,32 @@ Supervisor 15245 owns child 15248 under a 2,400-second outer bound. No fitting
 stage is repeated. Results belong under
 `semantic-grounded-joint-development-conditional-v3-20261001`.
 G03 remains open pending its acceptance evidence.
+
+## Complete Paired Screen
+
+The twenty-one-request screen completed in 370.245350 seconds. Source parent
+was 19 exact and 20 structurally equivalent; the global chart was 20 exact
+and 21 equivalent. The trained joint path was 19 exact and 20 equivalent.
+It gained one equivalent interpretation over the source parent but lost one
+correct interpretation from each comparison arm. The sole miss was source
+`004d8671268bab2c04320a3fcc1ee2876b130a552a5a7be0588dc4f9ac2ce26b`:
+`grounded_chart_bridge_budget_exhausted` at 30.031021 seconds after eight
+completed charts. All twenty completed joint interpretations were correct.
+Joint decoding examined 307 charts across the cohort and took 258.318 seconds.
+
+The gained source was already correct in the global-chart arm. These results
+do not isolate a gain caused by the trained adapter or pointer. They show
+that the corrected joint integration preserves the global arm's meanings
+where it completes, while execution still loses one correct case.
+
+The report receipt is
+`8fa252e2f4471f47f8a4b08bdff82f996eb039eb966c1e6a87d393d66bcfd645`,
+with evaluation plan
+`7f8bd09480d06dc0536765cd14eaf4320164f3445adb485b35b9ddca78f564d4`.
+Independent artifact verification returned
+`7f886656e78ad3036cf1d82c583ac315f04dd732f2bc5a7d854db223d0f893a7`.
+Terminal receipt
+`03d392885500d6e7f3687104e5bd02e5069683cc0435ae49ca893cee66214bac`
+records return two, no timeout of the outer supervisor, verified containment,
+empty process group and empty lineage. Supervisor 15245, child 15248 and
+inhibitor 15251 were gone. Development advancement was correctly denied.

@@ -1474,6 +1474,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Selected-edge execution](evidence/G03_SELECTED_EDGE_EXECUTION_2026-10-01.md)
+  preserves all fitted graph messages and every scored alternative while
+  avoiding unrequested final edge outputs. 115 focused checks and standard
+  gates pass; the remaining timeout's real replay is pending.
   [Joint score identifiability](evidence/G03_JOINT_SCORE_IDENTIFIABILITY_2026-10-01.md)
   records a completed but wrong sixteen-chart replay: positive absolute
   pointer offsets rewarded an unnecessary operation. A declared conditional
@@ -1481,8 +1485,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   fitting, target information or lost alternatives. Corrected real replay
   returned the intended program with all sixteen charts in 28.725182 seconds;
   independent artifact verification passed. The unchanged weights and policy
-  are now running the full twenty-one-request paired development screen from
-  frozen `198696ceb`. One exposed canary does not prove development gain.
+  completed the full twenty-one-request paired development screen from
+  frozen `198696ceb`: parent 20 equivalent, global chart 21, joint 20 with
+  one execution timeout and no wrong completed interpretation. Independent
+  verification confirms the negative result; one paired regression blocks
+  advancement. The gain over the parent was already present in the global
+  arm, so this result does not isolate learned adapter/pointer gain.
   The batched real canary completed eleven charts but still timed out.
   [Execution version two](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
   factors unchanged independent projections and certifies redundant mention

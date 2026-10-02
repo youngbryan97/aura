@@ -1,8 +1,8 @@
 """Factor unchanged pointer projections and certify dominated mention removal."""
 
+import math
 from collections import defaultdict
 from dataclasses import replace
-import math
 
 import mlx.core as mx
 
@@ -89,6 +89,40 @@ class ObservationEncoder:
             for index, (identity, value) in enumerate(missing.items()):
                 self.cache[kind, identity] = (value, encoded[index])
         return mx.stack([self.cache[kind, id(value)][1] for value in values])[:, None, :]
+
+    def selected_scores(self, operations, mentions, candidates, *, rows, columns,
+                        adjacency, role_features):
+        """Read one edge per independent workspace after every graph update.
+
+        Only the final pointwise relation features are gathered early. Every
+        role and candidate still participates in the original message rounds.
+        Those features do not feed another round or affect any other edge.
+        Observations have already passed the original depth and matrix maps.
+        """
+        import mlx.nn as nn
+
+        owner = self.pointer
+        operation, mention, candidate = operations[:, :, 0, :], mentions[:, :, 0, :], candidates[:, :, 0, :]
+        role_count = operation.shape[1]
+        role_query = role_features @ owner.lora_role_query if owner.role_queries else None
+        nodes = mx.concatenate([operation + mention + (0. if role_query is None else role_query), candidate], axis=1)
+        if adjacency is not None:
+            degree = mx.sum(adjacency.astype(mx.float32), axis=-1, keepdims=True)
+            weights = adjacency.astype(mx.float32) / mx.maximum(degree, 1.)
+            for _ in range(owner.rounds):
+                message = weights @ (nodes @ owner.lora_message)
+                update = mx.tanh(mx.concatenate([nodes, message], axis=-1) @ owner.lora_update)
+                nodes = nodes + mx.where(degree > 0, update, 0.)
+        index = mx.arange(operation.shape[0])
+        o, m = operation[index, rows], mention[index, rows]
+        c, contextual = nodes[index, role_count + columns], nodes[index, rows]
+        if role_query is None:
+            blocks = [o, m, c, o * m, o * c, m * c, o * m * c, contextual - c]
+        else:
+            r = role_query[rows]
+            blocks = [o, r, m, c, o * r, o * m, o * c, r * m, r * c, m * c,
+                o * r * m, o * r * c, o * m * c, r * m * c, o * r * m * c, contextual - c]
+        return (nn.silu(mx.concatenate(blocks, axis=-1)) @ owner.lora_b).squeeze(-1)
 
 
 def reduce_dominated_mentions(chart, *, remaining=None):

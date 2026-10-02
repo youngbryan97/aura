@@ -86,6 +86,56 @@ def test_batched_pointer_rejects_inadmissible_and_nonfinite_conditions():
         conditioned_scores(pointer, evidence, [(0, 0, mx.zeros((1, 4)), None)], batch_size=0)
 
 
+@pytest.mark.parametrize("rounds", [0, 2, 4])
+@pytest.mark.parametrize("role_queries", [False, True])
+@pytest.mark.parametrize("graph", ["absent", "dense", "sparse", "isolated"])
+def test_selected_edge_readout_matches_original_full_pointer_for_mixed_roles(rounds, role_queries, graph):
+    from core.learning.semantic_context_binding import BindingContext, BindingRole, ContextReferent
+    from core.learning.semantic_grounded_binding_engine import GroundedBindingEvidence
+
+    mx.random.seed(145)
+    records = tuple(ContextReferent("public", str(index), "Number", "observed") for index in range(4))
+    context = BindingContext(records, {"Number": None})
+    roles = tuple(BindingRole(str(index), name, "Number")
+        for index, name in enumerate(("value", "minuend", "subtrahend")))
+    operations = {role.identity: mx.random.normal((3, 4)) for role in roles}
+    mentions = {role.identity: mx.random.normal((3, 4)) for role in roles}
+    candidates = {record.key: mx.random.normal((3, 4)) for record in records}
+    adjacency = None
+    if graph != "absent":
+        adjacency = mx.ones((7, 7))
+        if graph == "sparse":
+            adjacency = mx.eye(7) + mx.roll(mx.eye(7), 1, axis=1)
+        elif graph == "isolated":
+            adjacency[2] = 0.
+            adjacency[5] = 0.
+    evidence = GroundedBindingEvidence("public", context, roles, operations, mentions, candidates, adjacency)
+    pointer = RelationalBindingPointer(4, depths=3, relation_width=8, rounds=rounds, role_queries=role_queries)
+    pointer.lora_depth_query = mx.random.normal(pointer.lora_depth_query.shape)
+    pointer.lora_depth_filler = mx.random.normal(pointer.lora_depth_filler.shape)
+    pointer.lora_b = mx.random.normal(pointer.lora_b.shape)
+    alternatives = [(index % 3, (index // 3) % 4, mx.random.normal((3, 4)),
+        None if index % 2 else mx.random.normal((3, 4))) for index in range(35)]
+    actual = conditioned_scores(pointer, evidence, alternatives, batch_size=16)
+    expected = []
+    for row, column, mention, definition in alternatives:
+        conditioned = replace(evidence, mentions={**mentions, roles[row].identity: mention},
+            candidates={**candidates, **({records[column].key: definition} if definition is not None else {})})
+        arrays, allowed = conditioned.arrays()
+        expected.append(pointer(*arrays, adjacency=adjacency, allowed=allowed,
+            role_features=semantic_role_features(roles))[row, column].item())
+    np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-5)
+
+
+@pytest.mark.parametrize("adjacency", [mx.full((3, 3), mx.nan), -mx.ones((3, 3)), mx.ones((2, 2))])
+def test_selected_edge_readout_retains_original_graph_validation(adjacency):
+    from tests.test_semantic_grounded_binding_engine import source
+
+    evidence = replace(source("public").evidence, adjacency=adjacency)
+    with pytest.raises(ValueError, match="graph evidence"):
+        conditioned_scores(RelationalBindingPointer(4), evidence, [(0, 0, mx.zeros((1, 4)), None)])
+
+
 @pytest.mark.parametrize("seed", range(6))
 def test_certified_reduction_preserves_best_and_second_register_graph_with_definitions(seed):
     from core.learning.semantic_argument_chart import ScoredArgumentChart
@@ -139,10 +189,10 @@ def test_certified_reduction_preserves_best_and_second_register_graph_with_defin
 
 def test_reduction_preserves_ambiguity_tolerance_from_every_original_option():
     from core.learning.semantic_argument_chart import ScoredArgumentChart
-    from core.learning.semantic_program_ir import TokenSpan
-    from tools.semantic_grounded_score_execution import reduce_dominated_mentions
-    from tests.test_semantic_grounded_chart_bridge import fixture
     from core.learning.semantic_context_binding import BindingContext, BindingRole, ContextReferent
+    from core.learning.semantic_program_ir import TokenSpan
+    from tests.test_semantic_grounded_chart_bridge import fixture
+    from tools.semantic_grounded_score_execution import reduce_dominated_mentions
 
     _bridge, chart, _args = fixture()
     options = tuple(tuple(((float(register == slot) * .001, register, TokenSpan(3 + slot, 4 + slot)),
@@ -165,6 +215,7 @@ def test_reduction_preserves_ambiguity_tolerance_from_every_original_option():
 @pytest.mark.parametrize("weight", [0., .25, 1., 2.])
 def test_conditional_relation_update_is_offset_invariant_and_preserves_baseline_mass(offset, weight):
     from scipy.special import logsumexp
+
     from tools.semantic_grounded_score_execution import conditional_role_update
 
     baseline, learned = (5., -2., 3., 1.), (1., 4., 2., -3.)

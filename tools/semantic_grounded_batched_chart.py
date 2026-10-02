@@ -23,7 +23,9 @@ from core.learning.semantic_grounded_chart_bridge import GroundedBindingChartSol
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_relational_pointer import semantic_role_features
 from tools.semantic_grounded_score_execution import (
-    ObservationEncoder, conditional_role_update, reduce_dominated_mentions,
+    ObservationEncoder,
+    conditional_role_update,
+    reduce_dominated_mentions,
 )
 
 
@@ -31,10 +33,11 @@ def execution_contract(score_policy="raw"):
     if score_policy not in {"raw", "conditional_likelihood"}:
         raise ValueError("undeclared grounded relation score policy")
     helper = Path(__file__).with_name("semantic_grounded_score_execution.py")
-    return {"schema": "aura.grounded_batched_chart_execution.v3",
+    return {"schema": "aura.grounded_batched_chart_execution.v4",
         "source_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "helper_sha256": hashlib.sha256(helper.read_bytes()).hexdigest(),
-        "pointer_function": "factored_fitted_pointer_vmap", "alternative_batch_size": 16,
+        "pointer_function": "factored_fitted_pointer_selected_edges", "alternative_batch_size": 16,
+        "all_graph_message_nodes_retained": True,
         "candidate_pruning": "certified_same_register_definition_token_subset_only",
         "relation_score_policy": score_policy,
         "checkpoint_mutation": False, "qualification_evidence": False,
@@ -44,8 +47,9 @@ def execution_contract(score_policy="raw"):
 def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batch_size=16, remaining=None, encoder=None):
     """Evaluate every (role, candidate, mention, definition) condition separately.
 
-    The original pointer is vmapped, not approximated by a second scorer.
     Each graph gets its own complete workspace and the same contextual mask.
+    Only unrequested final pointwise edge outputs are omitted; graph messages
+    remain complete and the fitted relation function is unchanged.
     Batch size bounds transient replicated native states, not search reach.
     """
     if type(batch_size) is not int or not 1 <= batch_size <= 64 or not alternatives:
@@ -56,10 +60,10 @@ def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batc
     mentions = encoder.encode([evidence.mentions[role.identity] for role in evidence.roles], "mention")
     candidates = encoder.encode([evidence.candidates[record.key] for record in evidence.context.referents], "candidate")
     roles = semantic_role_features(evidence.roles)
-    allowed = mx.array([[evidence.context.eligible(role, record) for record in evidence.context.referents]
-        for role in evidence.roles], dtype=mx.bool_)
-    scorer = mx.vmap(lambda operation, mention, candidate: encoder.replay(operation, mention, candidate,
-        adjacency=evidence.adjacency, allowed=allowed, role_features=roles))
+    node_count = len(evidence.roles) + len(evidence.context.referents)
+    if evidence.adjacency is not None and (evidence.adjacency.shape != (node_count, node_count)
+            or not mx.all(mx.isfinite(evidence.adjacency) & (evidence.adjacency >= 0)).item()):
+        raise ValueError("relational pointer needs finite nonnegative graph evidence with aligned identities")
     values = []
     for start in range(0, len(alternatives), batch_size):
         if remaining is not None:
@@ -82,8 +86,10 @@ def conditioned_scores(pointer, evidence, alternatives, *, projection=None, batc
         batch_candidates[index, columns] = definitions
         if not mx.all(mx.isfinite(batch_mentions)).item() or not mx.all(mx.isfinite(batch_candidates)).item():
             raise ValueError("batched pointer needs finite conditioned observations")
-        scores = scorer(mx.broadcast_to(operations, (count, *operations.shape)), batch_mentions, batch_candidates)
-        measured = scores[index, rows, columns].tolist()
+        scores = encoder.selected_scores(mx.broadcast_to(operations, (count, *operations.shape)),
+            batch_mentions, batch_candidates, rows=rows, columns=columns,
+            adjacency=evidence.adjacency, role_features=roles)
+        measured = scores.tolist()
         if any(not math.isfinite(value) for value in measured):
             raise ValueError("batched pointer produced nonfinite relation evidence")
         values.extend(measured)
@@ -191,7 +197,7 @@ class BatchedGroundedBindingChartSolver(GroundedBindingChartSolver):
             minimum_margin=self.minimum_margin + margin_adjustment, time_limit_s=remaining())
         self.last_resolution = {"status": resolution.status, "margin": resolution.margin, "source_id": source_id,
             "all_options_retained": True, "role_bindings": resolution.bindings, "edge_evidence": edge_receipts,
-            "margin_is_probability": False, "pointer_execution": "factored_conditioned_alternatives_v2",
+            "margin_is_probability": False, "pointer_execution": "factored_conditioned_selected_edges_v4",
             "relation_score_policy": self.score_policy,
             "role_updates": tuple({"operation_id": step, "slot": slot, **policy}
                 for (step, slot), policy in policies.items()),
