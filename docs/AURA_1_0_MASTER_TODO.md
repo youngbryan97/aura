@@ -1474,6 +1474,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Adjudication handoff](evidence/G03_ADJUDICATION_HANDOFF_2026-10-01.md)
+  waits for the exact existing evaluation and independently verifies and
+  regrades its public rows without another model load or decode. It rejects
+  indeterminate terminal custody and preserves completed negative verdicts.
+  91 focused checks pass; native replay has reached 291 of five hundred with
+  no refusals. That progress is not a correctness or completion claim.
   [Independent development adjudication](evidence/G03_INDEPENDENT_DEVELOPMENT_ADJUDICATION_2026-10-01.md)
   regrades complete archived programs after decode, separating structural
   interpretation, numeric answers, undefined execution and refusals. The

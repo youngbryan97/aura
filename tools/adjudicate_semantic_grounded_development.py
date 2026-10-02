@@ -116,12 +116,12 @@ def adjudicate_rows(report, examples, rows):
     return {**body, "receipt_sha256": digest(body)}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("report", "directory", "parent", "source-report", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--bundle", action="append", required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     from core.governance_context import local_internal_governed_scope
     from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
     from core.runtime.file_read_gateway import read_stable_bytes
