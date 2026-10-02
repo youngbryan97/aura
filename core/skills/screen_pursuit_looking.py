@@ -748,12 +748,15 @@ def _say_intent(
     corrected out loud by :func:`_say_it_did_not_land`, and the RECORD of
     what she did is still written only from what landed.
     """
+    from core.agency.what_i_can_do_here import what_is_clicked
+
     from .screen_pursuit import (
         _publish_decision,
         _tell,
     )
 
-    said = f"Going {str(key).strip().lower()}"
+    clicked = what_is_clicked(str(key))
+    said = f'Clicking "{clicked}"' if clicked is not None else f"Going {str(key).strip().lower()}"
     # A reason she did not give does not erase the one she has.
     #
     # This read the other way round and the assignment was unconditional, so

@@ -66,9 +66,23 @@ def screen_options(keys: Sequence[str] = DEFAULT_MOVES) -> list[Any]:
     keystroke's own receipt said.
     """
     from core.agency.deliberate_action import ActionOption, Expectation
+    from core.agency.what_i_can_do_here import what_is_clicked
 
     options: list[Any] = []
     for key in keys:
+        clicked = what_is_clicked(str(key))
+        if clicked is not None:
+            options.append(
+                ActionOption(
+                    name=str(key).strip(),
+                    detail=f'click "{clicked}"',
+                    expectation=Expectation(
+                        changed=True,
+                        describes=f'the view to be different after clicking "{clicked}"',
+                    ),
+                )
+            )
+            continue
         name = str(key).strip().lower()
         if name not in PRESSABLE_KEYS:
             continue
@@ -83,6 +97,44 @@ def screen_options(keys: Sequence[str] = DEFAULT_MOVES) -> list[Any]:
             )
         )
     return options
+
+
+def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str, ...]:
+    """What can be clicked inside the drawing she was sent to play, by its words.
+
+    Nothing at all where the page has not said it is drawing, because a click
+    outside a game is a press of somebody's button. Inside it, every piece of
+    writing is somewhere she can click, and which of them do anything she finds
+    out the way she finds out about keys. A Flash game puts PLAY, NEXT and its
+    answers on its own canvas, where only the screen reading can see them.
+    """
+    if not drawn_where:
+        return ()
+    from core.agency.what_i_can_do_here import a_click_on
+
+    found: dict[str, None] = {}
+    for region in observation.get("layout") or []:
+        text = " ".join(str((region or {}).get("text") or "").split())
+        if text:
+            found.setdefault(a_click_on(text), None)
+    return tuple(found)
+
+
+def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
+    """The middle of the writing a click move names, in the reading's own frame."""
+    wanted = " ".join(str(label or "").split()).lower()
+    for region in observation.get("layout") or []:
+        text = " ".join(str((region or {}).get("text") or "").split()).lower()
+        if text != wanted:
+            continue
+        try:
+            return (
+                float(region.get("center_x", region.get("x", 0.0))),
+                float(region.get("center_y", region.get("y", 0.0))),
+            )
+        except (TypeError, ValueError):
+            return None
+    return None
 
 
 #: Controls that begin a task again, by the words they are usually labelled

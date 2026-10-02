@@ -193,3 +193,16 @@ async def test_a_band_off_the_window_is_not_one_either():
 async def test_rubbish_is_not_a_place():
     assert await where_the_drawing_is(Page("not json")) is None
     assert await where_the_drawing_is(Page('{"left": 1}')) is None
+
+
+def test_where_it_draws_is_looked_for_inside_components_too():
+    """A Flash game drawn by Ruffle keeps its canvas in the player's shadow root.
+
+    Measured 2 Oct on webdesignmuseum.org: the document held no canvas, and the
+    game was a 540 by 360 canvas inside ruffle-player. A search that only walks
+    the document says the page draws nothing.
+    """
+    from core.perception.what_the_page_says import _WHERE_IS_IT
+
+    assert "shadowRoot" in _WHERE_IS_IT
+    assert "walk(all[i].shadowRoot)" in _WHERE_IS_IT

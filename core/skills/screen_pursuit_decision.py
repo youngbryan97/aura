@@ -83,6 +83,7 @@ from .screen_pursuit_bearings import (
     narration_backlog,
     pacing_options,
     screen_options,
+    things_to_click,
     ways_out,
 )
 from .screen_pursuit_looking import (
@@ -516,6 +517,8 @@ async def decide_the_next_move(
         return _left__
 
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
+    # What can be clicked in the thing she was sent to play, as it is now.
+    can_do.on_screen = things_to_click(observation, drawn.get("where"))
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
     answering, lattice = _decide_the_next_move_part_4(
         knows, lattice, move_keys, responds, skilled=skilled, world=world,
@@ -1741,6 +1744,7 @@ async def decide_the_next_move(
             SimpleNamespace(
                 about_to=about_to,
                 move_said=move_said,
+                observation=observation,
                 anchor=anchor,
                 at_rest=at_rest,
                 busy=busy,

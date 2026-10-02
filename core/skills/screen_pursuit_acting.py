@@ -71,6 +71,28 @@ def _bind_delivered_forecast(expected: dict, arrived: int) -> None:
     expected["took"] = arrived
 
 
+async def _click_what_she_named(run: SimpleNamespace, label: str) -> bool:
+    """Click the writing a click move names, where the reading showed it.
+
+    Through the same guard as every other click: refused when her application
+    is not in front, refused off the edge of the display. A label the reading
+    no longer holds is not guessed at; the move did not land.
+    """
+    from .screen_pursuit_bearings import where_to_click
+    from .screen_pursuit_surface import click_normalized
+
+    seen = getattr(run, "observation", None) or {}
+    at = where_to_click(seen, label)
+    if at is None:
+        return False
+    return await click_normalized(
+        at[0],
+        at[1],
+        expect_app=run.target_app or run.anchor["app"],
+        bounds=list(seen.get("bounds") or []),
+    )
+
+
 async def carry_out_the_move(
 
     run: SimpleNamespace,
@@ -133,7 +155,12 @@ async def carry_out_the_move(
     # her all multi-move play: measured live 2026-08-26, forty-eight
     # cycles that had committed to two to four moves each produced
     # fifty-three moves between them, one screen reading apiece.
-    sequence = [key, *follow_on] if follow_on else [key]
+    # A click is one act. It is aimed at what the reading it was chosen from
+    # showed, and the next reading has to be of what that click did.
+    from core.agency.what_i_can_do_here import what_is_clicked
+
+    clicked = what_is_clicked(key)
+    sequence = [key, *follow_on] if follow_on and clicked is None else [key]
     started_acting = time.monotonic()
     # Before the body moves: is this where she should be.
     #
@@ -193,7 +220,9 @@ async def carry_out_the_move(
                 _tell(move_said)
             continue
         _say_intent(step, reason, out_loud=aloud, following_on=position > 0)
-    if len(sequence) > 1:
+    if clicked is not None:
+        arrived = 1 if await _click_what_she_named(run, clicked) else 0
+    elif len(sequence) > 1:
         # Only the keys that really landed are spoken for. Focus can
         # move part-way through a batch, and a commentary describing
         # moves the window never received is the disconnect this

@@ -18,6 +18,13 @@ knowing what they will do. An arrow moves a view or a piece and can be undone
 by moving back; Return and Space activate whatever has focus, which may be a
 Send, a Buy or a Delete. She may find out what moves things. She may not find
 out what a button does by pressing it.
+
+Except inside the thing she was sent to play. A game drawn on a page is a world
+of its own, and clicking in it is how it is played: nothing in there is a Send
+or a Buy. So what can be clicked there joins her moves, but only there — the
+caller hands over only what lies inside the drawing the page said it is making
+— and only when what she was told is not working, the same as any other move
+nobody named.
 """
 
 from __future__ import annotations
@@ -30,6 +37,8 @@ __all__ = [
     "COMMITS_TO_NOTHING",
     "ENOUGH_TO_JUDGE",
     "WhatWorksHere",
+    "a_click_on",
+    "what_is_clicked",
     "worth_trying",
 ]
 
@@ -51,6 +60,19 @@ COMMITS_TO_SOMETHING: tuple[str, ...] = ("return", "enter", "space", "tab", "del
 #: will accept two moves later. Several times running is a fact about the
 #: world rather than about the moment.
 ENOUGH_TO_JUDGE = 4
+
+
+def a_click_on(label: str) -> str:
+    """The move that clicks a thing, named by what is written on it."""
+    return f'click "{" ".join(str(label or "").split())}"'
+
+
+def what_is_clicked(move: str) -> str | None:
+    """What a click move clicks, or None when the move is not a click."""
+    name = str(move or "").strip()
+    if name.startswith('click "') and name.endswith('"') and len(name) > len('click ""'):
+        return name[len('click "'):-1]
+    return None
 
 
 def worth_trying(told: Sequence[str] = ()) -> tuple[str, ...]:
@@ -75,12 +97,16 @@ class WhatWorksHere:
     did_nothing: dict[str, int] = field(default_factory=dict)
     #: Said once, when what she was told turns out to be wrong.
     said_it_differs: bool = False
+    #: What can be clicked on the screen in front of her now, inside the thing
+    #: she was sent to play. Set by the caller each time it looks.
+    on_screen: tuple[str, ...] = ()
 
     # ── finding out ──────────────────────────────────────────────────────
 
     def tried(self, key: str, changed: bool) -> None:
         """One input, and whether the world answered it."""
-        name = str(key or "").strip().lower()
+        name = str(key or "").strip()
+        name = name if what_is_clicked(name) is not None else name.lower()
         if not name:
             return
         if changed:
@@ -126,6 +152,7 @@ class WhatWorksHere:
         wider = list(told) + [
             key for key in worth_trying(self.told) if key not in dead and key not in told
         ]
+        wider += [click for click in self.on_screen if click not in dead and click not in wider]
         if wider and set(wider) != set(self.told) and not self.said_it_differs:
             self.said_it_differs = True
             logger.info(

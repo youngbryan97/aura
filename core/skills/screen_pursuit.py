@@ -758,8 +758,14 @@ async def pursue_on_screen(
     lived: bool = True,
     spine: Any = None,
     graph: Any = None,
+    drawn_at: tuple[float, float, float, float] | None = None,
 ) -> dict[str, Any]:
     """Run the loop. Returns the receipt the executor produced.
+
+    ``drawn_at`` is where in the window the page draws the thing, when the
+    caller has already measured it — a browser pursuit handing over the game it
+    opened knows the canvas exactly, including one inside a component's shadow
+    root that the front browser cannot be asked about.
 
     With neither ``policy`` nor ``think``, the loop decides through her own
     reasoning: :func:`core.agency.deliberate_action.deliberate` picks from the
@@ -870,7 +876,7 @@ async def pursue_on_screen(
     #: that big turns up again — see below.
     furthest: dict[str, float] = {"here": 0.0, "again": 0.0}
     #: Where the page says it draws, asked once when the run gets its bearings.
-    drawn: dict[str, Any] = {"where": None, "asked": False}
+    drawn: dict[str, Any] = {"where": drawn_at, "asked": drawn_at is not None}
     #: Why the last cycle ended without a move. Eleven different facts used
     #: to arrive at the executor as one silence, and the run then reported
     #: "nothing on screen offered a move" for every one of them — which cost

@@ -33,6 +33,7 @@ from .sovereign_browser_understanding import (
     _BROWSER_DECISION_ERRORS,
     _UnderstandsThePage,
 )
+from .sovereign_browser_drawing import chose_the_drawing, played_on_the_drawing
 from .sovereign_browser_what_it_did import (
     _go_back_to_the_last_good_page,
     every_way_on_led_back,
@@ -1790,6 +1791,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 if not moves:
                     steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
                     break
+                if chose_the_drawing(moves):  # played by sight, in this window
+                    steps.append(await played_on_the_drawing(browser, goal, observation))
+                    continue
 
                 # Choice, reason, choice, reason. Every line she has for a move
                 # is said before that move is made and left up long enough to

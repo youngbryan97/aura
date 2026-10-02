@@ -1300,6 +1300,33 @@ class PhantomBrowser(_ActsOnThePage):
         // this says what is being ASKED. A questionnaire is unanswerable from
         // a list of radio labels alone — "I agree" with what? — so both halves
         // travel together or the decision is uninformed.
+        // What the page draws rather than writes, as one thing on the page.
+        // A game or a whiteboard on a canvas holds no element to read, and the
+        // canvas can sit in a component's shadow root (a Flash game drawn by
+        // Ruffle). Its size is a fact; that it can be seen and not read is too.
+        let drawn = null;
+        const walkDrawn = (root) => {
+            for (const el of root.querySelectorAll('*')) {
+                if (el.tagName === 'CANVAS') {
+                    const r = el.getBoundingClientRect();
+                    if (r.width > 1 && r.height > 1
+                        && (!drawn || r.width * r.height > drawn.width * drawn.height)) {
+                        drawn = { left: r.left, top: r.top, width: r.width, height: r.height };
+                    }
+                }
+                if (el.shadowRoot) walkDrawn(el.shadowRoot);
+            }
+        };
+        walkDrawn(document);
+        if (drawn) {
+            out.push({
+                role: 'drawing',
+                name: 'what the page draws, ' + Math.round(drawn.width) + ' by '
+                    + Math.round(drawn.height) + ': it can be seen but not read',
+                selector: '::drawing',
+                drawing: drawn,
+            });
+        }
         const main = document.querySelector('main, [role="main"], form') || document.body;
         const text = ((main && main.innerText) || '').replace(/\n{3,}/g, '\n\n').trim();
         return {

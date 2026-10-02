@@ -151,7 +151,15 @@ BIG_ENOUGH_TO_BE_THE_THING = 0.05
 _WHERE_IS_IT = """
 (function () {
   var best = null;
-  var drawn = document.getElementsByTagName('canvas');
+  var drawn = [];
+  var walk = function (root) {
+    var all = root.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].tagName === 'CANVAS') drawn.push(all[i]);
+      if (all[i].shadowRoot) walk(all[i].shadowRoot);
+    }
+  };
+  walk(document);
   for (var i = 0; i < drawn.length; i++) {
     var r = drawn[i].getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) continue;
@@ -188,6 +196,11 @@ async def where_the_drawing_is(
     LIVE 2026-08-29: play2048.co draws its board on a canvas 576 by 739. She
     was reading everything the window held — tabs, address bar, advertising
     rails, footer — and finding five of the sixteen places on the board.
+
+    And the canvas may be inside a component's own shadow root, where a search
+    of the document never looks. Measured 2 Oct on webdesignmuseum.org: a Flash
+    game drawn by Ruffle, a 540 by 360 canvas in the player's shadow root, and
+    the document held no canvas at all.
 
     Returns a band as ``(left, top, right, bottom)``, each a share of the
     window, which is what the rest of the loop already means by where a task
