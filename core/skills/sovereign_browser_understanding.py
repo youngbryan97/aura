@@ -1585,8 +1585,8 @@ class _UnderstandsThePage(_PlacesHerself):
                     # The small lane was taken for speed when every item of a
                     # form went through here. Items have their own path now,
                     # and a whole-page decision is a handful a run. LIVE
-                    # 2026-10-02 the small lane took 30 to 100 s each on an
-                    # 11k-token page and decided the result page wrongly: "I'm
+                    # 2026-10-02 the small lane read one 11,261-token page in
+                    # 83 s, decided in 19 more, and got the result page wrong: "I'm
                     # clicking all four 'more' buttons to expand", pressing
                     # the four "less". What the page asks of her and how she
                     # moves through it are one mind's decisions.
