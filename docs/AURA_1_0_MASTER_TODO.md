@@ -1474,11 +1474,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Independent development adjudication](evidence/G03_INDEPENDENT_DEVELOPMENT_ADJUDICATION_2026-10-01.md)
+  regrades complete archived programs after decode, separating structural
+  interpretation, numeric answers, undefined execution and refusals. The
+  combined focused checks pass 147 tests. The original five-hundred-source
+  three-arm run is active from frozen `cb5d2b807`; source parent is complete
+  and the global arm has reached 450. These counts are progress, not scores.
+  No model or fit was duplicated, and G03 remains open pending its evidence.
   [Complete development rows](evidence/G03_DEVELOPMENT_ROW_ARCHIVES_2026-10-01.md)
   admit all five hundred original validation sources with no native fit or
   selection overlap, preserve complete per-request evidence and actual IR,
   and independently check every archive. 131 focused checks and standard
-  gates pass; the full source-development measurement is next.
+  gates pass; the full source-development measurement is running.
   [Conditional chart bound](evidence/G03_CONDITIONAL_CHART_BOUND_2026-10-01.md)
   skips a complete chart only when its best possible normalized learned
   score cannot beat a parent-accepted incumbent. 103 focused checks and
