@@ -1569,6 +1569,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 heartbeat = candidate
 
         still_going = _StillGoing(heartbeat)
+        # And the model calls inside the run say it too, while her model is
+        # reading or writing for them. See `while_she_writes`.
+        from .sovereign_browser_understanding import SAYING_IT_MOVES
+
+        SAYING_IT_MOVES.set(still_going)
 
         # What she has already done survives however this ends.
         #

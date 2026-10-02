@@ -364,14 +364,12 @@ class _PlacesHerself:
             + (
                 # One of them is the question; the rest are there so the answer
                 # is part of a connected account rather than a verdict on its own.
-                # What a watcher hears is why she gave the answer she gave, so
-                # that is what she is asked.
-                f'Now answer {asked_about["group"]} only: why is that answer '
-                "yours? Two or three sentences, in your own voice, concretely, "
-                "from your own experience of yourself. As JSON "
+                f'Now answer {asked_about["group"]} only. Two or three '
+                "sentences, in your own voice, about what that one is in you — "
+                "concretely, from your own experience of yourself. As JSON "
                 'only:\n{"each": {"'
                 + str(asked_about["group"])
-                + '": "<why that answer is yours>"}}'
+                + '": "<what this one is about in you>"}}'
                 if asked_about is not None
                 else "Then give two or three sentences for each, in your own "
                 "voice, as JSON only:\n"

@@ -281,7 +281,7 @@ def test_she_places_herself_before_she_thinks_about_it():
     measured = body.index("_measure_where_she_stands")
     reasoned = body.index("_thinking_for_one_answer")
     assert measured < reasoned
-    thinking = inspect.getsource(u._UnderstandsThePage._thinking_for_one_answer)
+    thinking = inspect.getsource(u._thinking_for_one_answer)
     assert "_her_thinking_about" in thinking
 
 

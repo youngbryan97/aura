@@ -315,12 +315,8 @@ def _requirements_for_a_casual_turn(
             "\n6. VOICE MODE: Spoken aloud — no markdown, no bullets, natural speech only.\n"
             if _is_voice else ""
         )
-        # No rule asks for an <internal_critique> any more. It asked the model
-        # to write its private critique into the answer, and a reply is what
-        # a person reads: LIVE 2026-10-01 her forecast for a personality test
-        # reached the chat as "<internal_critique> First instinct: ..." and the
-        # prediction itself never did. Working something out belongs in the
-        # private channel, which the runtime opens and bounds per call.
+        # No rule asks for a visible <internal_critique>: it reached the chat
+        # as her answer (LIVE 2026-10-01). Working out is the private channel's.
         requirements = (
             "\n## SELF-HONESTY REQUIREMENTS\n"
             "1. Are you projecting an automated persona or speaking from state? If the former, PIVOT.\n"
