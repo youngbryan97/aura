@@ -1474,6 +1474,70 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Complete source negative](evidence/G03_COMPLETE_SOURCE_NEGATIVE_2026-10-01.md)
+  independently grades all five hundred sources: parent 355 equivalent,
+  global chart 327, joint native 326; reference answers 386, 343 and 341.
+  No decode refused. Thirty-seven of 38 joint regressions are already in the
+  global control, and every joint miss has the wrong operation count. Both
+  detached supervisors completed with proved cleanup; the adjudication
+  handoff loaded no backbone and repeated no fit or decode. This candidate
+  is not promoted. Public proposal coverage versus wrong chart ranking is
+  being audited before another native fit; G03 remains open.
+  [Adjudication handoff](evidence/G03_ADJUDICATION_HANDOFF_2026-10-01.md)
+  waits for the exact existing evaluation and independently verifies and
+  regrades its public rows without another model load or decode. It rejects
+  indeterminate terminal custody and preserves completed negative verdicts.
+  91 focused checks pass; native replay has reached 291 of five hundred with
+  no refusals. That progress is not a correctness or completion claim.
+  [Independent development adjudication](evidence/G03_INDEPENDENT_DEVELOPMENT_ADJUDICATION_2026-10-01.md)
+  regrades complete archived programs after decode, separating structural
+  interpretation, numeric answers, undefined execution and refusals. The
+  combined focused checks pass 147 tests. The original five-hundred-source
+  three-arm run is active from frozen `cb5d2b807`; source parent is complete
+  and the global arm has reached 450. These counts are progress, not scores.
+  No model or fit was duplicated, and G03 remains open pending its evidence.
+  [Complete development rows](evidence/G03_DEVELOPMENT_ROW_ARCHIVES_2026-10-01.md)
+  admit all five hundred original validation sources with no native fit or
+  selection overlap, preserve complete per-request evidence and actual IR,
+  and independently check every archive. 131 focused checks and standard
+  gates pass; the full source-development measurement is running.
+  [Conditional chart bound](evidence/G03_CONDITIONAL_CHART_BOUND_2026-10-01.md)
+  skips a complete chart only when its best possible normalized learned
+  score cannot beat a parent-accepted incumbent. 103 focused checks and
+  standard gates pass. The real remaining canary is correct in 16.012830
+  seconds, and the unchanged full twenty-one-request screen independently
+  verifies at 21 equivalent with zero paired regressions in 148.316713
+  supervisor seconds. This advances the development screen, not G03.
+  Its gain over the parent is also present in the existing global chart;
+  isolated learned gain and full-cohort acceptance remain unproved.
+  [Selected-edge execution](evidence/G03_SELECTED_EDGE_EXECUTION_2026-10-01.md)
+  preserves all fitted graph messages and every scored alternative while
+  avoiding unrequested final edge outputs. 115 focused checks and standard
+  gates pass. The completed replay still timed out after eight charts;
+  that negative result is retained and no full screen followed it.
+  [Joint score identifiability](evidence/G03_JOINT_SCORE_IDENTIFIABILITY_2026-10-01.md)
+  records a completed but wrong sixteen-chart replay: positive absolute
+  pointer offsets rewarded an unnecessary operation. A declared conditional
+  likelihood update removes that unidentifiable role offset without new
+  fitting, target information or lost alternatives. Corrected real replay
+  returned the intended program with all sixteen charts in 28.725182 seconds;
+  independent artifact verification passed. The unchanged weights and policy
+  completed the full twenty-one-request paired development screen from
+  frozen `198696ceb`: parent 20 equivalent, global chart 21, joint 20 with
+  one execution timeout and no wrong completed interpretation. Independent
+  verification confirms the negative result; one paired regression blocks
+  advancement. The gain over the parent was already present in the global
+  arm, so this result does not isolate learned adapter/pointer gain.
+  The batched real canary completed eleven charts but still timed out.
+  [Execution version two](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
+  factors unchanged independent projections and certifies redundant mention
+  removal while preserving register graphs and original ambiguity tolerance.
+  Its completed real replay exposed the offset defect recorded above;
+  no development advancement is claimed from the execution optimization.
+  [Joint chart batching](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
+  diagnoses 16,655 repeated pointer calls in one timed-out public request and
+  adds a declared, bounded vmap execution variant without refitting or
+  changing selected weights. Fixture equivalence is not language success.
   [Joint development screen](evidence/G03_JOINT_DEVELOPMENT_SCREEN_2026-10-01.md)
   compares the source parent, existing global chart and complete trained
   joint path through public-only decode and the existing source-anchor
@@ -2487,6 +2551,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Grounded matched lesions](evidence/G06_GROUNDED_MATCHED_LESIONS_2026-10-01.md)
+  apply reversible adapter-off, relation-off and both-off conditions inside
+  the same source-grounded chart path. They preserve public requests, search,
+  constraints and fitted arrays, restore after exceptions, and reject tainted
+  ownership. 211 focused checks pass, including all supported adapter classes
+  and mixed hybrid sites. Native causal gain remains unmeasured; the running
+  five-hundred-source comparison is not modified or duplicated.
   [Matched source-erasure result](evidence/G06_NATIVE_SOURCE_ERASURE_RESULT_2026-09-26.md)
   independently verifies the same 46/50 correctness outcomes as intact-source
   fitting, with five different program selections. It does not support attributing

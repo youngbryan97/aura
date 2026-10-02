@@ -231,6 +231,23 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
             options["layers"], config["hidden_size"]]
         assert not decoder.last_receipt["target_available_to_decoder"]
         assert not decoder.last_receipt["serving_authority"]
+        from tools.semantic_grounded_batched_chart import BatchedNativeChartDecoder
+        batched = BatchedNativeChartDecoder(decoder)
+        replay = batched.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+            public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+            model_basis_sha256=parent.model_basis_sha256, search_time_limit_s=30.)
+        assert replay.refusal == result.refusal
+        assert (replay.ir.to_program() if replay.ir is not None else None) == (
+            result.ir.to_program() if result.ir is not None else None)
+        assert batched.last_receipt["weights_sha256"] == decoder.last_receipt["weights_sha256"]
+        assert batched.last_receipt["execution"]["checkpoint_mutation"] is False
+        normalized = BatchedNativeChartDecoder(decoder, score_policy="conditional_likelihood")
+        normalized.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+            public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+            model_basis_sha256=parent.model_basis_sha256, search_time_limit_s=30.)
+        assert normalized.last_receipt["weights_sha256"] == decoder.last_receipt["weights_sha256"]
+        assert normalized.last_receipt["execution"]["relation_score_policy"] == "conditional_likelihood"
+        assert not normalized.last_receipt["target_available_to_decoder"]
     with pytest.raises(ValueError, match="already complete"):
         fit_native_grounded_sources(examples[:1], examples[1:], items, tmp_path / "fit", resume=True, **options)
     assert len(loads) == (3 if interrupted == "update" else 1)

@@ -36,10 +36,11 @@ def profile_receipt(profiler):
 
 
 class PublicDecodeArm:
-    def __init__(self, decoder, *, receipt, search_seconds, name=None, progress=None, profile=False):
+    def __init__(self, decoder, *, receipt, search_seconds, name=None, progress=None, profile=False, archive=None):
         self.decoder, self.search_seconds = decoder, search_seconds
         self.name, self.progress = name, progress
         self.profile = profile
+        self.archive = archive
         self.receipt_sha256 = receipt
         self.measured_decodes = {}
 
@@ -63,6 +64,11 @@ class PublicDecodeArm:
             "joint_receipt": measured, "elapsed_seconds": time.monotonic() - started}
         if profiler is not None:
             self.measured_decodes[source_text_sha256]["profile"] = profile_receipt(profiler)
+        if self.archive is not None:
+            self.measured_decodes[source_text_sha256] = self.archive(
+                self.measured_decodes[source_text_sha256], result.ir,
+                {"source_token_ids": source_token_ids, "public_inputs": public_inputs,
+                    "source_text_sha256": source_text_sha256, "model_basis_sha256": model_basis_sha256})
         if self.progress is not None:
             self.progress({"stage": "grounded_decode_completed", "arm": self.name, "source": source_text_sha256,
                 **{key: value for key, value in self.measured_decodes[source_text_sha256].items() if key != "profile"}})
@@ -99,9 +105,17 @@ def main(argv=None):
     parser.add_argument("--authority-key-file", type=Path, required=True)
     parser.add_argument("--search-seconds", type=float, default=30.)
     parser.add_argument("--profile-source-id", help="One exposed development request; never advancement evidence")
+    parser.add_argument("--chart-execution", choices=("individual", "batched"), default="individual")
+    parser.add_argument("--relation-score-policy", choices=("raw", "conditional_likelihood"), default="raw")
+    parser.add_argument("--population", choices=("bank_holdout", "source_validation"), default="bank_holdout")
+    parser.add_argument("--archive-decodes", action="store_true", help="Retain full per-request records and emit compact summaries")
     args = parser.parse_args(argv)
     if args.output.exists() or not math.isfinite(args.search_seconds) or not 0 < args.search_seconds <= 300:
         parser.error("evaluation needs a fresh output and bounded search")
+    if args.relation_score_policy != "raw" and args.chart_execution != "batched":
+        parser.error("conditional relation scoring requires its declared execution variant")
+    if args.population == "source_validation" and (not args.archive_decodes or args.profile_source_id is not None):
+        parser.error("complete source validation requires row archives and cannot use a profile subset")
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
@@ -140,30 +154,45 @@ def main(argv=None):
         raise ValueError("joint development bank changed its source basis")
     examples = load_source_examples(parent, source, args.bundle)
     validate_atom_partition(examples, outer, folds)
-    by_id = {item.ir.source_text_sha256: item for item in examples}
-    held = tuple(by_id[identity] for identity in outer["held_ids"])
+    from tools.semantic_grounded_development_archive import (
+        archive_decode,
+        development_contract,
+        select_population,
+    )
+    fit_report = json.loads(read_stable_bytes(args.directory / "report.json", max_bytes=64 * 1024 ** 2))
+    native = fit_report["native_contract"]
+    held = select_population(examples, outer, parent, native, args.population)
     if args.profile_source_id is not None:
         held = tuple(item for item in held if item.ir.source_text_sha256 == args.profile_source_id)
         if len(held) != 1:
             raise ValueError("profile source must belong to the declared exposed development bank")
-    fit_report = json.loads(read_stable_bytes(args.directory / "report.json", max_bytes=64 * 1024 ** 2))
-    native = fit_report["native_contract"]
     if (set(outer["held_ids"]) & set((*native["fit_ids"], *native["calibration_ids"]))
             or native["source_basis"]["parent_sha256"] != hashlib.sha256(raw["parent"]).hexdigest()
             or native["source_basis"]["bank_plan_sha256"] != outer["plan_sha256"]):
         raise ValueError("joint development holdout overlaps fitting or changes the frozen bank")
-    del by_id, examples
+    del examples
     gc.collect()
     implementation = implementation_receipt()
+    from tools.semantic_grounded_batched_chart import execution_contract
+    execution = execution_contract(args.relation_score_policy) if args.chart_execution == "batched" else None
     evaluator_sha = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     plan = {"schema": "aura.grounded_native_development_plan.v1", "fit_verification": verified,
         "bank_plan_sha256": outer["plan_sha256"], "held_ids": [item.ir.source_text_sha256 for item in held],
         "profile_only": args.profile_source_id is not None,
+        "chart_execution": args.chart_execution, "execution_contract": execution,
+        "relation_score_policy": args.relation_score_policy,
         "search_seconds": args.search_seconds, "arms": ["source_parent", "global_chart", "joint_native"],
         "implementation": implementation, "evaluator_sha256": evaluator_sha,
         "source_report_sha256": hashlib.sha256(raw["source"]).hexdigest(),
-        "cohort": "previously_exposed_source_bank_development", "scoring": "source_anchors_v2",
+        "cohort": ("previously_exposed_source_validation_development" if args.population == "source_validation"
+            else "previously_exposed_source_bank_development"), "scoring": "source_anchors_v2",
+        "population": args.population, "archive_decodes": args.archive_decodes,
+        "development_contract": development_contract(),
         "held_controls_fit_or_checkpoint_selection": False, "serving_authority": False}
+    if args.population == "source_validation":
+        plan["population_basis"] = {"parent": str(args.parent.resolve()), "source_report": str(args.source_report.resolve()),
+            "split": "validation", "example_count": len(held),
+            "example_ids_sha256": digest(sorted(item.ir.source_text_sha256 for item in held))}
     plan = {**plan, "plan_sha256": digest(plan)}
     gateway = get_file_write_gateway()
     with local_internal_governed_scope("grounded_native_development", domain="file_write"):
@@ -174,9 +203,22 @@ def main(argv=None):
     def execute():
         model, _tokenizer = load(str(spec.model_path))
         decoder = GroundedNativeChartDecoder.from_fit(model, directory=args.directory, parent_bytes=raw["parent"], spec=spec)
+        if args.chart_execution == "batched":
+            from tools.semantic_grounded_batched_chart import BatchedNativeChartDecoder
+            decoder = BatchedNativeChartDecoder(decoder, score_policy=args.relation_score_policy)
         chart = parent.with_global_constraint_arguments().with_joint_operation_argument_scores()
+        def archive_for(name):
+            if not args.archive_decodes:
+                return None
+            def persist(record, ir, public):
+                return archive_decode(args.output.with_suffix(".rows"), plan_sha256=plan["plan_sha256"], arm=name,
+                    identity=public["source_text_sha256"], record=record, ir=ir,
+                    source_token_ids=public["source_token_ids"], public_inputs=public["public_inputs"],
+                    model_basis_sha256=public["model_basis_sha256"])
+            return persist
         arms = {name: PublicDecodeArm(owner, receipt=digest({"arm": name, "plan": plan["plan_sha256"]}),
             search_seconds=args.search_seconds, name=name,
+            archive=archive_for(name),
             profile=args.profile_source_id is not None,
             progress=lambda row: print(json.dumps(row), flush=True)) for name, owner in (
             ("source_parent", parent), ("global_chart", chart), ("joint_native", decoder))}
@@ -196,6 +238,10 @@ def main(argv=None):
             mx.clear_cache()
     if implementation_receipt() != implementation or hashlib.sha256(Path(__file__).read_bytes()).hexdigest() != evaluator_sha:
         raise ValueError("joint development implementation changed during evaluation")
+    if execution is not None and execution_contract(args.relation_score_policy) != execution:
+        raise ValueError("joint batched execution changed during evaluation")
+    if plan["development_contract"] != development_contract():
+        raise ValueError("joint development population or storage implementation changed")
     body = {"schema": "aura.grounded_native_development.v1", "plan": plan, **comparison,
         "g03_complete": False, "fresh_transfer_proven": False}
     if args.profile_source_id is not None:
