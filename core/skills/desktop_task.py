@@ -4771,26 +4771,25 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             return " ".join(said)[:240]
 
         rounds = [step for step in steps if step.get("chose")]
+        # A press that changed nothing did nothing, so it is not a step (LIVE 2026-10-02).
+        acted = [step for step in rounds if step.get("moved", step.get("ok"))]
         receipts = [
             {
                 "index": index,
                 "action": "browse_pursue",
                 "ok": bool(step.get("ok")),
                 "effect_verified": bool(step.get("moved", step.get("ok"))),
-                # What the round DID, not what she said about it.
-                #
-                # Her reason stood in for the evidence, so a round whose
-                # sentence was missing read as a round with no effect and the
-                # whole objective was refused: LIVE 2026-09-29,
-                # `step_13_missing_effect_evidence (31/31 steps)` on a run that
-                # answered every item, submitted, and reached its results. What
-                # happened is the controls it pressed, at the page it was on.
+                # What the round DID, not what she said about it. Her reason
+                # stood in for the evidence, so a round with no sentence read as
+                # one with no effect (LIVE 2026-09-29: step_13_missing_effect_evidence
+                # on a run that reached its results). What happened is the
+                # controls it pressed, on the page it was on.
                 "effect_evidence": _what_the_round_did(step),
                 "reason": str(step.get("asked") or ""),
                 "expect": str(step.get("expected") or ""),
                 "result": {"ok": bool(step.get("ok"))},
             }
-            for index, step in enumerate(rounds)
+            for index, step in enumerate(acted)
         ]
         # An errored round is not a failed task.
         #
@@ -4827,8 +4826,8 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             # incomplete: steps_requested; steps_completed" — the same
             # sentence, and the same cause, this file already records from
             # 2026-07-27, arriving again through a new return path.
-            "steps_requested": len(rounds) or len(steps),
-            "steps_completed": sum(1 for step in rounds if step.get("ok")),
+            "steps_requested": len(acted) or len(rounds) or len(steps),
+            "steps_completed": sum(1 for step in acted if step.get("ok")),
             # Her own narration of each choice, kept as the observable record
             # of what was done rather than a step count.
             "narration": [
