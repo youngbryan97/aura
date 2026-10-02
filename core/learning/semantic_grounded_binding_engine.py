@@ -40,6 +40,9 @@ IMPLEMENTATION_PATHS = (
     "core/learning/semantic_program_floor.py",
     "core/learning/semantic_native_fit_sampling.py",
     "core/learning/semantic_grounded_binding_engine.py",
+    "core/learning/semantic_native_operation_field.py",
+    "core/learning/semantic_grounded_program_objective.py",
+    "core/learning/semantic_conditioned_relations.py",
     "core/learning/semantic_relational_pointer.py",
     "core/learning/semantic_binding_invariance.py",
     "core/learning/semantic_context_binding.py",
@@ -60,6 +63,7 @@ IMPLEMENTATION_PATHS = (
     "tools/semantic_native_adapters.py",
     "tools/semantic_native_adapter_layers.py",
     "tools/semantic_grounded_native_fit.py",
+    "tools/semantic_grounded_program_pool.py",
     "tools/semantic_grounded_native_decode.py",
     "tools/semantic_native_execution.py",
     "tools/probe_semantic_native_prefix_branches.py",
@@ -199,6 +203,34 @@ def verify_grounded_fit_checkpoint(directory):
                 "supervision": report["supervision"]}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
                != report["source_receipt_sha256"]):
         raise ValueError("grounded fit source custody differs")
+    if report.get("operation_field_contract") is not None:
+        from core.learning.semantic_native_operation_field import NativeOperationField
+        contract = report["operation_field_contract"]
+        NativeOperationField.from_contract(contract)
+        sources = report.get("operation_supervision", [])
+        if (report.get("native_contract", {}).get("operation_field_contract") != contract
+                or report["native_contract"].get("operation_supervision") != sources
+                or [row["source_id"] for row in sources] != sorted(
+                    observation_ids["training"] + observation_ids["calibration"])
+                or hashlib.sha256(json.dumps(sources, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+                    != report.get("operation_supervision_sha256")
+                or not report.get("operation_presence_training")
+                or report.get("whole_program_calibration_proven") is not False
+                or not math.isfinite(report.get("operation_weight", math.nan))
+                or report["operation_weight"] <= 0):
+            raise ValueError("grounded operation supervision or native custody differs")
+    if report.get("program_objective_contract") is not None:
+        contract = report["program_objective_contract"]
+        if (report.get("operation_field_contract") is None
+                or report.get("native_contract", {}).get("program_objective_contract") != contract
+                or contract.get("schema") != "aura.grounded_complete_program_objective.v1"
+                or contract.get("source_ids") != sorted(observation_ids["training"] + observation_ids["calibration"])
+                or re.fullmatch(r"[a-f0-9]{64}", contract.get("source_pool_sha256", "")) is None
+                or contract.get("whole_program_calibration_proven") is not False
+                or contract.get("all_programs_covered") is not False
+                or not math.isfinite(contract.get("weight", math.nan)) or contract["weight"] <= 0
+                or report.get("complete_program_contrast_training") is not True):
+            raise ValueError("grounded complete-program source custody differs")
     pointer = json.loads(read(directory / "resume.json", 16384))
     if (pointer.get("schema") != "aura.grounded_restart_pointer.v1"
             or pointer.get("identity") != report["fit_identity"] or pointer.get("step") != report["steps"]
@@ -375,9 +407,13 @@ class NativeGroundedCapture:
             for span in spans.values():
                 span.validate_bound(self.hidden.shape[1])
 
-    def capture(self, suffix):
+    def capture(self, suffix, *, states=None):
         self.validate()
-        states = suffix.layer_states(mx.stop_gradient(self.hidden), self.depths)
+        if states is None:
+            states = suffix.layer_states(mx.stop_gradient(self.hidden), self.depths)
+        if (len(states) != len(self.depths)
+                or any(value.shape != self.hidden.shape for value in states)):
+            raise ValueError("native binding capture changed the aligned suffix states")
         def observe(spans):
             return {key: mx.stack([mx.mean(value[0, span.start:span.end], axis=0) for value in states])
                     for key, span in spans.items()}
@@ -541,12 +577,14 @@ def grounded_equivariance_loss(pointer, pair, examples):
 
 
 class GroundedBindingEngine:
-    def __init__(self, pointer, *, evidence_weight=1., nuisance_projection=None, native_suffix=None):
+    def __init__(self, pointer, *, evidence_weight=1., nuisance_projection=None, native_suffix=None,
+                 operation_field=None):
         if not math.isfinite(evidence_weight) or evidence_weight < 0:
             raise ValueError("grounded binding weight must be finite and nonnegative")
         self.pointer, self.evidence_weight = pointer, evidence_weight
         self.nuisance_projection = nuisance_projection
         self.native_suffix = native_suffix
+        self.operation_field = operation_field
 
     def costs(self, evidence, *, baseline_costs=None):
         evidence = project_grounded_evidence(evidence, self.nuisance_projection)
@@ -649,6 +687,11 @@ class GroundedBindingEngine:
                 raise ValueError("joint grounded binding needs the exact caller-owned native suffix contract")
             artifact = nn.Module()
             artifact.pointer, artifact.native_suffix = pointer, native_suffix
+            operation_field = None
+            if report.get("operation_field_contract") is not None:
+                from core.learning.semantic_native_operation_field import NativeOperationField
+                operation_field = NativeOperationField.from_contract(report["operation_field_contract"])
+                artifact.operation_field = operation_field
             # Only trainable adapters and the pointer are in this artifact.
             loaded = mx.load(str(weights))
             expected = dict(tree_flatten(artifact.trainable_parameters()))
@@ -658,6 +701,9 @@ class GroundedBindingEngine:
                 raise ValueError("joint grounded binding checkpoint is nonfinite")
             artifact.load_weights(str(weights), strict=False)
         else:
+            operation_field = None
+            if report.get("operation_field_contract") is not None:
+                raise ValueError("native operation field has no suffix custody")
             if native_suffix is not None or native_contract is not None:
                 raise ValueError("cached grounded fit has no native adapter custody")
             pointer.load_weights(str(weights), strict=True)
@@ -666,7 +712,8 @@ class GroundedBindingEngine:
         from core.learning.semantic_binding_invariance import BindingNuisanceProjection
         projection = (BindingNuisanceProjection.from_dict(report["nuisance_projection"])
                       if report.get("nuisance_projection") is not None else None)
-        return cls(pointer, nuisance_projection=projection, native_suffix=native_suffix)
+        return cls(pointer, nuisance_projection=projection, native_suffix=native_suffix,
+                   operation_field=operation_field)
 
 
 def validate_grounded_fit_inputs(training, calibration, *, steps=128,
@@ -727,7 +774,9 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                          retention_weight=0., stationarity_weight=0., nuisance_projection=None,
                          domain_reversal=0., equivariance_pairs=(), equivariance_weight=1.,
                          native_suffix=None, native_captures=None, native_contract=None, role_margin=0.,
-                         training_schedule=None, sampling_receipt=None, resume=False):
+                         training_schedule=None, sampling_receipt=None, resume=False,
+                         operation_field=None, operation_supervision=None, operation_weight=1.,
+                         program_supervision=None, program_weight=1.):
     """Fit observed identities; select only on disjoint source calibration.
 
     Environment labels affect training weights, never pointer features. Group
@@ -759,6 +808,35 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                             for item in calibration)
     examples = {item.evidence.source_id: item for item in training}
     all_examples = {item.evidence.source_id: item for item in (*training, *calibration)}
+    operation_sources = None
+    if operation_field is not None:
+        if (native_suffix is None or not isinstance(operation_supervision, Mapping)
+                or set(operation_supervision) != set(all_examples)
+                or not math.isfinite(operation_weight) or operation_weight <= 0
+                or (operation_field.hidden_width, operation_field.depths)
+                    != (pointer.hidden_width, pointer.depths)):
+            raise ValueError("operation field needs exact joint-native source custody and positive weight")
+        for identity, supervision in operation_supervision.items():
+            if (supervision.source_id != identity
+                    or supervision.token_count != native_captures[identity].hidden.shape[1]):
+                raise ValueError("operation source supervision differs from native observations")
+            supervision.indices(operation_field)
+        operation_sources = [operation_supervision[key].receipt() for key in sorted(all_examples)]
+    elif operation_supervision is not None:
+        raise ValueError("operation source supervision requires an attached field")
+    program_contract = None
+    if program_supervision is not None:
+        from core.learning.semantic_grounded_program_objective import program_objective_contract
+        if (operation_field is None or not isinstance(program_supervision, Mapping)
+                or set(program_supervision) != set(all_examples)):
+            raise ValueError("complete-program objective needs exact joint-native source custody")
+        for identity, program in program_supervision.items():
+            if program.source_id != identity:
+                raise ValueError("complete-program pool changed its source identity")
+            program.validate(operation_field, operation_supervision[identity].token_count)
+        program_contract = program_objective_contract(program_supervision, program_weight)
+        if native_contract.get("program_objective_contract") != program_contract:
+            raise ValueError("complete-program objective differs from native custody")
     for item in all_examples.values():
         check_bound()
         if not isinstance(item.environment, str) or not item.environment:
@@ -812,6 +890,8 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         model.native_suffix = artifact.native_suffix = native_suffix
     else:
         artifact = pointer
+    if operation_field is not None:
+        model.operation_field = artifact.operation_field = operation_field
     if domain_reversal:
         model.nuisance = nn.Linear(pointer.feature_blocks * pointer.relation_width, len(environments))
     optimizer.init(model.trainable_parameters())
@@ -824,6 +904,27 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         evidence = native_captures[item.evidence.source_id].capture(suffix)
         return replace(item, evidence=project_grounded_evidence(evidence, nuisance_projection))
 
+    def source_loss(item, owner=None):
+        actual_pointer = pointer if owner is None else owner.pointer
+        if operation_field is None:
+            return grounded_source_loss(actual_pointer, current_example(item, owner),
+                retention_weight=retention_weight, stationarity_weight=stationarity_weight,
+                role_margin=role_margin)
+        suffix = native_suffix if owner is None else owner.native_suffix
+        field = operation_field if owner is None else owner.operation_field
+        capture = native_captures[item.evidence.source_id]
+        states = suffix.layer_states(mx.stop_gradient(capture.hidden), capture.depths)
+        current = replace(item, evidence=project_grounded_evidence(
+            capture.capture(suffix, states=states), nuisance_projection))
+        depth_states = mx.stack(states, axis=2)[0]
+        operation_loss = field.source_loss(depth_states,
+            operation_supervision[item.evidence.source_id])
+        program_loss = (program_supervision[item.evidence.source_id].source_loss(actual_pointer, field,
+            depth_states, nuisance_projection=nuisance_projection) if program_supervision is not None else mx.array(0.))
+        return (grounded_source_loss(actual_pointer, current, retention_weight=retention_weight,
+            stationarity_weight=stationarity_weight, role_margin=role_margin)
+            + operation_weight * operation_loss + program_weight * program_loss)
+
     def save_weights(path):
         stream = io.BytesIO()
         mx.save_safetensors(stream, dict(tree_flatten(artifact.trainable_parameters())))
@@ -833,8 +934,7 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         losses = []
         for example in calibration:
             check_bound()
-            value = grounded_source_loss(pointer, current_example(example), retention_weight=retention_weight,
-                                         stationarity_weight=stationarity_weight, role_margin=role_margin).item()
+            value = source_loss(example).item()
             if not math.isfinite(value):
                 raise ValueError("grounded binding calibration is nonfinite")
             losses.append(value)
@@ -860,6 +960,11 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         "equivariance_pairs": [{"left": pair.left, "right": pair.right,
             "role_pairs": pair.role_pairs, "candidate_pairs": pair.candidate_pairs} for pair in equivariance_pairs],
         "nuisance_projection": nuisance_projection.to_dict() if nuisance_projection is not None else None}
+    if operation_field is not None:
+        identity_body.update(operation_field_contract=operation_field.to_contract(),
+            operation_supervision=operation_sources, operation_weight=operation_weight)
+    if program_contract is not None:
+        identity_body["program_objective_contract"] = program_contract
     fit_identity = hashlib.sha256(json.dumps(identity_body, sort_keys=True, separators=(",", ":"),
                                             allow_nan=False).encode()).hexdigest()
     owner = {"schema": "aura.grounded_binding_owner.v2", "fit_ids": train_ids,
@@ -907,12 +1012,9 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         group_mass = float(mass[environments.index(example.environment)].item())
         # Equal group mass compensates unequal example counts, not identity.
         weight = group_mass * len(training) / counts[example.environment]
-        source_risk = grounded_source_loss(pointer, current_example(example), retention_weight=retention_weight,
-            stationarity_weight=stationarity_weight, role_margin=role_margin).item() if group_eta else None
+        source_risk = source_loss(example).item() if group_eta else None
         def objective(owner, example=example, weight=weight):
-            current = current_example(example, owner)
-            loss = weight * grounded_source_loss(owner.pointer, current,
-                retention_weight=retention_weight, stationarity_weight=stationarity_weight, role_margin=role_margin)
+            loss = weight * source_loss(example, owner)
             pairs = pairs_by_source[example.evidence.source_id]
             if pairs and equivariance_weight:
                 loss = loss + equivariance_weight * mx.mean(mx.stack([
@@ -921,6 +1023,7 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                     for pair in pairs]))
             if domain_reversal:
                 from core.learning.semantic_binding_invariance import reverse_nuisance_gradient
+                current = current_example(example, owner)
                 values, allowed = current.evidence.arrays()
                 feature = owner.pointer.relation_features(*values, adjacency=current.evidence.adjacency,
                     role_features=semantic_role_features(current.evidence.roles))
@@ -983,7 +1086,16 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         report["native_contract"] = native_contract
         report["native_captures"] = [native_captures[key].receipt() for key in sorted(native_captures)]
         report["joint_native_adapter_training"] = True
+    if operation_field is not None:
+        report.update(operation_field_contract=operation_field.to_contract(),
+            operation_supervision=operation_sources, operation_weight=operation_weight,
+            operation_supervision_sha256=hashlib.sha256(json.dumps(operation_sources,
+                sort_keys=True, separators=(",", ":")).encode()).hexdigest(),
+            operation_presence_training=True, whole_program_calibration_proven=False)
+    if program_contract is not None:
+        report.update(program_objective_contract=program_contract, complete_program_contrast_training=True)
     report["receipt_sha256"] = hashlib.sha256(json.dumps(report,
         sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     _write_binding_artifact(directory / "report.json", (json.dumps(report, indent=2) + "\n").encode())
-    return GroundedBindingEngine(pointer, nuisance_projection=nuisance_projection, native_suffix=native_suffix), report
+    return GroundedBindingEngine(pointer, nuisance_projection=nuisance_projection, native_suffix=native_suffix,
+                                operation_field=operation_field), report

@@ -47,7 +47,7 @@ def test_native_source_metadata_retains_exact_capture_without_retaining_archived
     assert features() is None
 
 
-@pytest.mark.parametrize("interrupted", [False, "update", "completion", "prepared", "mixed", "hybrid"])
+@pytest.mark.parametrize("interrupted", [False, "update", "completion", "prepared", "mixed", "hybrid", "operation", "program"])
 def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_release(monkeypatch, tmp_path, interrupted):
     import mlx_lm
     from mlx_lm.models.qwen2 import Model, ModelArgs
@@ -103,7 +103,7 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     examples = tuple(grounded_supervision_from_source_example(item) for item in items)
     options = dict(spec=spec, rank=2, layers=2, max_tokens=64, cache_bytes=8192, relation_width=8,
         fit_options={"steps": 4, "save_every": 2, "learning_rate": .01, "max_seconds": 30., "role_margin": .25})
-    if interrupted in {"prepared", "hybrid"}:
+    if interrupted in {"prepared", "hybrid", "operation", "program", "update"}:
         from core.learning.semantic_program_compositional_transducer import (
             fit_compositional_semantic_program_transducer,
         )
@@ -115,6 +115,16 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
         options["adapter_options"] = {"layer_kinds": ["lora", "product"], "layer_ranks": [2, 3]}
     if interrupted == "hybrid":
         options.update(layers=3, adapter_options={"layer_kinds": ["lora", "product", "silu"]})
+    if interrupted in {"operation", "update", "program"}:
+        options["operation_options"] = {"labels": ("add", "sub", "mul"),
+            "relation_width": 8, "max_span_tokens": 2, "max_steps": 3}
+    if interrupted in {"program", "update"}:
+        from core.learning.semantic_grounded_program_objective import (
+            mine_grounded_program_supervision,
+        )
+        options["program_supervision"] = {item.ir.source_text_sha256:
+            mine_grounded_program_supervision(parent, item, max_charts=2, max_graphs=2, max_seconds=10.)
+            for item in items}
     if interrupted == "prepared":
         engine, prepared = fit_native_grounded_sources(examples[:1], examples[1:], items,
             tmp_path / "fit", prepare_only=True, **options)
@@ -192,17 +202,26 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     assert any(key.startswith("native_suffix.") for key in mx.load(str(tmp_path / "fit" / "selected.safetensors")))
     initial = mx.load(str(tmp_path / "fit" / "checkpoint-0.safetensors"))
     final = mx.load(str(tmp_path / "fit" / "checkpoint-4.safetensors"))
+    mx.eval(initial, final)
     assert any(not mx.array_equal(final[key], value).item() for key, value in initial.items()
         if key.startswith("native_suffix."))
     from tools.verify_semantic_grounded_fit import verify
     checked = verify(tmp_path / "fit")
     assert checked["native_acquisition_sha256"] and checked["artifacts_verified"]
     assert not checked["model_weights_loaded"] and not checked["held_sources_scored"]
+    if interrupted in {"operation", "update", "program"}:
+        assert report["operation_presence_training"] and not report["whole_program_calibration_proven"]
+        assert report["operation_field_contract"]["score"] == "primitive_minus_null_logit"
+        assert any(key.startswith("operation_field.") and not mx.array_equal(final[key], value).item()
+            for key, value in initial.items())
+    if interrupted in {"program", "update"}:
+        assert report["complete_program_contrast_training"]
+        assert not report["program_objective_contract"]["all_programs_covered"]
     from tools.verify_semantic_grounded_restart import verify as verify_restart
     restart = verify_restart(tmp_path / "fit")
     assert restart["step"] == 4 and restart["completion_exists"]
     assert not restart["model_weights_loaded"] and not restart["qualification_evidence"]
-    if interrupted in {"prepared", "hybrid"}:
+    if interrupted in {"prepared", "hybrid", "operation", "program"}:
         from tools.semantic_grounded_native_decode import GroundedNativeChartDecoder
         mx.random.seed(111)
         native = Model(ModelArgs.from_dict(config))
@@ -232,7 +251,8 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
         assert not decoder.last_receipt["target_available_to_decoder"]
         assert not decoder.last_receipt["serving_authority"]
         from tools.semantic_grounded_batched_chart import BatchedNativeChartDecoder
-        batched = BatchedNativeChartDecoder(decoder)
+        batched = BatchedNativeChartDecoder(decoder,
+            score_policy="conditional_likelihood" if interrupted in {"operation", "program"} else "raw")
         replay = batched.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
             public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
             model_basis_sha256=parent.model_basis_sha256, search_time_limit_s=30.)

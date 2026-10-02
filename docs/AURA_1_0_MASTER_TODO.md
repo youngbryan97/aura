@@ -1474,6 +1474,35 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Verified preparation continuation](evidence/G03_GROUNDED_PREPARATION_HANDOFF_2026-10-02.md)
+  records the repaired detached run: all 282 earlier pools independently
+  revalidated; 377 source pools ready and none failed at observation. The new
+  handoff preserves the exact frozen command, checks source partitions and
+  every retained program, requires a contained terminal and exclusive model
+  access, then independently verifies a positive-step checkpoint. It also
+  repairs definition-free chart deserialization. 167 focused checks and smoke
+  pass. Preparation is still running; no new learned accuracy or G03 closure
+  follows from these checks.
+  [Program proof retention](evidence/G03_PROGRAM_POOL_PROGRESS_2026-10-01.md)
+  repairs source mining that discarded completed graphs after a later search
+  timeout. Public decoding still requires optimality. Two previously failing
+  source cases now retain sixteen proved alternatives each; completed pools
+  require rebuilt factors, checked constraints and re-proved meanings before
+  reuse across code revisions. The original preparation was stopped with
+  proved process cleanup and 282 immutable pools preserved. 169 focused
+  checks pass; these are source preparation and implementation results, not
+  learned accuracy or G03 completion.
+  [Whole-request operation repair](evidence/G03_OPERATION_FIELD_REPAIR_2026-10-01.md)
+  audits all five hundred public proposal banks: correct operation sequences
+  are absent in 70, present in 430, and first-ranked in all 38 joint regressions.
+  A native span-set learner now trains operation presence, labels and count
+  with the same suffix and optimizer as the binding pointer, survives exact
+  interrupted recovery, and supplies public decoder proposals. A complete
+  program contrast objective now shares the runtime's conditioned edge
+  function, with durable source-only public program pools and explicit
+  unknown comparisons. 185 focused checks pass. Whole-program calibration
+  beyond those pools and new model outcomes remain
+  unproved; this build grants no promotion or G03 completion.
   [Complete source negative](evidence/G03_COMPLETE_SOURCE_NEGATIVE_2026-10-01.md)
   independently grades all five hundred sources: parent 355 equivalent,
   global chart 327, joint native 326; reference answers 386, 343 and 341.

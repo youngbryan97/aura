@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import math
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from types import MappingProxyType
-from typing import Any, TYPE_CHECKING
-import math
+from typing import TYPE_CHECKING, Any
 
 from core.learning import semantic_argument_optimization
 from core.learning.semantic_program_ir import TokenSpan
+from core.verify.invariants import invariant
 
 if TYPE_CHECKING:
     from core.learning.semantic_program_transducer_fitting import RegisterUseContract
@@ -137,6 +139,68 @@ class ScoredArgumentChart:
             selection_observer=selection_observer,
         )
         return (result[0] - self.choice_log_normalizer, *result[1:]) if result is not None else None
+
+    def certify_selection(self, indices: Sequence[Sequence[int]]) -> Any:
+        """Check a supplied integer graph without claiming it maximizes the score."""
+        if len(indices) != len(self.options) or not self.options or self.n_inputs < 1:
+            raise ValueError("selected graph dimensions differ from chart")
+        if self.definition_options is not None and (len(self.definition_options) != len(self.options)
+                or any(len(labels) != len(node) or any(len(names) != len(pool)
+                    for names, pool in zip(labels, node))
+                    for labels, node in zip(self.definition_options, self.options))):
+            raise ValueError("selected graph definition dimensions differ from chart")
+        if self.definition_scores is not None and self.definition_options is None:
+            raise ValueError("selected graph definition labels absent")
+        arguments, spans, contributions, definitions = [], [], [], {}
+        for step, (node, selected) in enumerate(zip(self.options, indices, strict=True)):
+            if not node or len(node) != len(selected):
+                raise ValueError("selected graph role dimensions differ from chart")
+            registers, mentions = [], []
+            for slot, (pool, index) in enumerate(zip(node, selected, strict=True)):
+                if type(index) is not int or not 0 <= index < len(pool):
+                    raise ValueError("selected graph option identity absent")
+                score, register, span = pool[index]
+                if (not math.isfinite(score) or type(register) is not int
+                        or not 0 <= register < self.n_inputs + len(self.options)
+                        or register == self.n_inputs + step):
+                    raise ValueError("selected graph has an invalid typed option")
+                registers.append(register)
+                mentions.append(span)
+                contributions.append(score)
+                if self.definition_options is not None:
+                    definition = self.definition_options[step][slot][index]
+                    if register in definitions and definitions[register] != definition:
+                        raise ValueError("selected graph changes a register definition")
+                    definitions[register] = definition
+            if self.contract.distinct_arguments and len(set(registers)) != len(registers):
+                raise ValueError("selected graph repeats a distinct operand")
+            arguments.append(tuple(registers))
+            spans.append(tuple(mentions))
+        mentions = sorted((span for row in spans for span in row), key=lambda span: span.start)
+        if any(left.end > right.start for left, right in zip(mentions, mentions[1:])):
+            raise ValueError("selected graph has overlapping argument mentions")
+        dependencies = tuple(tuple(sorted({register - self.n_inputs for register in row
+            if register >= self.n_inputs})) for row in arguments)
+        unresolved = set(range(len(self.options)))
+        while unresolved:
+            ready = {step for step in unresolved if not unresolved.intersection(dependencies[step])}
+            if not ready:
+                raise ValueError("selected graph has a dependency cycle")
+            unresolved.difference_update(ready)
+        used = {dependency for row in dependencies for dependency in row}
+        sinks = set(range(len(self.options))) - used
+        counts = Counter(register for row in arguments for register in row)
+        if len(sinks) != 1 or not self.contract.accepts_complete(counts,
+                n_inputs=self.n_inputs, operation_count=len(self.options), sink=next(iter(sinks))):
+            raise ValueError("selected graph violates connected register-use bounds")
+        if self.definition_scores is not None:
+            keys = [(register, span) for register, span in definitions.items()]
+            if any(key not in self.definition_scores or not math.isfinite(self.definition_scores[key])
+                   for key in keys):
+                raise ValueError("selected graph definition score absent or nonfinite")
+            contributions.extend(self.definition_scores[key] for key in keys)
+        return (math.fsum((*contributions, -self.choice_log_normalizer)), tuple(arguments),
+                tuple(spans), dependencies)
 
     def solve_with_factors(
         self,
@@ -282,3 +346,19 @@ but outranked. These cases need different repairs.
             "target_without_mention_exclusivity_feasible": without_mention_exclusivity,
             "selected_arguments": selected[1] if selected is not None else None,
         }
+
+
+@invariant("learning.argument_selection_certificate_checks_global_constraints", scope="learning",
+           owner="core/learning/semantic_argument_chart.py", observational=False)
+def _selection_certificate_invariant():
+    from core.learning.semantic_program_transducer_fitting import RegisterUseContract
+
+    chart = ScoredArgumentChart(((((2., 0, TokenSpan(0, 1)),), ((3., 1, TokenSpan(2, 3)),)),),
+        2, RegisterUseContract(1, 1, 0, 1, True))
+    assert chart.certify_selection(((0, 0),))[0] == 5.
+    invalid = replace(chart, options=((((2., 0, TokenSpan(0, 2)),), ((3., 1, TokenSpan(1, 3)),)),))
+    try:
+        invalid.certify_selection(((0, 0),))
+    except ValueError:
+        return ()
+    raise AssertionError("overlapping mentions passed the graph certificate")
