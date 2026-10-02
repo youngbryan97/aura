@@ -1474,6 +1474,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Complete source negative](evidence/G03_COMPLETE_SOURCE_NEGATIVE_2026-10-01.md)
+  independently grades all five hundred sources: parent 355 equivalent,
+  global chart 327, joint native 326; reference answers 386, 343 and 341.
+  No decode refused. Thirty-seven of 38 joint regressions are already in the
+  global control, and every joint miss has the wrong operation count. Both
+  detached supervisors completed with proved cleanup; the adjudication
+  handoff loaded no backbone and repeated no fit or decode. This candidate
+  is not promoted. Public proposal coverage versus wrong chart ranking is
+  being audited before another native fit; G03 remains open.
   [Adjudication handoff](evidence/G03_ADJUDICATION_HANDOFF_2026-10-01.md)
   waits for the exact existing evaluation and independently verifies and
   regrades its public rows without another model load or decode. It rejects
