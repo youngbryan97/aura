@@ -1478,12 +1478,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   records a completed but wrong sixteen-chart replay: positive absolute
   pointer offsets rewarded an unnecessary operation. A declared conditional
   likelihood update removes that unidentifiable role offset without new
-  fitting, target information or lost alternatives. Paired replay is pending.
+  fitting, target information or lost alternatives. Corrected real replay
+  returned the intended program with all sixteen charts in 28.725182 seconds;
+  independent artifact verification passed. The unchanged weights and policy
+  are now running the full twenty-one-request paired development screen from
+  frozen `198696ceb`. One exposed canary does not prove development gain.
   The batched real canary completed eleven charts but still timed out.
   [Execution version two](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
   factors unchanged independent projections and certifies redundant mention
   removal while preserving register graphs and original ambiguity tolerance.
-  Its real replay is pending; no development advancement is claimed.
+  Its completed real replay exposed the offset defect recorded above;
+  no development advancement is claimed from the execution optimization.
   [Joint chart batching](evidence/G03_JOINT_CHART_BATCHING_2026-10-01.md)
   diagnoses 16,655 repeated pointer calls in one timed-out public request and
   adds a declared, bounded vmap execution variant without refitting or

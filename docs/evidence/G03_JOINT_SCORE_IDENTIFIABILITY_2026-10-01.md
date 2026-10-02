@@ -85,3 +85,41 @@ success. Invalid or incomplete choice evidence is rejected.
 The standard gates also passed: smoke 164 passed and one skipped in 56.89
 seconds, then lint, compile, governance, layering and writing. No gate
 baseline was relaxed. The corrected policy's real replay remains pending.
+
+## Corrected Public Canary
+
+The declared conditional policy completed the same exposed public request
+with all sixteen charts in 28.725182 seconds. Parent, global chart and joint
+native arms each returned the correct source-anchored program:
+`sha256:d333e1fb70c5ff4e6ca71b398e83d04638b0c152e47e2f10d283a16a998f6c56`.
+The joint arm had no refusal. Its selected graph contains the intended three
+operations, without the extra multiply selected by raw-score execution.
+The checkpoint, evidence weight and thirty-second request allowance were
+unchanged. The selected graph's ambiguity margin was 5.316511; this is a
+solver margin, not a calibrated probability of semantic correctness.
+
+Frozen execution was `198696ceb`. The report receipt is
+`e8d2aba9a30934cbae760abe79bd8fbf407ec7824762d1df288d990cfc9d7585`,
+with evaluation plan
+`776c803952cbeda98eb7ebda0cdd3f7b54101f3d41d6db96c99b2f91ed9e8a61`.
+Independent artifact verification returned
+`e867089d2f9fe16fd4e7138d3f1e3c1b00f0ad52a53665adbe4f891b261aa396`.
+The contained terminal receipt is
+`b0dbcaa7e20785c46e9f4a18fc8e133ec7ae33487bc2900345eb4d175838d457`:
+106.738468 seconds, return two, no timeout, empty process group and lineage.
+Supervisor 14379, child 14382 and inhibitor 14385 were gone. Profile-only
+execution returns two and denies advancement even when all arms are correct.
+Artifacts remain under `semantic-grounded-joint-profile-conditional-v3-20261001`.
+
+This repairs the observed canary failure. One previously exposed request
+does not establish gain, full development coverage or fresh transfer.
+The complete twenty-one-request three-arm development screen was then
+launched from the same frozen checkout, without a profile-source filter.
+Its supervisor plan is
+`982523ef7e16a4d9084e19c4dd38795b070fe402001d4b2bb5f0e3bfc3a93f50`
+and command is
+`4c70c64bca99afa6d179af24b85a2921300f948f0cb69997fc6024628b07b1db`.
+Supervisor 15245 owns child 15248 under a 2,400-second outer bound. No fitting
+stage is repeated. Results belong under
+`semantic-grounded-joint-development-conditional-v3-20261001`.
+G03 remains open pending its acceptance evidence.
