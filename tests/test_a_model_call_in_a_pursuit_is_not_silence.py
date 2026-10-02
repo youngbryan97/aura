@@ -13,7 +13,7 @@ from typing import Any
 
 import pytest
 
-from core.skills import sovereign_browser_understanding as u
+from core.skills import sovereign_browser_one_question as u
 from core.skills.sovereign_browser import SovereignBrowserSkill
 
 pytestmark = pytest.mark.unit

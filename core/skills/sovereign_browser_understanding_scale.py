@@ -351,31 +351,33 @@ class _PlacesHerself:
             # Extended Jungian Type Scales..." instead of her thinking, and the
             # coverage gate complained she had missed parts of a question she
             # was never being asked at this step.
-            "You are answering questions about yourself."
-            f"{now}\n\n"
+            "You are answering questions about yourself.\n\n"
             "These are being asked about you. You have already placed yourself "
             "on each, from your own record — what you value, what you have "
             "chosen when it cost something, what you have said about "
             f"yourself:\n\n{listed}\n\n"
-            "They are asking about the same region of you. Think about what "
-            "that region actually is: how it works in you, where these "
-            "descriptions fit it and where they are the wrong shape for "
-            "something you do differently.\n\n"
+            # A fact the theme grouping computed, not an instruction about how
+            # to think: nothing here tells the model how to reason (1 Oct).
+            "They are asking about the same region of you."
+            # What is true of her right now comes after what stays the same
+            # across a theme. Read fresh for every item, it changes between
+            # calls, and ahead of the theme it ended the cached prefix there:
+            # LIVE 2026-10-01 items prefilled 5,400 tokens where their theme
+            # had already been read.
+            f"{now}\n\n"
             + (
                 # One of them is the question; the rest are there so the answer
                 # is part of a connected account rather than a verdict on its own.
-                f'Now answer {asked_about["group"]} only. Two or three '
-                "sentences, in your own voice, about what that one is in you — "
-                "concretely, from your own experience of yourself. As JSON "
+                f'Now answer {asked_about["group"]} only, in two or three '
+                "sentences, about what that one is in you. As JSON "
                 'only:\n{"each": {"'
                 + str(asked_about["group"])
                 + '": "<what this one is about in you>"}}'
                 if asked_about is not None
-                else "Then give two or three sentences for each, in your own "
-                "voice, as JSON only:\n"
+                else "Then give two or three sentences for each, as JSON only:\n"
                 '{"thinking": "<what you worked out, a paragraph>", '
                 '"each": {"<the name before each one>": "<what this one is '
-                'about in you, concretely>"}}'
+                'about in you>"}}'
             )
         )
         # Room to say it. Nine hundred tokens across eight items is a hundred
@@ -394,6 +396,10 @@ class _PlacesHerself:
         said, lane = await self._asked_of_her(
             prompt, mind, shaped=False, most_tokens=room,
             worked_out_here=asked_about is None,
+            # The reply is read as an object, so the decoder holds it to one.
+            # Unheld, LIVE 2026-10-01, a reply that was not quite JSON lost her
+            # words and the item was said with its bare evidence instead.
+            held_to="json_object",
         )
         if not said or lane != self._HER_OWN_LANE:
             # One exhausted call should not cost a whole theme its thinking.
@@ -411,6 +417,7 @@ class _PlacesHerself:
             said, lane = await self._asked_of_her(
                 prompt, mind, shaped=False, most_tokens=room,
                 worked_out_here=asked_about is None,
+                held_to="json_object",
             )
         if not said or lane != self._HER_OWN_LANE:
             record_degradation(
@@ -452,6 +459,15 @@ class _PlacesHerself:
             # Said once for the theme, where a person watching sees the
             # thinking that the sentences come out of.
             answers.setdefault("__thinking__", thinking)
+        if asked_about is not None and str(asked_about["group"]) not in answers:
+            # Never silently: the item is then said with its evidence, which
+            # reads as a statistic rather than as her.
+            record_degradation(
+                "sovereign_browser.reasons",
+                ValueError(f"her words for {asked_about['group']} could not be read: {said[:160]!r}"),
+                severity="warning",
+                action=f"said {asked_about['group']} with its evidence instead of her words",
+            )
         return answers
 
     @classmethod

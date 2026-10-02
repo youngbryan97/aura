@@ -157,7 +157,10 @@ def test_what_she_concluded_at_the_finished_page_is_kept(monkeypatch):
     # against what she had predicted, said so out loud, and the reply ended
     # mid-sentence sixteen items earlier with nothing about the outcome in it.
     assert account[0] == result["concluded"], "what she was asked for comes first"
-    assert account[-1].startswith("The page ends with:"), "the page's own words close it"
+    # And, since 1 Oct, alone: each answer reached the person as she made it,
+    # and the rounds and the page's tail listed under her verdict were the
+    # part of the reply Bryan called "a little ugly when they come in".
+    assert account == [result["concluded"]]
 
 
 def test_her_reply_is_said_before_a_page_is_worked_and_not_before_other_work(monkeypatch):

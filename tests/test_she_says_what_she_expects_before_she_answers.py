@@ -48,7 +48,7 @@ def _skill(monkeypatch, said: list[str], forecast: str = "I expect it to call me
     async def _understood(*_a: Any, **_k: Any) -> dict[str, Any]:
         return {"here": "an instrument", "to_progress": "answer", "done_when": "submitted"}
 
-    async def _expects(goal: str, observation: Any, mind: str) -> str:
+    async def _expects(goal: str, observation: Any, mind: str, measured: Any = None) -> str:
         asked.append(str(observation.get("text") or ""))
         return forecast
 

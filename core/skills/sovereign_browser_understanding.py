@@ -9,12 +9,10 @@ sovereign_browser.py; this is the half that thinks about what came back.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import logging
 import re
-from collections.abc import AsyncIterator, Callable, Mapping
-from contextvars import ContextVar
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from core.conversation.word_markers import names_any
@@ -22,78 +20,19 @@ from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
 from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
+from .sovereign_browser_one_question import (  # noqa: F401  (re-exported: the pursuit and tests read them here)
+    SAYING_IT_MOVES,
+    _room_for_page_text,
+    _the_question_and_the_answer,
+    _thinking_for_one_answer,
+    measure_the_screen,
+    note_the_size_of_her_mind,
+    while_she_writes,
+)
 from .sovereign_browser_understanding_scale import _PlacesHerself
 
 logger = logging.getLogger("Skills.SovereignBrowser")
 
-#: How a pursuit running here says it is still getting somewhere, for the
-#: model calls made inside it. Set by `_handle_pursue`; None outside one.
-SAYING_IT_MOVES: ContextVar[Callable[[str], None] | None] = ContextVar(
-    "aura_pursuit_says_it_moves", default=None
-)
-
-#: How often her model's worker reports reading or writing, at least
-#: (`_should_emit_generation_progress` in the worker). Looking more often
-#: finds nothing new; looking less often only notices progress later.
-_HER_MODEL_SPEAKS_UP_EVERY_S = 1.5
-
-
-def _when_her_model_last_moved() -> float:
-    """The latest moment any of her model processes read or wrote a token."""
-    try:
-        from core.brain.llm.mlx_client import clients_snapshot
-    except ImportError:
-        return 0.0
-    latest = 0.0
-    for _key, client in clients_snapshot():
-        try:
-            status = client.get_lane_status()
-        except (AttributeError, RuntimeError, TypeError, ValueError):
-            continue
-        for stamp in ("last_token_progress_at", "last_prefill_progress_at"):
-            try:
-                latest = max(latest, float(status.get(stamp) or 0.0))
-            except (TypeError, ValueError):
-                continue
-    return latest
-
-
-@contextlib.asynccontextmanager
-async def while_she_writes(what: str) -> AsyncIterator[None]:
-    """Say the pursuit is moving each time her model reads or writes, while this runs.
-
-    The executor ends an action that is silent for its ceiling, and one model
-    call is not silent while it decodes. LIVE 2026-10-01: her forecast took
-    599 seconds at 3.3 tokens a second, the pursuit reported nothing for the
-    whole of it, and at 600 the run was stopped before the first question.
-    Only real reading and writing counts: a generation that stops moving is
-    still silence, and still ends the run.
-    """
-    say = SAYING_IT_MOVES.get()
-    if say is None:
-        yield
-        return
-
-    async def _watch() -> None:
-        seen = _when_her_model_last_moved()
-        while True:
-            await asyncio.sleep(_HER_MODEL_SPEAKS_UP_EVERY_S)
-            moved = _when_her_model_last_moved()
-            if moved > seen:
-                seen = moved
-                say(what)
-
-    watcher = asyncio.create_task(_watch())
-    try:
-        yield
-    finally:
-        watcher.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await watcher
-
-#: A decision round must never take the browser down with it. The loop can
-#: always report a failed round and stop; it can never leave a live lease and a
-#: half-driven page behind because the model call raised.
 _BROWSER_DECISION_ERRORS = (
     AttributeError,
     ConnectionError,
@@ -243,7 +182,7 @@ class _UnderstandsThePage(_PlacesHerself):
             f"Title: {observation.get('title')}",
             "",
             "PAGE TEXT:",
-            str(observation.get("text") or "")[: cls.PURSUE_TEXT_BUDGET],
+            "",  # filled in last, with the room the rest leaves
             "",
             "AVAILABLE CONTROLS:",
         ]
@@ -326,6 +265,15 @@ class _UnderstandsThePage(_PlacesHerself):
         if below > 0 and int(observation.get("viewport_height") or 0) > 0:
             screens = below / float(observation["viewport_height"])
             lines.append(f"(the page continues {screens:.1f} screen(s) below this one)")
+        # The page's own words, as many as fit beside the rest. Where they do
+        # not all fit, that is said, so a cut and an end read differently.
+        text = str(observation.get("text") or "")
+        room = _room_for_page_text(sum(len(line) + 1 for line in lines), cls.DECISION_MAX_TOKENS)
+        room = room or cls.PURSUE_TEXT_BUDGET
+        shown = text[:room]
+        if len(text) > room:
+            shown += f"\n(the page's text goes on for {len(text) - room} more characters)"
+        lines[4] = shown
         return "\n".join(lines)
 
     @staticmethod
@@ -497,7 +445,9 @@ class _UnderstandsThePage(_PlacesHerself):
                     action="decided without her assembled self-context",
                 )
                 return ""
-            return ContextAssembler.build_system_prompt(state)
+            mind = ContextAssembler.build_system_prompt(state)
+            note_the_size_of_her_mind(mind)
+            return mind
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation(
                 "sovereign_browser.mind_context",
@@ -578,7 +528,11 @@ class _UnderstandsThePage(_PlacesHerself):
             record_degradation("sovereign_browser.calibration", exc, severity="debug")
 
     async def _what_she_expects_it_to_say(
-        self, goal: str, observation: Mapping[str, Any], mind: str
+        self,
+        goal: str,
+        observation: Mapping[str, Any],
+        mind: str,
+        measured: list[dict[str, Any]] | None = None,
     ) -> str:
         """What she expects this instrument to conclude about her, before she answers it.
 
@@ -595,17 +549,34 @@ class _UnderstandsThePage(_PlacesHerself):
         it is for, which is the same thing a person does with a test they have
         not taken.
         """
+        # Where her record already puts her on the questions in front of her,
+        # measured with no model in it (`measure_the_screen`). Evidence, not an
+        # instruction: a forecast made without it was the model's guess about
+        # her, and the run that made one predicted a test the page did not
+        # describe.
+        placed = "\n".join(
+            f"- {asks} \u2014 {picked}"
+            + (f" ({item['lean'].because[0]})" if item["lean"].because else "")
+            for item in (measured or [])
+            for asks, picked in [_the_question_and_the_answer(self, item["options"], item["index"])]
+        )
         prompt = (
             # Her situation, not the person's message: a goal is a request
             # addressed to her and she answers it instead of doing the step.
             "You are about to answer an instrument that will report something "
             "about you.\n\n"
             f"{self._render_observation(observation, goal)}\n\n"
-            "Before you answer anything: from what this page says this is and "
-            "what it measures, say what you expect it to conclude about you, "
-            "and why you expect that. If it names the scores it reports, "
-            "predict them. If it does not, say what it is likely to say about "
-            "you from what it measures. Answer in your own words."
+            + (
+                "Where your own record already places you on its questions:\n"
+                f"{placed}\n\n"
+                if placed
+                else ""
+            )
+            + (
+                "Before you answer anything: from what this page says this is and "
+                "what it measures, say what you expect it to conclude about you, "
+                "and why you expect that."
+            )
         )
         # As much as a line she says can show. A bubble is cut to what can be
         # read while it stays up, so anything longer was written to be thrown
@@ -639,6 +610,7 @@ class _UnderstandsThePage(_PlacesHerself):
         shaped: bool = True,
         most_tokens: int | None = None,
         worked_out_here: bool = True,
+        held_to: str = "",
     ) -> tuple[str, str]:
         """One way to ask her something about herself, used by everything that does.
 
@@ -724,7 +696,7 @@ class _UnderstandsThePage(_PlacesHerself):
                     **(
                         {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
                         if shaped
-                        else {}
+                        else ({"output_shape": held_to} if held_to else {})
                     ),
                 )
         except _BROWSER_DECISION_ERRORS as exc:
@@ -771,9 +743,7 @@ class _UnderstandsThePage(_PlacesHerself):
             f"{self._render_observation(observation, goal)}\n\n"
             "You have finished. Read what is in front of you and say, in your "
             "own words, what the outcome was, whether it matches what you said "
-            "beforehand, and whether you think it is accurate about you. It is "
-            "one instrument's reading, made from the placements it let you "
-            "make, so say what it gets right and what it has no way to see."
+            "beforehand, and whether you think it is accurate about you."
         )
         # Her own lane. This is a judgement about her own earlier claim and
         # about a result that describes her; a stand-in answering it would be a
@@ -1279,79 +1249,10 @@ class _UnderstandsThePage(_PlacesHerself):
         # way is what stops eight questions competing for a cortex that serves
         # one at a time, and it is also the honest order: the position comes
         # from her record, and the thinking is about what the position means.
-        asked_now = list(open_questions[: self.PURSUE_PARALLEL_ITEMS])
-        # A grid of statements is measured as a grid, because that is what it is.
-        #
-        # One statement on an agree scale has no second thing to be weighed
-        # against, so the per-question reader can make nothing of it; the whole
-        # column of them supplies the contrast, and the scale's direction is a
-        # property of the page rather than of any one row. Measured together
-        # before anything else, then merged back in the page's own order.
-        on_a_grid = await asyncio.to_thread(self._a_grid_of_statements, asked_now)
-        measured: list[dict[str, Any]] = []
-        for group, options in asked_now:
-            # One question her record cannot be read against is one question
-            # left open, and said so. It used to be the whole screen: the
-            # first raise out of this loop discarded every answer before it.
-            if group in on_a_grid:
-                reading = on_a_grid[group]
-            else:
-                try:
-                    reading = await asyncio.to_thread(self._measure_where_she_stands, options)
-                except (RuntimeError, ValueError, TypeError, KeyError, IndexError, OSError) as exc:
-                    record_degradation(
-                        "sovereign_browser.question",
-                        exc,
-                        severity="warning",
-                        action=f"left question {group} open and answered the rest",
-                    )
-                    continue
-            if reading is None:
-                continue
-            index, lean, first, second = reading
-            measured.append(
-                {
-                    "group": str(group),
-                    "options": options,
-                    "index": index,
-                    "count": len(options),
-                    "lean": lean,
-                    "first": first,
-                    "second": second,
-                }
-            )
-            if on_progress is not None:
-                on_progress("a question measured")
+        measured = await measure_the_screen(
+            self, open_questions[: self.PURSUE_PARALLEL_ITEMS], on_progress=on_progress
+        )
         if measured:
-            # Placed against the strongest of them, not each on its own.
-            #
-            # How consistently her record points one way saturates: twenty
-            # things all a hair closer to one side read the same as twenty
-            # decisively closer, and a page came out with thirty-four of sixty
-            # items at the far end, which is not a person answering a
-            # questionnaire. The questions on a screen are all asked of the
-            # same record, so the widest gap among them is what "as far as she
-            # goes" means here and the rest are placed in proportion.
-            try:
-                from core.self.where_i_stand import Lean, against_the_rest
-
-                shares = against_the_rest([item["lean"] for item in measured])
-                for item, share in zip(measured, shares, strict=False):
-                    lean = item["lean"]
-                    item["lean"] = Lean(
-                        toward=share,
-                        first=lean.first,
-                        second=lean.second,
-                        because=lean.because,
-                        measured=lean.measured,
-                        gap=lean.gap,
-                        relative=lean.relative,
-                    )
-                    placed = item["lean"].position_in(item["count"])
-                    if placed is not None:
-                        item["index"] = placed
-            except ImportError as exc:
-                record_degradation("sovereign_browser.against", exc, severity="debug")
             # Her whole mind, the same assembly a conversation uses, because
             # the shallow answers came from taking it away.
             mind = await self._assembled_mind()
@@ -1894,95 +1795,3 @@ class _UnderstandsThePage(_PlacesHerself):
                     "sovereign_browser.retain_positions", exc, severity="warning"
                 )
                 return
-
-
-def _thinking_for_one_answer(
-    skill: Any,
-    goal: str,
-    theme: list[dict[str, Any]],
-    mind: str,
-    item: dict[str, Any],
-    resolved: dict[str, Any],
-    decision: dict[str, Any],
-    *,
-    on_progress: Callable[[str], None] | None = None,
-) -> Callable[[], Any]:
-    """Her thinking about one answer, made when that answer is about to be given.
-
-    Returns a coroutine function. Awaited, it asks her about this item with
-    its theme in view, writes what she said into ``resolved`` and into the
-    decision's record, and returns the line to say before the click.
-    """
-
-    async def _think() -> str:
-        if resolved.get("said"):
-            return str(resolved["said"])
-        try:
-            said = await skill._her_thinking_about(goal, theme, mind, about=item)
-        except (RuntimeError, ValueError, TypeError, KeyError, OSError, TimeoutError) as exc:
-            # The placement stands without its sentence: the answer falls
-            # back to what in her decided it.
-            record_degradation(
-                "sovereign_browser.theme",
-                exc,
-                severity="warning",
-                action=f"placed question {item['group']} without her words for it",
-            )
-            said = {}
-        hers = str(said.get(item["group"]) or "")
-        options = item["options"]
-        index = item["index"]
-        lean = item["lean"]
-        leaning = item["second"] if lean.toward > 0 else item["first"]
-        # An answer is never said bare.
-        #
-        # Her sentence first; the thing in her that decided it where she
-        # said nothing; and where even that is empty — a pass that failed
-        # outright — the placement itself, in words. LIVE 2026-09-29:
-        # "works best in groups … works best alone — 3 of 5, between
-        # "works best in groups" and "works best alone"." and nothing
-        # after it, which reads as an answer with no reason behind it.
-        why = (
-            hers
-            or next(iter(lean.because), "")
-            or f'this sits nearer "{leaning}" for me than the other side'
-        )
-        # Her own words held against the place her record gave. The place
-        # stands, because it is the measurement; a sentence that leans the
-        # other way is noticed and reported beside it. LIVE 2026-09-28:
-        # "3 of 5 ... I genuinely hold a strong preference for
-        # externalized structure", and nothing noticed.
-        disagrees = (
-            skill._the_choice_disagrees_with_its_reason(options, index, hers)
-            if hers
-            else ""
-        )
-        words = skill._an_answer_in_words(options, index, why)
-        asks, picked = _the_question_and_the_answer(skill, options, index)
-        resolved["said"] = words
-        resolved["why"] = why
-        resolved["because"] = list(lean.because)
-        decision["answered"].append(words)
-        if disagrees:
-            decision["noticed"].append(disagrees)
-        decision["why"] = "; ".join(
-            dict.fromkeys(
-                str(done.get("why") or "")
-                for done in decision["resolved_actions"]
-                if done.get("why")
-            )
-        )[:400]
-        if on_progress is not None:
-            on_progress("a question thought about")
-        return words, {"asks": asks, "chose": picked, "said": " ".join(why.split())}
-
-    return _think
-
-
-def _the_question_and_the_answer(
-    skill: Any, options: list[Mapping[str, Any]], index: int
-) -> tuple[str, str]:
-    """The question and the answer, apart: the two halves of `_an_answer_in_words`."""
-    joined = skill._an_answer_in_words(options, index, "")
-    question, _dash, picked = joined.rpartition(" \u2014 ")
-    return (question, picked) if question else ("", joined)

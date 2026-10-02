@@ -192,11 +192,18 @@ def test_the_midpoint_is_read_as_equal_rather_than_as_nothing():
     assert "equally you" in said
 
 
-def test_the_conclusion_judges_one_instrument_and_says_so():
+def test_the_conclusion_asks_and_does_not_tell_her_how_to_judge():
+    """No prompt steers what she concludes; it asks what the request asked.
+
+    The prompt used to add "say what it gets right and what it has no way to
+    see", which is an instruction about her verdict rather than the question.
+    Removed 1 Oct: nothing here tells a model how to think.
+    """
     import inspect
 
     from core.skills import sovereign_browser_understanding as u
 
     body = inspect.getsource(u._UnderstandsThePage._hold_the_outcome_against_what_she_said)
-    assert "one instrument's reading" in body
-    assert "no way to see" in body
+    assert "whether you think it is accurate about you" in body
+    assert "no way to see" not in body
+    assert "gets right" not in body

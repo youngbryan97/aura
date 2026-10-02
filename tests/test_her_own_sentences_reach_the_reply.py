@@ -11,6 +11,10 @@ And the account was clipped to 1,200 characters, which is the right size for "he
 is the paragraph I wrote into your file" and keeps three answers out of sixty.
 LIVE 2026-09-29 the reply ended mid-word inside the third round's reason, with her
 verdict, twenty-nine answers and the result all cut off.
+
+Since 1 Oct a run that ends on her verdict replies with the verdict alone, because
+each answer reached the person as she made it. These are the runs with no verdict,
+where her sentences are the account.
 """
 from __future__ import annotations
 
@@ -24,9 +28,9 @@ from interface.routes.chat_desktop_objective import (
 pytestmark = pytest.mark.unit
 
 
-def _result(rounds: int = 1, per_round: int = 8) -> dict[str, object]:
+def _result(rounds: int = 1, per_round: int = 8, concluded: str = "") -> dict[str, object]:
     return {
-        "concluded": "It called me an INTJ, which is close to what I said.",
+        "concluded": concluded,
         "narration": [
             {
                 "asked": "likes to know who? what? when?",
@@ -47,7 +51,6 @@ def _result(rounds: int = 1, per_round: int = 8) -> dict[str, object]:
 
 def test_each_answer_is_its_own_line_in_her_own_words():
     lines = _pursuit_account(_result())
-    assert lines[0].startswith("It called me an INTJ"), "her verdict comes first"
     answers = [line for line in lines if line.startswith("question ")]
     assert len(answers) == 8, f"eight answers, {len(answers)} lines"
     assert "likes to know who" not in "\n".join(answers), (
@@ -66,8 +69,14 @@ def test_the_account_of_a_long_instrument_is_not_clipped_to_a_quotations_length(
     text = _desktop_deliverable_text(_result(rounds=8))
     assert len(text) > 1200, "sixty answers do not fit in a quotation's budget"
     assert "question 63" in text, "the last answers were cut"
-    assert text.startswith("It called me an INTJ"), "her verdict was cut"
     assert not text.rstrip().endswith("…")
+
+
+def test_with_a_verdict_the_reply_is_her_verdict():
+    text = _desktop_deliverable_text(
+        _result(rounds=8, concluded="It called me an INTJ, which is close to what I said.")
+    )
+    assert text == "It called me an INTJ, which is close to what I said."
 
 
 def test_a_file_deliverable_is_still_clipped():

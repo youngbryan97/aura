@@ -392,7 +392,12 @@ async def _execute_desktop_objective_from_chat(
                 # wrote: ..." — the planner's identifier, in a sentence to a
                 # person. The deliverable is the answer; when the summary says
                 # nothing about the world, it leads with nothing.
-                if _is_step_bookkeeping_only(summary):
+                if _is_step_bookkeeping_only(summary) or str(
+                    result.get("concluded") or ""
+                ).strip():
+                    # Her verdict is the answer; "Worked through ... over 20
+                    # round(s), then stopped: no_progress. Here is what I
+                    # wrote:" in front of it was the tool's ledger.
                     response = produced
                 else:
                     response = f"{summary or 'Done.'} Here is what I wrote:\n\n{produced}"
@@ -675,7 +680,12 @@ def _pursuit_account(result: dict) -> list[str]:
     # was asked for is the verdict; the working is what supports it.
     concluded = str(result.get("concluded") or "").strip()
     if concluded:
-        lines.append(concluded)
+        # And only hers, where there is one. Each answer and its reason
+        # already reached the person as it was made, one bubble a question;
+        # listed again under the verdict they were a dump of the rounds with
+        # the evidence strings showing (LIVE 2026-10-01: "Q1, Q2, ... (when
+        # something served connection I took it 385 times out of 403 ...)").
+        return [concluded]
     narration = result.get("narration")
     if isinstance(narration, list):
         for entry in narration:

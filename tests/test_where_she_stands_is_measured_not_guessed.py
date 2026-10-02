@@ -252,5 +252,5 @@ def test_the_live_path_places_them_together():
     from core.skills import sovereign_browser_understanding as u
 
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
-    assert "against_the_rest" in body
-    assert body.index("against_the_rest") < body.index("_thinking_for_one_answer")
+    assert "against_the_rest" in inspect.getsource(u.measure_the_screen)
+    assert body.index("measure_the_screen") < body.index("_thinking_for_one_answer")

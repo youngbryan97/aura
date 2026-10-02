@@ -123,9 +123,10 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     handed: dict[str, Any] = {"prompts": []}
 
     async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None,
-                     worked_out_here: bool = True):
+                     worked_out_here: bool = True, held_to: str = ""):
         handed.setdefault("spoken", [])
         handed["worked_out_here"] = worked_out_here
+        handed["held_to"] = held_to
         handed["prompts"].append(prompt)
         handed["most_tokens"] = most_tokens
         handed["prompt"] = prompt
@@ -185,7 +186,7 @@ def test_each_question_is_thought_about_said_answered_and_left_up_in_turn(monkey
     skill, handed = _screen(monkeypatch, said)
 
     async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None,
-                     worked_out_here: bool = True):
+                     worked_out_here: bool = True, held_to: str = ""):
         happened.append("think")
         return said, "Cortex"
 
@@ -278,9 +279,10 @@ def test_measuring_needs_no_model_at_all():
 
 def test_she_places_herself_before_she_thinks_about_it():
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
-    measured = body.index("_measure_where_she_stands")
+    measured = body.index("measure_the_screen")
     reasoned = body.index("_thinking_for_one_answer")
     assert measured < reasoned
+    assert "_measure_where_she_stands" in inspect.getsource(u.measure_the_screen)
     thinking = inspect.getsource(u._thinking_for_one_answer)
     assert "_her_thinking_about" in thinking
 
@@ -313,6 +315,7 @@ def test_a_reason_is_bounded_so_a_page_of_them_is_affordable(monkeypatch):
         "her place on the item was measured before she was asked; nothing is "
         "worked out in the call that says why"
     )
+    assert handed["held_to"] == "json_object", "the reply is read as an object; the decoder holds it to one"
 
 
 def test_there_are_fewer_passes_than_items():

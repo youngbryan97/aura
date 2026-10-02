@@ -90,8 +90,10 @@ async def test_a_reason_for_a_measured_place_does_not_open_the_channel(router):
     await skill._asked_of_her(
         "why is that answer yours", "her mind", shaped=False,
         most_tokens=SovereignBrowserSkill.REASON_MAX_TOKENS, worked_out_here=False,
+        held_to="json_object",
     )
     asked = router.asked[-1]
+    assert asked["output_shape"] == "json_object"
     assert int(asked["user_surface_completion_floor"]) <= A_CLOSED_QUESTIONS_FLOOR
     assert asked["cognitive_mode"] == "fast"
     assert asked["hard_output_token_ceiling"] is True

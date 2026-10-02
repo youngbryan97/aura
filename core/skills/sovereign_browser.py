@@ -1683,8 +1683,15 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     # that answered thirty-two items and reached its results.
                     if not forecast_made:
                         forecast_made = True
+                        # From where her record puts her on what is in front
+                        # of her, measured before anything is said about it.
+                        from .sovereign_browser_understanding import measure_the_screen
+
+                        measured = await measure_the_screen(
+                            self, self._unanswered_questions(observation), on_progress=still_going
+                        )
                         read_it = await self._what_she_expects_it_to_say(
-                            goal, observation, mind
+                            goal, observation, mind, measured=measured
                         )
                         said_before = read_it or said_before
                         # Said whichever of the two it came from. Speaking only

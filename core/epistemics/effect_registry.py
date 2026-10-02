@@ -165,8 +165,13 @@ _DOING = r"\b(?:now\s+)?(?:appending|writing|saving|creating|adding|putting|copy
 #: Asserting the RESULT rather than the act: "the file now contains both
 #: lines", "it now has the second line". The strongest form of the claim, and
 #: the one most likely to be believed.
+#: A named file, note or document stating what it holds; or "it", but only
+#: with "now", which is what makes it a claim about a change. Bare "it has"
+#: is ordinary speech: LIVE 2026-10-01 "what it has no way to see", about a
+#: personality test, was read as a claim to have written a file and the reply
+#: ended on a correction for something she never said.
 _NOW_CONTAINS = (
-    r"\b(?:the\s+)?(?:file|note|document|it)\s+(?:now\s+)?"
+    r"(?:\b(?:the\s+)?(?:file|note|document)\s+(?:now\s+)?|\bit\s+now\s+)"
     r"(?:contains|holds|has|includes|shows)\b"
 )
 
