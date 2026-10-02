@@ -35,49 +35,21 @@ def test_a_move_on_the_drawing_is_a_hand_over():
     assert not drawing.chose_the_drawing([(off, "")])
 
 
-def test_the_window_and_the_band_reach_the_screen_pursuit(monkeypatch):
-    asked: dict[str, Any] = {}
-
-    class _Page:
-        async def bring_to_front(self):
-            asked["front"] = True
-
-        async def evaluate(self, script):
-            assert "shadowRoot" in script
-            return json.dumps({"left": 0.05, "top": 0.35, "right": 0.75, "bottom": 0.95})
+def test_no_window_she_cannot_prove_is_hers_is_ever_played(monkeypatch):
+    """LIVE 2 Oct the front window was the person's own Chrome."""
+    called: list[Any] = []
 
     async def _pursue(**kwargs):
-        asked.update(kwargs)
-        return {"moves": [{"key": 'click "Play"'}, {"key": "up"}], "outcome": "goal_reached"}
+        called.append(kwargs)
+        return {}
 
-    monkeypatch.setattr("core.capabilities.window_server.front_owner", lambda: "Chromium")
     monkeypatch.setattr("core.skills.screen_pursuit.pursue_on_screen", _pursue)
+    monkeypatch.setattr("core.capabilities.window_server.front_owner", lambda: "Google Chrome")
     step = asyncio.run(
-        drawing.played_on_the_drawing(
-            SimpleNamespace(page=_Page()), "play it and beat it", {"url": "https://example.test/game"}
-        )
+        drawing.played_on_the_drawing(SimpleNamespace(page=object()), "play", {"url": "u"})
     )
-    assert asked["front"] is True
-    assert asked["target_app"] == "Chromium"
-    assert asked["drawn_at"] == (0.05, 0.35, 0.75, 0.95)
-    assert asked["expect_page"] == "https://example.test/game"
-    assert step["ok"] and step["landed"] == 2 and step["moved"]
-    assert step["played"]["outcome"] == "goal_reached"
-
-
-def test_a_page_that_will_not_say_where_it_draws_is_not_played(monkeypatch):
-    class _Page:
-        async def bring_to_front(self):
-            return None
-
-        async def evaluate(self, script):
-            return ""
-
-    monkeypatch.setattr("core.capabilities.window_server.front_owner", lambda: "Chromium")
-    step = asyncio.run(
-        drawing.played_on_the_drawing(SimpleNamespace(page=_Page()), "play", {"url": "u"})
-    )
-    assert step["error"] == "the page did not say where it draws"
+    assert called == []
+    assert step["error"] and step["landed"] == 0
 
 
 def test_the_screen_pursuit_takes_a_measured_band():

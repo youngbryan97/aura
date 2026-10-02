@@ -12,12 +12,10 @@ whether what is drawn is the way on; the screen pursuit finds out how it moves.
 """
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import Mapping
 from typing import Any
 
-from core.runtime.errors import record_degradation
 
 #: The selector the observer gives what a page draws. Not a CSS selector: a move
 #: on it is a hand-over, never a click.
@@ -45,54 +43,18 @@ def _the_band(said: Any) -> tuple[float, float, float, float] | None:
 async def played_on_the_drawing(
     browser: Any, goal: str, observation: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """Hand the window to the screen pursuit, over the part the page draws in.
+    """Play what her own browser draws, or say plainly that it cannot be played yet.
 
-    Returns the round's record: what was handed over, and what came back.
+    Never by aiming the screen pursuit at whatever window is in front. LIVE 2 Oct
+    her browser had no window on the screen at all, the front window was the
+    person's own Chrome, and a hand-over that named the front window as hers was
+    stopped only by a page check before any key went. Playing has to go through
+    her own page — its picture and its input — and until it does, the round is
+    refused with the reason.
     """
-    from core.capabilities import window_server
-    from core.perception.what_the_page_says import _WHERE_IS_IT
-
-    from .screen_pursuit import pursue_on_screen
-
-    url = str(observation.get("url") or "")
-    step: dict[str, Any] = {"chose": ["what the page draws"], "url": url, "landed": 0}
-    page = getattr(browser, "page", None)
-    if page is None:
-        step["error"] = "no_page_to_play"
-        return step
-    try:
-        await page.bring_to_front()
-        band = _the_band(await page.evaluate(_WHERE_IS_IT))
-        owner = str(await asyncio.to_thread(window_server.front_owner) or "")
-    except Exception as exc:  # noqa: BLE001 - a hand-over that cannot be made is reported, not raised
-        record_degradation("sovereign_browser.drawing", exc, severity="warning")
-        step["error"] = f"could_not_hand_over:{type(exc).__name__}"
-        return step
-    if band is None or not owner:
-        step["error"] = "the page did not say where it draws" if band is None else "no window in front"
-        return step
-    played = await pursue_on_screen(
-        goal=goal,
-        success_when="",
-        target_app=owner,
-        expect_page=url,
-        drawn_at=band,
-        narrate=True,
-    )
-    moves = played.get("moves") if isinstance(played, Mapping) else None
-    made = len(moves) if isinstance(moves, list) else 0
-    step.update(
-        {
-            "ok": bool(made),
-            "landed": made,
-            "moved": bool(made),
-            "played": {
-                "outcome": str((played or {}).get("outcome") or ""),
-                "moves": made,
-                "window": owner,
-                "band": list(band),
-            },
-            "why": str((played or {}).get("summary") or (played or {}).get("outcome") or ""),
-        }
-    )
-    return step
+    return {
+        "chose": ["what the page draws"],
+        "url": str(observation.get("url") or ""),
+        "landed": 0,
+        "error": "playing what her own browser draws, by sight, is not built yet",
+    }
