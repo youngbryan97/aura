@@ -1455,9 +1455,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     PURSUE_CONTROL_BUDGET = 40
 
     #: Roles that DO something, offered before the ones that merely navigate.
+    #: What a page draws is acted in directly; left out, a game's 598 by 399
+    #: canvas fell below forty links and she could not choose it (LIVE 2 Oct).
     _ACTIONABLE_ROLES = (
         "radio", "checkbox", "switch", "option", "select", "textarea",
-        "text", "email", "password", "search", "number", "button", "submit",
+        "text", "email", "password", "search", "number", "button", "submit", "drawing",
     )
 
 

@@ -123,7 +123,15 @@ class _UnderstandsThePage(_PlacesHerself):
                 pair[0],
             ),
         )
-        return [element for _index, element in ranked[: cls.PURSUE_CONTROL_BUDGET]]
+        offered = [element for _index, element in ranked[: cls.PURSUE_CONTROL_BUDGET]]
+        # What the page draws is the page's content, not furniture cut for room:
+        # LIVE 2 Oct a game's canvas fell below forty links carrying the goal's
+        # own word "game", and she could not choose the thing she was sent to play.
+        return offered + [
+            element
+            for _index, element in ranked[cls.PURSUE_CONTROL_BUDGET:]
+            if isinstance(element, Mapping) and str(element.get("role") or "") == "drawing"
+        ]
 
     #: Words that name nothing in particular, so sharing one says nothing.
     _SAYS_NOTHING = frozenset({

@@ -94,3 +94,13 @@ def test_the_observer_reports_what_a_page_draws():
     source = inspect.getsource(phantom_browser)
     assert "role: 'drawing'" in source and "walkDrawn(el.shadowRoot)" in source
     assert f"selector: '{drawing.DRAWING}'" in source
+
+
+def test_what_the_page_draws_is_offered_ahead_of_its_links():
+    """LIVE 2 Oct: a 598 by 399 game fell below forty links and could not be chosen."""
+    from core.skills.sovereign_browser import SovereignBrowserSkill as S
+
+    links = [{"role": "link", "name": f"Game {n}", "selector": f"#g{n}"} for n in range(60)]
+    drawn = {"role": "drawing", "name": "what the page draws, 598 by 399", "selector": drawing.DRAWING}
+    offered = S._controls_worth_offering([*links, drawn], "play the game")
+    assert drawn in offered
