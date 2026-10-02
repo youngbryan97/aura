@@ -6,6 +6,7 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -333,9 +334,27 @@ class _PlacesHerself:
         if not theme:
             return {}
         asked_about = about if about is not None else None
+        # Where her words will be read for where they put her, she is not told
+        # where her record put her first: a sentence written to a place given
+        # in advance explains that place, and the place is what is in doubt.
+        # LIVE 2026-10-02, handed "5 of 5, nearer procrastinates", she wrote
+        # "I don't procrastinate because I'm lazy; I stall because...".
+        from core.self.how_her_words_stand import can_read_her_words
+
+        her_words_decide = asked_about is not None and await asyncio.to_thread(
+            can_read_her_words
+        )
         lines = []
         for item in theme:
             lean = item["lean"]
+            if her_words_decide:
+                from .sovereign_browser_one_question import _the_question_and_the_answer
+
+                question, _picked = _the_question_and_the_answer(
+                    self, item["options"], item["index"]
+                )
+                lines.append(f'{item["group"]}. {question or item["group"]}.')
+                continue
             evidence = "; ".join(lean.because[:3]) or "nothing in particular"
             # The question as the PAGE asks it, in the same words the answer is
             # said in. This used to name the two ends of a dimension and her

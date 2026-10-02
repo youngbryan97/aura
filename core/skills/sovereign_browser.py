@@ -547,7 +547,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             if callable(said):
                 said = await said()
             if isinstance(said, tuple):
-                said, parts = said
+                said, parts, *where = said
+                if where and where[0]:  # her words, read, chose a different place
+                    action = action.model_copy(update={"selector": where[0]})
             said = str(said or "")
             if said:
                 self._say_out_loud(said, parts)
@@ -633,8 +635,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         2026-09-29, it cut the end off and the seam downstream reported
         "completed a reply cut off mid-clause (400 -> 315 chars)" four times in a
         row, each one a piece of her reasoning nobody read. The bound is the
-        bubble's; the card stays, so its body is all of it (LIVE 2026-10-02 the
-        forecast's card stopped at 599 characters, before the type she expected).
+        bubble's; the card stays, so its body is all of it (LIVE 2026-10-02).
         """
         from core.agency.reading_pace import as_much_as_can_be_read
 

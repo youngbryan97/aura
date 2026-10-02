@@ -170,6 +170,18 @@ def _thinking_for_one_answer(
         options = item["options"]
         index = item["index"]
         lean = item["lean"]
+        # Where her own sentence puts her, read by entailment, where it can be.
+        # See `core.self.how_her_words_stand`: her considered words are the
+        # better evidence, and the record's place is kept where they say
+        # nothing that can be read.
+        placed = (
+            await asyncio.to_thread(_where_her_words_place_her, skill, item, hers)
+            if hers
+            else None
+        )
+        if placed is not None and placed != index and options[placed].get("selector"):
+            index = placed
+            resolved["selector"] = str(options[index]["selector"])
         leaning = item["second"] if lean.toward > 0 else item["first"]
         # An answer is never said bare.
         #
@@ -211,9 +223,32 @@ def _thinking_for_one_answer(
         )[:400]
         if on_progress is not None:
             on_progress("a question thought about")
-        return words, {"asks": asks, "chose": picked, "said": " ".join(why.split())}
+        return (
+            words,
+            {"asks": asks, "chose": picked, "said": " ".join(why.split())},
+            str(resolved.get("selector") or ""),
+        )
 
     return _think
+
+
+def _where_her_words_place_her(skill: Any, item: Mapping[str, Any], hers: str) -> int | None:
+    """The position her own sentence puts her at on this question, or None."""
+    from core.self import how_her_words_stand as reading
+    from core.self.where_i_stand import Lean
+
+    options = item["options"]
+    lean = item["lean"]
+    if getattr(lean, "facing", 0.0):
+        shape = skill._a_statement_on_a_named_scale(options)
+        borne = None if shape is None else reading.whether_her_words_bear_it_out(hers, shape[0])
+        toward = None if borne is None else borne * lean.facing
+    else:
+        sides = skill._the_two_sides(options)
+        toward = None if sides is None else reading.where_her_words_put_her(hers, *sides)
+    if toward is None:
+        return None
+    return Lean(toward=toward, first=0.0, second=0.0, measured=True).position_in(len(options))
 
 
 def _the_question_and_the_answer(
@@ -332,20 +367,13 @@ async def _every_question_measured(
         # same record, so the widest gap among them is what "as far as she
         # goes" means here and the rest are placed in proportion.
         try:
-            from core.self.where_i_stand import Lean, against_the_rest
+            from dataclasses import replace
+
+            from core.self.where_i_stand import against_the_rest
 
             shares = against_the_rest([item["lean"] for item in measured])
             for item, share in zip(measured, shares, strict=False):
-                lean = item["lean"]
-                item["lean"] = Lean(
-                    toward=share,
-                    first=lean.first,
-                    second=lean.second,
-                    because=lean.because,
-                    measured=lean.measured,
-                    gap=lean.gap,
-                    relative=lean.relative,
-                )
+                item["lean"] = replace(item["lean"], toward=share)
                 placed = item["lean"].position_in(item["count"])
                 if placed is not None:
                     item["index"] = placed

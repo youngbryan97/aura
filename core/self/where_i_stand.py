@@ -28,7 +28,7 @@ import logging
 import math
 from collections.abc import Iterator, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -118,6 +118,10 @@ class Lean:
     #: 5/7/6/2/8 across the five positions, and rescaled they were 2 at the far
     #: end and 26 on the midpoint.
     relative: bool = False
+    #: Which end of the run means yes, for a statement on a grid: +1 the last
+    #: position, -1 the first, 0 not a grid. The page reads it off all its
+    #: statements at once; one statement alone gets it wrong one time in twenty.
+    facing: float = 0.0
 
     def position_in(self, count: int) -> int | None:
         """Which of ``count`` positions this lean puts her at, 0-based.
@@ -734,7 +738,7 @@ def where_she_stands_on_a_grid(
             for _ in leans
         ]
     if facing > 0.0:
-        return leans
+        return [replace(lean, facing=facing) for lean in leans]
     # The page runs from yes to no. She stands where she stands; the run is
     # printed backwards, so the position on it is.
     return [
@@ -746,6 +750,7 @@ def where_she_stands_on_a_grid(
             measured=lean.measured,
             gap=-lean.gap,
             relative=lean.relative,
+            facing=facing,
         )
         for lean in leans
     ]
