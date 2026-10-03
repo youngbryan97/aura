@@ -23,6 +23,7 @@ __all__ = [
     "while_she_writes",
     "SCREENS_MEASURED",
     "HER_MIND_THIS_PURSUIT",
+    "ASKED_AT",
     "the_finished_fields",
 ]
 
@@ -49,6 +50,13 @@ SCREENS_MEASURED: ContextVar[dict[tuple[Any, ...], list[dict[str, Any]]] | None]
 HER_MIND_THIS_PURSUIT: ContextVar[dict[str, str] | None] = ContextVar(
     "aura_pursuit_her_mind", default=None
 )
+
+#: When the pursuit in progress was asked for, as `time.time()`. Set by
+#: `_handle_pursue`; None outside one. "The current time" in a request is the
+#: time it was made: LIVE 2026-10-03 05:46-05:56 she worked the game out from
+#: the clock again on every page, chose game 8, then 11, then decided she was
+#: on "a game I was never supposed to open" and went back to the index.
+ASKED_AT: ContextVar[float | None] = ContextVar("aura_pursuit_asked_at", default=None)
 
 #: How long her assembled mind was the last time it was built, in characters.
 #: Part of what a page's own text has to fit beside. See `_room_for_page_text`.

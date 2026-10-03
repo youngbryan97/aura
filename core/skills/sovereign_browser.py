@@ -288,6 +288,7 @@ def _saying_it_moves_for(action_context: Any) -> _StillGoing:
     measured.
     """
     from .sovereign_browser_understanding import (
+        ASKED_AT,
         HER_MIND_THIS_PURSUIT,
         SAYING_IT_MOVES,
         SCREENS_MEASURED,
@@ -303,6 +304,7 @@ def _saying_it_moves_for(action_context: Any) -> _StillGoing:
     SCREENS_MEASURED.set({})
     # And her mind is built once for the whole pursuit; see HER_MIND_THIS_PURSUIT.
     HER_MIND_THIS_PURSUIT.set({})
+    ASKED_AT.set(time.time())
     return still_going
 
 

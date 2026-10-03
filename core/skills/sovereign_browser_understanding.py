@@ -22,6 +22,7 @@ from core.runtime.service_access import optional_service
 from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
 from .sovereign_browser_one_question import (  # noqa: F401  (re-exported: the pursuit and tests read them here)
+    ASKED_AT,
     HER_MIND_THIS_PURSUIT,
     SAYING_IT_MOVES,
     SCREENS_MEASURED,
@@ -244,6 +245,10 @@ class _UnderstandsThePage(_PlacesHerself):
             # the minute, as the clock in front of the person shows it: with
             # seconds, LIVE 2026-10-03 04:42, "the last digit" became theirs.
             f"Now: {time.strftime('%A %d %B %Y, %H:%M %Z')}",
+            *(
+                [f"Asked at: {time.strftime('%A %d %B %Y, %H:%M %Z', time.localtime(asked))}"]
+                if (asked := ASKED_AT.get()) else []
+            ),
             "",
             "PAGE TEXT:",
             "",  # filled in last, with the room the rest leaves
@@ -345,7 +350,7 @@ class _UnderstandsThePage(_PlacesHerself):
             shown += f"\n(the page's text goes on for {whole - above - room} more characters)"
         elif whole - above > len(text):
             shown += f"\n(the page's text goes on for {whole - above - len(text)} more characters)"
-        lines[4] = shown
+        lines[lines.index("PAGE TEXT:") + 1] = shown
         return "\n".join(lines)
 
     @staticmethod
