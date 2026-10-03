@@ -781,6 +781,28 @@ async def _stabilize_user_facing_reply(
                 and len(cleaned) >= 16
             ):
                 return cleaned
+            if cleaned_truncated_tail and valid_cleaned and not any((
+                cleaned_generic, cleaned_objective_parrot, cleaned_lacks_self_anchor,
+                cleaned_lacks_live_grounding, cleaned_unexpected_cjk, cleaned_off_topic,
+                cleaned_stale_repeat, cleaned_same_diff,
+                cleaned_semantic_glitch and _cleaned_semantic_reason != "truncated_tail",
+            )):
+                # Only the last sentence is unfinished: serve what she finished,
+                # held to the same checks, rather than a regenerated reply.
+                finished = _chat_desktop_repair._up_to_its_last_finished_sentence(cleaned)
+                if (
+                    len(finished) >= 16
+                    and not _chat_desktop_repair._looks_truncated_tail(finished)
+                    and not _looks_semantically_glitched(user_message, finished)[0]
+                    and not _reply_assessment_requires_repair(
+                        _assessment_or_none(user_message, finished, recent_user_messages)
+                    )
+                ):
+                    logger.info(
+                        "Served her answer up to its last finished sentence (%d of %d chars).",
+                        len(finished), len(cleaned),
+                    )
+                    return finished
             if internal_state_leak:
                 logger.warning(
                     "Blocked internal state leak in user-facing reply (len=%d).", len(text)

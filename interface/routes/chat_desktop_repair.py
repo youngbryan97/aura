@@ -431,6 +431,24 @@ def _build_failure_mode_surface_reply(user_message: str) -> str | None:
     )
 
 
+#: Where a sentence ends: its stop, any closing quote or bracket, then a space
+#: or a line break.
+_FINISHED_SENTENCE_RE = re.compile(r"[.!?][\"'”’)\]]*(?=\s)")
+
+
+def _up_to_its_last_finished_sentence(text: str) -> str:
+    """What she wrote, up to the last sentence she finished; empty when none was.
+
+    LIVE 2026-10-03: a 3,862-character answer about a page she had read ran
+    out of time mid-sentence, and the stabilizer threw all of it away for a
+    fresh 87-character reply written from a small repair prompt. A cut-off last
+    sentence is repaired by leaving it off.
+    """
+    body = str(text or "").rstrip()
+    ends = [match.end() for match in _FINISHED_SENTENCE_RE.finditer(body + " ")]
+    return body[: ends[-1]].rstrip() if ends else ""
+
+
 def _looks_truncated_tail(text: str) -> bool:
     body = str(text or "").strip()
     if len(body) < 24:
