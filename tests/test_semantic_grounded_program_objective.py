@@ -199,6 +199,45 @@ def test_population_preflight_keeps_all_failures_and_does_not_claim_semantic_suc
     assert not report["model_weights_loaded"] and report["semantic_success"] is None
 
 
+@pytest.mark.parametrize("failure", [None, ValueError, RuntimeError])
+def test_source_trace_has_identity_before_work_and_cancels_after_any_exit(monkeypatch, tmp_path, capsys, failure):
+    import faulthandler
+    import json
+    import tools.semantic_grounded_program_pool as module
+
+    calls = []
+    monkeypatch.setattr(faulthandler, "dump_traceback_later", lambda seconds, **kwargs:
+        calls.append((seconds, kwargs)))
+    monkeypatch.setattr(faulthandler, "cancel_dump_traceback_later", lambda: calls.append("cancel"))
+    def prepare(_parent, item, _directory, **bounds):
+        start = json.loads(capsys.readouterr().out)
+        assert start["stage"] == "grounded_program_pool_started"
+        assert start["source_id"] == item.ir.source_text_sha256 and start["ordinal"] == 1
+        assert bounds == {"max_seconds": 10.}
+        if failure is not None:
+            raise failure("source interrupted")
+        return SimpleNamespace(mining={"requested_searches_completed": True}), True
+    monkeypatch.setattr(module, "source_program_pool", prepare)
+    item = SimpleNamespace(ir=SimpleNamespace(source_text_sha256="a" * 64, instructions=(1, 2)),
+        construction_id="source-only-frame")
+    if failure is None:
+        _programs, report = module.prepare_program_population(None, (item,), tmp_path,
+            stall_trace_seconds=60., max_seconds=10.)
+        assert report["sources"][0]["elapsed_s"] >= 0. and report["fit_ready"]
+    else:
+        with pytest.raises(failure):
+            module.prepare_program_population(None, (item,), tmp_path,
+                stall_trace_seconds=60., max_seconds=10.)
+    assert calls == [(60., {"repeat": True}), "cancel"]
+
+
+@pytest.mark.parametrize("interval", [0., -1., float("inf"), float("nan")])
+def test_invalid_source_trace_interval_refuses_before_work(tmp_path, interval):
+    from tools.semantic_grounded_program_pool import prepare_program_population
+    with pytest.raises(ValueError, match="positive finite interval"):
+        prepare_program_population(None, (), tmp_path, stall_trace_seconds=interval)
+
+
 def mining_fixture():
     from core.learning.semantic_program_compositional_transducer import (
         fit_compositional_semantic_program_transducer,

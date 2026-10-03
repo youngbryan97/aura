@@ -323,3 +323,31 @@ def test_handoff_runs_exact_fit_then_independent_verify_only_after_prerequisites
             run_semantic_grounded_fit_handoff.main()
         assert len(calls) == (1 if failure == "fit_failed" else 0)
         assert not (handoff / "completion.json").exists()
+
+
+def test_policy_preparation_creates_broker_log_parent_without_starting_any_work(tmp_path, monkeypatch):
+    from core.runtime import detached_subprocess_broker
+    from tools import run_detached_step, run_semantic_grounded_fit_handoff
+
+    value = supervised(tmp_path)
+    for name in ("fit_semantic_grounded_binding.py", "verify_semantic_grounded_fit.py"):
+        script = tmp_path / "frozen/tools" / name
+        script.parent.mkdir(parents=True, exist_ok=True)
+        script.write_text("# fixed executable fixture\n")
+    supervisor = tmp_path / "supervisor"
+    supervisor.mkdir()
+    (supervisor / run_detached_step.PLAN_FILE).write_text(json.dumps(value))
+    monkeypatch.setattr(run_detached_step, "_verify_plan", lambda *args: None)
+    monkeypatch.setattr(detached_subprocess_broker, "run_brokered_process",
+        lambda *args, **kwargs: pytest.fail("policy construction started training"))
+    directory = tmp_path / "handoff"
+    policy = directory / "broker-policy.json"
+    monkeypatch.setattr("sys.argv", ["handoff", "--preparation-supervisor", str(supervisor),
+        "--preparation-plan-sha256", value["plan_sha256"], "--directory", str(directory),
+        "--policy-output", str(policy)])
+    assert run_semantic_grounded_fit_handoff.main() == 0
+    jobs = json.loads(policy.read_text())
+    assert jobs == [{key: item for key, item in row.items() if key != "name"}
+        for row in fit_jobs(preparation_paths(value), directory)]
+    assert (directory / "logs").is_dir()
+    assert not (directory / "handoff.json").exists()

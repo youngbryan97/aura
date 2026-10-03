@@ -2,6 +2,8 @@
 
 import hashlib
 import json
+import math
+import time
 from pathlib import Path
 
 from core.learning.semantic_grounded_program_objective import (
@@ -69,15 +71,26 @@ def source_program_pool(parent, item, directory, *, reuse_directory=None, **boun
     return programs, provenance is not None
 
 
-def prepare_program_population(parent, items, directory, **bounds):
+def prepare_program_population(parent, items, directory, *, stall_trace_seconds=None, **bounds):
     """Collect every measured source failure before deciding fit readiness."""
     from core.governance_context import local_internal_governed_scope
     from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
     from core.runtime.file_write_gateway import get_file_write_gateway
 
+    if stall_trace_seconds is not None and (
+            not math.isfinite(stall_trace_seconds) or stall_trace_seconds <= 0):
+        raise ValueError("source stall tracing requires a positive finite interval")
+    import faulthandler
+
     programs, failures, rows = {}, [], []
     for item in items:
         identity = item.ir.source_text_sha256
+        started = time.monotonic()
+        print(json.dumps({"stage": "grounded_program_pool_started", "ordinal": len(rows) + 1,
+            "population": len(items), "source_id": identity, "construction_id": item.construction_id,
+            "operation_count": len(item.ir.instructions)}), flush=True)
+        if stall_trace_seconds is not None:
+            faulthandler.dump_traceback_later(stall_trace_seconds, repeat=True)
         try:
             programs[identity], reused = source_program_pool(parent, item, directory, **bounds)
             row = {"source_id": identity, "status": "ready", "verified_pool_reused": reused,
@@ -87,6 +100,10 @@ def prepare_program_population(parent, items, directory, **bounds):
                 "reason": str(exc), "construction_id": item.construction_id,
                 "operation_count": len(item.ir.instructions)}
             failures.append(row)
+        finally:
+            if stall_trace_seconds is not None:
+                faulthandler.cancel_dump_traceback_later()
+        row["elapsed_s"] = time.monotonic() - started
         rows.append(row)
         print(json.dumps({"stage": "grounded_program_pool_mined", "completed": len(rows),
             "population": len(items), **row}), flush=True)

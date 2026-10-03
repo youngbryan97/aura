@@ -237,6 +237,7 @@ def main():
     if args.policy_output is not None:
         from core.governance_context import local_internal_governed_scope
         from core.runtime.file_write_gateway import get_file_write_gateway
+        (directory / "logs").mkdir(parents=True, exist_ok=True)
         with local_internal_governed_scope("grounded_fit_handoff_policy", domain="file_write"):
             if not get_file_write_gateway().write_bytes_if_absent(args.policy_output,
                     json.dumps([{key: value for key, value in row.items() if key != "name"}

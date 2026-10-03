@@ -1474,6 +1474,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Preparation stall replay](evidence/G03_PREPARATION_STALL_REPLAY_2026-10-03.md)
+  records the v2 terminal timeout after 444 completed pools. Its handoff
+  refused training. The next unfinished source completed against unchanged
+  code in a bounded replay; the original stall remains unexplained. Source
+  identity, elapsed time and stall stacks now accompany recovery. Completed
+  pools require revalidation before reuse. No native fit or learned accuracy
+  follows from the replay or 89 focused passing checks.
   [Verified preparation continuation](evidence/G03_GROUNDED_PREPARATION_HANDOFF_2026-10-02.md)
   records the repaired detached run: all 282 earlier pools independently
   revalidated; 377 source pools ready and none failed at observation. The new
@@ -1481,8 +1488,8 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   every retained program, requires a contained terminal and exclusive model
   access, then independently verifies a positive-step checkpoint. It also
   repairs definition-free chart deserialization. 167 focused checks and smoke
-  pass. Preparation is still running; no new learned accuracy or G03 closure
-  follows from these checks.
+  pass. This was a running observation; the later terminal and replay above
+  supersede its process status. No G03 closure follows from these checks.
   [Program proof retention](evidence/G03_PROGRAM_POOL_PROGRESS_2026-10-01.md)
   repairs source mining that discarded completed graphs after a later search
   timeout. Public decoding still requires optimality. Two previously failing
