@@ -391,7 +391,7 @@ async def _understand_the_page_again(
         self._remember_the_place(
             str(observation.get("url") or ""), understanding, shape
         )
-        say_what_she_makes_of_the_page(self._say_out_loud, understanding or {})
+        say_what_she_makes_of_the_page(self, understanding or {}, observation, goal)
     return surprised, understanding
 
 
@@ -1564,7 +1564,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         forecast_made = False
         last_good_url = str(url or "")
         understanding: dict[str, Any] | None = None
-        surprised = False
+        surprised, shape = False, ""
         # The heartbeat and the per-pursuit holders first: the mind built next
         # is the one every round of this pursuit reads.
         still_going = _saying_it_moves_for(action_context)
@@ -1657,23 +1657,24 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     stalled = 0
                 last_signature = signature
                 current_url = str(observation.get("url") or "")
+                arrived = bool(current_url) and current_url != last_good_url
                 if current_url:
                     last_good_url = current_url
                 if exhausted:
                     continue  # nothing here is untried: look again, do not ask
 
-                # Form the understanding on arrival, and revise it when the page
-                # surprises her — not every round. A person does not re-derive what
-                # a website is after each click; they act until something does not
-                # match, and then they look again.
-                shape = self._page_shape(observation)
+                # Form the understanding on arrival at each kind of page, and revise
+                # it when the page surprises her — not every round, and not on the
+                # next page of the same form. A person takes in a new place, acts
+                # until something does not match, and looks again.
+                shape_before, shape, understood_before = shape, self._page_shape(observation), understanding
                 surprised, understanding = await _understand_the_page_again(
                     goal=goal,
                     mind=mind,
                     observation=observation,
                     self=self,
                     shape=shape,
-                    surprised=surprised,
+                    surprised=surprised or (arrived and shape != shape_before),
                     understanding=understanding,
                 )
 
@@ -1731,8 +1732,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     )
                 if decision is None:
                     decision = await self._decide_next_actions(
-                        goal, observation, steps, understanding,
-                        said_before=said_before, noticed=noticed,
+                        goal, observation, steps, understanding, said_before=said_before,
+                        noticed=noticed, settled=understanding is not understood_before,
                     )
                 # Every decision said out loud, the moment it is made — the
                 # ones that act and the ones that do not — and left up long

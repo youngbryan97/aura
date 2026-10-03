@@ -13,6 +13,7 @@ went. What that means is hers.
 """
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -238,9 +239,40 @@ def what_she_makes_of_the_page(understanding: Mapping[str, Any]) -> str:
     return ". ".join(part for part in parts if part) + ("." if any(parts) else "")
 
 
-def say_what_she_makes_of_the_page(say: Any, understanding: Mapping[str, Any]) -> None:
+#: A control named by its place in the list she was shown, "(control [0])",
+#: with the parentheses when it was said as an aside.
+_A_PLACE_IN_HER_LIST = re.compile(
+    r"(?P<aside>\s*\()?(?:\b(?:controls?|index|element|item|option)\s*)?\[(?P<at>\d+)\](?(aside)\))",
+    re.IGNORECASE,
+)
+
+
+def in_words_the_watcher_can_follow(said: str, offered: Sequence[Mapping[str, Any]]) -> str:
+    """Her words with each place in her list given as the control it names.
+
+    She is shown the page's controls as a numbered list and refers to them by
+    number; the person watching never sees that list. LIVE 2026-10-03 03:31,
+    on the first card of the run: "Click the 'Open Jungian Type Scales' link
+    (control [0])". An aside whose control is already named in the sentence is
+    dropped, and any other reference is replaced by the control's name.
+    """
+
+    def named(found: re.Match[str]) -> str:
+        at = int(found.group("at"))
+        name = str(offered[at].get("name") or "").strip() if at < len(offered) else ""
+        if found.group("aside"):
+            return "" if not name or name.lower() in said.lower() else f' ("{name}")'
+        return f'"{name}"' if name else found.group(0)
+
+    return _A_PLACE_IN_HER_LIST.sub(named, str(said or ""))
+
+
+def say_what_she_makes_of_the_page(
+    her: Any, understanding: Mapping[str, Any], observation: Mapping[str, Any], goal: str
+) -> None:
     """Say her reading of a page she has just reached, where it can be heard."""
-    read_it = what_she_makes_of_the_page(understanding)
+    offered = her._controls_worth_offering(list(observation.get("elements") or []), goal)
+    read_it = in_words_the_watcher_can_follow(what_she_makes_of_the_page(understanding), offered)
     if read_it:
-        say(read_it, {"label": "What I see", "said": read_it})
+        her._say_out_loud(read_it, {"label": "What I see", "said": read_it})
 

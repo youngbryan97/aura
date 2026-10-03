@@ -1376,6 +1376,7 @@ class _UnderstandsThePage(_PlacesHerself):
         said_before: str = "",
         about_her: bool | None = None,
         noticed: str = "",
+        settled: bool = False,
     ) -> dict[str, Any]:
         """Ask her own reasoning what to do with this page.
 
@@ -1645,7 +1646,16 @@ class _UnderstandsThePage(_PlacesHerself):
                     # room is bought on top. Called bare, she reasoned inside the
                     # JSON: LIVE 2026-10-02, three attempts at one Continue, each
                     # 799 tokens into an unterminated string, 8.5 minutes in all.
-                    raw, _lane = await self._asked_of_her(prompt, mind, shaped=True)
+                    # Where she has just worked out what this page is and what
+                    # to do on it, the decision says what was settled rather
+                    # than working it out again. LIVE 2026-10-03 03:31: her
+                    # reading of the front page said "Click the 'Open Jungian
+                    # Type Scales' link", and the decision that followed spent
+                    # its whole 806-token channel and 153 seconds on that one
+                    # click.
+                    raw, _lane = await self._asked_of_her(
+                        prompt, mind, shaped=True, worked_out_here=not settled
+                    )
                     answered_by = "whole_page_think"
                     if not self._decision_is_usable(raw, observation, goal):
                         answered_by = "fast_lane"

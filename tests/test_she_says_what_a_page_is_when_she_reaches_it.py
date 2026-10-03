@@ -49,6 +49,10 @@ def test_a_new_understanding_is_said_out_loud(monkeypatch):
             return None
 
         @staticmethod
+        def _controls_worth_offering(elements: list, _goal: str) -> list:
+            return elements
+
+        @staticmethod
         def _say_out_loud(line: str, parts: dict[str, Any]) -> None:
             said.append((line, parts))
 
@@ -81,3 +85,20 @@ def test_a_page_already_understood_is_not_said_again():
         )
     )
     assert kept == {"here": "known"} and surprised is False
+
+
+def test_a_place_in_her_list_is_given_as_the_control_it_names():
+    """LIVE 2026-10-03 03:31: "Click the 'Open Jungian Type Scales' link (control [0])"."""
+    from core.skills.sovereign_browser_what_it_did import in_words_the_watcher_can_follow
+
+    offered = [{"name": "Open Jungian Type Scales"}, {"name": "Next"}]
+    assert in_words_the_watcher_can_follow(
+        "Click the 'Open Jungian Type Scales' link (control [0]) to open the test.", offered
+    ) == "Click the 'Open Jungian Type Scales' link to open the test."
+    assert in_words_the_watcher_can_follow("Then press [1].", offered) == 'Then press "Next".'
+    assert in_words_the_watcher_can_follow("Then press it (index [1]).", offered) == (
+        'Then press it ("Next").'
+    )
+    # A place that names nothing she was shown is left as she said it.
+    assert in_words_the_watcher_can_follow("press [7]", offered) == "press [7]"
+    assert in_words_the_watcher_can_follow("nothing listed here", offered) == "nothing listed here"

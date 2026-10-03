@@ -57,6 +57,9 @@ def test_outside_a_pursuit_nothing_is_watched(monkeypatch):
     monkeypatch.setattr("core.brain.llm.mlx_client.clients_snapshot", lambda: called.append(1) or [])
 
     async def _go() -> None:
+        # Outside one, said here: an async test before this one on a shared
+        # loop can leave a pursuit's progress hook in the context this copies.
+        u.SAYING_IT_MOVES.set(None)
         async with u.while_she_writes("x"):
             await asyncio.sleep(0.01)
 

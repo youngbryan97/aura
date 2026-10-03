@@ -102,6 +102,6 @@ def test_every_page_call_says_the_turn_is_waiting_on_it():
         )
     # A page decision asks through those two, which say it for it.
     decide = inspect.getsource(u._UnderstandsThePage._decide_next_actions)
-    assert "self._asked_of_her(prompt, mind, shaped=True)" in decide
+    assert "prompt, mind, shaped=True, worked_out_here=not settled" in decide
     assert "self._decide_on_the_fast_lane(" in decide
     assert source.count("serves_current_turn=True") >= 3

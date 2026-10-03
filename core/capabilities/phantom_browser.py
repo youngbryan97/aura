@@ -1332,7 +1332,19 @@ class PhantomBrowser(_ActsOnThePage):
                 drawing: drawn,
             });
         }
-        const main = document.querySelector('main, [role="main"], form') || document.body;
+        // The page's own words: its main landmark, or else a form that holds
+        // most of them (a questionnaire is its form), or else all of it. The
+        // first form in the document used to win, and on a site with a search
+        // box in its header that was every word she got: LIVE 2026-10-03, the
+        // Cartoon Network games list read as no text at all, with fifty-six
+        // games on it to count through.
+        const bodyWords = ((document.body && document.body.innerText) || '').length;
+        const formWithMost = [...document.querySelectorAll('form')]
+            .map((form) => [form, (form.innerText || '').length])
+            .sort((a, b) => b[1] - a[1])[0];
+        const main = document.querySelector('main, [role="main"]')
+            || (formWithMost && formWithMost[1] * 2 > bodyWords ? formWithMost[0] : null)
+            || document.body;
         const text = ((main && main.innerText) || '').replace(/\n{3,}/g, '\n\n').trim();
         // Where in those words she is looking, and where each frame sits among
         // them, as offsets into `text`. Each text node is found in `text` after

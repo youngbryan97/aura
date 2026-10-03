@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .sovereign_browser_what_it_did import in_words_the_watcher_can_follow
+
 
 class _NarratesTheBrowsing:
     """Lifted whole out of SovereignBrowserSkill; see sovereign_browser.py."""
@@ -64,7 +66,9 @@ class _NarratesTheBrowsing:
         elements = self._controls_worth_offering(
             list(observation.get("elements") or []), goal
         )
-        why = " ".join(str(decision.get("why") or "").split())
+        why = in_words_the_watcher_can_follow(
+            " ".join(str(decision.get("why") or "").split()), elements
+        )
         parts: dict[str, str] | None = None
         if decision.get("error"):
             raw = " ".join(str(decision.get("raw") or "").split())
