@@ -321,6 +321,23 @@ def test_qualification_binds_the_full_measurement() -> None:
         build_serving_qualification(tampered)
 
 
+def test_a_wider_window_that_failed_does_not_void_the_one_that_passed() -> None:
+    """LIVE 2026-10-03: 131072 failed recall and 65536 passed; 65536 is served."""
+
+    def measured(served: int, requested: int) -> dict:
+        value = _passing_measurement()
+        value.pop("evidence_sha256")
+        value.update(served_context_tokens=served, requested_context_tokens=requested)
+        value["evidence_sha256"] = canonical_sha256(value)
+        return value
+
+    narrower = build_serving_qualification(measured(65536, 131072))
+    assert (narrower["served_context_tokens"], narrower["requested_context_tokens"]) == (65536, 131072)
+    for served, requested in ((0, 131072), (131072, 65536)):
+        with pytest.raises(ValueError, match="context_incomplete"):
+            build_serving_qualification(measured(served, requested))
+
+
 def test_failed_measurement_cannot_mint_a_pass() -> None:
     measurement = _passing_measurement()
     measurement["verdict"] = "FAIL"

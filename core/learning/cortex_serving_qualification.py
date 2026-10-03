@@ -1059,11 +1059,10 @@ def build_serving_qualification(measurement: Mapping[str, Any]) -> dict[str, Any
         )
     ):
         raise ValueError("serving_qualification_incomplete")
-    if (
-        qualification["served_context_tokens"] <= 0
-        or qualification["served_context_tokens"]
-        != qualification["requested_context_tokens"]
-    ):
+    # The served window is the widest that passed. A wider one asked for and
+    # failed (LIVE 2026-10-03: 131072 failed recall, 65536 passed) is recorded
+    # in the measurement's unserved windows; it does not void what passed.
+    if not 0 < qualification["served_context_tokens"] <= qualification["requested_context_tokens"]:
         raise ValueError("serving_qualification_context_incomplete")
     return qualification
 

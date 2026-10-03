@@ -860,8 +860,7 @@ def _validate_serving_qualification(
         or value.get("context_pass") is not True
         or value.get("latency_pass") is not True
         or value.get("memory_pass") is not True
-        or served_context <= 0
-        or requested_context != served_context
+        or not 0 < served_context <= requested_context
         or prefill_chunk <= 0
         or not _is_sha256(value.get("evidence_sha256"))
     ):
@@ -901,7 +900,7 @@ def build_model_serving_profile(
         raise ValueError("serving_prefill_chunk_invalid")
     if (
         int(qualification["served_context_tokens"]) != served
-        or int(qualification["requested_context_tokens"]) != served
+        or int(qualification["requested_context_tokens"]) < served
         or int(qualification["prefill_chunk_tokens"]) != chunk
     ):
         raise ValueError("serving_qualification_profile_mismatch")
