@@ -133,3 +133,12 @@ def test_decode_scores_arguments_with_antecedents() -> None:
     perverse = ArgumentAntecedent(tuple(-50.0 * value for value in antecedent.weight), 0.0, antecedent.fit_receipt)
     moved = PeakRecognitionTransducer(base, recognizer, ownership, perverse).decode(**arguments)
     assert moved.ir is None or moved.ir.to_program() != item.ir.to_program()
+
+
+def test_an_inputs_literal_value_gets_no_antecedent_evidence() -> None:
+    """The literal grammar binds it exactly; the readout is neither fitted on nor applied to it."""
+    fitted = fit_argument_antecedent(TRAINING)
+    item = TRAINING[1]
+    operations = [instruction.operation_span for instruction in item.ir.instructions]
+    scorer = fitted.scorer(item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations)
+    assert set(scorer.log_probabilities(item.ir.input_spans[1])) == {0.0}
