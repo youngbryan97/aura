@@ -26,6 +26,7 @@ from core.state.percepts import (
     fresh_for,
     mark_consumed,
 )
+from core.verify.settling import SettlingCertificate, linear_certificate, register_settling
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -183,6 +184,23 @@ _BASELINE_RATE = 0.001
 #: Where each baseline rests when nothing is pressing on it: the baselines a
 #: new affect vector declares.
 _MOOD_REST: dict[str, float] = dict(AffectVector().mood_baselines)
+
+#: The momentum the last decay ran with; the settling certificate reads it.
+_momentum_seen = [AffectVector().momentum]
+
+
+def _mood_settling() -> SettlingCertificate:
+    """A feeling and its baseline as one linear update (core/verify/settling.py).
+
+    The feeling decays toward the old baseline, e' = m e + (1 - m) b, and the
+    baseline learns the feeling and returns to rest, b' = (1 - 2r) b + r e + r rest.
+    Without the return to rest the second row is (r, 1 - r) and the rate is one.
+    """
+    m, r = _momentum_seen[0], _BASELINE_RATE
+    return linear_certificate("affect.mood_baseline", [[m, 1 - m], [r, 1 - 2 * r]], must_settle=True)
+
+
+register_settling("affect.mood_baseline", _mood_settling)
 
 
 def _kind_leans_positive(kind: str) -> bool:
@@ -1008,6 +1026,7 @@ class AffectUpdatePhase(Phase):
         """Momentum-based decay towards learned baselines."""
         # Use a small non-deterministic drift (thermal noise)
         drift = random.gauss(0, 0.001)
+        _momentum_seen[0] = float(affect.momentum)
         
         for emotion in list(affect.emotions.keys()):
             # Fallback for baseline if missing
