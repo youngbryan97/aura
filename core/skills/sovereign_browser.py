@@ -1794,8 +1794,12 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 if not moves:
                     steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
                     break
-                if chose_the_drawing(moves):  # played by sight, in this window
+                if chose_the_drawing(moves):  # played by sight, on her own page
                     steps.append(await played_on_the_drawing(browser, goal, observation))
+                    # What the play came to is her last move; a game that took
+                    # moves is progress though the page's text did not change.
+                    before_move, last_done, last_moves = observation, [str(steps[-1].get("did") or "")], []
+                    stalled, last_signature = (0, "") if steps[-1].get("moved") else (stalled, last_signature)
                     continue
 
                 # Choice, reason, choice, reason. Every line she has for a move

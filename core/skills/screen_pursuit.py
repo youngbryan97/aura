@@ -310,6 +310,11 @@ async def read_screen(
     instead of "part of the display it happens to sit on" — which is what makes
     a band portable across window sizes and monitors.
     """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    if on is not None:
+        return await on.read(over)
     from core.capabilities.host_automation import get_host_automation
     from core.perception.what_the_pixels_show import look_at_window
 
@@ -397,6 +402,11 @@ async def read_screen(
 
 async def current_page_identity() -> dict[str, str]:
     """Where the browser is right now, or empty strings. Never raises."""
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    if on is not None:
+        return await on.identity()
     try:
         from core.capabilities.browser_controller import get_browser_controller
 
@@ -575,6 +585,11 @@ WORTH_TRYING_AT = 0.4
 
 async def _frontmost() -> str:
     """The application in front, for a run that was never told which one."""
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    if on is not None:
+        return on.name
     try:
         from core.capabilities import window_server
 
@@ -672,6 +687,11 @@ async def _whats_on_top(
     mine: str, over: tuple[float, float, float, float] | None = None
 ) -> str:
     """The first thing above her work, or nothing. See :func:`_everything_on_top`."""
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is not None:
+        # Nothing on the screen is over a page the browser photographs itself.
+        return ""
     above = await _everything_on_top(mine, over=over)
     return above[0] if above else ""
 
@@ -1526,7 +1546,7 @@ async def pursue_on_screen(
                 )
         if holding_the_foreground is not None:
             holding_the_foreground.close()
-    result = _pursue_on_screen_result(already, blocker_attempts, history, moves, pacing, receipt, restarts, seen_through, success_when)
+    result = _pursue_on_screen_result(already, blocker_attempts, history, moves, pacing, receipt, restarts, seen_through, success_when, drawn)
     where_it_answers = responds["state"].band()
     if responds["state"].nothing_answers():
         result["stopped_responding"] = True

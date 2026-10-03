@@ -536,6 +536,11 @@ async def _bring_it_into_view(look: Any, read: Any, cannot_see: dict[str, str] |
     is filled in when the screen could not be read at all, which is a
     different fact from finding nothing on it.
     """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is not None:
+        # The page said where it draws, and that is what is read; nothing to scroll to.
+        return 0
     cannot_see = {} if cannot_see is None else cannot_see
     from core.capabilities.host_automation import get_host_automation
 

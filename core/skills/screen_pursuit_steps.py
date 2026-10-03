@@ -188,6 +188,7 @@ def _pursue_on_screen_result(
     restarts: dict[str, Any],
     seen_through: dict[str, Any],
     success_when: str,
+    drawn: dict[str, Any] | None = None,
 ) -> Any:
     from .screen_pursuit import (
         MAX_BLOCKER_ATTEMPTS,
@@ -224,6 +225,10 @@ def _pursue_on_screen_result(
         {"option": a.option, "expected": a.expected, "held": a.verdict.held, "why": a.verdict.why()}
         for a in history
     ]
+    # The last thing the thing said, so whoever handed it over can tell a game
+    # that ended from one that is waiting for her.
+    if drawn and drawn.get("last_seen"):
+        result["last_seen"] = str(drawn["last_seen"])
     return result
 
 def _pursue_on_screen_part_5(

@@ -427,6 +427,11 @@ async def wait_for_a_screen_to_look_at(ends_at: float, *, app: str = "") -> bool
     picture of the game's window could have held. With ``app`` named, those
     refusals are put again to the window she will actually read.
     """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is not None:
+        # Her own page is photographed by her own browser; no screen is read.
+        return True
     from core.security.screen_capture_policy import (
         evaluate_screen_capture_admission_async,
         evaluate_window_capture_admission_async,
@@ -569,6 +574,12 @@ async def clear_what_is_in_front(on_top: str) -> bool:
 
 async def _put_her_own_window_away() -> bool:
     """Hide her own application, so what she was asked to act in is visible."""
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is not None:
+        # Pictures of her own page are the page's own, whatever is drawn over
+        # it on the screen; hiding her window would only hide the conversation.
+        return False
     from core.config import get_config
 
     named = ""
@@ -607,6 +618,10 @@ async def _bring_the_thing_back_to_the_front(app: str) -> bool:
     surface aside covered only the companion bubble, which is not the window
     that was in the way.
     """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is not None:
+        return True
     named = str(app or "").strip()
     if not named:
         return False

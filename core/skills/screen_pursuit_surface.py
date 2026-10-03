@@ -434,6 +434,12 @@ async def _ensure_page(expect_page: str) -> bool:
     here = f"{page.get('url', '')} {page.get('title', '')}".lower()
     if wanted in here:
         return True
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is not None:
+        # Her own page has gone somewhere else. The desktop browser's tabs are
+        # the person's, and never where she looks for it.
+        return False
     try:
         from core.capabilities.browser_controller import get_browser_controller
 
@@ -455,6 +461,11 @@ async def _ensure_page(expect_page: str) -> bool:
 
 async def _ensure_frontmost(app_name: str) -> bool:
     """Bring `app_name` forward if it is not already. True when it is."""
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is not None:
+        # Keys and clicks go to her page through the browser, not to the front.
+        return True
     from core.capabilities import window_server
     from core.capabilities.host_automation import get_host_automation
 
@@ -496,6 +507,11 @@ async def click_normalized(
     The same focus guard applies as for keystrokes, because a click at the
     wrong window is a click on someone else's document.
     """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    if on is not None:
+        return await on.click(x, y, bounds)
     from core.capabilities.host_automation import get_host_automation
 
     host = get_host_automation()
@@ -654,6 +670,11 @@ async def press(key: str, *, expect_app: str = "") -> bool:
     to whatever the person had clicked since — reported as success, with the
     board untouched.
     """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    if on is not None:
+        return await on.press(key)
     name = str(key or "").strip().lower()
     if name not in PRESSABLE_KEYS:
         return False
@@ -702,6 +723,11 @@ async def press_many(keys: Sequence[str], *, expect_app: str = "") -> int:
     the batch would let her say four moves when the window went away after
     the second, and what she says has to be what her body did.
     """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    if on is not None:
+        return await on.press_many(keys)
     wanted = [str(key or "").strip().lower() for key in keys]
     wanted = [key for key in wanted if key in PRESSABLE_KEYS]
     if not wanted:
