@@ -177,6 +177,9 @@ _INDIRECT_REQUEST_RE = re.compile(
     r"|\bi\s+(?:wonder|was\s+wondering)\s+(?:if|whether)\s+you\s+could\b"
     r"|\bwould\s+it\s+be\s+possible\s+for\s+you\s+to\b"
     r"|\bwould\s+you\s+mind\b"
+    # The same request with its "would you" left off: "Mind doing the test on
+    # truity.com for me?" read as a question about the site.
+    r"|^\s*mind\s+\w+ing\b"
     r"|\b(?:maybe|perhaps)\s+you\s+(?:could|can|should)\b"
     r"|\b(?:feel\s+free|you\s+need|you\s+should|you\s+have)\s+to\b"
     r"|\bthe\s+next\s+(?:useful|best|right|logical)\s+(?:move|step)\s+is\s+to\b"

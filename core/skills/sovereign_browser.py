@@ -36,6 +36,7 @@ from .sovereign_browser_understanding import (
 from .sovereign_browser_drawing import chose_the_drawing, played_on_the_drawing
 from .sovereign_browser_what_it_did import (
     _go_back_to_the_last_good_page,
+    where_she_is_going,
     every_way_on_led_back,
     names_of_the_moves,
     remember_what_was_seen,
@@ -283,7 +284,11 @@ def _saying_it_moves_for(action_context: Any) -> _StillGoing:
     them (see ``while_she_writes``), and each run starts with no screens
     measured.
     """
-    from .sovereign_browser_understanding import SAYING_IT_MOVES, SCREENS_MEASURED
+    from .sovereign_browser_understanding import (
+        HER_MIND_THIS_PURSUIT,
+        SAYING_IT_MOVES,
+        SCREENS_MEASURED,
+    )
 
     heartbeat = None
     if isinstance(action_context, Mapping):
@@ -293,6 +298,8 @@ def _saying_it_moves_for(action_context: Any) -> _StillGoing:
     still_going = _StillGoing(heartbeat)
     SAYING_IT_MOVES.set(still_going)
     SCREENS_MEASURED.set({})
+    # And her mind is built once for the whole pursuit; see HER_MIND_THIS_PURSUIT.
+    HER_MIND_THIS_PURSUIT.set({})
     return still_going
 
 
@@ -1545,6 +1552,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
 
         if url and not await self._safe_browse(browser, url):
             return {"ok": False, "error": self._could_not_load(url)}
+        if url:  # said at once: her first look can take a minute (LIVE 2026-10-02)
+            self._say_out_loud(where_she_is_going(url, goal), {"label": "Going to", "said": url})
 
         steps: list[dict[str, Any]] = []
         #: Whether she has yet said what she expects this thing to report.

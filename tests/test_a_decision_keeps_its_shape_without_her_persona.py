@@ -71,13 +71,13 @@ def test_a_bare_call_is_the_last_resort_and_not_the_first(monkeypatch):
 
 def test_her_state_is_read_from_the_repository_that_holds_it():
     """`aura_state` is registered by nothing and returned None every time."""
-    body = inspect.getsource(u._UnderstandsThePage._assembled_mind)
+    body = inspect.getsource(u._UnderstandsThePage._her_mind_built_now)
     assert "state_repository" in body
     assert "_current" in body
 
 
 def test_an_absent_state_is_still_recorded():
-    body = inspect.getsource(u._UnderstandsThePage._assembled_mind)
+    body = inspect.getsource(u._UnderstandsThePage._her_mind_built_now)
     assert "no_current_state" in body
     assert "record_degradation" in body
 

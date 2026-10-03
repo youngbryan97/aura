@@ -20,6 +20,7 @@ __all__ = [
     "note_the_size_of_her_mind",
     "while_she_writes",
     "SCREENS_MEASURED",
+    "HER_MIND_THIS_PURSUIT",
 ]
 
 #: How a pursuit running here says it is still getting somewhere, for the
@@ -32,6 +33,18 @@ SAYING_IT_MOVES: ContextVar[Callable[[str], None] | None] = ContextVar(
 #: `_handle_pursue`; outside one nothing is kept. See `measure_the_screen`.
 SCREENS_MEASURED: ContextVar[dict[tuple[Any, ...], list[dict[str, Any]]] | None] = ContextVar(
     "aura_pursuit_screens_measured", default=None
+)
+
+#: Her assembled mind for the pursuit in progress, built once. Set by
+#: `_handle_pursue`; outside one each call builds its own.
+#:
+#: Each build draws a fresh nonce for the blocks it fences as data, and the
+#: first of those sits about 1,470 tokens into the prompt. Rebuilt every round,
+#: LIVE 2026-10-02, every page decision of a psych run diverged from the cached
+#: prompt there and read the other 75-82% of it again: 4,000 to 7,000 tokens a
+#: decision, a minute and a half each on her 27B.
+HER_MIND_THIS_PURSUIT: ContextVar[dict[str, str] | None] = ContextVar(
+    "aura_pursuit_her_mind", default=None
 )
 
 #: How long her assembled mind was the last time it was built, in characters.

@@ -22,6 +22,7 @@ from core.runtime.service_access import optional_service
 from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
 from .sovereign_browser_one_question import (  # noqa: F401  (re-exported: the pursuit and tests read them here)
+    HER_MIND_THIS_PURSUIT,
     SAYING_IT_MOVES,
     SCREENS_MEASURED,
     _room_for_page_text,
@@ -430,8 +431,21 @@ class _UnderstandsThePage(_PlacesHerself):
         and ownership, the global-workspace winner, and the report boundary.
         Deciding through it is what makes an action here the same kind of act
         as an answer in conversation.
-        """
 
+        Inside a pursuit the first build is kept and every later call gets it
+        back (``HER_MIND_THIS_PURSUIT``), so each round reads only the page that
+        changed rather than her whole mind again.
+        """
+        held = HER_MIND_THIS_PURSUIT.get()
+        if held is not None and held.get("mind"):
+            return held["mind"]
+        mind = await self._her_mind_built_now()
+        if held is not None and mind:
+            held["mind"] = mind
+        return mind
+
+    async def _her_mind_built_now(self) -> str:
+        """One assembly of her mind from her live state; empty when there is none."""
         try:
             from core.brain.llm.context_assembler import ContextAssembler
 

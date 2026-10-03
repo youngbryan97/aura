@@ -22,6 +22,7 @@ recovers is only the case search cannot serve at all.
 
 from __future__ import annotations
 
+import functools
 import re
 from typing import Any
 
@@ -116,9 +117,68 @@ def page_interaction_target(text: Any) -> str:
     # A bare match let "what does the sign up flow on example.com look like" —
     # a question about a page, with "sign up" as a noun in it — name a page to
     # be worked.
-    if not _told_to_do_it(body):
-        return ""
-    return page
+    if _told_to_do_it(body) or _asked_to_use_it(body):
+        return page
+    return ""
+
+
+#: What a request that wants a page USED says, as a sentence her reader can test
+#: a request against. One sentence for every kind of page work, so nothing here
+#: names a verb, a site or a task.
+_USE_IT = "The speaker wants the listener to do something on the website."
+
+#: Asking only for what a page already says. Kept narrow on purpose: "find out"
+#: is not here, because "find out your type on a-site.org" is a test to take.
+_READS_ONLY_RE = re.compile(
+    r"\b(?:summari[sz]e|summary of|what does .{0,20}say|tell me about|"
+    r"read (?:me |out )?(?:it|the|this|that|what)|look up|research|what'?s on|quote)\b",
+    re.IGNORECASE,
+)
+
+#: A question that opens like one: about a page rather than an instruction,
+#: unless its mood says it asks her to act ("can you do the test on ...?").
+_OPENS_AS_A_QUESTION_RE = re.compile(
+    r"^\s*(?:what|who|whom|whose|which|where|when|why|how|is|are|was|were|does|do|"
+    r"did|should|would|could|can|will|has|have)\b",
+    re.IGNORECASE,
+)
+
+
+@functools.lru_cache(maxsize=256)
+def _asked_to_use_it(body: str) -> bool:
+    """Whether the request, read for what it means, asks her to use the page.
+
+    The verbs above are one way of saying it and people have a hundred. Measured
+    2 October 2026 on requests that name a site: the verb list sent 22 of 35
+    held-out requests the right way, and missed "go to openpsychometrics.org and
+    find out your type", "head over and work your way through the test",
+    "try out the quiz", "see what type you get" — each answered in conversation
+    instead of done. Read by meaning, with the narrow reading veto below, 33 of
+    35 went the right way.
+
+    Sending a reading to the lane that acts costs time; sending a task to the
+    lane that reads loses the task. So the reader decides only what the words
+    leave open, and a request that only asks what a page says, or a question
+    that is not asking her to act, stays a reading.
+    """
+    if _READS_ONLY_RE.search(body):
+        return False
+    try:
+        from core.conversation.request_mood import RequestMood, assess_request_mood
+
+        directive = assess_request_mood(body).mood is RequestMood.DIRECTIVE
+    except (ImportError, AttributeError, TypeError, ValueError):
+        directive = False
+    if not directive and (body.strip().endswith("?") or _OPENS_AS_A_QUESTION_RE.match(body)):
+        return False
+    try:
+        from core.self.how_her_words_stand import chance_it_follows
+
+        chance = chance_it_follows(body, _USE_IT)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+    # More likely than not, which is the only line that needs no choosing.
+    return chance is not None and chance > 0.5
 
 
 def _told_to_do_it(body: str) -> bool:

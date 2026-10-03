@@ -86,6 +86,29 @@ def _how_far_it_bears_out(premise: str, hypotheses: list[str]) -> list[float] | 
     return [float(row[yes] - row[no]) for row in chances]
 
 
+def chance_it_follows(premise: str, hypothesis: str) -> float | None:
+    """The reader's probability that ``hypothesis`` follows from ``premise``; None without a reader.
+
+    The same reader as everything else here, for any sentence: what a request
+    asks for is read off its meaning, not off which words it happens to use.
+    """
+    loaded = _reader()
+    said = " ".join(str(premise or "").split())
+    if loaded is None or not said or not str(hypothesis or "").strip():
+        return None
+    model, labels = loaded
+    try:
+        import numpy as np
+
+        logits = np.asarray(model.predict([(said, str(hypothesis))]), dtype=float)[0]
+        chances = np.exp(logits - logits.max())
+        chances = chances / chances.sum()
+    except Exception as exc:  # noqa: BLE001
+        record_degradation("how_her_words_stand", exc, severity="warning")
+        return None
+    return float(chances[labels["entailment"]])
+
+
 def where_her_words_put_her(words: str, first: str, second: str) -> float | None:
     """-1 entirely the first side, +1 entirely the second, from her own sentence."""
     borne = _how_far_it_bears_out(words, [first, second])

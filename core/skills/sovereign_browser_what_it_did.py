@@ -206,3 +206,18 @@ async def _go_back_to_the_last_good_page(
         if await self._safe_browse(browser, last_good_url):
             observation = await browser.observe(principal="owner")
     return observation
+
+def where_she_is_going(url: str, goal: str) -> str:
+    """One line on the page she is opening and what for, said the moment it opens.
+
+    Her first look at a page can take a minute on her own model. LIVE
+    2026-10-02 a page sat open with nothing said for that minute, and read to
+    the person as a request she had not taken up.
+    """
+    from urllib.parse import urlparse
+
+    host = urlparse(str(url or "")).netloc or str(url or "")
+    host = host[4:] if host.startswith("www.") else host
+    goal = " ".join(str(goal or "").split()).rstrip(".")
+    return f"Opening {host} — {goal[:1].lower()}{goal[1:]}." if goal else f"Opening {host}."
+
