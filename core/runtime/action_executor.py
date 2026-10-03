@@ -12,7 +12,6 @@ import math
 import re
 import subprocess
 import time
-import urllib.parse
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -30,6 +29,7 @@ from core.governance_context import (
     require_governance,
 )
 from core.memory.memory_write_gateway import get_memory_write_gateway
+from core.runtime.action_summaries import safe_action_summary as _safe_action_summary
 from core.runtime.action_verification import (
     EffectVerifier,
     capture_pre_action_state,
@@ -84,18 +84,6 @@ _ACTION_EXECUTOR_RECOVERABLE_ERRORS = (
     TimeoutError,
     TypeError,
     ValueError,
-)
-_SENSITIVE_PARAM_MARKERS = (
-    "api_key",
-    "apikey",
-    "authorization",
-    "cookie",
-    "credential",
-    "password",
-    "private_key",
-    "secret",
-    "session_id",
-    "token",
 )
 _ACTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.:-]{1,160}$")
 _PRIVATE_MAINTENANCE_ACTIONS = {
@@ -1608,27 +1596,6 @@ def _coerce_path_param(value: Any, label: str) -> str | Path:
     return value
 
 
-def _safe_action_summary(action_name: str, params: Mapping[str, Any]) -> str:
-    summarized: dict[str, Any] = {}
-    for key, value in params.items():
-        key_text = str(key)
-        if any(marker in key_text.casefold() for marker in _SENSITIVE_PARAM_MARKERS):
-            summarized[key_text] = "[REDACTED]"
-        elif key_text in {"content", "payload", "script", "text"}:
-            length = len(value) if hasattr(value, "__len__") else 0
-            summarized[key_text] = f"<{type(value).__name__}:{length}>"
-        elif isinstance(value, Mapping):
-            summarized[key_text] = f"<mapping:{len(value)}>"
-        elif isinstance(value, (list, tuple, set)):
-            summarized[key_text] = _safe_sequence_summary(value)
-        elif key_text.casefold() in {"uri", "url"}:
-            summarized[key_text] = _safe_url_summary(str(value))
-        else:
-            summarized[key_text] = str(value)[:160]
-    encoded = json.dumps(summarized, sort_keys=True, default=str)
-    return f"{action_name} params={encoded}"[:1000]
-
-
 def _transaction_outcome(status: str, ok: bool) -> str:
     if ok and status == SkillStatus.SUCCESS_VERIFIED.value:
         return "success"
@@ -1638,70 +1605,6 @@ def _transaction_outcome(status: str, ok: bool) -> str:
     }:
         return "partial"
     return "failure"
-
-
-def _safe_sequence_summary(value: Any) -> list[Any]:
-    summarized: list[Any] = []
-    redact_next = False
-    for raw_item in list(value)[:16]:
-        if isinstance(raw_item, Mapping):
-            summarized.append(_safe_nested_mapping_summary(raw_item))
-            continue
-        item = str(raw_item)
-        lowered = item.casefold()
-        if redact_next:
-            summarized.append("[REDACTED]")
-            redact_next = False
-            continue
-        if lowered.startswith(("http://", "https://")):
-            summarized.append(_safe_url_summary(item))
-            continue
-        if any(marker in lowered for marker in _SENSITIVE_PARAM_MARKERS):
-            if "=" in item:
-                summarized.append(item.split("=", 1)[0][:80] + "=[REDACTED]")
-            elif item.lstrip().startswith("-"):
-                summarized.append(item[:80])
-                redact_next = True
-            else:
-                summarized.append("[REDACTED]")
-            continue
-        summarized.append(item[:80])
-    return summarized
-
-
-def _safe_nested_mapping_summary(value: Mapping[Any, Any]) -> dict[str, Any]:
-    summarized: dict[str, Any] = {}
-    for raw_key, raw_value in list(value.items())[:32]:
-        key = str(raw_key)[:80]
-        lowered = key.casefold()
-        if lowered == "value" or any(
-            marker in lowered for marker in _SENSITIVE_PARAM_MARKERS
-        ):
-            summarized[key] = "[REDACTED]"
-        elif lowered in {"content", "payload", "script", "text"}:
-            length = len(raw_value) if hasattr(raw_value, "__len__") else 0
-            summarized[key] = f"<{type(raw_value).__name__}:{length}>"
-        elif lowered in {"uri", "url"}:
-            summarized[key] = _safe_url_summary(str(raw_value))
-        elif isinstance(raw_value, Mapping):
-            summarized[key] = _safe_nested_mapping_summary(raw_value)
-        elif isinstance(raw_value, (list, tuple, set)):
-            summarized[key] = _safe_sequence_summary(raw_value)
-        else:
-            summarized[key] = str(raw_value)[:160]
-    return summarized
-
-
-def _safe_url_summary(value: str) -> str:
-    try:
-        parsed = urllib.parse.urlsplit(value)
-        host = parsed.hostname or ""
-        port = f":{parsed.port}" if parsed.port else ""
-        return urllib.parse.urlunsplit(
-            (parsed.scheme, host + port, parsed.path, "", "")
-        )[:240]
-    except ValueError:
-        return "<invalid-url>"
 
 
 def _append_error(existing: Any, new_error: str) -> str:
