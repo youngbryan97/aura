@@ -22,6 +22,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from core.capabilities.browser_authority import (
     BrowserAction,
@@ -1078,6 +1079,10 @@ class PhantomBrowser(_ActsOnThePage):
     MAX_EXTRACT_CHARS = 60_000
     MAX_LINKS = 500
     MAX_SCREENSHOT_BYTES = 4 * 1024 * 1024
+    #: How many of a page's words travel with one observation. What a single
+    #: decision shows of them is measured where the decision is drawn, and a
+    #: cut here is carried with it as ``text_chars`` so it can be said.
+    PAGE_TEXT_ROOM = 4000
 
     #: Interactive roles worth offering as choices. Everything else on a page
     #: is scenery: it cannot be clicked, typed into, or toggled, so listing it
@@ -1329,10 +1334,58 @@ class PhantomBrowser(_ActsOnThePage):
         }
         const main = document.querySelector('main, [role="main"], form') || document.body;
         const text = ((main && main.innerText) || '').replace(/\n{3,}/g, '\n\n').trim();
+        // Where in those words she is looking, and where each frame sits among
+        // them, as offsets into `text`. Each text node is found in `text` after
+        // the one before it; one that cannot be (restyled, preformatted) is
+        // passed over rather than guessed at. Text held fixed on the screen, a
+        // header or a cookie bar, is on screen at every scroll and says nothing
+        // about where she is.
+        let seenAt = 0;
+        const framesAt = [];
+        const frameCount = main ? main.querySelectorAll('iframe').length : 0;
+        if (main && (window.scrollY > 0 || frameCount)) {
+            const heldOnScreen = (el) => {
+                for (let at = el; at && at !== main.parentElement; at = at.parentElement) {
+                    const how = window.getComputedStyle(at).position;
+                    if (how === 'fixed' || how === 'sticky') return true;
+                }
+                return false;
+            };
+            const walker = document.createTreeWalker(
+                main, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT
+            );
+            const span = document.createRange();
+            let cursor = 0;
+            let looking = window.scrollY > 0 ? -1 : 0;
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    if (node.tagName === 'IFRAME') {
+                        const r = node.getBoundingClientRect();
+                        framesAt.push({ at: cursor, left: r.left, top: r.top });
+                    }
+                    continue;
+                }
+                if (looking >= 0 && framesAt.length === frameCount) break;
+                const words = (node.nodeValue || '').replace(/\s+/g, ' ').trim();
+                if (!words) continue;
+                span.selectNodeContents(node);
+                const r = span.getBoundingClientRect();
+                if (!r.width && !r.height) continue;
+                const found = text.indexOf(words, cursor);
+                if (found < 0) continue;
+                cursor = found + words.length;
+                if (looking < 0 && r.top >= 0 && !heldOnScreen(node.parentElement)) {
+                    looking = found;
+                }
+            }
+            seenAt = Math.max(looking, 0);
+        }
         return {
             url: location.href,
             title: document.title || '',
-            text: text.slice(0, 4000),
+            text: text,
+            seen_at: seenAt,
+            frames_at: framesAt,
             scroll_y: Math.round(window.scrollY),
             scroll_height: Math.round(document.body ? document.body.scrollHeight : 0),
             viewport_height: Math.round(window.innerHeight),
@@ -1403,7 +1456,47 @@ class PhantomBrowser(_ActsOnThePage):
             return {}
         elements = observation.get("elements")
         observation["elements"] = list(elements) if isinstance(elements, list) else []
+        frames = await self._what_its_frames_say(principal) if observation.get("frames_at") else []
+        observation.update(_the_words_to_carry(observation, frames, self.PAGE_TEXT_ROOM))
+        observation.pop("frames_at", None)
+        observation.pop("seen_at", None)
         return observation
+
+    async def _what_its_frames_say(self, principal: str) -> list[dict[str, Any]]:
+        """The words in each frame a person can see on this page, top to bottom.
+
+        LIVE 2026-10-02 23:40: the OEJTS results page says "A detailed
+        description of this personality type is below", and the description is
+        a text file shown in a frame. Only the main document was read, so she
+        pressed "more" and "less" and scrolled for fifteen minutes looking for
+        words that were on her screen the whole time. A frame is part of the
+        page a person reads. Who serves it does not change that, so each one is
+        read under the verdict for its own address.
+        """
+        page = self.page
+        found: list[dict[str, Any]] = []
+        for frame in list(getattr(page, "frames", None) or []):
+            try:
+                if frame is page.main_frame or frame.is_detached():
+                    continue
+                holder = await frame.frame_element()
+                box = await holder.bounding_box() if await holder.is_visible() else None
+                verdict = authorize_browser_action(
+                    BrowserAction.READ, principal=principal, url=str(frame.url or "")
+                )
+                if not box or not verdict.allowed:
+                    continue
+                said = await frame.evaluate("() => document.body ? document.body.innerText : ''")
+            except (PlaywrightError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                # A frame that went away while it was read: an advert
+                # reloading, a widget replaced. The rest of the page stands.
+                record_degradation("phantom_browser.frames", exc, severity="info")
+                continue
+            said = re.sub(r"\n{3,}", "\n\n", str(said or "")).strip()
+            if said:
+                where = urlparse(str(frame.url or ""))
+                found.append({**box, "said": said, "where": f"{where.netloc}{where.path}"})
+        return sorted(found, key=lambda shown: (shown["y"], shown["x"]))
 
     async def get_links(self, *, principal: str = "") -> list[dict[str, str]]:
         """Links on this page, bounded and scheme-filtered."""
@@ -1614,3 +1707,52 @@ async def integrate_phantom_browser(orchestrator) -> bool:
         status.get("startup_error", "")[:160] or "unknown",
     )
     return False
+
+
+
+def _the_words_to_carry(
+    observation: dict[str, Any], frames: list[dict[str, Any]], room: int
+) -> dict[str, Any]:
+    """The page's words with each frame's put where it sits, from where she looks.
+
+    Every observation carried the first `room` characters of the page, so on a
+    page longer than that no scroll changed what she read: the rest was below
+    her in the window and absent from the words. What is carried now starts at
+    the first words on her screen, or at a frame she has in view, and how much
+    lies on either side travels with it to be said.
+    """
+    text = str(observation.get("text") or "")
+    seen = max(0, min(int(observation.get("seen_at") or 0), len(text)))
+    viewport = float(observation.get("viewport_height") or 0)
+    placed = list(observation.get("frames_at") or [])
+    inserts: list[tuple[int, str, bool]] = []
+    for frame in frames:
+        here = next(
+            (
+                spot for spot in placed
+                if round(spot.get("left", -1)) == round(frame["x"])
+                and round(spot.get("top", -1)) == round(frame["y"])
+            ),
+            None,
+        )
+        if here is not None:
+            placed.remove(here)
+        at = int(here["at"]) if here is not None else len(text)
+        in_view = frame["y"] < viewport and frame["y"] + frame["height"] > 0
+        block = f"(Shown in a frame on this page, from {frame['where']}:)\n{frame['said']}"
+        inserts.append((max(0, min(at, len(text))), block, in_view))
+    whole, start, prev = "", None, 0
+    for at, block, in_view in sorted(inserts, key=lambda insert: insert[0]):
+        if start is None and prev <= seen < at:
+            start = len(whole) + (seen - prev)
+        whole += text[prev:at]
+        if in_view and start is None:
+            start = len(whole)
+        whole += ("\n\n" if whole else "") + block + "\n\n"
+        prev = at
+    if start is None:
+        start = len(whole) + max(0, seen - prev)
+    whole = (whole + text[prev:]).strip()
+    start = max(0, min(start, len(whole) - room))
+    return {"text": whole[start:start + room], "text_chars": len(whole), "text_from": start}
+

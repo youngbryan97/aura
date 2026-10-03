@@ -167,7 +167,7 @@ def with_what_was_seen_here(
     shown = dict(observation)
     shown["text"] = (
         f"{observation.get('text') or ''}\n\n"
-        "(Shown on this page earlier in this run, hidden now:)\n" + "\n".join(hidden)
+        "(Shown on this page earlier in this run, not in view now:)\n" + "\n".join(hidden)
     )
     return shown
 

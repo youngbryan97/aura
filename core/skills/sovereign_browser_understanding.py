@@ -286,8 +286,16 @@ class _UnderstandsThePage(_PlacesHerself):
         room = _room_for_page_text(sum(len(line) + 1 for line in lines), cls.DECISION_MAX_TOKENS)
         room = room or cls.PURSUE_TEXT_BUDGET
         shown = text[:room]
-        if len(text) > room:
-            shown += f"\n(the page's text goes on for {len(text) - room} more characters)"
+        # The observer carries the words from where she is looking and says
+        # how many lie on either side of them; a cut here adds to the second.
+        above = int(observation.get("text_from") or 0)
+        whole = max(len(text) + above, int(observation.get("text_chars") or 0))
+        if above:
+            shown = f"(the page's text has {above} characters above this point)\n{shown}"
+        if whole - above > room:
+            shown += f"\n(the page's text goes on for {whole - above - room} more characters)"
+        elif whole - above > len(text):
+            shown += f"\n(the page's text goes on for {whole - above - len(text)} more characters)"
         lines[4] = shown
         return "\n".join(lines)
 
