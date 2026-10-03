@@ -265,6 +265,10 @@ def _chat_delivery_request_contract(
     return identity, request_hash, approval_resume_token
 
 
+#: Confidences that mean a reply was served, however the turn got there.
+_SERVED_ANSWER_CONFIDENCES = frozenset({"fallback", "computed"})
+
+
 def _chat_delivery_state_for_response(
     payload: dict[str, Any],
     status_code: int,
@@ -277,6 +281,13 @@ def _chat_delivery_state_for_response(
         return DeliveryState.FAILED
     if "cancel" in status or status == "delivery_ambiguous":
         return DeliveryState.AMBIGUOUS
+    # An answer was served. The ladder's reply and a computed result leave
+    # through exits whose status still names what failed first —
+    # "desktop_cognitive_engine_unavailable" — and the marker below read that
+    # as a failed turn; the page then drew her reply as a grey system notice.
+    # LIVE 2026-10-02, every reply the smaller model wrote that evening.
+    if int(status_code) < 400 and confidence in _SERVED_ANSWER_CONFIDENCES:
+        return DeliveryState.COMPLETED
     failure_markers = (
         "blocked",
         "denied",
