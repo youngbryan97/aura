@@ -221,3 +221,26 @@ def where_she_is_going(url: str, goal: str) -> str:
     goal = " ".join(str(goal or "").split()).rstrip(".")
     return f"Opening {host} — {goal[:1].lower()}{goal[1:]}." if goal else f"Opening {host}."
 
+
+def what_she_makes_of_the_page(understanding: Mapping[str, Any]) -> str:
+    """What she takes a page to be and what she has to do there, in her words.
+
+    Her reading of a page she has just reached was kept to herself, and the
+    first thing anyone saw of it was her first move, a minute or more later on
+    her own model. LIVE 2026-10-03 00:46: the page opened, nothing was said
+    while she read it, and the person closed the app one second before she
+    pressed anything.
+    """
+    parts = [
+        " ".join(str(understanding.get(key) or "").split()).rstrip(".")
+        for key in ("here", "to_progress")
+    ]
+    return ". ".join(part for part in parts if part) + ("." if any(parts) else "")
+
+
+def say_what_she_makes_of_the_page(say: Any, understanding: Mapping[str, Any]) -> None:
+    """Say her reading of a page she has just reached, where it can be heard."""
+    read_it = what_she_makes_of_the_page(understanding)
+    if read_it:
+        say(read_it, {"label": "What I see", "said": read_it})
+

@@ -291,3 +291,72 @@ def test_a_hit_says_how_far_the_prompt_matched_so_a_deeper_prefix_is_kept():
     cache, rest = _fetch(lru, [1, 2, 3, 4, 9, 9])
     assert cache == ["KV-for-two"] and rest == [3, 4, 9, 9]
     assert lru.where_it_last_diverged(_KEY) == 4
+
+
+def test_a_first_prefill_keeps_the_part_every_later_call_shares():
+    """LIVE 2026-10-03 00:46: a page's first two calls shared 4,206 tokens; the
+    first kept nothing, because nothing had diverged yet, and the second
+    prefilled all 6,404 again before she made her first move."""
+    from core.brain.llm.mlx_worker import _a_prefix_worth_keeping
+
+    lru = PromptCacheLRU(max_size=8)
+    tokens = list(range(6404))
+    at, keep = _a_prefix_worth_keeping(lru, _KEY, tokens, 0, ["KV"], 2048, shared_to=4206)
+    assert at == 4096 and callable(keep)
+
+
+def test_a_known_divergence_still_decides_where_one_is_known():
+    from core.brain.llm.mlx_worker import _a_prefix_worth_keeping
+
+    lru = PromptCacheLRU(max_size=8)
+    lru.insert_cache(_KEY, list(range(500)), ["KV"])
+    _fetch(lru, list(range(300)) + [9999] * 50)
+    at, _keep = _a_prefix_worth_keeping(lru, _KEY, list(range(400)), 0, ["KV"], 64, shared_to=130)
+    assert at == 256
+
+
+class _Tokenizer:
+    """`<|im_end|>` is one token, 7; anything else is not."""
+
+    def encode(self, text, add_special_tokens=True):
+        return [7] if text == "<|im_end|>" else [1, 2]
+
+
+def test_the_first_message_ends_after_its_end_token():
+    from core.brain.llm.where_calls_share import where_the_first_message_ends
+
+    assert where_the_first_message_ends(_Tokenizer(), [5, 5, 5, 7, 4, 4, 7]) == 4
+    assert where_the_first_message_ends(_Tokenizer(), [5, 5, 5]) == 0
+    assert where_the_first_message_ends(None, [7]) == 0
+
+
+class _CharTokenizer:
+    """One token per character; `<|im_end|>` written as the single character "|"."""
+
+    def encode(self, text, add_special_tokens=True):
+        return [ord(c) for c in text] if text != "<|im_end|>" else [ord("|")]
+
+
+def test_calls_stop_sharing_where_the_runtimes_grounding_begins():
+    """The page's calls share her held mind and differ from the clock on."""
+    from core.brain.llm.where_calls_share import where_calls_stop_sharing
+
+    mind = "You are Aura. ## CURRENT STATE calm"
+    clock = "## PRESENT MOMENT\nIt is 00:46."
+    prompt = f"S{mind}|T## CURRENT STATE calm\n\n{clock}|Uthe page|A"
+    messages = [
+        {"role": "system", "content": mind},
+        {"role": "system", "content": clock},
+        {"role": "user", "content": "the page"},
+    ]
+    shared = where_calls_stop_sharing(_CharTokenizer(), prompt, messages, list(range(len(prompt))))
+    assert prompt[:shared].endswith("calm\n\n")
+
+
+def test_with_no_grounding_added_calls_share_through_the_first_message():
+    from core.brain.llm.where_calls_share import where_calls_stop_sharing
+
+    prompt = "Sabc|Udef|A"
+    messages = [{"role": "system", "content": "abc"}, {"role": "user", "content": "def"}]
+    tokens = [ord(c) for c in prompt]
+    assert where_calls_stop_sharing(_CharTokenizer(), prompt, messages, tokens) == 5

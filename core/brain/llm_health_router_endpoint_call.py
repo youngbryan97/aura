@@ -207,11 +207,20 @@ class _CallsTheEndpoint:
 
         # ── Autonomous Context Injection (Somatic/Affective Safety Net) ───────
         # [Fix #11] If prompt lacks state context, inject a condensed summary.
+        #
+        # Lacking means lacking in the system prompt as well. Her assembled
+        # mind already carries her state, and this added a second reading of
+        # the same organs, taken a moment later, after it. LIVE 2026-10-03
+        # 00:46: a page's first two calls held her mind fixed and matched for
+        # 4,206 tokens, then diverged at this line ("...0, substrate age:
+        # 0.0s)]"), and the second call prefilled all 6,404 tokens again before
+        # she made her first move.
         if (
             not classification_mode
             and not isolated_generation_contract
             and "AuraState" not in prompt
             and "[Affect:" not in prompt
+            and not _carries_her_state(system_prompt)
         ):
             from core.container import ServiceContainer
             ctx_summary = []
@@ -1816,3 +1825,17 @@ def _a_lane_still_coming_up(error: object) -> bool:
     said = str(error or "")
     prefix = "lane_not_ready:"
     return said.startswith(prefix) and said[len(prefix):] in _ON_THE_WAY_UP
+
+
+def _carries_her_state(system_prompt: object) -> bool:
+    """Whether the system prompt is her assembled mind and already says her state.
+
+    Read by the section titles the assembler writes, the same markers its
+    black-box receipt checks for.
+    """
+    try:
+        from core.brain.llm.context_assembler import _BLACK_BOX_STATE_MARKERS
+    except ImportError:
+        return False
+    body = str(system_prompt or "")
+    return any(marker in body for marker in _BLACK_BOX_STATE_MARKERS)

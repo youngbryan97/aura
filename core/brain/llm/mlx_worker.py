@@ -27,6 +27,7 @@ from core.brain.llm.token_budget_evidence import CALIBRATION_SCHEMA
 from core.brain.llm.user_surface_recurrence import (
     user_surface_recurrent_ceiling,
 )
+from core.brain.llm.where_calls_share import where_calls_stop_sharing
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, compute_mlx_memory_limit
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
@@ -2387,12 +2388,13 @@ def _a_prefix_worth_keeping(
     already_reused: int,
     cache: Any,
     step_size: int,
+    shared_to: int = 0,
 ) -> tuple[int, Any]:
     """Where to snapshot this prefill, and the call that does it.
 
-    `(0, None)` when there is nothing worth keeping: no cache, no measured
-    divergence yet, or a divergence so early that the prefix would be shorter
-    than one chunk and save less than it costs to hold.
+    `(0, None)` when there is nothing worth keeping: no cache, no point known
+    to recur (where the last search ran out, or else `shared_to`, from
+    where_calls_share), or one shorter than a chunk.
 
     The offset returned is in the coordinates the progress callback speaks —
     tokens of THIS prefill — while the trie is keyed on the whole prompt, so
@@ -2408,8 +2410,9 @@ def _a_prefix_worth_keeping(
     # Just short of where it ran out, rounded down to a chunk boundary, since
     # the callback only ever reports at one.
     chunk = max(1, int(step_size or 1))
-    keep_to = (diverged // chunk) * chunk
-    if keep_to <= already_reused or keep_to <= chunk:
+    points = ((max(0, int(point or 0)) // chunk) * chunk for point in (diverged, shared_to))
+    keep_to = next((point for point in points if point > max(already_reused, chunk)), 0)
+    if not keep_to:
         return 0, None
     if keep_to >= len(tokens):
         return 0, None
@@ -7674,12 +7677,9 @@ def _mlx_worker_loop(
                                     prefill_step_size = _runtime_prefill_step_size(model_path)
                                     clean_kwargs["prefill_step_size"] = prefill_step_size
                                     _snapshot_at, _keep_prefix = _a_prefix_worth_keeping(
-                                        prompt_cache_lru,
-                                        model_key,
-                                        tokens,
-                                        len(tokens) - len(remaining_tokens),
-                                        cache,
-                                        prefill_step_size,
+                                        prompt_cache_lru, model_key, tokens,
+                                        len(tokens) - len(remaining_tokens), cache, prefill_step_size,
+                                        shared_to=where_calls_stop_sharing(tokenizer, prompt, messages, tokens),
                                     )
                                     clean_kwargs["prompt_progress_callback"] = (
                                         _build_prefill_progress_callback(

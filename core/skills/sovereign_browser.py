@@ -1,4 +1,3 @@
-from .sovereign_browser_narration import _NarratesTheBrowsing
 import asyncio
 import hashlib
 import logging
@@ -7,41 +6,45 @@ import re
 import time
 import urllib.parse
 from collections.abc import Mapping
-
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.capabilities.browser_authority import (
     BrowserAction as AuthorityAction,
+)
+from core.capabilities.browser_authority import (
     issue_browser_lease,
     origin_of,
     revoke_browser_lease,
 )
 from core.capabilities.phantom_browser import PhantomBrowser
-from core.governance_context import get_active_governance
 from core.governance.action_domain import ActionDomain
+from core.governance_context import get_active_governance
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
-from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.runtime.skill_contract import ActionExpectation
+from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
+from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
+
+from .sovereign_browser_drawing import chose_the_drawing, played_on_the_drawing
+from .sovereign_browser_narration import _NarratesTheBrowsing
 from .sovereign_browser_understanding import (
     _BROWSER_DECISION_ERRORS,
     _UnderstandsThePage,
 )
-from .sovereign_browser_drawing import chose_the_drawing, played_on_the_drawing
 from .sovereign_browser_what_it_did import (
     _go_back_to_the_last_good_page,
-    where_she_is_going,
     every_way_on_led_back,
     names_of_the_moves,
     remember_what_was_seen,
+    say_what_she_makes_of_the_page,
     the_ones_tried_here,
     what_the_move_did,
+    where_she_is_going,
     with_what_was_seen_here,
 )
 
@@ -388,6 +391,7 @@ async def _understand_the_page_again(
         self._remember_the_place(
             str(observation.get("url") or ""), understanding, shape
         )
+        say_what_she_makes_of_the_page(self._say_out_loud, understanding or {})
     return surprised, understanding
 
 

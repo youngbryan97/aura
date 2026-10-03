@@ -52,6 +52,11 @@ def test_outside_a_pursuit_every_call_builds_its_own():
     skill, builds = _a_skill_that_counts_builds()
 
     async def run():
+        # Outside one, said here: an async test before this one on a shared
+        # loop can leave a pursuit's holder in the context this run copies.
+        from core.skills.sovereign_browser_one_question import HER_MIND_THIS_PURSUIT
+
+        HER_MIND_THIS_PURSUIT.set(None)
         return await skill._assembled_mind(), await skill._assembled_mind()
 
     assert asyncio.run(run()) == ("her mind, build 1", "her mind, build 2")
