@@ -87,3 +87,45 @@ async def test_a_control_she_scrolled_past_is_still_offered(browser):
     await browser.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
     names = [e.get("selector") for e in (await browser.observe(principal="owner"))["elements"]]
     assert "#m1" in names and "#m2" in names
+
+
+PAGES["held-link"] = """<html><body>
+    <a id="go" href="https://example.com/aura-landing">the game</a>
+    <script>document.getElementById('go').addEventListener('click', (e) => {
+        e.preventDefault(); location.hash = 'held_by_an_advert'; });</script></body></html>"""
+PAGES["landing"] = "<html><body><p>You arrived.</p></body></html>"
+
+
+@pytest.fixture
+def click_lease():
+    from core.capabilities.browser_authority import (
+        BrowserAction,
+        issue_browser_lease,
+        revoke_browser_lease,
+    )
+
+    lease = issue_browser_lease(
+        principal="owner", origin="https://example.com", actions={BrowserAction.CLICK}
+    )
+    yield lease.lease_id
+    revoke_browser_lease(lease.lease_id)
+
+
+@pytest.mark.asyncio
+async def test_a_link_whose_click_is_held_is_followed_to_its_address(browser, click_lease):
+    """LIVE 2026-10-03 06:14: an advert held a game link's click (#google_vignette)."""
+    for name in ("held-link", "landing"):
+        await browser.page.route(f"**/aura-{name}", _serves(PAGES[name]))
+    await browser.page.goto("https://example.com/aura-held-link", wait_until="load")
+    assert await browser.click("#go", principal="owner", lease_id=click_lease)
+    assert browser.page.url.startswith("https://example.com/aura-landing")
+
+
+@pytest.mark.asyncio
+async def test_a_link_within_the_page_is_not_followed_anywhere(browser, click_lease):
+    page = """<html><body><a id="jump" href="#below">down</a><div style="height:2000px"></div>
+        <p id="below">below</p></body></html>"""
+    await browser.page.route("**/aura-jump", _serves(page))
+    await browser.page.goto("https://example.com/aura-jump", wait_until="load")
+    assert await browser.click("#jump", principal="owner", lease_id=click_lease)
+    assert browser.page.url.split("#")[0] == "https://example.com/aura-jump"

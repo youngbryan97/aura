@@ -173,15 +173,20 @@ class _UnderstandsThePage(_PlacesHerself):
                 pair[0],
             ),
         )
-        offered = [element for _index, element in ranked[: cls.PURSUE_CONTROL_BUDGET]]
         # What the page draws is the page's content, not furniture cut for room:
         # LIVE 2 Oct a game's canvas fell below forty links carrying the goal's
         # own word "game", and she could not choose the thing she was sent to play.
-        return offered + [
-            element
-            for _index, element in ranked[cls.PURSUE_CONTROL_BUDGET:]
-            if isinstance(element, Mapping) and str(element.get("role") or "") == "drawing"
+        kept = ranked[: cls.PURSUE_CONTROL_BUDGET] + [
+            pair
+            for pair in ranked[cls.PURSUE_CONTROL_BUDGET:]
+            if isinstance(pair[1], Mapping) and str(pair[1].get("role") or "") == "drawing"
         ]
+        # The ranking decides which controls make the list; the page decides
+        # their order, because order is part of what a page says. Listed by
+        # rank, LIVE 2026-10-03 06:14, the games titled "Cartoon Network: ..."
+        # came first: she counted to the fifth game on the page, "Ed, Edd n
+        # Eddy: Spin Stadium", and picked the fifth of her list instead.
+        return [element for _index, element in sorted(kept, key=lambda pair: pair[0])]
 
     #: Words that name nothing in particular, so sharing one says nothing.
     _SAYS_NOTHING = frozenset({

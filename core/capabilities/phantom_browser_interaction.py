@@ -10,6 +10,7 @@ import asyncio
 import logging
 import random
 import time
+from typing import Any
 
 from core.capabilities.browser_authority import (
     BrowserAction,
@@ -161,6 +162,7 @@ class _ActsOnThePage:
                     await element.dispatch_event("click")
                 logger.info("🖱️ Clicked: %s", selector or text_match)
                 await self._human_delay(0.5, 1.5)
+                await self._go_where_the_link_points(element, before_url, principal)
                 await self._record_interaction(
                     "click", before_url, target=str(selector or text_match or "")
                 )
@@ -172,6 +174,34 @@ class _ActsOnThePage:
             record_degradation('phantom_browser', e)
             logger.error("Click failed: %s", e)
             return False
+
+    async def _go_where_the_link_points(self, element: Any, before_url: str, principal: str) -> None:
+        """Follow a link whose click left the page where it was.
+
+        A link's address is where clicking it is meant to take you. LIVE
+        2026-10-03 06:14, a game's link on a list was clicked and the list
+        stayed, an advert laid over it holding the navigation
+        ("#google_vignette"); she took the unchanged page for her own mistake
+        and counted the list again. A link within the page itself (a "#"
+        jump) is left alone.
+        """
+
+        def the_page(url: object) -> str:
+            return str(url or "").split("#", 1)[0]
+
+        try:
+            href = str(await element.evaluate(
+                "(el) => { const a = el.closest('a[href]'); return a ? a.href : ''; }"
+            ) or "")
+        except (PlaywrightError, RuntimeError, AttributeError, TypeError) as exc:
+            logger.debug("Could not read where the link points: %s", exc)
+            return
+        if not href.startswith(("http://", "https://")) or the_page(href) == the_page(before_url):
+            return
+        if the_page(getattr(self.page, "url", "")) != the_page(before_url):
+            return
+        logger.info("🖱️ The link stayed where it was when clicked; following it to %s", href)
+        await self.browse(href, principal=principal)
 
     async def type(
         self, selector: str, text: str, *, principal: str = "", lease_id: str = ""

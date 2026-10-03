@@ -58,11 +58,18 @@ def test_the_link_the_goal_names_is_offered():
     )
 
 
-def test_it_is_offered_first_rather_than_merely_included():
-    offered = SovereignBrowserSkill._controls_worth_offering(
-        _an_index_page()["elements"], _GOAL
-    )
-    assert str(offered[0].get("name")) == "Open Extended Jungian Type Scales"
+def test_what_is_offered_keeps_the_order_the_page_gave_it():
+    """The ranking chooses what makes the list; the page orders it.
+
+    LIVE 2026-10-03 06:14: listed by rank, the games titled "Cartoon Network:
+    ..." came first, and asked to count to the fifth game on the page she
+    picked the fifth of her list instead.
+    """
+    elements = _an_index_page()["elements"]
+    offered = SovereignBrowserSkill._controls_worth_offering(elements, _GOAL)
+    places = [elements.index(element) for element in offered]
+    assert places == sorted(places)
+    assert "Open Extended Jungian Type Scales" in [str(e.get("name")) for e in offered]
 
 
 def test_without_a_goal_the_old_order_is_unchanged():
@@ -73,14 +80,15 @@ def test_without_a_goal_the_old_order_is_unchanged():
     assert str(offered[0].get("name")) == "Filler Quiz 0"
 
 
-def test_a_form_still_comes_before_a_matching_link():
+def test_a_form_still_wins_its_place_over_links_when_there_is_no_room():
     """The goal's words break ties; they do not turn a survey into a nav bar."""
+    budget = SovereignBrowserSkill.PURSUE_CONTROL_BUDGET
     elements = [
-        {"role": "link", "name": "Open Extended Jungian Type Scales", "selector": "a"},
-        {"role": "radio", "name": "I agree", "group": "q1", "selector": "#q1a"},
-    ]
+        {"role": "link", "name": f"Elsewhere {n}", "selector": f"a:nth-of-type({n})"}
+        for n in range(budget)
+    ] + [{"role": "radio", "name": "I agree", "group": "q1", "selector": "#q1a"}]
     offered = SovereignBrowserSkill._controls_worth_offering(elements, "answer q1")
-    assert str(offered[0].get("role")) == "radio"
+    assert any(str(element.get("role")) == "radio" for element in offered)
 
 
 def test_the_page_says_when_the_list_was_cut_and_when_it_continues():
