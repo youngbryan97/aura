@@ -9826,7 +9826,7 @@ async def test_self_condition_prompt_keeps_delivered_history_and_one_fresh_proje
         # unpack handed `history_messages` a single dict and the prompt
         # builder iterated its KEYS — "'str' object has no attribute 'get'",
         # swallowed as a degraded desktop generation.
-        lambda _context: (
+        lambda _context, **_reach: (
             [
                 {"role": "user", "content": "How are you doing?"},
                 {
@@ -14099,6 +14099,11 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
             for i in range(40)
         ],
     }
+    # The request reaches back to the oldest exchange it bears on, and the
+    # suffix from there stays whole.
+    context["recent_completed_exchanges"][10] = stamp_runtime_payload(
+        {"user": "Is Dijkstra a greedy algorithm?", "aura": "Yes, it settles the nearest vertex."}
+    )
 
     thought = await CognitiveEngine()._direct_desktop_quick_reply(
         "Explain Dijkstra completely.",
@@ -14110,13 +14115,13 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
 
     assert thought is not None
     call = calls[0]
-    assert len(call["messages"]) == 83
-    assert call["messages"][1:81] == [
+    assert len(call["messages"]) == 63
+    assert call["messages"][1:61] == [
         message
-        for i in range(40)
+        for exchange in context["recent_completed_exchanges"][10:]
         for message in (
-            {"role": "user", "content": f"Earlier question {i}"},
-            {"role": "assistant", "content": f"Earlier answer {i}"},
+            {"role": "user", "content": exchange["user"]},
+            {"role": "assistant", "content": exchange["aura"]},
         )
     ]
     assert call["messages"][-1] == {"role": "assistant", "content": partial}

@@ -83,6 +83,7 @@ def reached_exchange_messages(
     exchanges: Any,
     *,
     budget_chars: int = 0,
+    request: str = "",
     max_pairs: int | None = None,
     on_unattested: Callable[[Any], None] | None = None,
 ) -> ReachedHistory:
@@ -100,7 +101,7 @@ def reached_exchange_messages(
     if not pairs:
         return ReachedHistory()
 
-    reach = measure_reach(pairs, budget_chars=budget_chars)
+    reach = measure_reach(pairs, budget_chars=budget_chars, request=request)
     if not reach.cuts_anything:
         return ReachedHistory(messages=_as_messages(pairs), reach=reach)
 
@@ -117,9 +118,36 @@ def reached_exchange_messages(
     )
 
 
+def messages_the_request_reaches(messages: Any, request: str) -> list[dict[str, str]]:
+    """The contiguous suffix of a user/assistant transcript that ``request`` reaches.
+
+    The same reach as :func:`reached_exchange_messages`, for a caller that
+    holds the turn's transcript as messages rather than exchanges.
+    """
+
+    held = [dict(message) for message in messages or () if isinstance(message, dict)]
+    starts = [index for index, message in enumerate(held) if message.get("role") == "user"]
+    if len(starts) < 2:
+        return held
+    exchanges = [
+        {
+            "user": str(held[start].get("content") or ""),
+            "aura": "\n".join(
+                str(message.get("content") or "")
+                for message in held[start + 1 : end]
+                if message.get("role") == "assistant"
+            ),
+        }
+        for start, end in zip(starts, [*starts[1:], len(held)], strict=True)
+    ]
+    reach = measure_reach(exchanges, request=request)
+    return held if reach.boundary == 0 else held[starts[reach.boundary] :]
+
+
 __all__ = [
     "VISIBLE_CONVERSATION_EXCHANGES",
     "ReachedHistory",
     "delivered_exchange_messages",
+    "messages_the_request_reaches",
     "reached_exchange_messages",
 ]

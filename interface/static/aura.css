@@ -634,6 +634,16 @@ header {
     cursor: help;
 }
 
+/* Which of her models wrote this. Quieter still than a caveat: the answer is
+ * hers and stands; the tag only says the smaller model wrote it. */
+.aura-badge.smaller-model {
+    background: transparent;
+    border: 1px solid var(--text-dim, #8a8aa0);
+    color: var(--text-dim, #8a8aa0);
+    opacity: 0.85;
+    cursor: help;
+}
+
 /* ── Thought Block: Chain-of-Thought Expansion ────────────── */
 .thought-toggle {
     display: inline-flex;

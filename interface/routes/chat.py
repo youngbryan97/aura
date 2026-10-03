@@ -9182,6 +9182,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # Every governance link was clear by then; what was missing was
                 # somebody saying what the tool had returned.
                 evidenced_reply = _what_the_tools_found()
+            found_before_the_ladder = evidenced_reply
             evidenced_reply = await _anything_better_than_giving_up(
                 _semantic_user_message,
                 reason="the cognitive engine could not serve this turn",
@@ -9190,6 +9191,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             if evidenced_reply:
                 failure_reply = evidenced_reply
+            # What the smaller model wrote is an answer, marked as the smaller
+            # model's. It went out marked failed, so a reply the person had
+            # been given was shown to them as a turn that failed.
+            served_confidence = "fallback" if evidenced_reply and not found_before_the_ladder else "failed"
             if pending_exchange_id:
                 await _chat_preflight._complete_logged_exchange(
                     pending_exchange_id,
@@ -9209,7 +9214,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 failure_reply,
                 cause="chat_response",
                 metadata={
-                    "response_confidence": "failed",
+                    "response_confidence": served_confidence,
                     "path": response_path,
                     "status": status,
                     "reason": reason,
@@ -9222,10 +9227,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "status": status,
                     "reason": reason,
                     "conversation_lane": lane,
-                    "response_confidence": "failed",
+                    "response_confidence": served_confidence,
                     "live_turn_contract": _live_turn_contract(
                         lane_status=lane,
-                        response_confidence="failed",
+                        response_confidence=served_confidence,
                         status=status,
                         reply_source=response_path,
                     ),
@@ -10682,6 +10687,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # 2026-08-30, asked how to remember people's names at a party, it
             # was the whole reply, while a loaded model that could have
             # answered was never asked.
+            bounded_by_the_ladder = False
             if not skip_bounded_desktop_repair:
                 bounded_repair = await _anything_better_than_giving_up(
                     _semantic_user_message,
@@ -10689,6 +10695,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     already="",
                     budget_s=_remaining_foreground_budget(),
                 )
+                bounded_by_the_ladder = bool(bounded_repair)
             if not bounded_repair and not skip_bounded_desktop_repair:
                 bounded_repair = await _build_grounded_self_process_repair_reply(
                     _semantic_user_message,
@@ -10752,6 +10759,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 bounded_repair=bounded_repair,
                 lane=lane,
                 pending_exchange_id=pending_exchange_id,
+                by_the_smaller_model=bounded_by_the_ladder,
             )
             if _seam_early_response is not _SEAM_FELL_THROUGH:
                 return _seam_early_response
@@ -10944,6 +10952,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # leaves the other saying "I couldn't get to an answer" on top
                 # of a tool result.
                 evidenced_reply = _what_the_tools_found()
+            found_before_the_ladder = evidenced_reply
             evidenced_reply = await _anything_better_than_giving_up(
                 _semantic_user_message,
                 reason="the cognitive engine could not serve this turn",
@@ -10952,6 +10961,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             if evidenced_reply:
                 failure_reply = evidenced_reply
+            # What the smaller model wrote is an answer, marked as the smaller
+            # model's. It went out marked failed, so a reply the person had
+            # been given was shown to them as a turn that failed.
+            served_confidence = "fallback" if evidenced_reply and not found_before_the_ladder else "failed"
             # A refusal is the right answer when nothing better is known. When
             # the runtime has ALREADY worked the answer out, it is the worst of
             # the three options available.
@@ -10972,6 +10985,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             _computed = _known_answer_for_this_turn()
             if _computed:
                 failure_reply = _computed
+                served_confidence = "computed"
                 logger.warning(
                     "🔢 Serving the computed arithmetic result (%s) instead of "
                     "a refusal — the value was known the whole turn.",
@@ -10990,7 +11004,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 failure_reply,
                 cause="chat_response",
                 metadata={
-                    "response_confidence": "failed",
+                    "response_confidence": served_confidence,
                     "path": "desktop_cognitive_engine",
                     "status": "desktop_cognitive_engine_unavailable",
                     "reason": "desktop_cognitive_engine_required_no_reply",
@@ -11002,10 +11016,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "status": "desktop_cognitive_engine_unavailable",
                     "reason": "desktop_cognitive_engine_required_no_reply",
                     "conversation_lane": lane,
-                    "response_confidence": "failed",
+                    "response_confidence": served_confidence,
                     "live_turn_contract": _live_turn_contract(
                         lane_status=lane,
-                        response_confidence="failed",
+                        response_confidence=served_confidence,
                         status="desktop_cognitive_engine_unavailable",
                         reply_source="desktop_cognitive_engine_required_no_reply",
                     ),

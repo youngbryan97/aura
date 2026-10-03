@@ -13,6 +13,7 @@ import asyncio
 
 import pytest
 
+from core.conversation.delivered_history import messages_the_request_reaches
 from core.conversation.turn_evidence_custody import (
     bind_turn_evidence_custody,
     record_turn_transcript,
@@ -53,18 +54,26 @@ def test_fallback_keeps_the_admitted_transcript_without_reading_it_again(monkeyp
     async def must_not_reread(**_kwargs):
         pytest.fail("handoff must reuse the admitted snapshot")
 
+    def nothing_bears_on_it(request, passages):
+        from core.cognition.evidence_relevance import EvidenceAlignment
+
+        return [EvidenceAlignment(False, True, 0.0, 0.5, (), "stand-in") for _ in passages]
+
     monkeypatch.setattr(chat_module, "_readings_for", no_readings)
     monkeypatch.setattr(chat_module._chat_memory_state, "_recent_completed_conversation_exchanges", must_not_reread)
     monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+    # The reach is the judge's; the judge is not what this test is about.
+    monkeypatch.setattr("core.cognition.evidence_relevance.assess_evidence_alignments", nothing_bears_on_it)
     with bind_turn_evidence_custody(session_id="s", turn_id="t"):
         record_turn_transcript(exchanges)
-        expected = list(turn_transcript())
+        expected = messages_the_request_reaches(turn_transcript(), "What did we settle on?")
         _run(chat_module._answer_from_fallback_ladder("What did we settle on?", reason="main_failed"))
     messages = router.calls[0][3]["messages"]
     assert messages[0]["role"] == "system"
     assert messages[1:-1] == expected
     assert messages[-1] == {"role": "user", "content": "What did we settle on?"}
-    assert len(messages) == 2 * pairs + 2
+    # Nothing earlier bears on the question, so it reads the last exchange.
+    assert len(messages) == 2 * min(pairs, 1) + 2
 
 
 def test_cold_start_fallback_uses_the_scoped_history_reader_once(monkeypatch):
@@ -176,14 +185,19 @@ def test_it_uses_the_small_local_tier_and_never_the_cloud(monkeypatch) -> None:
     assert kwargs.get("prefer_endpoint") == "Brainstem"
 
 
-def test_the_answer_says_which_model_produced_it(monkeypatch) -> None:
-    """A 9B answer served as though it were the 32B trades one lie for a worse one."""
+def test_the_answer_is_its_words_and_the_tag_says_which_model(monkeypatch) -> None:
+    """Which model answered travels as response_confidence="fallback", not as a sentence.
+
+    The parenthesis this appended was read past on every such reply, spoken by
+    her voice, and kept in the history her next turn read as her own words.
+    tests/test_reply_confidence_reaches_the_person.py holds the tag.
+    """
     router = _Router()
     monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
 
     reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="lane_warming"))
 
-    assert "smaller model" in reply
+    assert reply == "Yes — I'm here."
 
 
 def test_a_failing_ladder_yields_nothing_rather_than_a_bad_answer(monkeypatch) -> None:

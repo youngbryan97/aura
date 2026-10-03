@@ -87,7 +87,14 @@ def resolve_user_surface_prompt(
         or fallback
         or ""
     ).strip()
-    if not isinstance(binding, Mapping):
+    # An empty mapping is the absence of a binding, not a binding with no
+    # version. The MLX client puts {} in every job whose caller bound nothing,
+    # and reading that as a broken binding rejected every draft on the path.
+    # LIVE 2026-10-02 20:28: her 1435-character answer to "Bam 83 point game or
+    # Kobe 81 point game?" was refused for surface_validation_prompt_binding_version
+    # and the 2-bit model's "Kobe's 81." went out in its place, as on every
+    # user turn since the 20:07 boot.
+    if not isinstance(binding, Mapping) or not binding:
         return UserSurfacePromptResolution(
             prompt=legacy_prompt,
             source="legacy_unbound",

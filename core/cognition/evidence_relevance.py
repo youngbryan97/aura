@@ -54,6 +54,7 @@ __all__ = [
     "EXTERNAL_WORLD",
     "EvidenceAlignment",
     "assess_evidence_alignment",
+    "assess_evidence_alignments",
     "relevance",
     "prewarm_evidence_relevance",
     "wants_evidence",
@@ -615,16 +616,21 @@ def assess_evidence_alignment(request: Any, evidence: Any) -> EvidenceAlignment:
     absence cannot prove relevance, so unmatched material is withheld.
     """
 
-    query = " ".join(str(request or "").split())
-    passage = " ".join(str(evidence or "").split())
-    query_terms = _alignment_terms(query)
-    passage_terms = _alignment_terms(passage)
-    overlap = tuple(sorted(query_terms & passage_terms))
-    if not query or not passage:
-        return EvidenceAlignment(False, False, None, None, overlap, "empty")
+    return assess_evidence_alignments(request, (evidence,))[0]
 
-    if semantic_routing_ready():
-        boundary = _EVIDENCE_ALIGNMENT_BOUNDARY
+
+def assess_evidence_alignments(request: Any, passages: Sequence[Any]) -> list[EvidenceAlignment]:
+    """``assess_evidence_alignment`` for several passages, encoded in one batch."""
+
+    query = " ".join(str(request or "").split())
+    texts = [" ".join(str(passage or "").split()) for passage in passages]
+    query_terms = _alignment_terms(query)
+    overlaps = [tuple(sorted(query_terms & _alignment_terms(text))) for text in texts]
+    vectors: list[Any | None] = [None] * len(texts)
+    query_vector = None
+    same_engine = False
+    wanted = [index for index, text in enumerate(texts) if text]
+    if query and wanted and semantic_routing_ready():
         # A search result set has one query and several documents. The old
         # loop paid one identical query forward per result. Keep the query in
         # its asymmetric retrieval geometry, but cache it independently from
@@ -640,33 +646,35 @@ def assess_evidence_alignment(request: Any, evidence: Any) -> EvidenceAlignment:
                         if len(_ALIGNMENT_QUERY_CACHE) >= _REQUEST_CACHE_MAX:
                             _ALIGNMENT_QUERY_CACHE.clear()
                         _ALIGNMENT_QUERY_CACHE[query] = query_vector
-        document_vector = _embed_documents([passage])[0]
+        for index, vector in zip(wanted, _embed_documents([texts[index] for index in wanted]), strict=True):
+            vectors[index] = vector
         with _LOCK:
             same_engine = engine_before == _CACHE_ENGINE_TOKEN
-        if (
-            boundary is not None
-            and same_engine
-            and query_vector is not None
-            and document_vector is not None
-        ):
-            score = _cosine(query_vector, document_vector)
-            return EvidenceAlignment(
+    boundary = _EVIDENCE_ALIGNMENT_BOUNDARY
+    verdicts = []
+    for text, overlap, vector in zip(texts, overlaps, vectors, strict=True):
+        if not query or not text:
+            verdicts.append(EvidenceAlignment(False, False, None, None, overlap, "empty"))
+        elif same_engine and query_vector is not None and vector is not None:
+            score = _cosine(query_vector, vector)
+            verdicts.append(EvidenceAlignment(
                 score >= boundary,
                 True,
                 score,
                 boundary,
                 overlap,
                 "semantic_match" if score >= boundary else "semantic_mismatch",
-            )
-
-    return EvidenceAlignment(
-        bool(overlap),
-        False,
-        None,
-        None,
-        overlap,
-        "lexical_overlap" if overlap else "no_measured_alignment",
-    )
+            ))
+        else:
+            verdicts.append(EvidenceAlignment(
+                bool(overlap),
+                False,
+                None,
+                None,
+                overlap,
+                "lexical_overlap" if overlap else "no_measured_alignment",
+            ))
+    return verdicts
 
 
 def _anchor_vectors(key: str, sentences: Sequence[str]) -> list[Any]:

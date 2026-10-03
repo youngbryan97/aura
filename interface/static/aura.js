@@ -1274,6 +1274,10 @@ const REPLY_CONFIDENCE_BADGES = {
     failed_closed: ['Unreliable', 'A check failed and she stopped rather than guess.'],
     fail_closed: ['Unreliable', 'A check failed and she stopped rather than guess.'],
     not_generated: ['No answer', 'No reply was produced for this turn.'],
+    // Her main model could not finish the turn and the smaller one answered.
+    // This said so in a parenthesis appended to the reply itself, a sentence
+    // the person had to read past every time.
+    fallback: ['Smaller model', 'Her main model could not finish this turn, so her smaller one answered.', 'smaller-model'],
 };
 
 function replyConfidenceBadgeHtml(confidence) {
@@ -1282,7 +1286,8 @@ function replyConfidenceBadgeHtml(confidence) {
     if (Object.prototype.hasOwnProperty.call(REPLY_CONFIDENCE_BADGES, key)) {
         const entry = REPLY_CONFIDENCE_BADGES[key];
         if (!entry) return '';
-        return `<span class="aura-badge unverified" title="${escHtml(entry[1])}">${escHtml(entry[0])}</span>`;
+        const kind = entry[2] || 'unverified';
+        return `<span class="aura-badge ${kind}" title="${escHtml(entry[1])}">${escHtml(entry[0])}</span>`;
     }
     // An UNKNOWN value is disclosed, never dropped. Silently ignoring the
     // field is what made this channel invisible for its whole life, and a

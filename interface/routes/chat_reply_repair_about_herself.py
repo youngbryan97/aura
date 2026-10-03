@@ -139,8 +139,12 @@ async def _serve_the_bounded_repair(
     bounded_repair: Any,
     lane: Any,
     pending_exchange_id: Any,
+    by_the_smaller_model: bool = False,
 ) -> tuple[Any, Any, Any]:
     """Serve the bounded repair when the cognitive engine could not answer.
+
+    ``by_the_smaller_model`` marks a repair the fallback ladder wrote. It was
+    marked bounded, which the person saw as "Partial" on a whole answer.
 
     Moved out of ``_api_chat_turn`` by tools/extract_seam.py, which checks
     the body against the original token for token before writing. The
@@ -155,6 +159,7 @@ async def _serve_the_bounded_repair(
     async def _block() -> Any:
         nonlocal lane, pending_exchange_id
         if bounded_repair:
+            confidence = "fallback" if by_the_smaller_model else "bounded"
             _live_turn_trace.update(
                 {
                     "cognitive_engine_reply_accepted": False,
@@ -187,7 +192,7 @@ async def _serve_the_bounded_repair(
                 bounded_repair,
                 cause="chat_response",
                 metadata={
-                    "response_confidence": "bounded",
+                    "response_confidence": confidence,
                     "path": "cognitive_engine_self_process_grounding",
                     "status": "cognitive_engine_self_process_grounding",
                     "reason": "desktop_cognitive_engine_required_no_reply",
@@ -199,10 +204,10 @@ async def _serve_the_bounded_repair(
                     "status": "cognitive_engine_self_process_grounding",
                     "reason": "desktop_cognitive_engine_required_no_reply",
                     "conversation_lane": lane,
-                    "response_confidence": "bounded",
+                    "response_confidence": confidence,
                     "live_turn_contract": _live_turn_contract(
                         lane_status=lane,
-                        response_confidence="bounded",
+                        response_confidence=confidence,
                         status="cognitive_engine_self_process_grounding",
                         reply_source="cognitive_engine_self_process_grounding",
                     ),

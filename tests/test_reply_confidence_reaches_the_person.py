@@ -155,3 +155,10 @@ def test_the_mark_reads_as_a_caveat_not_an_error():
     block = css.split(".aura-badge.unverified", 1)[1].split("}", 1)[0]
     assert "background: transparent" in block
     assert "border:" in block
+
+
+def test_a_reply_her_smaller_model_wrote_is_tagged_so():
+    """The ladder's replies go out as "fallback"; the tag replaced a parenthesis in the text."""
+    assert "fallback" in _server_vocabulary()
+    assert _badge_for(["fallback"]) == ["Smaller model"]
+    assert ".aura-badge.smaller-model" in AURA_CSS.read_text(encoding="utf-8")

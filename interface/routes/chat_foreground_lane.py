@@ -15,7 +15,6 @@ import re
 import time
 from typing import Any
 
-from core.conversation.word_markers import names_any_in_identifier
 from core.runtime.errors import describe_error, record_degradation
 from core.runtime.service_access import resolve_inference_gate
 from core.runtime.structured_input import (
@@ -285,8 +284,20 @@ def _boot_is_still_in_progress(phases: Any) -> bool:
 
 
 async def _fallback_conversation_messages(text: str) -> list[dict[str, str]]:
-    """A smaller model inherits the turn's dialogue, not an empty session."""
+    """A smaller model inherits the part of the turn's dialogue the request reaches.
 
+    It had the whole of it. LIVE 2026-10-02 20:28, "Bam 83 point game or Kobe
+    81 point game?" reached the 2-bit model with 82 messages, 75,938
+    characters, cut to 48,000 head and tail; it read 18,137 tokens in 84.8s
+    and wrote eight.
+    """
+
+    from core.conversation.delivered_history import messages_the_request_reaches
+
+    return messages_the_request_reaches(await _the_turns_dialogue(text), text)
+
+
+async def _the_turns_dialogue(text: str) -> list[dict[str, str]]:
     from core.conversation.delivered_history import (
         VISIBLE_CONVERSATION_EXCHANGES,
         delivered_exchange_messages,
@@ -587,38 +598,17 @@ async def _answer_from_fallback_ladder(
             return ""
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.fallback_ladder", exc, severity="info", action="served without the tool-claim check")
-    logger.info("🪜 Fallback ladder answered while the cortex was unavailable (%s).", reason[:80])
-    ran_out = (
-        " I had a fixed slice of time for this and used all of it, so there is "
-        "more I would have said."
-        if cut_short
-        else ""
+    logger.info(
+        "🪜 Fallback ladder answered while the cortex was unavailable (%s)%s.",
+        reason[:80],
+        "; cut short at its time limit" if cut_short else "",
     )
-    # Say which thing happened, not the one that usually happens.
-    #
-    # This line asserted "the main one is still loading" whatever the reason
-    # was, and the reason is right here in the argument. LIVE, 2026-09-07: it
-    # was said while the 27B had been resident for seven minutes and the real
-    # cause was a latent-cortex receipt contract failing — so the person was
-    # told to wait for something that was not going to change by waiting.
-    # A reason code is an identifier -- `cortex_still_loading`,
-    # `worker_spawning`, `latent_receipt_contract_failed` -- so this asks the
-    # question of the words it is built from. Containment would have matched
-    # "load" inside "download" and "overload"; word boundaries would have
-    # matched none of them at all, because an underscore is a word character.
-    still_coming = names_any_in_identifier(
-        reason, ("load", "warm", "booting", "starting", "not ready", "spawning")
-    )
-    why = (
-        "the main one is still loading"
-        if still_coming
-        else "the main one could not finish this turn"
-    )
-    return (
-        f"{answer}\n\n"
-        f"(That came from my smaller model — {why}. "
-        f"Ask again in a moment if you want me to think about it properly.{ran_out})"
-    )
+    # Which model wrote it is said by the reply's response_confidence,
+    # "fallback", which the UI shows as a "Smaller model" tag. It was a
+    # parenthesis appended to the answer itself: read past on every such
+    # reply, spoken aloud by her voice, and stored in the history the next
+    # turn reads as something she said.
+    return answer
 
 
 async def _wait_while_it_is_still_answering(task: Any, budget_s: float) -> Any:

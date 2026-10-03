@@ -1333,9 +1333,10 @@ def _desktop_history_messages_from_context(
     context: dict[str, Any],
     *,
     budget_chars: int = 0,
+    request: str = "",
     max_pairs: int | None = None,
 ) -> tuple[list[dict[str, str]], str]:
-    """The exchanges this turn can afford, and a note about the rest.
+    """The exchanges this turn can afford and ``request`` bears on, and a note about the rest.
 
     Every exchange was admitted because it existed. LIVE 2026-09-17,
     "Aura, what is it like to be you": 83 messages, 10,414 tokens, 83.44s
@@ -1349,6 +1350,7 @@ def _desktop_history_messages_from_context(
     reached = reached_exchange_messages(
         context.get("recent_completed_exchanges"),
         budget_chars=budget_chars,
+        request=request,
         max_pairs=max_pairs,
         on_unattested=_note_unattested_exchange,
     )
