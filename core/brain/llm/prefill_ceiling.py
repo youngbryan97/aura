@@ -14,6 +14,14 @@ prompt between the two was cut although the cortex had been qualified to read
 it. The ceiling is now the widest lane's qualified input, in characters at the
 measured ratio, and the fixed figure remains only for an artifact with no
 qualified profile.
+
+The window is what the cortex can read, not what a turn should. LIVE
+2026-10-03, the first turn after the window went from 32768 to 65536: a link
+turn's prebuilt messages came to 130,902 characters, 35,391 tokens, read in
+162 seconds for a 640-token answer, because every assembler fills to the
+ceiling it is given. So an assembler is given :func:`reading_ceiling_chars`:
+the fixed figure, and beyond it only as much as the answer earns
+(core/brain/llm/context_budget.py, ``budget_for_answer``), up to the window.
 """
 
 from __future__ import annotations
@@ -48,4 +56,20 @@ def prefill_ceiling_chars(model_path: str | None = None) -> int:
         return UNQUALIFIED_CEILING_CHARS
 
 
-__all__ = ["KEEP_HEAD_CHARS", "UNQUALIFIED_CEILING_CHARS", "prefill_ceiling_chars"]
+def reading_ceiling_chars(answer_tokens: int, model_path: str | None = None) -> int:
+    """What a turn whose answer is ``answer_tokens`` long may read, in characters.
+
+    Never below the fixed figure, so no prompt that fitted before the window
+    was widened is cut now; never above the window.
+    """
+    window = prefill_ceiling_chars(model_path)
+    try:
+        from core.brain.llm.context_budget import budget_for_answer
+
+        earned = int(budget_for_answer(int(answer_tokens)))
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        earned = 0
+    return min(window, max(UNQUALIFIED_CEILING_CHARS, earned))
+
+
+__all__ = ["KEEP_HEAD_CHARS", "UNQUALIFIED_CEILING_CHARS", "prefill_ceiling_chars", "reading_ceiling_chars"]

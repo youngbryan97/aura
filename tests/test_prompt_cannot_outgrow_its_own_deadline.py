@@ -124,3 +124,18 @@ class TestTheCeilingIsWhatTheCortexWasQualifiedToRead:
         assert prefill_ceiling_chars("the-smaller-fallback") == UNQUALIFIED_CEILING_CHARS
         self._limits(monkeypatch, (24_576,), qualified=False)
         assert prefill_ceiling_chars() == UNQUALIFIED_CEILING_CHARS
+
+
+def test_reading_beyond_the_old_ceiling_is_earned_by_the_answer(monkeypatch) -> None:
+    """LIVE 2026-10-03: a 640-token answer read 130,902 characters once the window widened."""
+    from core.brain.llm import context_budget, prefill_ceiling
+
+    monkeypatch.setattr(prefill_ceiling, "prefill_ceiling_chars", lambda model_path=None: 170_000)
+    earned = {640: 30_000, 4_000: 120_000, 20_000: 600_000}
+    monkeypatch.setattr(context_budget, "budget_for_answer", lambda tokens: earned.get(tokens, 0))
+    floor = prefill_ceiling.UNQUALIFIED_CEILING_CHARS
+    assert prefill_ceiling.reading_ceiling_chars(640) == floor
+    assert prefill_ceiling.reading_ceiling_chars(4_000) == 120_000
+    assert prefill_ceiling.reading_ceiling_chars(20_000) == 170_000
+    # Nothing timed yet: the fixed figure, as before the window was widened.
+    assert prefill_ceiling.reading_ceiling_chars(7) == floor

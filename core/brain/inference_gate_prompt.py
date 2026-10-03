@@ -36,12 +36,12 @@ def _rendered_prompt_chars(system_prompt: Any, messages: list[dict[str, Any]]) -
         )
 
 
-def _prefill_ceiling_chars() -> int:
-    """The client's own character ceiling on a prompt, or 0 if unreadable."""
+def _prefill_ceiling_chars(answer_tokens: int = 0) -> int:
+    """What this turn may read, in characters (prefill_ceiling.reading_ceiling_chars), or 0 if unreadable."""
     try:
-        from core.brain.llm.context_budget import prefill_ceiling
+        from core.brain.llm.prefill_ceiling import reading_ceiling_chars
 
-        return int(prefill_ceiling())
+        return int(reading_ceiling_chars(answer_tokens))
     # not a failure: a value that is not a number is not one this can read.
     except (ImportError, AttributeError, TypeError, ValueError):
         return 0
@@ -1151,7 +1151,7 @@ class _BuildsAndFitsThePrompt:
         # two — 52,355 chars, 11,931 tokens, inside a 14,336-token window on
         # 2026-09-16 — passed here and was amputated there, every turn, as a
         # fault. Whichever of the two is tighter is the window.
-        char_ceiling = _prefill_ceiling_chars()
+        char_ceiling = _prefill_ceiling_chars(reserve)
         receipt: dict[str, Any] = {
             "window": window,
             "reserved_for_answer": reserve,

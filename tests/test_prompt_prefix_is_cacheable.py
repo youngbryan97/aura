@@ -395,7 +395,7 @@ def test_the_fitter_honours_the_clients_character_ceiling(monkeypatch):
 
     gate = _gate()
     monkeypatch.setattr(gate, "_foreground_prompt_context_window", lambda: 1_000_000)
-    monkeypatch.setattr(igp, "_prefill_ceiling_chars", lambda: 6_000)
+    monkeypatch.setattr(igp, "_prefill_ceiling_chars", lambda *_: 6_000)
     history = []
     for index in range(30):
         history.extend([("user", f"question {index} " * 20), ("assistant", f"answer {index} " * 20)])
@@ -419,7 +419,7 @@ def test_once_the_window_moves_it_moves_far_enough_for_the_next_turn(monkeypatch
 
     gate = _gate()
     monkeypatch.setattr(gate, "_foreground_prompt_context_window", lambda: 1_000_000)
-    monkeypatch.setattr(igp, "_prefill_ceiling_chars", lambda: 3_000)
+    monkeypatch.setattr(igp, "_prefill_ceiling_chars", lambda *_: 3_000)
     exchange = [("user", "q " * 100), ("assistant", "a " * 100)]  # 400 chars
     history = [*exchange] * 10 + [("user", "now?")]
     _, first = gate._fit_prompt_to_window("", _turn("", history), answer_tokens=1, origin="user")
