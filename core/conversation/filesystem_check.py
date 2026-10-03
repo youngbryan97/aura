@@ -956,11 +956,17 @@ def _remembered_match(candidate: str) -> str | None:
     return None
 
 
+#: A web address. Its host and path look like a file path to the pattern above
+#: (LIVE 2026-10-03: a Wikipedia link was read as "//en.wikipedia.org", the
+#: reading said no such file exists, and the turn was handed a file tool).
+_WEB_ADDRESS_RE = re.compile(r"\b(?:https?|ftp)://\S+", re.IGNORECASE)
+
+
 def _named_paths(text: str) -> list[str]:
-    """Every path-shaped token in the message, in the order written."""
+    """Every path-shaped token in the message, in the order written; web addresses are not paths."""
     seen: set[str] = set()
     found: list[str] = []
-    for raw in _PATH_TOKEN_RE.findall(str(text or "")):
+    for raw in _PATH_TOKEN_RE.findall(_WEB_ADDRESS_RE.sub(" ", str(text or ""))):
         candidate = raw.strip().strip(".,;:'\"")
         if not candidate or candidate in seen:
             continue

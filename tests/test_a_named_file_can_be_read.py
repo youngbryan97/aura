@@ -102,3 +102,13 @@ def test_a_relative_path_still_resolves_inside_her_roots():
     read = requested_file_read("read CONTRIBUTING.md and tell me the first rule")
     assert read is not None
     assert read.exists
+
+
+def test_a_web_address_is_not_a_file_path() -> None:
+    """LIVE 2026-10-03: a Wikipedia link was read as the path "//en.wikipedia.org"."""
+    from core.conversation.filesystem_check import _named_paths, requested_file_read
+
+    link = "https://en.wikipedia.org/wiki/Bam_Adebayo%27s_83-point_game"
+    assert _named_paths(link) == []
+    assert requested_file_read(link) is None
+    assert _named_paths(f"compare {link} with CONTRIBUTING.md") == ["CONTRIBUTING.md"]
