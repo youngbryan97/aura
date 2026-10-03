@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
+import re
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextvars import ContextVar
 from typing import Any
@@ -21,6 +23,7 @@ __all__ = [
     "while_she_writes",
     "SCREENS_MEASURED",
     "HER_MIND_THIS_PURSUIT",
+    "the_finished_fields",
 ]
 
 #: How a pursuit running here says it is still getting somewhere, for the
@@ -393,3 +396,36 @@ async def _every_question_measured(
         except ImportError as exc:
             record_degradation("sovereign_browser.against", exc, severity="debug")
     return measured
+
+
+_BETWEEN_FIELDS = re.compile(r"\s*,?\s*")
+_AFTER_A_KEY = re.compile(r"\s*:\s*")
+
+
+def the_finished_fields(raw: str) -> dict[str, Any]:
+    """The fields of a JSON object that were finished before it was cut off.
+
+    A reading with a budget can stop inside a field. LIVE 2026-10-03 03:57:
+    her reading of the questionnaire page stopped in its fifth field, the parse
+    failed as a whole, and the four fields she had finished went with it.
+    """
+    text = str(raw or "")
+    at = text.find("{")
+    if at < 0:
+        return {}
+    decoder = json.JSONDecoder()
+    found: dict[str, Any] = {}
+    at += 1
+    while True:
+        at = _BETWEEN_FIELDS.match(text, at).end()
+        try:
+            key, at = decoder.raw_decode(text, at)
+            colon = _AFTER_A_KEY.match(text, at)
+            if not isinstance(key, str) or ":" not in colon.group(0):
+                break
+            value, at = decoder.raw_decode(text, colon.end())
+        except ValueError:
+            break
+        found[key] = value
+    return found
+

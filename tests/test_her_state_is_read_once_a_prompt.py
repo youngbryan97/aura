@@ -89,3 +89,40 @@ def test_a_page_reading_has_the_room_a_page_decision_has():
     body = inspect.getsource(u._UnderstandsThePage._understand_page)
     assert "max_tokens=420" not in body
     assert body.count("self.DECISION_MAX_TOKENS") == 2
+
+
+def test_a_cut_off_reading_keeps_the_fields_she_finished():
+    from core.skills.sovereign_browser_one_question import the_finished_fields
+
+    cut = (
+        '{"here": "The first page of the test", "to_progress": "Answer each, then Submit", '
+        '"relevant": "sixty scales", "how_to_answer": "Each row is a scale", '
+        '"present_but_not_needed": "the nav li'
+    )
+    assert the_finished_fields(cut) == {
+        "here": "The first page of the test",
+        "to_progress": "Answer each, then Submit",
+        "relevant": "sixty scales",
+        "how_to_answer": "Each row is a scale",
+    }
+    assert the_finished_fields('{"a": 1, "b": {"c": [1, 2]}}') == {"a": 1, "b": {"c": [1, 2]}}
+    assert the_finished_fields("no object at all") == {}
+
+
+def test_a_page_reading_that_was_cut_off_is_used_as_far_as_it_went(monkeypatch):
+    import asyncio
+    from typing import Any
+
+    from core.skills.sovereign_browser import SovereignBrowserSkill
+
+    class _Router:
+        async def think(self, *_a: Any, **_k: Any) -> str:
+            return '{"here": "A questionnaire", "to_progress": "Answer, then Submit", "done_wh'
+
+    monkeypatch.setattr(
+        "core.skills.sovereign_browser_understanding.optional_service",
+        lambda *names, default=None: _Router() if "llm_router" in names else default,
+    )
+    skill = SovereignBrowserSkill()
+    understood = asyncio.run(skill._understand_page("take it", {"elements": []}, None, "mind"))
+    assert understood == {"here": "A questionnaire", "to_progress": "Answer, then Submit"}

@@ -30,6 +30,7 @@ from .sovereign_browser_one_question import (  # noqa: F401  (re-exported: the p
     _thinking_for_one_answer,
     measure_the_screen,
     note_the_size_of_her_mind,
+    the_finished_fields,
     while_she_writes,
 )
 from .sovereign_browser_understanding_scale import _PlacesHerself
@@ -891,6 +892,8 @@ class _UnderstandsThePage(_PlacesHerself):
 
         parsed = self._parse_decision(str(raw or ""))
         if parsed.get("error"):
+            parsed = the_finished_fields(str(raw or ""))
+        if not parsed:
             return dict(prior or {})
         parsed.pop("actions", None)
         merged = dict(prior or {})
