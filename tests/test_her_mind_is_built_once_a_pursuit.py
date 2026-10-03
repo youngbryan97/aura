@@ -71,3 +71,10 @@ def test_she_says_where_she_is_going_before_her_first_look():
     assert said == "Opening example.test — take the test on it."
     body = inspect.getsource(SovereignBrowserSkill._handle_pursue)
     assert body.index("where_she_is_going(url, goal)") < body.index("for _round in range(")
+
+
+def test_the_pursuit_keeps_the_mind_it_builds_first():
+    """LIVE 2026-10-02 22:37: built before the holder was set, the first build was
+    not kept, and the second call of the run read 77% of its prompt again."""
+    body = inspect.getsource(SovereignBrowserSkill._handle_pursue)
+    assert body.index("_saying_it_moves_for(action_context)") < body.index("await self._assembled_mind()")

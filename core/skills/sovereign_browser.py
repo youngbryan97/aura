@@ -1561,6 +1561,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         last_good_url = str(url or "")
         understanding: dict[str, Any] | None = None
         surprised = False
+        # The heartbeat and the per-pursuit holders first: the mind built next
+        # is the one every round of this pursuit reads.
+        still_going = _saying_it_moves_for(action_context)
         mind = await self._assembled_mind()
         stalled = 0
         last_signature = ""
@@ -1577,8 +1580,6 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         tried_from: set[tuple[str, str]] = set()
         observation: dict[str, Any] = {}
         completed = False
-
-        still_going = _saying_it_moves_for(action_context)
 
         # What she has already done survives however this ends.
         #
