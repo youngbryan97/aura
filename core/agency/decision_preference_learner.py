@@ -24,6 +24,14 @@ Honest boundaries, enforced in code (not prose):
 
 This is machinery: persistent weights that move from measured outcomes and feed straight
 back into which initiative she picks. Not a prompt.
+
+A choice waiting on its outcome is kept across restarts and credited once. The habit
+ledger that delivers outcomes (core/agency/habits_are_hers.py) is kept across her
+restarts, and the choices it resolved were not: an outcome that arrived after a restart
+found no choice and was dropped without a trace. The idea is Cadence's (a saved brain
+resumes an action awaiting its actual outcome, and that outcome is supplied once); see
+muellerberndt/cadence, docs/continuous.md. An outcome that finds no choice, and a choice
+forgotten unresolved to bound memory, are now counted where ``stats`` reports them.
 """
 from __future__ import annotations
 
@@ -33,7 +41,7 @@ import threading
 import time
 import uuid
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +96,8 @@ class DecisionPreferenceLearner:
         self._multipliers: dict[str, float] = {d: 1.0 for d in DIMENSIONS}
         self._pending: dict[str, PendingChoice] = {}
         self._resolved_count = 0
+        self._unmatched_outcomes = 0
+        self._forgotten_unresolved = 0
         self._reward_history: deque[float] = deque(maxlen=200)
         if state_path is None:
             try:
@@ -155,6 +165,9 @@ class DecisionPreferenceLearner:
                 oldest = sorted(self._pending.values(), key=lambda c: c.created_at)[:64]
                 for c in oldest:
                     self._pending.pop(c.choice_id, None)
+                self._forgotten_unresolved += len(oldest)
+            # Kept before the outcome can arrive, so a restart in between does not lose it.
+            self._save()
         return choice_id
 
     def _open_receipt(self, pending: PendingChoice, expected_value: float) -> str | None:
@@ -186,6 +199,8 @@ class DecisionPreferenceLearner:
         with self._lock:
             pending = self._pending.pop(choice_id, None)
             if pending is None:
+                # Already credited, or forgotten: either way never twice, and counted.
+                self._unmatched_outcomes += 1
                 return dict(self._multipliers)
             for dim in DIMENSIONS:
                 # Signed salience: how much this dimension distinguished the choice.
@@ -224,6 +239,7 @@ class DecisionPreferenceLearner:
             payload = {
                 "multipliers": self._multipliers,
                 "resolved_count": self._resolved_count,
+                "pending": [asdict(choice) for choice in self._pending.values()],
                 "saved_at": time.time(),
             }
             # Behind the loop: a choice is resolved from the affect phase, and
@@ -246,6 +262,9 @@ class DecisionPreferenceLearner:
                 if dim in stored:
                     self._multipliers[dim] = _clamp(float(stored[dim]), W_MIN, W_MAX)
             self._resolved_count = int(data.get("resolved_count", 0) or 0)
+            for raw in data.get("pending", []) or []:
+                choice = PendingChoice(**raw)
+                self._pending[choice.choice_id] = choice
         except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
             record_degradation("decision_preference_learner", exc, severity="debug")
 
@@ -261,6 +280,8 @@ class DecisionPreferenceLearner:
                 "multipliers": dict(self._multipliers),
                 "resolved_count": self._resolved_count,
                 "pending_choices": len(self._pending),
+                "outcomes_for_unknown_choices": self._unmatched_outcomes,
+                "forgotten_unresolved": self._forgotten_unresolved,
                 "mean_recent_reward": round(mean_reward, 4),
                 "state_path": str(self._state_path),
             }

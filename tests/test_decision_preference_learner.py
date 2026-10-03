@@ -131,3 +131,24 @@ def test_arbiter_applies_learned_weights(tmp_path, monkeypatch):
     score_high_novelty = arb._compute_weighted_score({**flat, "novelty": 1.0})
     # With novelty up-weighted, a high-novelty option scores higher than under neutral weights.
     assert score_high_novelty > 0.5
+
+
+def test_a_choice_awaiting_its_outcome_survives_a_restart_and_is_credited_once(tmp_path):
+    """The habit ledger outlives a restart; the choice it resolves now does too."""
+    from core.runtime.atomic_writer import flush_writes_behind
+
+    path = tmp_path / "p.json"
+    before = DecisionPreferenceLearner(state_path=path)
+    cid = before.record_choice(
+        chosen_scores=_scores(continuity=0.95),
+        pool_scores=[_scores(continuity=0.95), _scores(continuity=0.1)],
+        goal="continuity choice",
+    )
+    flush_writes_behind()
+    after = DecisionPreferenceLearner(state_path=path)
+    assert after.stats()["pending_choices"] == 1
+    credited = after.resolve_choice(cid, reward=1.0)["continuity"]
+    assert credited > 1.0
+    # A second delivery of the same outcome changes nothing and is counted.
+    assert after.resolve_choice(cid, reward=1.0)["continuity"] == credited
+    assert after.stats()["outcomes_for_unknown_choices"] == 1
