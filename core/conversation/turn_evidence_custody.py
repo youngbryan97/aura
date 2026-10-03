@@ -52,11 +52,13 @@ __all__ = [
     "record_turn_grounding",
     "record_turn_transcript",
     "record_turn_sensory_evidence",
+    "record_turn_world_evidence",
     "turn_capability_availability",
     "turn_model_generations",
     "turn_grounding_evidence",
     "turn_transcript",
     "turn_sensory_evidence",
+    "turn_world_evidence",
 ]
 
 
@@ -86,6 +88,7 @@ class TurnEvidenceCustody:
         self._lock = checked_lock("core.conversation.turn_evidence_custody", reentrant=True)
         self._receipts: list[dict[str, Any]] = []
         self._grounding: list[str] = []
+        self._world_evidence: list[str] = []
         self._transcript: tuple[tuple[str, str], ...] | None = None
         self._sensory_evidence: dict[str, dict[str, Any]] = {}
         self._generations: list[dict[str, Any]] = []
@@ -204,6 +207,29 @@ class TurnEvidenceCustody:
             if text not in self._grounding and len(self._grounding) < 32:
                 self._grounding.append(text[:16_000])
             return True
+
+    def append_world_evidence(self, evidence: Any) -> bool:
+        """Attach what the world says about this turn: sources read for it, shown to her beside it."""
+
+        if not self.admits_current_execution():
+            return False
+        text = str(evidence or "").strip()
+        if not text:
+            return False
+        with self._lock:
+            if self._closed:
+                return False
+            if text not in self._world_evidence and len(self._world_evidence) < 8:
+                self._world_evidence.append(text[:24_000])
+            return True
+
+    def world_evidence(self) -> tuple[str, ...]:
+        """The sources read for this turn, for her prompt; never the person's own words."""
+
+        if not self.admits_current_execution():
+            return ()
+        with self._lock:
+            return tuple(self._world_evidence)
 
     def record_transcript(self, exchanges: Any) -> bool:
         """Keep the admitted dialogue unchanged across model handoffs."""
@@ -353,6 +379,26 @@ def turn_grounding_evidence() -> tuple[str, ...]:
 
     custody = current_turn_evidence_custody()
     return custody.grounding() if custody is not None else ()
+
+
+def record_turn_world_evidence(evidence: Any) -> bool:
+    """Attach the sources read for the active turn, if this task owns it.
+
+    They travel beside the person's message, not inside it. Appended to the
+    message, they were read as material the person had supplied: LIVE
+    2026-10-03 the Bam question was classified a "structured learning bundle",
+    taken off the quick lane, and wrapped in a 62,603-character contract.
+    """
+
+    custody = current_turn_evidence_custody()
+    return bool(custody and custody.append_world_evidence(evidence))
+
+
+def turn_world_evidence() -> tuple[str, ...]:
+    """The sources read for the current exact turn."""
+
+    custody = current_turn_evidence_custody()
+    return custody.world_evidence() if custody is not None else ()
 
 
 def record_turn_transcript(exchanges: Any) -> bool:

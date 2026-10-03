@@ -162,3 +162,26 @@ def test_finding_something_out_is_research_unless_an_app_or_her_own_place_is_nam
     assert not looks_like_desktop_objective("Google it. Bam had an 83 point game")
     assert looks_like_desktop_objective("open safari and google the weather")
     assert looks_like_desktop_objective("search my files for the budget spreadsheet")
+
+
+def test_the_sources_travel_beside_the_message_and_reach_only_her_reply() -> None:
+    """Appended to the message they were read as material the person supplied."""
+    from core.brain.inference_gate_turn_serving import _ServesTheTurn
+    from core.conversation.turn_evidence_custody import (
+        bind_turn_evidence_custody,
+        record_turn_world_evidence,
+        turn_world_evidence,
+    )
+
+    async def blocks(visible: str) -> list[str]:
+        _ambient, task = await _ServesTheTurn._generate_with_metadata_sink_task_grounding_blocks(
+            {}, [], False, "", "", None, visible,
+        )
+        return task
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        assert record_turn_world_evidence("[SOURCE 1: offline Wikipedia] Bam Adebayo scored 83 points.")
+        assert turn_world_evidence() == ("[SOURCE 1: offline Wikipedia] Bam Adebayo scored 83 points.",)
+        assert any("scored 83 points" in block for block in asyncio.run(blocks("Bam or Kobe?")))
+        assert not any("scored 83 points" in block for block in asyncio.run(blocks("")))
+    assert turn_world_evidence() == ()

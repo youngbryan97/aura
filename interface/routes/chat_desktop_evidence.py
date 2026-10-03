@@ -1102,14 +1102,15 @@ async def _what_the_world_says_for_the_turn(
     *,
     session_id: str,
 ) -> tuple[dict[str, Any] | None, str]:
-    """Read what the turn names before she answers; the sources travel with her message.
+    """Read what the turn names before she answers; the sources travel beside her message.
 
     Replaces the required-search block in the chat route, which ran only when a
     search contract fired and appended instructions to the person's message
-    along with the results. What is appended now is the sources, labelled and
-    fenced (core/conversation/what_the_world_says.py), and nothing else.
-    Returns the completed-search evidence when a web search ran, and the
-    message she reads.
+    along with the results. The sources, labelled and fenced
+    (core/conversation/what_the_world_says.py), go to the turn's custody, which
+    the inference gate shows her beside the turn and the worker's grounding
+    checks read; the person's message is returned unchanged. Returns the
+    completed-search evidence when a web search ran.
     """
     from core.conversation.what_the_world_says import gather_world_evidence
 
@@ -1193,4 +1194,17 @@ async def _what_the_world_says_for_the_turn(
             _SEARCH_SKILL_NAMES, ok=bool(result.get("ok")), query=ran["query"], result=result, evidence=rendered,
             memory_saved=False, contract=contract.to_dict() if hasattr(contract, "to_dict") else None,
         )
-    return completed, f"{effective_user_message}\n\n{rendered}"
+    _beside_the_turn(rendered)
+    return completed, effective_user_message
+
+
+def _beside_the_turn(rendered: str) -> None:
+    """Give the sources to the turn: her prompt reads them, and so do the grounding checks."""
+    from core.conversation.turn_evidence_custody import (
+        record_turn_grounding,
+        record_turn_world_evidence,
+    )
+
+    if not record_turn_world_evidence(rendered):
+        logger.warning("🌍 The sources read for this turn had no turn to attach to; she answers without them.")
+    record_turn_grounding(rendered)

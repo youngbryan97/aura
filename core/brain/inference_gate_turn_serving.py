@@ -88,6 +88,14 @@ class _ServesTheTurn:
         # that made every affect tick invalidate the conversation's KV prefix.
         if living_mind_context and not isolated_generation_contract:
             ambient_grounding_blocks.append(living_mind_context)
+        # What the world says about what this turn names: the sources read for
+        # it before her cortex ran (core/conversation/what_the_world_says.py).
+        # A person's reply only; an internal generation inside the turn is not
+        # answering the person and does not need them.
+        if visible_user_prompt and not isolated_generation_contract:
+            from core.conversation.turn_evidence_custody import turn_world_evidence
+
+            task_grounding_blocks.extend(turn_world_evidence())
         await _attach_the_present_moment(
             ambient_grounding_blocks=ambient_grounding_blocks,
             isolated_generation_contract=isolated_generation_contract,

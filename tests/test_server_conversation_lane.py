@@ -17015,11 +17015,15 @@ async def test_api_chat_desktop_required_search_collects_evidence_before_cogniti
                     "response_path": "cognitive_engine",
                 }
             )
-        # The sources she reads, and the fact that they were saved; no
-        # instruction about how to answer rides along with them.
-        assert "[SEARCHED the web for" in message and "saved to memory" in message
-        assert "https://example.org/tardigrades" in message
-        assert "Use only the evidence above" not in message
+        # The sources travel beside the message, in the turn's custody, with
+        # the fact that they were saved; the person's words are unchanged, and
+        # no instruction about how to answer rides along with them.
+        from core.conversation.turn_evidence_custody import turn_world_evidence
+
+        beside = "\n".join(turn_world_evidence())
+        assert "[SEARCHED the web for" in beside and "saved to memory" in beside
+        assert "https://example.org/tardigrades" in beside
+        assert "[SEARCHED" not in message and "Use only the evidence above" not in message
         return "From my conversation memory, tardigrades can enter cryptobiosis."
 
     async def _fake_begin_exchange(*_args, **_kwargs):
