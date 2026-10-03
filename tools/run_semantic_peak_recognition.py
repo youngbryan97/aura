@@ -250,6 +250,11 @@ def main() -> int:
         help="an exposed composition feature bundle; repeatable",
     )
     parser.add_argument("--skip-folds", action="store_true")
+    parser.add_argument(
+        "--argument-ownership",
+        action="store_true",
+        help="also fit where-a-mention-stands ownership and add it to argument scores",
+    )
     args = parser.parse_args()
 
     from tools.refit_semantic_argument_proposals import (
@@ -260,6 +265,7 @@ def main() -> int:
     output = args.output.expanduser().absolute()
     configure_refit_environment(output / "report.json")
 
+    from core.learning.semantic_argument_ownership import fit_argument_ownership
     from core.learning.semantic_cohort_diagnosis import audit_semantic_cohort
     from core.learning.semantic_operation_peaks import (
         PeakRecognitionTransducer,
@@ -288,7 +294,8 @@ def main() -> int:
     )
 
     recognizer = fit_peak_operation_recognizer(training)
-    candidate = PeakRecognitionTransducer(incumbent, recognizer)
+    ownership = fit_argument_ownership(training) if args.argument_ownership else None
+    candidate = PeakRecognitionTransducer(incumbent, recognizer, ownership)
     _write_once(output / "recognizer.json", recognizer.to_dict())
     _write_once(output / "candidate.json", candidate.to_dict())
 
@@ -328,7 +335,9 @@ def main() -> int:
                 item for item in training if assignments[item.ir.source_text_sha256] == fold
             )
             fold_candidate = PeakRecognitionTransducer(
-                incumbent, fit_peak_operation_recognizer(kept)
+                incumbent,
+                fit_peak_operation_recognizer(kept),
+                fit_argument_ownership(kept) if args.argument_ownership else None,
             )
             fold_audit = audit_semantic_cohort(
                 fold_candidate,
@@ -406,6 +415,7 @@ def main() -> int:
             "candidate": candidate.receipt_sha256,
             "recognizer": recognizer.identity_sha256,
             "recognizer_fit": dict(recognizer.fit_receipt),
+            "argument_ownership": None if ownership is None else ownership.to_dict(),
             "development_audit_receipt_sha256": audit["receipt_sha256"],
             "incumbent_cohort_receipt_sha256": incumbent_report["receipt_sha256"],
             "development": comparison,

@@ -402,11 +402,16 @@ class PeakRecognitionTransducer:
 
     Everything but operation proposal and chart selection is the base
     transducer's, so graders and scorers that read its heads read the same heads.
+    ``ownership``, when given, adds where each mention stands to its argument
+    scores (core/learning/semantic_argument_ownership.py).
     """
 
-    def __init__(self, base: Any, recognizer: PeakOperationRecognizer) -> None:
+    def __init__(
+        self, base: Any, recognizer: PeakOperationRecognizer, ownership: Any = None
+    ) -> None:
         object.__setattr__(self, "base", base)
         object.__setattr__(self, "recognizer", recognizer)
+        object.__setattr__(self, "ownership", ownership)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.base, name)
@@ -415,33 +420,45 @@ class PeakRecognitionTransducer:
         raise AttributeError("a peak recognition transducer is immutable")
 
     def decode(self, **kwargs: Any) -> Any:
+        if self.ownership is not None:
+            kwargs["argument_ownership"] = self.ownership
         return self.base.decode(**kwargs, operation_recognizer=self.recognizer)
+
+    def _identity(self) -> dict[str, Any]:
+        identity = {
+            "schema": PEAK_TRANSDUCER_SCHEMA,
+            "base": self.base.receipt_sha256,
+            "recognizer": self.recognizer.identity_sha256,
+        }
+        if self.ownership is not None:
+            identity["ownership"] = self.ownership.identity_sha256
+        return identity
 
     @property
     def receipt_sha256(self) -> str:
-        return _sha(
-            {
-                "schema": PEAK_TRANSDUCER_SCHEMA,
-                "base": self.base.receipt_sha256,
-                "recognizer": self.recognizer.identity_sha256,
-            }
-        )
+        return _sha(self._identity())
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        value = {
             "schema": PEAK_TRANSDUCER_SCHEMA,
             "base": self.base.to_dict(),
             "recognizer": self.recognizer.to_dict(),
         }
+        if self.ownership is not None:
+            value["ownership"] = self.ownership.to_dict()
+        return value
 
 
 def peak_recognition_transducer_from_dict(
     value: Mapping[str, Any], *, restore_base: Callable[[Mapping[str, Any]], Any]
 ) -> PeakRecognitionTransducer:
     """Restore a saved candidate; ``restore_base`` restores the transducer it wraps."""
+    from core.learning.semantic_argument_ownership import argument_ownership_from_dict
+
     if value.get("schema") != PEAK_TRANSDUCER_SCHEMA:
         raise ValueError("peak recognition transducer payload is not this schema")
     return PeakRecognitionTransducer(
         restore_base(value["base"]),
         peak_operation_recognizer_from_dict(value["recognizer"]),
+        argument_ownership_from_dict(value["ownership"]) if "ownership" in value else None,
     )
