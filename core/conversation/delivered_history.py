@@ -87,12 +87,13 @@ def reached_exchange_messages(
     max_pairs: int | None = None,
     on_unattested: Callable[[Any], None] | None = None,
 ) -> ReachedHistory:
-    """The exchanges this turn can afford, rather than every exchange there is.
+    """The exchanges this turn can afford and bears on, rather than every exchange there is.
 
     Recency is not a budget. Admitting forty exchanges because forty
     exchanges exist put eighty-three seconds of prefill in front of a
     thirty-one character question, live on 2026-09-17. What is retained is
-    a contiguous suffix, so nothing resolves across a hole.
+    the last exchange and the earlier ones the request bears on
+    (core/conversation/history_reach.py).
     """
 
     pairs = _attested_pairs(
@@ -107,19 +108,20 @@ def reached_exchange_messages(
 
     note = (
         f"[SYSTEM: this conversation has {len(pairs)} completed exchanges and "
-        f"the {reach.retained} most recent are below. The other {reach.dropped} "
-        "are not in front of you. If the person refers to something older, say "
-        "you would need to look it up rather than reconstructing it.]"
+        f"{reach.retained} are below: the most recent and the earlier ones this "
+        f"request bears on. The other {reach.dropped} are not in front of you. If "
+        "the person refers to one of them, say you would need to look it up "
+        "rather than reconstructing it.]"
     )
     return ReachedHistory(
-        messages=_as_messages(pairs[reach.boundary :]),
+        messages=_as_messages([pairs[index] for index in reach.kept]),
         note=note,
         reach=reach,
     )
 
 
 def messages_the_request_reaches(messages: Any, request: str) -> list[dict[str, str]]:
-    """The contiguous suffix of a user/assistant transcript that ``request`` reaches.
+    """The exchanges of a user/assistant transcript that ``request`` reaches.
 
     The same reach as :func:`reached_exchange_messages`, for a caller that
     holds the turn's transcript as messages rather than exchanges.
@@ -141,7 +143,10 @@ def messages_the_request_reaches(messages: Any, request: str) -> list[dict[str, 
         for start, end in zip(starts, [*starts[1:], len(held)], strict=True)
     ]
     reach = measure_reach(exchanges, request=request)
-    return held if reach.boundary == 0 else held[starts[reach.boundary] :]
+    if not reach.cuts_anything:
+        return held
+    bounds = list(zip(starts, [*starts[1:], len(held)], strict=True))
+    return [message for index in reach.kept for message in held[bounds[index][0] : bounds[index][1]]]
 
 
 __all__ = [

@@ -51,7 +51,19 @@ earlier exchange, "how do you feel about getting tested like this" at 0.56
 against the test runs, and 0.53 is the closest a request about her code came
 to a test run. So a request also reaches back only as far as the oldest
 earlier exchange the judge says it bears on. That can only shorten what a
-budget allows, never lengthen it, and the suffix stays contiguous.
+budget allows, never lengthen it.
+
+**Only what it bears on, measured 2026-10-03.** Reaching back to the oldest
+exchange a request bears on brought everything after it along. Asked "Which
+was better, Bam's 83 point game or Kobe's 81 point game?" in a conversation
+where the same question had come up nine times among unrelated turns, the
+reach went 22 exchanges back and the cortex read 10,071 tokens in 35 seconds,
+most of it about other things. A request now reads the exchanges it bears on
+and the last one, the adjacency pair it answers into; an exchange between
+them that it does not bear on is left out, and the note that goes with the
+history says how many were. A reference inside a kept exchange to one left
+out can no longer resolve, which is the cost; the judge has said the request
+does not need what was left out.
 """
 
 from __future__ import annotations
@@ -87,6 +99,9 @@ class HistoryReach:
     budget_chars: int = 0
     #: Why the boundary landed where it did — for the turn record.
     reason: str = ""
+    #: Indices of the exchanges retained, oldest first. From ``boundary`` on,
+    #: less the ones the request does not bear on.
+    kept: tuple[int, ...] = ()
 
     @property
     def cuts_anything(self) -> bool:
@@ -100,6 +115,7 @@ class HistoryReach:
             "kept_chars": self.kept_chars,
             "budget_chars": self.budget_chars,
             "reason": self.reason,
+            "kept": list(self.kept),
         }
 
 
@@ -109,8 +125,8 @@ def _exchange_text(entry: Any) -> str:
     return str(entry or "")
 
 
-def _oldest_exchange_it_bears_on(exchanges: Sequence[Any], request: str) -> tuple[int, str]:
-    """Index of the oldest exchange before the last that ``request`` bears on.
+def _exchanges_it_bears_on(exchanges: Sequence[Any], request: str) -> tuple[list[int], str]:
+    """Indices of the exchanges before the last that ``request`` bears on.
 
     The last exchange is the adjacency pair the turn answers into and is never
     judged; with nothing earlier bearing on the request, the reach is the last
@@ -123,9 +139,8 @@ def _oldest_exchange_it_bears_on(exchanges: Sequence[Any], request: str) -> tupl
     bearing = [index for index, verdict in enumerate(verdicts) if verdict.relevant]
     how = "by meaning" if verdicts and all(verdict.measured for verdict in verdicts) else "by shared words"
     if not bearing:
-        return len(exchanges) - 1, f"no earlier exchange bears on this request ({how})"
-    oldest = min(bearing)
-    return oldest, f"{len(bearing)} earlier exchange(s) bear on this request ({how}), the oldest {len(earlier) - oldest} back"
+        return [], f"no earlier exchange bears on this request ({how})"
+    return bearing, f"{len(bearing)} earlier exchange(s) bear on this request ({how}), the oldest {len(earlier) - min(bearing)} back"
 
 
 def measure_reach(
@@ -167,16 +182,19 @@ def measure_reach(
             f"an answer this long affords {budget_chars} chars of reading; "
             f"{count - boundary} of {count} exchanges fit in {kept}"
         )
+    kept = tuple(range(boundary, count))
     if str(request or "").strip() and count > 1:
-        bears_on, said = _oldest_exchange_it_bears_on(exchanges, str(request))
+        bearing, said = _exchanges_it_bears_on(exchanges, str(request))
         reasons.append(said)
-        boundary = max(boundary, bears_on)
+        kept = tuple(index for index in kept if index in bearing or index == count - 1)
+        boundary = kept[0]
 
     return HistoryReach(
         boundary=boundary,
-        retained=count - boundary,
-        dropped=boundary,
-        kept_chars=sum(sizes[boundary:]),
+        retained=len(kept),
+        dropped=count - len(kept),
+        kept_chars=sum(sizes[index] for index in kept),
         budget_chars=max(0, budget_chars),
         reason="; ".join(reasons),
+        kept=kept,
     )
