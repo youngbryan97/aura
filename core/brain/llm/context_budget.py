@@ -309,12 +309,12 @@ def prefill_ceiling(room_taken_by_the_rest: int = 0) -> int:
     """
 
     try:
-        from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
+        from core.brain.llm.prefill_ceiling import prefill_ceiling_chars
     except (ImportError, AttributeError):
         # not a failure: no ceiling to read means no room to report, and
         # zero is how the caller hears "do not trim to a byte offset".
         return 0
-    return max(0, int(_PREFILL_CEILING_CHARS) - max(0, int(room_taken_by_the_rest)))
+    return max(0, prefill_ceiling_chars() - max(0, int(room_taken_by_the_rest)))
 
 
 def budget_for_answer(max_tokens: int) -> int:

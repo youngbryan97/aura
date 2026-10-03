@@ -25,7 +25,7 @@ from core.runtime.resource_observation import ResourceObserver, get_resource_obs
 SERVING_MEASUREMENT_SCHEMA = "aura.cortex_upgrade.serving_measurement.v2"
 SERVING_PROGRESS_SCHEMA = "aura.cortex_upgrade.serving_progress.v2"
 
-DEFAULT_CONTEXT_WINDOWS = (8192, 32768)
+DEFAULT_CONTEXT_WINDOWS = (8192, 32768, 65536, 131072)
 DEFAULT_PREFILL_CHUNK_TOKENS = 1024
 _MIN_PROMPT_TPS = 150.0
 _MIN_PROMPT_TPS_MEASUREMENT_TOKENS = 2048
@@ -642,8 +642,13 @@ def run_loaded_serving_qualification(
     """Run every serving cell without releasing the loaded checkpoint."""
 
     windows = tuple(sorted({int(value) for value in context_windows}))
-    if not windows or windows[0] < 2048 or windows[-1] > 32768:
-        raise ValueError("served context windows must lie inside [2048, 32768]")
+    # The model's own window bounds what can be asked of it. This was a fixed
+    # 32,768 while the resident cortex's config allows 262,144; whether a
+    # larger window is served is decided below, by whether it passes on this
+    # host, not here.
+    architectural = _architectural_window(model)
+    if not windows or windows[0] < 2048 or windows[-1] > architectural:
+        raise ValueError(f"served context windows must lie inside [2048, {architectural}]")
     if not 128 <= int(prefill_chunk_tokens) <= 8192:
         raise ValueError("prefill chunk must lie inside [128, 8192]")
     if not re.fullmatch(r"[0-9a-f]{64}", str(model_descriptor_sha256)):
@@ -887,6 +892,83 @@ def run_loaded_serving_qualification(
         )
         previous_context_pass = context_row.get("passed") is True
 
+    by_id = {str(row["cell_id"]): row for row in rows}
+    # A window is served when it recalled its nonce and fit the host and the
+    # liveness bar on its own; the first that does not ends the served range,
+    # and the ones past it were skipped. A window that does not fit is not
+    # served, rather than failing the windows that do.
+    passed_context_windows: list[int] = []
+    unserved_context_windows: dict[str, str] = {}
+    for window in windows:
+        row = by_id[f"context:{window}"]
+        reason = (
+            "" if row.get("passed") is True and _host_fit([row])[0] and _live([row])
+            else str(row.get("skip_reason") or "")
+            or ("recall_failed" if row.get("passed") is not True else "host_or_liveness")
+        )
+        if reason or unserved_context_windows:
+            unserved_context_windows[str(window)] = reason or "prior_context_tier_failure"
+        else:
+            passed_context_windows.append(window)
+    served_rows = [
+        row for row in rows
+        if not str(row["cell_id"]).startswith("context:")
+        or int(str(row["cell_id"]).split(":", 1)[1]) in passed_context_windows
+    ]
+    memory_pass, total_gb, minimum_available, maximum_peak = _host_fit(served_rows)
+    latency_pass = _live(served_rows)
+    complete_pass = by_id["complete_answer"]["score"]["passed"] is True
+    tool_pass = by_id["tool_contract"]["score"]["passed"] is True
+    code_pass = by_id["code_contract"]["score"]["passed"] is True
+    context_pass = bool(passed_context_windows)
+    template_pass = by_id["template"]["passed"] is True
+    verdict = "PASS" if all(
+        (template_pass, complete_pass, tool_pass, code_pass, context_pass, latency_pass, memory_pass)
+    ) else "FAIL"
+    measurement: dict[str, Any] = {
+        "schema": SERVING_MEASUREMENT_SCHEMA,
+        "model_descriptor_sha256": str(model_descriptor_sha256),
+        "evidence_binding_sha256": str(evidence_binding_sha256),
+        "verdict": verdict,
+        "template_pass": template_pass,
+        "complete_answer_pass": complete_pass,
+        "tool_contract_pass": tool_pass,
+        "code_contract_pass": code_pass,
+        "context_pass": context_pass,
+        "latency_pass": latency_pass,
+        "memory_pass": memory_pass,
+        "requested_context_tokens": max(windows),
+        "served_context_tokens": max(passed_context_windows, default=0),
+        "unserved_context_windows": unserved_context_windows,
+        "prefill_chunk_tokens": int(prefill_chunk_tokens),
+        "maximum_peak_memory_gb": round(maximum_peak, 4),
+        "minimum_available_memory_gb": round(minimum_available, 4),
+        "cells": rows,
+    }
+    measurement["evidence_sha256"] = canonical_sha256(measurement)
+    return measurement
+
+
+def _architectural_window(model: Any) -> int:
+    """The context window the loaded model's own configuration declares."""
+    args = getattr(model, "args", None)
+    for source in (args, getattr(args, "text_config", None)):
+        if isinstance(source, Mapping):
+            value = source.get("max_position_embeddings")
+        else:
+            value = getattr(source, "max_position_embeddings", None)
+        try:
+            if value is not None and int(value) >= 2048:
+                return int(value)
+        except (TypeError, ValueError):
+            continue
+    # An architecture that does not say keeps the bound qualification used
+    # before it read the model.
+    return 32768
+
+
+def _host_fit(rows: Sequence[Mapping[str, Any]]) -> tuple[bool, float, float, float]:
+    """Whether these rows left the host its margin: (passed, total, least available, peak) in GB."""
     host_totals = [
         float(memory.get("total_gb") or 0.0)
         for row in rows
@@ -918,53 +1000,20 @@ def run_loaded_serving_qualification(
     total_gb = max(host_totals, default=0.0)
     minimum_available = min(host_available, default=0.0)
     maximum_peak = max(peaks, default=0.0)
-    memory_pass = bool(
+    passed = bool(
         total_gb > 0
         and minimum_available >= _MIN_HOST_MARGIN_GB
         and maximum_peak <= total_gb * _MAX_HOST_FRACTION
     )
+    return passed, total_gb, minimum_available, maximum_peak
+
+
+def _live(rows: Sequence[Mapping[str, Any]]) -> bool:
+    """Whether every generated row in ``rows`` reported prefill progress in time."""
     liveness_rows = [row.get("liveness") for row in rows if "generation" in row]
-    latency_pass = bool(liveness_rows) and all(
-        isinstance(value, Mapping) and value.get("passed") is True
-        for value in liveness_rows
+    return bool(liveness_rows) and all(
+        isinstance(value, Mapping) and value.get("passed") is True for value in liveness_rows
     )
-    by_id = {str(row["cell_id"]): row for row in rows}
-    complete_pass = by_id["complete_answer"]["score"]["passed"] is True
-    tool_pass = by_id["tool_contract"]["score"]["passed"] is True
-    code_pass = by_id["code_contract"]["score"]["passed"] is True
-    context_pass = all(
-        by_id[f"context:{window}"]["passed"] is True for window in windows
-    )
-    passed_context_windows = [
-        window
-        for window in windows
-        if by_id[f"context:{window}"]["passed"] is True
-    ]
-    template_pass = by_id["template"]["passed"] is True
-    verdict = "PASS" if all(
-        (template_pass, complete_pass, tool_pass, code_pass, context_pass, latency_pass, memory_pass)
-    ) else "FAIL"
-    measurement: dict[str, Any] = {
-        "schema": SERVING_MEASUREMENT_SCHEMA,
-        "model_descriptor_sha256": str(model_descriptor_sha256),
-        "evidence_binding_sha256": str(evidence_binding_sha256),
-        "verdict": verdict,
-        "template_pass": template_pass,
-        "complete_answer_pass": complete_pass,
-        "tool_contract_pass": tool_pass,
-        "code_contract_pass": code_pass,
-        "context_pass": context_pass,
-        "latency_pass": latency_pass,
-        "memory_pass": memory_pass,
-        "requested_context_tokens": max(windows),
-        "served_context_tokens": max(passed_context_windows, default=0),
-        "prefill_chunk_tokens": int(prefill_chunk_tokens),
-        "maximum_peak_memory_gb": round(maximum_peak, 4),
-        "minimum_available_memory_gb": round(minimum_available, 4),
-        "cells": rows,
-    }
-    measurement["evidence_sha256"] = canonical_sha256(measurement)
-    return measurement
 
 
 def build_serving_qualification(measurement: Mapping[str, Any]) -> dict[str, Any]:
@@ -1020,12 +1069,18 @@ def build_serving_qualification(measurement: Mapping[str, Any]) -> dict[str, Any
 
 
 def recommended_lane_limits(served_context_tokens: int) -> dict[str, dict[str, int]]:
-    """Keep Aura's 8K output ceiling while allocating the measured window."""
+    """Allocate the measured window: a quarter to the answer, the rest to reading.
+
+    The answer's share was capped at 8,192 tokens, which is the quarter of the
+    32,768 window qualification used to stop at. With the window measured
+    rather than capped, the quarter is the rule and the cap was its value then.
+    The simple lane keeps its own small budget: it exists to be quick.
+    """
 
     served = int(served_context_tokens)
     if served < 16384:
         raise ValueError("served_context_too_small_for_resident_cortex")
-    output = min(8192, served // 4)
+    output = served // 4
     simple_output = min(2048, output)
     return {
         "foreground_simple": {

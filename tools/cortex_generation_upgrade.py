@@ -839,7 +839,7 @@ def build_parser() -> argparse.ArgumentParser:
     qualify_serving.add_argument(
         "--context-windows",
         type=_parse_context_windows,
-        default=_parse_context_windows("8192,32768"),
+        default=_parse_context_windows("8192,32768,65536,131072"),
     )
     qualify_serving.add_argument("--prefill-chunk", type=int, default=1024)
     qualify_serving.add_argument(
