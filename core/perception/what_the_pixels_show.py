@@ -1338,6 +1338,62 @@ def _how_different(a: Any, b: Any) -> float:
     return float(np.abs(a[::4, ::4].astype(np.int16) - b[::4, ::4].astype(np.int16)).mean())
 
 
+async def _read_until_settled(
+    looker: Any,
+    take: Any,
+    wait_for_stillness: bool,
+    still_within_s: float,
+    began: float,
+) -> tuple[dict[str, Any], bool, bool, int, tuple[int, int], float] | None:
+    """Pictures from ``take`` read until two agree, whatever the pictures are of.
+
+    The same test as the eyes of their own apply: what the picture says and how
+    each place in it looks, both unchanged from the reading before. Pixels
+    agreeing across the whole window let a tile that was still growing into its
+    square be read as an empty one. A window and a page in her own browser are
+    read the same way; only where the pictures come from differs.
+    """
+    import asyncio  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
+    picture = await take()
+    if picture is None:
+        return None
+    reading = await asyncio.to_thread(looker.read, picture, learn=not wait_for_stillness)
+    said, looks = what_a_reading_says(reading), looker.last_looks
+    unread = _places_unread(reading)
+    pictures = 1
+    still = not wait_for_stillness
+    agreed = False
+    while not still and time.monotonic() - began < still_within_s:
+        again = await take()
+        if again is None:
+            break
+        picture = again
+        pictures += 1
+        reading_again = await asyncio.to_thread(looker.read, picture, learn=False)
+        said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
+        unread = _places_unread(reading_again)
+        looker.would_not_read &= set(unread)
+        still_places = looker.places_still(looks, looks_again)
+        agreed = said_again == said and still_places
+        still = it_has_come_to_rest(
+            said=said,
+            said_again=said_again,
+            still_places=still_places,
+            waiting_on=tuple(spot for spot in unread if spot not in looker.would_not_read),
+        )
+        reading, said, looks = reading_again, said_again, looks_again
+    at_rest_but_unread = still_but_unread(still, agreed, unread)
+    if wait_for_stillness and (still or at_rest_but_unread):
+        looker.learn_what_was_read()
+    if not still and wait_for_stillness:
+        looker.would_not_read |= set(unread)
+    looked_took = time.monotonic() - began
+    shape = (int(picture.shape[1]), int(picture.shape[0]))
+    return reading, still, at_rest_but_unread, pictures, shape, looked_took
+
+
 async def look_at_window(
     app: str,
     over: tuple[float, float, float, float] | None = None,
@@ -1398,48 +1454,12 @@ async def look_at_window(
         async def take() -> Any:
             return _crop(await _the_pixels_of(window), over)
 
-        picture = await take()
-        if picture is None:
-            return None
-        # The same test as the eyes of their own apply: what the picture says
-        # and how each place in it looks, both unchanged from the reading
-        # before. Pixels agreeing across the whole window let a tile that was
-        # still growing into its square be read as an empty one.
-        looker = looker_for(window.owner)
-        reading = await asyncio.to_thread(
-            looker.read, picture, learn=not wait_for_stillness
+        settled = await _read_until_settled(
+            looker_for(window.owner), take, wait_for_stillness, still_within_s, began
         )
-        said, looks = what_a_reading_says(reading), looker.last_looks
-        unread = _places_unread(reading)
-        pictures = 1
-        still = not wait_for_stillness
-        agreed = False
-        while not still and time.monotonic() - began < still_within_s:
-            again = await take()
-            if again is None:
-                break
-            picture = again
-            pictures += 1
-            reading_again = await asyncio.to_thread(looker.read, picture, learn=False)
-            said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
-            unread = _places_unread(reading_again)
-            looker.would_not_read &= set(unread)
-            still_places = looker.places_still(looks, looks_again)
-            agreed = said_again == said and still_places
-            still = it_has_come_to_rest(
-                said=said,
-                said_again=said_again,
-                still_places=still_places,
-                waiting_on=tuple(spot for spot in unread if spot not in looker.would_not_read),
-            )
-            reading, said, looks = reading_again, said_again, looks_again
-        at_rest_but_unread = still_but_unread(still, agreed, unread)
-        if wait_for_stillness and (still or at_rest_but_unread):
-            looker.learn_what_was_read()
-        if not still and wait_for_stillness:
-            looker.would_not_read |= set(unread)
-        looked_took = time.monotonic() - began
-        picture_shape = (int(picture.shape[1]), int(picture.shape[0]))
+        if settled is None:
+            return None
+        reading, still, at_rest_but_unread, pictures, picture_shape, looked_took = settled
     front = await asyncio.to_thread(window_server.front_owner)
     left, top, wide, tall = window.bounds
     bounds = [left, top, wide, tall]
