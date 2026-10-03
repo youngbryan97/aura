@@ -495,6 +495,12 @@ class _UnderstandsThePage(_PlacesHerself):
             return held["mind"]
         mind = await self._her_mind_built_now()
         if held is not None and mind:
+            # Her state as the pursuit began, held with the rest of her mind.
+            # Taken by the router on every call instead, it was the one line in
+            # front of each page that differed from the call before.
+            from core.brain.llm_health_router_endpoint_call import her_state_in_brief
+
+            mind = "\n\n".join([mind, *her_state_in_brief()])
             held["mind"] = mind
         return mind
 
@@ -871,13 +877,14 @@ class _UnderstandsThePage(_PlacesHerself):
                         prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA,
                         output_shape="json_object", serves_current_turn=True,
                         origin=self._PAGE_ORIGIN, purpose="page_understanding",
-                        max_tokens=420, temperature=0.2, _non_chat_inference=True,
+                        max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2,
+                        _non_chat_inference=True,
                     ))
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
                     return dict(prior or {})
-                raw = await generate(prompt, max_tokens=420, temperature=0.2)
+                raw = await generate(prompt, max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2)
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.understand", exc, severity="debug")
             return dict(prior or {})

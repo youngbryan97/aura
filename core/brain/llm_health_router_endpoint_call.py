@@ -208,13 +208,13 @@ class _CallsTheEndpoint:
         # ── Autonomous Context Injection (Somatic/Affective Safety Net) ───────
         # [Fix #11] If prompt lacks state context, inject a condensed summary.
         #
-        # Lacking means lacking in the system prompt as well. Her assembled
-        # mind already carries her state, and this added a second reading of
-        # the same organs, taken a moment later, after it. LIVE 2026-10-03
-        # 00:46: a page's first two calls held her mind fixed and matched for
-        # 4,206 tokens, then diverged at this line ("...0, substrate age:
-        # 0.0s)]"), and the second call prefilled all 6,404 tokens again before
-        # she made her first move.
+        # Lacking means lacking in the system prompt as well: a system prompt
+        # that already says her state, or that holds this same reading taken
+        # once for a whole pursuit, gets no second one taken a moment later.
+        # LIVE 2026-10-03 00:46 and 03:54: a page's first two calls held her
+        # mind fixed and matched for 4,206 and 4,213 tokens, then diverged at
+        # this line ("...0, substrate age: 0.1s)]"), and the second call
+        # prefilled all of its 6,400 tokens again before her first move.
         if (
             not classification_mode
             and not isolated_generation_contract
@@ -222,27 +222,7 @@ class _CallsTheEndpoint:
             and "[Affect:" not in prompt
             and not _carries_her_state(system_prompt)
         ):
-            from core.container import ServiceContainer
-            ctx_summary = []
-
-            # Only consult already-live services here. Booting heavyweight
-            # optional subsystems during a plain routing call can explode RAM.
-            # Affective State
-            substrate = ServiceContainer.peek("liquid_substrate", default=None)
-            if substrate:
-                mood = substrate.get_summary()
-                if mood:
-                    ctx_summary.append(f"[Affect: {mood}]")
-
-            # Somatic Proprioception
-            soma = ServiceContainer.peek("soma", default=None)
-            if soma:
-                hw = getattr(soma, "hardware", {})
-                cpu = hw.get("cpu_usage", 0)
-                vram = hw.get("vram_usage", 0)
-                if cpu > 10:
-                    ctx_summary.append(f"[Soma: CPU {cpu:.0f}%, VRAM {vram:.0f}%]")
-
+            ctx_summary = her_state_in_brief()
             if ctx_summary:
                 # One block per line, because the splitter reads lines.
                 #
@@ -1828,14 +1808,38 @@ def _a_lane_still_coming_up(error: object) -> bool:
 
 
 def _carries_her_state(system_prompt: object) -> bool:
-    """Whether the system prompt is her assembled mind and already says her state.
+    """Whether the system prompt already says her state.
 
-    Read by the section titles the assembler writes, the same markers its
-    black-box receipt checks for.
+    By the section titles the assembler writes (the same markers its black-box
+    receipt checks for), or by the brief reading below, held in it already.
     """
     try:
         from core.brain.llm.context_assembler import _BLACK_BOX_STATE_MARKERS
     except ImportError:
         return False
     body = str(system_prompt or "")
-    return any(marker in body for marker in _BLACK_BOX_STATE_MARKERS)
+    return "[Affect:" in body or any(marker in body for marker in _BLACK_BOX_STATE_MARKERS)
+
+
+def her_state_in_brief() -> list[str]:
+    """Her substrate's mood and the machine's load, one bracketed line each.
+
+    Only services already live are consulted: booting a heavyweight optional
+    subsystem during a plain routing call can explode RAM.
+    """
+    from core.container import ServiceContainer
+
+    lines: list[str] = []
+    substrate = ServiceContainer.peek("liquid_substrate", default=None)
+    if substrate:
+        mood = substrate.get_summary()
+        if mood:
+            lines.append(f"[Affect: {mood}]")
+    soma = ServiceContainer.peek("soma", default=None)
+    if soma:
+        hw = getattr(soma, "hardware", {})
+        cpu = hw.get("cpu_usage", 0)
+        vram = hw.get("vram_usage", 0)
+        if cpu > 10:
+            lines.append(f"[Soma: CPU {cpu:.0f}%, VRAM {vram:.0f}%]")
+    return lines

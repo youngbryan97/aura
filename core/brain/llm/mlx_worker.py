@@ -2392,9 +2392,8 @@ def _a_prefix_worth_keeping(
 ) -> tuple[int, Any]:
     """Where to snapshot this prefill, and the call that does it.
 
-    `(0, None)` when there is nothing worth keeping: no cache, no point known
-    to recur (where the last search ran out, or else `shared_to`, from
-    where_calls_share), or one shorter than a chunk.
+    `(0, None)` when nothing is worth keeping: no cache, no point known to recur
+    (where the last search ran out, else `shared_to`), or one under a chunk.
 
     The offset returned is in the coordinates the progress callback speaks —
     tokens of THIS prefill — while the trie is keyed on the whole prompt, so
@@ -8502,7 +8501,8 @@ def _mlx_worker_loop(
                                         if schema_ok:
                                             response_text = normalized_json
                                             schema_validation_failed = ""
-                                        elif internal_attempt < max_internal_retries:
+                                        # Cut off by its own ceiling, a draft is written the same way again (LIVE 3 Oct 03:57).
+                                        elif internal_attempt < max_internal_retries and token_count < max_tokens:
                                             logger.warning(
                                                 "⚠️ [WORKER] Structured output failed schema validation "
                                                 "on attempt %s (%s). Retrying.",
