@@ -240,8 +240,10 @@ class _UnderstandsThePage(_PlacesHerself):
             f"Title: {observation.get('title')}",
             # The time is a fact about the world like the address is. A request
             # that turns on it ("the last digit of the time, plus two") could
-            # not be followed from a page that does not show a clock.
-            f"Now: {time.strftime('%A %d %B %Y, %H:%M:%S %Z')}",
+            # not be followed from a page that does not show a clock. Shown to
+            # the minute, as the clock in front of the person shows it: with
+            # seconds, LIVE 2026-10-03 04:42, "the last digit" became theirs.
+            f"Now: {time.strftime('%A %d %B %Y, %H:%M %Z')}",
             "",
             "PAGE TEXT:",
             "",  # filled in last, with the room the rest leaves
