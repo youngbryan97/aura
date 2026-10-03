@@ -42,7 +42,13 @@ from core.language.model_features import model_hidden_features
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SearchRequest", "asks_to_find_out", "asks_what_was_found", "read_search_request"]
+__all__ = [
+    "SearchRequest",
+    "asks_to_find_out",
+    "asks_what_was_found",
+    "read_search_request",
+    "teach_from_the_floor",
+]
 
 #: The opening of an instruction to search. The object follows it.
 _INSTRUCTION = re.compile(
@@ -207,3 +213,20 @@ def teach(text: str, *, holds: bool) -> None:
         _FINDS_OUT.observe(text, holds=holds)
     except (RuntimeError, TypeError, ValueError) as exc:
         logger.debug("the search-request surface was not taught this example: %s", exc)
+
+
+def teach_from_the_floor(text: str) -> None:
+    """What the grammar read exactly becomes an example for the learned surfaces.
+
+    Called where the reading acted: a search that ran, a question answered from
+    earlier reading. The learned surfaces then decide the phrasings the grammar
+    does not reach with these among their examples.
+    """
+    message = re.sub(r"https?://\S+", " ", str(text or "")).strip()
+    try:
+        if _FOUND_QUESTION.match(message):
+            _ASKS_WHAT_WAS_FOUND.observe(message, holds=True)
+        elif read_search_request(message).decided_by == "instruction":
+            _FINDS_OUT.observe(message, holds=True)
+    except (RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("the floor's reading was not kept as an example: %s", exc)

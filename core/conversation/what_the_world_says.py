@@ -162,6 +162,10 @@ def answer_from_earlier_reading(evidence: WorldEvidence, request: str, session_i
         WorldSource(f"read for an earlier turn ({source.origin})", source.title, source.location, source.text, source.score)
         for source in earlier
     ]
+    if evidence.sources:
+        from core.language.search_request import teach_from_the_floor
+
+        teach_from_the_floor(request)
     return bool(evidence.sources)
 
 
@@ -340,6 +344,10 @@ async def gather_world_evidence(
                 evidence.read.append(url)
             candidates.append(WorldSource("web", str(result.get("title") or url), url, passage_of(text, terms)))
         evidence.sources.extend(_judge(asked_for or question, candidates, solicited=True)[:_PAGES_PER_SEARCH])
+        if asked.decided_by == "instruction":
+            from core.language.search_request import teach_from_the_floor
+
+            teach_from_the_floor(question)
 
     total = 0
     kept: list[WorldSource] = []

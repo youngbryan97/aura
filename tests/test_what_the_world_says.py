@@ -219,3 +219,20 @@ def test_her_training_ledger_does_not_answer_a_question_about_a_lookup(monkeypat
     assert report.get_context_injection("have you been training lately?") == "LEARNING STATUS"
     monkeypatch.setattr(turn_evidence_custody, "turn_world_evidence", lambda: ())
     assert report.get_context_injection("what did you learn") == "LEARNING STATUS"
+
+
+def test_what_the_grammar_reads_exactly_teaches_the_learned_surfaces(judge, monkeypatch) -> None:
+    from core.language import search_request
+
+    for surface in (search_request._FINDS_OUT, search_request._ASKS_WHAT_WAS_FOUND):
+        monkeypatch.setattr(surface, "positives", surface.positives)
+
+    async def search(query):
+        return [{"title": "Bam scores 83", "url": "https://news.example/bam", "text": "Bam Adebayo scored 83 points."}]
+
+    asyncio.run(gather_world_evidence("Look up Bam's 83 point game", store=_Corpus(), search=search))
+    assert "Look up Bam's 83 point game" in search_request._FINDS_OUT.positives
+    search_request.teach_from_the_floor("so what did you find?")
+    assert "so what did you find?" in search_request._ASKS_WHAT_WAS_FOUND.positives
+    search_request.teach_from_the_floor("How are you feeling tonight?")
+    assert "How are you feeling tonight?" not in search_request._FINDS_OUT.positives
