@@ -1474,6 +1474,22 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Peak recognition](evidence/G03_PEAK_RECOGNITION_2026-10-02.md) finds
+  operations as local maxima of a token tagger over her middle and final layers,
+  names each at its last token, and reads the first token from the input
+  embedding; every readout is fitted on training sources only. Development
+  validation goes from 477 to 496 of 500 (20 gained, one lost), train stays
+  764 of 764, and refitting without each frozen construction fold scores 732
+  of 764 on the held-out constructions. On the 48 five-step composition
+  requests every operation is now found and named; 32 answers are right
+  against 31 for the incumbent on a quiet machine, and 30 against 31 on the
+  second bundle. The misses were binding: each operation is offered every
+  mention between its neighbours, so a previous clause's named result
+  competed with its own. A readout of where a mention stands (side,
+  distance, operations between), fitted on training rows and added to each
+  argument score, lifts composition to 38 and 39 of 48, validation to 497,
+  and the held-out folds to 733 of 764. G03 stays open on the 19 composition
+  requests still wrong.
   [Preparation stall replay](evidence/G03_PREPARATION_STALL_REPLAY_2026-10-03.md)
   records the v2 terminal timeout after 444 completed pools. Its handoff
   refused training. The next unfinished source completed against unchanged
