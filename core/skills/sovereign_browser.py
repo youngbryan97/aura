@@ -1909,11 +1909,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             concluded = await self._hold_the_outcome_against_what_she_said(
                 goal, said_before, with_what_was_seen_here(final or observation, seen_here), mind
             )
-            if concluded:
-                self._say_out_loud(
-                    concluded, {"label": "What it said, and what I make of it", "said": concluded}
-                )
-                await self._hold_for_reading(concluded)
+            # Not said as a card as well: it is the reply this turn gives, word
+            # for word, and LIVE 2026-10-03 04:37 the chat showed it twice, the
+            # second copy after half a minute held for reading the first.
 
         _seam_early_response = _account_of_the_pursuit(
             completed=completed,

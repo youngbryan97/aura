@@ -1128,7 +1128,12 @@ class PhantomBrowser(_ActsOnThePage):
             // what it means for a page to be asking sixty questions, and what
             // any one decision is OFFERED is ranked and bounded downstream.
             if (isFormControl(el)) return true;
-            if (rect.bottom < 0 || rect.top > (window.innerHeight * 4)) return false;
+            // In both directions. Counted from the top of the screen only, a
+            // control she had scrolled past was gone: LIVE 2026-10-03 04:31,
+            // on her results she pressed one "more", scrolled, and said the
+            // other three "aren't exposed as clickable controls on this page".
+            const reach = window.innerHeight * 4;
+            if (rect.bottom < -reach || rect.top > reach) return false;
             return true;
         };
         const accessibleName = (el) => {

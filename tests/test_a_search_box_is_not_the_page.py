@@ -72,3 +72,18 @@ async def test_a_page_that_is_its_form_is_read_as_its_form(browser):
 async def test_a_main_landmark_is_the_page(browser):
     text = await _text_of(browser, "landmark")
     assert "What the page is for." in text and "Home About" not in text
+
+
+PAGES["scrolled-past"] = """<html><body>
+    <a href="/more-1" id="m1">more</a><a href="/more-2" id="m2">more</a>
+    <div style="height: 2600px"></div><p>the end of the page</p></body></html>"""
+
+
+@pytest.mark.asyncio
+async def test_a_control_she_scrolled_past_is_still_offered(browser):
+    """LIVE 2026-10-03 04:31: "the 'more' links aren't exposed as clickable controls"."""
+    await browser.page.route("**/aura-scrolled-past", _serves(PAGES["scrolled-past"]))
+    await browser.page.goto("https://example.com/aura-scrolled-past", wait_until="load")
+    await browser.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    names = [e.get("selector") for e in (await browser.observe(principal="owner"))["elements"]]
+    assert "#m1" in names and "#m2" in names
