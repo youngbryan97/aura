@@ -717,7 +717,9 @@ class _UnderstandsThePage(_PlacesHerself):
                         if worked_out_here
                         else int(most_tokens or self.REASON_MAX_TOKENS)
                     ),
-                    hard_output_token_ceiling=True,
+                    # A token count, as every reader of it takes it: the gate
+                    # does not raise max_tokens past a ceiling it is given.
+                    hard_output_token_ceiling=int(most_tokens or self.DECISION_MAX_TOKENS),
                     # The typed lane for "say what was settled": the worker and the
                     # gate's clock both read it, and neither opens the channel.
                     **({} if worked_out_here else {"cognitive_mode": "fast"}),

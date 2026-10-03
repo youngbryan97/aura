@@ -277,3 +277,22 @@ def test_every_policy_field_is_a_bool_or_a_tier():
 
 def test_none_context_is_handled():
     assert validate_request_context(None).clean
+
+
+def test_a_field_nobody_set_is_absent_not_malformed():
+    """LIVE 2026-10-03 00:35: generation metadata echoed hard_output_token_ceiling=None
+    into the next request; the rejection failed the turn closed and the smaller
+    model answered a Wikipedia link with "I can't open that link"."""
+    from core.brain.request_contract import validate_request_context
+
+    validated = validate_request_context({"hard_output_token_ceiling": None, "max_tokens": None})
+    assert validated.rejected == {} and validated.unknown == []
+    assert "hard_output_token_ceiling" not in validated.context
+
+
+def test_an_output_ceiling_is_a_token_count():
+    from core.brain.request_contract import validate_request_context
+
+    assert validate_request_context({"hard_output_token_ceiling": 120}).context == {"hard_output_token_ceiling": 120}
+    assert "hard_output_token_ceiling" in validate_request_context({"hard_output_token_ceiling": True}).rejected
+    assert "hard_output_token_ceiling" in validate_request_context({"hard_output_token_ceiling": 0}).rejected

@@ -71,9 +71,9 @@ def test_a_shape_survives_the_gates_own_think(monkeypatch) -> None:
     asyncio.run(
         InferenceGate().think(
             "read the page", system_prompt="mind", output_shape="json_object",
-            hard_output_token_ceiling=True, cognitive_mode="fast", max_tokens=420,
+            hard_output_token_ceiling=420, cognitive_mode="fast", max_tokens=420,
         )
     )
     assert seen.get("output_shape") == "json_object"
-    assert seen.get("hard_output_token_ceiling") is True
+    assert seen.get("hard_output_token_ceiling") == 420
     assert seen.get("cognitive_mode") == "fast"
