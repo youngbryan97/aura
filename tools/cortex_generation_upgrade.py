@@ -782,6 +782,20 @@ def cmd_activate(args) -> int:
     return 0
 
 
+def cmd_requalify_active(args) -> int:
+    """Install a profile requalified for the active artifact; no model changes."""
+    from core.learning.serving_requalification import apply_serving_requalification
+
+    receipt = apply_serving_requalification(
+        serving_profile=json.loads(Path(args.serving_profile).read_text()),
+        authorized_by=args.authorized_by,
+    )
+    _write(Path(args.out), "serving_requalification.json", receipt)
+    if receipt["changed"]:
+        print("⚠️  effective at NEXT BOOT — restart Aura to serve the requalified window")
+    return 0
+
+
 def cmd_rollback(args) -> int:
     from core.learning.cortex_generation_upgrade import rollback_upgrade
 
@@ -886,6 +900,12 @@ def build_parser() -> argparse.ArgumentParser:
     activate.add_argument("--evaluation", required=True)
     activate.add_argument("--out", default="artifacts/current/cortex_upgrade")
     activate.set_defaults(func=cmd_activate)
+
+    requalify_active = sub.add_parser("requalify-active")
+    requalify_active.add_argument("--serving-profile", required=True)
+    requalify_active.add_argument("--authorized-by", required=True)
+    requalify_active.add_argument("--out", default="artifacts/current/cortex_upgrade")
+    requalify_active.set_defaults(func=cmd_requalify_active)
 
     rollback = sub.add_parser("rollback")
     rollback.add_argument("--out", default="artifacts/current/cortex_upgrade")

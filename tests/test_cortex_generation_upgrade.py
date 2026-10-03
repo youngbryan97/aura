@@ -777,3 +777,69 @@ def test_stage_preserves_revision_pinned_artifact_identity(tmp_path, monkeypatch
     staged = json.loads((fused / STAGED_POINTER_NAME).read_text())
     assert staged["artifact_descriptor"]["repository_id"] == descriptor["repository_id"]
     assert staged["artifact_descriptor"]["revision"] == descriptor["revision"]
+
+
+def _remeasured_profile(descriptor, served):
+    """The same artifact measured again, with a quarter of the window for answers."""
+    lanes = ("foreground_simple", "foreground_standard", "foreground_extended", "deep_reasoning",
+             "tool_execution", "code", "document")
+    return build_model_serving_profile(
+        descriptor,
+        served_context_tokens=served,
+        prefill_chunk_tokens=512,
+        lane_limits={lane: {"max_input_tokens": served - served // 4, "max_output_tokens": served // 4}
+                     for lane in lanes},
+        qualification={
+            "schema": "aura.model_serving_qualification.v2",
+            "verdict": "PASS",
+            "model_descriptor_sha256": descriptor["descriptor_sha256"],
+            "template_pass": True,
+            "complete_answer_pass": True,
+            "tool_contract_pass": True,
+            "code_contract_pass": True,
+            "context_pass": True,
+            "latency_pass": True,
+            "memory_pass": True,
+            "served_context_tokens": served,
+            "requested_context_tokens": 2 * served,
+            "prefill_chunk_tokens": 512,
+            "evidence_sha256": _digest(f"serving-{served}"),
+        },
+    )
+
+
+def test_a_requalified_window_replaces_only_the_serving_profile(tmp_path, monkeypatch):
+    """LIVE 2026-10-03: 65536 qualified on the same artifact; activation wanted a model swap."""
+    from core.learning.serving_requalification import apply_serving_requalification
+
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    fused, candidate = _fused_dir(tmp_path)
+    descriptor, evaluation, serving, migration = _upgrade_contracts(candidate)
+    stage_upgrade(candidate_model_path=candidate, base_model_path="Qwen3-32B",
+                  tag="qwen3-gen", fused_model_dir=fused, evaluation=evaluation,
+                  serving_profile=serving, migration_contract=migration)
+    activate_upgrade(fused_model_dir=fused, authorized_by="bryan", evaluation=evaluation)
+    before_bytes = (fused / "active.json").read_bytes()
+    before = json.loads(before_bytes)
+    wider = _remeasured_profile(descriptor, 4096)
+
+    with pytest.raises(PermissionError):
+        apply_serving_requalification(serving_profile=wider, authorized_by="", fused_model_dir=fused)
+    other = build_model_artifact_descriptor(tmp_path / "current-model")
+    with pytest.raises(ValueError):
+        apply_serving_requalification(
+            serving_profile=_remeasured_profile(other, 4096), authorized_by="bryan", fused_model_dir=fused
+        )
+    assert (fused / "active.json").read_bytes() == before_bytes
+
+    receipt = apply_serving_requalification(serving_profile=wider, authorized_by="bryan", fused_model_dir=fused)
+    after = json.loads((fused / "active.json").read_text())
+    assert receipt["changed"] and receipt["effective"] == "next_boot"
+    assert after["serving_profile"]["lanes"]["foreground_standard"]["max_output_tokens"] == 1024
+    assert {k: v for k, v in after.items() if k != "serving_profile"} == {
+        k: v for k, v in before.items() if k != "serving_profile"
+    }
+    again = apply_serving_requalification(serving_profile=wider, authorized_by="bryan", fused_model_dir=fused)
+    assert again["changed"] is False
+    assert rollback_upgrade(fused_model_dir=fused)["byte_exact"] is True
+    assert (fused / "active.json").read_bytes() == before_bytes
