@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -189,6 +190,10 @@ class _UnderstandsThePage(_PlacesHerself):
         lines = [
             f"URL: {observation.get('url')}",
             f"Title: {observation.get('title')}",
+            # The time is a fact about the world like the address is. A request
+            # that turns on it ("the last digit of the time, plus two") could
+            # not be followed from a page that does not show a clock.
+            f"Now: {time.strftime('%A %d %B %Y, %H:%M:%S %Z')}",
             "",
             "PAGE TEXT:",
             "",  # filled in last, with the room the rest leaves
