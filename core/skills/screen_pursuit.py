@@ -36,7 +36,6 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.cognition.does_this_world_repeat import DoesItRepeat
 from core.cognition.getting_ready_for_what_is_coming import WhatUsuallyComes
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.marks_she_leaves_behind import MarksOnTheGround
@@ -48,7 +47,6 @@ from core.cognition.what_an_act_costs_beyond_now import WhatEachActHasLeft
 from core.cognition.what_happens_while_she_acts import WhatItCostsToBeBusy
 from core.cognition.what_having_it_lets_her_do import WhatOpensWhat
 from core.cognition.what_she_has_set_in_motion import WhatIsComing
-from core.cognition.what_works_against_what import WhatBeatsWhat
 from core.cognition.which_way_to_win import (
     which_way_to_win,  # noqa: F401  (read at call time by the lifted module)
 )
@@ -148,6 +146,7 @@ from .screen_pursuit_looking import (
 )
 from .screen_pursuit_observing import observe_the_screen
 from .screen_pursuit_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _how_this_world_answers_her,
     _keep_the_screen_awake,
     _pursue_on_screen_part_2,
     _pursue_on_screen_part_5,
@@ -158,6 +157,7 @@ from .screen_pursuit_steps import (  # noqa: F401  (re-exported: they were defin
     _pursue_on_screen_where_her_actions,
     _remember_how_worlds_like_it_move,
     _start_the_narrator,
+    _the_endings_kept,
     _wait_for_a_screen_or_stop,
 )
 from .screen_pursuit_surface import (
@@ -1244,14 +1244,7 @@ async def pursue_on_screen(
         for one in (knew.get("endings") or [])
         if isinstance(one, dict)
     ]
-    #: Which of her acts has gone well against which kind of situation. What
-    #: works HERE dies with the place; what works generally averages over
-    #: places with nothing in common. Neither can say the thing that is true.
-    beats = WhatBeatsWhat.from_memory(knew.get("beats") or {})
-    #: Whether this world is the same every time. Memorising a shuffled world
-    #: fills her with facts that will not recur; playing a fixed one by policy
-    #: throws away the thing that would have made it easy.
-    repeats = DoesItRepeat.from_memory(knew.get("repeats") or {})
+    beats, repeats, wears = _how_this_world_answers_her(knew)
     #: How the stretch in progress is going. A stretch is over once the score
     #: has moved as many times as there are ways of leaning to compare, which
     #: is how long it takes for the comparison to be worth making and is read
@@ -1333,6 +1326,7 @@ async def pursue_on_screen(
                 region_bottom=region_bottom,
                 region_top=region_top,
                 repeats=repeats,
+                wears=wears,
                 research=research,
                 responds=responds,
                 restarts=restarts,
@@ -1577,22 +1571,10 @@ async def pursue_on_screen(
             "supply": supply.as_memory() if hasattr(supply, "as_memory") else {},
             "coming": coming.as_memory(),
             "marks": marks.as_memory(),
-            # The last several runs, and how each finished. Enough to tell
-            # which ending she has a route to, and bounded so the record does
-            # not grow for ever.
-            "endings": [
-                {"shapes": list(shapes)[-12:], "ended": ended}
-                for shapes, ended in [
-                    *endings,
-                    (
-                        [str(one) for one, _ in marks.trail][-12:],
-                        str(doing.outcome() if hasattr(doing, "outcome") else "")
-                        or ("finished" if restarts["count"] else "stopped"),
-                    ),
-                ][-8:]
-            ],
+            "endings": _the_endings_kept(endings, marks, doing, restarts),
             "beats": beats.as_memory(),
             "repeats": repeats.as_memory(),
+            "wears": wears.as_memory(),
             "moves": knows.rules.as_memory() if knows.rules is not None else {},
             # The look in front of her when her rule settled, kept so the next
             # world shaped like this one can find it. See

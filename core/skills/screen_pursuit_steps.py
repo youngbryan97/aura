@@ -542,3 +542,47 @@ def _remember_how_worlds_like_it_move(
         )
         if kept:
             logger.info("what worlds like %r move like, kept", like_it["kind"])
+
+
+def _how_this_world_answers_her(knew: Any) -> tuple[Any, Any, Any]:
+    """What she carried about how this world answers her acts, discounted like the rest.
+
+    Which of her acts has gone well against which kind of situation: what works
+    HERE dies with the place, and what works generally averages over places
+    with nothing in common. Whether this world is the same every time:
+    memorising a shuffled world fills her with facts that will not recur, and
+    playing a fixed one by policy throws away what would have made it easy.
+    And whether it has learned what she keeps doing, so that her best act is
+    worth less for being her habit (core/cognition/what_wears_out.py).
+    """
+    from core.cognition.does_this_world_repeat import DoesItRepeat
+    from core.cognition.what_wears_out import WhatWearsOut
+    from core.cognition.what_works_against_what import WhatBeatsWhat
+
+    from .screen_pursuit import TRUST_CARRIED_OVER
+
+    return (
+        WhatBeatsWhat.from_memory(knew.get("beats") or {}),
+        DoesItRepeat.from_memory(knew.get("repeats") or {}),
+        WhatWearsOut.from_memory(knew.get("wears") or {}, TRUST_CARRIED_OVER),
+    )
+
+
+def _the_endings_kept(endings: Any, marks: Any, doing: Any, restarts: Any) -> list[dict[str, Any]]:
+    """The last several runs, and how each finished.
+
+    Enough to tell which ending she has a route to, and bounded so the record
+    does not grow for ever.
+    """
+    return [
+        {"shapes": list(shapes)[-12:], "ended": ended}
+        for shapes, ended in [
+            *endings,
+            (
+                [str(one) for one, _ in marks.trail][-12:],
+                str(doing.outcome() if hasattr(doing, "outcome") else "")
+                or ("finished" if restarts["count"] else "stopped"),
+            ),
+        ][-8:]
+    ]
+

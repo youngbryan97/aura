@@ -475,3 +475,123 @@ def _narrate_a_fresh_plan(
         going.expecting(fresh.approach, len(moves))
 
 
+def _lean_where_the_world_could_swing(
+    ahead: Any,
+    *,
+    knows: Any,
+    laid_out: Any,
+    choices: list[str],
+    held_line: str,
+    world: Any,
+    success_when: str,
+    ends_at: float,
+    began: float,
+    began_at: Any,
+) -> Any:
+    """Where the world's own move could swing the result, lean toward or away from it.
+
+    How much of what happens next is the world's rather than hers, which is the
+    other thing looking ahead averages away. Ahead with time to spare, an
+    uncertain position is worth avoiding; behind with the clock going, it is
+    worth seeking. Lifted whole out of ``decide_the_next_move``.
+    """
+    from core.agency.looking_ahead import at_the_worlds_mercy, whether_to_take_the_wide_option
+
+    from .screen_pursuit import logger
+    from .screen_pursuit_decision import _how_it_has_been_going, _what_there_is_to_aim_at
+
+    exposed = at_the_worlds_mercy(
+        knows.rules,
+        laid_out,
+        choices,
+        toward=success_when or _what_there_is_to_aim_at(laid_out),
+        approach=held_line,
+        world=world,
+    )
+    if exposed and ahead:
+        worths = [value for value, _why in ahead.values()]
+        spread = max(worths) - min(worths)
+        lean = whether_to_take_the_wide_option(
+            max(0.0, ends_at - time.monotonic()) / max(1e-9, ends_at - began),
+            _how_it_has_been_going(began_at, laid_out),
+            against_a_clock=not success_when,
+        )
+        if spread > 0.0 and lean:
+            ahead = {
+                name: (value + lean * spread * exposed.get(name, 0.0), why)
+                for name, (value, why) in ahead.items()
+            }
+            logger.info(
+                "the world could swing this; leaning %+.2f: %s",
+                lean,
+                ", ".join(
+                    f"{name} {share:.2f}"
+                    for name, share in sorted(
+                        exposed.items(), key=lambda pair: -pair[1]
+                    )[:4]
+                ),
+            )
+    return ahead
+
+
+def _made_so_far(moves: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Every key she has pressed in this run, oldest first."""
+    return [str(move.get("key") or "") for move in moves if move.get("key")]
+
+
+def _grade_how_soon_she_came_back(run: Any, act: str, held: bool, moves: Sequence[Mapping[str, Any]]) -> None:
+    """Whether what she expected of this act held, against how soon she had made it before.
+
+    The act being graded is the last of its name she pressed; what came before
+    that press is how soon she came back to it.
+    """
+    wears = getattr(run, "wears", None)
+    if wears is None:
+        return
+    made = _made_so_far(moves)
+    name = str(act or "")
+    last = max((at for at, one in enumerate(made) if one == name), default=len(made))
+    wears.it_went(name, held, made[:last])
+
+
+def _mark_down_what_she_keeps_doing(
+    run: Any,
+    ahead: Any,
+    available: list[Any],
+    moves: Sequence[Mapping[str, Any]],
+    narrate: bool,
+) -> tuple[Any, list[Any]]:
+    """In a world that has learned her habits, the act she keeps making is worth less.
+
+    See core/cognition/what_wears_out.py. Where she can see where each act
+    leads, an act she would be coming back to soon is marked down by what that
+    has cost it, in the units of what she sees ahead; where she cannot, the
+    acts she has rested are offered first. In a world that does not learn her
+    every mark is nought and nothing moves.
+    """
+    from .screen_pursuit import _tell, logger
+
+    wears = getattr(run, "wears", None)
+    if wears is None or not available:
+        return ahead, available
+    worn = wears.worn([option.name for option in available], _made_so_far(moves))
+    if not any(worn.values()):
+        return ahead, available
+    if wears.learns_her() >= 0.5 and not wears.noticed:
+        wears.noticed = True
+        logger.info("%s", wears.says())
+        if narrate:
+            said = wears.says()
+            _tell(f"{said[:1].upper()}{said[1:]}, so I will not lean on one move.")
+    if ahead:
+        worths = [value for value, _why in ahead.values()]
+        # In the units of what she sees ahead; where every act looks the same,
+        # any mark at all is what decides between them.
+        spread = (max(worths) - min(worths)) or 1.0
+        ahead = {
+            name: (value - spread * worn.get(name, 0.0), why)
+            for name, (value, why) in ahead.items()
+        }
+        return ahead, available
+    return ahead, sorted(available, key=lambda option: worn.get(option.name, 0.0))
+

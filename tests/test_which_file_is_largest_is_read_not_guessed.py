@@ -90,5 +90,10 @@ def test_the_observable_names_the_largest():
     block = asyncio.run(_read_count(ASKED_LIVE))
     assert "largest first" in block
     assert "phi_core.py" in block
-    # The byte count she was asked for, formatted as a reader would want it.
-    assert "125,814 bytes" in block
+    # The byte count she was asked for, formatted as a reader would want it,
+    # read off the file rather than written here: phi_core grows, and a size
+    # pinned in the test went stale the first time it did.
+    from pathlib import Path
+
+    size = (Path(__file__).resolve().parents[1] / "core" / "consciousness" / "phi_core.py").stat().st_size
+    assert f"{size:,} bytes" in block
