@@ -435,6 +435,23 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # scoped authority, and came back as a failure report instead of an answer.
     if asks_about_screens_in_general(text):
         return False
+    # Finding something out is reading, not driving the screen.
+    #
+    # LIVE 2026-10-03: "Google it. Bam had an 83 point game" came here because
+    # "google" is in the verb list below, and the lane opened a results page
+    # for the film "It" and reported "Done"; "look it up" would have gone to
+    # research. The language substrate reads what a request asks her to find
+    # out (core/language/search_request.py); one that names no application to
+    # do it in, and no place of hers or on her screen, is research.
+    try:
+        from core.language.search_request import read_search_request
+
+        asked = read_search_request(user_message)
+        if asked.about_the_world and not extract_direct_application_targets(user_message):
+            return False
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        # not a failure: the substrate reader is one signal; the checks below still run.
+        pass
     # A goal to be kept at until a condition holds is a desktop objective by
     # definition: it names something to keep doing on the machine and the
     # thing on screen that means it is finished.

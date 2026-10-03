@@ -43,6 +43,7 @@ include_rules = [
     "+core.resilience",
     "+core.runtime",
     "+core.scheduler",
+    "+core.security",
     "+core.self",
     "+core.senses",
     "+core.skills",

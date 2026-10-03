@@ -572,7 +572,7 @@ if TYPE_CHECKING:
 # including the tests that read this file as text — keeps resolving.
 from .chat_desktop_evidence import (  # noqa: E402
     _asks_what_is_on_the_screen,
-    _collect_desktop_required_search_evidence,
+    _collect_desktop_required_search_evidence,  # noqa: F401
     _collect_governed_action_lane_status,
     _desktop_cognitive_failure_repair_target,
     _desktop_live_reply_token_budget,
@@ -590,6 +590,7 @@ from .chat_desktop_evidence import (  # noqa: E402
     _screen_perception_needs_her_answer,
     _search_result_entries,
     _should_collect_desktop_required_search_evidence,
+    _what_the_world_says_for_the_turn,
     _status_represents_governed_action_result,
     _store_desktop_required_search_memory,
 )
@@ -10154,30 +10155,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             and not conversation_only_surface
             and not _qualified_state_serialization_owner
         ):
-            desktop_required_search_evidence = await _collect_desktop_required_search_evidence(
-                _semantic_user_message,
-                session_id=_chat_session_id,
+            desktop_required_search_evidence, effective_user_message = await _what_the_world_says_for_the_turn(
+                _semantic_user_message, effective_user_message, session_id=_chat_session_id,
             )
-            if desktop_required_search_evidence:
-                evidence_text = str(desktop_required_search_evidence.get("evidence") or "").strip()
-                search_ok = bool(desktop_required_search_evidence.get("ok"))
-                memory_saved = bool(desktop_required_search_evidence.get("memory_saved"))
-                effective_user_message = (
-                    f"{effective_user_message}\n\n"
-                    "[WEB SEARCH EVIDENCE]\n"
-                    f"{evidence_text}\n"
-                    f"memory_saved: {str(memory_saved).lower()}\n"
-                    "[END WEB SEARCH EVIDENCE]\n"
-                    "The user explicitly requested live search. Use only the evidence above for live factual claims. "
-                    "Name the source URLs when present. If ok is false or no usable source is present, say the search did "
-                    "not produce reliable evidence instead of answering from memory."
-                )
-                if not search_ok:
-                    logger.warning(
-                        "Required desktop search evidence failed before CognitiveEngine reply: query=%s result=%s",
-                        desktop_required_search_evidence.get("query"),
-                        desktop_required_search_evidence.get("result"),
-                    )
 
         # A desktop-required turn must not enter CognitiveEngine while its
         # resident inference lane is conclusively cold.  Before this barrier,

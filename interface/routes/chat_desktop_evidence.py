@@ -1054,3 +1054,143 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
     ):
         return True
     return False
+
+
+def _pages_from_search(result: Any) -> list[dict[str, Any]]:
+    """The pages a search read, joined per address, else the results it listed."""
+    if not isinstance(result, dict):
+        return []
+    pages: dict[str, dict[str, Any]] = {}
+    for chunk in result.get("chunks") or result.get("sources") or []:
+        if not isinstance(chunk, dict):
+            continue
+        url = str(chunk.get("url") or "")
+        text = str(chunk.get("text") or chunk.get("content") or "").strip()
+        if not url or not text:
+            continue
+        page = pages.setdefault(url, {"url": url, "title": str(chunk.get("title") or url), "text": ""})
+        page["text"] = f"{page['text']}\n\n{text}".strip()
+    if pages:
+        return list(pages.values())
+    return [
+        {"url": str(hit.get("url") or ""), "title": str(hit.get("title") or ""), "snippet": str(hit.get("snippet") or "")}
+        for hit in result.get("results") or []
+        if isinstance(hit, dict) and hit.get("snippet")
+    ]
+
+
+async def _read_a_page(url: str) -> dict[str, Any] | None:
+    """Fetch one page through the network gateway and keep its text."""
+    from core.search.research_pipeline import ResearchSearchPipeline, SearchHit
+
+    page = await ResearchSearchPipeline()._fetch_page(None, SearchHit(title=url, url=url), timeout_val=12.0)
+    try:
+        from core.conversation.surface_disposition import record_tool_receipt
+
+        record_tool_receipt(
+            "web_fetch", action="read_page", object_ref=url, ok=page is not None,
+            effect_observed=page is not None, verification="page_text_received" if page else "failed",
+        )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.world_evidence", exc, severity="warning", action="kept the page without its receipt")
+    return {"url": page.url, "title": page.title, "text": page.text} if page is not None else None
+
+
+async def _what_the_world_says_for_the_turn(
+    user_message: str,
+    effective_user_message: str,
+    *,
+    session_id: str,
+) -> tuple[dict[str, Any] | None, str]:
+    """Read what the turn names before she answers; the sources travel with her message.
+
+    Replaces the required-search block in the chat route, which ran only when a
+    search contract fired and appended instructions to the person's message
+    along with the results. What is appended now is the sources, labelled and
+    fenced (core/conversation/what_the_world_says.py), and nothing else.
+    Returns the completed-search evidence when a web search ran, and the
+    message she reads.
+    """
+    from core.conversation.what_the_world_says import gather_world_evidence
+
+    should_collect, _query, contract = _should_collect_desktop_required_search_evidence(user_message)
+    try:
+        from core.conversation.asks_about_the_world import wants_outside_evidence
+
+        outside = should_collect or wants_outside_evidence(user_message)
+    except _CHAT_RECOVERABLE_ERRORS:
+        outside = should_collect
+    previous = ""
+    try:
+        recent = await _chat_memory_state._recent_completed_conversation_exchanges(
+            current_user_message=user_message, session_id=session_id, limit=1, allow_cross_session=False,
+        )
+        previous = str((recent[-1] if recent else {}).get("user") or "")
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.world_evidence", exc, severity="info", action="read the request without the one before it")
+    ran: dict[str, Any] = {}
+
+    async def search(query: str) -> list[dict[str, Any]]:
+        result = await _chat_capability_inventory._execute_governed_live_skill(
+            "web_search",
+            {"query": query, "num_results": 5, "deep": False, "retain": True, "force_refresh": True},
+            objective=user_message,
+            extra_context={
+                "route": "chat.world_evidence", "origin": "desktop_ui", "source": "desktop_ui",
+                "effect_scope": "read_only_external_io", "risk_level": "low", "foreground_request": True,
+                # Her cortex answers the turn; the search returns what it read.
+                "evidence_only": True,
+            },
+        )
+        ran.update(query=query, result=result if isinstance(result, dict) else {"ok": bool(result)})
+        return _pages_from_search(result)
+
+    # A search contract (an explicit "use web_search to ...") keeps the
+    # collector that reads its query, filters its results by subject, saves
+    # what it found when asked, and receipts it; what it found joins the rest.
+    contracted = (
+        await _collect_desktop_required_search_evidence(user_message, session_id=session_id)
+        if should_collect else None
+    )
+    try:
+        evidence = await gather_world_evidence(
+            user_message, previous_request=previous, fetch=_read_a_page,
+            search=None if contracted else search, outside_wanted=outside,
+        )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.world_evidence", exc, severity="warning", action="answered without looking anything up")
+        return contracted, effective_user_message
+    if contracted:
+        from core.conversation.what_the_world_says import WorldSource, passage_of
+
+        found = _pages_from_search(contracted.get("result"))
+        evidence.sources = [
+            WorldSource("web", str(page.get("title") or page.get("url")), str(page.get("url") or ""),
+                        passage_of(str(page.get("text") or page.get("snippet") or "")))
+            for page in found
+        ] + evidence.sources
+        evidence.searched.append(str(contracted.get("query") or user_message))
+        evidence.read.extend(str(page.get("url")) for page in found if page.get("text"))
+        evidence.saved = bool(contracted.get("memory_saved"))
+    rendered = evidence.render()
+    logger.info("🌍 What the world says for this turn: %s", evidence.to_dict())
+    if not rendered:
+        return contracted, effective_user_message
+    completed = contracted
+    if ran:
+        result = ran["result"]
+        try:
+            from core.conversation.surface_disposition import record_tool_receipt
+
+            record_tool_receipt(
+                "web_search", action="web_search", object_ref=ran["query"], ok=bool(result.get("ok")),
+                effect_observed=bool(result.get("ok")), verification="result_received" if result.get("ok") else "failed",
+                evidence=rendered,
+            )
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat.world_evidence", exc, severity="warning", action="kept the search without its receipt")
+        completed = make_completed_capability_evidence(
+            _SEARCH_SKILL_NAMES, ok=bool(result.get("ok")), query=ran["query"], result=result, evidence=rendered,
+            memory_saved=False, contract=contract.to_dict() if hasattr(contract, "to_dict") else None,
+        )
+    return completed, f"{effective_user_message}\n\n{rendered}"
