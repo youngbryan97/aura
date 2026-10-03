@@ -153,3 +153,23 @@ async def test_a_navigation_still_on_its_way_is_not_started_again(browser, click
     await browser.page.goto("https://example.com/aura-slow-link", wait_until="load")
     assert await browser.click("#go", principal="owner", lease_id=click_lease)
     assert started == []
+
+
+PAGES["plain-link"] = """<html><body><a id="go" href="https://example.com/aura-landing">the game</a></body></html>"""
+
+
+@pytest.mark.asyncio
+async def test_an_ordinary_link_click_arrives_promptly(browser, click_lease):
+    """LIVE 2026-10-03 08:32: an ordinary link click ran past its ten seconds and closed the browser."""
+    import asyncio
+    import time
+
+    for name in ("plain-link", "landing"):
+        await browser.page.route(f"**/aura-{name}", _serves(PAGES[name]))
+    await browser.page.goto("https://example.com/aura-plain-link", wait_until="load")
+    began = time.monotonic()
+    assert await asyncio.wait_for(
+        browser.click("#go", principal="owner", lease_id=click_lease), timeout=10.0
+    )
+    assert time.monotonic() - began < 10.0
+    assert browser.page.url.startswith("https://example.com/aura-landing")

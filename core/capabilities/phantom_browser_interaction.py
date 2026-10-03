@@ -111,6 +111,9 @@ class _ActsOnThePage:
                 element = self.page.locator(selector).first
 
             if element and await element.is_visible():
+                # Where a link points is read while it is on the page: after the
+                # click the locator looks for it in whatever page came next.
+                points_to = await self._where_the_link_points(element)
                 # Scroll into view if needed
                 await element.scroll_into_view_if_needed()
                 await self._human_delay(0.2, 0.5)
@@ -162,7 +165,7 @@ class _ActsOnThePage:
                     await element.dispatch_event("click")
                 logger.info("🖱️ Clicked: %s", selector or text_match)
                 await self._human_delay(0.5, 1.5)
-                await self._go_where_the_link_points(element, before_url, principal)
+                await self._go_where_the_link_points(points_to, before_url, principal)
                 await self._record_interaction(
                     "click", before_url, target=str(selector or text_match or "")
                 )
@@ -175,7 +178,23 @@ class _ActsOnThePage:
             logger.error("Click failed: %s", e)
             return False
 
-    async def _go_where_the_link_points(self, element: Any, before_url: str, principal: str) -> None:
+    @staticmethod
+    async def _where_the_link_points(element: Any) -> str:
+        """The address a control's link points at, or "" when it is not in a link.
+
+        LIVE 2026-10-03 08:32 this was read after the click, by a locator that
+        then looked for the link in the page the click had opened, waited past
+        the click's ten seconds, and the browser was closed.
+        """
+        try:
+            return str(await element.evaluate(
+                "(el) => { const a = el.closest('a[href]'); return a ? a.href : ''; }"
+            ) or "")
+        except (PlaywrightError, RuntimeError, AttributeError, TypeError) as exc:
+            logger.debug("Could not read where the link points: %s", exc)
+            return ""
+
+    async def _go_where_the_link_points(self, href: str, before_url: str, principal: str) -> None:
         """Follow a link whose click left the page where it was.
 
         A link's address is where clicking it is meant to take you. LIVE
@@ -195,13 +214,6 @@ class _ActsOnThePage:
         def the_page(url: object) -> str:
             return str(url or "").split("#", 1)[0]
 
-        try:
-            href = str(await element.evaluate(
-                "(el) => { const a = el.closest('a[href]'); return a ? a.href : ''; }"
-            ) or "")
-        except (PlaywrightError, RuntimeError, AttributeError, TypeError) as exc:
-            logger.debug("Could not read where the link points: %s", exc)
-            return
         if not href.startswith(("http://", "https://")) or the_page(href) == the_page(before_url):
             return
         now = str(getattr(self.page, "url", "") or "")
