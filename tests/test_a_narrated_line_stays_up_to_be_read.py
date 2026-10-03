@@ -136,12 +136,14 @@ def test_a_game_keeps_its_own_tempo():
     """A loop with a clock of its own is not paced by a reader.
 
     Holding a 2048 move for five seconds would be playing the narration rather
-    than the game; the page waits for her click and can afford it.
+    than the game; the page waits for her click and can afford it. A game's
+    commentary may leave out a line that comes before the last could be read
+    (LIVE 2026-10-03, a line a second), but it never waits for one.
     """
     import inspect
 
     from core.skills import screen_pursuit_looking
 
-    assert "reading_pace" not in inspect.getsource(screen_pursuit_looking), (
-        "a live game's loop must not be paced by a reader"
-    )
+    source = inspect.getsource(screen_pursuit_looking)
+    assert "hold_for_reading" not in source, "a live game's loop must not be paced by a reader"
+    assert "sleep(time_to_read" not in source

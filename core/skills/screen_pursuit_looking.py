@@ -10,6 +10,7 @@ can actually follow.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import math
 import time
@@ -783,8 +784,53 @@ def _say_intent(
     if not because and following_on:
         because = "same plan"
     _publish_decision(said, because, _expected_of(chosen), chosen)
-    if out_loud:
-        _tell(f"{said} — {because}" if because else said)
+    line = f"{said} — {because}" if because else said
+    paced = MOVES_SAID.get()
+    if out_loud and (paced is None or _the_last_move_could_be_read(paced)):
+        if paced is not None:
+            paced.update(at=time.monotonic(), line=line)
+        _tell(line)
+
+
+#: The last move a run said out loud and when, set when a run begins; None
+#: outside one. A game does not wait for anyone to finish reading, so a move
+#: line that comes before the last one could be read is not said: LIVE
+#: 2026-10-03 04:48 the chat got one a second, every one of them "Clicking ...
+#: — this is the one that would settle how this moves".
+MOVES_SAID: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "aura_play_moves_said", default=None
+)
+
+
+def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: Any, narrate: bool) -> None:
+    """What she can click on the screen now, and what it says that she has not yet read.
+
+    LIVE 2026-10-03 04:48 she clicked a game's instructions a line at a time.
+    Its prose is read out once a run instead, so a watcher hears the rules she
+    is playing by. A reading that mostly repeats one already given is the same
+    words read again, a frame later or with the text recognised a little
+    differently, and is not said twice.
+    """
+    from .screen_pursuit import _tell
+    from .screen_pursuit_bearings import things_to_click, what_it_says
+
+    can_do.looked_at(things_to_click(observation, drawn_where))
+    says, paced = what_it_says(observation, drawn_where), MOVES_SAID.get()
+    if not says or not narrate or paced is None:
+        return
+    words = set(says.lower().split())
+    read: list[set[str]] = paced.setdefault("read", [])
+    if any(len(words & before) * 2 > len(words) for before in read):
+        return
+    read.append(words)
+    _tell(f"It says: {says}")
+
+
+def _the_last_move_could_be_read(paced: dict[str, Any]) -> bool:
+    from core.agency.reading_pace import time_to_read
+
+    since = time.monotonic() - float(paced["at"])
+    return since >= time_to_read(str(paced["line"]))
 
 
 def _say_it_did_not_land(key: str, *, out_loud: bool = False) -> None:

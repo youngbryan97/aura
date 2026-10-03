@@ -36,7 +36,7 @@ def test_the_skill_that_takes_params_carries_it_too():
 def test_the_loop_uses_whichever_clock_started_first():
     body = PURSUIT[PURSUIT.index("async def pursue_on_screen") :]
     window = body[body.index("began = time.monotonic()") : body.index("began = time.monotonic()") + 260]
-    assert "ends_at = min(ends_at, float(deadline_at))" in window
+    assert "ends_at = min(began + float(max_seconds), float(deadline_at) if deadline_at > 0.0" in window
 
 
 def test_a_watched_goal_target_is_json_a_hand_off_can_read():

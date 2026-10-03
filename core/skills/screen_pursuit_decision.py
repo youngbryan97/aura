@@ -11,20 +11,9 @@ after the point where the closure used to be defined.
 """
 from __future__ import annotations
 
-from .screen_pursuit_decision_steps import (  # noqa: F401  (re-exported: they were defined here)
-    _borrow_from_the_world_it_is_most_like,
-    _carry_rules_from_a_world_like_it,
-    _grade_how_soon_she_came_back,
-    _lean_where_the_world_could_swing,
-    _mark_down_what_she_keeps_doing,
-    _hold_the_rule_to_its_prediction,
-    _learn_what_made_a_move_safe,
-    _log_every_sixth_move,
-    _mend_what_went_wrong,
-    _narrate_a_fresh_plan,
-    _read_where_she_is_aiming,
-    _report_the_progress_made,
-)
+import asyncio
+from typing import TYPE_CHECKING
+
 from .screen_pursuit_decision_reading import (  # noqa: F401  (re-exported: they were defined here)
     _decide_the_next_move_how_long_whole,
     _decide_the_next_move_laid_out,
@@ -33,8 +22,20 @@ from .screen_pursuit_decision_reading import (  # noqa: F401  (re-exported: they
     _decide_the_next_move_what_she_looking,
     the_pixels_show_a_grid,
 )
-import asyncio
-from typing import TYPE_CHECKING
+from .screen_pursuit_decision_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _borrow_from_the_world_it_is_most_like,
+    _carry_rules_from_a_world_like_it,
+    _grade_how_soon_she_came_back,
+    _hold_the_rule_to_its_prediction,
+    _lean_where_the_world_could_swing,
+    _learn_what_made_a_move_safe,
+    _log_every_sixth_move,
+    _mark_down_what_she_keeps_doing,
+    _mend_what_went_wrong,
+    _narrate_a_fresh_plan,
+    _read_where_she_is_aiming,
+    _report_the_progress_made,
+)
 
 if TYPE_CHECKING:  # the return annotation only; the runtime import
     from core.skills.fluid_executor import Step  # is inside the function
@@ -105,6 +106,7 @@ from .screen_pursuit_looking import (
     _placed_in,
     _put_her_own_window_away,
     _reasoning_for_a_plan,
+    _take_in_the_screen,
     _the_best_reading_available,
     _the_kind_of_world_this_is,
     _the_thing_she_is_acting_in,
@@ -516,7 +518,7 @@ async def decide_the_next_move(
 
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
     # What can be clicked in the thing she was sent to play, as it is now.
-    can_do.on_screen = things_to_click(observation, drawn.get("where"))
+    _take_in_the_screen(can_do, observation, drawn.get("where"), narrate)
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
     answering, lattice = _decide_the_next_move_part_4(
         knows, lattice, move_keys, responds, skilled=skilled, world=world,
@@ -1279,7 +1281,7 @@ async def decide_the_next_move(
                 }
             else:
                 ahead = {
-                    name: (value, "this is the one that would settle how this moves")
+                    name: (value, "to see what it does")
                     for name, value in telling.items()
                 }
             logger.info(

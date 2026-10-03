@@ -98,8 +98,22 @@ class WhatWorksHere:
     #: Said once, when what she was told turns out to be wrong.
     said_it_differs: bool = False
     #: What can be clicked on the screen in front of her now, inside the thing
-    #: she was sent to play. Set by the caller each time it looks.
+    #: she was sent to play. Set by `looked_at` each time she looks.
     on_screen: tuple[str, ...] = ()
+    #: What the look before this one could click, to hold the next look to.
+    seen_before: tuple[str, ...] = ()
+
+    def looked_at(self, clickable: Sequence[str]) -> None:
+        """What she can click now: the writing that was there at the last look too.
+
+        A control stays where it is; a readout changes. LIVE 2026-10-03 04:49,
+        with the game's clock running, every look read it differently ("TImE
+        01:50", "TTE 0152", "TITE 040"), each reading was a control she had
+        never tried, and she clicked the clock again and again.
+        """
+        now = tuple(clickable)
+        self.on_screen = tuple(label for label in now if label in self.seen_before)
+        self.seen_before = now
 
     # ── finding out ──────────────────────────────────────────────────────
 
@@ -112,6 +126,11 @@ class WhatWorksHere:
         if changed:
             self.did_something[name] = self.did_something.get(name, 0) + 1
             self.did_nothing.pop(name, None)
+            # A click that changed the screen may have changed what works:
+            # keys that did nothing on a title screen are how the game itself
+            # is played (LIVE 2026-10-03 04:48, and never pressed again).
+            if what_is_clicked(name) is not None:
+                self.did_nothing.clear()
         else:
             self.did_nothing[name] = self.did_nothing.get(name, 0) + 1
 

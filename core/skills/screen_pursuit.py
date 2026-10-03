@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from collections import Counter
 from collections.abc import Awaitable, Callable, Sequence
@@ -116,6 +117,7 @@ from .screen_pursuit_looking import (
     _WHY_SHE_CANNOT_LOOK,  # noqa: F401  (read at call time by screen_pursuit_steps)
     ASKING_TO_CONFIRM,  # noqa: F401
     LONGER_THAN_USUAL,  # noqa: F401
+    MOVES_SAID,
     OBSERVE_TIMEOUT_S,  # noqa: F401
     PASSES_ON_ITS_OWN,  # noqa: F401  (read at call time by screen_pursuit_steps)
     _answer_own_confirmation,  # noqa: F401  (read at call time by the lifted module)
@@ -826,9 +828,8 @@ async def pursue_on_screen(
     # 2026-08-26: sixty-five narrated moves, nine approaches held, cancelled
     # from outside and reported as "Completed 0/0 steps".
     began = time.monotonic()
-    ends_at = began + float(max_seconds)
-    if deadline_at > 0.0:
-        ends_at = min(ends_at, float(deadline_at))
+    ends_at = min(began + float(max_seconds), float(deadline_at) if deadline_at > 0.0 else math.inf)
+    MOVES_SAID.set({"at": 0.0, "line": ""})
     # A walk to something in a world seen through a camera is its own loop.
     from core.runtime.watched_goal import a_trip_asked_for
 

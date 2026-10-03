@@ -112,12 +112,62 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
         return ()
     from core.agency.what_i_can_do_here import a_click_on
 
+    regions = [region for region in observation.get("layout") or [] if isinstance(region, dict)]
     found: dict[str, None] = {}
-    for region in observation.get("layout") or []:
-        text = " ".join(str((region or {}).get("text") or "").split())
-        if text:
+    for region in regions:
+        text = " ".join(str(region.get("text") or "").split())
+        if text and not _set_as_a_paragraph(region, regions):
             found.setdefault(a_click_on(text), None)
     return tuple(found)
+
+
+def what_it_says(observation: dict[str, Any], drawn_where: Any) -> str:
+    """The prose inside the drawing she was sent to play, in reading order.
+
+    A game's rules, a character's line, a hint: the lines set as a paragraph,
+    which are read rather than clicked (see `_set_as_a_paragraph`).
+    """
+    if not drawn_where:
+        return ""
+    regions = [region for region in observation.get("layout") or [] if isinstance(region, dict)]
+    lines = [
+        region for region in regions
+        if " ".join(str(region.get("text") or "").split()) and _set_as_a_paragraph(region, regions)
+    ]
+    lines.sort(key=lambda region: (float(region.get("y", 0.0)), float(region.get("x", 0.0))))
+    return " ".join(" ".join(str(region.get("text") or "").split()) for region in lines)
+
+
+def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -> bool:
+    """Whether a line of writing runs on into the line under it, as prose does.
+
+    A game's instructions are something to read. LIVE 2026-10-03 04:48, Cow
+    and Chicken: Ballet Parking: she clicked "Bump into the cars and make them
+    spin like ballistic", then "ballerinas until they reach the parking spot
+    that matches", one line of the rules at a time. Lines of a paragraph are
+    set less than a line apart, one under another; a button's label stands
+    alone with room around it. Measured in the line's own height, so the size
+    of the writing does not matter.
+    """
+    try:
+        x, y = float(region["x"]), float(region["y"])
+        width, height = float(region["width"]), float(region["height"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    for other in regions:
+        if other is region:
+            continue
+        try:
+            ox, oy = float(other["x"]), float(other["y"])
+            owidth, oheight = float(other["width"]), float(other["height"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        overlaps = ox < x + width and x < ox + owidth
+        line = min(height, oheight)
+        below, above = oy - (y + height), y - (oy + oheight)
+        if overlaps and (0.0 <= below < line or 0.0 <= above < line):
+            return True
+    return False
 
 
 def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
