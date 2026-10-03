@@ -1080,6 +1080,11 @@ def _install_runtime_audit_tests(suite) -> None:
             expensive=True,
         )
     )
+    _install_more_runtime_audit_tests(suite)
+
+
+def _install_more_runtime_audit_tests(suite) -> None:
+    """The second half of the runtime audit checks; split from `_install_runtime_audit_tests` for size."""
     suite.add_test(
         ValidationTest(
             name="she_composes_an_action_she_was_not_given",

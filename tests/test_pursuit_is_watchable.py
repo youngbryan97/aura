@@ -72,8 +72,12 @@ def test_a_failed_round_does_not_destroy_the_finished_ones():
 
 
 def test_a_pursuit_tells_the_watchdog_it_is_alive():
+    """Without a heartbeat a pursuit is capped at the silence ceiling however much it gets done."""
+    from core.skills import sovereign_browser
+
     body = inspect.getsource(SovereignBrowserSkill._handle_pursue)
-    assert "report_progress" in body and "heartbeat" in body, (
-        "without a heartbeat a pursuit is capped at the silence ceiling "
-        "however much progress it is making"
-    )
+    assert "_saying_it_moves_for(action_context)" in body
+    heard: list[str] = []
+    still_going = sovereign_browser._saying_it_moves_for({"report_progress": heard.append})
+    still_going("pursuit round 1")
+    assert heard == ["pursuit round 1"]

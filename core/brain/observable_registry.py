@@ -667,6 +667,33 @@ async def _read_positional_problem(prompt: str) -> str:
     return describe_positional_answer(answer)
 
 
+def _matches_grid_puzzle(prompt: str) -> bool:
+    from core.reasoning.grid_puzzles import parse_grid_puzzle
+
+    return parse_grid_puzzle(prompt) is not None
+
+
+#: How long working a pasted grid out may take. The hardest published Sudoku
+#: was proved unique here in 2.4 seconds (2026-10-02); a person who pasted a
+#: puzzle is waiting for the worked answer, not for a fast guess at one.
+GRID_PUZZLE_BUDGET_S = 8.0
+
+
+async def _read_grid_puzzle(prompt: str) -> str:
+    """A grid puzzle, worked out by ruling out, search and many attempts."""
+    from core.reasoning.grid_puzzles import (
+        describe_grid_answer,
+        parse_grid_puzzle,
+        solve_grid_puzzle,
+    )
+
+    puzzle = parse_grid_puzzle(prompt)
+    if puzzle is None:
+        return ""
+    settled = await asyncio.to_thread(solve_grid_puzzle, puzzle, budget_s=GRID_PUZZLE_BUDGET_S)
+    return describe_grid_answer(puzzle, settled)
+
+
 def _matches_recent_activity(prompt: str) -> bool:
     from core.self.recent_activity import looks_like_a_question_about_recent_activity
 
@@ -1073,6 +1100,26 @@ _DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
             "how are you doing today?",
             "what is 2 + 2",
             "Ada and Boris are friends who like chess.",
+        ),
+    ),
+    Observable(
+        "grid_puzzle_solution",
+        "## THE PUZZLE, WORKED OUT",
+        _matches_grid_puzzle,
+        _read_grid_puzzle,
+        timeout_s=GRID_PUZZLE_BUDGET_S + 2.0,
+        examples=(
+            "Can you solve this sudoku?\n"
+            "53..7....\n6..195...\n.98....6.\n8...6...3\n4..8.3..1\n"
+            "7...2...6\n.6....28.\n...419..5\n....8..79",
+            "solve: 4.....8.5.3..........7......2.....6.....8.4......1.......6.3.7.5..2.....1.4......",
+            "fill in this grid puzzle\n1 . | . 4\n. 4 | 1 .\n----+----\n4 . | . 1\n. 1 | 4 .",
+        ),
+        counter_examples=(
+            "how are you doing today?",
+            "what is 2 + 2",
+            "my number is 1234\nand my pin is 4321",
+            "123456789123456789123456789123456789123456789123456789123456789123456789123456789",
         ),
     ),
     Observable(

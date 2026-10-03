@@ -263,6 +263,39 @@ class _StillGoing:
         it_got_somewhere(note)
 
 
+def _saying_it_moves_for(action_context: Any) -> _StillGoing:
+    """The heartbeat for one pursuit, handed to every step that reports progress.
+
+    PROGRESS is the bound, not a clock and not a step count. How long a
+    questionnaire takes is not knowable in advance: it depends on how many
+    items it has, how fast the site renders, and how often it re-navigates.
+    Holding that to a fixed budget is a category error, and it showed — a
+    working pursuit was cancelled at 181s mid-form, and the person was told the
+    page had not responded. ``max_steps`` remains as a safety ceiling so nothing
+    can spin forever, but the operating limit is whether the work is still
+    moving; when that stops, ``PURSUE_STALL_LIMIT`` ends it.
+
+    So "still working" is said at the top of every round. The executor's
+    ceiling bounds SILENCE, not duration: without this the run is capped at ten
+    minutes whatever it is doing, and measured, that killed a sixty-question
+    form partway through and discarded every answer it had landed. The model
+    calls inside the run say it too, while her model is reading or writing for
+    them (see ``while_she_writes``), and each run starts with no screens
+    measured.
+    """
+    from .sovereign_browser_understanding import SAYING_IT_MOVES, SCREENS_MEASURED
+
+    heartbeat = None
+    if isinstance(action_context, Mapping):
+        candidate = action_context.get("report_progress")
+        if callable(candidate):
+            heartbeat = candidate
+    still_going = _StillGoing(heartbeat)
+    SAYING_IT_MOVES.set(still_going)
+    SCREENS_MEASURED.set({})
+    return still_going
+
+
 def _record_the_round(
     *,
     asked: Any,
@@ -1536,39 +1569,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         observation: dict[str, Any] = {}
         completed = False
 
-        # PROGRESS is the bound, not a clock and not a step count.
-        #
-        # How long a questionnaire takes is not knowable in advance: it depends
-        # on how many items it has, how fast the site renders, and how often it
-        # re-navigates. Holding that to a fixed budget is a category error, and
-        # it showed — a working pursuit was cancelled at 181s mid-form, and the
-        # person was told the page had not responded.
-        #
-        # `max_steps` remains as a safety ceiling so nothing can spin forever,
-        # but the operating limit is whether the work is still moving: rounds
-        # that land actions, or a page that changes. When that stops,
-        # `PURSUE_STALL_LIMIT` ends it. A run that keeps making progress is
-        # allowed to keep going.
-        # Say "still working" at the top of every round.
-        #
-        # The executor's ceiling bounds SILENCE, not duration: an action that
-        # reports progress is not wedged, and a questionnaire's length is not
-        # knowable in advance. Without this the run is capped at ten minutes
-        # whatever it is doing — measured, that killed a sixty-question form
-        # partway through and discarded every answer it had landed.
-        heartbeat = None
-        if isinstance(action_context, Mapping):
-            candidate = action_context.get("report_progress")
-            if callable(candidate):
-                heartbeat = candidate
-
-        still_going = _StillGoing(heartbeat)
-        # And the model calls inside the run say it too, while her model is
-        # reading or writing for them. See `while_she_writes`.
-        from .sovereign_browser_understanding import SAYING_IT_MOVES, SCREENS_MEASURED
-
-        SAYING_IT_MOVES.set(still_going)
-        SCREENS_MEASURED.set({})
+        still_going = _saying_it_moves_for(action_context)
 
         # What she has already done survives however this ends.
         #

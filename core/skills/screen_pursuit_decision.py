@@ -14,6 +14,9 @@ from __future__ import annotations
 from .screen_pursuit_decision_steps import (  # noqa: F401  (re-exported: they were defined here)
     _borrow_from_the_world_it_is_most_like,
     _carry_rules_from_a_world_like_it,
+    _grade_how_soon_she_came_back,
+    _lean_where_the_world_could_swing,
+    _mark_down_what_she_keeps_doing,
     _hold_the_rule_to_its_prediction,
     _learn_what_made_a_move_safe,
     _log_every_sixth_move,
@@ -398,12 +401,7 @@ async def decide_the_next_move(
     from core.agency import what_she_is_doing as doing
     from core.agency.deliberate_action import confirm, deliberate
     from core.agency.how_good_is_this import terms, worth_comparing
-    from core.agency.looking_ahead import (
-        at_the_worlds_mercy,
-        look_ahead,
-        whether_to_take_the_wide_option,
-        worth_finding_out,
-    )
+    from core.agency.looking_ahead import look_ahead, worth_finding_out
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.agency.worth_thinking_about import worth_a_pass
@@ -637,6 +635,7 @@ async def decide_the_next_move(
             # A key that never changes anything is not one of her actions
             # in this world, whoever wrote it down.
             can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
+            _grade_how_soon_she_came_back(run, previous.chosen.name, attempt.verdict.held, moves)
             _it_did_nothing_from_here(
                 pending, laid_out, previous.chosen.name, attempt.verdict.observed_change
             )
@@ -1309,37 +1308,13 @@ async def decide_the_next_move(
         # doing is already a loss and the spread is the only thing that
         # contains a win. Both come off the run: how much budget is left,
         # and what she has been getting per act.
-        exposed = at_the_worlds_mercy(
-            knows.rules,
-            laid_out,
-            [option.name for option in available],
-            toward=success_when or _what_there_is_to_aim_at(laid_out),
-            approach=held_line,
-            world=world,
+        ahead = _lean_where_the_world_could_swing(
+            ahead, knows=knows, laid_out=laid_out, choices=[option.name for option in available],
+            held_line=held_line, world=world, success_when=success_when,
+            ends_at=ends_at, began=began, began_at=began_at,
         )
-        if exposed and ahead:
-            worths = [value for value, _why in ahead.values()]
-            spread = max(worths) - min(worths)
-            lean = whether_to_take_the_wide_option(
-                max(0.0, ends_at - time.monotonic()) / max(1e-9, ends_at - began),
-                _how_it_has_been_going(began_at, laid_out),
-                against_a_clock=not success_when,
-            )
-            if spread > 0.0 and lean:
-                ahead = {
-                    name: (value + lean * spread * exposed.get(name, 0.0), why)
-                    for name, (value, why) in ahead.items()
-                }
-                logger.info(
-                    "the world could swing this; leaning %+.2f: %s",
-                    lean,
-                    ", ".join(
-                        f"{name} {share:.2f}"
-                        for name, share in sorted(
-                            exposed.items(), key=lambda pair: -pair[1]
-                        )[:4]
-                    ),
-                )
+        # And whether this world has learned what she keeps doing.
+        ahead, available = _mark_down_what_she_keeps_doing(run, ahead, available, moves, narrate)
         # What she is aiming at, where it names a number or a band.
         #
         # "More is better" is true of some goals and quietly false of many:

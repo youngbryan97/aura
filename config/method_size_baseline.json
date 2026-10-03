@@ -1,7 +1,7 @@
 {
   "threshold_lines": 400,
   "tracked": 58,
-  "total_lines": 54853,
+  "total_lines": 54810,
   "functions": {
     "core/brain/cognitive_engine_quick_reply.py::_AnswersTheDesktopDirectly._direct_desktop_quick_reply": {
       "lines": 765,
@@ -20,7 +20,7 @@
     },
     "core/brain/inference_gate.py::InferenceGate._generate_with_metadata_sink": {
       "lines": 1964,
-      "complexity": 395,
+      "complexity": 396,
       "returns": 19
     },
     "core/brain/inference_gate_living_context.py::_BuildsTheLivingContext._build_living_mind_context": {
@@ -109,9 +109,9 @@
       "returns": 13
     },
     "core/brain/llm_health_router_endpoint_call.py::_CallsTheEndpoint._call_endpoint": {
-      "lines": 498,
-      "complexity": 80,
-      "returns": 19
+      "lines": 483,
+      "complexity": 73,
+      "returns": 17
     },
     "core/brain/llm_health_router_endpoint_call.py::_CallsTheEndpoint._generate_core": {
       "lines": 470,
@@ -249,13 +249,13 @@
       "returns": 11
     },
     "core/skills/screen_pursuit.py::pursue_on_screen": {
-      "lines": 905,
-      "complexity": 104,
+      "lines": 897,
+      "complexity": 99,
       "returns": 14
     },
     "core/skills/screen_pursuit_decision.py::decide_the_next_move": {
-      "lines": 1375,
-      "complexity": 256,
+      "lines": 1355,
+      "complexity": 248,
       "returns": 18
     },
     "core/voice/speech_profile.py::SpeechProfileCompiler.compile": {
