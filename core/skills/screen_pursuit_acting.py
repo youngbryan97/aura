@@ -235,10 +235,17 @@ async def carry_out_the_move(
         pending["deliberation"] = None
     if arrived:
         # A landed key is this work getting somewhere, said to whoever is
-        # holding a deadline over it: an hour's game is long, not stuck.
+        # holding a deadline over it: an hour's game is long, not stuck. A
+        # game played on a page answers to the page's pursuit as well, whose
+        # executor counts silence by its own clock: LIVE 2026-10-03 08:57 she
+        # was catching chickens, a move every few seconds, and the pursuit was
+        # ended for 600 seconds with no progress.
         from core.runtime.still_getting_somewhere import it_got_somewhere
 
-        it_got_somewhere(f"{arrived} key(s) landed, {len(moves) + arrived} move(s) in")
+        from .sovereign_browser_one_question import SAYING_IT_MOVES
+
+        said = f"{arrived} key(s) landed, {len(moves) + arrived} move(s) in"
+        (SAYING_IT_MOVES.get() or it_got_somewhere)(said)
     for position, step in enumerate(sequence[:arrived]):
         if position == 0:
             about_to["at"] = time.time()

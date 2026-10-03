@@ -1522,6 +1522,15 @@ async def _invoke_effect_handler(
             # anything was reported while it was open, which the next pass of
             # the loop works out.
             continue
+        except asyncio.CancelledError:
+            # The shield is for a window closing, not for the person stopping
+            # the turn. Cancelled from outside, the work stops with it: LIVE
+            # 2026-10-03 04:47 the chat's stop ended the turn and a game went
+            # on being played for eight minutes and 198 moves.
+            work.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await work
+            raise
     raw_result = completed[0]
     if isinstance(raw_result, asyncio.CancelledError):
         raise raw_result

@@ -64,3 +64,14 @@ async def test_work_that_moved_and_then_stopped_is_cancelled():
 @pytest.mark.asyncio
 async def test_a_report_from_nowhere_is_not_an_error():
     assert it_got_somewhere("nobody is listening") is False
+
+
+def test_a_move_landed_in_a_game_on_a_page_reaches_the_pages_pursuit():
+    """LIVE 2026-10-03 08:57: a move every few seconds, and the page's pursuit
+    was ended for 600 seconds with no progress."""
+    import inspect
+
+    from core.skills import screen_pursuit_acting
+
+    source = inspect.getsource(screen_pursuit_acting)
+    assert "(SAYING_IT_MOVES.get() or it_got_somewhere)(said)" in source

@@ -87,3 +87,25 @@ async def test_the_callback_is_optional():
         return {"ok": True}
 
     assert (await _invoke_effect_handler(quick, {}, timeout_s=5.0))["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_stopping_the_caller_stops_the_work():
+    """LIVE 2026-10-03 04:47: the chat's stop ended the turn and a game went on
+    being played for eight minutes and 198 moves."""
+    moves = 0
+
+    async def playing(_context):
+        nonlocal moves
+        while True:
+            await asyncio.sleep(0.02)
+            moves += 1
+
+    caller = asyncio.ensure_future(_invoke_effect_handler(playing, {}, timeout_s=30.0))
+    await asyncio.sleep(0.1)
+    caller.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await caller
+    stopped_at = moves
+    await asyncio.sleep(0.1)
+    assert moves == stopped_at, "the work went on after its caller was stopped"
