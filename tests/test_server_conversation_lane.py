@@ -9826,7 +9826,7 @@ async def test_self_condition_prompt_keeps_delivered_history_and_one_fresh_proje
         # unpack handed `history_messages` a single dict and the prompt
         # builder iterated its KEYS — "'str' object has no attribute 'get'",
         # swallowed as a degraded desktop generation.
-        lambda _context, **_reach: (
+        lambda _context: (
             [
                 {"role": "user", "content": "How are you doing?"},
                 {

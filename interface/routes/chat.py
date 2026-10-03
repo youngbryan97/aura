@@ -5870,6 +5870,7 @@ from .chat_refusals import (
     _refuse_an_empty_canonical_reply,
     _refuse_an_unmet_benchmark_contract,
     _serve_the_capability_inventory,
+    _what_to_serve_instead,
     _why_there_is_no_answer,  # noqa: F401
 )
 from .chat_recorded_answers import (
@@ -9182,19 +9183,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # Every governance link was clear by then; what was missing was
                 # somebody saying what the tool had returned.
                 evidenced_reply = _what_the_tools_found()
-            found_before_the_ladder = evidenced_reply
-            evidenced_reply = await _anything_better_than_giving_up(
-                _semantic_user_message,
-                reason="the cognitive engine could not serve this turn",
-                already=evidenced_reply,
+            failure_reply, served_confidence = await _what_to_serve_instead(
+                _semantic_user_message, found=evidenced_reply, failure_reply=failure_reply,
                 budget_s=_remaining_foreground_budget(),
             )
-            if evidenced_reply:
-                failure_reply = evidenced_reply
-            # What the smaller model wrote is an answer, marked as the smaller
-            # model's. It went out marked failed, so a reply the person had
-            # been given was shown to them as a turn that failed.
-            served_confidence = "fallback" if evidenced_reply and not found_before_the_ladder else "failed"
             if pending_exchange_id:
                 await _chat_preflight._complete_logged_exchange(
                     pending_exchange_id,
@@ -10687,15 +10679,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # 2026-08-30, asked how to remember people's names at a party, it
             # was the whole reply, while a loaded model that could have
             # answered was never asked.
-            bounded_by_the_ladder = False
             if not skip_bounded_desktop_repair:
                 bounded_repair = await _anything_better_than_giving_up(
-                    _semantic_user_message,
-                    reason="the cognitive engine produced no acceptable reply",
-                    already="",
-                    budget_s=_remaining_foreground_budget(),
+                    _semantic_user_message, reason="the cognitive engine produced no acceptable reply",
+                    already="", budget_s=_remaining_foreground_budget(),
                 )
-                bounded_by_the_ladder = bool(bounded_repair)
+            bounded_by_the_ladder = bool(bounded_repair)
             if not bounded_repair and not skip_bounded_desktop_repair:
                 bounded_repair = await _build_grounded_self_process_repair_reply(
                     _semantic_user_message,
@@ -10952,19 +10941,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # leaves the other saying "I couldn't get to an answer" on top
                 # of a tool result.
                 evidenced_reply = _what_the_tools_found()
-            found_before_the_ladder = evidenced_reply
-            evidenced_reply = await _anything_better_than_giving_up(
-                _semantic_user_message,
-                reason="the cognitive engine could not serve this turn",
-                already=evidenced_reply,
+            failure_reply, served_confidence = await _what_to_serve_instead(
+                _semantic_user_message, found=evidenced_reply, failure_reply=failure_reply,
                 budget_s=_remaining_foreground_budget(),
             )
-            if evidenced_reply:
-                failure_reply = evidenced_reply
-            # What the smaller model wrote is an answer, marked as the smaller
-            # model's. It went out marked failed, so a reply the person had
-            # been given was shown to them as a turn that failed.
-            served_confidence = "fallback" if evidenced_reply and not found_before_the_ladder else "failed"
             # A refusal is the right answer when nothing better is known. When
             # the runtime has ALREADY worked the answer out, it is the worst of
             # the three options available.

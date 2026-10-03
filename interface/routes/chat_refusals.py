@@ -242,6 +242,22 @@ async def _anything_better_than_giving_up(
     return said
 
 
+async def _what_to_serve_instead(
+    message: object, *, found: str, failure_reply: str, budget_s: float | None = None
+) -> tuple[str, str]:
+    """The reply a turn the cognitive engine could not serve gives, and its confidence.
+
+    ``found`` is what the runtime already read for the turn; with nothing found
+    the smaller model is asked. What it writes is an answer, marked "fallback":
+    it went out marked failed, so a reply the person had been given was shown
+    to them as a turn that failed. A reading or a refusal stays "failed".
+    """
+    said = await _anything_better_than_giving_up(
+        message, reason="the cognitive engine could not serve this turn", already=found, budget_s=budget_s
+    )
+    return (said or failure_reply), ("fallback" if said and not found else "failed")
+
+
 def refusal_receipt(
     *,
     status: str,
