@@ -129,3 +129,27 @@ async def test_a_link_within_the_page_is_not_followed_anywhere(browser, click_le
     await browser.page.goto("https://example.com/aura-jump", wait_until="load")
     assert await browser.click("#jump", principal="owner", lease_id=click_lease)
     assert browser.page.url.split("#")[0] == "https://example.com/aura-jump"
+
+
+PAGES["slow-link"] = """<html><body>
+    <a id="go" href="https://example.com/aura-landing">the game</a>
+    <script>document.getElementById('go').addEventListener('click', (e) => {
+        e.preventDefault(); setTimeout(() => { location.href = e.target.href; }, 2500); });</script>
+    </body></html>"""
+
+
+@pytest.mark.asyncio
+async def test_a_navigation_still_on_its_way_is_not_started_again(browser, click_lease, monkeypatch):
+    """LIVE 2026-10-03 08:07: a second navigation on top of one in flight closed the browser."""
+    started: list[str] = []
+
+    async def _browse(url: str, *, principal: str = "") -> bool:
+        started.append(url)
+        return True
+
+    monkeypatch.setattr(browser, "browse", _browse)
+    for name in ("slow-link", "landing"):
+        await browser.page.route(f"**/aura-{name}", _serves(PAGES[name]))
+    await browser.page.goto("https://example.com/aura-slow-link", wait_until="load")
+    assert await browser.click("#go", principal="owner", lease_id=click_lease)
+    assert started == []

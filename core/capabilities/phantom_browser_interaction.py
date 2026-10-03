@@ -184,6 +184,12 @@ class _ActsOnThePage:
         ("#google_vignette"); she took the unchanged page for her own mistake
         and counted the list again. A link within the page itself (a "#"
         jump) is left alone.
+
+        Held means the click changed only the part after "#" while the link
+        points at another page. A navigation that has not arrived yet leaves
+        the address as it was, and a second one started on top of it is a
+        collision: LIVE 2026-10-03 08:07 that ran the click past its time and
+        closed the browser.
         """
 
         def the_page(url: object) -> str:
@@ -198,7 +204,8 @@ class _ActsOnThePage:
             return
         if not href.startswith(("http://", "https://")) or the_page(href) == the_page(before_url):
             return
-        if the_page(getattr(self.page, "url", "")) != the_page(before_url):
+        now = str(getattr(self.page, "url", "") or "")
+        if the_page(now) != the_page(before_url) or now == before_url:
             return
         logger.info("🖱️ The link stayed where it was when clicked; following it to %s", href)
         await self.browse(href, principal=principal)
