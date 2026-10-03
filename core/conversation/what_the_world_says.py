@@ -25,6 +25,8 @@ ways, none of which depends on how the request is phrased:
   the language substrate (core/language/search_request.py) for what it is
   about, from the request or, when it only says "it", from what was asked
   before, then searched and its pages read;
+* a question about what was found ("what did you learn") gets the sources the
+  conversation's most recent lookup read, since it names nothing of its own;
 * the offline corpus is consulted for every phrase of the request that names
   something. It is local and private, and a lookup takes milliseconds. The
   web is consulted beyond an explicit request only where the existing
@@ -41,7 +43,9 @@ from __future__ import annotations
 
 import asyncio
 import re
+import threading
 import time
+from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -59,6 +63,9 @@ _PASSAGE_CHARS = 1400
 _EVIDENCE_CHARS = 7000
 #: Sources read per search.
 _PAGES_PER_SEARCH = 4
+#: Conversations whose last reading is kept. A person holds a few at once; this
+#: bounds the memory without reaching any real use.
+_SESSIONS_REMEMBERED = 32
 
 
 @dataclass(frozen=True)
@@ -120,6 +127,42 @@ class WorldEvidence:
             "saved": self.saved,
             "seconds": round(self.seconds, 3),
         }
+
+
+_last_read: OrderedDict[str, tuple[WorldSource, ...]] = OrderedDict()
+_last_read_lock = threading.Lock()
+
+
+def remember_reading(session_id: str, evidence: WorldEvidence) -> None:
+    """Keep what this conversation's latest lookup read, for a later "what did you learn"."""
+    if not session_id or not evidence.sources:
+        return
+    with _last_read_lock:
+        _last_read[session_id] = tuple(evidence.sources)
+        _last_read.move_to_end(session_id)
+        while len(_last_read) > _SESSIONS_REMEMBERED:
+            _last_read.popitem(last=False)
+
+
+def answer_from_earlier_reading(evidence: WorldEvidence, request: str, session_id: str) -> bool:
+    """Give a question about what was found the sources the last lookup read.
+
+    Only when this turn found nothing of its own, and the language substrate
+    reads the request as asking what was found (core/language/search_request.py).
+    """
+    if evidence.sources or not session_id:
+        return False
+    from core.language.search_request import asks_what_was_found
+
+    if asks_what_was_found(request) is not True:
+        return False
+    with _last_read_lock:
+        earlier = _last_read.get(session_id, ())
+    evidence.sources = [
+        WorldSource(f"read for an earlier turn ({source.origin})", source.title, source.location, source.text, source.score)
+        for source in earlier
+    ]
+    return bool(evidence.sources)
 
 
 def links_in(request: str) -> list[str]:
@@ -314,9 +357,11 @@ __all__ = [
     "URL_RE",
     "WorldEvidence",
     "WorldSource",
+    "answer_from_earlier_reading",
     "gather_world_evidence",
     "links_in",
     "passage_of",
     "referent_phrases",
+    "remember_reading",
     "wikipedia_title",
 ]

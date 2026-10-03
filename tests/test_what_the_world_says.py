@@ -185,3 +185,37 @@ def test_the_sources_travel_beside_the_message_and_reach_only_her_reply() -> Non
         assert any("scored 83 points" in block for block in asyncio.run(blocks("Bam or Kobe?")))
         assert not any("scored 83 points" in block for block in asyncio.run(blocks("")))
     assert turn_world_evidence() == ()
+
+
+def test_what_did_you_learn_reads_back_what_the_last_lookup_read(judge, monkeypatch) -> None:
+    from core.conversation import what_the_world_says
+    from core.conversation.what_the_world_says import (
+        WorldEvidence,
+        answer_from_earlier_reading,
+        remember_reading,
+    )
+
+    monkeypatch.setattr(what_the_world_says, "_last_read", what_the_world_says.OrderedDict())
+    looked_up = asyncio.run(gather_world_evidence("Did Bam score 83?", store=_Corpus()))
+    remember_reading("session-a", looked_up)
+
+    asked = WorldEvidence()
+    assert answer_from_earlier_reading(asked, "What did you learn?", "session-a")
+    assert asked.sources[0].origin == "read for an earlier turn (offline Wikipedia)"
+    assert "scored 83 points" in asked.render()
+    # Another conversation's reading, or a question about something else, is not carried.
+    assert not answer_from_earlier_reading(WorldEvidence(), "What did you learn?", "session-b")
+    assert not answer_from_earlier_reading(WorldEvidence(), "what did you learn about physics in school", "session-a")
+
+
+def test_her_training_ledger_does_not_answer_a_question_about_a_lookup(monkeypatch) -> None:
+    from core.conversation import turn_evidence_custody
+    from core.learning import learning_selfreport
+
+    report = learning_selfreport.LearningSelfReport()
+    monkeypatch.setattr(report, "_build_block", lambda: "LEARNING STATUS")
+    monkeypatch.setattr(turn_evidence_custody, "turn_world_evidence", lambda: ("source 1: offline Wikipedia",))
+    assert report.get_context_injection("what did you learn") == ""
+    assert report.get_context_injection("have you been training lately?") == "LEARNING STATUS"
+    monkeypatch.setattr(turn_evidence_custody, "turn_world_evidence", lambda: ())
+    assert report.get_context_injection("what did you learn") == "LEARNING STATUS"

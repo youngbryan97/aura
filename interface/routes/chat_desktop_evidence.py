@@ -18,7 +18,6 @@ from core.runtime.structured_input import (
 )
 from core.utils.completed_capability import make_completed_capability_evidence
 from core.utils.intent_normalization import normalize_memory_intent_text
-from fastapi import Request
 from interface.routes import chat_capability_inventory as _chat_capability_inventory  # noqa: E402
 from interface.routes import chat_desktop_objective as _chat_desktop_objective  # noqa: E402
 from interface.routes import chat_desktop_repair as _chat_desktop_repair  # noqa: E402
@@ -30,7 +29,6 @@ from interface.routes.chat_turn_evidence import _build_explicit_local_file_artif
 from pathlib import Path
 from typing import Any
 import asyncio
-import os
 import re
 import time
 
@@ -1112,7 +1110,7 @@ async def _what_the_world_says_for_the_turn(
     checks read; the person's message is returned unchanged. Returns the
     completed-search evidence when a web search ran.
     """
-    from core.conversation.what_the_world_says import gather_world_evidence
+    from core.conversation.what_the_world_says import answer_from_earlier_reading, gather_world_evidence, remember_reading
 
     should_collect, _query, contract = _should_collect_desktop_required_search_evidence(user_message)
     try:
@@ -1173,6 +1171,10 @@ async def _what_the_world_says_for_the_turn(
         evidence.searched.append(str(contracted.get("query") or user_message))
         evidence.read.extend(str(page.get("url")) for page in found if page.get("text"))
         evidence.saved = bool(contracted.get("memory_saved"))
+    if ran:  # retain above: the pipeline reports whether her memory kept what it read
+        evidence.saved = evidence.saved or bool(ran["result"].get("retained"))
+    if not answer_from_earlier_reading(evidence, user_message, session_id):
+        remember_reading(session_id, evidence)
     rendered = evidence.render()
     logger.info("🌍 What the world says for this turn: %s", evidence.to_dict())
     if not rendered:

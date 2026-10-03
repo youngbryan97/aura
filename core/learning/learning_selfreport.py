@@ -44,6 +44,27 @@ def _asks_about_learning(objective: str) -> bool:
     return bool(objective) and bool(_LEARNING_QUESTION_RE.search(objective))
 
 
+def _asks_about_a_lookup(objective: str) -> bool:
+    """Whether the question is about what this turn's sources say, not her training.
+
+    LIVE 2026-10-03: "what did you learn", asked right after she searched,
+    got this block and nothing about the search. When the language substrate
+    reads the question as asking what was found and the turn carries sources
+    (core/conversation/what_the_world_says.py), those sources answer it.
+    """
+    try:
+        from core.conversation.turn_evidence_custody import turn_world_evidence
+        from core.language.search_request import asks_what_was_found
+
+        return bool(turn_world_evidence()) and asks_what_was_found(objective) is True
+    except _RECOVERABLE as exc:
+        record_degradation(
+            "learning_selfreport", exc, action="read the question as about her learning",
+            classification=FallbackClassification.SAFE_FALLBACK, severity="debug",
+        )
+        return False
+
+
 class LearningSelfReport:
     """Receipt-backed learning status for the conversation lane."""
 
@@ -55,7 +76,7 @@ class LearningSelfReport:
     def get_context_injection(self, objective: str = "") -> str:
         """A bounded learning-status block; empty unless the question is
         learning-shaped. Numbers come from the same receipts the API serves."""
-        if not _asks_about_learning(objective):
+        if not _asks_about_learning(objective) or _asks_about_a_lookup(objective):
             return ""
         now = time.monotonic()
         if self._cache is not None and now - self._cache_at < self._cache_ttl_s:

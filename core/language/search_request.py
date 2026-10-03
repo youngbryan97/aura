@@ -42,7 +42,7 @@ from core.language.model_features import model_hidden_features
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["SearchRequest", "asks_to_find_out", "read_search_request"]
+__all__ = ["SearchRequest", "asks_to_find_out", "asks_what_was_found", "read_search_request"]
 
 #: The opening of an instruction to search. The object follows it.
 _INSTRUCTION = re.compile(
@@ -105,6 +105,60 @@ _FINDS_OUT = LearnedMatcher(
     ),
     features=model_hidden_features,
 )
+
+
+#: A question about what a lookup found, as opposed to a request to make one or
+#: a question about her training. "What did you learn" right after a search
+#: means what the search read; LIVE 2026-10-03 it fetched her weight-training
+#: ledger instead, because a phrase list in core/learning/learning_selfreport.py
+#: read "what did you learn" as asking about her learning stack.
+_ASKS_WHAT_WAS_FOUND = LearnedMatcher(
+    name="asks_what_was_found",
+    positives=(
+        "what did you learn",
+        "so what did you find?",
+        "what did the article say",
+        "tell me what you read",
+        "anything interesting in there?",
+        "summarize what you found",
+        "what does the page say about him",
+        "what did it say?",
+    ),
+    negatives=(
+        "how are you feeling today?",
+        "have you been training lately?",
+        "are your weights improving?",
+        "google it",
+        "what do you think about consciousness?",
+        "what is 7919 times 6421?",
+        "tell me a story about a dragon",
+        "open safari",
+    ),
+    features=model_hidden_features,
+)
+
+
+#: The grammar floor: a question about what was found, read or said, with
+#: nothing new as its object ("what did you learn", "what did the article say
+#: about it?"). Exact where it applies; the learned surface takes the rest.
+_FOUND_QUESTION = re.compile(
+    r"^\s*(?:(?:so|and|ok|okay|well)[\s,]+)?what\s+(?:did|have|has)\s+"
+    r"(?:you|it|they|the\s+\w+(?:\s+\w+)?)\s+"
+    r"(?:learn(?:ed|t)?|find|found|read|see|seen|discover(?:ed)?|say|said)"
+    r"(?:\s+(?:from|about|in|on)\s+(?:it|that|this|there|them|him|her|the\s+\w+(?:\s+\w+)?))?"
+    r"[\s?.!]*$",
+    re.IGNORECASE,
+)
+
+
+def asks_what_was_found(text: str) -> bool | None:
+    """Whether ``text`` asks what a lookup found; None when neither reader can tell."""
+    message = str(text or "").strip()
+    if not message:
+        return False
+    if _FOUND_QUESTION.match(message):
+        return True
+    return _ASKS_WHAT_WAS_FOUND.decide_without_waiting(message)
 
 
 def _local_place(text: str) -> str:
