@@ -968,11 +968,15 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         hidden: Any,
         inputs: tuple[Any, ...],
         inference_max_steps: Any,
+        operation_recognizer: Any = None,
     ) -> Any:
         """Share source grounding and operation candidates with offline graph learning."""
         input_spans, input_scores, argument_pointer_scores = self._runtime_input_grounding(
             tokens, hidden, inputs)
-        nodes = _operation_nodes(
+        nodes = tuple(_OperationNode(**candidate._asdict()) for candidate in operation_recognizer.operation_candidates(
+            hidden=hidden, input_spans=input_spans, max_span_tokens=self.max_span_tokens,
+            hidden_channels=self.hidden_channels, hidden_channel_widths=self.hidden_channel_widths,
+        )) if operation_recognizer is not None else _operation_nodes(
             pointer=self.operation_pointer,
             classifier=self.operation_head,
             hidden=hidden,
@@ -1035,7 +1039,15 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         search_time_limit_s: float | None = None,
         binding_chart_solver: Any = None,
         operation_chart_proposer: Any = None,
+        operation_recognizer: Any = None,
     ) -> SemanticTransductionOutcome:
+        """Decode one request; ``operation_recognizer`` replaces operation proposal.
+
+        With a recognizer the charts arrive in its evidence order and the first
+        one whose arguments assign is kept. See core/learning/semantic_operation_peaks.py.
+        """
+        if operation_recognizer is not None and (operation_chart_proposer is not None or binding_chart_solver is not None):
+            raise ValueError("an operation recognizer replaces the other proposal hooks, not alongside them")
         if search_time_limit_s is not None and (
             type(search_time_limit_s) not in (int, float)
             or not math.isfinite(search_time_limit_s) or search_time_limit_s <= 0
@@ -1070,7 +1082,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         try:
             if operation_chart_proposer is None:
                 input_spans, input_scores, argument_pointer_scores, charts = self._runtime_operation_charts(
-                    tokens, hidden, inputs, inference_max_steps)
+                    tokens, hidden, inputs, inference_max_steps, operation_recognizer)
             else:
                 input_spans, input_scores, argument_pointer_scores = self._runtime_input_grounding(tokens, hidden, inputs)
                 charts = operation_chart_proposer(source_id=source_text_sha256,
@@ -1109,7 +1121,8 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                     source_text_sha256=source_text_sha256,
                 ),
                 length_penalty=self.operation_length_penalty,
-                joint=self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
+                joint=operation_recognizer is None
+                and self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
                 bounded_assign=lambda selected, minimum: _assign_typed_arguments(
                     model=self, hidden=hidden, inputs=inputs, input_spans=input_spans,
                     source_token_ids=tokens,
