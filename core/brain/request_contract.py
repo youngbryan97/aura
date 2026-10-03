@@ -180,7 +180,8 @@ REQUEST_FIELDS: dict[str, Field_] = {
     # object, the decoder was never told, and three arrays and 230 seconds
     # later the run had not started.
     "output_shape": Field_(Kind.STRING),
-    "hard_output_token_ceiling": Field_(Kind.BOOL),
+    # A token count: the most the caller's output shape may ever use.
+    "hard_output_token_ceiling": Field_(Kind.POSITIVE_INT),
     "internal_inference": Field_(Kind.BOOL),
     "sampling_bias": Field_(Kind.OPAQUE),
     "imagination_sampling_bias": Field_(Kind.OPAQUE),
@@ -316,6 +317,14 @@ def validate_request_context(
     """
     result = ContextValidation()
     for key, value in (raw or {}).items():
+        # None is a field nobody set, not a malformed one. Generation metadata
+        # echoes every key it knows with None where nothing applied, and a
+        # later request carried hard_output_token_ceiling=None back in: LIVE
+        # 2026-10-03 00:35 that rejection was recorded as a critical gate
+        # degradation, failed the turn closed, and the smaller model told
+        # Bryan it could not open the Wikipedia link he had sent.
+        if value is None:
+            continue
         spec = REQUEST_FIELDS.get(key)
         if spec is None:
             result.unknown.append(key)

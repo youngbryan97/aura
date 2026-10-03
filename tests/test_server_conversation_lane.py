@@ -9826,7 +9826,7 @@ async def test_self_condition_prompt_keeps_delivered_history_and_one_fresh_proje
         # unpack handed `history_messages` a single dict and the prompt
         # builder iterated its KEYS — "'str' object has no attribute 'get'",
         # swallowed as a degraded desktop generation.
-        lambda _context, **_reach: (
+        lambda _context: (
             [
                 {"role": "user", "content": "How are you doing?"},
                 {
@@ -17015,9 +17015,11 @@ async def test_api_chat_desktop_required_search_collects_evidence_before_cogniti
                     "response_path": "cognitive_engine",
                 }
             )
-        assert "[WEB SEARCH EVIDENCE]" in message
+        # The sources she reads, and the fact that they were saved; no
+        # instruction about how to answer rides along with them.
+        assert "[SEARCHED the web for" in message and "saved to memory" in message
         assert "https://example.org/tardigrades" in message
-        assert "memory_saved: true" in message
+        assert "Use only the evidence above" not in message
         return "From my conversation memory, tardigrades can enter cryptobiosis."
 
     async def _fake_begin_exchange(*_args, **_kwargs):

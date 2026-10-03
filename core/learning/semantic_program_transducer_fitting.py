@@ -1496,7 +1496,12 @@ def _assign_typed_arguments(
     source_token_ids: Sequence[int] | None = None,
     binding_chart_solver: Any = None,
     source_text_sha256: str | None = None,
+    argument_ownership: Any = None,
 ) -> _TypedArgumentAssignment | None:
+    """``argument_ownership`` adds log P(operation owns mention) to every option's score.
+
+    See core/learning/semantic_argument_ownership.py.
+    """
     import time
 
     if binding_chart_solver is not None and model.training_receipt.get("argument_search_strategy") != "global_constraint_v1":
@@ -1643,6 +1648,8 @@ def _assign_typed_arguments(
     chart_factors = []
     chart_relation_evidence = []
     relation_definition_matrices = {}
+    operation_spans = tuple(node.span for node in operation_nodes)
+    ownership_by_mention: dict[TokenSpan, tuple[float, ...]] = {}
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1662,6 +1669,13 @@ def _assign_typed_arguments(
             for span, pointer_score in proposals_by_operation[node_index]:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
+                ownership = 0.0
+                if argument_ownership is not None:
+                    if span not in ownership_by_mention:
+                        ownership_by_mention[span] = argument_ownership.log_probabilities(span, operation_spans)
+                    ownership = ownership_by_mention[span][node_index]
+                    if not math.isfinite(ownership):
+                        continue
                 reference = reference_vectors[span]
                 role_score = role_head.score(reference, operation_vector)
                 proposal_score = proposal_head.score(reference, operation_vector)
@@ -1730,6 +1744,7 @@ def _assign_typed_arguments(
                         )
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
+                        + ownership
                     )
                     triadic_score = None
                     if model.triadic_binding_heads is not None:

@@ -20,17 +20,18 @@ from __future__ import annotations
 
 import pytest
 
-from core.brain.llm.mlx_client import (
-    _PREFILL_CEILING_CHARS,
-    _PREFILL_KEEP_HEAD_CHARS,
-    _prompt_within_prefill_ceiling,
-)
+from core.brain.llm.mlx_client import _prompt_within_prefill_ceiling
+from core.brain.llm.prefill_ceiling import KEEP_HEAD_CHARS as _PREFILL_KEEP_HEAD_CHARS
+from core.brain.llm.prefill_ceiling import prefill_ceiling_chars
+
+#: The ceiling the prompts below are for: the active cortex's.
+_PREFILL_CEILING_CHARS = prefill_ceiling_chars()
 
 HEAD = "SYSTEM-CONTRACT-HEAD"
 TAIL = "THE-ACTUAL-QUESTION-TAIL"
 
 
-def _oversized(total: int = 95_000) -> str:
+def _oversized(total: int = _PREFILL_CEILING_CHARS + 50_000) -> str:
     filler = "m" * max(0, total - len(HEAD) - len(TAIL))
     return f"{HEAD}{filler}{TAIL}"
 
@@ -85,3 +86,41 @@ class TestItIsWiredAtTheLastBoundary:
         cap_at = source.index("_prompt_within_prefill_ceiling(prompt")
         req_at = source.index('"action": "generate",')
         assert cap_at < req_at, "the prompt must be bounded before it is dispatched"
+
+
+class TestTheCeilingIsWhatTheCortexWasQualifiedToRead:
+    """It was a fixed 48,000 characters while the qualified lanes read 24,576 tokens."""
+
+    @staticmethod
+    def _limits(monkeypatch, lanes, *, qualified=True):
+        from types import SimpleNamespace
+
+        from core.brain.llm import model_registry, token_budget_evidence
+
+        profile = SimpleNamespace(
+            qualified=qualified,
+            lanes=tuple(SimpleNamespace(max_input_tokens=tokens) for tokens in lanes),
+        )
+        monkeypatch.setattr(
+            model_registry,
+            "get_active_cortex_serving_limits",
+            lambda model_path=None: profile if model_path in (None, "cortex") else None,
+        )
+        monkeypatch.setattr(
+            token_budget_evidence,
+            "chars_per_token",
+            lambda: SimpleNamespace(tokens_to_chars=lambda tokens: int(tokens * 3.5)),
+        )
+
+    def test_the_widest_qualified_lane_in_characters(self, monkeypatch):
+        self._limits(monkeypatch, (8_192, 24_576))
+        assert prefill_ceiling_chars() == int(24_576 * 3.5)
+        assert prefill_ceiling_chars("cortex") == int(24_576 * 3.5)
+
+    def test_another_model_or_no_profile_keeps_the_fixed_figure(self, monkeypatch):
+        from core.brain.llm.prefill_ceiling import UNQUALIFIED_CEILING_CHARS
+
+        self._limits(monkeypatch, (24_576,))
+        assert prefill_ceiling_chars("the-smaller-fallback") == UNQUALIFIED_CEILING_CHARS
+        self._limits(monkeypatch, (24_576,), qualified=False)
+        assert prefill_ceiling_chars() == UNQUALIFIED_CEILING_CHARS

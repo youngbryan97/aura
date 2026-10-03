@@ -921,9 +921,9 @@ class _BuildsThePromptBlocks:
         # Two budgets that disagree are one budget and one fiction. This is
         # the smaller.
         try:
-            from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
+            from core.brain.llm.prefill_ceiling import prefill_ceiling_chars
 
-            char_limit = min(char_limit, int(_PREFILL_CEILING_CHARS))
+            char_limit = min(char_limit, prefill_ceiling_chars())
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             record_degradation(
                 "context_assembler",

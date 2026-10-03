@@ -96,8 +96,7 @@ async def test_a_reason_for_a_measured_place_does_not_open_the_channel(router):
     assert asked["output_shape"] == "json_object"
     assert int(asked["user_surface_completion_floor"]) <= A_CLOSED_QUESTIONS_FLOOR
     assert asked["cognitive_mode"] == "fast"
-    assert asked["hard_output_token_ceiling"] is True
-    assert asked["max_tokens"] == SovereignBrowserSkill.REASON_MAX_TOKENS
+    assert asked["hard_output_token_ceiling"] == asked["max_tokens"] == SovereignBrowserSkill.REASON_MAX_TOKENS
 
 
 @pytest.mark.asyncio
@@ -106,7 +105,7 @@ async def test_what_she_is_given_room_for_is_a_ceiling(router):
     skill = SovereignBrowserSkill()
     await skill._asked_of_her("what do you expect", "her mind", shaped=False)
     asked = router.asked[-1]
-    assert asked["hard_output_token_ceiling"] is True
+    assert asked["hard_output_token_ceiling"] == asked["max_tokens"]
     assert "cognitive_mode" not in asked, "a forecast is worked out here"
 
 

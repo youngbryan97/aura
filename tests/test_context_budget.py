@@ -246,12 +246,13 @@ def test_the_ceiling_the_worker_enforces_is_one_of_the_constraints() -> None:
     """
 
     from core.brain.llm.context_budget import prefill_ceiling
-    from core.brain.llm.mlx_client import _PREFILL_CEILING_CHARS
+    from core.brain.llm.prefill_ceiling import prefill_ceiling_chars
 
-    assert prefill_ceiling() == _PREFILL_CEILING_CHARS
-    assert prefill_ceiling(1_200) == _PREFILL_CEILING_CHARS - 1_200
+    ceiling = prefill_ceiling_chars()
+    assert prefill_ceiling() == ceiling
+    assert prefill_ceiling(1_200) == ceiling - 1_200
     # Room the rest of the conversation takes cannot push it below nothing.
-    assert prefill_ceiling(10 * _PREFILL_CEILING_CHARS) == 0
+    assert prefill_ceiling(10 * ceiling) == 0
 
 
 def test_a_prompt_over_the_ceiling_is_cut_by_the_request_not_the_offset() -> None:

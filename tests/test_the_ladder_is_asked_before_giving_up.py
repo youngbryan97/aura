@@ -81,20 +81,32 @@ async def test_a_ladder_that_raises_does_not_take_the_turn_with_it(monkeypatch):
     ) == ""
 
 
-def test_every_path_that_would_not_answer_asks_it_first():
-    """A rescue that lives at one site and not its twin is the defect here.
+@pytest.mark.asyncio
+async def test_what_the_smaller_model_wrote_is_served_as_its_answer(monkeypatch):
+    """Both sites that would serve the honest failure ask the ladder through one helper.
 
-    Three of them: the two that serve the honest failure, and the one that
-    serves a description of what she is doing instead of an answer.
+    Its reply goes out marked "fallback", which the page tags "Smaller model";
+    a reading the runtime already had, or the refusal itself, stays "failed".
     """
-    import inspect
+    async def ladder(message, *, reason, budget_s=None):
+        return "Kobe's 81."
 
-    from interface.routes import chat_refusals
+    monkeypatch.setattr(chat, "_answer_from_fallback_ladder", ladder)
+    refusal = "I could not answer that one."
+    assert await chat._what_to_serve_instead("Bam or Kobe?", found="", failure_reply=refusal) == (
+        "Kobe's 81.",
+        "fallback",
+    )
+    assert await chat._what_to_serve_instead("how are you?", found="Calm, 0.4.", failure_reply=refusal) == (
+        "Calm, 0.4.",
+        "failed",
+    )
 
-    source = inspect.getsource(chat)
-    assert source.count("_anything_better_than_giving_up(") == 3, "three uses"
-    # The definition moved out of the route with the other refusal helpers.
-    assert "async def _anything_better_than_giving_up(" in inspect.getsource(chat_refusals)
+    async def silent(message, *, reason, budget_s=None):
+        return ""
+
+    monkeypatch.setattr(chat, "_answer_from_fallback_ladder", silent)
+    assert await chat._what_to_serve_instead("x", found="", failure_reply=refusal) == (refusal, "failed")
 
 
 def test_the_self_process_repair_is_the_second_choice():

@@ -327,6 +327,54 @@ class LocalCorpusStore:
             logger.debug("Corpus search degraded to empty: %s", exc)
             return []
 
+    def body(self, doc_id: int, *, max_chars: int = 20000) -> str:
+        """The text of one document, or "" when it cannot be read."""
+        if not self.db_path.exists():
+            return ""
+        try:
+            conn = self._connect_ro()
+        except sqlite3.OperationalError:
+            return ""
+        try:
+            row = conn.execute(
+                "SELECT substr(body, 1, ?) FROM docs_fts WHERE rowid = ?",
+                (max(1, int(max_chars)), int(doc_id)),
+            ).fetchone()
+            return str(row[0]) if row and row[0] else ""
+        except sqlite3.OperationalError as exc:
+            logger.debug("Corpus body read degraded to empty: %s", exc)
+            return ""
+        finally:
+            conn.close()
+
+    def by_title(self, title: str) -> CorpusHit | None:
+        """The document with exactly this title, when there is one."""
+        wanted = " ".join(str(title or "").split())
+        if not wanted or not self.db_path.exists():
+            return None
+        try:
+            conn = self._connect_ro()
+        except sqlite3.OperationalError:
+            return None
+        # docs.title has no index, and a scan of it took 6.5s; the title
+        # column of the full-text index answers in under 100ms, and the exact
+        # comparison keeps a phrase match from standing in for the title.
+        phrase = '"' + wanted.replace('"', '""') + '"'
+        try:
+            row = conn.execute(
+                "SELECT d.id, d.title, d.source FROM docs_fts AS f JOIN docs AS d ON d.id = f.rowid "
+                "WHERE docs_fts MATCH ? AND d.title = ? LIMIT 1",
+                (f"title:{phrase}", wanted),
+            ).fetchone()
+        except sqlite3.OperationalError as exc:
+            logger.debug("Corpus title lookup degraded to none: %s", exc)
+            return None
+        finally:
+            conn.close()
+        if not row:
+            return None
+        return CorpusHit(title=str(row[1]), snippet="", source=str(row[2]), rank=0.0, doc_id=int(row[0]))
+
     # ── status ───────────────────────────────────────────────────────
 
     def document_count(self) -> int:

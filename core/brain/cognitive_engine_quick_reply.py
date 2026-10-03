@@ -902,7 +902,7 @@ class _AnswersTheDesktopDirectly:
         visible_user_message = str(context.get("visible_user_message") or objective or "").strip()
         recent_conversation_context = str(context.get("recent_conversation_context") or "").strip()
         history_messages, history_reach_note = _desktop_history_messages_from_context(
-            context, request=visible_user_message,
+            context,
         )
         discourse_repair_contract = context.get("discourse_repair_contract")
         if isinstance(discourse_repair_contract, dict):

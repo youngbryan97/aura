@@ -55,6 +55,7 @@ __all__ = [
     "EvidenceAlignment",
     "assess_evidence_alignment",
     "assess_evidence_alignments",
+    "EVIDENCE_MATCHED_FLOOR",
     "relevance",
     "prewarm_evidence_relevance",
     "wants_evidence",
@@ -300,6 +301,12 @@ _ALIGNMENT_NEGATIVES: tuple[tuple[str, str], ...] = (
 # side.  The calibration cohort stays beside the value so a model migration
 # can remeasure it rather than inheriting it silently.
 _EVIDENCE_ALIGNMENT_BOUNDARY = 0.50
+
+#: The lowest score a matched pair reached in that calibration. Evidence that
+#: nobody asked for has to clear it: a passage only as close as the boundary
+#: is as near to a mismatched pair as to a matched one, and unrequested text
+#: competes with everything else she is reading.
+EVIDENCE_MATCHED_FLOOR = 0.6892
 
 
 @dataclass(frozen=True, slots=True)

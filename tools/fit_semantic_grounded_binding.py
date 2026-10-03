@@ -76,6 +76,7 @@ def main():
     parser.add_argument("--program-graphs", type=int, default=4)
     parser.add_argument("--program-mining-seconds", type=float, default=10.)
     parser.add_argument("--program-pool-directory", type=Path)
+    parser.add_argument("--program-stall-trace-seconds", type=float, default=60.)
     parser.add_argument("--revalidate-program-pools", type=Path,
                         help="rebuild factors and reprove existing source pools under current implementation")
     parser.add_argument("--calibration-per-stratum", type=int,
@@ -173,6 +174,7 @@ def main():
         pool_directory = args.program_pool_directory or args.directory.parent / (args.directory.name + "-program-pools")
         programs, _pool_report = prepare_program_population(parent, (*fit, *calibration_items), pool_directory,
             reuse_directory=args.revalidate_program_pools,
+            stall_trace_seconds=args.program_stall_trace_seconds,
             max_charts=args.program_charts, max_graphs=args.program_graphs,
             max_seconds=args.program_mining_seconds)
     if not training:

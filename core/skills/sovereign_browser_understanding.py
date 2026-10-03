@@ -48,6 +48,52 @@ _BROWSER_DECISION_ERRORS = (
 _ADVANCING_BUTTON_WORDS = ("next", "continue", "submit", "finish", "start")
 
 
+async def _her_mind_built_now() -> str:
+    """One assembly of her mind from her live state; empty when there is none.
+
+    Lifted out of `_UnderstandsThePage`, which it never read, when the class
+    reached 31 methods against the ceiling of 30; the class keeps the name.
+    """
+    try:
+        from core.brain.llm.context_assembler import ContextAssembler
+
+        # Her live state, from the repository that holds it.
+        #
+        # `aura_state` is registered by nothing: this asked for a key that
+        # does not exist, got None, and returned an empty mind on every
+        # call — 49 times in one boot, each recorded and none read. The
+        # inference gate builds the same prompt from the state repository's
+        # current state, which is where it actually lives.
+        state = optional_service("aura_state", default=None)
+        if state is None:
+            repo = optional_service("state_repository", "state_repo", default=None)
+            state = (
+                getattr(repo, "_current", None)
+                or getattr(repo, "_current_state", None)
+                if repo is not None
+                else None
+            )
+        if state is None:
+            record_degradation(
+                "sovereign_browser.mind_context",
+                RuntimeError("no_current_state"),
+                severity="warning",
+                action="decided without her assembled self-context",
+            )
+            return ""
+        mind = ContextAssembler.build_system_prompt(state)
+        note_the_size_of_her_mind(mind)
+        return mind
+    except _BROWSER_DECISION_ERRORS as exc:
+        record_degradation(
+            "sovereign_browser.mind_context",
+            exc,
+            severity="warning",
+            action="decided without her assembled self-context",
+        )
+        return ""
+
+
 class _UnderstandsThePage(_PlacesHerself):
     """Lifted whole from SovereignBrowserSkill; see sovereign_browser.py."""
 
@@ -452,46 +498,7 @@ class _UnderstandsThePage(_PlacesHerself):
             held["mind"] = mind
         return mind
 
-    async def _her_mind_built_now(self) -> str:
-        """One assembly of her mind from her live state; empty when there is none."""
-        try:
-            from core.brain.llm.context_assembler import ContextAssembler
-
-            # Her live state, from the repository that holds it.
-            #
-            # `aura_state` is registered by nothing: this asked for a key that
-            # does not exist, got None, and returned an empty mind on every
-            # call — 49 times in one boot, each recorded and none read. The
-            # inference gate builds the same prompt from the state repository's
-            # current state, which is where it actually lives.
-            state = optional_service("aura_state", default=None)
-            if state is None:
-                repo = optional_service("state_repository", "state_repo", default=None)
-                state = (
-                    getattr(repo, "_current", None)
-                    or getattr(repo, "_current_state", None)
-                    if repo is not None
-                    else None
-                )
-            if state is None:
-                record_degradation(
-                    "sovereign_browser.mind_context",
-                    RuntimeError("no_current_state"),
-                    severity="warning",
-                    action="decided without her assembled self-context",
-                )
-                return ""
-            mind = ContextAssembler.build_system_prompt(state)
-            note_the_size_of_her_mind(mind)
-            return mind
-        except _BROWSER_DECISION_ERRORS as exc:
-            record_degradation(
-                "sovereign_browser.mind_context",
-                exc,
-                severity="warning",
-                action="decided without her assembled self-context",
-            )
-            return ""
+    _her_mind_built_now = staticmethod(_her_mind_built_now)
 
     @staticmethod
     def _remember_the_place(
@@ -725,7 +732,9 @@ class _UnderstandsThePage(_PlacesHerself):
                         if worked_out_here
                         else int(most_tokens or self.REASON_MAX_TOKENS)
                     ),
-                    hard_output_token_ceiling=True,
+                    # A token count, as every reader of it takes it: the gate
+                    # does not raise max_tokens past a ceiling it is given.
+                    hard_output_token_ceiling=int(most_tokens or self.DECISION_MAX_TOKENS),
                     # The typed lane for "say what was settled": the worker and the
                     # gate's clock both read it, and neither opens the channel.
                     **({} if worked_out_here else {"cognitive_mode": "fast"}),
