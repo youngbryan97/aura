@@ -1497,10 +1497,11 @@ def _assign_typed_arguments(
     binding_chart_solver: Any = None,
     source_text_sha256: str | None = None,
     argument_ownership: Any = None,
+    argument_antecedent: Any = None,
 ) -> _TypedArgumentAssignment | None:
-    """``argument_ownership`` adds log P(operation owns mention) to every option's score.
+    """``argument_ownership`` and ``argument_antecedent`` add log probabilities to option scores.
 
-    See core/learning/semantic_argument_ownership.py.
+    See core/learning/semantic_argument_ownership.py and semantic_argument_antecedent.py.
     """
     import time
 
@@ -1650,6 +1651,8 @@ def _assign_typed_arguments(
     relation_definition_matrices = {}
     operation_spans = tuple(node.span for node in operation_nodes)
     ownership_by_mention: dict[TokenSpan, tuple[float, ...]] = {}
+    antecedents = argument_antecedent and argument_antecedent.scorer(
+        hidden, model.hidden_channels, model.hidden_channel_widths, input_spans, operation_spans)
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1745,6 +1748,7 @@ def _assign_typed_arguments(
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                         + ownership
+                        + (0.0 if antecedents is None else antecedents.log_probabilities(span)[register])
                     )
                     triadic_score = None
                     if model.triadic_binding_heads is not None:

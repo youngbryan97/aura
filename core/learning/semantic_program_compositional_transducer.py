@@ -1041,13 +1041,14 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         operation_chart_proposer: Any = None,
         operation_recognizer: Any = None,
         argument_ownership: Any = None,
+        argument_antecedent: Any = None,
     ) -> SemanticTransductionOutcome:
         """Decode one request; ``operation_recognizer`` replaces operation proposal.
 
         With a recognizer the charts arrive in its evidence order and the first
         one whose arguments assign is kept. See core/learning/semantic_operation_peaks.py.
-        ``argument_ownership`` adds where each mention stands to its argument
-        scores; see core/learning/semantic_argument_ownership.py.
+        ``argument_ownership`` and ``argument_antecedent`` add to argument scores; see
+        core/learning/semantic_argument_ownership.py and semantic_argument_antecedent.py.
         """
         if operation_recognizer is not None and (operation_chart_proposer is not None or binding_chart_solver is not None):
             raise ValueError("an operation recognizer replaces the other proposal hooks, not alongside them")
@@ -1123,6 +1124,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                     binding_chart_solver=binding_chart_solver,
                     source_text_sha256=source_text_sha256,
                     argument_ownership=argument_ownership,
+                    argument_antecedent=argument_antecedent,
                 ),
                 length_penalty=self.operation_length_penalty,
                 joint=operation_recognizer is None
@@ -1139,6 +1141,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                     binding_chart_solver=binding_chart_solver,
                     source_text_sha256=source_text_sha256,
                     argument_ownership=argument_ownership,
+                    argument_antecedent=argument_antecedent,
                 ),
             )
         except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:

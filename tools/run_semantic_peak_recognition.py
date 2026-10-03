@@ -255,6 +255,11 @@ def main() -> int:
         action="store_true",
         help="also fit where-a-mention-stands ownership and add it to argument scores",
     )
+    parser.add_argument(
+        "--argument-antecedent",
+        action="store_true",
+        help="also fit where-each-name-was-given antecedents and add them to argument scores",
+    )
     args = parser.parse_args()
 
     from tools.refit_semantic_argument_proposals import (
@@ -265,6 +270,7 @@ def main() -> int:
     output = args.output.expanduser().absolute()
     configure_refit_environment(output / "report.json")
 
+    from core.learning.semantic_argument_antecedent import fit_argument_antecedent
     from core.learning.semantic_argument_ownership import fit_argument_ownership
     from core.learning.semantic_cohort_diagnosis import audit_semantic_cohort
     from core.learning.semantic_operation_peaks import (
@@ -295,7 +301,8 @@ def main() -> int:
 
     recognizer = fit_peak_operation_recognizer(training)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
-    candidate = PeakRecognitionTransducer(incumbent, recognizer, ownership)
+    antecedent = fit_argument_antecedent(training) if args.argument_antecedent else None
+    candidate = PeakRecognitionTransducer(incumbent, recognizer, ownership, antecedent)
     _write_once(output / "recognizer.json", recognizer.to_dict())
     _write_once(output / "candidate.json", candidate.to_dict())
 
@@ -338,6 +345,7 @@ def main() -> int:
                 incumbent,
                 fit_peak_operation_recognizer(kept),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
+                fit_argument_antecedent(kept) if args.argument_antecedent else None,
             )
             fold_audit = audit_semantic_cohort(
                 fold_candidate,
@@ -416,6 +424,7 @@ def main() -> int:
             "recognizer": recognizer.identity_sha256,
             "recognizer_fit": dict(recognizer.fit_receipt),
             "argument_ownership": None if ownership is None else ownership.to_dict(),
+            "argument_antecedent": None if antecedent is None else antecedent.to_dict(),
             "development_audit_receipt_sha256": audit["receipt_sha256"],
             "incumbent_cohort_receipt_sha256": incumbent_report["receipt_sha256"],
             "development": comparison,
