@@ -544,7 +544,7 @@ async def decide_the_next_move(
         answering=answering,
         lattice=lattice,
     )
-    laid_out = _decide_the_next_move_laid_out(confirmed_here, got_to, lattice, moves, pending, whole)
+    laid_out = _decide_the_next_move_laid_out(confirmed_here, got_to, lattice, moves, pending, whole, observation)
     # A goal that is a layout is met by where things are, which no text on the
     # screen says, and it has to be seen before the next move undoes it. So
     # the board is asked here, and a made layout is not moved out of.

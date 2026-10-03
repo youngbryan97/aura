@@ -136,3 +136,15 @@ def test_the_rules_are_read_out_once_a_run(monkeypatch):
         looking.MOVES_SAID.reset(token)
     assert len(said) == 1 and said[0].startswith("It says: Bump into the cars")
     assert can_do.on_screen == ('click "Forward"',)
+
+
+def test_a_title_over_a_button_is_not_a_paragraph():
+    """LIVE 2026-10-03 08:15: "It says: GLONFA DOR START", and START was never pressed."""
+    from core.skills.screen_pursuit_bearings import things_to_click
+
+    layout = [
+        _line("CLONE-A-DOODLE DOO", 0.30, height=0.10),
+        _line("START", 0.42, x=0.4, width=0.2, height=0.04),
+    ]
+    offered = things_to_click({"layout": layout}, drawn_where=(0, 0, 1, 1))
+    assert 'click "START"' in offered

@@ -310,6 +310,7 @@ def _decide_the_next_move_laid_out(
     moves: Any,
     pending: Any,
     whole: Any,
+    observation: Any = None,
 ) -> Any:
     from .screen_pursuit_decision import (
         _is_a_thing_laid_out,
@@ -343,7 +344,13 @@ def _decide_the_next_move_laid_out(
     # replaced the moment the places that answer settle into something
     # else, because that one is about what she can act on and this one is
     # only about what is drawn.
-    if not lattice.held and _is_a_thing_laid_out(laid_out):
+    #
+    # And only where what is drawn is a grid of places. Words set out in rows
+    # and columns are not a board: LIVE 2026-10-03 08:15, a game's title screen
+    # was held as "a 4 by 2 thing", and the next screen was said to be "not
+    # where I should be" because it was a 4 by 3 one.
+    pixels = observation is None or the_pixels_show_a_grid(observation)
+    if not lattice.held and pixels and _is_a_thing_laid_out(laid_out):
         down, across = laid_out.down_at, laid_out.across_at
         if len(down) >= 2 and len(across) >= 2:
             corners = [

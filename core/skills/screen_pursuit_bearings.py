@@ -164,8 +164,14 @@ def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -
             continue
         overlaps = ox < x + width and x < ox + owidth
         line = min(height, oheight)
+        # One paragraph is set in one size of type. A game's name over its
+        # START button is two sizes, one line apart: LIVE 2026-10-03 08:15 the
+        # pair was read out as "It says: GLONFA DOR START" and START was never
+        # pressed. What reading text gives as one size differs by a fraction
+        # of a line; a title differs from the line under it by half again.
+        one_size = max(height, oheight) < line * 1.5
         below, above = oy - (y + height), y - (oy + oheight)
-        if overlaps and (0.0 <= below < line or 0.0 <= above < line):
+        if overlaps and one_size and (0.0 <= below < line or 0.0 <= above < line):
             return True
     return False
 
