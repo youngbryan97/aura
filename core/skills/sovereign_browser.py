@@ -380,18 +380,16 @@ async def _understand_the_page_again(
     2.
     """
     if understanding is None or surprised:
+        prior, url = understanding, str(observation.get("url") or "")
         understanding = await self._understand_page(
-            goal,
-            observation,
-            understanding,
-            mind,
-            self._recall_about(str(observation.get("url") or ""), shape),
+            goal, observation, prior, mind, self._recall_about(url, shape)
         )
         surprised = False
-        self._remember_the_place(
-            str(observation.get("url") or ""), understanding, shape
-        )
-        say_what_she_makes_of_the_page(self, understanding or {}, observation, goal)
+        self._remember_the_place(url, understanding, shape)
+        # A reading that failed hands the last one back; that is not news, and
+        # its names for controls belong to the page it was made on.
+        if understanding != prior:
+            say_what_she_makes_of_the_page(self, understanding or {}, observation, goal)
     return surprised, understanding
 
 
@@ -1733,7 +1731,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 if decision is None:
                     decision = await self._decide_next_actions(
                         goal, observation, steps, understanding, said_before=said_before,
-                        noticed=noticed, settled=understanding is not understood_before,
+                        noticed=noticed, settled=understanding != understood_before,
                     )
                 # Every decision said out loud, the moment it is made — the
                 # ones that act and the ones that do not — and left up long

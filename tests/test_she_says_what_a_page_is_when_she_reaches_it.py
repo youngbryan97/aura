@@ -102,3 +102,35 @@ def test_a_place_in_her_list_is_given_as_the_control_it_names():
     # A place that names nothing she was shown is left as she said it.
     assert in_words_the_watcher_can_follow("press [7]", offered) == "press [7]"
     assert in_words_the_watcher_can_follow("nothing listed here", offered) == "nothing listed here"
+
+
+def test_a_reading_that_failed_is_not_said_again():
+    """LIVE 2026-10-03 04:02: the questionnaire's reading failed, the intro
+    page's came back, and it was said as "What I see" with its "Start"
+    named by the questionnaire's controls."""
+    from core.skills import sovereign_browser as sb
+
+    said: list[str] = []
+    before = {"here": "The intro page", "to_progress": "Press Start"}
+
+    class _Her:
+        async def _understand_page(self, _goal: Any, _obs: Any, prior: Any, *_a: Any) -> dict:
+            return dict(prior or {})
+
+        def _recall_about(self, *_a: Any) -> str:
+            return ""
+
+        def _remember_the_place(self, *_a: Any) -> None:
+            return None
+
+        @staticmethod
+        def _say_out_loud(line: str, _parts: Any) -> None:
+            said.append(line)
+
+    surprised, kept = asyncio.run(
+        sb._understand_the_page_again(
+            goal="g", mind="", observation={"url": "https://a.example/1"}, self=_Her(),
+            shape="", surprised=True, understanding=before,
+        )
+    )
+    assert kept == before and said == []
