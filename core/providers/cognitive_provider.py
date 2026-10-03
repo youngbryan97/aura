@@ -84,6 +84,88 @@ def is_apple_silicon_host(
         return False
 
 
+def _register_the_engines_of_phase_xxii(container: object) -> None:
+    """Register the cognitive engines added in phase XXII: learning, acting, proof and critique.
+
+    Moved whole out of ``register_cognitive_services``, of which it was the last
+    part, by tools/extract_seam.py; the body is the block as it stood.
+    """
+    def create_continuous_learner():
+        try:
+            from core.learning.genuine_learning_pipeline import register_continuous_learner
+            return register_continuous_learner()
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to create continuous_learner")
+            return None
+    container.register('continuous_learner', create_continuous_learner, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
+
+    # ReAct Loop
+    def create_react_loop():
+        try:
+            from core.brain.react_loop import ReActLoop
+            engine = container.get("cognitive_engine")
+            orch = container.get("orchestrator", default=None)
+            return ReActLoop(brain=engine, orchestrator=orch)
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to create react_loop")
+            return None
+    container.register('react_loop', create_react_loop, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
+
+    # Personality Bridge (Systemic Influence)
+    def create_personality_bridge():
+        try:
+            from core.brain.personality_bridge import PersonalityBridge
+            return PersonalityBridge()
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to create personality_bridge")
+            return None
+    container.register('personality_bridge', create_personality_bridge, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
+
+    # Proof kernel: trusted checker + theorem ledger (Lean-style de Bruijn
+    # criterion over the tableau prover). The ledger is the live surface for
+    # the axiom audit and admitted-claim (sorry) accounting.
+    def create_proof_kernel():
+        try:
+            from core.reasoning.proof_kernel import get_theorem_ledger
+            return get_theorem_ledger()
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to create proof_kernel")
+            return None
+    container.register('proof_kernel', create_proof_kernel, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
+
+    # Phase 25: Critic Engine
+    def create_critic_engine():
+        try:
+            from core.reasoning.critic_engine import get_critic_engine
+            return get_critic_engine()
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to create critic_engine")
+            return None
+    container.register('critic_engine', create_critic_engine, lifetime=SERVICE_LIFETIME_SINGLETON, required=True)
+
+    # Phase 29: Agent Swarm Delegator
+    def create_agent_delegator():
+        try:
+            from core.collective.delegator import AgentDelegator
+            orch = container.get("orchestrator", default=None)
+            return AgentDelegator(orchestrator=orch)
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to create agent_delegator")
+            return None
+    container.register('agent_delegator', create_agent_delegator, lifetime=SERVICE_LIFETIME_SINGLETON, required=True)
+
+    # Paraconsistent Logic Core (holds contradictory beliefs without crashing)
+    def create_paraconsistent_engine():
+        try:
+            from core.cognition.paraconsistent_logic import ParaconsistentEngine
+            return ParaconsistentEngine()
+        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
+            logger.exception("Failed to create paraconsistent_engine")
+            return None
+    container.register('paraconsistent_engine', create_paraconsistent_engine, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
+
+
+
 def register_cognitive_services(container, is_proxy: bool = False):
     def create_spiking_active_inference():
         from core.cognitive.spiking_active_inference import SpikingActiveInferenceAdvisor
@@ -422,76 +504,4 @@ def register_cognitive_services(container, is_proxy: bool = False):
     # --- New Cognitive Engines (Phase XXII) ---
 
     # Continuous Learner
-    def create_continuous_learner():
-        try:
-            from core.learning.genuine_learning_pipeline import register_continuous_learner
-            return register_continuous_learner()
-        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
-            logger.exception("Failed to create continuous_learner")
-            return None
-    container.register('continuous_learner', create_continuous_learner, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
-
-    # ReAct Loop
-    def create_react_loop():
-        try:
-            from core.brain.react_loop import ReActLoop
-            engine = container.get("cognitive_engine")
-            orch = container.get("orchestrator", default=None)
-            return ReActLoop(brain=engine, orchestrator=orch)
-        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
-            logger.exception("Failed to create react_loop")
-            return None
-    container.register('react_loop', create_react_loop, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
-
-    # Personality Bridge (Systemic Influence)
-    def create_personality_bridge():
-        try:
-            from core.brain.personality_bridge import PersonalityBridge
-            return PersonalityBridge()
-        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
-            logger.exception("Failed to create personality_bridge")
-            return None
-    container.register('personality_bridge', create_personality_bridge, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
-
-    # Proof kernel: trusted checker + theorem ledger (Lean-style de Bruijn
-    # criterion over the tableau prover). The ledger is the live surface for
-    # the axiom audit and admitted-claim (sorry) accounting.
-    def create_proof_kernel():
-        try:
-            from core.reasoning.proof_kernel import get_theorem_ledger
-            return get_theorem_ledger()
-        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
-            logger.exception("Failed to create proof_kernel")
-            return None
-    container.register('proof_kernel', create_proof_kernel, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
-
-    # Phase 25: Critic Engine
-    def create_critic_engine():
-        try:
-            from core.reasoning.critic_engine import get_critic_engine
-            return get_critic_engine()
-        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
-            logger.exception("Failed to create critic_engine")
-            return None
-    container.register('critic_engine', create_critic_engine, lifetime=SERVICE_LIFETIME_SINGLETON, required=True)
-
-    # Phase 29: Agent Swarm Delegator
-    def create_agent_delegator():
-        try:
-            from core.collective.delegator import AgentDelegator
-            orch = container.get("orchestrator", default=None)
-            return AgentDelegator(orchestrator=orch)
-        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
-            logger.exception("Failed to create agent_delegator")
-            return None
-    container.register('agent_delegator', create_agent_delegator, lifetime=SERVICE_LIFETIME_SINGLETON, required=True)
-
-    # Paraconsistent Logic Core (holds contradictory beliefs without crashing)
-    def create_paraconsistent_engine():
-        try:
-            from core.cognition.paraconsistent_logic import ParaconsistentEngine
-            return ParaconsistentEngine()
-        except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS:
-            logger.exception("Failed to create paraconsistent_engine")
-            return None
-    container.register('paraconsistent_engine', create_paraconsistent_engine, lifetime=SERVICE_LIFETIME_SINGLETON, required=False)
+    _register_the_engines_of_phase_xxii(container)

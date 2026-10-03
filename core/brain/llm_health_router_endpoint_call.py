@@ -1326,36 +1326,10 @@ class _CallsTheEndpoint:
 
         try:
             client_generation_metadata_sink: dict[str, Any] = {}
+            benchmark_request, clean_kwargs = self._call_endpoint_sanitize_kwargs_json(kwargs, schema)
 
             def _call_kwargs(method: Any) -> dict[str, Any]:
-                try:
-                    sig = inspect.signature(method)
-                except (TypeError, ValueError):
-                    return dict(clean_kwargs)
-
-                if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()):
-                    payload = dict(clean_kwargs)
-                    payload.setdefault("timeout", timeout)
-                    if "_generation_metadata_sink" in sig.parameters:
-                        payload["_generation_metadata_sink"] = (
-                            client_generation_metadata_sink
-                        )
-                    return payload
-
-                payload = {
-                    key: value
-                    for key, value in clean_kwargs.items()
-                    if key in sig.parameters
-                }
-                if "timeout" in sig.parameters:
-                    payload["timeout"] = timeout
-                if "_generation_metadata_sink" in sig.parameters:
-                    payload["_generation_metadata_sink"] = (
-                        client_generation_metadata_sink
-                    )
-                return payload
-
-            benchmark_request, clean_kwargs = self._call_endpoint_sanitize_kwargs_json(kwargs, schema)
+                return _the_arguments_it_takes(method, clean_kwargs, timeout, client_generation_metadata_sink)
 
             # 2. Use Client Adapter if provided
             if ep.client:
@@ -1806,6 +1780,36 @@ class _CallsTheEndpoint:
 #: The states a lane passes through on its way up. Not given work, and not
 #: failing: see ``_extract_lane_failure`` in the router.
 _ON_THE_WAY_UP = frozenset({"recovering", "spawning", "handshaking", "warming"})
+
+
+def _the_arguments_it_takes(
+    method: Any, clean_kwargs: dict[str, Any], timeout: float, sink: dict[str, Any]
+) -> dict[str, Any]:
+    """The request's arguments cut to what this client method accepts, with its timeout and sink.
+
+    Lifted out of ``_CallsTheEndpoint._call_endpoint``, where it was a closure
+    over the same three values.
+    """
+    import inspect
+
+    try:
+        sig = inspect.signature(method)
+    except (TypeError, ValueError):
+        return dict(clean_kwargs)
+
+    if any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values()):
+        payload = dict(clean_kwargs)
+        payload.setdefault("timeout", timeout)
+        if "_generation_metadata_sink" in sig.parameters:
+            payload["_generation_metadata_sink"] = sink
+        return payload
+
+    payload = {key: value for key, value in clean_kwargs.items() if key in sig.parameters}
+    if "timeout" in sig.parameters:
+        payload["timeout"] = timeout
+    if "_generation_metadata_sink" in sig.parameters:
+        payload["_generation_metadata_sink"] = sink
+    return payload
 
 
 def _a_lane_still_coming_up(error: object) -> bool:
