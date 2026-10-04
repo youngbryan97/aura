@@ -1653,6 +1653,8 @@ def _assign_typed_arguments(
     ownership_by_mention: dict[TokenSpan, tuple[float, ...]] = {}
     antecedents = argument_antecedent and argument_antecedent.scorer(
         hidden, model.hidden_channels, model.hidden_channel_widths, input_spans, operation_spans)
+    used_by_name = antecedents.inputs_used_by_name(
+        [span for proposals in proposals_by_operation for span, _score in proposals]) if antecedents else frozenset()
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):
@@ -1672,7 +1674,8 @@ def _assign_typed_arguments(
             for span, pointer_score in proposals_by_operation[node_index]:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
-                if antecedents is not None and antecedents.names_own_result(span, len(inputs) + node_index):
+                if antecedents and (antecedents.names_own_result(span, len(inputs) + node_index)
+                                    or antecedents.is_declaration_of(span, used_by_name)):
                     continue
                 ownership = 0.0
                 if argument_ownership is not None:

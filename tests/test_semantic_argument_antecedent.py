@@ -195,3 +195,22 @@ def test_a_mention_that_names_an_operations_own_result_is_not_its_input() -> Non
         # The multiply's first mention names the add's result: that is the add's own result.
         assert scorer.names_own_result(mention, named) is expected
         assert scorer.names_own_result(item.ir.input_spans[0], 0) is False
+
+
+def test_an_input_named_elsewhere_is_used_through_its_name() -> None:
+    from dataclasses import replace
+
+    ruled = replace(fit_argument_antecedent(TRAINING), named_inputs_are_used_by_name=True)
+    assert argument_antecedent_from_dict(ruled.to_dict()).named_inputs_are_used_by_name is True
+    item = _request("test", ("refined", "spare"), 11)
+    operations = [instruction.operation_span for instruction in item.ir.instructions]
+    scorer = ruled.scorer(item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations)
+    # "b" is named in the add and the subtraction, so its literal "2" is a declaration, not a use.
+    mentions = [span for step in item.ir.instructions for span in step.argument_spans]
+    named = scorer.inputs_used_by_name(mentions)
+    assert 1 in named
+    assert scorer.is_declaration_of(item.ir.input_spans[1], named)
+    plain = fit_argument_antecedent(TRAINING).scorer(
+        item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations
+    )
+    assert plain.inputs_used_by_name(mentions) == frozenset()

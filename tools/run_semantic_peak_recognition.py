@@ -272,6 +272,11 @@ def main() -> int:
         help="keep a mention the antecedent says names an operation's own result out of its arguments",
     )
     parser.add_argument(
+        "--named-inputs-are-used-by-name",
+        action="store_true",
+        help="do not offer an input's literal declaration when a mention names the input",
+    )
+    parser.add_argument(
         "--antecedent-fit",
         choices=("pairwise", "conditional"),
         default="pairwise",
@@ -320,7 +325,8 @@ def main() -> int:
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
         replace(fit_argument_antecedent(training, objective=args.antecedent_fit), scoring=args.antecedent_scoring,
-                own_result_is_not_an_input=args.own_result_is_not_an_input)
+                own_result_is_not_an_input=args.own_result_is_not_an_input,
+                named_inputs_are_used_by_name=args.named_inputs_are_used_by_name)
         if args.argument_antecedent else None
     )
     candidate = PeakRecognitionTransducer(incumbent, recognizer, ownership, antecedent)
@@ -367,7 +373,8 @@ def main() -> int:
                 fit_peak_operation_recognizer(kept),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
                 replace(fit_argument_antecedent(kept, objective=args.antecedent_fit), scoring=args.antecedent_scoring,
-                        own_result_is_not_an_input=args.own_result_is_not_an_input)
+                        own_result_is_not_an_input=args.own_result_is_not_an_input,
+                        named_inputs_are_used_by_name=args.named_inputs_are_used_by_name)
                 if args.argument_antecedent else None,
             )
             fold_audit = audit_semantic_cohort(

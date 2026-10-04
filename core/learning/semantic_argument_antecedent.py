@@ -240,6 +240,11 @@ class ArgumentAntecedent:
     #: as the primary result" names the subtraction just made; on
     #: scalar_branch_weave_five-0-1 the subtraction took it as its minuend.
     own_result_is_not_an_input: bool = False
+    #: Whether an input the request refers to by name is used through the name
+    #: and not through its literal declaration. On scalar_branch_weave_five-0-0
+    #: "turbine reserve = 6283" and "83651" were taken as arguments over
+    #: "turbine reserve" and "return flow", the names that use them.
+    named_inputs_are_used_by_name: bool = False
 
     def __post_init__(self) -> None:
         if len(self.weight) != len(FEATURES) or not all(
@@ -275,6 +280,7 @@ class ArgumentAntecedent:
             "fit_receipt": dict(self.fit_receipt),
             **({"scoring": self.scoring} if self.scoring != "absolute" else {}),
             **({"own_result_is_not_an_input": True} if self.own_result_is_not_an_input else {}),
+            **({"named_inputs_are_used_by_name": True} if self.named_inputs_are_used_by_name else {}),
         }
 
     @property
@@ -325,6 +331,26 @@ class _AntecedentScorer:
         values = self.log_probabilities(mention)
         return int(np.argmax(values)) == own_register
 
+    def inputs_used_by_name(self, mentions: Sequence[TokenSpan]) -> frozenset[int]:
+        """Inputs some non-literal mention most probably names; empty unless the readout carries the rule."""
+        if not self.readout.named_inputs_are_used_by_name:
+            return frozenset()
+        named = set()
+        for mention in mentions:
+            if _literal(mention, self.input_spans):
+                continue
+            best = int(np.argmax(self.log_probabilities(mention)))
+            if best < self.input_count:
+                named.add(best)
+        return frozenset(named)
+
+    def is_declaration_of(self, mention: TokenSpan, named: frozenset[int]) -> bool:
+        """Whether ``mention`` is the literal of an input in ``named``."""
+        return any(
+            index in named and mention.start < span.end and span.start < mention.end
+            for index, span in enumerate(self.input_spans)
+        )
+
     def score(self, mention: TokenSpan, register: int) -> float:
         """The term added to an argument option's score, by the readout's scoring."""
         values = self.log_probabilities(mention)
@@ -346,6 +372,7 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
         dict(value["fit_receipt"]),
         str(value.get("scoring", "absolute")),
         bool(value.get("own_result_is_not_an_input", False)),
+        bool(value.get("named_inputs_are_used_by_name", False)),
     )
 
 
