@@ -206,6 +206,8 @@ def test_what_did_you_learn_reads_back_what_the_last_lookup_read(judge, monkeypa
     # Another conversation's reading, or a question about something else, is not carried.
     assert not answer_from_earlier_reading(WorldEvidence(), "What did you learn?", "session-b")
     assert not answer_from_earlier_reading(WorldEvidence(), "what did you learn about physics in school", "session-a")
+    # Asking her to repeat herself is not asking what the lookup found.
+    assert not answer_from_earlier_reading(WorldEvidence(), "What did you say?", "session-a")
 
 
 def test_her_training_ledger_does_not_answer_a_question_about_a_lookup(monkeypatch) -> None:

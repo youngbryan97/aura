@@ -149,8 +149,10 @@ _ASKS_WHAT_WAS_FOUND = LearnedMatcher(
 #: about it?"). Exact where it applies; the learned surface takes the rest.
 _FOUND_QUESTION = re.compile(
     r"^\s*(?:(?:so|and|ok|okay|well)[\s,]+)?what\s+(?:did|have|has)\s+"
-    r"(?:you|it|they|the\s+\w+(?:\s+\w+)?)\s+"
-    r"(?:learn(?:ed|t)?|find|found|read|see|seen|discover(?:ed)?|say|said)"
+    # She learns, finds or reads; a source says or shows. "What did you say?"
+    # asks her to repeat herself, not what a lookup found.
+    r"(?:you\s+(?:learn(?:ed|t)?|find|found|read|discover(?:ed)?)"
+    r"|(?:it|they|the\s+\w+(?:\s+\w+)?)\s+(?:say|said|show|showed|find|found))"
     r"(?:\s+(?:from|about|in|on)\s+(?:it|that|this|there|them|him|her|the\s+\w+(?:\s+\w+)?))?"
     r"[\s?.!]*$",
     re.IGNORECASE,
