@@ -1494,8 +1494,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   mention back to the clause that gave its name, in her input embedding and
   middle layer, fitted on training rows: composition 45 and 47 of 48 against
   31 and 31 for the incumbent on a quiet machine (30 gains, no losses),
-  validation 497 of 500, train 763 of 764, folds 734 of 764. G03 stays open
-  on four composition requests, one training row and three validation rows.
+  validation 497 of 500, train 763 of 764, folds 734 of 764. [How common a
+  matched word is](evidence/G03_IDENTICAL_SHARE_AND_SCORING_2026-10-03.md)
+  stops an exact match on a word the request uses everywhere from counting as
+  a name: composition 47 and 48 of 48 against 31 and 31 (33 gains, no
+  losses), validation 498, train 762, folds 736. Scoring the antecedent
+  relative to each span's best register gives 46 and 47, train 763. G03 stays
+  open on one composition request, two training rows and two validation rows.
   [Preparation stall replay](evidence/G03_PREPARATION_STALL_REPLAY_2026-10-03.md)
   records the v2 terminal timeout after 444 completed pools. Its handoff
   refused training. The next unfinished source completed against unchanged
