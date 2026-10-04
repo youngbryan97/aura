@@ -29,9 +29,11 @@ ways, none of which depends on how the request is phrased:
   conversation's most recent lookup read, since it names nothing of its own;
 * the offline corpus is consulted for every phrase of the request that names
   something. It is local and private, and a lookup takes milliseconds. The
-  web is consulted beyond an explicit request only where the existing
-  outside-evidence decision asks for it, so nothing a person says is sent to a
-  search engine unasked.
+  web is consulted beyond an explicit request where the existing
+  outside-evidence decision asks for it, and for a factual question about a
+  named thing that the offline copy does not answer, or answers only in part:
+  its best source scores below the median the judge's own matched pairs
+  reach. A remark that asks nothing is never sent to a search engine.
 
 What is admitted is decided by the calibrated evidence-alignment judge in
 core/cognition/evidence_relevance.py, not by shared words, and what reaches her
@@ -325,6 +327,28 @@ def _from_corpus(phrases: Sequence[str], terms: Sequence[str], *, store: Any) ->
     return candidates
 
 
+def _answers_only_in_part(question: str, local: Sequence[WorldSource]) -> bool:
+    """A factual question about a named thing that the offline copy leaves open.
+
+    LIVE 2026-10-03: "Who designed the Kaseya Center, and what did it cost to
+    build?" was answered from the offline article (0.69, the bottom of the
+    judge's matched range); the cost was not in it, and she said she would
+    want to verify it rather than look. Bryan: something should decide to
+    look elsewhere, or double-check online.
+    """
+    from core.conversation.asks_about_the_world import asks_about_a_named_thing
+
+    if not asks_about_a_named_thing(question):
+        return False
+    from core.cognition.evidence_relevance import matched_alignment_median
+
+    median = matched_alignment_median()
+    if median is None:
+        return False
+    best = max((source.score for source in local if source.score is not None), default=None)
+    return best is None or best < median
+
+
 async def gather_world_evidence(
     request: str,
     *,
@@ -381,7 +405,7 @@ async def gather_world_evidence(
     )
     evidence.sources.extend(local[:3])
 
-    if search is not None and (asked_for or (outside_wanted and not local)):
+    if search is not None and (asked_for or (outside_wanted and not local) or _answers_only_in_part(question, local)):
         query = asked_for or question
         try:
             results = await asyncio.wait_for(search(query), timeout=remaining())

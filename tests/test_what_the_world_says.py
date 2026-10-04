@@ -268,3 +268,22 @@ def test_an_offline_source_says_when_the_copy_was_taken(judge, tmp_path) -> None
 
     (tmp_path / "ingest.log").write_text("2026-07-03 16:34:41,149 INFO ingest progress: 20000 pages\n")
     assert LocalCorpusStore(tmp_path / "corpus.db").snapshot_date() == "2026-07-03"
+
+
+def test_a_question_the_offline_copy_answers_only_in_part_is_looked_up(judge, monkeypatch) -> None:
+    """LIVE 2026-10-03: the Kaseya Center's cost was not in the offline article, and nothing looked further."""
+    from core.cognition import evidence_relevance as relevance
+
+    monkeypatch.setattr(relevance, "matched_alignment_median", lambda: 0.78)
+    asked: list[str] = []
+
+    async def search(query):
+        asked.append(query)
+        return [{"title": "Bam's 83", "url": "https://news.example/bam", "text": "Bam Adebayo scored 83 points."}]
+
+    # The stand-in judge scores these articles 0.75: matched, but below a typical matched pair.
+    evidence = asyncio.run(gather_world_evidence("Who did Bam score 83 against?", store=_Corpus(), search=search))
+    assert asked == ["Who did Bam score 83 against?"] and evidence.searched == asked
+    # A remark that asks nothing is still never searched.
+    asyncio.run(gather_world_evidence("My friend Sarah thinks Bam is overrated", store=_Corpus(), search=search))
+    assert asked == ["Who did Bam score 83 against?"]

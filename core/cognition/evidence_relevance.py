@@ -56,6 +56,7 @@ __all__ = [
     "assess_evidence_alignment",
     "assess_evidence_alignments",
     "EVIDENCE_MATCHED_FLOOR",
+    "matched_alignment_median",
     "relevance",
     "prewarm_evidence_relevance",
     "wants_evidence",
@@ -624,6 +625,31 @@ def assess_evidence_alignment(request: Any, evidence: Any) -> EvidenceAlignment:
     """
 
     return assess_evidence_alignments(request, (evidence,))[0]
+
+
+_MATCHED_MEDIAN: list[float | None] = []
+
+
+def matched_alignment_median() -> float | None:
+    """The median score the calibration's matched pairs reach with the encoder running now.
+
+    A passage at the bottom of the matched range answers its question only in
+    part; one at the median answers it as well as a typical matched pair. None
+    when the encoder cannot measure. Measured once per process.
+    """
+    if _MATCHED_MEDIAN:
+        return _MATCHED_MEDIAN[0]
+    scores = []
+    for question, passage in _ALIGNMENT_POSITIVES:
+        verdict = assess_evidence_alignment(question, passage)
+        if not verdict.measured or verdict.score is None:
+            return None
+        scores.append(float(verdict.score))
+    scores.sort()
+    middle = len(scores) // 2
+    median = scores[middle] if len(scores) % 2 else (scores[middle - 1] + scores[middle]) / 2
+    _MATCHED_MEDIAN.append(median)
+    return median
 
 
 def assess_evidence_alignments(request: Any, passages: Sequence[Any]) -> list[EvidenceAlignment]:
