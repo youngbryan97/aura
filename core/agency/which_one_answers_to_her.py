@@ -25,11 +25,14 @@ Nothing here is told which thing is hers, or which keys do what.
 """
 from __future__ import annotations
 
+import logging
 import math
 import statistics
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["Makes", "WhichIsHers"]
 
@@ -323,6 +326,11 @@ class WhichIsHers:
                 continue
             self.number, self.kind, self.follows_pointer = nearest[kind].number, kind, True
             self.follows_along = along
+            thing = nearest[kind]
+            logger.info(
+                "follows the pointer: thing %s of kind %s at (%.0f, %.0f), %dx%d, along %s, over %d pictures",
+                thing.number, kind, thing.x, thing.y, thing.w, thing.h, along, len(seen),
+            )
             return
 
     def _still_follows(self, moves: Any, at: float) -> None:

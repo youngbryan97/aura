@@ -43,10 +43,6 @@ logger = logging.getLogger("Aura.PlayingAsItHappens")
 
 __all__ = ["controls_named_in", "play_as_it_happens", "the_world_moves_on_its_own"]
 
-#: How soon after something last moved a picture must have been taken for its
-#: words to count as seen during play.
-MOVING_WHEN_READ_S = 0.3
-
 #: How long each key is held while she finds out what it does.
 TRY_A_KEY_S = 0.45
 
@@ -116,7 +112,10 @@ class _Run:
     meeting_now: float = 0.0
     told_checked: set[int] = field(default_factory=set)
     #: Every line of writing read on the screen during the stretch.
-    words_seen: set[str] = field(default_factory=set)
+    #: When something was first seen moving in this stretch.
+    first_moving: float = math.inf
+    #: Every reading's words, with when its picture was taken.
+    words_read: list[tuple[float, str]] = field(default_factory=list)
     situation: str = ""
     situation_at: float = -math.inf
     met: list[tuple[float, float]] = field(default_factory=list)
@@ -487,16 +486,13 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
     if run.reading is not None and run.reading.done():
         regions, when = run.reading.result()
         run.reading = None
-        # Words on screen while it was moving are the game's furniture. The
-        # still screen at the end is not: LIVE 2026-10-04 she read "Press
-        # SPACE to play again" in the seconds the end screen stood before her
-        # play noticed nothing moved, so the restart that ended a won game
-        # was taken for furniture, and she started another game.
-        while_moving = when - run.last_moving < MOVING_WHEN_READ_S
-        for region in regions if while_moving else ():
+        # Words on screen while it was moving are the game's furniture; the
+        # still screen at the end is not. Which readings came from that end
+        # is settled when the stretch ends (see _the_words_of_play).
+        for region in regions:
             said = " ".join(str(region.get("text") or "").lower().split())
-            if said and len(run.words_seen) < 200:
-                run.words_seen.add(said)
+            if said and len(run.words_read) < 400:
+                run.words_read.append((when, said))
         mine = hers.thing(moves)
         her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
         for verdict in meeting.read(regions, when, her_x):
@@ -610,8 +606,11 @@ async def _point_at(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves, 
 def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float) -> str:
     if any(h.get("what") == "new screen" for h in happened):
         run.new_screen_at = at
-    if moves.moving(faster_than=8.0):
+    # Motion seen in this picture, not a thing carried on along its last speed
+    # because it was not seen.
+    if any(thing.seen == at for thing in moves.moving(faster_than=8.0)):
         run.last_moving = at
+        run.first_moving = min(run.first_moving, at)
     still = at - run.last_moving
     if at - run.new_screen_at < STILL_FOR_S and still >= NEW_SCREEN_STILL_S and at - run.began > 2.0:
         return "the screen changed and nothing on it moves"
@@ -938,6 +937,27 @@ def _where_to_meet_things(run: _Run, choosing: _Choosing, meeting: WhatMeetingDo
     run.credited_up_to = len(meeting.verdicts)
 
 
+def _the_words_of_play(run: _Run, ended: str) -> set[str]:
+    """The words read while the game was going, not those of the screen it ended on.
+
+    A stretch that ended because nothing moved ended on a still screen, and
+    whatever was read from the moment movement stopped (and a little before:
+    readings are taken from pictures a step behind) is that screen's. LIVE
+    2026-10-04 "to play again" was read in the seconds the end screen stood,
+    kept as a word of play, and so the restart that ended a won game was taken
+    for the game's furniture and she started another.
+    """
+    still = ended.startswith(("nothing on the screen", "the screen changed"))
+    cutoff = run.last_moving - END_SCREEN_MARGIN_S if still else math.inf
+    # Nor the screen it began on, read before anything had moved: a stretch
+    # begun as the last game's end screen gave way is not that screen's game.
+    return {said for when, said in run.words_read if run.first_moving <= when < cutoff}
+
+
+#: How long before the last movement a reading may already show the end.
+END_SCREEN_MARGIN_S = 0.5
+
+
 def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
                      ended: str, began: float) -> dict[str, Any]:
     took = max(1e-6, time.monotonic() - began)
@@ -958,5 +978,5 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "losses": run.losses,
         "counters": dict(meeting.readouts.values),
         "said": list(run.lines),
-        "words_seen": sorted(run.words_seen),
+        "words_seen": sorted(_the_words_of_play(run, ended)),
     }

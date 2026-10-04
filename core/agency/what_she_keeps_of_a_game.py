@@ -1,9 +1,9 @@
 """What her fast way of playing keeps of one game, for the next time she plays it.
 
 Lose a game and play it again, and the second run should not start from
-nothing: which kind of thing is hers, which kinds of thing are to be met and
-which kept clear of, how things move here and what the walls do, which part
-of her paddle wins points. What her keys do is not taken on trust from last
+nothing: which kinds of thing are to be met and which kept clear of, how
+things move here and what the walls do, which part of her paddle wins points.
+Which thing is hers and what her keys do are not taken on trust from last
 time: a few seconds of trying them settles it again. All of that is kept
 under the game's own name and given back only to the same game. Another game gets none of it unless
 it is the same game, because what is true of one world's bombs and walls is
@@ -23,10 +23,11 @@ def to_keep(keep: dict[str, Any]) -> dict[str, Any]:
     """The plain-data form of what one stretch of play left in ``keep``."""
     held: dict[str, Any] = {}
     kinds = keep.get("kinds") or []
-    held["kinds"] = [
-        {"colour": list(kind.colour), "size": round(float(kind.size), 2), "look": [round(float(v), 4) for v in kind.look]}
-        for kind in kinds
-    ]
+    # Colour and size, which is what a kind is matched by. Its colour mix is
+    # a fixed-length vector that a long record is cut down by halving its
+    # longest lists, and halved it stopped play (offline 2026-10-04); seen
+    # again, it is rebuilt in a second.
+    held["kinds"] = [{"colour": list(kind.colour), "size": round(float(kind.size), 2)} for kind in kinds]
     hers = keep.get("hers")
     if hers is not None and hers.kind is not None:
         held["hers"] = {
@@ -67,28 +68,22 @@ def to_keep(keep: dict[str, Any]) -> dict[str, Any]:
 def kept_from(held: dict[str, Any]) -> dict[str, Any]:
     """``keep`` rebuilt from what was kept, for the first stretch of a game played before."""
     from core.agency.what_meeting_things_does import WhatMeetingDoes, _Evidence
-    from core.agency.which_one_answers_to_her import WhichIsHers
     from core.perception.how_things_move_here import HowThingsMoveHere, _Edge
-    from core.perception.what_moves_in_the_picture import Kind
+    from core.perception.what_moves_in_the_picture import LOOK_BINS, Kind
 
     keep: dict[str, Any] = {}
     if not isinstance(held, dict) or not held.get("kinds"):
         return keep
     keep["kinds"] = [
-        Kind(number, np.asarray(kind["look"], dtype=float), float(kind["size"]), tuple(int(c) for c in kind["colour"]))
+        Kind(number, np.full(LOOK_BINS, 1.0 / LOOK_BINS), float(kind["size"]), tuple(int(c) for c in kind["colour"]))
         for number, kind in enumerate(held["kinds"])
     ]
-    hers_held = held.get("hers") or {}
-    if hers_held:
-        # Which kind of thing was hers is a prior; what her keys do, and
-        # whether the mouse moves her, are found again by trying them. Kept,
-        # they were never tried again: LIVE 2026-10-04 a game played while
-        # its window was frozen left "the up key does nothing" behind, and in
-        # the next session, believing she knew her keys, she never pressed up
-        # to find out and lost every game.
-        hers = WhichIsHers()
-        hers.kind = int(hers_held["kind"])
-        keep["hers"] = hers
+    # Which thing is hers, what her keys do, and whether the mouse moves her
+    # are found again by trying them, each session. Kept, they were never
+    # tried again: LIVE 2026-10-04 a game played while its window was frozen
+    # left "the up key does nothing" behind, and in the next session,
+    # believing she knew her keys, she never pressed up and lost every game;
+    # and a kept kind sent her first look to the wrong thing.
     meeting = WhatMeetingDoes()
     for kind, values in (held.get("evidence") or {}).items():
         meeting.evidence[int(kind)] = _Evidence(*values)

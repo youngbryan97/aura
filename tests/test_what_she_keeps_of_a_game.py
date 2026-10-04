@@ -31,8 +31,8 @@ def test_a_game_played_before_starts_from_what_was_learned():
         "hers": hers, "meeting": meeting, "physics": physics, "meeting_with": {0.7: [3, 1]},
     }
     back = kept_from(json.loads(json.dumps(to_keep(keep))))
-    # Which kind is hers is kept; what the keys do is tried again each time.
-    assert back["hers"].kind == 1 and back["hers"].way_of("up") is None
+    # Which thing is hers and what the keys do are tried again each time.
+    assert "hers" not in back
     assert back["meeting"].stance(2) == AVOID and back["meeting"].told == {3: AVOID}
     assert back["physics"].kinds[2].edges["top"].bounces == 3
     assert back["meeting_with"] == {0.7: [3, 1]}

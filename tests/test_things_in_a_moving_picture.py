@@ -80,3 +80,14 @@ def test_a_thing_lost_for_a_picture_is_where_its_speed_took_it():
     assert ball.seen < 30 * 0.03
     last_seen_x = ball.path[-1][1]
     assert ball.x > last_seen_x + 0.02 * ball.vx
+
+
+def test_a_kind_kept_from_another_way_of_looking_does_not_stop_play():
+    """A kept kind whose colour mix has another number of bins starts its mix again."""
+    from core.perception.what_moves_in_the_picture import Kind
+
+    old = Kind(0, np.full(32, 1 / 32), 36.0, (250, 250, 250))
+    moves = WhatMoves(kinds=[old])
+    for index in range(20):
+        moves.see(_picture([(10 + 3 * index, 50, 6, 6, (250, 250, 250))]), index * 0.03)
+    assert moves.kinds[0].look.shape == (64,)

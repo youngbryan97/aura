@@ -158,10 +158,14 @@ def _speed_from_its_path(
     return fitted[0], fitted[1]
 
 
+#: The bins of a colour mix: four levels a channel.
+LOOK_BINS = 64
+
+
 def _look_of(pixels: np.ndarray) -> np.ndarray:
     """A thing's colour mix: 64 bins of its pixels, four levels a channel, summing to one."""
     if pixels.size == 0:
-        return np.full(64, 1.0 / 64)
+        return np.full(LOOK_BINS, 1.0 / LOOK_BINS)
     q = (pixels.astype(np.int32) // 64).clip(0, 3)
     bins = q[:, 0] * 16 + q[:, 1] * 4 + q[:, 2]
     counts = np.bincount(bins, minlength=64).astype(np.float64)
@@ -219,6 +223,13 @@ class WhatMoves:
         #: Kinds met before in this world keep their numbers, so what was
         #: learned about one in an earlier stretch of play still applies.
         self.kinds: list[Kind] = list(kinds or [])
+        # A kind kept from another way of looking (a colour mix of another
+        # size) keeps its colour and size, and starts its mix again: mixed
+        # with today's, it stopped play dead (offline 2026-10-04, 32 bins
+        # against 64).
+        for kind in self.kinds:
+            if np.shape(kind.look) != (LOOK_BINS,):
+                kind.look = np.full(LOOK_BINS, 1.0 / LOOK_BINS)
         self._numbers = 0
         self._first: list[np.ndarray] = []
         self._first_at = -math.inf

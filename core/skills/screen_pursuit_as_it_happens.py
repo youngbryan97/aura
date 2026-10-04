@@ -152,7 +152,10 @@ class PlayingAsItHappens:
         # so the first reading of this one is no measure of what is new.
         during = {said for stretch in self.stretches for said in stretch.get("words_seen") or ()}
         before = during if during else (self.first_ways_back or frozenset())
-        appeared = {control for control in restart_controls(observation) if control not in before}
+        offered = restart_controls(observation)
+        appeared = {control for control in offered if control not in before}
+        if offered and not appeared:
+            logger.info("a way to start again is on screen (%s), but it was there while she played", ", ".join(sorted(offered)))
         if appeared:
             self.over_because = f"a way to start again appeared ({', '.join(sorted(appeared))})"
             self.ending_words = " ".join(str(observation.get("text") or "").split())
@@ -187,7 +190,7 @@ class PlayingAsItHappens:
         )
         self.stretches.append(stretch)
         _keep_what_she_learned(self.page, self.keep)
-        logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "learned", "gains", "losses")})
+        logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "keys_that_move_her", "pictures_a_second", "learned", "gains", "losses")})
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
 
