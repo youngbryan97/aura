@@ -152,15 +152,33 @@ async def _read_counters(page: Any, clip: dict[str, float], watch: _Watch) -> tu
 
 
 async def _try_keys(page: Any, clip: dict[str, float], watch: _Watch, keys: list[str]) -> None:
-    for key in keys + keys:
-        await page.keyboard.down(_KEY.get(key, key))
-        began = time.monotonic()
-        while time.monotonic() - began < 0.35:
-            await _see(page, clip, watch, key, trying=True)
-        await page.keyboard.up(_KEY.get(key, key))
-        began = time.monotonic()
-        while time.monotonic() - began < 0.15:
-            await _see(page, clip, watch, "", trying=True)
+    """Hold each key and rest between, twice through, and again while nothing has answered.
+
+    Each hold and each rest long enough to be measured once its first
+    pictures, which still show the key before, are left out
+    (core/agency/which_one_answers_to_her.py). Held for a third of a second
+    on a fresh browser's slow first pictures, nothing was measured and a
+    whole first watch said nothing was wrong (offline 2026-10-04).
+    """
+    for passes in range(TRY_KEYS_PASSES):
+        if passes >= 2 and watch.hers.number is not None:
+            return
+        for key in keys:
+            for held, how_long in ((key, HOLD_S), ("", HOLD_S)):
+                if held:
+                    await page.keyboard.down(_KEY.get(held, held))
+                began = time.monotonic()
+                while time.monotonic() - began < how_long:
+                    await _see(page, clip, watch, held, trying=True)
+                if held:
+                    await page.keyboard.up(_KEY.get(held, held))
+
+
+#: How long each key is held, and each rest between, while finding what answers.
+HOLD_S = 0.5
+
+#: The most times through the keys before watching without knowing which is hers.
+TRY_KEYS_PASSES = 4
 
 
 _KEY = {"up": "ArrowUp", "down": "ArrowDown", "left": "ArrowLeft", "right": "ArrowRight", "space": "Space"}

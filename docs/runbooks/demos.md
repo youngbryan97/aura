@@ -43,6 +43,12 @@ way a person would ask. Nothing is started from a script.
    mended; saves the file with the original beside it as
    `pong.html.before-repair`; then opens the mended game in a window and plays
    until she wins.
+
+   Timings from the live runs on 4 October 2026: the request reaches the
+   repair in about a minute (the model chooses the tool); the repair takes
+   about ten minutes; a game against the computer takes about three. Offline
+   against the repaired game's computer she won four of the eight full games
+   she finished, and she plays on until one is won (up to twenty minutes).
 4. Check the repair independently:
 
    ```bash

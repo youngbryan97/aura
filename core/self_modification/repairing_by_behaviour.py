@@ -211,26 +211,41 @@ async def _confirmed(browser: Any, before: str, after: str, words: str, keys: li
                      now: _Believed, trial: Any) -> tuple[Any, list[str]] | None:
     """The chosen edit watched again beside the program without it, for longer.
 
-    Kept only if the second watch does no harm either. What it is said to have
-    done is what was right with it in both watches and not right without it:
-    one watch that happened to see a wall bounce is not the edit's doing.
+    Kept only if no watch shows it doing harm, and only for what it is seen
+    to do: what was right with it in the trial and in a side-by-side watch,
+    and not right without it in that same pair. One watch that happened to
+    see a wall bounce is not the edit's doing: LIVE 2026-10-04 the score line
+    of the wrong branch was kept on the strength of a wall seen in its trial,
+    and the score was left counting backwards. And one pair in which the
+    thing the edit mends never happened (no ball got past her) says nothing
+    either way, so up to CONFIRM_PAIRS pairs are watched before it is refused.
     """
-    without, again = await asyncio.gather(
-        _watched(browser, before, words, keys, folder, WATCH_S * 2.5),
-        _watched(browser, after, words, keys, folder, WATCH_S * 2.5),
-    )
-    harm = again.wrong & (now.right - trial.wrong)
-    if harm:
-        # One watch is one game: a ball that clips a corner can read as harm
-        # once. A third watch settles it, and harm seen twice in three is harm.
-        logger.info("the second watch of the chosen edit found harm (%s); watching a third time", sorted(harm))
-        third = await _watched(browser, after, words, keys, folder, WATCH_S * 2.5)
-        if third.wrong & harm:
-            logger.info("the third watch found it again: %s", sorted(third.wrong & harm))
-            return None
-        again = third
-    shown = sorted((trial.right & again.right) - without.right)
-    return again, shown
+    for _pair in range(CONFIRM_PAIRS):
+        without, again = await asyncio.gather(
+            _watched(browser, before, words, keys, folder, WATCH_S * 2.5),
+            _watched(browser, after, words, keys, folder, WATCH_S * 2.5),
+        )
+        harm = again.wrong & (now.right - trial.wrong)
+        if harm:
+            # One watch is one game: a ball that clips a corner can read as
+            # harm once. A third watch settles it, and harm seen twice in
+            # three is harm.
+            logger.info("a watch of the chosen edit found harm (%s); watching again", sorted(harm))
+            third = await _watched(browser, after, words, keys, folder, WATCH_S * 2.5)
+            if third.wrong & harm:
+                logger.info("found again: %s", sorted(third.wrong & harm))
+                return None
+            again = third
+        shown = sorted((trial.right & again.right) - without.right)
+        if shown:
+            return again, shown
+        logger.info("beside the program without it, the chosen edit made no difference this time")
+    return None
+
+
+#: Side-by-side watches of a chosen edit before it is refused for making no
+#: difference that can be seen.
+CONFIRM_PAIRS = 3
 
 
 async def _try_edits(browser: Any, current: str, words: str, keys: list[str], folder: Path,
@@ -368,7 +383,11 @@ def _what_looks_wrong(suspicions: list[Suspicion]) -> str:
 
 
 def _what_this_change_did(suspicion: Suspicion, edit: list[Edit], current: str, shown: list[str]) -> str:
-    said = (f"In {suspicion.function or 'the code'} (line {suspicion.line}): {suspicion.why}, "
+    # The line each edit is on, which is not always the line the suspicion
+    # names: of two mirrored branches, the edit may be to either.
+    lines = sorted({current.count("\n", 0, e.start) + 1 for e in edit})
+    where = ", ".join(str(n) for n in lines) or str(suspicion.line)
+    said = (f"In {suspicion.function or 'the code'} (line {where}): {suspicion.why}, "
             f"so I changed {', '.join(e.says(current) for e in edit)}.")
     if shown:
         said += " Now " + " and ".join(f"I can see {_RIGHT_SAID.get(name, name)}" for name in shown) + "."

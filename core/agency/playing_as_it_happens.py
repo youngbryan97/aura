@@ -48,7 +48,7 @@ __all__ = ["controls_named_in", "play_as_it_happens", "the_world_moves_on_its_ow
 MOVING_WHEN_READ_S = 0.3
 
 #: How long each key is held while she finds out what it does.
-TRY_A_KEY_S = 0.3
+TRY_A_KEY_S = 0.45
 
 #: How far ahead she looks for anything she might walk into.
 DANGER_AHEAD_S = (0.08, 0.16, 0.28, 0.42, 0.6)
