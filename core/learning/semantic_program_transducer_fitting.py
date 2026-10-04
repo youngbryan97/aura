@@ -1748,7 +1748,7 @@ def _assign_typed_arguments(
                         + model.definition_relation_scale * candidate_relation_evidence
                         + model.argument_pointer_scale * _log_sigmoid(pointer_score)
                         + ownership
-                        + (0.0 if antecedents is None else antecedents.log_probabilities(span)[register])
+                        + (0.0 if antecedents is None else antecedents.score(span, register))
                     )
                     triadic_score = None
                     if model.triadic_binding_heads is not None:

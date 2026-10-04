@@ -34,7 +34,17 @@ has no earlier window and is treated the same way.
 
 A mention that is an input's literal value is bound exactly by the literal
 grammar, and says nothing about where a name was given, so the readout is
-neither fitted on nor applied to one. Fitted with them, its margin for a
+neither fitted on nor applied to one.
+
+How the readout enters an argument's score is a choice the readout carries.
+"absolute" adds log P(register | mention). That compares different spans for
+the same slot unfairly: a span whose distribution is peaked, or a literal
+(scored zero), pays less than a name mention for its best register, so on
+3 October a request still took two input declarations ("turbine reserve =
+6283") as arguments over the names that used them. "relative" adds log P
+less the span's own best, so every span's best register scores zero and only
+a worse one pays: the readout then says which register a span names, and
+nothing about which span to choose. Fitted with them, its margin for a
 named intermediate on the five-step requests had a median of 0.55 nats;
 without them, 1.2, with all 192 such mentions in each bundle ranked first.
 
@@ -219,12 +229,16 @@ class ArgumentAntecedent:
     weight: tuple[float, ...]
     bias: float
     fit_receipt: Mapping[str, Any]
+    #: "absolute" (log P) or "relative" (log P less the span's best register's).
+    scoring: str = "absolute"
 
     def __post_init__(self) -> None:
         if len(self.weight) != len(FEATURES) or not all(
             math.isfinite(value) for value in (*self.weight, self.bias)
         ):
             raise ValueError("argument antecedent parameters are invalid")
+        if self.scoring not in ("absolute", "relative"):
+            raise ValueError("argument antecedent scoring is absolute or relative")
 
     def scorer(
         self,
@@ -250,6 +264,7 @@ class ArgumentAntecedent:
             "weight": list(self.weight),
             "bias": self.bias,
             "fit_receipt": dict(self.fit_receipt),
+            **({"scoring": self.scoring} if self.scoring != "absolute" else {}),
         }
 
     @property
@@ -290,6 +305,13 @@ class _AntecedentScorer:
             self.cache[mention] = tuple(float(value - total) for value in logits)
         return self.cache[mention]
 
+    def score(self, mention: TokenSpan, register: int) -> float:
+        """The term added to an argument option's score, by the readout's scoring."""
+        values = self.log_probabilities(mention)
+        if self.readout.scoring == "relative":
+            return values[register] - max(values)
+        return values[register]
+
 
 def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAntecedent:
     if (
@@ -302,6 +324,7 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
         tuple(float(item) for item in value["weight"]),
         float(value["bias"]),
         dict(value["fit_receipt"]),
+        str(value.get("scoring", "absolute")),
     )
 
 

@@ -142,3 +142,20 @@ def test_an_inputs_literal_value_gets_no_antecedent_evidence() -> None:
     operations = [instruction.operation_span for instruction in item.ir.instructions]
     scorer = fitted.scorer(item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations)
     assert set(scorer.log_probabilities(item.ir.input_spans[1])) == {0.0}
+
+
+def test_relative_scoring_says_which_register_and_not_which_span() -> None:
+    """Every span's best register scores zero; only a worse register pays."""
+    from dataclasses import replace
+
+    fitted = replace(fit_argument_antecedent(TRAINING), scoring="relative")
+    assert argument_antecedent_from_dict(fitted.to_dict()).scoring == "relative"
+    item = TRAINING[2]
+    operations = [instruction.operation_span for instruction in item.ir.instructions]
+    scorer = fitted.scorer(item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations)
+    multiply = item.ir.instructions[2]
+    for mention, named in zip(multiply.argument_spans, multiply.args, strict=True):
+        scores = [scorer.score(mention, register) for register in range(len(scorer.stretches))]
+        assert scores[named] == 0.0 and all(value <= 0.0 for value in scores)
+    with pytest.raises(ValueError, match="absolute or relative"):
+        replace(fitted, scoring="sideways")
