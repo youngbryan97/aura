@@ -1672,6 +1672,8 @@ def _assign_typed_arguments(
             for span, pointer_score in proposals_by_operation[node_index]:
                 if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
                     continue
+                if antecedents is not None and antecedents.names_own_result(span, len(inputs) + node_index):
+                    continue
                 ownership = 0.0
                 if argument_ownership is not None:
                     if span not in ownership_by_mention:

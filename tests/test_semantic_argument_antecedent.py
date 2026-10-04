@@ -178,3 +178,20 @@ def test_a_conditional_fit_puts_each_mentions_own_register_first() -> None:
         assert int(np.argmax(scorer.log_probabilities(mention))) == named
     with pytest.raises(ValueError, match="pairwise or conditionally"):
         fit_argument_antecedent(TRAINING, objective="sideways")
+
+
+def test_a_mention_that_names_an_operations_own_result_is_not_its_input() -> None:
+    from dataclasses import replace
+
+    fitted = fit_argument_antecedent(TRAINING)
+    ruled = replace(fitted, own_result_is_not_an_input=True)
+    assert argument_antecedent_from_dict(ruled.to_dict()).own_result_is_not_an_input is True
+    item = TRAINING[0]
+    operations = [instruction.operation_span for instruction in item.ir.instructions]
+    for readout, expected in ((fitted, False), (ruled, True)):
+        scorer = readout.scorer(item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations)
+        multiply = item.ir.instructions[2]
+        mention, named = multiply.argument_spans[0], multiply.args[0]
+        # The multiply's first mention names the add's result: that is the add's own result.
+        assert scorer.names_own_result(mention, named) is expected
+        assert scorer.names_own_result(item.ir.input_spans[0], 0) is False

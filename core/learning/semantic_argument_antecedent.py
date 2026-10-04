@@ -235,6 +235,11 @@ class ArgumentAntecedent:
     fit_receipt: Mapping[str, Any]
     #: "absolute" (log P) or "relative" (log P less the span's best register's).
     scoring: str = "absolute"
+    #: Whether a mention the readout says most probably names an operation's
+    #: own result is kept out of that operation's arguments. "Save that output
+    #: as the primary result" names the subtraction just made; on
+    #: scalar_branch_weave_five-0-1 the subtraction took it as its minuend.
+    own_result_is_not_an_input: bool = False
 
     def __post_init__(self) -> None:
         if len(self.weight) != len(FEATURES) or not all(
@@ -269,6 +274,7 @@ class ArgumentAntecedent:
             "bias": self.bias,
             "fit_receipt": dict(self.fit_receipt),
             **({"scoring": self.scoring} if self.scoring != "absolute" else {}),
+            **({"own_result_is_not_an_input": True} if self.own_result_is_not_an_input else {}),
         }
 
     @property
@@ -309,6 +315,16 @@ class _AntecedentScorer:
             self.cache[mention] = tuple(float(value - total) for value in logits)
         return self.cache[mention]
 
+    def names_own_result(self, mention: TokenSpan, own_register: int) -> bool:
+        """Whether the readout's most probable referent for ``mention`` is ``own_register``.
+
+        Only when the readout carries that rule; never for an input's literal value.
+        """
+        if not self.readout.own_result_is_not_an_input or _literal(mention, self.input_spans):
+            return False
+        values = self.log_probabilities(mention)
+        return int(np.argmax(values)) == own_register
+
     def score(self, mention: TokenSpan, register: int) -> float:
         """The term added to an argument option's score, by the readout's scoring."""
         values = self.log_probabilities(mention)
@@ -329,6 +345,7 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
         float(value["bias"]),
         dict(value["fit_receipt"]),
         str(value.get("scoring", "absolute")),
+        bool(value.get("own_result_is_not_an_input", False)),
     )
 
 

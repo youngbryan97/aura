@@ -267,6 +267,11 @@ def main() -> int:
         help="how an antecedent enters an argument's score (see semantic_argument_antecedent.py)",
     )
     parser.add_argument(
+        "--own-result-is-not-an-input",
+        action="store_true",
+        help="keep a mention the antecedent says names an operation's own result out of its arguments",
+    )
+    parser.add_argument(
         "--antecedent-fit",
         choices=("pairwise", "conditional"),
         default="pairwise",
@@ -314,7 +319,8 @@ def main() -> int:
     recognizer = fit_peak_operation_recognizer(training)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
-        replace(fit_argument_antecedent(training, objective=args.antecedent_fit), scoring=args.antecedent_scoring)
+        replace(fit_argument_antecedent(training, objective=args.antecedent_fit), scoring=args.antecedent_scoring,
+                own_result_is_not_an_input=args.own_result_is_not_an_input)
         if args.argument_antecedent else None
     )
     candidate = PeakRecognitionTransducer(incumbent, recognizer, ownership, antecedent)
@@ -360,7 +366,8 @@ def main() -> int:
                 incumbent,
                 fit_peak_operation_recognizer(kept),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
-                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit), scoring=args.antecedent_scoring)
+                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit), scoring=args.antecedent_scoring,
+                        own_result_is_not_an_input=args.own_result_is_not_an_input)
                 if args.argument_antecedent else None,
             )
             fold_audit = audit_semantic_cohort(
