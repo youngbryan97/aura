@@ -12,6 +12,8 @@ class _Thing:
     def __init__(self, number, kind):
         self.number, self.kind = number, kind
         self.x = self.y = 50.0
+        self.w, self.h = (3.0, 20.0) if kind == 0 else (3.0, 3.0)
+        self.size = self.w * self.h
         self.vx = self.vy = 0.0
         self.seen = self.born = 0.0
         self.moved = True
@@ -51,3 +53,75 @@ def test_what_her_own_choices_make_move_is_not_taken_for_hers():
     """While she plays she presses up because the ball goes up; that is no evidence about the ball."""
     hers = _run(trying=False, ball_follows_keys=True)
     assert hers.number is None
+
+
+def test_a_ball_that_bounced_between_presses_is_not_taken_for_hers():
+    """Picture by picture, a ball going one way through one press and the other way through the next answers to the keys."""
+    ball = _Thing(2, 1)
+    moves = _Moves([ball])
+    hers = WhichIsHers()
+    at = 0.0
+    for step in range(200):
+        key = ("up", "", "down", "")[(step // 10) % 4]
+        hers.holding(key, at, trying=True)
+        at += 0.03
+        ball.vy = 100.0 if (step // 13) % 2 else -100.0
+        ball.seen = at
+        hers.saw(moves, [], at)
+    assert hers.number is None
+
+
+def _pointer_run(follower_x):
+    """The pointer is swept there and back; ``follower_x(pointer_x)`` says where the thing is."""
+    thing = _Thing(1, 0)
+    moves = _Moves([thing])
+    hers = WhichIsHers()
+    at = 0.0
+    xs = [20 + 4 * i for i in range(30)] + [140 - 4 * i for i in range(30)]
+    for x in xs:
+        hers.pointed(float(x), 50.0, at)
+        at += 0.2
+        thing.x, thing.seen = follower_x(x, at), at
+        hers.saw(moves, [], at)
+    return hers
+
+
+def test_a_thing_that_turns_when_the_pointer_turns_follows_it():
+    assert _pointer_run(lambda x, _at: float(x)).follows_pointer
+
+
+def test_a_thing_going_the_pointer_s_way_by_itself_does_not_follow_it():
+    """A thing that goes on the same way while the pointer comes back is not following it."""
+    assert not _pointer_run(lambda _x, at: 20.0 + 10.0 * at).follows_pointer
+
+
+def test_a_thing_that_does_not_go_where_her_key_sends_it_is_not_hers_after_all():
+    mine = _Thing(1, 0)
+    moves = _Moves([mine])
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 0
+    for _ in range(10):
+        hers._hers.add("up", 0.0, -120.0)
+    at = 0.0
+    hers.holding("up", at)
+    for _step in range(60):
+        at += 0.03
+        mine.seen, mine.vy = at, 0.0
+        hers.saw(moves, [], at)
+    assert hers.number is None and 1 in hers.not_mine
+
+
+def test_a_thing_that_keeps_pace_with_the_pointer_far_from_it_does_not_follow_it():
+    """A target sliding to and fro can keep pace with a sweep; one the mouse moves is under the mouse."""
+    thing = _Thing(1, 0)
+    moves = _Moves([thing])
+    moves.shape = (100, 200)
+    hers = WhichIsHers()
+    at = 0.0
+    xs = [20 + 4 * i for i in range(30)] + [140 - 4 * i for i in range(30)]
+    for x in xs:
+        hers.pointed(float(x), 50.0, at)
+        at += 0.2
+        thing.x, thing.seen = 200.0 - x * 0.9 + (x - 80) * 1.9, at
+        hers.saw(moves, [], at)
+    assert not hers.follows_pointer

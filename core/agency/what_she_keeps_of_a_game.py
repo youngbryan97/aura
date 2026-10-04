@@ -37,7 +37,10 @@ def to_keep(keep: dict[str, Any]) -> dict[str, Any]:
     meeting = keep.get("meeting")
     if meeting is not None:
         held["evidence"] = {
-            str(kind): [round(e.meet, 3), round(e.shoot, 3), e.touched, e.passed, e.shot]
+            str(kind): [
+                round(e.touch_sum, 3), round(e.shoot, 3), e.touched, e.passed, e.shot,
+                round(e.pass_sum, 3), e.touches_settled, e.passes_settled,
+            ]
             for kind, e in meeting.evidence.items()
         }
         held["told"] = {str(kind): stance for kind, stance in meeting.told.items()}
@@ -80,6 +83,7 @@ def kept_from(held: dict[str, Any]) -> dict[str, Any]:
         hers.kind = int(hers_held["kind"])
         for key, values in (hers_held.get("ways") or {}).items():
             hers._hers.by_key[key].extend(tuple(v) for v in values)
+            hers._hers.free[key].extend(tuple(v) for v in values)
         hers.follows_pointer = bool(hers_held.get("follows_pointer"))
         hers.follows_along = tuple(bool(v) for v in hers_held.get("along") or (False, False))
         keep["hers"] = hers

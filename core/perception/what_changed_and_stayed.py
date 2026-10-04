@@ -53,19 +53,30 @@ class WhatChangedAndStayed:
         tall, wide = picture.shape[:2]
         grey = cv2.cvtColor(picture, cv2.COLOR_RGB2GRAY)
         moving = np.zeros((tall, wide), dtype=bool)
+        boxes = []
         for thing in things.values():
+            box = tuple(float(v) for v in thing.box())
+            boxes.append(box)
             if thing.moved or thing.number in never:
-                left, top, right, bottom = (int(v) for v in thing.box())
-                moving[max(0, top - 4) : bottom + 5, max(0, left - 4) : right + 5] = True
+                _mask(moving, box)
         if self._kept and self._kept[-1][1].shape != grey.shape:
             self._kept.clear()
-        self._kept.append((at, grey, moving))
+        self._kept.append((at, grey, moving, boxes))
         if len(self._kept) < 5:
             return []
-        (_t0, first, _m0), (when, middle, _m1), (_t2, last, _m2) = self._kept[-5], self._kept[-3], self._kept[-1]
+        (_t0, first, _m0, before), (when, middle, _m1, _b1), (_t2, last, _m2, after) = self._kept[-5], self._kept[-3], self._kept[-1]
         passed = np.zeros_like(moving)
-        for _when, _grey, mask in list(self._kept)[-5:]:
+        for _when, _grey, mask, _boxes in list(self._kept)[-5:]:
             passed |= mask
+        # A thing that was in one place and is not there now, or is there now
+        # and was not, left or arrived: whatever it is, it is not a counter
+        # being written. Offline 2026-10-04 a paddle that had stood still since
+        # the game began moved off its place, and the place it left was read
+        # as a point scored.
+        for here, there in ((before, after), (after, before)):
+            for box in here:
+                if not any(_same_place(box, other) for other in there):
+                    _mask(passed, box)
         changed = (cv2.absdiff(first, middle) > CHANGED) & (cv2.absdiff(middle, last) < SAME) & ~passed
         if changed.mean() > A_NEW_SCREEN or not changed.any():
             return []
@@ -81,3 +92,16 @@ class WhatChangedAndStayed:
             new.append((when, x, y))
         del self.seen[:-50]
         return new
+
+
+def _mask(mask: np.ndarray, box: tuple[float, float, float, float]) -> None:
+    left, top, right, bottom = (int(v) for v in box)
+    mask[max(0, top - 4) : bottom + 5, max(0, left - 4) : right + 5] = True
+
+
+def _same_place(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
+    """Whether two boxes stand in one place: centres within three pixels, and overlapping."""
+    return (
+        abs((a[0] + a[2]) - (b[0] + b[2])) / 2 < 3.0 and abs((a[1] + a[3]) - (b[1] + b[3])) / 2 < 3.0
+        and a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+    )

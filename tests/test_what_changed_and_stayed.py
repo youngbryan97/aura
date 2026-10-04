@@ -42,3 +42,17 @@ def test_a_whole_new_screen_is_not_a_counter():
         picture = np.full((100, 200, 3), 255 if step >= 5 else 0, dtype=np.uint8)
         found += stayed.see(picture, {}, step * 0.26)
     assert found == []
+
+
+def test_the_place_a_still_thing_moves_off_is_not_a_counter():
+    """A paddle that stood still since the game began, and then moved, left a changed place behind it."""
+    stayed = WhatChangedAndStayed()
+    found = []
+    for step in range(20):
+        top = 40 if step < 8 else 70
+        picture = np.zeros((100, 200, 3), dtype=np.uint8)
+        picture[top : top + 20, 5:8] = 255
+        paddle = _Ball(number=1, x=6.5, y=top + 10, moved=False)
+        paddle.box = lambda top=top: (5, top, 8, top + 20)
+        found += stayed.see(picture, {1: paddle}, step * 0.26)
+    assert found == []

@@ -30,7 +30,7 @@ class _Nobody:
 
 
 def _ball(**kw):
-    return _Thing(**{"number": 1, "kind": 0, "x": 120.0, "y": 80.0, "w": 4.0, "h": 4.0, "vx": 0.0, "vy": 0.0, "moved": True, **kw})
+    return _Thing(**{"number": 1, "kind": 0, "x": 120.0, "y": 80.0, "w": 4.0, "h": 4.0, "vx": 0.0, "vy": 0.0, "moved": True, "colour": (250, 250, 250), "size": 16.0, **kw})
 
 
 def _watch(physics, ball, steps, dt, step):

@@ -87,6 +87,9 @@ class Kind:
 #: levels apart is the difference between two colours a person names apart.
 KIND_ALIKE = 45 / 255.0
 
+#: Sizes within this ratio of each other are one size to the eye.
+PLAINLY_THE_SAME_SIZE = 1.6
+
 
 @dataclass
 class Thing:
@@ -299,10 +302,25 @@ class WhatMoves:
                 "x": (left + right) / 2.0, "y": (top + bottom) / 2.0,
                 "w": float(right - left), "h": float(bottom - top),
                 "look": _look_of(pixels),
-                "colour": tuple(int(c) for c in np.median(pixels, axis=0)),
+                "colour": self._colour_of(small, x, y, w, h, inside, pixels),
                 "patch": small[top:bottom, left:right].copy(),
             })
         return found
+
+    def _colour_of(self, small: np.ndarray, x: int, y: int, w: int, h: int, inside: np.ndarray, pixels: np.ndarray) -> tuple[int, int, int]:
+        """A thing's own colour: that of its pixels least mixed with the floor.
+
+        A thing a few pixels across, shrunk to the working size, is mostly
+        edge, and an edge pixel is the thing's colour blended with the floor's
+        by however much of it the thing covered. The median of all of them
+        drifts as it moves across pixel boundaries: offline 2026-10-04 a white
+        ball was filed as white one moment and grey the next, and what she
+        learned of one kind was never applied to the other.
+        """
+        floor = self._backdrop[y : y + h, x : x + w][inside]
+        apart = np.abs(pixels.astype(np.float32) - floor).max(axis=1)
+        core = pixels[apart >= 0.75 * float(apart.max())]
+        return tuple(int(c) for c in np.median(core, axis=0))
 
     def _a_ghost(self, small: np.ndarray, x: int, y: int, w: int, h: int, inside: np.ndarray) -> bool:
         """Whether a difference is the backdrop being wrong rather than something being there.
@@ -397,6 +415,14 @@ class WhatMoves:
             distance = kind.like(colour, size)
             if distance < apart:
                 best, apart = kind.number, distance
+        # Among kinds it plainly is (its colour, and a size well within half
+        # again), the one most seen. A kind made from a ball half out from
+        # behind the edge is alike enough to draw the whole ball the next
+        # time it is born: offline 2026-10-04 one ball was two kinds, and what
+        # was learned of one was not applied to the other.
+        plainly = [kind for kind in self.kinds if kind.like(colour, size) < KIND_ALIKE and max(size, kind.size) / max(1e-6, min(size, kind.size)) < PLAINLY_THE_SAME_SIZE]
+        if plainly:
+            best = max(plainly, key=lambda kind: kind.seen).number
         if best < 0:
             best = len(self.kinds)
             self.kinds.append(Kind(best, look.copy(), size, colour))

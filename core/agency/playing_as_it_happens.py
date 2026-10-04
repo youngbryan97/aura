@@ -87,6 +87,8 @@ class _Run:
     held_trying: bool = False
     trying: int = 0
     tried_at: float = 0.0
+    #: When she last found the thing she took for hers was not.
+    lost_at: float = -math.inf
     last_moving: float = 0.0
     new_screen_at: float = -math.inf
     clicked: dict[int, float] = field(default_factory=dict)
@@ -734,6 +736,8 @@ async def play_as_it_happens(
     rules = WhatTheRulesSaid.read(told) if told else None
     hers: WhichIsHers = keep.get("hers") or WhichIsHers()
     meeting: WhatMeetingDoes = keep.get("meeting") or WhatMeetingDoes()
+    for kept in (physics, hers, meeting):
+        kept.numbered_afresh()
     run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first)
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
@@ -776,6 +780,9 @@ async def play_as_it_happens(
 
 async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
                choosing: _Choosing, at: float) -> None:
+    # A thing taken for hers that did not answer her keys: try them again.
+    if hers.lost_at > run.lost_at:
+        run.lost_at, run.trying = hers.lost_at, 0
     # Every key is tried once before any is chosen: a plan that knows one key
     # can only go one way.
     trying_the_pointer = run.pointer_first and run.pointed < 2 * len(_POINTER_TRIAL) and not hers.follows_pointer
@@ -933,7 +940,7 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "pictures": run.pictures,
         "pictures_a_second": round(run.pictures / took, 1),
         "ended": ended,
-        "hers": describe(moves, hers.kind) if hers.kind is not None else "",
+        "hers": describe(moves, hers.kind, hers.thing(moves)) if hers.kind is not None else "",
         "keys_that_move_her": sorted(hers.keys_that_move_her(run.keys)),
         "fires": sorted(hers.makes),
         "learned": learned,

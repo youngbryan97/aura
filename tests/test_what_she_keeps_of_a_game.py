@@ -21,7 +21,7 @@ def test_a_game_played_before_starts_from_what_was_learned():
     for _ in range(6):
         hers._hers.add("up", 0.0, -100.0)
     meeting = WhatMeetingDoes()
-    meeting.evidence[2].meet = -1.5
+    meeting.evidence[2].touch_sum, meeting.evidence[2].touches_settled = -1.5, 2
     meeting.told[3] = AVOID
     physics = HowThingsMoveHere()
     physics.kinds[2].meetings.append((0.5, 0.4, 1.05))

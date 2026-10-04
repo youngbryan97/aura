@@ -71,3 +71,66 @@ def test_gains_that_come_every_second_whatever_she_does_credit_nothing():
         meeting._open.append({"what": "passed", "kind": 7, "at": at})
     meeting._settle(40.0)
     assert abs(meeting.evidence[7].meet) < 2.0
+
+
+class _Thing:
+    def __init__(self, number, kind, x, y, vx, vy, w=3.0, h=3.0):
+        self.number, self.kind, self.x, self.y, self.vx, self.vy, self.w, self.h = number, kind, x, y, vx, vy, w, h
+        self.moved = True
+
+    def box(self):
+        return (self.x - self.w / 2, self.y - self.h / 2, self.x + self.w / 2, self.y + self.h / 2)
+
+
+class _Hers:
+    def __init__(self, mine):
+        self.mine, self.number, self.kind, self.makes = mine, mine.number, mine.kind, {}
+
+    def thing(self, _moves):
+        return self.mine
+
+
+class _Moves:
+    shape = (100, 200)
+
+    def __init__(self, *things):
+        self.things = {t.number: t for t in things}
+        self.last_box = {}
+
+
+def test_a_ball_that_slips_past_the_end_of_her_paddle_got_by_and_was_not_met():
+    """Within a pixel of her and on its way: not met. Then across her line: got by."""
+    meeting = WhatMeetingDoes()
+    paddle = _Thing(1, 0, 10.0, 50.0, 0.0, 0.0, w=3.0, h=20.0)
+    hers = _Hers(paddle)
+    for step, x in enumerate((15.0, 12.0, 9.0, 6.0, 3.0)):
+        ball = _Thing(2, 1, x, 62.5, -150.0, 0.0)
+        meeting.saw(_Moves(paddle, ball), hers, [], step * 0.02, 0)
+    assert meeting.evidence[1].touched == 0 and meeting.evidence[1].passed == 1
+
+
+def test_a_ball_that_turns_back_beside_her_was_met():
+    meeting = WhatMeetingDoes()
+    paddle = _Thing(1, 0, 10.0, 50.0, 0.0, 0.0, w=3.0, h=20.0)
+    hers = _Hers(paddle)
+    for step, (x, vx) in enumerate(((16.0, -150.0), (13.0, -150.0), (15.0, 150.0), (19.0, 150.0))):
+        ball = _Thing(2, 1, x, 55.0, vx, 0.0)
+        meeting.saw(_Moves(paddle, ball), hers, [], step * 0.02, 0)
+    assert meeting.evidence[1].touched == 1 and meeting.evidence[1].passed == 0
+
+
+def test_meeting_a_ball_that_costs_only_sometimes_beats_letting_it_by_that_costs_always():
+    """A rally: most points lost come just after one of her returns, and every pass costs one."""
+    meeting = WhatMeetingDoes()
+    meeting.since = 0.0
+    at = 1.0
+    for rally in range(8):
+        meeting._open.append({"what": "touched", "kind": 7, "at": at})
+        if rally % 2:
+            meeting._verdict({"what": "loss", "at": at + 0.6, "since": at - 0.2})
+        else:
+            meeting._open.append({"what": "passed", "kind": 7, "at": at + 0.5})
+            meeting._verdict({"what": "loss", "at": at + 0.7, "since": at + 0.3})
+        at += 5.0
+    meeting._settle(at + 10.0)
+    assert meeting.stance(7) == MEET

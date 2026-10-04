@@ -33,9 +33,10 @@ __all__ = ["AVOID", "CLICK", "IGNORE", "MEET", "SHOOT", "STANCES", "Readouts", "
 MEET, AVOID, SHOOT, IGNORE, CLICK = "meet", "avoid", "shoot", "ignore", "click"
 STANCES = (MEET, AVOID, SHOOT, IGNORE, CLICK)
 
-#: How much measured evidence it takes to overrule what she was told about a
-#: kind: about two clear verdicts the other way.
-OVERRULES = 1.5
+#: How far meeting a kind must have gone worse (or better) than letting it by,
+#: over three settled meetings and passes or more, to overrule what she was
+#: told about it.
+OVERRULES = 0.6
 
 #: How long after a touch or a pass its verdict may still arrive: a reading of
 #: the counters every half second, a second reading to confirm a change, and
@@ -169,11 +170,33 @@ class Readouts:
 
 @dataclass
 class _Evidence:
-    meet: float = 0.0
+    """What came of a kind meeting her, getting by her, and being shot: sums, and how many were settled."""
+
+    touch_sum: float = 0.0
     shoot: float = 0.0
     touched: int = 0
     passed: int = 0
     shot: int = 0
+    pass_sum: float = 0.0
+    touches_settled: int = 0
+    passes_settled: int = 0
+
+    @property
+    def meet(self) -> float:
+        """How much better meeting it went than letting it by: the mean after each, one less the other.
+
+        The contrast, not a sum. In a rally every point lost comes a moment
+        after one of her own returns, so a sum over touches sinks the longer
+        she rallies: offline 2026-10-04 it taught her to dodge the ball. Let
+        by, the ball costs a point every time; met, only sometimes. Meeting
+        it is the better of the two, and that is what a stance is for.
+        """
+        touch = self.touch_sum / self.touches_settled if self.touches_settled else 0.0
+        passing = self.pass_sum / self.passes_settled if self.passes_settled else 0.0
+        return touch - passing
+
+    def settled(self) -> int:
+        return self.touches_settled + self.passes_settled
 
 
 class WhatMeetingDoes:
@@ -185,6 +208,10 @@ class WhatMeetingDoes:
         self.since: float | None = None
         self._open: list[dict[str, Any]] = []
         self._touching: set[int] = set()
+        #: Things that met her lately, and when; and things beside her that
+        #: have not, with how they were going when they came beside her.
+        self._met: dict[int, float] = {}
+        self._beside: dict[int, tuple[float, float]] = {}
         self._side: dict[int, float] = {}
         self.evidence: dict[int, _Evidence] = defaultdict(_Evidence)
         self.writing: set[int] = set()
@@ -284,14 +311,21 @@ class WhatMeetingDoes:
             better = (gains - self._by_chance("gain", at)) - (losses - self._by_chance("loss", at))
             kept = self.evidence[event["kind"]]
             if event["what"] == "touched":
-                kept.meet += better
+                kept.touch_sum += better
+                kept.touches_settled += 1
             elif event["what"] == "passed":
-                kept.meet -= better
+                kept.pass_sum += better
+                kept.passes_settled += 1
             elif event["what"] == "shot":
                 kept.shoot += better
         self._open = still_open
 
     # -- what happened between her and the rest ---------------------------
+
+    def numbered_afresh(self) -> None:
+        """The picture's things are numbered from one again: forget what was kept of each by its number."""
+        for kept in (self._touching, self._met, self._beside, self._side, self.writing, self._clicks):
+            kept.clear()
 
     def saw(self, moves: Any, hers: Any, happened: list[dict[str, Any]], at: float, line: int | None) -> None:
         """One picture's worth: touches, passes, shots, and her own loss."""
@@ -318,6 +352,14 @@ class WhatMeetingDoes:
             kept.shot += 1
 
     def _touches(self, moves: Any, mine: Any, hers: Any, at: float) -> None:
+        """Things that met her: that overlapped her, or that turned while beside her.
+
+        Beside her is not met. A ball that slips past the end of a paddle
+        comes within a pixel of it and goes on its way; counted as met,
+        offline 2026-10-04, every point lost that way was laid on meeting the
+        ball. Two pictures can miss the moment of overlap, so a thing that
+        came close and left on another course was met too.
+        """
         if mine is None:
             return
         now = set()
@@ -326,11 +368,24 @@ class WhatMeetingDoes:
                 continue
             if thing.kind == hers.kind and not thing.moved:
                 continue
-            if _close(mine.box(), thing.box(), 2.0):
-                now.add(thing.number)
-                if thing.number not in self._touching and thing.number not in self.writing:
-                    self._note("touched", thing, at)
+            if not _close(mine.box(), thing.box(), 2.0):
+                continue
+            now.add(thing.number)
+            if thing.number in self._met or thing.number in self.writing:
+                continue
+            if _close(mine.box(), thing.box(), 0.0) or _turned(self._beside.get(thing.number), thing):
+                self._met[thing.number] = at
+                self._note("touched", thing, at)
+            else:
+                self._beside.setdefault(thing.number, (thing.vx, thing.vy))
+        for number in [n for n in self._beside if n not in now]:
+            thing = moves.things.get(number)
+            if thing is not None and number not in self._met and _turned(self._beside[number], thing):
+                self._met[number] = at
+                self._note("touched", thing, at)
+            del self._beside[number]
         self._touching = now
+        self._met = {n: when for n, when in self._met.items() if n in now or at - when < 1.0}
 
     @staticmethod
     def _shot_kinds(hers: Any) -> tuple[int, ...]:
@@ -349,9 +404,17 @@ class WhatMeetingDoes:
             # A thing that goes the moment it reaches her was met, though no
             # picture showed the two together: the game took it away first.
             last = moves.last_box.get(event["thing"])
-            if mine is not None and last is not None and event["thing"] not in self._touching and _close(mine.box(), last, 4.0):
-                self._open.append({"what": "touched", "kind": event["kind"], "at": at})
-                self.evidence[event["kind"]].touched += 1
+            if mine is not None and last is not None and event["thing"] not in self._met and _close(mine.box(), last, 4.0):
+                # Unless it went off the edge of the picture behind her: then
+                # it got by. Offline 2026-10-04, a ball a paddle missed at the
+                # court's edge was filed as met, every point lost after it
+                # was laid on meeting the ball, and she learned to dodge it.
+                what = "passed" if _at_an_edge(event, moves.shape) and _behind(mine, event, moves.shape) else "touched"
+                self._open.append({"what": what, "kind": event["kind"], "at": at})
+                if what == "passed":
+                    self.evidence[event["kind"]].passed += 1
+                else:
+                    self.evidence[event["kind"]].touched += 1
                 continue
             hit = any(math.hypot(s["x"] - event["x"], s["y"] - event["y"]) < 14.0 for s in shots)
             if hit:
@@ -370,7 +433,7 @@ class WhatMeetingDoes:
             before = self._side.get(thing.number)
             self._side[thing.number] = side
             crossed = before is not None and before * side < 0
-            if crossed and thing.number not in self._touching:
+            if crossed and thing.number not in self._met:
                 self._note("passed", thing, at)
         self._side = {n: s for n, s in self._side.items() if n in seen}
 
@@ -387,7 +450,8 @@ class WhatMeetingDoes:
         told = self.told.get(kind)
         if told is not None:
             measured = kept.meet if kept is not None else 0.0
-            against = (told in (MEET, CLICK) and measured <= -OVERRULES) or (told == AVOID and measured >= OVERRULES)
+            enough = kept is not None and kept.settled() >= 3
+            against = enough and ((told in (MEET, CLICK) and measured <= -OVERRULES) or (told == AVOID and measured >= OVERRULES))
             if not against and not (kept is not None and kept.shoot >= 0.5 and told != AVOID):
                 return SHOOT if told == SHOOT else told
         if kept is None:
@@ -410,7 +474,7 @@ class WhatMeetingDoes:
         kept = self.evidence.get(kind)
         if kept is None:
             return False
-        return kept.meet <= -0.6 or kept.shoot >= 0.5 or (kept.meet >= 1.5 and kept.touched >= 3)
+        return kept.meet <= -0.6 or kept.shoot >= 0.5 or (kept.meet >= 0.5 and kept.touches_settled >= 3)
 
 
 def _close(a: tuple[float, float, float, float], b: tuple[float, float, float, float], margin: float) -> bool:
@@ -420,3 +484,23 @@ def _close(a: tuple[float, float, float, float], b: tuple[float, float, float, f
 def _at_an_edge(event: dict[str, Any], shape: tuple[int, int]) -> bool:
     tall, wide = shape
     return min(event["x"], event["y"], wide - event["x"], tall - event["y"]) < 6.0
+
+
+def _behind(mine: Any, event: dict[str, Any], shape: tuple[int, int]) -> bool:
+    """Whether a thing that went at the picture's edge went between her and that edge."""
+    tall, wide = shape
+    x, y = event["x"], event["y"]
+    nearest = min((x, "left"), (wide - x, "right"), (y, "top"), (tall - y, "bottom"))[1]
+    return {"left": x < mine.x, "right": x > mine.x, "top": y < mine.y, "bottom": y > mine.y}[nearest]
+
+
+def _turned(before: tuple[float, float] | None, thing: Any) -> bool:
+    """Whether a thing is now going a way more than sixty degrees from the way it was, or has stopped."""
+    if before is None:
+        return False
+    was, now = math.hypot(*before), math.hypot(thing.vx, thing.vy)
+    if was < 1.0:
+        return False
+    if now < 0.3 * was:
+        return True
+    return (before[0] * thing.vx + before[1] * thing.vy) < 0.5 * was * now

@@ -42,6 +42,9 @@ ENOUGH = 5
 #: Accelerations below this, in working pixels per second squared, are noise.
 STILL_AIR = 25.0
 
+#: How close to an edge, as a share of the picture, a turn has to be to be the edge's.
+NEAR_AN_EDGE = 0.15
+
 
 @dataclass
 class _Edge:
@@ -66,6 +69,10 @@ class _Kind:
     meetings: list[tuple[float, float, float]] = field(default_factory=list)
 
 
+def _near(thing: Any, other: Any, margin: float) -> bool:
+    return abs(thing.x - other.x) < (thing.w + other.w) / 2 + margin and abs(thing.y - other.y) < (thing.h + other.h) / 2 + margin
+
+
 @dataclass
 class Imagined:
     """A thing run forward: where it is at each step, and what ends the run."""
@@ -80,10 +87,16 @@ class HowThingsMoveHere:
 
     def __init__(self) -> None:
         self.kinds: dict[int, _Kind] = defaultdict(_Kind)
+        #: How each kind looks, for pooling kinds that look alike: colour and size.
+        self.looks: dict[int, tuple[tuple[int, int, int], float]] = {}
         self._last: dict[int, tuple[float, float, float, float, float, int]] = {}
         self.shape: tuple[int, int] = (0, 0)
 
     # -- learning --------------------------------------------------------------
+
+    def numbered_afresh(self) -> None:
+        """The picture's things are numbered from one again: forget what was kept of each by its number."""
+        self._last.clear()
 
     def saw(self, moves: Any, hers: Any, happened: list[dict[str, Any]], at: float) -> None:
         """One picture's worth of motion."""
@@ -97,33 +110,46 @@ class HowThingsMoveHere:
             before = self._last.get(thing.number)
             self._last[thing.number] = (at, thing.x, thing.y, thing.vx, thing.vy, thing.kind)
             kind = self.kinds[thing.kind]
+            self.looks[thing.kind] = (tuple(int(c) for c in thing.colour), float(thing.size))
             kind.speeds.append(math.hypot(thing.vx, thing.vy))
             if before is None or not 0.0 < at - before[0] < 0.12:
                 continue
-            self._learn_a_step(thing, before, at, kind, mine)
+            others = [t for t in moves.things.values() if t.number != thing.number and (mine is None or t.number != mine.number)]
+            self._learn_a_step(thing, before, at, kind, mine, others)
         self._learn_the_edges(moves, happened)
         self._last = {n: v for n, v in self._last.items() if n in seen}
 
-    def _learn_a_step(self, thing: Any, before: tuple, at: float, kind: _Kind, mine: Any) -> None:
+    def _learn_a_step(self, thing: Any, before: tuple, at: float, kind: _Kind, mine: Any, others: list[Any]) -> None:
         dt = at - before[0]
         _t, x0, y0, vx0, vy0, _k = before
         turned_x = vx0 * thing.vx < 0 and abs(vx0) > 20 and abs(thing.vx) > 20
         turned_y = vy0 * thing.vy < 0 and abs(vy0) > 20 and abs(thing.vy) > 20
         if not (turned_x or turned_y):
-            kind.accelerations.append(((thing.vx - vx0) / dt, (thing.vy - vy0) / dt))
+            # A change of speed with something touching it is that thing's
+            # doing, not the world's pull: only free flight measures gravity.
+            if not any(_near(thing, other, 4.0) for other in [*others, mine] if other is not None):
+                kind.accelerations.append(((thing.vx - vx0) / dt, (thing.vy - vy0) / dt))
             return
-        near_her = mine is not None and abs(thing.x - mine.x) < (thing.w + mine.w) / 2 + 6 and abs(thing.y - mine.y) < (thing.h + mine.h) / 2 + 6
-        if near_her:
+        # Seen turned a picture or two after it turned: how far it went since
+        # is how near to her it may have been when it did.
+        reach = 6.0 + 2.0 * math.hypot(thing.vx, thing.vy) * dt
+        if mine is not None and _near(thing, mine, reach):
             self._learn_a_meeting(thing, (vx0, vy0), mine, kind, turned_x)
             return
+        if any(_near(thing, other, reach) for other in others):
+            return
         tall, wide = self.shape
-        for turned, position, low, high, names in (
-            (turned_x, thing.x, 0.0, float(wide), ("left", "right")),
-            (turned_y, thing.y, 0.0, float(tall), ("top", "bottom")),
+        for turned, position, size, names in (
+            (turned_x, thing.x, float(wide), ("left", "right")),
+            (turned_y, thing.y, float(tall), ("top", "bottom")),
         ):
             if not turned:
                 continue
-            edge = names[0] if position - low < high - position else names[1]
+            # A wall is at an edge: a thing that turns in the open turned off
+            # something, and calling that a wall put walls across the middle.
+            if position > size * NEAR_AN_EDGE and position < size * (1 - NEAR_AN_EDGE):
+                continue
+            edge = names[0] if position < size / 2 else names[1]
             record = kind.edges[edge]
             record.bounces += 1
             record.where.append(position)
@@ -167,8 +193,25 @@ class HowThingsMoveHere:
 
     # -- what it has learned ---------------------------------------------------
 
+    def alike(self, kind: int) -> list[_Kind]:
+        """This kind and the kinds that look like it: one ball seen as two kinds is one ball's physics."""
+        looks = self.looks.get(kind)
+        if looks is None:
+            return [self.kinds[kind]] if kind in self.kinds else []
+        colour, size = looks
+        pooled = []
+        for other, record in self.kinds.items():
+            there = self.looks.get(other)
+            if other == kind or (
+                there is not None
+                and max(abs(a - b) for a, b in zip(colour, there[0], strict=True)) <= 45
+                and max(size, there[1]) / max(1e-6, min(size, there[1])) < 2.5
+            ):
+                pooled.append(record)
+        return pooled
+
     def gravity(self, kind: int) -> tuple[float, float]:
-        samples = list(self.kinds[kind].accelerations) if kind in self.kinds else []
+        samples = [a for record in self.alike(kind) for a in record.accelerations]
         if len(samples) < ENOUGH * 4:
             return 0.0, 0.0
         ax = statistics.median(a for a, _b in samples)
@@ -177,15 +220,19 @@ class HowThingsMoveHere:
 
     def edge(self, kind: int, name: str) -> tuple[str, float | None, float]:
         """What an edge does to a kind, where it really is, and how much speed a bounce keeps."""
-        record = self.kinds[kind].edges.get(name) if kind in self.kinds else None
-        if record is None:
+        records = [r.edges[name] for r in self.alike(kind) if name in r.edges]
+        if not records:
             return "", None, 1.0
-        where = statistics.median(record.where) if len(record.where) >= 2 else None
-        kept = statistics.median(record.kept) if len(record.kept) >= 2 else 1.0
-        return record.does(), where, kept
+        pooled = _Edge(
+            sum(r.bounces for r in records), sum(r.leaves for r in records), sum(r.wraps for r in records),
+            [w for r in records for w in r.where], [k for r in records for k in r.kept],
+        )
+        where = statistics.median(pooled.where) if len(pooled.where) >= 2 else None
+        kept = statistics.median(pooled.kept) if len(pooled.kept) >= 2 else 1.0
+        return pooled.does(), where, kept
 
     def fastest(self, kind: int) -> float:
-        speeds = sorted(self.kinds[kind].speeds) if kind in self.kinds else []
+        speeds = sorted(s for record in self.alike(kind) for s in record.speeds)
         return speeds[int(len(speeds) * 0.95)] if len(speeds) >= ENOUGH else 0.0
 
     def after_meeting(self, kind: int, along: float, incoming: tuple[float, float], across: bool) -> tuple[float, float] | None:
@@ -194,7 +241,7 @@ class HowThingsMoveHere:
         A straight line through the angles seen against where they met, and
         the median speed gained. None until there are enough meetings to say.
         """
-        meetings = self.kinds[kind].meetings if kind in self.kinds else []
+        meetings = [m for record in self.alike(kind) for m in record.meetings]
         if len(meetings) < ENOUGH:
             return None
         xs = [m[0] for m in meetings]
