@@ -19,7 +19,15 @@ So this replaces the serving profile of the active pointer, and nothing else:
 * the pointer it replaces becomes the rollback pointer, and
   ``rollback_upgrade`` restores it byte for byte;
 * the new pointer is read back through the runtime's own validator before the
-  change is reported; one that does not load is replaced by the old bytes.
+  change is reported; one that does not load is replaced by the old bytes;
+* a serving surface whose activation was valid against the old pointer must
+  still be valid against the new one. LIVE 2026-10-03 the 65536 profile was
+  installed this way and the bounded semantic-neural surface (60 of 60 against
+  16 of 60 for ordinary decode) read ``resident_manifest_drift``: its
+  activation is bound to the exact pointer, profile included, and would not
+  have served after her next boot. The pointer was rolled back. A profile that
+  would switch a proven surface off is now refused here, and the surface's own
+  qualification is what earns the change.
 
 Effective at next boot, like activation.
 """
@@ -33,6 +41,27 @@ from pathlib import Path
 from typing import Any
 
 __all__ = ["apply_serving_requalification"]
+
+
+def _valid_serving_surfaces() -> set[str]:
+    """The semantic-neural activations that validate against the pointer as it is now."""
+    import json as _json
+
+    from core.brain.llm.semantic_neural_serving import (
+        ACTIVE_ACTIVATION_PATH,
+        DEFAULT_ACTIVATION_PATH,
+        semantic_neural_activation_errors,
+    )
+
+    valid = set()
+    for path in {Path(DEFAULT_ACTIVATION_PATH), Path(ACTIVE_ACTIVATION_PATH)}:
+        try:
+            activation = _json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(activation, dict) and not semantic_neural_activation_errors(activation):
+            valid.add(str(path))
+    return valid
 
 
 def apply_serving_requalification(
@@ -73,6 +102,7 @@ def apply_serving_requalification(
         model_path=str(current["active_model_path"]),
         descriptor_digest=str(descriptor["descriptor_sha256"]),
     )
+    surfaces_before = _valid_serving_surfaces()
     replaced = {**current, "serving_profile": serving_profile}
     replaced_bytes = (json.dumps(replaced, indent=2, sort_keys=True) + "\n").encode("utf-8")
     _governed_write(fused_model_dir / ROLLBACK_POINTER_NAME, current_bytes, source="cortex_upgrade.requalify")
@@ -82,6 +112,13 @@ def apply_serving_requalification(
     except (OSError, ValueError, RuntimeError) as exc:
         _governed_write(pointer_path, current_bytes, source="cortex_upgrade.requalify_undo")
         raise ValueError(f"the requalified pointer did not load, so the old one was put back: {exc}") from exc
+    switched_off = sorted(surfaces_before - _valid_serving_surfaces())
+    if switched_off:
+        _governed_write(pointer_path, current_bytes, source="cortex_upgrade.requalify_undo")
+        raise ValueError(
+            "the requalified profile would switch off a qualified serving surface, so the old "
+            f"pointer was put back; requalify the surface under the new profile first: {switched_off}"
+        )
     return {
         "schema": "aura.cortex_upgrade.serving_requalification.v1",
         "changed": True,

@@ -843,3 +843,24 @@ def test_a_requalified_window_replaces_only_the_serving_profile(tmp_path, monkey
     assert again["changed"] is False
     assert rollback_upgrade(fused_model_dir=fused)["byte_exact"] is True
     assert (fused / "active.json").read_bytes() == before_bytes
+
+
+def test_a_requalification_that_would_switch_off_a_serving_surface_is_undone(tmp_path, monkeypatch):
+    """LIVE 2026-10-03: the 65536 profile left the semantic-neural surface reading manifest drift."""
+    from core.learning import serving_requalification
+
+    monkeypatch.setenv("AURA_LOG_DIR", str(tmp_path / "logs"))
+    fused, candidate = _fused_dir(tmp_path)
+    descriptor, evaluation, serving, migration = _upgrade_contracts(candidate)
+    stage_upgrade(candidate_model_path=candidate, base_model_path="Qwen3-32B",
+                  tag="qwen3-gen", fused_model_dir=fused, evaluation=evaluation,
+                  serving_profile=serving, migration_contract=migration)
+    activate_upgrade(fused_model_dir=fused, authorized_by="bryan", evaluation=evaluation)
+    before = (fused / "active.json").read_bytes()
+    surfaces = iter([{"surface"}, set()])
+    monkeypatch.setattr(serving_requalification, "_valid_serving_surfaces", lambda: next(surfaces))
+    with pytest.raises(ValueError, match="switch off a qualified serving surface"):
+        serving_requalification.apply_serving_requalification(
+            serving_profile=_remeasured_profile(descriptor, 4096), authorized_by="bryan", fused_model_dir=fused
+        )
+    assert (fused / "active.json").read_bytes() == before
