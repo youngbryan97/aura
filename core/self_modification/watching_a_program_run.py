@@ -67,6 +67,9 @@ class Behaviour:
     #: only good news when its check is here: unmeasured is never fine.
     right: set[str] = field(default_factory=set)
 
+    #: The checks this kind of watch makes: a game's, or a page's.
+    checks: set[str] = field(default_factory=set)
+
     @property
     def wrong(self) -> set[str]:
         return set(self.findings)
@@ -378,9 +381,16 @@ WRONG, RIGHT, UNMEASURED = "wrong", "right", "unmeasured"
 def _controls(watch: _Watch, keys: list[str]) -> tuple[dict[str, tuple[float, float]], tuple[str, str]]:
     """Every direction key the words name moves her thing that way, or the controls are wrong."""
     ways: dict[str, tuple[float, float]] = {}
-    if watch.hers.kind is None:
-        return ways, (UNMEASURED, "")
     named = [key for key in keys if key in _DIRECTIONS]
+    if watch.hers.kind is None:
+        # Every key the program names was tried, again and again, while
+        # things on its screen moved, and nothing answered to any of them:
+        # that is a finding, not a gap. An edit that sends both keys the same
+        # way pins the thing they move against an edge, and it answers to
+        # neither (offline 2026-10-04).
+        if named and watch.last_others_moving > 0.0 and all(watch.hers.tried(key) >= 4 for key in named):
+            return ways, (WRONG, f"none of the keys it names ({', '.join(named)}) moves anything I can see")
+        return ways, (UNMEASURED, "")
     for key in named:
         if watch.hers.tried(key) < 4:
             return ways, (UNMEASURED, "")
@@ -492,6 +502,7 @@ async def _used(page: Any, behaviour: Behaviour, failed: list[str]) -> Behaviour
     from core.self_modification.what_a_page_does import what_a_page_does
 
     began = time.monotonic()
+    behaviour.checks = {"errors", "dead", "failed"}
     use = await what_a_page_does(page, before=behaviour.errors, failed=failed)
     if use.errors:
         behaviour.findings["errors"] = f"the page threw an error: {use.errors[0]}"
@@ -540,6 +551,7 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
     await _play(page, clip, watch, keys, seconds, still=False)
     await _play(page, clip, watch, keys, seconds, still=True)
     behaviour.controls, controls = _controls(watch, keys)
+    behaviour.checks = {"controls", "went through", "escaped", "credited", "idle"}
     for name, (verdict, finding) in (("controls", controls), ("went through", _went_through(watch)),
                                      ("escaped", _escaped(watch)), ("credited", _credited(watch)),
                                      ("idle", _idle_actor(watch))):

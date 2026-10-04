@@ -36,7 +36,7 @@ logger = logging.getLogger("SelfModification.RepairingByBehaviour")
 __all__ = ["Repair", "repair_by_behaviour", "the_programs_own_words"]
 
 #: How many copies are watched at once while trying edits.
-AT_ONCE = 3
+AT_ONCE = 6
 
 #: How long each part of a watch runs, in seconds.
 WATCH_S = 10.0
@@ -249,8 +249,14 @@ async def _confirmed(browser: Any, before: str, after: str, words: str, keys: li
                 return None
             again = third
         shown = sorted((trial.right & again.right) - without.right)
-        if shown:
-            return again, shown
+        # Or a fault the program without it showed in this same pair, under
+        # the same dice, that the program with it did not, here or in its
+        # trial. A missing wall is seen missing when the ball leaves through
+        # it; seen present only when the ball happens to strike both walls,
+        # which a short watch often does not show (LIVE 2026-10-04).
+        gone = sorted((without.wrong & now.wrong) - again.wrong - trial.wrong)
+        if shown or gone:
+            return again, shown + [f"no longer: {name}" for name in gone]
         logger.info("beside the program without it, the chosen edit made no difference this time")
     return None
 
@@ -386,7 +392,10 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 repair.kept.append({
                     "where": suspicion.function, "line": suspicion.line, "pattern": suspicion.pattern,
                     "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why,
-                    "shown": [_RIGHT_SAID.get(name, name) for name in shown],
+                    "shown": [
+                        f"no longer {_WRONG_SAID.get(name[11:], name[11:])}" if name.startswith("no longer: ")
+                        else _RIGHT_SAID.get(name, name) for name in shown
+                    ],
                 })
                 tell(_what_this_change_did(suspicion, edit, current, shown))
                 current, last = applied(current, edit), last.after(behaviour).after(again)
@@ -399,7 +408,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 final.right |= second.right - final.wrong
             believed = last.after(final)
             repair.after = dict(believed.findings) if believed.wrong else {}
-            repair.unseen = sorted(set(_RIGHT_SAID) - believed.right - believed.wrong)
+            repair.unseen = sorted((final.checks or set(_RIGHT_SAID)) - believed.right - believed.wrong)
         finally:
             await browser.close()
     repair.left = [f"{s.function}: {s.why}" for s in what_looks_wrong(current, ".html")]
@@ -434,8 +443,10 @@ def _what_this_change_did(suspicion: Suspicion, edit: list[Edit], current: str, 
     where = ", ".join(str(n) for n in lines) or str(suspicion.line)
     said = (f"In {suspicion.function or 'the code'} (line {where}): {suspicion.why}, "
             f"so I changed {', '.join(e.says(current) for e in edit)}.")
-    if shown:
-        said += " Now " + " and ".join(f"I can see {_RIGHT_SAID.get(name, name)}" for name in shown) + "."
+    seen = [f"I can see {_RIGHT_SAID.get(name, name)}" for name in shown if not name.startswith("no longer: ")]
+    gone = [f"I no longer see {_WRONG_SAID.get(name[11:], name[11:])}" for name in shown if name.startswith("no longer: ")]
+    if seen or gone:
+        said += " Now " + " and ".join(seen + gone) + "."
     else:
         said += " It plays no worse for it, and what it should mend did not come up again in the second look."
     return said
@@ -463,6 +474,18 @@ _UNSEEN_SAID = {
     "errors": "it run without an error",
     "dead": "what each control does",
     "failed": "everything it asks for load",
+}
+
+#: What a check seen wrong shows, in words.
+_WRONG_SAID = {
+    "controls": "a key move what I control the wrong way",
+    "went through": "things go straight through what I control",
+    "escaped": "things leave through an edge and the game stand still",
+    "credited": "my side's score go up when something gets past me",
+    "idle": "the other side's player stand still",
+    "errors": "it throw an error",
+    "dead": "a control that does nothing",
+    "failed": "something it asks for fail to load",
 }
 
 #: What a check coming right shows, in words.

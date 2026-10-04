@@ -77,7 +77,10 @@ class RepairAProgramSkill(BaseSkill):
         repair = await repair_by_behaviour(path, say=_said)
         summary = repair.said[-1] if repair.said else "I could not run it."
         played: dict[str, Any] = {}
-        if _asks_to_play(asked) and repair.kept and not repair.after:
+        # Asked to play it, she plays what she mended, having said what still
+        # looks wrong: the person asked for both, and a game with one fault
+        # left can still be played and still shows what was mended.
+        if _asks_to_play(asked) and repair.kept:
             played = await _play_it(path.as_uri(), asked)
             summary += " " + _how_the_play_went(played)
         return {
