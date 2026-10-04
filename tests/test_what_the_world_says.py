@@ -236,3 +236,18 @@ def test_what_the_grammar_reads_exactly_teaches_the_learned_surfaces(judge, monk
     assert "so what did you find?" in search_request._ASKS_WHAT_WAS_FOUND.positives
     search_request.teach_from_the_floor("How are you feeling tonight?")
     assert "How are you feeling tonight?" not in search_request._FINDS_OUT.positives
+
+
+def test_a_page_is_read_from_its_prose_not_its_menu() -> None:
+    """LIVE 2026-10-03: the passage of a fetched Wikipedia page was its navigation."""
+    menu = "\n".join(["Jump to content", "Main menu", "Navigation", "Main page", "Contents", "Search", "Log in"] * 3)
+    caption = "The Kaseya Center in Miami, where the game took place."
+    lead = (
+        "On March 10, 2026, Bam Adebayo scored 83 points for the Miami Heat. "
+        "It is the second-highest total in NBA history."
+    )
+    reaction = "After the game, Heat head coach Erik Spoelstra called it an absolutely surreal night."
+    page = f"{menu}\n{caption}\n{lead}\nHeading\n{reaction}"
+    bare = passage_of(page)
+    assert "On March 10, 2026" in bare and "Main menu" not in bare and "Log in" not in bare
+    assert "Spoelstra" in passage_of(page, ["Spoelstra"])

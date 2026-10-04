@@ -5623,9 +5623,9 @@ def _looks_like_unrequested_content_review(user_message: str, reply_text: str) -
     reply = _chat_memory_state._normalize_user_message(reply_text)
     if not reply:
         return False, ""
-    if any(marker in user_text for marker in _CONTENT_OBJECT_MARKERS):
+    # A link hands her a document: talking about it was asked for (LIVE 2026-10-03, a Wikipedia link).
+    if re.search(r"https?://", str(user_message or "")) or any(m in user_text for m in _CONTENT_OBJECT_MARKERS):
         return False, ""
-
     review_hits = sum(1 for marker in _UNREQUESTED_CONTENT_REVIEW_MARKERS if marker in reply)
     object_hits = sum(
         1 for marker in _CONTENT_OBJECT_MARKERS if re.search(rf"\b{re.escape(marker)}\b", reply)
@@ -5638,8 +5638,6 @@ def _looks_like_unrequested_content_review(user_message: str, reply_text: str) -
     ):
         return True, "unrequested_content_review"
     return False, ""
-
-
 
 
 #: Somebody asking her about herself, where a reply about her own workings is

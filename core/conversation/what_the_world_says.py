@@ -210,17 +210,57 @@ def _paragraphs(text: str) -> list[str]:
     return [part.strip() for part in re.split(r"\n\s*\n|\n(?=[A-Z][^\n]{0,60}\.\n)", str(text or "")) if len(part.strip()) > 40]
 
 
+_SENTENCE_END = re.compile(r"[.!?][\"'”’)\]]*(?:\s|$)")
+
+
+def _prose_paragraphs(text: str) -> list[str]:
+    """Runs of lines that read as prose: they end sentences and are longer than the page's median line.
+
+    LIVE 2026-10-03: a fetched Wikipedia page opens with its navigation, one
+    short label per line ("Jump to content", "Main menu", "Search"), and the
+    passage taken from it was that menu; her repair answer said the link held
+    only navigation. A page's own median line separates labels from prose,
+    whatever the site.
+    """
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    if not lines:
+        return []
+    counts = sorted(len(line.split()) for line in lines)
+    median = counts[len(counts) // 2]
+    blocks: list[list[str]] = []
+    for line in lines:
+        if len(line.split()) > median and _SENTENCE_END.search(line):
+            if blocks and blocks[-1][-1] is not None:
+                blocks[-1].append(line)
+            else:
+                blocks.append([line])
+        elif blocks and blocks[-1][-1] is not None:
+            blocks[-1].append(None)  # a break: the next prose line starts a new block
+    return ["\n".join(line for line in block if line is not None) for block in blocks]
+
+
 def passage_of(text: str, terms: Sequence[str] = (), *, limit: int = _PASSAGE_CHARS) -> str:
-    """The opening of a document, then the paragraphs that carry the request's terms."""
-    paragraphs = _paragraphs(text) or [str(text or "").strip()]
-    chosen = [paragraphs[0]]
+    """The opening of a document, then the paragraphs that carry the request's terms.
+
+    The opening is the first paragraph of more than one sentence, so a caption
+    is not taken for a lead. With no terms (a bare link names nothing), the
+    document's own order follows the opening.
+    """
+    paragraphs = _prose_paragraphs(text) or _paragraphs(text) or [str(text or "").strip()]
+    opening = next(
+        (index for index, paragraph in enumerate(paragraphs) if len(_SENTENCE_END.findall(paragraph)) > 1), 0
+    )
+    chosen = [paragraphs[opening]]
+    rest = paragraphs[opening + 1 :]
     wanted = {term.lower() for term in terms if term}
     if wanted:
-        ranked = sorted(
-            paragraphs[1:],
-            key=lambda paragraph: -sum(term in paragraph.lower() for term in wanted),
-        )
-        chosen.extend(paragraph for paragraph in ranked[:2] if any(term in paragraph.lower() for term in wanted))
+        def density(paragraph: str) -> float:
+            lowered = paragraph.lower()
+            return sum(lowered.count(term) for term in wanted) / max(1, len(paragraph))
+
+        chosen.extend(paragraph for paragraph in sorted(rest, key=density, reverse=True)[:2] if density(paragraph) > 0)
+    else:
+        chosen.extend(rest[:2])
     passage = "\n\n".join(chosen)
     if len(passage) <= limit:
         return passage
