@@ -1596,6 +1596,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             "evolution_status",
             "program_dna_reconstruct",
             "program_dna_equivalence_battery",
+            "repair_a_program",
             # OS & computer control
             "computer_use",
             "desktop_task",

@@ -32,8 +32,11 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.agency.what_meeting_things_does import AVOID, IGNORE, MEET, SHOOT, WhatMeetingDoes
+from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
+from core.agency.what_the_rules_said import WhatTheRulesSaid
 from core.agency.which_one_answers_to_her import WhichIsHers
+from core.perception.how_things_move_here import HowThingsMoveHere
+from core.perception.what_changed_and_stayed import WhatChangedAndStayed
 from core.perception.what_moves_in_the_picture import WhatMoves
 
 logger = logging.getLogger("Aura.PlayingAsItHappens")
@@ -99,6 +102,20 @@ class _Run:
     read_at: float = -math.inf
     counted: dict[str, int] = field(default_factory=dict)
     reported_at: float = 0.0
+    stayed: WhatChangedAndStayed = field(default_factory=WhatChangedAndStayed)
+    #: Where on her thing she meets things, as a share of its length from the
+    #: middle, and for each: how many meetings, and how many were followed by a
+    #: gain for her.
+    meeting_with: dict[float, list[int]] = field(default_factory=lambda: {-0.7: [0, 0], 0.0: [0, 0], 0.7: [0, 0]})
+    meeting_now: float = 0.0
+    told_checked: set[int] = field(default_factory=set)
+    #: Every line of writing read on the screen during the stretch.
+    words_seen: set[str] = field(default_factory=set)
+    situation: str = ""
+    situation_at: float = -math.inf
+    met: list[tuple[float, float]] = field(default_factory=list)
+    credited_up_to: int = 0
+    touching: set[int] = field(default_factory=set)
     pictures: int = 0
     gains: int = 0
     losses: int = 0
@@ -216,8 +233,10 @@ def _moved_box(box: tuple[float, float, float, float], dx: float, dy: float, gro
 class _Choosing:
     """The arithmetic of one decision, from what she has measured so far."""
 
-    def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str]) -> None:
+    def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
+                 physics: HowThingsMoveHere | None = None) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
+        self.physics = physics
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
         self.across, self.updown = hers.follows_along if hers.follows_pointer else hers.axes(keys)
@@ -266,7 +285,7 @@ class _Choosing:
         her_line, her_free = (mine.x, mine.y)[line], (mine.x, mine.y)[free]
         best = None
         for thing in self.others():
-            if self.stance(thing) != MEET or not thing.moved:
+            if self.stance(thing) not in (MEET, CLICK) or not thing.moved:
                 continue
             gap = her_line - (thing.x, thing.y)[line]
             closing = (thing.vx, thing.vy)[line]
@@ -275,6 +294,11 @@ class _Choosing:
             when = gap / closing
             low, high = _range_of(self.moves, thing.kind, free)
             there = _ahead(thing, when, low, high, free)
+            # Her own physics of this world, once she has some: gravity, where
+            # the walls really are, how much a bounce keeps.
+            imagined = self.physics.when_it_reaches(thing, line, her_line) if self.physics is not None else None
+            if imagined is not None:
+                when, there = imagined
             reachable = abs(there - her_free) <= self.speed(free) * when + (mine.w, mine.h)[free] / 2
             rank = (0 if reachable else 1, when)
             if best is None or rank < best[0]:
@@ -322,7 +346,7 @@ class _Choosing:
         best = None
         for thing in self.others():
             stance = self.stance(thing)
-            if stance not in (MEET,):
+            if stance not in (MEET, CLICK):
                 continue
             when = math.hypot(thing.x - mine.x, thing.y - mine.y) / speed
             for _ in range(3):
@@ -358,9 +382,16 @@ class _Choosing:
                     total += 1.0 / (after + 0.1)
         return total
 
-    def key(self, held: str) -> tuple[str, str, Any]:
-        """The key to hold now ("" for none), why, and the thing it is for."""
+    def key(self, held: str, *, offset: tuple[float, float] = (0.0, 0.0)) -> tuple[str, str, Any]:
+        """The key to hold now ("" for none), why, and the thing it is for.
+
+        ``offset`` moves where she wants to be by that much: meeting a thing
+        with the end of her paddle instead of its middle.
+        """
         (gx, gy), why, aim = self.target()
+        if why == "meet":
+            gx = gx - offset[0] if gx is not None else None
+            gy = gy - offset[1] if gy is not None else None
         mine = self.mine
         choices = {"": (0.0, 0.0), **self.ways}
         best_key, best_cost = held if held in choices else "", math.inf
@@ -450,6 +481,10 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
     if run.reading is not None and run.reading.done():
         regions, when = run.reading.result()
         run.reading = None
+        for region in regions:
+            said = " ".join(str(region.get("text") or "").lower().split())
+            if said and len(run.words_seen) < 200:
+                run.words_seen.add(said)
         mine = hers.thing(moves)
         her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
         for verdict in meeting.read(regions, when, her_x):
@@ -500,7 +535,7 @@ async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMe
     tall, wide = moves.shape
     candidates = [
         t for t in moves.things.values()
-        if t.moved and t.number not in meeting.writing and meeting.stance(t.kind) == MEET
+        if t.moved and t.number not in meeting.writing and meeting.stance(t.kind) in (MEET, CLICK)
         and not meeting.clicked_lately(t.number, at)
     ]
     if not candidates:
@@ -597,6 +632,52 @@ def _report(run: _Run, getting_somewhere: Callable[[str], Any] | None, at: float
         logger.debug("progress while playing was not taken: %s", why)
 
 
+def _what_the_rules_said_of(rules: WhatTheRulesSaid | None, moves: WhatMoves, meeting: WhatMeetingDoes,
+                            run: _Run, say: Any, at: float) -> None:
+    """Tie the rules' words to the kinds on screen by colour, as each kind first appears."""
+    if rules is None:
+        return
+    for kind in moves.kinds:
+        if kind.number in meeting.told or kind.number in run.told_checked:
+            continue
+        run.told_checked.add(kind.number)
+        stance = rules.stance_for_colour(colour_name(kind.colour))
+        if stance is not None:
+            meeting.told[kind.number] = stance
+            line = {
+                MEET: "the {c} ones are to be got", AVOID: "the {c} ones are to be kept clear of",
+                SHOOT: "the {c} ones are to be shot", CLICK: "the {c} ones are to be clicked",
+            }.get(stance, "")
+            if line:
+                _say(run, say, "The rules say " + line.format(c=colour_name(kind.colour)) + ".", at, once=f"told {kind.number}")
+
+
+def _counters_without_reading(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> None:
+    mine = hers.thing(moves)
+    her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
+    never = {hers.number} if hers.number is not None else set()
+    for when, x, y in run.stayed.see(getattr(moves, "_last", None), moves.things, at, never=never):
+        meeting.changed_in_place(when, x, y, her_x)
+
+
+#: How long between two accounts of what kind of game this is.
+SITUATION_EVERY_S = 30.0
+
+
+def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
+                       physics: HowThingsMoveHere, at: float) -> None:
+    """Say what kind of game this is, once there is something to say, and again when it changes."""
+    from core.agency.what_kind_of_game_this_is import in_a_sentence
+
+    if "me" not in run.said or at - run.situation_at < SITUATION_EVERY_S:
+        return
+    sentence = in_a_sentence(moves, hers, meeting, physics, run.keys)
+    if not sentence or ";" not in sentence or sentence == run.situation:
+        return
+    run.situation, run.situation_at = sentence, at
+    _say(run, say, sentence[0].upper() + sentence[1:], at, once=f"situation {len(run.lines)}")
+
+
 def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> None:
     mine = hers.thing(moves)
     keys = sorted(hers.keys_that_move_her(run.keys))
@@ -637,6 +718,7 @@ async def play_as_it_happens(
     keep: dict[str, Any] | None = None,
     pointer_first: bool = False,
     getting_somewhere: Callable[[str], Any] | None = None,
+    told: str = "",
 ) -> dict[str, Any]:
     """Play what ``look`` shows through ``hands`` until it stops moving or ``seconds`` pass.
 
@@ -648,9 +730,13 @@ async def play_as_it_happens(
     began = time.monotonic()
     keep = keep if keep is not None else {}
     moves = WhatMoves(kinds=keep.get("kinds"))
+    physics: HowThingsMoveHere = keep.get("physics") or HowThingsMoveHere()
+    rules = WhatTheRulesSaid.read(told) if told else None
     hers: WhichIsHers = keep.get("hers") or WhichIsHers()
     meeting: WhatMeetingDoes = keep.get("meeting") or WhatMeetingDoes()
     run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first)
+    if keep.get("meeting_with"):
+        run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
     try:
         while not ended:
@@ -665,11 +751,15 @@ async def play_as_it_happens(
             run.pictures += 1
             happened = moves.see(picture, at)
             hers.saw(moves, happened, at)
-            choosing = _Choosing(moves, hers, meeting, run.keys)
+            physics.saw(moves, hers, happened, at)
+            _what_the_rules_said_of(rules, moves, meeting, run, say, at)
+            choosing = _Choosing(moves, hers, meeting, run.keys, physics)
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
+            _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
             await _act(hands, run, moves, hers, meeting, choosing, at)
             _what_she_says(run, say, moves, hers, meeting, at)
+            _what_kind_of_game(run, say, moves, hers, meeting, physics, at)
             _report(run, getting_somewhere, at)
             ended = _over(run, moves, happened, at) or _nothing_answers(run, hers, meeting, at)
     finally:
@@ -680,7 +770,7 @@ async def play_as_it_happens(
                 logger.debug("letting go of %s failed: %s", run.held, why)
         if run.reading is not None:
             run.reading.cancel()
-    keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds})
+    keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with})
     return _what_it_came_to(run, moves, hers, meeting, ended, began)
 
 
@@ -717,13 +807,118 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         return
     if at - run.tried_at < TRY_A_KEY_S and run.held in untried:
         return
-    key, why, aim = choosing.key(run.held)
+    _where_to_meet_things(run, choosing, meeting, at)
+    imagined = _the_return_they_cannot_reach(choosing)
+    part = imagined if imagined is not None else run.meeting_now
+    shift = part * ((choosing.mine.h if choosing.line() == 0 else choosing.mine.w) / 2 if choosing.mine is not None else 0.0)
+    offset = (0.0, shift) if choosing.line() == 0 else (shift, 0.0) if choosing.line() == 1 else (0.0, 0.0)
+    key, why, aim = choosing.key(run.held, offset=offset)
     await _hold(hands, run, hers, key, at)
     fire = choosing.fire(aim, why)
     if fire and fire != run.held:
         await hands.tap(fire)
         hers.tapped(fire, at)
         run.taps += 1
+
+
+#: The parts of her thing she imagines meeting a thing with, from one end
+#: (-1) through the middle to the other end (1).
+_PARTS = (-0.8, -0.5, -0.25, 0.0, 0.25, 0.5, 0.8)
+
+
+def _the_return_they_cannot_reach(choosing: _Choosing) -> float | None:
+    """Where on her thing to meet what is coming, chosen by running each return forward in her head.
+
+    For each part of her thing: how the thing would leave it (from the
+    meetings she has seen), where it would then cross the far side's line, and
+    how far the other side's player would have to go in that time against how
+    fast it has been seen to go. The part that leaves them furthest short
+    wins. None until she has seen enough meetings, or when there is nothing
+    coming or nobody on the other side.
+    """
+    physics, mine, line = choosing.physics, choosing.mine, choosing.line()
+    if physics is None or mine is None or line is None:
+        return None
+    (_gx, _gy), why, coming = choosing.target()
+    if why != "meet" or coming is None:
+        return None
+    free = 1 - line
+    arrival = physics.when_it_reaches(coming, line, (mine.x, mine.y)[line])
+    if arrival is None:
+        return None
+    them = _the_other_side(choosing)
+    if them is None:
+        return None
+    reach = max(1.0, physics.fastest(them.kind) or 1.0)
+    best = None
+    for part in _PARTS:
+        leaving = physics.after_meeting(coming.kind, part, (coming.vx, coming.vy), across=line == 0)
+        if leaving is None:
+            return None
+        start = [0.0, 0.0]
+        start[line] = (mine.x, mine.y)[line]
+        start[free] = arrival[1]
+        crossing = physics.when_it_reaches(
+            coming, line, (them.x, them.y)[line], start=(start[0], start[1], leaving[0], leaving[1])
+        )
+        if crossing is None:
+            continue
+        short = abs(crossing[1] - (them.x, them.y)[free]) - reach * crossing[0]
+        if best is None or short > best[0]:
+            best = (short, part)
+    return best[1] if best is not None else None
+
+
+def _the_other_side(choosing: _Choosing) -> Any:
+    """The thing shaped like hers on the other half of the picture: the other side's player."""
+    mine, moves = choosing.mine, choosing.moves
+    tall, wide = moves.shape
+    middle = (wide, tall)[choosing.line() or 0] / 2
+    for thing in moves.things.values():
+        if thing.number == mine.number:
+            continue
+        alike = abs(math.log(max(1.0, thing.w) / max(1.0, mine.w))) < 0.4 and abs(math.log(max(1.0, thing.h) / max(1.0, mine.h))) < 0.4
+        across = ((thing.x, thing.y)[choosing.line() or 0] < middle) != ((mine.x, mine.y)[choosing.line() or 0] < middle)
+        if alike and across:
+            return thing
+    return None
+
+
+#: How long after a meeting a gain for her is put down to it.
+GAIN_AFTER_A_MEETING_S = 4.0
+
+
+def _where_to_meet_things(run: _Run, choosing: _Choosing, meeting: WhatMeetingDoes, at: float) -> None:
+    """Learn which part of her thing to meet things with, from the gains that follow.
+
+    Where a thing that meets hers is sent depends on where it met: off the end
+    of a paddle a ball goes away steeply, off the middle it comes back the way
+    it came. Which of those wins points is a fact about the world she is in,
+    so it is measured: each meeting is put down to the part she met with, a
+    gain soon after is put down to that meeting, and the next part is drawn
+    from what each has earned so far (Thompson sampling over three arms).
+    """
+    import random
+
+    if choosing.mine is None or choosing.line() is None:
+        return
+    touching = {t.number for t in choosing.others() if t.moved and _boxes_meet(_moved_box(choosing.mine.box(), 0, 0, 2.0), t.box())}
+    if touching - run.touching:
+        run.meeting_with[run.meeting_now][0] += 1
+        run.met.append((at, run.meeting_now))
+        run.meeting_now = max(
+            run.meeting_with,
+            key=lambda part: random.betavariate(
+                1 + run.meeting_with[part][1], 1 + max(0, run.meeting_with[part][0] - run.meeting_with[part][1])
+            ),
+        )
+    run.touching = touching
+    for verdict in meeting.verdicts[run.credited_up_to :]:
+        if verdict["what"] == "gain":
+            earned = [part for when, part in run.met if 0 <= verdict["since"] - when <= GAIN_AFTER_A_MEETING_S]
+            if earned and run.meeting_with[earned[-1]][1] < run.meeting_with[earned[-1]][0]:
+                run.meeting_with[earned[-1]][1] += 1
+    run.credited_up_to = len(meeting.verdicts)
 
 
 def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
@@ -746,4 +941,5 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "losses": run.losses,
         "counters": dict(meeting.readouts.values),
         "said": list(run.lines),
+        "words_seen": sorted(run.words_seen),
     }

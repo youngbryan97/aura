@@ -100,7 +100,8 @@ async def _one(browser, world, seed, seconds, player):
     # What a player reads on the title screen before playing: the game's rules.
     from core.agency.playing_as_it_happens import controls_named_in
 
-    keys, pointer_first = controls_named_in(" ".join(await page.evaluate("__world.game.rules")))
+    rules = " ".join(await page.evaluate("__world.game.rules"))
+    keys, pointer_first = controls_named_in(rules)
     began = time.monotonic()
     stretches, keep = [], {}
     while time.monotonic() - began < seconds:
@@ -108,7 +109,7 @@ async def _one(browser, world, seed, seconds, player):
         if player == "her":
             stretch = await play_as_it_happens(
                 eyes.look, eyes, keys=keys, seconds=left, read_words=recognize_text, keep=keep,
-                pointer_first=pointer_first,
+                pointer_first=pointer_first, told=rules,
             )
         else:
             stretch = await _random_player(eyes, left)

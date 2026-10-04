@@ -312,6 +312,8 @@ class _UnderstandsThePage(_PlacesHerself):
                     len(named) != len(kin) or named == {str(element["group"])}
                 ):
                     state.append(f"position {kin.index(element) + 1} of {len(kin)}")
+            if element.get("goes_to"):
+                state.append(f"to {element['goes_to']}")
             alike = element.get("alike")
             if isinstance(alike, (list, tuple)) and len(alike) == 2 and not element.get("group"):
                 # Its place among the controls like it, counted by the page.

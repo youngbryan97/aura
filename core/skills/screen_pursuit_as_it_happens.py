@@ -52,6 +52,9 @@ class PlayingAsItHappens:
     first_ways_back: frozenset[str] | None = None
     quiet_until: float = 0.0
     over_because: str = ""
+    recalled: bool = False
+    #: The words of the screen that ended the run, for whoever asks how it ended.
+    ending_words: str = ""
     _clip: dict[str, float] | None = None
     _focused: bool = False
 
@@ -145,9 +148,15 @@ class PlayingAsItHappens:
             return False
         from core.skills.screen_pursuit_bearings import restart_controls
 
-        appeared = restart_controls(observation) - (self.first_ways_back or frozenset())
+        # Against what was on screen while she played, where she read it during
+        # play: the screen that ended the last run already offered a way back,
+        # so the first reading of this one is no measure of what is new.
+        during = {said for stretch in self.stretches for said in stretch.get("words_seen") or ()}
+        before = during if during else (self.first_ways_back or frozenset())
+        appeared = {control for control in restart_controls(observation) if control not in before}
         if appeared:
             self.over_because = f"a way to start again appeared ({', '.join(sorted(appeared))})"
+            self.ending_words = " ".join(str(observation.get("text") or "").split())
             logger.info("the run is over: %s", self.over_because)
             return True
         return False
@@ -166,14 +175,19 @@ class PlayingAsItHappens:
             return
         if not await the_world_moves_on_its_own(self.look):
             return
+        if not self.keep and not self.recalled:
+            self.recalled = True
+            self.keep.update(_what_she_kept_of(self.page))
         keys, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]))
         logger.info("it moves on its own: playing it as it happens with %s%s", keys, " and the pointer" if pointer_first else "")
         stretch = await play_as_it_happens(
             self.look, self, keys=keys, seconds=min(STRETCH_S, self.ends_at - now),
             say=_said_while_playing, read_words=recognize_text, keep=self.keep,
             pointer_first=pointer_first, getting_somewhere=_getting_somewhere,
+            told=" ".join([self.goal, *self.words[-6:]]),
         )
         self.stretches.append(stretch)
+        _keep_what_she_learned(self.page, self.keep)
         logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "learned", "gains", "losses")})
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
@@ -197,6 +211,28 @@ class PlayingAsItHappens:
         if self.over_because:
             parts.append(f"the run is over: {self.over_because}")
         return "; ".join(part for part in parts if part)
+
+
+def _this_game(page: Any) -> str:
+    """The name her memory keeps this game under: its page, and only its page."""
+    return f"played as it happens at {str(getattr(page, 'url', '') or '')}"
+
+
+def _what_she_kept_of(page: Any) -> dict[str, Any]:
+    from core.agency.what_she_keeps_of_a_game import kept_from
+    from core.runtime.what_she_learned import recall
+
+    held = recall(_this_game(page))
+    if held:
+        logger.info("she has played this game before: starting from what she kept of it")
+    return kept_from(held)
+
+
+def _keep_what_she_learned(page: Any, keep: dict[str, Any]) -> None:
+    from core.agency.what_she_keeps_of_a_game import to_keep
+    from core.runtime.what_she_learned import remember
+
+    remember(_this_game(page), to_keep(keep))
 
 
 def _said_while_playing(line: str) -> None:

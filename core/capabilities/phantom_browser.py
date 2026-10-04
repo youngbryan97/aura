@@ -34,6 +34,8 @@ from core.runtime.errors import (
     Severity,
     record_degradation,
 )
+from core.runtime.flags import FlagKind as _FlagKind
+from core.runtime.flags import declare as _declare
 from core.runtime.lockdep import checked_async_lock
 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
@@ -68,6 +70,22 @@ _SYSTEM_CHROMIUM_EXECUTABLES = (
     "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
     "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
 )
+
+
+_BROWSER_STEALTH = _declare(
+    "AURA_BROWSER_STEALTH",
+    kind=_FlagKind.STRING,
+    default="1",
+    description=(
+        "Whether her browser hides that it is automated: playwright-stealth, a borrowed user agent, "
+        "and the automation flag switched off. 0 to browse as what it is"
+    ),
+    owner="core/capabilities/phantom_browser.py",
+)
+
+
+def _hides_automation() -> bool:
+    return str(_BROWSER_STEALTH.value()).strip().lower() not in {"0", "false", "no", "off"}
 
 
 def _record_browser_degradation(
@@ -540,7 +558,7 @@ class PhantomBrowser(_ActsOnThePage):
             self._generation += 1
             self.is_active = True
             self._startup_error = ""
-            logger.info("✓ Phantom Browser initialized (Visible: %s, UA: %s...)", self.visible, user_agent[:30])
+            logger.info("✓ Phantom Browser initialized (Visible: %s, UA: %s...)", self.visible, (user_agent or "its own")[:30])
             return True
         except (
             ImportError,
@@ -631,7 +649,7 @@ class PhantomBrowser(_ActsOnThePage):
             self._last_executable_attempts.append(label)
             kwargs: dict[str, Any] = {
                 "headless": not self.visible,
-                "args": ["--disable-blink-features=AutomationControlled"],
+                "args": ["--disable-blink-features=AutomationControlled"] if _hides_automation() else [],
                 "timeout": self.LAUNCH_TIMEOUT_S * 1000.0,
             }
             if executable:
@@ -650,12 +668,23 @@ class PhantomBrowser(_ActsOnThePage):
                 failures.append(f"{label}:{type(exc).__name__}:{exc}")
         raise RuntimeError("all Chromium executables failed: " + "; ".join(failures))
 
-    def _get_random_ua(self) -> str:
-        return random.choice(USER_AGENTS)
+    def _get_random_ua(self) -> str | None:
+        """A user agent drawn from a list, or the browser's own when it is browsing as what it is."""
+        return random.choice(USER_AGENTS) if _hides_automation() else None
 
     async def _apply_stealth(self, context: Any) -> bool:
-        """Apply the installed playwright-stealth API before creating pages."""
+        """Apply the installed playwright-stealth API before creating pages.
+
+        Off when AURA_BROWSER_STEALTH says so. What it does is hide that the
+        browser is automated, and a site that refuses automated visitors has
+        said what it wants: LIVE-like offline 2026-10-04, the museum of Flash
+        games serves its pages to an automated browser and refuses it the game
+        files, which the Internet Archive serves to anyone.
+        """
         self._stealth_applied = False
+        if not _hides_automation():
+            self._stealth_error = "switched off (AURA_BROWSER_STEALTH)"
+            return False
         if not STEALTH_AVAILABLE or _STEALTH is None:
             self._stealth_error = _STEALTH_IMPORT_ERROR or "dependency_unavailable"
             logger.warning(
@@ -782,7 +811,7 @@ class PhantomBrowser(_ActsOnThePage):
             await self._close_resource("old page", old_page.close, close_timeout=3.0)
         if old_context:
             await self._close_resource("old context", old_context.close, close_timeout=5.0)
-        logger.info("✓ User Agent rotated to: %s...", ua[:30])
+        logger.info("✓ User Agent rotated to: %s...", (ua or "its own")[:30])
 
     async def is_blocked(self) -> bool:
         """Detect if we are hitting a bot-detection page or CAPTCHA."""
@@ -1208,6 +1237,16 @@ class PhantomBrowser(_ActsOnThePage):
             const role = el.getAttribute('role')
                 || (tag === 'a' ? 'link' : (tag === 'input' ? (el.type || 'text') : tag));
             const entry = { role: role, name: accessibleName(el).slice(0, 140), selector: path };
+            // Where a link leaves this site for: a link named after a game that
+            // goes to another site's copy of it says nothing of that in its words.
+            if (tag === 'a' && el.href) {
+                try {
+                    const there = new URL(el.href, location.href);
+                    if (/^https?:$/.test(there.protocol) && there.hostname.replace(/^www\./, '') !== location.hostname.replace(/^www\./, '')) {
+                        entry.goes_to = there.hostname.replace(/^www\./, '');
+                    }
+                } catch (e) { /* not an address */ }
+            }
             if (typeof el.checked === 'boolean') entry.checked = el.checked;
             // Which question this option belongs to.
             //
@@ -1357,19 +1396,30 @@ class PhantomBrowser(_ActsOnThePage):
         // canvas can sit in a component's shadow root (a Flash game drawn by
         // Ruffle). Its size is a fact; that it can be seen and not read is too.
         let drawn = null;
-        const walkDrawn = (root) => {
+        let drawnSays = '';
+        const walkDrawn = (root, host) => {
             for (const el of root.querySelectorAll('*')) {
                 if (el.tagName === 'CANVAS') {
                     const r = el.getBoundingClientRect();
                     if (r.width > 1 && r.height > 1
                         && (!drawn || r.width * r.height > drawn.width * drawn.height)) {
                         drawn = { left: r.left, top: r.top, width: r.width, height: r.height };
+                        // What the player around the drawing writes over it:
+                        // an embedded player says so when its game failed to
+                        // load, in its own shadow root where the page's words
+                        // are never read from.
+                        drawnSays = host && host.shadowRoot
+                            ? Array.from(host.shadowRoot.querySelectorAll('*'))
+                                .filter((n) => n.children.length === 0 && n.offsetParent !== null)
+                                .map((n) => (n.textContent || '').trim())
+                                .filter(Boolean).join(' ').replace(/\s+/g, ' ').slice(0, 240)
+                            : '';
                     }
                 }
-                if (el.shadowRoot) walkDrawn(el.shadowRoot);
+                if (el.shadowRoot) walkDrawn(el.shadowRoot, host || el);
             }
         };
-        walkDrawn(document);
+        walkDrawn(document, null);
         if (drawn) {
             out.push({
                 role: 'drawing',
@@ -1378,7 +1428,8 @@ class PhantomBrowser(_ActsOnThePage):
                 // looked for a button to get into it.
                 name: 'what the page draws, ' + Math.round(drawn.width) + ' by '
                     + Math.round(drawn.height) + ': it can be seen but not read;'
-                    + ' choosing it plays it by sight, with keys and clicks inside it',
+                    + ' choosing it plays it by sight, with keys and clicks inside it'
+                    + (drawnSays ? '; its player writes over it: ' + drawnSays : ''),
                 selector: '::drawing',
                 drawing: drawn,
             });
@@ -1396,7 +1447,26 @@ class PhantomBrowser(_ActsOnThePage):
         const main = document.querySelector('main, [role="main"]')
             || (formWithMost && formWithMost[1] * 2 > bodyWords ? formWithMost[0] : null)
             || document.body;
-        const text = ((main && main.innerText) || '').replace(/\n{3,}/g, '\n\n').trim();
+        // What components draw in their own shadow roots is on the screen too,
+        // and innerText never reaches it: LIVE-like offline 2026-10-04 a game
+        // player's "failed to load" sat over the page, unread. Each one that
+        // shows words is added after the page's own, saying where it came from.
+        const inShadows = [];
+        const shadowWords = (root, host) => {
+            for (const el of root.querySelectorAll('*')) {
+                if (el.shadowRoot) {
+                    const said = Array.from(el.shadowRoot.querySelectorAll('*'))
+                        .filter((n) => n.children.length === 0 && n.offsetParent !== null && !['STYLE', 'SCRIPT'].includes(n.tagName))
+                        .map((n) => (n.textContent || '').trim()).filter(Boolean)
+                        .join(' ').replace(/\s+/g, ' ').slice(0, 400);
+                    if (said) inShadows.push('[' + el.tagName.toLowerCase() + ' shows: ' + said + ']');
+                    shadowWords(el.shadowRoot, el);
+                }
+            }
+        };
+        if (main) shadowWords(main, null);
+        const text = (((main && main.innerText) || '') + (inShadows.length ? '\n\n' + inShadows.join('\n') : ''))
+            .replace(/\n{3,}/g, '\n\n').trim();
         // Where in those words she is looking, and where each frame sits among
         // them, as offsets into `text`. Each text node is found in `text` after
         // the one before it; one that cannot be (restyled, preformatted) is

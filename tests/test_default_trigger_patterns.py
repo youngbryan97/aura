@@ -60,7 +60,9 @@ def test_the_connector_patterns_are_still_added_on_top() -> None:
 
 def test_the_skills_named_are_the_ones_that_moved() -> None:
     table = default_trigger_patterns()
-    assert len(table) == 42
-    assert sum(len(v) for v in table.values()) == 302
+    # 42 skills and 302 patterns when the table moved; repair_a_program and its
+    # four patterns joined it on 4 October 2026.
+    assert len(table) == 43
+    assert sum(len(v) for v in table.values()) == 306
     for name in ("web_search", "code_repl", "file_operation"):
         assert name in table

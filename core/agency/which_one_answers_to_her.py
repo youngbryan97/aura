@@ -134,6 +134,7 @@ class WhichIsHers:
         self.number: int | None = None
         self.kind: int | None = None
         self.last_seen: tuple[float, float] | None = None
+        self.last_size = 0.0
         self.lowest: list[float] = [math.inf, math.inf]
         self.highest: list[float] = [-math.inf, -math.inf]
         self._taps: list[tuple[str, float, tuple[float, float]]] = []
@@ -252,13 +253,25 @@ class WhichIsHers:
         mine = moves.things.get(self.number) if self.number is not None else None
         if mine is not None:
             self.last_seen = (mine.x, mine.y)
+            self.last_size = mine.size
+            self.kind = mine.kind
             for axis, value in enumerate((mine.x, mine.y)):
                 self.lowest[axis] = min(self.lowest[axis], value)
                 self.highest[axis] = max(self.highest[axis], value)
 
     def _one_of_her_kind(self, moves: Any) -> int | None:
-        """After she was lost, the thing of her kind nearest where she was."""
+        """After she was lost, the thing of her kind nearest where she was.
+
+        Or, where nothing of her kind is left, a thing her size close to where
+        she was last seen: a kind can be looked at again and changed under her.
+        """
         candidates = [t for t in moves.things.values() if t.kind == self.kind]
+        if not candidates and self.last_seen is not None and self.last_size:
+            x, y = self.last_seen
+            candidates = [
+                t for t in moves.things.values()
+                if math.hypot(t.x - x, t.y - y) < 30.0 and 0.5 < t.size / self.last_size < 2.0
+            ]
         if not candidates:
             return None
         if self.last_seen is None:

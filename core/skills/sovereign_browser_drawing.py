@@ -99,12 +99,69 @@ async def played_on_the_drawing(
 
     import time
 
+    from core.language.how_a_game_ended import asks_to_win
+
+    until_won = asks_to_win(goal)
+    deadline = time.monotonic() + (PLAY_UNTIL_WON_S if until_won else _one_run_s())
+    keep: dict[str, Any] = {}
+    runs: list[dict[str, Any]] = []
+    moves: list[Any] = []
+    result: dict[str, Any] = {}
+    while time.monotonic() < deadline and len(runs) < MOST_RUNS:
+        result, reflexes = await _one_run(page, band, goal, url, deadline, keep)
+        keep = reflexes.keep
+        moves += list(result.get("moves") or [])
+        moves += [{"key": "played as it happened"} for stretch in reflexes.stretches if stretch.get("pictures")]
+        run = _how_the_run_went(reflexes, result)
+        runs.append(run)
+        if not until_won or run["ended"] == "won" or not reflexes.over_because:
+            break
+        if _for_points_only(reflexes, goal):
+            # Nobody wins a game that only counts points: a finished run is the end of it.
+            run["ended"] = "finished"
+            _tell(f"This game has no winner, only a score, and the run is done: {run['words'][:80]!r}.")
+            break
+        _tell(f"That one ended {run['words'][:80]!r}: I lost it. Again, with what I learned.")
+    result["as_it_happened"] = "; ".join(r["said"] for r in runs if r["said"])
+    last_seen = str(result.get("last_seen") or "")
+    return {
+        **step,
+        "landed": len(moves),
+        "moved": bool(moves),
+        "played": str(result.get("outcome") or ""),
+        "completed": bool(result.get("completed")),
+        "last_seen": last_seen,
+        "runs": [r["ended"] or "unread" for r in runs],
+        "won": any(r["ended"] == "won" for r in runs),
+        "finished": any(r["ended"] in ("won", "finished") for r in runs),
+        "did": what_the_play_came_to(len(moves), result),
+        "ok": bool(moves),
+    }
+
+
+#: How long she keeps playing a game she was asked to win, in all.
+PLAY_UNTIL_WON_S = 1200.0
+
+#: The most runs of one game in one hand-over.
+MOST_RUNS = 12
+
+
+def _one_run_s() -> float:
     from core.runtime.watched_goal import PURSUIT_SECONDS
+
+    return PURSUIT_SECONDS
+
+
+async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str, url: str,
+                   deadline: float, keep: dict[str, Any]) -> tuple[dict[str, Any], Any]:
+    """One run of the game: menus by the screen pursuit, play by its reflexes, until the run is over."""
+    import time
+
     from core.skills.screen_pursuit import pursue_on_screen
     from core.skills.screen_pursuit_as_it_happens import AS_IT_HAPPENS, PlayingAsItHappens
     from core.skills.screen_pursuit_on_a_page import HER_OWN_PAGE, OnAPage
 
-    reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=time.monotonic() + PURSUIT_SECONDS)
+    reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=deadline, keep=keep)
     held = HER_OWN_PAGE.set(OnAPage(page=page, name=HER_BROWSER))
     quick = AS_IT_HAPPENS.set(reflexes)
     try:
@@ -114,26 +171,32 @@ async def played_on_the_drawing(
             target_app=HER_BROWSER,
             expect_page=url,
             drawn_at=band,
-            max_seconds=PURSUIT_SECONDS,
+            max_seconds=max(1.0, deadline - time.monotonic()),
         )
     finally:
         AS_IT_HAPPENS.reset(quick)
         HER_OWN_PAGE.reset(held)
-    result["as_it_happened"] = reflexes.what_it_came_to()
-    moves = list(result.get("moves") or [])
-    if reflexes.stretches:
-        moves += [{"key": "played as it happened"} for stretch in reflexes.stretches if stretch.get("pictures")]
-    last_seen = str(result.get("last_seen") or "")
-    return {
-        **step,
-        "landed": len(moves),
-        "moved": bool(moves),
-        "played": str(result.get("outcome") or ""),
-        "completed": bool(result.get("completed")),
-        "last_seen": last_seen,
-        "did": what_the_play_came_to(len(moves), result),
-        "ok": bool(moves),
-    }
+    return result, reflexes
+
+
+def _how_the_run_went(reflexes: Any, result: Mapping[str, Any]) -> dict[str, str]:
+    from core.language.how_a_game_ended import how_it_ended
+
+    words = reflexes.ending_words or str(result.get("last_seen") or "")
+    return {"ended": how_it_ended(words), "words": " ".join(words.split()), "said": reflexes.what_it_came_to()}
+
+
+def _for_points_only(reflexes: Any, goal: str) -> bool:
+    from core.language.how_a_game_ended import what_it_asks_of_a_player
+
+    said = what_it_asks_of_a_player(" ".join(reflexes.words))
+    return said == "score"
+
+
+def _tell(line: str) -> None:
+    from core.skills.screen_pursuit import _tell as said
+
+    said(line)
 
 
 def what_the_play_came_to(moves: int, result: Mapping[str, Any]) -> str:

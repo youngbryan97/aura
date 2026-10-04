@@ -125,6 +125,31 @@ class Thing:
         return self.x + self.vx * after_s, self.y + self.vy * after_s
 
 
+def _speed_from_its_path(
+    path: deque, at: float, last_step: tuple[float, float], blended: tuple[float, float]
+) -> tuple[float, float]:
+    """How fast a thing is going, fitted through its last few places rather than averaged.
+
+    An average of steps lags a thing that has just sped up, and a ball that
+    speeds up a little each return is aimed at where it would have been. A
+    straight line through its last tenth of a second does not lag. Where the
+    last step turned back against the fitted line, it has just bounced, and
+    the last step is the speed.
+    """
+    recent = [point for point in path if at - point[0] <= 0.15][-5:]
+    if len(recent) < 3:
+        return blended
+    times = np.asarray([point[0] for point in recent]) - recent[-1][0]
+    if float(times.max() - times.min()) < 1e-3:
+        return blended
+    fitted = []
+    for axis in (1, 2):
+        slope = float(np.polyfit(times, np.asarray([point[axis] for point in recent]), 1)[0])
+        step = last_step[axis - 1]
+        fitted.append(step if slope * step < 0 and abs(step) > 20.0 else slope)
+    return fitted[0], fitted[1]
+
+
 def _look_of(pixels: np.ndarray) -> np.ndarray:
     """A thing's colour mix: 64 bins of its pixels, four levels a channel, summing to one."""
     if pixels.size == 0:
@@ -343,6 +368,7 @@ class WhatMoves:
         thing.colour, thing.patch = blob["colour"], blob["patch"]
         thing.seen, thing.still = at, False
         thing.path.append((at, thing.x, thing.y))
+        thing.vx, thing.vy = _speed_from_its_path(thing.path, at, (vx, vy), (thing.vx, thing.vy))
         thing.sizes.append(thing.size)
         if len(thing.sizes) % 5 == 0:
             self._kind_again(thing)

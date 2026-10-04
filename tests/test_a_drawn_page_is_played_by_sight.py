@@ -49,7 +49,7 @@ def test_the_observer_reports_what_a_page_draws():
     from core.capabilities import phantom_browser
 
     source = inspect.getsource(phantom_browser)
-    assert "role: 'drawing'" in source and "walkDrawn(el.shadowRoot)" in source
+    assert "role: 'drawing'" in source and "walkDrawn(el.shadowRoot" in source
     assert f"selector: '{drawing.DRAWING}'" in source
 
 

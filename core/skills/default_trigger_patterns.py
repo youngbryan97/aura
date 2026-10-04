@@ -212,6 +212,14 @@ _TABLE: dict[str, list[str]] = {
         r"debug (?:yourself|your code)",
         r"patch (?:yourself|your code)",
     ],
+    # Somebody else's program that does not work: run it, read it, mend it.
+    # Named by what it is (a game, an app, a page) or by its file.
+    "repair_a_program": [
+        r"(?:fix|repair|debug|mend) (?:this |that |the |my |a |their )?[\w\s-]{0,30}?(?:game|app|program|page|script|website)\b",
+        r"\b(?:game|app|program|page|script|website)\b[^!?\n]{0,80}?\b(?:is|seems|looks|are) (?:broken|buggy)",
+        r"broken [\w\s-]{0,20}?(?:game|app|program|page|script)",
+        r"(?:fix|repair|debug|mend) [^.!?]{0,60}?\.(?:html?|js)\b",
+    ],
     "self_improvement": [
         r"get (?:smarter|better|faster)",
         r"learn (?:from this|more)",
@@ -223,7 +231,9 @@ _TABLE: dict[str, list[str]] = {
         r"build (?:me )?(?:a |an )?[\w\s-]{0,30}?(?:app|game|tool|widget)",
         r"(?:make|create|write) (?:me )?(?:a |an )?[\w\s-]{0,30}?(?:app|game)",
         r"recreate (?:my |the )?[\w\s-]{0,30}?(?:app|game)",
-        r"(?:checkers|chess|tic.?tac.?toe|snake|calculator|pong) (?:app|game)",
+        # Naming a game is not asking for one to be built when the request is
+        # to mend it: "the Pong game at ... is broken. Fix it".
+        r"^(?![\s\S]*\b(?:broken|fix|repair|debug|mend)\b)[\s\S]*\b(?:checkers|chess|tic.?tac.?toe|snake|calculator|pong) (?:app|game)",
     ],
     "program_dna_reconstruct": [
         r"program dna",

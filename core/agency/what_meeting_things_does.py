@@ -193,6 +193,8 @@ class WhatMeetingDoes:
         self._clicks: dict[int, tuple[float, int]] = {}
         #: What reading the situation said each kind is for, before any evidence.
         self.told: dict[int, str] = {}
+        self._places: list[tuple[float, float, float]] = []
+        self._settled_places: set[tuple[float, float]] = set()
 
     # -- verdicts ----------------------------------------------------------
 
@@ -230,6 +232,30 @@ class WhatMeetingDoes:
                 del self._clicks[number]
             elif at - when >= 0.4:
                 del self._clicks[number]
+
+    def changed_in_place(self, when: float, x: float, y: float, her_x: float | None) -> None:
+        """A counter that changed where text recognition could not read it.
+
+        Read as two sides' scores when changes have been seen on both halves
+        of one row: a change on her half is hers, on the other half the other
+        side's. A change seen on only one half so far waits, and is settled
+        once the row shows its other half. A place a reading already names is
+        left to the reading.
+        """
+        if any(abs(x - rx) < 0.06 and abs(y - ry) < 0.06 for rx, ry in self.readouts.where.values()):
+            return
+        self._places.append((when, x, y))
+        if her_x is None:
+            return
+        row = [(t, px, py) for t, px, py in self._places if abs(py - y) < 0.06]
+        if len({px < 0.5 for _t, px, _py in row}) < 2:
+            return
+        for t, px, _py in row:
+            if (t, px) in self._settled_places:
+                continue
+            self._settled_places.add((t, px))
+            ours = (px < 0.5) == (her_x < 0.5)
+            self._verdict({"what": "gain" if ours else "loss", "at": t, "since": t - 0.5, "counter": f"the score at {px:.2f}"})
 
     def she_was_lost(self, at: float) -> None:
         """Her own thing went: a loss whatever the counters say, earned just before."""
