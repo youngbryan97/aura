@@ -285,6 +285,26 @@ def _as_of(store: Any) -> str:
     return f", as of {date}" if date else ""
 
 
+def _corpus_origin(hit: Any, body: str, as_of: str) -> tuple[str, str]:
+    """Where a corpus document came from and when, and the page it was read from.
+
+    The corpus holds the encyclopedia dump and what her own searches kept
+    (core/search/research_pipeline.py, source ``web_retained``). LIVE
+    2026-10-03 a kept search came back labelled "offline copy (web_retained),
+    as of 2026-07-03": the dump's date on something read from the web that
+    evening, with no page named.
+    """
+    if hit.source == "wikipedia":
+        return "offline Wikipedia" + as_of, ""
+    stamp = float(getattr(hit, "ingested_at", 0.0) or 0.0)
+    when = time.strftime("%Y-%m-%d %H:%M", time.localtime(stamp)) if stamp > 0 else ""
+    if hit.source != "web_retained":
+        return f"offline copy ({hit.source})" + (f", added {when}" if when else ""), ""
+    _, _, cited = body.partition("\nSources:")
+    page = URL_RE.search(cited)
+    return "kept from a web search" + (f", read {when}" if when else ""), page.group(0) if page else ""
+
+
 def _from_corpus(phrases: Sequence[str], terms: Sequence[str], *, store: Any) -> list[WorldSource]:
     candidates: list[WorldSource] = []
     as_of = _as_of(store)
@@ -296,8 +316,8 @@ def _from_corpus(phrases: Sequence[str], terms: Sequence[str], *, store: Any) ->
             seen.add(hit.doc_id)
             body = store.body(hit.doc_id)
             if body:
-                origin = ("offline Wikipedia" if hit.source == "wikipedia" else f"offline copy ({hit.source})") + as_of
-                candidates.append(WorldSource(origin, hit.title, "", passage_of(body, terms)))
+                origin, location = _corpus_origin(hit, body, as_of)
+                candidates.append(WorldSource(origin, hit.title, location, passage_of(body, terms)))
     return candidates
 
 

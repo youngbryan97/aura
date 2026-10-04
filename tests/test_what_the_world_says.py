@@ -287,3 +287,38 @@ def test_a_question_the_offline_copy_answers_only_in_part_is_looked_up(judge, mo
     # A remark that asks nothing is still never searched.
     asyncio.run(gather_world_evidence("My friend Sarah thinks Bam is overrated", store=_Corpus(), search=search))
     assert asked == ["Who did Bam score 83 against?"]
+
+
+def test_a_kept_search_says_when_it_was_read_and_from_which_page(monkeypatch, tmp_path) -> None:
+    """LIVE 2026-10-03: a search she kept came back as "offline copy (web_retained), as of 2026-07-03"."""
+    import time
+
+    from core.knowledge.local_corpus import LocalCorpusStore
+
+    monkeypatch.setattr(
+        evidence_relevance,
+        "assess_evidence_alignments",
+        lambda question, passages: [
+            evidence_relevance.EvidenceAlignment(True, True, 0.8, 0.5, (), "stand-in") for _ in passages
+        ],
+    )
+
+    store = LocalCorpusStore(tmp_path / "corpus.db")
+    store.add_documents([("Kaseya Center", "Kaseya Center is an arena in Miami. It cost $213 million to build.", "wikipedia")])
+    store.set_meta("snapshot", "2026-07-03")
+    note = (
+        "[WebLearning 2026-10-03 23:59:13] Query: how much did the kaseya center cost to build\n"
+        "Answer: The Kaseya Center cost $213 million to build. It opened in 1999.\n"
+        "Facts:\n- The Kaseya Center cost $213 million.\n"
+        "Sources:\n- Kaseya Center - Wikipedia: https://en.wikipedia.org/wiki/Kaseya_Center"
+    )
+    store.add_retained_document("how much did the kaseya center cost to build", note, artifact_id="a1")
+    read_on = time.strftime("%Y-%m-%d", time.localtime())
+
+    evidence = asyncio.run(gather_world_evidence("How much did the Kaseya Center cost to build?", store=store))
+
+    origins = {source.origin.split(",")[0]: source for source in evidence.sources}
+    assert origins["offline Wikipedia"].origin == "offline Wikipedia, as of 2026-07-03"
+    kept = origins["kept from a web search"]
+    assert kept.origin.startswith(f"kept from a web search, read {read_on}")
+    assert kept.location == "https://en.wikipedia.org/wiki/Kaseya_Center"

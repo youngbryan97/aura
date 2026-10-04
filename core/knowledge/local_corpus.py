@@ -79,6 +79,9 @@ class CorpusHit:
     source: str
     rank: float          # BM25: lower is better
     doc_id: int
+    #: When the document entered the corpus (epoch seconds): the dump's
+    #: ingest for an encyclopedia page, the day she read it for one she kept.
+    ingested_at: float = 0.0
 
     def to_memory_dict(self) -> dict[str, Any]:
         """Shape consumed by the intentional-retrieval REFERENCE adapter."""
@@ -322,7 +325,8 @@ class LocalCorpusStore:
                        d.title,
                        d.source,
                        snippet(docs_fts, 1, '', '', ' … ', 40),
-                       bm25(docs_fts)
+                       bm25(docs_fts),
+                       d.ingested_at
                 FROM docs_fts AS f
                 JOIN docs AS d ON d.id = f.rowid
                 WHERE docs_fts MATCH ?
@@ -338,6 +342,7 @@ class LocalCorpusStore:
                     source=str(row[2]),
                     snippet=str(row[3]),
                     rank=float(row[4]),
+                    ingested_at=float(row[5] or 0.0),
                 )
                 for row in cursor.fetchall()
             ]
@@ -382,7 +387,7 @@ class LocalCorpusStore:
         phrase = '"' + wanted.replace('"', '""') + '"'
         try:
             row = conn.execute(
-                "SELECT d.id, d.title, d.source FROM docs_fts AS f JOIN docs AS d ON d.id = f.rowid "
+                "SELECT d.id, d.title, d.source, d.ingested_at FROM docs_fts AS f JOIN docs AS d ON d.id = f.rowid "
                 "WHERE docs_fts MATCH ? AND d.title = ? LIMIT 1",
                 (f"title:{phrase}", wanted),
             ).fetchone()
@@ -393,7 +398,10 @@ class LocalCorpusStore:
             conn.close()
         if not row:
             return None
-        return CorpusHit(title=str(row[1]), snippet="", source=str(row[2]), rank=0.0, doc_id=int(row[0]))
+        return CorpusHit(
+            title=str(row[1]), snippet="", source=str(row[2]), rank=0.0, doc_id=int(row[0]),
+            ingested_at=float(row[3] or 0.0),
+        )
 
     # ── status ───────────────────────────────────────────────────────
 
