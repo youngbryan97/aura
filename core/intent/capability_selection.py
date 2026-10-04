@@ -129,6 +129,45 @@ def _decisive(ranked: list[tuple[str, float]]) -> str | None:
     return ranked[0][0] if ranked[0][1] >= DECISIVE_LEAD * runner_up else None
 
 
+def the_one_asked_for(objective: str, offered: Mapping[str, Any]) -> str | None:
+    """The one capability offered that the request plainly asks for, or None.
+
+    Plainly: two readings agree. What the request says matches this one
+    capability's own declaration decisively (see _decisive), and its own
+    trigger phrases match the request too. Then there is no choice to hand
+    to anyone: the request named the act.
+    """
+    import re
+
+    if len(offered) != 1:
+        return None
+    name = next(iter(offered))
+    try:
+        from core.container import ServiceContainer
+
+        engine = ServiceContainer.get("capability_engine", default=None)
+    except Exception:  # noqa: BLE001 - no catalogue here means no plain answer
+        return None
+    skills = getattr(engine, "skills", None) or {}
+    meta = skills.get(name)
+    if meta is None:
+        return None
+    from core.intent.declared_capability import (
+        declared_vocabulary,
+        distinctive_objects,
+        rank_declaration_matches,
+    )
+
+    catalogue = {
+        other: declared_vocabulary(other, str(getattr(m, "description", "") or ""))
+        for other, m in skills.items() if getattr(m, "enabled", True)
+    }
+    if _decisive(rank_declaration_matches(objective, catalogue, distinctive_objects(catalogue))) != name:
+        return None
+    patterns = list(getattr(meta, "trigger_patterns", None) or ())
+    return name if any(re.search(pattern, objective, re.IGNORECASE) for pattern in patterns) else None
+
+
 def select_capabilities(
     objective: str,
     skills: Mapping[str, Any],

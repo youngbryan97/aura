@@ -17,7 +17,39 @@ import os
 from typing import Any
 
 from core.brain.living_mind_context import PRIORITY_COLOUR, TRUST_LEARNED
+from core.intent.capability_selection import the_one_asked_for
 from core.utils.completed_capability import remaining_capabilities
+
+
+async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> dict[str, Any]:
+    """Run the one capability asked for, through the same refusal and dispatch as a model's call to it."""
+    import uuid
+
+    from core.brain.llm.mlx_client import (
+        _agent_execution_context,
+        _refuse_action_beyond_authority,
+        _serialize_tool_result_for_model,
+    )
+    from core.container import ServiceContainer
+
+    engine = ServiceContainer.get("capability_engine", default=None)
+    call_id = f"call_{uuid.uuid4().hex[:12]}"
+    raw: Any = {"ok": False, "error": f"{name} is unavailable"}
+    refusal = _refuse_action_beyond_authority(engine, name, {}, loop_context)
+    if refusal:
+        raw = refusal
+    elif engine is not None:
+        raw = await engine.execute(
+            name, {}, _agent_execution_context(loop_context, objective=text, tool_name=name, tool_call_id=call_id, model_path="")
+        )
+    said = str(raw.get("summary") or raw.get("error") or "") if isinstance(raw, dict) else ""
+    return {
+        "content": said,
+        "tool_calls": [{
+            "id": call_id, "tool": name, "args": {}, "ok": bool(isinstance(raw, dict) and raw.get("ok", True)),
+            "result": _serialize_tool_result_for_model(name, raw),
+        }],
+    }
 
 
 class _BuildsTheLivingContext:
@@ -60,6 +92,91 @@ class _BuildsTheLivingContext:
         # open, because this one still counted.
         from core.brain.llm_health_router_waiting import _await_while_it_is_working
 
+        loop_context = {
+            "required_skills": list(required),
+            "foreground_request": True,
+            # Who asked, and what they said.
+            #
+            # The conscience holds a skill whose worst case looks
+            # harmful unless a person asked for it directly, in the
+            # foreground, on their own machine — and it decides
+            # that from the origin and the message on this context.
+            # Neither was here, so every dispatch arrived as
+            # origin=unknown and the override could not fire.
+            #
+            # LIVE, 2026-08-29: asked to use a library at a named
+            # path, the model called code_repl with that path, was
+            # held at "worst-case harm 0.80", tried sys, importlib
+            # and exec in turn — each correctly refused — and came
+            # back to the right call, which was held again. The
+            # person had asked for it in those words.
+            "origin": origin or "user",
+            "message": text,
+            # The fact, rather than a name to be parsed again. This
+            # gate already decided whether somebody is waiting on
+            # this turn; the conscience downstream needs the same
+            # answer, and deriving it twice from origin strings is
+            # how the two came to disagree.
+            "a_person_is_waiting": True,
+            # What this turn may do. The dispatch refuses any
+            # action ranked above it, so a skill can be offered
+            # for its safe actions without offering its
+            # dangerous ones.
+            "authorised_effect_scope": ceiling,
+            # Consent the request itself carries.
+            #
+            # The permission model already asks whether the person
+            # pre-approved this class of action, and nothing ever
+            # answered. So "build me a small web app, one
+            # self-contained file" was refused with "Requires user
+            # confirmation" — a confirmation prompt for the thing
+            # that had just been asked for in those words.
+            #
+            # Deliberately narrow, and it was narrower than the
+            # thing it was arguing for.
+            #
+            # Set only for the artifact ceiling, it left the
+            # SELF-SERVICE ceiling asking for a confirmation
+            # nobody can give — and that ceiling is defined, where
+            # it is declared, as "the most a turn may do without
+            # the person having asked for that effect... it can
+            # calculate anything and change nothing outside its own
+            # sandbox". Something that by definition needs no
+            # permission was being refused for want of one.
+            #
+            # LIVE, 2026-08-28: "read the docs, then actually use
+            # it" reached code_repl and came back "Permission
+            # denied: Requires user confirmation: Typed execution
+            # contract: scope=sandboxed_compute". She read the
+            # library three times over and never ran it.
+            #
+            # Still narrow: these are the two ceilings a request
+            # can establish for itself. Nothing here authorises
+            # external_io, privileged mutation, deleting, sending
+            # or spending — those need their own consent, because
+            # nobody asked for them.
+            "user_explicitly_authorized": (
+                ceiling
+                in {
+                    _SELF_SERVICE_EFFECT_CEILING,
+                    _REQUESTED_ARTIFACT_EFFECT_CEILING,
+                }
+            ),
+        }
+        # The one capability plainly asked for is called, not offered. Offered
+        # alone, LIVE 2026-10-04, the model read the program it was handed
+        # and began mending it in words, and the repair the request named
+        # was never run. Where what the request says matches one
+        # capability's own declaration decisively, and its own trigger
+        # phrases too, two readings agree on what was asked for.
+        one = the_one_asked_for(text, tools)
+        if one is not None:
+            return await _await_while_it_is_working(
+                _call_the_one(one, text, loop_context),
+                budget_s=_tool_loop_budget(timeout_s, _answer_reserve_seconds(client, len(str(text or "")))),
+                user_facing=True,
+                person_is_waiting=True,
+            )
         result = await _await_while_it_is_working(
             client.think_and_act(
                 objective=text,
@@ -111,77 +228,7 @@ class _BuildsTheLivingContext:
                 # three successful reads. Nothing was left to say what it
                 # had found.
                 max_turns=max(4, 2 * len(tools) + 2),
-                context={
-                    "required_skills": list(required),
-                    "foreground_request": True,
-                    # Who asked, and what they said.
-                    #
-                    # The conscience holds a skill whose worst case looks
-                    # harmful unless a person asked for it directly, in the
-                    # foreground, on their own machine — and it decides
-                    # that from the origin and the message on this context.
-                    # Neither was here, so every dispatch arrived as
-                    # origin=unknown and the override could not fire.
-                    #
-                    # LIVE, 2026-08-29: asked to use a library at a named
-                    # path, the model called code_repl with that path, was
-                    # held at "worst-case harm 0.80", tried sys, importlib
-                    # and exec in turn — each correctly refused — and came
-                    # back to the right call, which was held again. The
-                    # person had asked for it in those words.
-                    "origin": origin or "user",
-                    "message": text,
-                    # The fact, rather than a name to be parsed again. This
-                    # gate already decided whether somebody is waiting on
-                    # this turn; the conscience downstream needs the same
-                    # answer, and deriving it twice from origin strings is
-                    # how the two came to disagree.
-                    "a_person_is_waiting": True,
-                    # What this turn may do. The dispatch refuses any
-                    # action ranked above it, so a skill can be offered
-                    # for its safe actions without offering its
-                    # dangerous ones.
-                    "authorised_effect_scope": ceiling,
-                    # Consent the request itself carries.
-                    #
-                    # The permission model already asks whether the person
-                    # pre-approved this class of action, and nothing ever
-                    # answered. So "build me a small web app, one
-                    # self-contained file" was refused with "Requires user
-                    # confirmation" — a confirmation prompt for the thing
-                    # that had just been asked for in those words.
-                    #
-                    # Deliberately narrow, and it was narrower than the
-                    # thing it was arguing for.
-                    #
-                    # Set only for the artifact ceiling, it left the
-                    # SELF-SERVICE ceiling asking for a confirmation
-                    # nobody can give — and that ceiling is defined, where
-                    # it is declared, as "the most a turn may do without
-                    # the person having asked for that effect... it can
-                    # calculate anything and change nothing outside its own
-                    # sandbox". Something that by definition needs no
-                    # permission was being refused for want of one.
-                    #
-                    # LIVE, 2026-08-28: "read the docs, then actually use
-                    # it" reached code_repl and came back "Permission
-                    # denied: Requires user confirmation: Typed execution
-                    # contract: scope=sandboxed_compute". She read the
-                    # library three times over and never ran it.
-                    #
-                    # Still narrow: these are the two ceilings a request
-                    # can establish for itself. Nothing here authorises
-                    # external_io, privileged mutation, deleting, sending
-                    # or spending — those need their own consent, because
-                    # nobody asked for them.
-                    "user_explicitly_authorized": (
-                        ceiling
-                        in {
-                            _SELF_SERVICE_EFFECT_CEILING,
-                            _REQUESTED_ARTIFACT_EFFECT_CEILING,
-                        }
-                    ),
-                },
+                context=loop_context,
                 # What the turn has already read. Without it the loop
                 # fetched the same document a second time, from a URL it
                 # rebuilt from memory, and got a 400.
