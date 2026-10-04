@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Paddle</title></head><body>
+<script src="world.js"></script>
+<script>
+// Two paddles and a ball. The left paddle is the player's, up and down; the
+// right one is the computer's, which follows the ball no faster than it can.
+const P = { w: 8, h: 50 };
+const game = {
+  title: "PADDLE", rules: ["Use the up and down arrows.", "Do not let the ball past you.", "First to 7 wins."],
+  reset(world) {
+    this.me = { x: 18, y: world.H / 2 - P.h / 2 };
+    this.them = { x: world.W - 18 - P.w, y: world.H / 2 - P.h / 2 };
+    this.mine = 0; this.theirs = 0; this.returns = 0;
+    this.serve(world, world.rand() < 0.5 ? -1 : 1);
+  },
+  serve(world, way) {
+    const angle = (world.rand() - 0.5) * 1.0;
+    this.ball = { x: world.W / 2 - 4, y: world.H / 2 - 4, w: 8, h: 8,
+                  vx: way * 200 * Math.cos(angle), vy: 200 * Math.sin(angle) };
+  },
+  step(dt, world) {
+    const b = this.ball, me = this.me, them = this.them;
+    if (world.held.has("ArrowUp")) me.y -= 260 * dt;
+    if (world.held.has("ArrowDown")) me.y += 260 * dt;
+    me.y = Math.max(30, Math.min(world.H - P.h, me.y));
+    const aim = b.y + 4 - P.h / 2 - them.y, reach = 150 * dt;
+    if (b.vx > 0) them.y += Math.max(-reach, Math.min(reach, aim));
+    them.y = Math.max(30, Math.min(world.H - P.h, them.y));
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.y < 30) { b.y = 30; b.vy = Math.abs(b.vy); }
+    if (b.y > world.H - b.h) { b.y = world.H - b.h; b.vy = -Math.abs(b.vy); }
+    for (const [p, way] of [[me, 1], [them, -1]]) {
+      if (hits(b, { x: p.x, y: p.y, w: P.w, h: P.h }) && Math.sign(b.vx) !== way) {
+        const off = (b.y + 4 - (p.y + P.h / 2)) / (P.h / 2);
+        const speed = Math.min(420, Math.hypot(b.vx, b.vy) * 1.06);
+        b.vx = way * speed * Math.cos(off * 0.9); b.vy = speed * Math.sin(off * 0.9);
+        if (p === me) this.returns += 1;
+      }
+    }
+    if (b.x < -10) { this.theirs += 1; this.serve(world, 1); }
+    if (b.x > world.W + 10) { this.mine += 1; world.score = this.mine; this.serve(world, -1); }
+    world.mine = this.mine; world.theirs = this.theirs; world.returns = this.returns;
+    if (this.mine >= 7 || this.theirs >= 7) world.over(this.mine >= 7 ? "won" : "lost");
+  },
+  backdrop(ctx) {
+    ctx.fillStyle = "#0b3d2e"; ctx.fillRect(0, 0, 480, 320);
+    ctx.fillStyle = "#1f6b52";
+    for (let y = 34; y < 320; y += 20) ctx.fillRect(238, y, 4, 10);
+  },
+  draw(ctx) {
+    ctx.fillStyle = "#e8e8e8";
+    ctx.fillRect(this.me.x, this.me.y, P.w, P.h);
+    ctx.fillRect(this.them.x, this.them.y, P.w, P.h);
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(this.ball.x, this.ball.y, 8, 8);
+  },
+  readouts(ctx, world) {
+    world.text(String(this.mine), 200, 24, 22, "#fff");
+    world.text(String(this.theirs), 280, 24, 22, "#fff");
+  },
+};
+playWorld(game);
+</script></body></html>

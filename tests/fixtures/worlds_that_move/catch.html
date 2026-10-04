@@ -1,0 +1,43 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Catch</title></head><body>
+<script src="world.js"></script>
+<script>
+// Things fall. Some are worth catching and some cost a life.
+const game = {
+  title: "CATCH", rules: ["Move the basket with the arrow keys.", "Catch the fruit. Not the bombs."],
+  reset(world) { this.me = { x: 212, y: 290, w: 56, h: 14 }; this.falling = []; this.next = 0.5; world.caught = 0; },
+  step(dt, world) {
+    const me = this.me;
+    if (world.held.has("ArrowLeft")) me.x -= 300 * dt;
+    if (world.held.has("ArrowRight")) me.x += 300 * dt;
+    me.x = Math.max(0, Math.min(world.W - me.w, me.x));
+    this.next -= dt;
+    if (this.next <= 0) {
+      const good = world.rand() < 0.6;
+      this.falling.push({ x: 10 + world.rand() * 450, y: 34, w: good ? 16 : 14, h: good ? 16 : 14, good,
+                          vy: 90 + world.rand() * 80 });
+      this.next = 0.55 + world.rand() * 0.4;
+    }
+    for (const f of this.falling) {
+      f.y += f.vy * dt;
+      if (hits(f, me)) { f.gone = true; if (f.good) { world.score += 1; world.caught += 1; } else world.lose(); }
+      if (f.y > world.H) f.gone = true;
+    }
+    this.falling = this.falling.filter((f) => !f.gone);
+  },
+  backdrop(ctx) {
+    const g = ctx.createLinearGradient(0, 0, 0, 320);
+    g.addColorStop(0, "#5b8fd6"); g.addColorStop(1, "#bfe0ff");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 480, 320);
+    ctx.fillStyle = "#4f9a3a"; ctx.fillRect(0, 306, 480, 14);
+  },
+  draw(ctx) {
+    ctx.fillStyle = "#8a5a2b"; ctx.fillRect(this.me.x, this.me.y, this.me.w, this.me.h);
+    for (const f of this.falling) {
+      if (f.good) { ctx.fillStyle = "#f2c230"; ctx.beginPath(); ctx.arc(f.x + 8, f.y + 8, 8, 0, 6.3); ctx.fill(); }
+      else { ctx.fillStyle = "#c0262d"; ctx.fillRect(f.x, f.y, f.w, f.h); ctx.fillStyle = "#222"; ctx.fillRect(f.x + 5, f.y - 4, 4, 5); }
+    }
+  },
+  readouts: scoreAndLives,
+};
+playWorld(game);
+</script></body></html>

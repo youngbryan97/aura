@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Shooter</title></head><body>
+<script src="world.js"></script>
+<script>
+// Invaders come down. Shoot them before they land.
+const game = {
+  title: "SHOOTER", rules: ["Left and right to move, space to fire.", "Hit the invaders for points.", "One that lands costs a life."],
+  reset(world) { this.me = { x: 228, y: 290, w: 24, h: 14 }; this.shots = []; this.foes = []; this.next = 0.3; this.cool = 0; },
+  step(dt, world) {
+    const me = this.me;
+    if (world.held.has("ArrowLeft")) me.x -= 240 * dt;
+    if (world.held.has("ArrowRight")) me.x += 240 * dt;
+    me.x = Math.max(0, Math.min(world.W - me.w, me.x));
+    this.cool -= dt;
+    if (world.held.has(" ") && this.cool <= 0 && this.shots.length < 3) {
+      this.shots.push({ x: me.x + 10, y: me.y - 8, w: 4, h: 10 }); this.cool = 0.25;
+    }
+    this.next -= dt;
+    if (this.next <= 0) {
+      this.foes.push({ x: 20 + world.rand() * 420, y: 32, w: 22, h: 16, vy: 30 + world.rand() * 30, t: world.rand() * 6 });
+      this.next = 1.0 + world.rand() * 0.8;
+    }
+    for (const s of this.shots) { s.y -= 360 * dt; if (s.y < 28) s.gone = true; }
+    for (const f of this.foes) {
+      f.t += dt; f.y += f.vy * dt; f.x += Math.sin(f.t * 2) * 40 * dt;
+      for (const s of this.shots) if (!s.gone && hits(s, f)) { s.gone = true; f.gone = true; world.score += 10; }
+      if (!f.gone && (f.y > world.H - 20 || hits(f, me))) { f.gone = true; world.lose(); }
+    }
+    this.shots = this.shots.filter((s) => !s.gone); this.foes = this.foes.filter((f) => !f.gone);
+  },
+  backdrop(ctx) { ctx.fillStyle = "#050a18"; ctx.fillRect(0, 0, 480, 320); ctx.fillStyle = "#26304d"; ctx.fillRect(0, 304, 480, 2); },
+  draw(ctx) {
+    ctx.fillStyle = "#7cff6b"; ctx.fillRect(this.me.x, this.me.y, this.me.w, this.me.h); ctx.fillRect(this.me.x + 10, this.me.y - 6, 4, 6);
+    ctx.fillStyle = "#ffffff"; for (const s of this.shots) ctx.fillRect(s.x, s.y, s.w, s.h);
+    ctx.fillStyle = "#e04ce0"; for (const f of this.foes) { ctx.fillRect(f.x, f.y, f.w, f.h); ctx.fillStyle = "#000"; ctx.fillRect(f.x + 5, f.y + 5, 3, 3); ctx.fillRect(f.x + 14, f.y + 5, 3, 3); ctx.fillStyle = "#e04ce0"; }
+  },
+  readouts: scoreAndLives,
+};
+playWorld(game);
+</script></body></html>

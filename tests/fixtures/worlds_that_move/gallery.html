@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Gallery</title></head><body>
+<script src="world.js"></script>
+<script>
+// Targets cross the range. Click the orange ones; the green ones are friends.
+const game = {
+  title: "GALLERY", rules: ["Click the orange targets.", "Do not hit the green ones.", "You have 60 seconds."],
+  reset(world) { this.flying = []; this.next = 0.2; this.left = 60; },
+  click(x, y) {
+    for (const t of this.flying) {
+      if (!t.gone && Math.hypot(x - (t.x + 11), y - (t.y + 11)) < 14) {
+        t.gone = true;
+        if (t.friend) __world.lose(); else __world.score += 1;
+        return;
+      }
+    }
+  },
+  step(dt, world) {
+    this.left -= dt;
+    if (this.left <= 0) { world.over("time"); return; }
+    this.next -= dt;
+    if (this.next <= 0) {
+      const way = world.rand() < 0.5 ? 1 : -1;
+      this.flying.push({ x: way > 0 ? -22 : world.W, y: 50 + world.rand() * 230, vx: way * (70 + world.rand() * 90),
+                         friend: world.rand() < 0.3 });
+      this.next = 0.6 + world.rand() * 0.6;
+    }
+    for (const t of this.flying) { t.x += t.vx * dt; if (t.x < -30 || t.x > world.W + 30) t.gone = true; }
+    this.flying = this.flying.filter((t) => !t.gone);
+  },
+  backdrop(ctx) { ctx.fillStyle = "#3d2f1f"; ctx.fillRect(0, 0, 480, 320); ctx.fillStyle = "#5a4630"; for (let y = 60; y < 320; y += 60) ctx.fillRect(0, y, 480, 3); },
+  draw(ctx) {
+    for (const t of this.flying) {
+      ctx.fillStyle = t.friend ? "#3cc45a" : "#ff8c1a";
+      ctx.beginPath(); ctx.arc(t.x + 11, t.y + 11, 11, 0, 6.3); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(t.x + 11, t.y + 11, 4, 0, 6.3); ctx.fill();
+    }
+  },
+  readouts(ctx, world) {
+    world.text("SCORE " + world.score, 12, 22, 16, "#fff", "left");
+    world.text("TIME " + Math.ceil(this.left), 240, 22, 16, "#fff");
+    world.text("LIVES " + world.lives, 468, 22, 16, "#fff", "right");
+  },
+};
+playWorld(game);
+</script></body></html>

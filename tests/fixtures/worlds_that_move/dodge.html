@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Dodge</title></head><body>
+<script src="world.js"></script>
+<script>
+// Rocks fall. Staying alive is the score.
+const game = {
+  title: "DODGE", rules: ["Arrow keys move your ship.", "Rocks cost a life.", "Every second alive is a point."],
+  reset(world) { this.me = { x: 230, y: 270, w: 20, h: 16 }; this.rocks = []; this.next = 0.4; this.clock = 0; this.safe = 0; },
+  step(dt, world) {
+    const me = this.me, v = 220 * dt;
+    if (world.held.has("ArrowLeft")) me.x -= v;
+    if (world.held.has("ArrowRight")) me.x += v;
+    if (world.held.has("ArrowUp")) me.y -= v;
+    if (world.held.has("ArrowDown")) me.y += v;
+    me.x = Math.max(0, Math.min(world.W - me.w, me.x));
+    me.y = Math.max(170, Math.min(world.H - me.h, me.y));
+    this.clock += dt; this.safe -= dt;
+    if (this.clock >= 1) { this.clock -= 1; world.score += 1; }
+    this.next -= dt;
+    if (this.next <= 0) {
+      const s = 12 + world.rand() * 16;
+      this.rocks.push({ x: world.rand() * (world.W - s), y: 30, w: s, h: s, vy: 100 + world.rand() * 120, vx: (world.rand() - 0.5) * 60 });
+      this.next = 0.3 + world.rand() * 0.35;
+    }
+    for (const r of this.rocks) {
+      r.y += r.vy * dt; r.x += r.vx * dt;
+      if (this.safe <= 0 && hits(r, me)) { r.gone = true; world.lose(); this.safe = 1.0; me.x = 230; me.y = 270; }
+      if (r.y > world.H) r.gone = true;
+    }
+    this.rocks = this.rocks.filter((r) => !r.gone);
+  },
+  backdrop(ctx) {
+    ctx.fillStyle = "#14102a"; ctx.fillRect(0, 0, 480, 320);
+    ctx.fillStyle = "#3b3566";
+    for (let i = 0; i < 40; i++) ctx.fillRect((i * 97) % 480, (i * 57) % 320, 2, 2);
+  },
+  draw(ctx) {
+    if (this.safe <= 0 || Math.floor(this.safe * 10) % 2 === 0) {
+      ctx.fillStyle = "#3fe0e8";
+      ctx.beginPath(); ctx.moveTo(this.me.x + 10, this.me.y); ctx.lineTo(this.me.x + 20, this.me.y + 16); ctx.lineTo(this.me.x, this.me.y + 16); ctx.fill();
+    }
+    ctx.fillStyle = "#9b7b5c";
+    for (const r of this.rocks) ctx.fillRect(r.x, r.y, r.w, r.h);
+  },
+  readouts: scoreAndLives,
+};
+playWorld(game);
+</script></body></html>
