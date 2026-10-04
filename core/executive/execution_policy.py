@@ -663,6 +663,14 @@ def classify_execution_risk(
         # "Requires user confirmation" on the very turn that asked for it,
         # after routing had finally found it.
         return "medium"
+    if name == "repair_a_program":
+        # The same act as diagnose_repo's, and one write more: the program
+        # was on disk before the turn, the person named it and asked for it
+        # to be fixed, the edits are chosen by running it rather than written
+        # by the model, and the one file written is that one, with the
+        # original kept beside it. LIVE 2026-10-04, rated high by scope, it
+        # was withheld from the very turn that asked for it.
+        return "medium"
     if name == "self_evolution" and scope == "read_only":
         return "low"
     if name in _CRITICAL_TOOLS:

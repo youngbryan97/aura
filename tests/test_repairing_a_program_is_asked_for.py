@@ -53,3 +53,10 @@ def test_an_order_to_fix_a_named_file_may_write_files(tmp_path):
     assert requested_effect_ceiling(f"The Pong game at {game} is broken. Fix it, then play it.")[0] == "read_write_artifacts"
     assert requested_effect_ceiling(f"What is in {game}?")[0] != "read_write_artifacts"
     assert requested_effect_ceiling(f"I don't want you to change {game}; describe it.")[0] != "read_write_artifacts"
+
+
+def test_a_turn_that_asks_for_a_repair_can_be_offered_it():
+    """Rated by scope alone, a file-writing skill needs a confirmation the turn cannot ask for."""
+    from core.brain.inference_gate import _needs_a_confirmation_nobody_can_give
+
+    assert not _needs_a_confirmation_nobody_can_give("repair_a_program", "read_write_artifacts")
