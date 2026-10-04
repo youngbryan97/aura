@@ -332,6 +332,54 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
     )
 
 
+def antecedent_training_groups(item: Any) -> list[tuple[list[list[float]], int]]:
+    """Per annotated mention: the feature rows of the registers its operation could read, and the gold one's index."""
+    ir = item.ir
+    operations = [instruction.operation_span for instruction in ir.instructions]
+    similarities = _Similarities(
+        np.asarray(item.hidden_states), item.hidden_channels, item.hidden_channel_widths
+    )
+    stretches = register_stretches(ir.input_spans, operations, len(item.hidden_states))
+    groups: list[tuple[list[list[float]], int]] = []
+    for step, instruction in enumerate(ir.instructions):
+        own = ir.n_inputs + step
+        for register, mention in zip(instruction.args, instruction.argument_spans, strict=True):
+            if _literal(mention, ir.input_spans):
+                continue
+            features = antecedent_features(similarities, mention, stretches, ir.n_inputs)
+            candidates = [index for index in range(len(features)) if index != own]
+            groups.append(([features[index] for index in candidates], candidates.index(register)))
+    return groups
+
+
+def _fit_conditional(groups: Sequence[tuple[list[list[float]], int]]) -> tuple[float, ...]:
+    """Weights maximising each mention's log-probability of its own register among its candidates.
+
+    The readout is used as a distribution over a mention's registers, so it is
+    fitted as one (a conditional logit), with the same unit L2 penalty the
+    pairwise fit carried. The bias cancels in the softmax and stays zero.
+    """
+    from scipy.optimize import minimize
+
+    blocks = [np.asarray(rows, dtype=np.float64) for rows, _gold in groups]
+    golds = [gold for _rows, gold in groups]
+
+    def loss(weight: np.ndarray) -> tuple[float, np.ndarray]:
+        total = 0.5 * float(weight @ weight)
+        gradient = weight.copy()
+        for rows, gold in zip(blocks, golds, strict=True):
+            logits = rows @ weight
+            top = float(np.max(logits))
+            exp = np.exp(logits - top)
+            norm = float(np.sum(exp))
+            total -= float(logits[gold] - top - math.log(norm))
+            gradient -= rows[gold] - (exp / norm) @ rows
+        return total, gradient
+
+    result = minimize(loss, np.zeros(len(FEATURES)), jac=True, method="L-BFGS-B", options={"maxiter": 2000})
+    return tuple(float(value) for value in result.x)
+
+
 def antecedent_training_rows(item: Any) -> tuple[list[list[float]], list[int]]:
     """Each annotated argument mention against every register its operation could read."""
     ir = item.ir
@@ -356,13 +404,32 @@ def antecedent_training_rows(item: Any) -> tuple[list[list[float]], list[int]]:
     return rows, labels
 
 
-def fit_argument_antecedent(examples: Sequence[Any]) -> ArgumentAntecedent:
-    """Fit on each training argument mention against every other register of its request."""
+def fit_argument_antecedent(examples: Sequence[Any], *, objective: str = "pairwise") -> ArgumentAntecedent:
+    """Fit on each training argument mention against every other register of its request.
+
+    ``objective`` "pairwise" fits each (mention, register) pair as a yes or no;
+    "conditional" fits each mention's distribution over its registers, which is
+    how the readout is used.
+    """
     from sklearn.linear_model import LogisticRegression
 
     examples = tuple(examples)
     if not examples or any(item.split != "train" for item in examples):
         raise ValueError("argument antecedents are fitted on training rows only")
+    if objective not in ("pairwise", "conditional"):
+        raise ValueError("argument antecedents are fitted pairwise or conditionally")
+    if objective == "conditional":
+        groups = [group for item in examples for group in antecedent_training_groups(item)]
+        if not groups:
+            raise ValueError("argument antecedents need annotated mentions")
+        receipt = {
+            "training_sources": sorted(item.ir.source_text_sha256 for item in examples),
+            "training_rows": len(examples),
+            "mentions": len(groups),
+            "objective": "conditional",
+            "splits_used": ["train"],
+        }
+        return ArgumentAntecedent(_fit_conditional(groups), 0.0, {**receipt, "receipt_sha256": _sha(receipt)})
     rows: list[list[float]] = []
     labels: list[int] = []
     for item in examples:

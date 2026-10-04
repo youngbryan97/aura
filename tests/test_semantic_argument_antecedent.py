@@ -164,3 +164,17 @@ def test_relative_scoring_says_which_register_and_not_which_span() -> None:
         assert scores[named] == 0.0 and all(value <= 0.0 for value in scores)
     with pytest.raises(ValueError, match="absolute or relative"):
         replace(fitted, scoring="sideways")
+
+
+def test_a_conditional_fit_puts_each_mentions_own_register_first() -> None:
+    """The readout is used as each mention's distribution over registers, and can be fitted as one."""
+    fitted = fit_argument_antecedent(TRAINING, objective="conditional")
+    assert fitted.fit_receipt["objective"] == "conditional" and fitted.bias == 0.0
+    item = _request("test", ("refined", "spare"), 11)
+    operations = [instruction.operation_span for instruction in item.ir.instructions]
+    scorer = fitted.scorer(item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations)
+    multiply = item.ir.instructions[2]
+    for mention, named in zip(multiply.argument_spans, multiply.args, strict=True):
+        assert int(np.argmax(scorer.log_probabilities(mention))) == named
+    with pytest.raises(ValueError, match="pairwise or conditionally"):
+        fit_argument_antecedent(TRAINING, objective="sideways")

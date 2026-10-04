@@ -266,6 +266,12 @@ def main() -> int:
         default="absolute",
         help="how an antecedent enters an argument's score (see semantic_argument_antecedent.py)",
     )
+    parser.add_argument(
+        "--antecedent-fit",
+        choices=("pairwise", "conditional"),
+        default="pairwise",
+        help="fit the antecedent pair by pair, or as each mention's distribution over registers",
+    )
     args = parser.parse_args()
 
     from tools.refit_semantic_argument_proposals import (
@@ -308,7 +314,7 @@ def main() -> int:
     recognizer = fit_peak_operation_recognizer(training)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
-        replace(fit_argument_antecedent(training), scoring=args.antecedent_scoring)
+        replace(fit_argument_antecedent(training, objective=args.antecedent_fit), scoring=args.antecedent_scoring)
         if args.argument_antecedent else None
     )
     candidate = PeakRecognitionTransducer(incumbent, recognizer, ownership, antecedent)
@@ -354,7 +360,7 @@ def main() -> int:
                 incumbent,
                 fit_peak_operation_recognizer(kept),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
-                replace(fit_argument_antecedent(kept), scoring=args.antecedent_scoring)
+                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit), scoring=args.antecedent_scoring)
                 if args.argument_antecedent else None,
             )
             fold_audit = audit_semantic_cohort(
