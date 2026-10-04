@@ -48,7 +48,10 @@ class RepairAProgramSkill(BaseSkill):
         "original beside it. Then plays the fixed game, when asked, until it is won."
     )
     input_model = RepairAProgramInput
-    timeout_seconds = 1200.0
+    #: Mending (up to about twenty minutes) and then playing until a game is
+    #: won (sovereign_browser_drawing.PLAY_UNTIL_WON_S, twenty more). LIVE
+    #: 2026-10-04 a 1200 s ceiling cut the play off seven minutes in.
+    timeout_seconds = 2700.0
     metabolic_cost = 2
     effect_scope = "read_write_artifacts"
     requires_approval = False
@@ -116,6 +119,8 @@ async def _play_it(address: str, request: str) -> dict[str, Any]:
         if not await browser.ensure_ready():
             return {"error": "her browser could not be opened"}
         await browser.page.goto(address, wait_until="load")
+        # In front, where the person watching can see it.
+        await browser.page.bring_to_front()
         await asyncio.sleep(0.5)
         return await played_on_the_drawing(browser, request, {"url": address})
     finally:

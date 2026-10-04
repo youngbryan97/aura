@@ -1,8 +1,9 @@
-import pytest
 from types import SimpleNamespace
 
+import pytest
+
 from core.capabilities import phantom_browser as phantom_module
-from core.capabilities.phantom_browser import PhantomBrowser
+from core.capabilities.phantom_browser import _KEEPS_RUNNING, PhantomBrowser
 from core.runtime.errors import get_degradation_tracker
 
 
@@ -146,7 +147,7 @@ async def test_browser_uses_installed_chrome_when_playwright_cache_is_stale(
     assert fake_playwright.chromium.launch_kwargs == [
         {
             "headless": True,
-            "args": ["--disable-blink-features=AutomationControlled"],
+            "args": ["--disable-blink-features=AutomationControlled", *_KEEPS_RUNNING],
             "timeout": PhantomBrowser.LAUNCH_TIMEOUT_S * 1000.0,
             "executable_path": str(system_chrome),
         }

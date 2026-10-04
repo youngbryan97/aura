@@ -45,10 +45,16 @@ way a person would ask. Nothing is started from a script.
    until she wins.
 
    Timings from the live runs on 4 October 2026: the request reaches the
-   repair in about a minute (the model chooses the tool); the repair takes
-   about ten minutes; a game against the computer takes about three. Offline
-   against the repaired game's computer she won four of the eight full games
-   she finished, and she plays on until one is won (up to twenty minutes).
+   repair in under a minute (a request that plainly names one capability's
+   job is dispatched to it, not left to the model's choice); the repair takes
+   eleven to sixteen minutes; a game against the computer takes about three.
+   Offline against the repaired game's computer she won four of the eight full
+   games she finished, and she plays on until one is won (up to twenty
+   minutes).
+
+   A spare broken copy is kept at `~/aura-demos/pong-spare/pong.html` (all
+   five flaws, untouched); `tools/reset_pong_demo.py` also writes a fresh one
+   to `~/aura-demos/pong/pong.html` at any time.
 4. Check the repair independently:
 
    ```bash

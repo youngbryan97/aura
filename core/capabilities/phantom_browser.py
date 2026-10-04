@@ -84,6 +84,19 @@ _BROWSER_STEALTH = _declare(
 )
 
 
+#: A page she is working in keeps running when its window is covered. Chromium
+#: stops drawing a window it judges hidden behind others, and a game drawn by
+#: requestAnimationFrame stands still: LIVE 2026-10-04 she had mended a Pong
+#: and opened it to play, its window sat behind another, and every stretch of
+#: play ended "nothing on the screen has moved". Nothing here hides that the
+#: browser is automated.
+_KEEPS_RUNNING = [
+    "--disable-backgrounding-occluded-windows",
+    "--disable-renderer-backgrounding",
+    "--disable-background-timer-throttling",
+]
+
+
 def _hides_automation() -> bool:
     return str(_BROWSER_STEALTH.value()).strip().lower() not in {"0", "false", "no", "off"}
 
@@ -649,7 +662,7 @@ class PhantomBrowser(_ActsOnThePage):
             self._last_executable_attempts.append(label)
             kwargs: dict[str, Any] = {
                 "headless": not self.visible,
-                "args": ["--disable-blink-features=AutomationControlled"] if _hides_automation() else [],
+                "args": (["--disable-blink-features=AutomationControlled"] if _hides_automation() else []) + _KEEPS_RUNNING,
                 "timeout": self.LAUNCH_TIMEOUT_S * 1000.0,
             }
             if executable:
