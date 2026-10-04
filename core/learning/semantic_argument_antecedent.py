@@ -55,7 +55,7 @@ import numpy as np
 
 from core.learning.semantic_program_ir import TokenSpan
 
-ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v1"
+ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v2"
 
 #: The hidden-state channels a mention is compared in, as the bundles name them.
 CHANNELS: Final = ("input_token_embedding", "middle_causal_hidden")
@@ -70,6 +70,7 @@ FEATURES: Final = (
     "behind_best_middle",
     "is_input",
     "no_earlier_window",
+    "identical_share",
 )
 
 
@@ -168,6 +169,13 @@ def antecedent_features(
                 row.append(float(np.max(values[low : min(last_start, len(values) - 1) + 1])))
         matches.append(row)
     order = sorted(range(len(stretches)), key=lambda index: stretches[index][0])
+    # Where the mention's exact words occur earlier, and what share of those
+    # places lies in each stretch. "auxiliary result" occurs once, in the
+    # clause that named it; "the" occurs everywhere, so no stretch holds much
+    # of it (LIVE 2026-10-03: a one-token "the" was bound to an input by its
+    # exact match with an earlier "the").
+    identical = means[0] >= 1.0 - 1e-6 if len(means[0]) else np.zeros(0, dtype=bool)
+    everywhere = int(np.sum(identical))
     rows = []
     for register, (low, _high) in enumerate(stretches):
         row: list[float] = []
@@ -189,6 +197,8 @@ def antecedent_features(
             row.append(value)
             firsts.append(value - max(earlier) if earlier else value)
             behinds.append(value - max(present))
+        last_start = min(stretches[register][1], mention.start) - length
+        here = int(np.sum(identical[low : last_start + 1])) if last_start >= low else 0
         rows.append(
             [
                 *row,
@@ -196,6 +206,7 @@ def antecedent_features(
                 *behinds,
                 float(register < input_count),
                 float(all(value is None for value in matches[register])),
+                here / everywhere if everywhere else 0.0,
             ]
         )
     return rows
