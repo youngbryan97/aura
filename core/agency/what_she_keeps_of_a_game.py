@@ -1,10 +1,11 @@
 """What her fast way of playing keeps of one game, for the next time she plays it.
 
 Lose a game and play it again, and the second run should not start from
-nothing: which thing is hers and what its keys do, which kinds of thing are to
-be met and which kept clear of, how things move here and what the walls do,
-which part of her paddle wins points. All of that is kept under the game's own
-name and given back only to the same game. Another game gets none of it unless
+nothing: which kind of thing is hers, which kinds of thing are to be met and
+which kept clear of, how things move here and what the walls do, which part
+of her paddle wins points. What her keys do is not taken on trust from last
+time: a few seconds of trying them settles it again. All of that is kept
+under the game's own name and given back only to the same game. Another game gets none of it unless
 it is the same game, because what is true of one world's bombs and walls is
 not true of another's.
 """
@@ -79,13 +80,14 @@ def kept_from(held: dict[str, Any]) -> dict[str, Any]:
     ]
     hers_held = held.get("hers") or {}
     if hers_held:
+        # Which kind of thing was hers is a prior; what her keys do, and
+        # whether the mouse moves her, are found again by trying them. Kept,
+        # they were never tried again: LIVE 2026-10-04 a game played while
+        # its window was frozen left "the up key does nothing" behind, and in
+        # the next session, believing she knew her keys, she never pressed up
+        # to find out and lost every game.
         hers = WhichIsHers()
         hers.kind = int(hers_held["kind"])
-        for key, values in (hers_held.get("ways") or {}).items():
-            hers._hers.by_key[key].extend(tuple(v) for v in values)
-            hers._hers.free[key].extend(tuple(v) for v in values)
-        hers.follows_pointer = bool(hers_held.get("follows_pointer"))
-        hers.follows_along = tuple(bool(v) for v in hers_held.get("along") or (False, False))
         keep["hers"] = hers
     meeting = WhatMeetingDoes()
     for kind, values in (held.get("evidence") or {}).items():
