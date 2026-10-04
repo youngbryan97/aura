@@ -286,6 +286,107 @@ async def test_deep_fetch_recovers_only_missing_pages_in_parallel(tmp_path: Path
     assert max_active == 2
 
 
+_WIKIPEDIA_LIKE_PAGE = (
+    "<html><head><title>Kaseya Center - Wikipedia</title></head><body>"
+    + "".join(
+        f"<li>{label}</li>"
+        for label in (
+            "Jump to content", "Main menu", "Navigation", "Main page", "Contents",
+            "Current events", "Random article", "About Wikipedia", "Contact us",
+            "Search", "Donate", "Create account", "Log in", "Personal tools",
+        )
+    )
+    + "<p>Kaseya Center is a multi-purpose arena on Biscayne Bay in Miami, Florida. "
+    "It opened on December 31, 1999, and is the home of the Miami Heat.</p>"
+    "<p>The arena was designed by Arquitectonica and 360 Architecture. "
+    "Construction cost about $213 million, paid in part by the county.</p>"
+    + "".join(f"<li>{label}</li>" for label in ("Privacy policy", "Disclaimers", "Mobile view"))
+    + "</body></html>"
+)
+
+
+def _gateway_returning(body: str, content_type: str):
+    class _Gateway:
+        def request(self, *_args, **_kwargs):
+            return {
+                "ok": True,
+                "status_code": 200,
+                "headers": {"content-type": content_type},
+                "content": body.encode("utf-8"),
+            }
+
+    return _Gateway()
+
+
+@pytest.mark.asyncio
+async def test_a_fetched_page_keeps_its_prose_not_its_menus(tmp_path: Path, monkeypatch):
+    # LIVE 2026-10-03: research she kept from a search began "Kaseya Center -
+    # Wikipedia Jump to content Main menu ..." because the page text was the
+    # whole converted HTML, navigation first.
+    import core.search.research_pipeline as research_pipeline
+
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_network_gateway",
+        lambda: _gateway_returning(_WIKIPEDIA_LIKE_PAGE, "text/html; charset=utf-8"),
+    )
+    pipeline = ResearchSearchPipeline(SearchArtifactStore(tmp_path / "web_artifacts.jsonl"))
+    hit = SearchHit(title="Kaseya Center", url="https://en.wikipedia.org/wiki/Kaseya_Center")
+
+    page = await pipeline._fetch_page(None, hit, timeout_val=1.0)
+
+    assert page is not None
+    assert page.text.startswith("Kaseya Center is a multi-purpose arena")
+    assert "Main menu" not in page.text
+    assert "Privacy policy" not in page.text
+    assert page.read_chars > len(page.text)
+
+
+@pytest.mark.asyncio
+async def test_a_json_body_is_kept_whole(tmp_path: Path, monkeypatch):
+    import core.search.research_pipeline as research_pipeline
+
+    body = '{"name": "Kaseya Center", "opened": "1999-12-31"}\n' + '{"note": "x"}\n' * 40
+    monkeypatch.setattr(
+        research_pipeline,
+        "get_network_gateway",
+        lambda: _gateway_returning(body, "application/json"),
+    )
+    pipeline = ResearchSearchPipeline(SearchArtifactStore(tmp_path / "web_artifacts.jsonl"))
+    hit = SearchHit(title="Kaseya Center", url="https://example.com/arena.json")
+
+    page = await pipeline._fetch_page(None, hit, timeout_val=1.0)
+
+    assert page is not None
+    assert page.text.startswith('{"name": "Kaseya Center"')
+    assert page.read_chars == len(page.text)
+
+
+@pytest.mark.asyncio
+async def test_deep_fetch_judges_completeness_by_what_was_read_not_the_prose(
+    tmp_path: Path, monkeypatch
+):
+    pipeline = ResearchSearchPipeline(SearchArtifactStore(tmp_path / "web_artifacts.jsonl"))
+    hit = SearchHit(title="Short news", url="https://example.com/news", position=1)
+    browser_urls = []
+
+    async def _fetch_page(_client, hit, *, timeout_val):
+        del timeout_val
+        return SearchPage(url=hit.url, title=hit.title, text="A short story. " * 20, read_chars=4000)
+
+    async def _fetch_browser(hit):
+        browser_urls.append(hit.url)
+        return None
+
+    monkeypatch.setattr(pipeline, "_fetch_page", _fetch_page)
+    monkeypatch.setattr(pipeline, "_fetch_page_with_browser", _fetch_browser)
+
+    pages = await pipeline._fetch_pages([hit], deep=True)
+
+    assert [page.url for page in pages] == [hit.url]
+    assert browser_urls == []
+
+
 @pytest.mark.asyncio
 async def test_evidence_only_search_skips_model_work_and_preserves_source_diversity(
     tmp_path: Path,

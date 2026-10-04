@@ -646,10 +646,10 @@ async def _collect_named_url_evidence(user_message: str) -> dict[str, Any] | Non
     # her answer quoted "<span>help</span></a></li>" from the sidebar: read the
     # markup as text, and keep the runs of prose rather than the menus.
     if re.search(r"<(?:html|body|div|p|span|a)\b", body[:5000], re.IGNORECASE):
-        from core.conversation.what_the_world_says import _prose_paragraphs
         from core.search.research_pipeline import _html_to_text
+        from core.utils.readable_text import prose_of
 
-        body = "\n\n".join(_prose_paragraphs(_html_to_text(body))) or _html_to_text(body)
+        body = prose_of(_html_to_text(body))
     logger.info("🌐 Read the address the person named: %s (%d chars).", url[:90], len(body))
     return {
         "ok": True,

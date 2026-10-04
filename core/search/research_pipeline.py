@@ -330,6 +330,9 @@ class SearchPage:
     source_engine: str = ""
     position: int = 0
     fetched_at: float = field(default_factory=_now)
+    #: How much text the page had before its prose was taken; deep search
+    #: asks the browser for a page only when this, not the prose, was short.
+    read_chars: int = 0
 
 
 @dataclass(slots=True)
@@ -1019,7 +1022,8 @@ class ResearchSearchPipeline:
             browser_hits = [
                 hit
                 for hit in hits
-                if not any(page.url == hit.url and len(page.text) > 1000 for page in pages)
+                if not any(page.url == hit.url and max(len(page.text), page.read_chars) > 1000
+                           for page in pages)
             ]
             browser_tasks = [self._fetch_page_with_browser(hit) for hit in browser_hits]
             if browser_tasks:
@@ -1066,7 +1070,14 @@ class ResearchSearchPipeline:
         if content_type and not any(t in content_type.lower() for t in ("html", "text/plain", "application/json")):
             return None
 
-        text = _html_to_text(body)
+        # Its prose, not its menus: what a search keeps in her memory starts
+        # with this text, and on 3 October it started "Jump to content Main
+        # menu" (core/utils/readable_text.py).
+        from core.utils.readable_text import prose_of
+
+        read = _html_to_text(body)
+        prose = "" if "json" in content_type.lower() else prose_of(read)
+        text = prose if len(prose) >= 200 else read
         if len(text) < 200:
             return None
 
@@ -1078,6 +1089,7 @@ class ResearchSearchPipeline:
             snippet=hit.snippet,
             source_engine=hit.source_engine,
             position=hit.position,
+            read_chars=len(read),
         )
 
     async def _fetch_page_with_browser(self, hit: SearchHit) -> SearchPage | None:
