@@ -296,8 +296,22 @@ def _judge(question: str, candidates: list[WorldSource], *, solicited: bool) -> 
     return sorted(admitted, key=lambda c: -(c.score if c.score is not None else 0.0))
 
 
+def _as_of(store: Any) -> str:
+    """", as of <date>" for an offline copy that records when it was taken.
+
+    Without the date she cannot tell an event the copy predates from one that
+    never happened; with it, the web is where anything later is found.
+    """
+    try:
+        date = str(store.snapshot_date() or "")
+    except (AttributeError, OSError, ValueError):
+        date = ""
+    return f", as of {date}" if date else ""
+
+
 def _from_corpus(phrases: Sequence[str], terms: Sequence[str], *, store: Any) -> list[WorldSource]:
     candidates: list[WorldSource] = []
+    as_of = _as_of(store)
     seen: set[int] = set()
     for phrase in phrases[:4]:
         for hit in store.search(phrase, limit=2):
@@ -306,7 +320,7 @@ def _from_corpus(phrases: Sequence[str], terms: Sequence[str], *, store: Any) ->
             seen.add(hit.doc_id)
             body = store.body(hit.doc_id)
             if body:
-                origin = "offline Wikipedia" if hit.source == "wikipedia" else f"offline copy ({hit.source})"
+                origin = ("offline Wikipedia" if hit.source == "wikipedia" else f"offline copy ({hit.source})") + as_of
                 candidates.append(WorldSource(origin, hit.title, "", passage_of(body, terms)))
     return candidates
 
@@ -352,7 +366,7 @@ async def gather_world_evidence(
         hit = await asyncio.to_thread(store.by_title, title) if title else None
         body = await asyncio.to_thread(store.body, hit.doc_id) if hit else ""
         if body:
-            evidence.sources.append(WorldSource("offline Wikipedia copy of the page you sent", hit.title, url, passage_of(body, terms, limit=2 * _PASSAGE_CHARS)))
+            evidence.sources.append(WorldSource(f"offline Wikipedia copy of the page you sent{_as_of(store)}", hit.title, url, passage_of(body, terms, limit=2 * _PASSAGE_CHARS)))
         else:
             evidence.unreadable.append(url)
 

@@ -232,6 +232,26 @@ class LocalCorpusStore:
         finally:
             conn.close()
 
+    def snapshot_date(self) -> str:
+        """When this copy was taken, as an ISO date, or empty when nothing records it.
+
+        A stored ``snapshot`` value wins. The corpus built on 3 July 2026 stored
+        none, and the ingest log written beside it starts with the date it ran;
+        nothing in a copy can be newer than that. Read only: the live database
+        is not written to find this out.
+        """
+        stored = self.get_meta("snapshot", "")
+        if stored:
+            return stored
+        log = self.db_path.parent / "ingest.log"
+        try:
+            with log.open("r", encoding="utf-8", errors="replace") as handle:
+                first = handle.readline()
+        except OSError:
+            return ""
+        match = re.match(r"(\d{4}-\d{2}-\d{2})\b", first)
+        return match.group(1) if match else ""
+
     # ── retrieval ────────────────────────────────────────────────────
 
     @staticmethod

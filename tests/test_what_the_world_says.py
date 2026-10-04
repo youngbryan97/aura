@@ -253,3 +253,18 @@ def test_a_page_is_read_from_its_prose_not_its_menu() -> None:
     bare = passage_of(page)
     assert "On March 10, 2026" in bare and "Main menu" not in bare and "Log in" not in bare
     assert "Spoelstra" in passage_of(page, ["Spoelstra"])
+
+
+def test_an_offline_source_says_when_the_copy_was_taken(judge, tmp_path) -> None:
+    """Without the date she cannot tell an event the copy predates from one that never happened."""
+    from core.knowledge.local_corpus import LocalCorpusStore
+
+    class _Dated(_Corpus):
+        def snapshot_date(self):
+            return "2026-07-03"
+
+    evidence = asyncio.run(gather_world_evidence("Did Bam score 83?", store=_Dated()))
+    assert evidence.sources[0].origin == "offline Wikipedia, as of 2026-07-03"
+
+    (tmp_path / "ingest.log").write_text("2026-07-03 16:34:41,149 INFO ingest progress: 20000 pages\n")
+    assert LocalCorpusStore(tmp_path / "corpus.db").snapshot_date() == "2026-07-03"
