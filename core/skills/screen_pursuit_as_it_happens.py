@@ -73,8 +73,7 @@ class PlayingAsItHappens:
         return self._clip
 
     async def look(self) -> tuple[Any, float] | None:
-        import cv2
-        import numpy as np
+        from core.perception.picture_arithmetic import decode
 
         clip = await self._where()
         try:
@@ -82,10 +81,10 @@ class PlayingAsItHappens:
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return None
         at = time.monotonic()
-        picture = await asyncio.to_thread(cv2.imdecode, np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+        picture = await asyncio.to_thread(decode, data)
         if picture is None:
             return None
-        return picture[:, :, ::-1], at
+        return picture, at
 
     # -- hands --------------------------------------------------------------
 

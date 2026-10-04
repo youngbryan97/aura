@@ -182,13 +182,13 @@ def _without_what_stands_out(still: np.ndarray) -> np.ndarray:
     filter leaves, and anything compact that differs from that by a clear
     margin is put back to floor, so that it shows as a thing from the start.
     """
-    import cv2
+    from core.perception.picture_arithmetic import apart, median, pieces
 
     tall, wide = still.shape[:2]
     reach = max(3, (min(tall, wide) // 12) | 1)
-    floor = cv2.medianBlur(still, reach)
-    apart = cv2.absdiff(still, floor).max(axis=2) > DIFFERENT_ENOUGH
-    count, labels, stats, _centres = cv2.connectedComponentsWithStats(apart.astype(np.uint8), connectivity=8)
+    floor = median(still, reach)
+    unlike = apart(still, floor).max(axis=2) > DIFFERENT_ENOUGH
+    count, labels, stats, _centres = pieces(unlike)
     backdrop = still.astype(np.float32)
     for label in range(1, count):
         x, y, w, h, area = (int(v) for v in stats[label])
@@ -233,14 +233,14 @@ class WhatMoves:
     # -- the picture -------------------------------------------------------
 
     def _smaller(self, picture: np.ndarray) -> np.ndarray:
-        import cv2
+        from core.perception.picture_arithmetic import shrink
 
         tall, wide = picture.shape[:2]
         if wide <= self.width:
             self.scale = 1.0
             return picture
         self.scale = self.width / wide
-        return cv2.resize(picture, (self.width, max(1, round(tall * self.scale))), interpolation=cv2.INTER_AREA)
+        return shrink(picture, self.width, max(1, round(tall * self.scale)))
 
     def _first_look(self, small: np.ndarray, at: float) -> bool:
         """Whether the first look at this screen is still going on."""
@@ -275,19 +275,19 @@ class WhatMoves:
         self._backdrop[free] += rate * (small[free].astype(np.float32) - self._backdrop[free])
 
     def _what_differs(self, small: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
-        import cv2
+        from core.perception.picture_arithmetic import grow
 
         if self._backdrop is None:
             return None
         apart = np.abs(small.astype(np.float32) - self._backdrop).max(axis=2)
         strict = (apart > DIFFERENT_ENOUGH).astype(np.uint8)
-        return strict, cv2.dilate(strict, np.ones((3, 3), np.uint8))
+        return strict, grow(strict)
 
     def _blobs(self, small: np.ndarray, masks: tuple[np.ndarray, np.ndarray]) -> list[dict[str, Any]]:
-        import cv2
+        from core.perception.picture_arithmetic import pieces
 
         strict, mask = masks
-        count, labels, stats, _centres = cv2.connectedComponentsWithStats(mask, connectivity=8)
+        count, labels, stats, _centres = pieces(mask)
         area_of_all = mask.shape[0] * mask.shape[1]
         found = []
         for label in range(1, count):
@@ -497,9 +497,9 @@ class WhatMoves:
     def _a_new_screen(self, small: np.ndarray) -> bool:
         if self._last is None or self._last.shape != small.shape:
             return self._last is not None
-        import cv2
+        from core.perception.picture_arithmetic import apart
 
-        return float((cv2.absdiff(small, self._last).max(axis=2) > DIFFERENT_ENOUGH).mean()) > NEW_SCREEN
+        return float((apart(small, self._last).max(axis=2) > DIFFERENT_ENOUGH).mean()) > NEW_SCREEN
 
     def _the_unmatched(self, small: np.ndarray, matched: dict[int, int], at: float) -> list[dict[str, Any]]:
         happened = []

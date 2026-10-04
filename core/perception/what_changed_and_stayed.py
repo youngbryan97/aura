@@ -45,13 +45,13 @@ class WhatChangedAndStayed:
         Returns new changes as (when, x, y), with x and y as shares of the
         picture. ``never`` names things whose places are never counters (hers).
         """
-        import cv2
+        from core.perception.picture_arithmetic import apart, grey, pieces
 
         if picture is None or at - self._at < EVERY_S:
             return []
         self._at = at
         tall, wide = picture.shape[:2]
-        grey = cv2.cvtColor(picture, cv2.COLOR_RGB2GRAY)
+        grey_now = grey(picture)
         moving = np.zeros((tall, wide), dtype=bool)
         boxes = []
         for thing in things.values():
@@ -59,9 +59,9 @@ class WhatChangedAndStayed:
             boxes.append(box)
             if thing.moved or thing.number in never:
                 _mask(moving, box)
-        if self._kept and self._kept[-1][1].shape != grey.shape:
+        if self._kept and self._kept[-1][1].shape != grey_now.shape:
             self._kept.clear()
-        self._kept.append((at, grey, moving, boxes))
+        self._kept.append((at, grey_now, moving, boxes))
         if len(self._kept) < 5:
             return []
         (_t0, first, _m0, before), (when, middle, _m1, _b1), (_t2, last, _m2, after) = self._kept[-5], self._kept[-3], self._kept[-1]
@@ -77,10 +77,10 @@ class WhatChangedAndStayed:
             for box in here:
                 if not any(_same_place(box, other) for other in there):
                     _mask(passed, box)
-        changed = (cv2.absdiff(first, middle) > CHANGED) & (cv2.absdiff(middle, last) < SAME) & ~passed
+        changed = (apart(first, middle) > CHANGED) & (apart(middle, last) < SAME) & ~passed
         if changed.mean() > A_NEW_SCREEN or not changed.any():
             return []
-        count, _labels, stats, centres = cv2.connectedComponentsWithStats(changed.astype(np.uint8), connectivity=8)
+        count, _labels, stats, centres = pieces(changed)
         new = []
         for label in range(1, count):
             if stats[label][4] < 3:

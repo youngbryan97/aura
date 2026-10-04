@@ -41,16 +41,15 @@ class _Page:
         self.clip = {"x": box[0], "y": box[1], "width": box[2], "height": box[3]}
 
     async def look(self):
-        import cv2
-        import numpy as np
+        from core.perception.picture_arithmetic import decode
 
         try:
             data = await self.page.screenshot(clip=self.clip, type="jpeg", quality=80)
         except Exception:  # noqa: BLE001 - a closed page ends the run
             return None
         at = time.monotonic()
-        picture = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-        return picture[:, :, ::-1], at
+        picture = decode(data)
+        return (picture, at) if picture is not None else None
 
     async def down(self, key):
         await self.page.keyboard.down(_KEY.get(key, key))

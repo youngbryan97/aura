@@ -94,15 +94,14 @@ class _Watch:
 
 
 async def _look(page: Any, clip: dict[str, float]) -> tuple[Any, float] | None:
-    import cv2
-    import numpy as np
+    from core.perception.picture_arithmetic import decode
 
     try:
         data = await page.screenshot(clip=clip, type="jpeg", quality=80)
     except Exception:  # noqa: BLE001 - a page that cannot be photographed ends the watch
         return None
-    picture = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-    return picture[:, :, ::-1], time.monotonic()
+    picture = decode(data)
+    return (picture, time.monotonic()) if picture is not None else None
 
 
 async def _start(page: Any, clip: dict[str, float], words: str) -> str:
@@ -260,15 +259,16 @@ def _note_changes_in_place(watch: _Watch, happened: list[dict[str, Any]], at: fl
     differ there, the next half second does not, and nothing moving passed
     over the place. A change over much of the picture is a screen being drawn.
     """
-    import cv2
     import numpy as np
+
+    from core.perception.picture_arithmetic import apart, grey, pieces
 
     picture = getattr(watch.moves, "_last", None)
     if picture is None or at - watch.counted_at < _COUNTER_EVERY_S:
         return
     watch.counted_at = at
     tall, wide = picture.shape[:2]
-    grey = cv2.cvtColor(picture, cv2.COLOR_RGB2GRAY)
+    grey_now = grey(picture)
     moving = np.zeros((tall, wide), dtype=bool)
     for thing in watch.moves.things.values():
         # Anything that has ever moved, still or not: a paddle that stops in a
@@ -276,17 +276,17 @@ def _note_changes_in_place(watch: _Watch, happened: list[dict[str, Any]], at: fl
         if thing.moved or thing.number in watch.were_hers:
             left, top, right, bottom = (int(v) for v in thing.box())
             moving[max(0, top - 4) : bottom + 5, max(0, left - 4) : right + 5] = True
-    watch.kept.append((at, grey, moving))
+    watch.kept.append((at, grey_now, moving))
     if len(watch.kept) < 5 or any(h.get("what") == "new screen" for h in happened):
         return
     (_t0, first, _m0), (when, middle, _m1), (_t2, last, _m2) = watch.kept[-5], watch.kept[-3], watch.kept[-1]
     passed = np.zeros_like(moving)
     for _when, _grey, mask in list(watch.kept)[-5:]:
         passed |= mask
-    changed = (cv2.absdiff(first, middle) > 40) & (cv2.absdiff(middle, last) < 20) & ~passed
+    changed = (apart(first, middle) > 40) & (apart(middle, last) < 20) & ~passed
     if changed.mean() > 0.10 or not changed.any():
         return
-    count, _labels, stats, centres = cv2.connectedComponentsWithStats(changed.astype(np.uint8), connectivity=8)
+    count, _labels, stats, centres = pieces(changed)
     for label in range(1, count):
         if stats[label][4] < 3:
             continue
