@@ -383,13 +383,10 @@ def _controls(watch: _Watch, keys: list[str]) -> tuple[dict[str, tuple[float, fl
     ways: dict[str, tuple[float, float]] = {}
     named = [key for key in keys if key in _DIRECTIONS]
     if watch.hers.kind is None:
-        # Every key the program names was tried, again and again, while
-        # things on its screen moved, and nothing answered to any of them:
-        # that is a finding, not a gap. An edit that sends both keys the same
-        # way pins the thing they move against an edge, and it answers to
-        # neither (offline 2026-10-04).
-        if named and watch.last_others_moving > 0.0 and all(watch.hers.tried(key) >= 4 for key in named):
-            return ways, (WRONG, f"none of the keys it names ({', '.join(named)}) moves anything I can see")
+        # Nothing found answering is not a finding that nothing answers: on a
+        # loaded machine a watch at ten pictures a second misses her thing
+        # now and then, and read as "no key moves anything" that turned down
+        # right edits as harm (LIVE 2026-10-04).
         return ways, (UNMEASURED, "")
     for key in named:
         if watch.hers.tried(key) < 4:

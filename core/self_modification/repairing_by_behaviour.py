@@ -36,7 +36,7 @@ logger = logging.getLogger("SelfModification.RepairingByBehaviour")
 __all__ = ["Repair", "repair_by_behaviour", "the_programs_own_words"]
 
 #: How many copies are watched at once while trying edits.
-AT_ONCE = 6
+AT_ONCE = 4
 
 #: How long each part of a watch runs, in seconds.
 WATCH_S = 10.0
