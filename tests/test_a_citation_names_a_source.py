@@ -159,3 +159,22 @@ def test_entities_do_not_reach_the_screen():
         == "the world's largest platform & more"
     )
     assert _clean_search_fact_text("plain prose stays as it is") == "plain prose stays as it is"
+
+
+def test_an_honest_reply_without_an_address_keeps_its_words_and_gains_the_source():
+    """LIVE 2026-10-03: her reply about Bam's 83 was replaced by a pasted headline."""
+    from interface.routes.chat import _repair_required_search_reply_provenance
+
+    evidence = {
+        "ok": True,
+        "result": {
+            "ok": True,
+            "results": [{"title": "Bam! 83-point historic night", "url": "https://www.nba.com/news/bam-adebayo-83-point-game",
+                         "snippet": "The veteran big man passes Kobe Bryant for the second-highest game."}],
+        },
+    }
+    reply = "He really did it: 83 against the Wizards, second only to Wilt, and past Kobe's 81."
+    repaired = _repair_required_search_reply_provenance(reply, evidence)
+    assert repaired.startswith(reply)
+    assert repaired.endswith("Source: https://www.nba.com/news/bam-adebayo-83-point-game")
+    assert "I checked live web evidence" not in repaired

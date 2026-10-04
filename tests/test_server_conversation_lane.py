@@ -14099,8 +14099,8 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
             for i in range(40)
         ],
     }
-    # The request reaches back to the oldest exchange it bears on, and the
-    # suffix from there stays whole.
+    # The request reads the earlier exchange it bears on and the last one;
+    # the unrelated exchanges between them are left out.
     context["recent_completed_exchanges"][10] = stamp_runtime_payload(
         {"user": "Is Dijkstra a greedy algorithm?", "aura": "Yes, it settles the nearest vertex."}
     )
@@ -14115,10 +14115,11 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
 
     assert thought is not None
     call = calls[0]
-    assert len(call["messages"]) == 63
-    assert call["messages"][1:61] == [
+    assert len(call["messages"]) == 7
+    kept = [context["recent_completed_exchanges"][index] for index in (10, 39)]
+    assert call["messages"][1:5] == [
         message
-        for exchange in context["recent_completed_exchanges"][10:]
+        for exchange in kept
         for message in (
             {"role": "user", "content": exchange["user"]},
             {"role": "assistant", "content": exchange["aura"]},

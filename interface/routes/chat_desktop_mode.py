@@ -1619,6 +1619,13 @@ def _repair_required_search_reply_provenance(
     )
     if text and not false_provenance and (not evidence_urls or has_evidence_url):
         return text
+    if text and not false_provenance:
+        # Her answer stands, and the source it drew on is added. LIVE
+        # 2026-10-03, "Google it. Bam had an 83 point game": her reply named
+        # no address, so all of it was replaced with "I checked live web
+        # evidence." and the first result's headline and blurb.
+        source = str(_best_search_result_entry(result).get("url") or evidence_urls[0])
+        return f"{text}\n\nSource: {source}"
     grounded = _evidence_grounded_desktop_search_reply(search_evidence)
     if grounded:
         logger.warning(

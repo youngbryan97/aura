@@ -1147,9 +1147,16 @@ async def _what_the_world_says_for_the_turn(
     # A search contract (an explicit "use web_search to ...") keeps the
     # collector that reads its query, filters its results by subject, saves
     # what it found when asked, and receipts it; what it found joins the rest.
+    # A plain instruction to search ("Google it. Bam had an 83 point game") is
+    # read by the language substrate, whose query leaves the instruction out
+    # and whose search keeps what it read; the contract's own reading searched
+    # "it. Bam had an 83 point game" and kept nothing (LIVE 2026-10-03).
+    from core.language.search_request import read_search_request
+
+    instructed = read_search_request(user_message, previous).decided_by == "instruction"
     contracted = (
         await _collect_desktop_required_search_evidence(user_message, session_id=session_id)
-        if should_collect else None
+        if should_collect and not instructed else None
     )
     try:
         evidence = await gather_world_evidence(
