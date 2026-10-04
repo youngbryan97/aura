@@ -1,0 +1,188 @@
+"""What an instruction asks the reader to do, and to what: read off its clauses.
+
+A game's rules are instructions to the player, and they are written the same
+way everywhere: "Catch the fruit. Not the bombs." "Dodge food by pressing the
+space bar." "Click the orange targets. Do not hit the green ones." "Keep the
+ball from getting past you." Each clause asks for one kind of act toward one
+kind of thing, or forbids it, and sometimes names the control that does it.
+
+This reads exactly that and nothing more. The act is matched against declared
+families, the way `action_semantics` matches a commitment; the polarity is the
+imperative's own (a bare verb asks, "do not", "never" and "don't" forbid, and a
+clause that opens with "not" forbids the last act again for a new thing); the
+thing is the noun phrase after the act. It abstains on a clause it cannot
+place, so what it returns is what the words said.
+"""
+from __future__ import annotations
+
+import re
+import unicodedata
+from dataclasses import dataclass
+from typing import Final
+
+__all__ = ["ACT_FAMILIES", "Instruction", "what_the_words_ask"]
+
+#: Kinds of act a player is asked for, each a set of phrasings.
+ACT_FAMILIES: Final[dict[str, frozenset[tuple[str, ...]]]] = {
+    "get": frozenset({
+        ("catch",), ("collect",), ("grab",), ("get",), ("pick", "up"), ("eat",), ("gather",),
+        ("save",), ("rescue",), ("reach",), ("find",), ("match",), ("feed",),
+    }),
+    "keep clear": frozenset({
+        ("avoid",), ("dodge",), ("keep", "away", "from"), ("stay", "away", "from"), ("escape",),
+        ("run", "from"), ("watch", "out", "for"), ("look", "out", "for"), ("duck",), ("evade",),
+    }),
+    "stop": frozenset({
+        ("keep",), ("stop",), ("block",), ("defend",), ("protect",), ("guard",), ("return",),
+    }),
+    "hit": frozenset({
+        ("shoot",), ("hit",), ("splat",), ("zap",), ("blast",), ("throw", "at"), ("fire", "at"),
+        ("attack",), ("smash",), ("destroy",), ("defeat",), ("knock", "out"), ("bump",), ("pop",),
+        ("whack",), ("squash",), ("beat",), ("throw",), ("fire",),
+    }),
+    "click": frozenset({("click", "on"), ("click",), ("tap",), ("press", "on")}),
+    "move": frozenset({("move",), ("steer",), ("walk",), ("drive",), ("fly",), ("guide",), ("control",)}),
+    "jump": frozenset({("jump",), ("hop",), ("leap",)}),
+}
+
+#: Words that name a control, and the control they name.
+_CONTROLS: Final[tuple[tuple[tuple[str, ...], str], ...]] = (
+    (("space", "bar"), "space"), (("spacebar",), "space"), (("space",), "space"),
+    (("arrow", "keys"), "arrows"), (("arrows",), "arrows"), (("arrow",), "arrows"),
+    (("mouse",), "mouse"), (("cursor",), "mouse"), (("click",), "mouse"),
+    (("enter",), "return"), (("return",), "return"), (("shift",), "shift"),
+    (("up",), "up"), (("down",), "down"), (("left",), "left"), (("right",), "right"),
+)
+
+_FORBIDDING: Final = frozenset({"not", "never", "dont", "no"})
+
+#: What a thing does to the player, said of it as its subject: "rocks cost a
+#: life", "the red ones hurt", "coins are worth five points".
+_COSTS: Final = frozenset({"cost", "costs", "hurt", "hurts", "kill", "kills", "damage", "damages", "harm", "harms", "lose", "loses", "ends", "end"})
+_PAYS: Final = frozenset({"worth", "gives", "give", "earns", "earn", "scores", "score", "adds", "add", "heals", "heal"})
+_NUMBERS: Final = frozenset({"one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "times", "points", "point", "wins", "win", "seconds"})
+_DETERMINERS: Final = frozenset({"the", "a", "an", "all", "any", "every", "each", "your", "their", "its", "those", "these", "some", "of", "as", "many", "much"})
+_ENDS_A_THING: Final = frozenset({
+    "by", "with", "using", "to", "and", "or", "before", "while", "when", "until", "from", "in", "on",
+    "at", "into", "for", "so", "if", "that", "past", "getting", "get", "away",
+})
+_CLAUSES: Final = re.compile(r"[.!?;:]+|,|\b(?:but|and then|then)\b")
+
+
+@dataclass(frozen=True, slots=True)
+class Instruction:
+    """One clause's ask: an act, the thing it is toward, whether it is forbidden, and its control."""
+
+    act: str
+    thing: tuple[str, ...]
+    forbidden: bool
+    control: str
+    clause: str
+
+
+def _plain(text: str) -> str:
+    value = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii").casefold()
+    value = value.replace("don't", "dont").replace("do not", "dont").replace("’", "'")
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _words(clause: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", clause)
+
+
+def _act_at(words: list[str], index: int) -> tuple[str, int] | None:
+    best: tuple[str, int] | None = None
+    for family, phrasings in ACT_FAMILIES.items():
+        for phrase in phrasings:
+            if words[index : index + len(phrase)] == list(phrase) and (best is None or len(phrase) > best[1]):
+                best = (family, len(phrase))
+    return best
+
+
+def _the_thing(words: list[str], start: int, stop: int | None = None) -> tuple[str, ...]:
+    thing: list[str] = []
+    for word in words[start : min(stop if stop is not None else len(words), start + 8)]:
+        if (word in _ENDS_A_THING or word in _NUMBERS or word.isdigit()) and thing:
+            break
+        if word in _NUMBERS or word.isdigit():
+            continue
+        if word in _DETERMINERS or word in _ENDS_A_THING:
+            continue
+        thing.append(word)
+        if len(thing) >= 4:
+            break
+    return tuple(thing)
+
+
+def _the_control(words: list[str]) -> str:
+    for phrase, control in _CONTROLS:
+        for index in range(len(words)):
+            if words[index : index + len(phrase)] == list(phrase):
+                # "up" and "down" name keys only beside a word for keys or a
+                # pressing verb; otherwise they are directions in a sentence.
+                if control in ("up", "down", "left", "right"):
+                    around = set(words[max(0, index - 2) : index + 3])
+                    if not around & {"key", "keys", "arrow", "arrows", "press", "pressing"}:
+                        continue
+                return control
+    return ""
+
+
+def _what_it_does_to_her(words: list[str], clause: str) -> Instruction | None:
+    """A thing said to cost or pay: its subject is to be kept clear of, or got."""
+    for index, word in enumerate(words):
+        if word in _COSTS or word in _PAYS:
+            subject = tuple(w for w in words[:index] if w not in _DETERMINERS and w not in _FORBIDDING and not w.isdigit())[-3:]
+            if subject:
+                return Instruction("keep clear" if word in _COSTS else "get", subject, False, "", clause)
+    return None
+
+
+def _acts_in(words: list[str]) -> list[tuple[int, str, int]]:
+    acts = []
+    index = 0
+    while index < len(words):
+        act = _act_at(words, index)
+        if act is not None:
+            acts.append((index, act[0], act[1]))
+            index += act[1]
+        else:
+            index += 1
+    return acts
+
+
+def what_the_words_ask(text: str) -> list[Instruction]:
+    """Every clause of ``text`` that asks for, or forbids, an act toward a thing."""
+    asked: list[Instruction] = []
+    last: Instruction | None = None
+    for clause in (part.strip() for part in _CLAUSES.split(_plain(text))):
+        words = _words(clause)
+        if not words:
+            continue
+        acts = _acts_in(words)
+        if not acts:
+            if last is not None and words[0] in _FORBIDDING:
+                # "Not the bombs." asks the last act again, forbidden, of a new thing.
+                thing = _the_thing(words, 1)
+                if thing:
+                    asked.append(Instruction(last.act, thing, not last.forbidden, last.control, clause))
+                continue
+            consequence = _what_it_does_to_her(words, clause)
+            if consequence is not None:
+                asked.append(consequence)
+            continue
+        control = _the_control(words)
+        for place, (index, family, length) in enumerate(acts):
+            ends = acts[place + 1][0] if place + 1 < len(acts) else None
+            forbidden = any(word in _FORBIDDING for word in words[max(0, index - 3) : index])
+            thing = _the_thing(words, index + length, ends)
+            if family == "stop" and "past" in words:
+                # "Keep the ball from getting past you": the thing is to be met.
+                family = "get"
+            # "Space to fire", "click to throw": the control is what does it.
+            does_it = control if (index >= 1 and words[index - 1] == "to") or not thing else _the_control(words[max(0, index - 6) : (ends or len(words))])
+            if not thing and not does_it:
+                continue
+            last = Instruction(family, thing, forbidden, does_it, clause)
+            asked.append(last)
+    return asked

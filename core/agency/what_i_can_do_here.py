@@ -30,6 +30,7 @@ nobody named.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Sequence
 
@@ -75,6 +76,42 @@ def what_is_clicked(move: str) -> str | None:
     return None
 
 
+#: How a screen asks for a key: "press space", "hit the space bar to start",
+#: "press any key", "press enter to continue", "press P to play".
+_ASKING = re.compile(
+    r"\b(?:press|hit|push|tap)\s+(?:the\s+)?(space\s*bar|spacebar|space|enter|return|any\s+key|[a-z])\b"
+    r"(?:\s+(?:key\s+)?to\s+(start|play|begin|continue|go|launch|serve|fire|jump|shoot))?",
+    re.IGNORECASE,
+)
+
+
+def keys_a_screen_asks_for(words: str) -> tuple[str, ...]:
+    """The keys a screen's words ask to be pressed, in the order it asks.
+
+    A single letter counts only with what it is for beside it ("press P to
+    play"), because "press a button" asks for no key called A.
+    """
+    import unicodedata
+
+    # Read as letters: text recognition gives "SPAÇE" for SPACE on a game's
+    # title (offline 2026-10-03, Pong), and the accent is noise, not a word.
+    plain = unicodedata.normalize("NFKD", str(words or "")).encode("ascii", "ignore").decode("ascii")
+    asked: list[str] = []
+    for found in _ASKING.finditer(" ".join(plain.split())):
+        named, purpose = found.group(1).lower(), found.group(2)
+        if named.replace(" ", "") in ("space", "spacebar") or named.startswith("any"):
+            key = "space"
+        elif named in ("enter", "return"):
+            key = "return"
+        elif purpose:
+            key = named
+        else:
+            continue
+        if key not in asked:
+            asked.append(key)
+    return tuple(asked)
+
+
 def worth_trying(told: Sequence[str] = ()) -> tuple[str, ...]:
     """Everything she could try here, hers first and the rest after.
 
@@ -100,8 +137,15 @@ class WhatWorksHere:
     #: What can be clicked on the screen in front of her now, inside the thing
     #: she was sent to play. Set by `looked_at` each time she looks.
     on_screen: tuple[str, ...] = ()
+    #: Keys the screen in front of her asks for, in its own words ("Press
+    #: SPACE to play"). Pressing one is doing what it says, not finding out.
+    asked_for: tuple[str, ...] = ()
     #: What the look before this one could click, to hold the next look to.
     seen_before: tuple[str, ...] = ()
+
+    def asked_for_by(self, words: str) -> None:
+        """Keys the screen's own words ask her to press, while it is asking."""
+        self.asked_for = keys_a_screen_asks_for(words)
 
     def looked_at(self, clickable: Sequence[str]) -> None:
         """What she can click now: the writing that was there at the last look too.
@@ -161,7 +205,14 @@ class WhatWorksHere:
         working. A world where the named keys do the job never widens.
         """
         dead = set(self.dead())
+        # What the screen asks for comes first and is never written off: the
+        # screen is still asking, so it has not been done yet. LIVE 2026-10-03
+        # 20:23, offline on a Pong whose title said "Press SPACE to play", she
+        # made 199 moves with the arrow keys and never pressed space.
+        asked = tuple(key for key in self.asked_for if key not in self.told)
         told = tuple(key for key in self.told if key not in dead)
+        if asked:
+            return asked + told
         # Only what she was told can be shown wrong about what she was told.
         # A key nobody named that never did anything says nothing about the
         # ones they did: a remembered dead "down" took the caller's Tab and

@@ -312,6 +312,10 @@ class _UnderstandsThePage(_PlacesHerself):
                     len(named) != len(kin) or named == {str(element["group"])}
                 ):
                     state.append(f"position {kin.index(element) + 1} of {len(kin)}")
+            alike = element.get("alike")
+            if isinstance(alike, (list, tuple)) and len(alike) == 2 and not element.get("group"):
+                # Its place among the controls like it, counted by the page.
+                state.append(f"{alike[0]} of {alike[1]} alike")
             if element.get("checked") is True:
                 state.append("already answered")
             if element.get("value"):

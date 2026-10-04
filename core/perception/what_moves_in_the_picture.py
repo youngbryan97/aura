@@ -112,6 +112,7 @@ class Thing:
     vy: float = 0.0
     still: bool = False
     path: deque = field(default_factory=lambda: deque(maxlen=40))
+    sizes: deque = field(default_factory=lambda: deque(maxlen=15))
 
     @property
     def size(self) -> float:
@@ -177,12 +178,14 @@ class WhatMoves:
     whole screen changed.
     """
 
-    def __init__(self, *, width: int = WORKING_WIDTH) -> None:
+    def __init__(self, *, width: int = WORKING_WIDTH, kinds: list[Kind] | None = None) -> None:
         self.width = width
         self.scale = 1.0
         self.shape: tuple[int, int] = (0, 0)
         self.things: dict[int, Thing] = {}
-        self.kinds: list[Kind] = []
+        #: Kinds met before in this world keep their numbers, so what was
+        #: learned about one in an earlier stretch of play still applies.
+        self.kinds: list[Kind] = list(kinds or [])
         self._numbers = 0
         self._first: list[np.ndarray] = []
         self._first_at = -math.inf
@@ -340,6 +343,9 @@ class WhatMoves:
         thing.colour, thing.patch = blob["colour"], blob["patch"]
         thing.seen, thing.still = at, False
         thing.path.append((at, thing.x, thing.y))
+        thing.sizes.append(thing.size)
+        if len(thing.sizes) % 5 == 0:
+            self._kind_again(thing)
         if not thing.moved:
             _at, x0, y0 = thing.path[0]
             thing.moved = math.hypot(thing.x - x0, thing.y - y0) > 2.0
@@ -373,6 +379,20 @@ class WhatMoves:
         kind.look = 0.9 * kind.look + 0.1 * look
         kind.size = 0.9 * kind.size + 0.1 * size
         return best
+
+    def _kind_again(self, thing: Thing) -> None:
+        """Look again at what kind a thing is, now its size has settled.
+
+        A thing first seen half out from behind the backdrop is a sliver of
+        itself: LIVE-like offline 2026-10-03, a paddle first seen the size of
+        the ball was filed with the ball, and the ball was left out of
+        everything she aimed at because it looked like her.
+        """
+        size = float(np.median(np.asarray(thing.sizes)))
+        kind = self.kinds[thing.kind] if 0 <= thing.kind < len(self.kinds) else None
+        if kind is not None and kind.like(thing.colour, size) < KIND_ALIKE:
+            return
+        thing.kind = self._kind_for(thing.look, size, thing.colour)
 
     def _born(self, blob: dict[str, Any], at: float) -> Thing:
         self._numbers += 1

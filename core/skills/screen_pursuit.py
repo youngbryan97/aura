@@ -1027,8 +1027,17 @@ async def pursue_on_screen(
     plan: dict[str, Any] = {"held": None, "changes": 0, "asked_at": -1}
 
     async def observe() -> dict[str, Any]:
-        """Lifted to screen_pursuit_observing.py; the scope is handed over per call."""
-        return await observe_the_screen(
+        """Lifted to screen_pursuit_observing.py; the scope is handed over per call.
+
+        Where the hand-over brought reflexes, what moves on its own is played
+        as it happens first, and this look is of the screen that play ends on.
+        """
+        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+
+        reflexes = AS_IT_HAPPENS.get()
+        if reflexes is not None:
+            await reflexes.while_it_moves()
+        seen = await observe_the_screen(
             SimpleNamespace(
                 anchor=anchor,
                 at_rest=at_rest,
@@ -1041,8 +1050,18 @@ async def pursue_on_screen(
                 target_app=target_app,
             ),
         )
+        if reflexes is not None:
+            reflexes.read(seen)
+        return seen
 
     def satisfied(observation: dict[str, Any]) -> bool:
+        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+
+        # A run played and over is the end of a hand-over: what comes after
+        # it belongs to whoever handed it over.
+        reflexes = AS_IT_HAPPENS.get()
+        if reflexes is not None and reflexes.run_is_over(observation):
+            return True
         # A layout is met on the board, which the decision reads and says.
         if pending.get("the_layout_is_made"):
             return _already_or_not(True)

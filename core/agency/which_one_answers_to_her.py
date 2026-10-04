@@ -96,6 +96,23 @@ class _Speeds:
         return statistics.median(v[0] for v in values), statistics.median(v[1] for v in values)
 
 
+def _follows(pairs: list[tuple[float, float, float, float]]) -> tuple[bool, bool]:
+    """Along which axes a thing's place goes with the pointer's: correlation above 0.9, slope near one."""
+    import numpy as np
+
+    data = np.asarray(pairs[-60:], dtype=np.float64)
+    along = []
+    for axis in (0, 1):
+        pointer, thing = data[:, axis], data[:, 2 + axis]
+        if pointer.std() < 5.0 or thing.std() < 5.0:
+            along.append(False)
+            continue
+        r = float(np.corrcoef(pointer, thing)[0, 1])
+        slope = float(np.polyfit(pointer, thing, 1)[0])
+        along.append(r > 0.9 and 0.5 < slope < 2.0)
+    return along[0], along[1]
+
+
 def _mean(values: list[tuple[float, float]]) -> tuple[float, float]:
     return sum(v[0] for v in values) / len(values), sum(v[1] for v in values) / len(values)
 
@@ -122,6 +139,12 @@ class WhichIsHers:
         self._taps: list[tuple[str, float, tuple[float, float]]] = []
         self._made: dict[tuple[str, int], list[tuple[float, float]]] = defaultdict(list)
         self.makes: dict[str, Makes] = {}
+        self._pointer: list[tuple[float, float, float]] = []
+        self._followed: dict[int, list[tuple[float, float, float, float]]] = defaultdict(list)
+        self.follows_pointer = False
+        self._new_screen_at = -math.inf
+        #: The axes along which it follows: a paddle under the pointer may follow only across.
+        self.follows_along: tuple[bool, bool] = (False, False)
 
     # -- what she did ------------------------------------------------------
 
@@ -134,6 +157,52 @@ class WhichIsHers:
         if self.last_seen is not None:
             self._taps.append((key, at, self.last_seen))
 
+    def pointed(self, x: float, y: float, at: float) -> None:
+        """The pointer was taken to (x, y), in working pixels."""
+        self._pointer.append((at, x, y))
+        del self._pointer[:-40]
+
+    def _pointer_at(self, at: float) -> tuple[float, float] | None:
+        for when, x, y in reversed(self._pointer):
+            if when <= at:
+                return x, y
+        return None
+
+    def _what_follows_the_pointer(self, moves: Any, at: float) -> None:
+        """A thing that goes where the pointer went is hers, the way a key's thing is."""
+        if not self._pointer or self.follows_pointer:
+            return
+        pointer = self._pointer_at(at - 0.15)
+        if pointer is None:
+            return
+        # By kind, the nearest of each to the pointer: a thing under a pointer
+        # that moved too far in one picture comes back as a new thing.
+        nearest: dict[int, Any] = {}
+        for thing in moves.things.values():
+            if thing.seen != at:
+                continue
+            best = nearest.get(thing.kind)
+            if best is None or math.dist((thing.x, thing.y), pointer) < math.dist((best.x, best.y), pointer):
+                nearest[thing.kind] = thing
+        for kind, thing in nearest.items():
+            self._followed[kind].append((pointer[0], pointer[1], thing.x, thing.y))
+        for kind, pairs in self._followed.items():
+            if kind not in nearest or len(pairs) < 20:
+                continue
+            along = _follows(pairs)
+            if any(along):
+                self.number, self.kind, self.follows_pointer = nearest[kind].number, kind, True
+                self.follows_along = along
+                return
+
+    def _under_the_pointer(self, moves: Any, at: float) -> int | None:
+        """The thing of her kind nearest the pointer: a thing that follows it is re-made when it jumps."""
+        pointer = self._pointer_at(at)
+        mine = [t for t in moves.things.values() if t.kind == self.kind]
+        if not mine or pointer is None:
+            return None
+        return min(mine, key=lambda t: math.dist((t.x, t.y), pointer)).number
+
     def _held_at(self, at: float) -> tuple[str, bool] | None:
         for began, key, trying in reversed(self._held):
             if began <= at:
@@ -143,8 +212,11 @@ class WhichIsHers:
     # -- what she saw ------------------------------------------------------
 
     def saw(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
+        if any(h.get("what") == "new screen" for h in happened):
+            self._new_screen_at = at
         held = self._held_at(at - RESPONSE_S)
-        if held is not None:
+        # A screen being drawn afresh moves everything at once, whatever she held.
+        if held is not None and at - self._new_screen_at > 0.5:
             key, trying = held
             for thing in moves.things.values():
                 if thing.seen != at or thing.born == at:
@@ -154,13 +226,17 @@ class WhichIsHers:
                     self._by_kind[thing.kind].add(key, thing.vx, thing.vy)
                 if thing.number == self.number:
                     self._hers.add(key, thing.vx, thing.vy)
-        self._decide(moves)
+        self._what_follows_the_pointer(moves, at)
+        if not self.follows_pointer:
+            self._decide(moves)
+        elif self.number not in moves.things:
+            self.number = self._under_the_pointer(moves, at)
         self._what_keys_make(moves, happened, at)
 
     def _decide(self, moves: Any) -> None:
         best, best_f = None, ANSWERS
         for number, speeds in self._by_thing.items():
-            if number not in moves.things:
+            if number not in moves.things or not moves.things[number].moved:
                 continue
             f, widest = speeds.ratio()
             if f > best_f and widest > REALLY_MOVES:

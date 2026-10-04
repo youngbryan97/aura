@@ -38,7 +38,7 @@ from core.perception.what_moves_in_the_picture import WhatMoves
 
 logger = logging.getLogger("Aura.PlayingAsItHappens")
 
-__all__ = ["play_as_it_happens", "the_world_moves_on_its_own"]
+__all__ = ["controls_named_in", "play_as_it_happens", "the_world_moves_on_its_own"]
 
 #: How long each key is held while she finds out what it does.
 TRY_A_KEY_S = 0.3
@@ -59,6 +59,21 @@ NEW_SCREEN_STILL_S = 1.5
 #: Spoken lines are at least this far apart, so each can be read.
 SAY_EVERY_S = 5.0
 
+#: The least time between two clicks, and how far ahead of a moving thing a
+#: click is aimed: the click's trip through the browser and the next frame.
+CLICK_EVERY_S = 0.25
+CLICK_LANDS_S = 0.08
+
+#: How fast a thing that follows the pointer can be taken somewhere, in working
+#: pixels a second: the width of a picture in a few frames.
+POINTER_SPEED = 2000.0
+
+#: How far the pointer goes in one picture while she sweeps it, as a share of the picture.
+POINTER_STEP = 0.04
+
+#: Where the pointer is taken while she finds out whether anything follows it.
+_POINTER_TRIAL = ((0.2, 0.5), (0.8, 0.5), (0.5, 0.2), (0.5, 0.8), (0.3, 0.3), (0.7, 0.7))
+
 
 @dataclass
 class _Run:
@@ -73,8 +88,9 @@ class _Run:
     new_screen_at: float = -math.inf
     clicked: dict[int, float] = field(default_factory=dict)
     last_click: float = -math.inf
-    pointing: bool = False
     pointer: tuple[float, float] = (0.5, 0.5)
+    pointed: int = 0
+    pointer_first: bool = False
     taps: int = 0
     said_at: float = -math.inf
     said: set[str] = field(default_factory=set)
@@ -82,9 +98,52 @@ class _Run:
     reading: asyncio.Task | None = None
     read_at: float = -math.inf
     counted: dict[str, int] = field(default_factory=dict)
+    reported_at: float = 0.0
     pictures: int = 0
     gains: int = 0
     losses: int = 0
+
+
+# -- what she was told ---------------------------------------------------------
+
+#: Words that say a game is played with the pointer.
+_POINTER_WORDS = ("mouse", "cursor", "pointer", "click", "drag", "aim", "trackpad")
+
+#: What the usual names of keys mean.
+_NAMED_KEYS = (
+    (("arrow", "arrows", "cursor keys", "direction"), ("up", "down", "left", "right")),
+    (("space", "spacebar", "space bar"), ("space",)),
+    (("up",), ("up",)),
+    (("down",), ("down",)),
+    (("left",), ("left",)),
+    (("right",), ("right",)),
+    (("enter", "return"), ("return",)),
+    (("shift",), ("shift",)),
+)
+
+
+def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space")) -> tuple[list[str], bool]:
+    """The keys a game's own words name, and whether they name the pointer.
+
+    "Use the arrow keys to move and space to jump" names five keys; "Move the
+    mouse to aim, click to throw" names the pointer. With no keys named, the
+    keys most games use are tried, after the pointer when it is named.
+    """
+    import re
+
+    from core.runtime.watched_goal import keys_named_in
+
+    lowered = " ".join(str(text or "").lower().split())
+    words = set(re.findall(r"[a-z]+", lowered))
+    keys: list[str] = []
+    for names, meant in _NAMED_KEYS:
+        if any((name in words) if " " not in name else (name in lowered) for name in names):
+            keys.extend(key for key in meant if key not in keys)
+    keys.extend(key for key in keys_named_in(lowered) if key not in keys)
+    pointer = any(word in words or word + "s" in words for word in _POINTER_WORDS)
+    if not keys:
+        keys = list(keys_without_words)
+    return keys, pointer
 
 
 # -- naming what she sees -----------------------------------------------------
@@ -161,7 +220,8 @@ class _Choosing:
         self.moves, self.hers, self.meeting = moves, hers, meeting
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
-        self.across, self.updown = hers.axes(keys)
+        self.across, self.updown = hers.follows_along if hers.follows_pointer else hers.axes(keys)
+        self.pointing = hers.follows_pointer
         shots = hers.makes
         self.shot = next(iter(shots.values()), None)
 
@@ -175,9 +235,12 @@ class _Choosing:
 
     def others(self) -> list[Any]:
         shot_kinds = {made.kind for made in self.hers.makes.values()}
+        # Only her own thing is left out, and still copies of it (a row of
+        # lives). Another thing that looks like hers may be the other player.
         return [
             t for t in self.moves.things.values()
-            if self.mine is not None and t.number != self.mine.number and t.kind != self.hers.kind
+            if self.mine is not None and t.number != self.mine.number
+            and not (t.kind == self.hers.kind and not t.moved)
             and t.kind not in shot_kinds and t.number not in self.meeting.writing
         ]
 
@@ -185,6 +248,9 @@ class _Choosing:
         return self.meeting.stance(thing.kind, fixture=not thing.moved)
 
     def speed(self, axis: int) -> float:
+        if self.pointing:
+            # A thing under the pointer is wherever the pointer is put.
+            return POINTER_SPEED if (self.across, self.updown)[axis] else 1.0
         return max([abs(way[axis]) for way in self.ways.values()] + [1.0])
 
     def target(self) -> tuple[tuple[float | None, float | None], str, Any]:
@@ -424,36 +490,74 @@ async def _try_the_keys(hands: Any, run: _Run, hers: WhichIsHers, at: float) -> 
 
 
 async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMeetingDoes, at: float) -> None:
-    """With no thing of her own, a click is how she meets things."""
-    if at - run.last_click < 0.25:
+    """With no thing of her own, a click is how she meets things.
+
+    She clicks the thing that is about to leave first, among the kinds she
+    has not learned to leave alone, where it will be when the click lands.
+    """
+    if at - run.last_click < CLICK_EVERY_S:
         return
-    for number, when in list(run.clicked.items()):
-        if at - when > 0.4:
-            del run.clicked[number]
-            continue
-        if number not in moves.things and at - when > 0.05:
-            meeting._open.append({"what": "touched", "kind": meeting_kind(moves, number), "at": when})
-            del run.clicked[number]
+    tall, wide = moves.shape
     candidates = [
         t for t in moves.things.values()
-        if t.moved and t.number not in meeting.writing and meeting.stance(t.kind) == MEET and t.number not in run.clicked
+        if t.moved and t.number not in meeting.writing and meeting.stance(t.kind) == MEET
+        and not meeting.clicked_lately(t.number, at)
     ]
     if not candidates:
         return
-    tall, wide = moves.shape
-    thing = min(candidates, key=lambda t: min(t.x, wide - t.x, t.y, tall - t.y) * -1)
-    x, y = thing.where_at(0.08)
+
+    def leaving(thing: Any) -> tuple[int, float]:
+        exits = [
+            (edge - position) / speed
+            for position, speed, edge in ((thing.x, thing.vx, wide if thing.vx > 0 else 0.0), (thing.y, thing.vy, tall if thing.vy > 0 else 0.0))
+            if abs(speed) > 1.0
+        ]
+        return (0 if meeting.known(thing.kind) else 1, min(exits, default=math.inf))
+
+    thing = min(candidates, key=leaving)
+    x, y = thing.where_at(CLICK_LANDS_S)
     sx, sy = moves.share(x, y)
     if 0.0 <= sx <= 1.0 and 0.0 <= sy <= 1.0:
         await hands.click(sx, sy)
-        run.clicked[thing.number] = at
+        meeting.clicked(thing, at)
         run.last_click = at
-        moves.kinds_clicked = getattr(moves, "kinds_clicked", {})
-        moves.kinds_clicked[thing.number] = thing.kind
 
 
-def meeting_kind(moves: WhatMoves, number: int) -> int:
-    return getattr(moves, "kinds_clicked", {}).get(number, -1)
+async def _try_the_pointer(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves, at: float) -> None:
+    """Sweep the pointer through a few places, to see whether anything follows it.
+
+    In small steps, a picture at a time: a thing that jumps with a jumping
+    pointer cannot be followed from one picture to the next.
+    """
+    goal = _POINTER_TRIAL[(run.pointed // 2) % len(_POINTER_TRIAL)]
+    x, y = run.pointer
+    dx, dy = goal[0] - x, goal[1] - y
+    far = math.hypot(dx, dy)
+    if far <= POINTER_STEP:
+        x, y = goal
+        run.pointed += 1
+    else:
+        x, y = x + dx * POINTER_STEP / far, y + dy * POINTER_STEP / far
+    run.pointer = (x, y)
+    await hands.point(x, y)
+    tall, wide = moves.shape
+    hers.pointed(x * wide, y * tall, at)
+
+
+async def _point_at(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves, choosing: _Choosing, at: float) -> None:
+    """Where a thing follows the pointer, the pointer goes where she wants it to be."""
+    (gx, gy), _why, _aim = choosing.target()
+    mine = choosing.mine
+    tall, wide = moves.shape
+    x = gx if gx is not None else mine.x
+    y = gy if gy is not None else mine.y
+    sx, sy = min(1.0, max(0.0, x / max(1, wide))), min(1.0, max(0.0, y / max(1, tall)))
+    # A move of the pointer costs a trip to the browser; a hundredth of the
+    # picture is closer than her thing can be put anyway.
+    if math.dist((sx, sy), run.pointer) > 0.02:
+        run.pointer = (sx, sy)
+        await hands.point(sx, sy)
+        hers.pointed(x, y, at)
 
 
 def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float) -> str:
@@ -469,11 +573,37 @@ def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float
     return ""
 
 
+#: How long she plays a moving picture in which nothing answers to her before
+#: handing it back: a title screen that animates is not a game.
+NOTHING_ANSWERS_S = 10.0
+
+
+def _nothing_answers(run: _Run, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> str:
+    if at - run.began < NOTHING_ANSWERS_S or hers.kind is not None or meeting.verdicts:
+        return ""
+    if any(kept.touched for kept in meeting.evidence.values()):
+        return ""
+    return "nothing here answers to me while it moves"
+
+
+def _report(run: _Run, getting_somewhere: Callable[[str], Any] | None, at: float) -> None:
+    """Tell whoever holds a deadline over this that it is still getting somewhere."""
+    if getting_somewhere is None or at - run.reported_at < 5.0:
+        return
+    run.reported_at = at
+    try:
+        getting_somewhere(f"playing as it happens: {run.pictures} pictures, {run.gains} gains, {run.losses} losses")
+    except (RuntimeError, ValueError, TypeError, OSError) as why:
+        logger.debug("progress while playing was not taken: %s", why)
+
+
 def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> None:
     mine = hers.thing(moves)
     keys = sorted(hers.keys_that_move_her(run.keys))
     settled = all(hers.tried(k) >= 4 for k in run.keys) or at - run.began > 8.0
-    if mine is not None and hers.kind is not None and keys and settled:
+    if mine is not None and hers.kind is not None and hers.follows_pointer:
+        _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")
+    elif mine is not None and hers.kind is not None and keys and settled:
         how = " and ".join(keys)
         _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. {how.capitalize()} move it.", at, once="me")
     for key in hers.makes:
@@ -505,6 +635,8 @@ async def play_as_it_happens(
     say: Callable[[str], Any] | None = None,
     read_words: Callable[[Any], list[dict[str, Any]]] | None = None,
     keep: dict[str, Any] | None = None,
+    pointer_first: bool = False,
+    getting_somewhere: Callable[[str], Any] | None = None,
 ) -> dict[str, Any]:
     """Play what ``look`` shows through ``hands`` until it stops moving or ``seconds`` pass.
 
@@ -515,10 +647,10 @@ async def play_as_it_happens(
     """
     began = time.monotonic()
     keep = keep if keep is not None else {}
-    moves = WhatMoves()
+    moves = WhatMoves(kinds=keep.get("kinds"))
     hers: WhichIsHers = keep.get("hers") or WhichIsHers()
     meeting: WhatMeetingDoes = keep.get("meeting") or WhatMeetingDoes()
-    run = _Run(keys=list(keys), began=began, last_moving=began)
+    run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first)
     ended = ""
     try:
         while not ended:
@@ -538,7 +670,8 @@ async def play_as_it_happens(
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
             await _act(hands, run, moves, hers, meeting, choosing, at)
             _what_she_says(run, say, moves, hers, meeting, at)
-            ended = _over(run, moves, happened, at)
+            _report(run, getting_somewhere, at)
+            ended = _over(run, moves, happened, at) or _nothing_answers(run, hers, meeting, at)
     finally:
         if run.held:
             try:
@@ -547,7 +680,7 @@ async def play_as_it_happens(
                 logger.debug("letting go of %s failed: %s", run.held, why)
         if run.reading is not None:
             run.reading.cancel()
-    keep.update({"hers": hers, "meeting": meeting})
+    keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds})
     return _what_it_came_to(run, moves, hers, meeting, ended, began)
 
 
@@ -555,15 +688,27 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
                choosing: _Choosing, at: float) -> None:
     # Every key is tried once before any is chosen: a plan that knows one key
     # can only go one way.
-    if run.trying < 2 * len(run.keys) and not hers.keys_known(run.keys):
+    trying_the_pointer = run.pointer_first and run.pointed < 2 * len(_POINTER_TRIAL) and not hers.follows_pointer
+    if not trying_the_pointer and run.trying < 2 * len(run.keys) and not hers.keys_known(run.keys) and not hers.follows_pointer:
         await _try_the_keys(hands, run, hers, at)
         return
+    if choosing.mine is not None and hers.follows_pointer:
+        await _point_at(hands, run, hers, moves, choosing, at)
+        return
     if choosing.mine is None or not choosing.ways:
-        if run.trying < 4 * len(run.keys) or not hasattr(hands, "click"):
+        pointer_trial = run.pointed < 2 * len(_POINTER_TRIAL) and hasattr(hands, "point")
+        if pointer_trial and run.pointer_first:
+            await _try_the_pointer(hands, run, hers, moves, at)
+            return
+        if run.trying < 4 * len(run.keys):
             await _try_the_keys(hands, run, hers, at)
             return
         await _hold(hands, run, hers, "", at)
-        await _click_things(hands, run, moves, meeting, at)
+        if pointer_trial:
+            await _try_the_pointer(hands, run, hers, moves, at)
+            return
+        if hasattr(hands, "click"):
+            await _click_things(hands, run, moves, meeting, at)
         return
     untried = [k for k in run.keys if hers.tried(k) < 4 and k not in choosing.ways]
     if untried and at - run.tried_at > 3.0 and choosing.danger((0.0, 0.0)) == 0.0:

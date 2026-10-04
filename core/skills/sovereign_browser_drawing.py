@@ -97,10 +97,16 @@ async def played_on_the_drawing(
     if band is None:
         return {**step, "error": "the page no longer says where it draws"}
 
+    import time
+
+    from core.runtime.watched_goal import PURSUIT_SECONDS
     from core.skills.screen_pursuit import pursue_on_screen
+    from core.skills.screen_pursuit_as_it_happens import AS_IT_HAPPENS, PlayingAsItHappens
     from core.skills.screen_pursuit_on_a_page import HER_OWN_PAGE, OnAPage
 
+    reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=time.monotonic() + PURSUIT_SECONDS)
     held = HER_OWN_PAGE.set(OnAPage(page=page, name=HER_BROWSER))
+    quick = AS_IT_HAPPENS.set(reflexes)
     try:
         result = await pursue_on_screen(
             goal=goal,
@@ -108,10 +114,15 @@ async def played_on_the_drawing(
             target_app=HER_BROWSER,
             expect_page=url,
             drawn_at=band,
+            max_seconds=PURSUIT_SECONDS,
         )
     finally:
+        AS_IT_HAPPENS.reset(quick)
         HER_OWN_PAGE.reset(held)
+    result["as_it_happened"] = reflexes.what_it_came_to()
     moves = list(result.get("moves") or [])
+    if reflexes.stretches:
+        moves += [{"key": "played as it happened"} for stretch in reflexes.stretches if stretch.get("pictures")]
     last_seen = str(result.get("last_seen") or "")
     return {
         **step,
@@ -139,6 +150,9 @@ def what_the_play_came_to(moves: int, result: Mapping[str, Any]) -> str:
     )
     said = f"played what the page draws ({moves} move(s)"
     said += f", ended: {why})" if why else ")"
+    quick = str(result.get("as_it_happened") or "")
+    if quick:
+        said += f"; {quick}"
     last_seen = " ".join(str(result.get("last_seen") or "").split())
     if last_seen:
         said += f"; the last thing it showed: {last_seen}"

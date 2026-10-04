@@ -28,9 +28,14 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["AVOID", "IGNORE", "MEET", "SHOOT", "Readouts", "WhatMeetingDoes"]
+__all__ = ["AVOID", "CLICK", "IGNORE", "MEET", "SHOOT", "STANCES", "Readouts", "WhatMeetingDoes"]
 
-MEET, AVOID, SHOOT, IGNORE = "meet", "avoid", "shoot", "ignore"
+MEET, AVOID, SHOOT, IGNORE, CLICK = "meet", "avoid", "shoot", "ignore", "click"
+STANCES = (MEET, AVOID, SHOOT, IGNORE, CLICK)
+
+#: How much measured evidence it takes to overrule what she was told about a
+#: kind: about two clear verdicts the other way.
+OVERRULES = 1.5
 
 #: How long after a touch or a pass its verdict may still arrive: a reading of
 #: the counters every half second, a second reading to confirm a change, and
@@ -185,6 +190,9 @@ class WhatMeetingDoes:
         self.writing: set[int] = set()
         self._last_lost = -math.inf
         self.new_screen_at = -math.inf
+        self._clicks: dict[int, tuple[float, int]] = {}
+        #: What reading the situation said each kind is for, before any evidence.
+        self.told: dict[int, str] = {}
 
     # -- verdicts ----------------------------------------------------------
 
@@ -205,6 +213,23 @@ class WhatMeetingDoes:
                 return
             self._last_lost = verdict["at"]
         self.verdicts.append(verdict)
+
+    def clicked(self, thing: Any, at: float) -> None:
+        """A click aimed at a thing: if the thing goes at once, the click met it."""
+        self._clicks[thing.number] = (at, thing.kind)
+
+    def clicked_lately(self, number: int, at: float) -> bool:
+        return number in self._clicks and at - self._clicks[number][0] < 0.4
+
+    def _clicks_that_met(self, happened: list[dict[str, Any]], at: float) -> None:
+        gone = {h["thing"] for h in happened if h.get("what") == "gone"}
+        for number, (when, kind) in list(self._clicks.items()):
+            if number in gone and at - when < 0.4:
+                self._open.append({"what": "touched", "kind": kind, "at": when})
+                self.evidence[kind].touched += 1
+                del self._clicks[number]
+            elif at - when >= 0.4:
+                del self._clicks[number]
 
     def she_was_lost(self, at: float) -> None:
         """Her own thing went: a loss whatever the counters say, earned just before."""
@@ -249,6 +274,7 @@ class WhatMeetingDoes:
         if any(h.get("what") == "new screen" for h in happened):
             self.new_screen_at = at
         mine = hers.thing(moves)
+        self._clicks_that_met(happened, at)
         self._touches(moves, mine, hers, at)
         self._gone(moves, mine, hers, happened, at)
         if mine is not None and line is not None:
@@ -270,7 +296,9 @@ class WhatMeetingDoes:
             return
         now = set()
         for thing in moves.things.values():
-            if thing.number == mine.number or thing.kind in (hers.kind, *self._shot_kinds(hers)):
+            if thing.number == mine.number or thing.kind in self._shot_kinds(hers):
+                continue
+            if thing.kind == hers.kind and not thing.moved:
                 continue
             if _close(mine.box(), thing.box(), 2.0):
                 now.add(thing.number)
@@ -309,7 +337,7 @@ class WhatMeetingDoes:
         mine_at = (mine.x, mine.y)[line]
         seen = set()
         for thing in moves.things.values():
-            if thing.number == mine.number or thing.kind == hers.kind or not thing.moved:
+            if thing.number == mine.number or not thing.moved:
                 continue
             seen.add(thing.number)
             side = (thing.x, thing.y)[line] - mine_at
@@ -323,7 +351,19 @@ class WhatMeetingDoes:
     # -- what she makes of it ---------------------------------------------
 
     def stance(self, kind: int, *, fixture: bool = False) -> str:
+        """What to do about a kind: what was measured, else what she was told, else meet it.
+
+        What the situation reading said holds until the evidence against it is
+        clear, so a rule read wrongly is corrected by play, and play does not
+        have to pay a life to learn what the rules already said.
+        """
         kept = self.evidence.get(kind)
+        told = self.told.get(kind)
+        if told is not None:
+            measured = kept.meet if kept is not None else 0.0
+            against = (told in (MEET, CLICK) and measured <= -OVERRULES) or (told == AVOID and measured >= OVERRULES)
+            if not against and not (kept is not None and kept.shoot >= 0.5 and told != AVOID):
+                return SHOOT if told == SHOOT else told
         if kept is None:
             return MEET
         if kept.shoot >= 0.5:

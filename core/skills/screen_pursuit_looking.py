@@ -814,8 +814,14 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     from .screen_pursuit import _tell
     from .screen_pursuit_bearings import things_to_click, what_it_says
 
-    can_do.looked_at(things_to_click(observation, drawn_where))
+    clickable = things_to_click(observation, drawn_where)
+    can_do.looked_at(clickable)
     says, paced = what_it_says(observation, drawn_where), MOVES_SAID.get()
+    if hasattr(can_do, "asked_for_by"):
+        from core.agency.what_i_can_do_here import what_is_clicked
+
+        labels = [what_is_clicked(move) or "" for move in clickable]
+        can_do.asked_for_by(" ".join([says or "", *labels]))
     if not says or not narrate or paced is None:
         return
     words = set(says.lower().split())

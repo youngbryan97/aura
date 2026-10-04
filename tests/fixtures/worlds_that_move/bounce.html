@@ -1,0 +1,22 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Bounce</title></head><body>
+<script src="world.js"></script>
+<script>
+// A paddle that goes where the mouse goes, and a ball to keep off the floor.
+const game = {
+  title: "BOUNCE", rules: ["Move the mouse to move the paddle.", "Keep the ball up."],
+  reset(world) { this.me = { x: 200, y: 290, w: 70, h: 10 }; this.ball = { x: 240, y: 80, w: 10, h: 10, vx: 150, vy: 170 }; world.saves = 0; },
+  step(dt, world) {
+    const me = this.me, b = this.ball;
+    me.x = Math.max(0, Math.min(world.W - me.w, world.pointer.x - me.w / 2));
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < 0 || b.x > world.W - b.w) b.vx *= -1;
+    if (b.y < 30) { b.y = 30; b.vy = Math.abs(b.vy); }
+    if (b.vy > 0 && hits(b, me)) { b.vy = -Math.abs(b.vy) * 1.03; b.vx += (b.x + 5 - (me.x + me.w / 2)) * 2; world.score += 1; world.saves += 1; }
+    if (b.y > world.H) { world.lose(); this.ball = { x: 240, y: 80, w: 10, h: 10, vx: (world.rand() < 0.5 ? -1 : 1) * 150, vy: 170 }; }
+  },
+  backdrop(ctx) { ctx.fillStyle = "#1d2b3a"; ctx.fillRect(0, 0, 480, 320); },
+  draw(ctx) { ctx.fillStyle = "#f5a623"; ctx.fillRect(this.me.x, this.me.y, this.me.w, this.me.h); ctx.fillStyle = "#fff"; ctx.fillRect(this.ball.x, this.ball.y, 10, 10); },
+  readouts: scoreAndLives,
+};
+playWorld(game);
+</script></body></html>

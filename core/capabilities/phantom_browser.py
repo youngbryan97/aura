@@ -1196,6 +1196,11 @@ class PhantomBrowser(_ActsOnThePage):
             if (maxElements > 0 && out.length >= maxElements) break;
             if (!isVisible(el)) continue;
             if (el.disabled) continue;
+            // A frame is a page inside the page, read under its own address,
+            // not a control. Offered as one it was pressed as a whole, which
+            // presses whatever it holds: LIVE 2026-10-03 20:04 a frame the
+            // page titled "ad" was taken for the game's start, six times.
+            if (el.tagName === 'IFRAME' || el.tagName === 'FRAME') continue;
             const path = cssPath(el);
             if (!path || seen.has(path)) continue;
             seen.add(path);
@@ -1221,6 +1226,43 @@ class PhantomBrowser(_ActsOnThePage):
             out.push(entry);
             nodes.push(el);
         }
+        // Where each control stands in a list of controls like it.
+        //
+        // A page of fifty-six game tiles is a list, and a request can name an
+        // item by its place in it ("the fifth game", "number 21"). Counting
+        // fifty-six links by reading them is where a language model goes wrong:
+        // LIVE 2026-10-03 19:58 she counted 58 and picked the wrong game. The
+        // count is a fact of the page. Controls of one tag and class, in
+        // places of one tag and class two levels up, are one list; each
+        // carries its place and the list's length, counted over the whole page
+        // so that a capped list of controls does not shorten it.
+        const likeness = (el) => {
+            const parts = [];
+            let node = el;
+            for (let depth = 0; node && node.nodeType === 1 && depth < 3; depth++) {
+                parts.push(node.tagName.toLowerCase() + '.' + Array.from(node.classList).sort().join('.'));
+                node = node.parentElement;
+            }
+            return parts.join('<');
+        };
+        // Drawn anywhere on the page: the list's length does not stop at the
+        // window the controls are carried from.
+        const isDrawn = (el) => {
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            const rect = el.getBoundingClientRect();
+            return rect.width > 1 && rect.height > 1;
+        };
+        const allAlike = new Map();
+        for (const el of document.querySelectorAll(selector)) {
+            if (!isDrawn(el) || el.disabled) continue;
+            const key = likeness(el);
+            allAlike.set(key, (allAlike.get(key) || []).concat([el]));
+        }
+        nodes.forEach((el, i) => {
+            const kin = allAlike.get(likeness(el)) || [];
+            if (kin.length >= 4) out[i].alike = [kin.indexOf(el) + 1, kin.length];
+        });
         // What each question asks, laid out as the page lays it out.
         //
         // An option's own name often says nothing: a row "makes lists ( ) ( )
@@ -1331,8 +1373,12 @@ class PhantomBrowser(_ActsOnThePage):
         if (drawn) {
             out.push({
                 role: 'drawing',
+                // What choosing it does, as a button's label says what pressing
+                // it does: LIVE 2026-10-03 20:04 she saw the drawing appear and
+                // looked for a button to get into it.
                 name: 'what the page draws, ' + Math.round(drawn.width) + ' by '
-                    + Math.round(drawn.height) + ': it can be seen but not read',
+                    + Math.round(drawn.height) + ': it can be seen but not read;'
+                    + ' choosing it plays it by sight, with keys and clicks inside it',
                 selector: '::drawing',
                 drawing: drawn,
             });

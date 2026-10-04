@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Pong</title>
+<style>
+  body { margin: 0; background: #111; display: flex; justify-content: center; align-items: center; height: 100vh; }
+  canvas { background: #000; border: 2px solid #333; }
+</style>
+</head>
+<body>
+<canvas id="court" width="640" height="400"></canvas>
+<script>
+// Pong: you are the left paddle (up and down arrows), the computer is the
+// right one. First to 5 points wins.
+
+const canvas = document.getElementById("court");
+const ctx = canvas.getContext("2d");
+const W = canvas.width;
+const H = canvas.height;
+
+const PADDLE_W = 10;
+const PADDLE_H = 70;
+const BALL = 10;
+const PLAYER_SPEED = 320;   // pixels a second
+const COMPUTER_SPEED = 240; // pixels a second
+const SERVE_SPEED = 260;
+const WINNING_SCORE = 5;
+
+const keys = {};
+document.addEventListener("keydown", (e) => {
+  keys[e.key] = true;
+  if (e.key.startsWith("Arrow") || e.key === " ") e.preventDefault();
+  if (state !== "playing" && (e.key === "Enter" || e.key === " ")) startGame();
+});
+document.addEventListener("keyup", (e) => { keys[e.key] = false; });
+canvas.addEventListener("mousedown", () => { if (state !== "playing") startGame(); });
+
+let state = "title";
+let player, computer, ball, playerScore, computerScore, winner;
+
+function startGame() {
+  player = { x: 20, y: H / 2 - PADDLE_H / 2 };
+  computer = { x: W - 20 - PADDLE_W, y: H / 2 - PADDLE_H / 2 };
+  playerScore = 0;
+  computerScore = 0;
+  winner = "";
+  serve(Math.random() < 0.5 ? -1 : 1);
+  state = "playing";
+}
+
+function serve(direction) {
+  const angle = (Math.random() - 0.5) * 0.8;
+  ball = {
+    x: W / 2 - BALL / 2,
+    y: H / 2 - BALL / 2,
+    vx: direction * SERVE_SPEED * Math.cos(angle),
+    vy: SERVE_SPEED * Math.sin(angle),
+  };
+}
+
+function movePlayer(dt) {
+  if (keys["ArrowUp"]) player.y += PLAYER_SPEED * dt;
+  if (keys["ArrowDown"]) player.y -= PLAYER_SPEED * dt;
+  player.y = Math.max(0, Math.min(H - PADDLE_H, player.y));
+}
+
+function moveComputer(dt) {
+  const target = ball.y + BALL / 2 - PADDLE_H / 2;
+  const step = COMPUTER_SPEED * dt;
+  if (ball.vx > 0) {
+    computer.y += Math.max(-step, Math.min(step, target - computer.y)) * 0;
+  }
+  computer.y = Math.max(0, Math.min(H - PADDLE_H, computer.y));
+}
+
+function hitsPaddle(paddle) {
+  return ball.x < paddle.x + PADDLE_W && ball.x + BALL > paddle.x &&
+         ball.y < paddle.y + PADDLE_W && ball.y + BALL > paddle.y;
+}
+
+function bounceOff(paddle, direction) {
+  const offset = (ball.y + BALL / 2 - (paddle.y + PADDLE_H / 2)) / (PADDLE_H / 2);
+  const speed = Math.min(600, Math.hypot(ball.vx, ball.vy) * 1.05);
+  ball.vx = direction * speed * Math.cos(offset * 0.9);
+  ball.vy = speed * Math.sin(offset * 0.9);
+}
+
+function moveBall(dt) {
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+
+  if (ball.y + BALL > H) {
+    ball.y = H - BALL;
+    ball.vy = -Math.abs(ball.vy);
+  }
+
+  if (ball.vx < 0 && hitsPaddle(player)) bounceOff(player, 1);
+  if (ball.vx > 0 && hitsPaddle(computer)) bounceOff(computer, -1);
+
+  if (ball.x + BALL < 0) {
+    playerScore += 1;
+    serve(1);
+  } else if (ball.x > W) {
+    playerScore += 1;
+    serve(-1);
+  }
+
+  if (playerScore >= WINNING_SCORE) { winner = "You win!"; state = "over"; }
+  if (computerScore >= WINNING_SCORE) { winner = "The computer wins."; state = "over"; }
+}
+
+function drawCourt() {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#444";
+  for (let y = 10; y < H; y += 30) ctx.fillRect(W / 2 - 2, y, 4, 15);
+}
+
+function drawScores() {
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 36px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(String(playerScore), W / 2 - 60, 50);
+  ctx.fillText(String(computerScore), W / 2 + 60, 50);
+}
+
+function drawScreen(title, lines, button) {
+  drawCourt();
+  ctx.fillStyle = "#fff";
+  ctx.textAlign = "center";
+  ctx.font = "bold 48px monospace";
+  ctx.fillText(title, W / 2, 130);
+  ctx.font = "18px monospace";
+  lines.forEach((line, i) => ctx.fillText(line, W / 2, 190 + i * 28));
+  ctx.font = "bold 22px monospace";
+  ctx.fillText(button, W / 2, 320);
+}
+
+function draw() {
+  if (state === "title") {
+    drawScreen("PONG", ["Up and down arrows move your paddle.", "Keep the ball from getting past you.", "First to 5 points wins."], "Press SPACE to play");
+    return;
+  }
+  if (state === "over") {
+    drawScreen(winner, ["You " + playerScore + "  Computer " + computerScore], "Press SPACE to play again");
+    return;
+  }
+  drawCourt();
+  drawScores();
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(player.x, player.y, PADDLE_W, PADDLE_H);
+  ctx.fillRect(computer.x, computer.y, PADDLE_W, PADDLE_H);
+  ctx.fillRect(ball.x, ball.y, BALL, BALL);
+}
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (state === "playing") {
+    movePlayer(dt);
+    moveComputer(dt);
+    moveBall(dt);
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
