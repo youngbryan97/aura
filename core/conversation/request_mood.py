@@ -608,10 +608,10 @@ def names_a_thing_without_asking_for_it(message: str) -> bool:
     # read as an order to act ("I don't want you to restart it; just explain").
     if "refusal_to_act" in verdict.reasons:
         return True
-    return not any(_shaped_as_an_order(clause) for clause in verdict.ambiguous_clauses)
+    return not any(shaped_as_an_order(clause) for clause in verdict.ambiguous_clauses)
 
 
-def _shaped_as_an_order(clause: str) -> bool:
+def shaped_as_an_order(clause: str) -> bool:
     """A clause that opens on an open-class word going straight on to an object, and is not an aside."""
     return bool(_GOVERNS_AN_OBJECT_RE.search(clause)) and not _AN_ASIDE_BEFORE_A_CLAUSE_RE.search(clause)
 
@@ -621,4 +621,5 @@ __all__ = [
     "RequestMood",
     "assess_request_mood",
     "names_a_thing_without_asking_for_it",
+    "shaped_as_an_order",
 ]

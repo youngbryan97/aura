@@ -42,3 +42,14 @@ def test_her_own_bug_does_not():
 )
 def test_the_file_a_request_names(message, path):
     assert the_file_named_in(message) == path
+
+
+def test_an_order_to_fix_a_named_file_may_write_files(tmp_path):
+    """Asking for a file to be changed is asking for that effect, as asking for one to exist is."""
+    from core.phases.response_contract import requested_effect_ceiling
+
+    game = tmp_path / "pong.html"
+    game.write_text("<canvas></canvas>")
+    assert requested_effect_ceiling(f"The Pong game at {game} is broken. Fix it, then play it.")[0] == "read_write_artifacts"
+    assert requested_effect_ceiling(f"What is in {game}?")[0] != "read_write_artifacts"
+    assert requested_effect_ceiling(f"I don't want you to change {game}; describe it.")[0] != "read_write_artifacts"

@@ -42,9 +42,10 @@ class RepairAProgramSkill(BaseSkill):
 
     name = "repair_a_program"
     description = (
-        "Mend a program somebody else wrote that does not work as it should: run it and watch "
-        "what it does, find the places in its code that look wrong, try their edits on copies, "
-        "and keep only the ones that make it behave right. Keeps the original beside it."
+        "Fix a broken program somebody else wrote (a game, a web page, a script in a file) that "
+        "does not work as it should: run it and watch what it does, find the bugs in its code, "
+        "try their fixes on copies, and keep only the ones that make it behave right. Keeps the "
+        "original beside it. Then plays the fixed game, when asked, until it is won."
     )
     input_model = RepairAProgramInput
     timeout_seconds = 1200.0

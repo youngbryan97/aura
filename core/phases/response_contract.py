@@ -1205,9 +1205,35 @@ def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
     # a thing to exist.
     from core.intent.artifact_request import asks_for_an_artifact
 
-    if asks_for_an_artifact(str(objective or "")):
+    if asks_for_an_artifact(str(objective or "")) or _orders_a_named_file_changed(str(objective or "")):
         return _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
     return _SELF_SERVICE_CEILING, frozenset(_SELF_SERVICE_EFFECT_SCOPES)
+
+
+def _orders_a_named_file_changed(objective: str) -> bool:
+    """Whether the turn names an existing file and gives an order, other than to say something.
+
+    The same principle as a file asked to exist: asking for a file to be
+    changed is asking for that effect. LIVE 2026-10-04, "The Pong game at
+    /Users/.../pong.html is broken. Fix it, then play it" ran under the
+    self-service ceiling, the repair that writes the mended file was dropped
+    before it could be offered, and she read the file out instead.
+    """
+    try:
+        from core.conversation.request_mood import (
+            RequestMood,
+            assess_request_mood,
+            shaped_as_an_order,
+        )
+        from core.language.named_paths import first_existing_path
+    except ImportError:
+        return False
+    if first_existing_path(objective) is None:
+        return False
+    verdict = assess_request_mood(objective)
+    if "refusal_to_act" in verdict.reasons:
+        return False
+    return verdict.mood is RequestMood.DIRECTIVE or any(shaped_as_an_order(c) for c in verdict.ambiguous_clauses)
 
 
 def derive_required_skill(objective: str) -> str | None:
