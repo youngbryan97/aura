@@ -418,7 +418,9 @@ class EvidenceProvider:
     async def _repo_evidence(self, objective: str, *, limit: int) -> list[EvidenceSpan]:
         terms = _salient_terms(objective)
         # Always honor explicitly named paths.
-        paths = [m.group(1) for m in _PATH_RE.finditer(objective or "")]
+        from core.intent.opaque_spans import without_web_addresses
+
+        paths = [m.group(1) for m in _PATH_RE.finditer(without_web_addresses(objective))]
         spans: list[EvidenceSpan] = []
         for ref in paths[:3]:
             spans.extend(self._read_named_path(ref))

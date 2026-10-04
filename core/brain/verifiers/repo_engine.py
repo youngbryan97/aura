@@ -31,7 +31,9 @@ _IGNORE_SYMBOLS = frozenset({
 
 def _iter_referenced_paths(text: str) -> list[str]:
     seen: list[str] = []
-    for m in _PATH_RE.finditer(text or ""):
+    from core.intent.opaque_spans import without_web_addresses
+
+    for m in _PATH_RE.finditer(without_web_addresses(text)):
         ref = m.group(1)
         if ref not in seen and not ref.startswith("http"):
             seen.append(ref)

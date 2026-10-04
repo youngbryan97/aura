@@ -43,6 +43,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 from functools import lru_cache
 
+from core.intent.opaque_spans import without_web_addresses
 from core.language.concepts import (
     OBJECT_CLASSES as _OBJECT_CLASSES,
 )
@@ -246,7 +247,7 @@ def names_a_concrete_resource(message: object) -> bool:
     something outside the conversation whatever mood it is written in.
     """
     body = str(message or "")
-    return bool(_WEB_ADDRESS_RE.search(body) or _FILE_ADDRESS_RE.search(body))
+    return bool(_WEB_ADDRESS_RE.search(body) or _FILE_ADDRESS_RE.search(without_web_addresses(body)))
 
 #: Asking for a thing, rather than mentioning it.
 #:
@@ -783,7 +784,7 @@ def requested_foundational_domains(message: object) -> tuple[str, ...]:
 
     if _WEB_ADDRESS_RE.search(body) and "web" not in requested:
         requested.append("web")
-    if _FILE_ADDRESS_RE.search(body) and "file" not in requested:
+    if _FILE_ADDRESS_RE.search(without_web_addresses(body)) and "file" not in requested:
         requested.append("file")
 
     # Exact arithmetic and finite constraint problems identify computation by

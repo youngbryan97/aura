@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["OPAQUE_SPAN_RE", "first_named_url", "without_opaque_spans"]
+__all__ = ["OPAQUE_SPAN_RE", "first_named_url", "without_opaque_spans", "without_web_addresses"]
 
 #: A URL somebody typed. Trailing punctuation ends the sentence, not the
 #: address, and a closing bracket belongs to whatever opened it.
@@ -43,6 +43,22 @@ def first_named_url(text: object) -> str:
     """
     match = NAMED_URL_RE.search(str(text or ""))
     return match.group(0).rstrip(".,;:!?") if match else ""
+
+#: A web address: a scheme that is reached over the network, or a bare www.
+_WEB_ADDRESS_RE = re.compile(r"\b(?:https?|ftp)://\S+|\bwww\.\S+", re.IGNORECASE)
+
+
+def without_web_addresses(text: object) -> str:
+    """The message with its web addresses removed, for readers of file names.
+
+    LIVE 2026-10-03: a Wikipedia link was read as the path "//en.wikipedia.org"
+    by the file reader and as the file "en.wikipedia" by capability
+    selection, so a turn that had already read the page was handed a file
+    tool and spent 74 seconds in it. A host name has a dot in it, and a dot
+    is what file-name patterns look for.
+    """
+    return _WEB_ADDRESS_RE.sub(" ", str(text or ""))
+
 
 #: What an address looks like, in the order that matters.
 #:
