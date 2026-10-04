@@ -1488,8 +1488,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   competed with its own. A readout of where a mention stands (side,
   distance, operations between), fitted on training rows and added to each
   argument score, lifts composition to 38 and 39 of 48, validation to 497,
-  and the held-out folds to 733 of 764. G03 stays open on the 19 composition
-  requests still wrong.
+  and the held-out folds to 733 of 764. All 19 composition requests still
+  wrong grounded a named result to the wrong register. [Name
+  antecedents](evidence/G03_NAME_ANTECEDENTS_2026-10-03.md) read each
+  mention back to the clause that gave its name, in her input embedding and
+  middle layer, fitted on training rows: composition 45 and 47 of 48 against
+  31 and 31 for the incumbent on a quiet machine (30 gains, no losses),
+  validation 497 of 500, train 763 of 764, folds 734 of 764. G03 stays open
+  on four composition requests, one training row and three validation rows.
   [Preparation stall replay](evidence/G03_PREPARATION_STALL_REPLAY_2026-10-03.md)
   records the v2 terminal timeout after 444 completed pools. Its handoff
   refused training. The next unfinished source completed against unchanged
