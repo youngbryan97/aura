@@ -386,3 +386,30 @@ def test_the_persons_own_words_are_what_gets_read(gate, monkeypatch):
     client = _Client({"content": "7", "tool_calls": [{"tool": "code_repl"}]})
     _answer(gate, client, "run some python")
     assert seen == ["run some python"]
+
+
+def test_a_turn_that_already_read_the_world_is_not_offered_the_lookups_again(gate, monkeypatch):
+    """LIVE 2026-10-03: after "Google it" had read four pages, five lookup tools were offered again."""
+    from core.conversation import turn_evidence_custody
+
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["free_search", "grounded_search", "http_request", "local_reference_search", "search_web"],
+    )
+    monkeypatch.setattr(turn_evidence_custody, "turn_world_evidence", lambda: ("source 1: web, NBA.com",))
+    client = _Client({"content": "unused", "tool_calls": []})
+    assert _answer(gate, client, "Google it. Bam had an 83 point game") is None
+    assert client.calls == []
+
+    # A capability that changes something is still offered.
+    monkeypatch.setattr(
+        "core.phases.response_contract.derive_capability_set",
+        lambda _text, **_k: ["web_search", "file_operation"],
+    )
+    offered: list[str] = []
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map",
+        lambda required, **k: offered.extend(required) or {},
+    )
+    _answer(gate, client, "save what you found to a file")
+    assert offered == ["file_operation"]

@@ -401,6 +401,21 @@ class _BuildsTheLivingContext:
                 )
                 return None
             required = pending
+            # The looking was done: the sources this turn read travel beside it
+            # (core/conversation/what_the_world_says.py). LIVE 2026-10-03, after
+            # "Google it" had searched and read four pages, this loop offered
+            # five lookup tools again and spent 45 seconds on them.
+            from core.conversation.turn_evidence_custody import turn_world_evidence
+            from core.skills.catalog_policy import SKILL_EFFECT_SCOPES
+
+            if turn_world_evidence():
+                required = [
+                    name for name in required
+                    if SKILL_EFFECT_SCOPES.get(name) != "read_only" and name != "http_request"
+                ]
+                if not required:
+                    logger.info("🔧 Tool handoff skipped: this turn already read the world for its answer.")
+                    return None
             tools = build_agentic_tool_map(
                 required, objective=text, max_tools=len(required)
             )
