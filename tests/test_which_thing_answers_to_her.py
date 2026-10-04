@@ -77,7 +77,7 @@ def _pointer_run(follower_x):
     moves = _Moves([thing])
     hers = WhichIsHers()
     at = 0.0
-    xs = [20 + 4 * i for i in range(30)] + [140 - 4 * i for i in range(30)]
+    xs = ([20 + 4 * i for i in range(15)] + [80 - 4 * i for i in range(15)]) * 4
     for x in xs:
         hers.pointed(float(x), 50.0, at)
         at += 0.2

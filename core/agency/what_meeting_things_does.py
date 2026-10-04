@@ -366,7 +366,11 @@ class WhatMeetingDoes:
         for thing in moves.things.values():
             if thing.number == mine.number or thing.kind in self._shot_kinds(hers):
                 continue
-            if thing.kind == hers.kind and not thing.moved:
+            if thing.kind == hers.kind and (not thing.moved or _inside(thing, mine)):
+                # Her own kind standing where she stands is her, drawn again:
+                # a ship that blinks after a hit comes back as a new thing on
+                # top of the old one, and meeting herself taught her, offline
+                # 2026-10-04, that her own colour costs a life.
                 continue
             if not _close(mine.box(), thing.box(), 2.0):
                 continue
@@ -504,3 +508,9 @@ def _turned(before: tuple[float, float] | None, thing: Any) -> bool:
     if now < 0.3 * was:
         return True
     return (before[0] * thing.vx + before[1] * thing.vy) < 0.5 * was * now
+
+
+def _inside(thing: Any, mine: Any) -> bool:
+    """Whether a thing's middle is within her box."""
+    left, top, right, bottom = mine.box()
+    return left <= thing.x <= right and top <= thing.y <= bottom

@@ -67,3 +67,16 @@ def test_a_new_screen_starts_again():
     moves, happened = _watch(first + [other] * 10)
     assert any(h["what"] == "new screen" for h in happened)
     assert not moves.things
+
+
+def test_a_thing_lost_for_a_picture_is_where_its_speed_took_it():
+    """A ball missing from one picture (drawn into another thing, or not drawn) goes on, not stays put."""
+    frames = [_picture([(10 + 3 * n, 50, 6, 6, (250, 250, 250))]) for n in range(30)]
+    frames.append(_picture([]))
+    moves = WhatMoves()
+    for index, frame in enumerate(frames):
+        moves.see(frame, index * 0.03)
+    [ball] = [t for t in moves.things.values() if t.moved]
+    assert ball.seen < 30 * 0.03
+    last_seen_x = ball.path[-1][1]
+    assert ball.x > last_seen_x + 0.02 * ball.vx

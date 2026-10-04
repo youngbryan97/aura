@@ -128,6 +128,11 @@ class Thing:
         return self.x + self.vx * after_s, self.y + self.vy * after_s
 
 
+def _measured(thing: Thing) -> tuple[float, float]:
+    """Where a thing was last seen, as against where it is thought to be now."""
+    return (thing.path[-1][1], thing.path[-1][2]) if thing.path else (thing.x, thing.y)
+
+
 def _speed_from_its_path(
     path: deque, at: float, last_step: tuple[float, float], blended: tuple[float, float]
 ) -> tuple[float, float]:
@@ -349,7 +354,8 @@ class WhatMoves:
 
     def _cost(self, thing: Thing, blob: dict[str, Any], at: float) -> float:
         dt = max(1e-3, at - thing.seen)
-        px, py = thing.where_at(dt)
+        px, py = _measured(thing)
+        px, py = px + thing.vx * dt, py + thing.vy * dt
         reach = 6.0 + 1.5 * math.hypot(thing.vx, thing.vy) * dt + 0.5 * max(thing.w, thing.h)
         distance = math.hypot(blob["x"] - px, blob["y"] - py) / reach
         looks = _look_apart(thing.look, blob["look"])
@@ -377,7 +383,8 @@ class WhatMoves:
 
     def _moved(self, thing: Thing, blob: dict[str, Any], at: float) -> None:
         dt = max(1e-3, at - thing.seen)
-        vx, vy = (blob["x"] - thing.x) / dt, (blob["y"] - thing.y) / dt
+        x0, y0 = _measured(thing)
+        vx, vy = (blob["x"] - x0) / dt, (blob["y"] - y0) / dt
         blend = 0.5 if thing.seen > thing.born else 1.0
         thing.vx = (1 - blend) * thing.vx + blend * vx
         thing.vy = (1 - blend) * thing.vy + blend * vy
@@ -395,8 +402,9 @@ class WhatMoves:
             thing.moved = math.hypot(thing.x - x0, thing.y - y0) > 2.0
 
     def _still_there(self, thing: Thing, small: np.ndarray) -> bool:
-        """Whether a thing nobody saw move is still where it was, by its look."""
-        left, top, right, bottom = (int(round(v)) for v in thing.box())
+        """Whether a thing nobody saw move is still where it was last seen, by its look."""
+        x, y = _measured(thing)
+        left, top, right, bottom = (int(round(v)) for v in (x - thing.w / 2, y - thing.h / 2, x + thing.w / 2, y + thing.h / 2))
         tall, wide = small.shape[:2]
         if left < 0 or top < 0 or right > wide or bottom > tall or right <= left or bottom <= top:
             return False
@@ -498,6 +506,7 @@ class WhatMoves:
         for number in [n for n in self.things if n not in matched]:
             thing = self.things[number]
             if self._still_there(thing, small):
+                thing.x, thing.y = _measured(thing)
                 thing.vx *= 0.5
                 thing.vy *= 0.5
                 thing.still = True
@@ -508,6 +517,13 @@ class WhatMoves:
                 happened.append(what_happened("gone", thing, at))
                 self.last_box[number] = thing.box()
                 del self.things[number]
+                continue
+            # Not seen, and not gone yet: where its speed has taken it. A
+            # ball that runs into a paddle draws as one blob with it for a
+            # picture or two; held where it was last seen, offline 2026-10-04,
+            # it was aimed at where it had been and the paddle missed it.
+            x0, y0 = _measured(thing)
+            thing.x, thing.y = x0 + thing.vx * (at - thing.seen), y0 + thing.vy * (at - thing.seen)
         return happened
 
     # -- for anyone outside --------------------------------------------------

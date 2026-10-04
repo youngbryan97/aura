@@ -49,6 +49,10 @@ REALLY_MOVES = 20.0
 #: Samples a key needs before it says anything about a thing.
 ENOUGH = 4
 
+#: The share of a key's presses that must each bring a thing beside her for
+#: the key to be one that makes it.
+MADE_EVERY = 0.3
+
 #: Pictures of holding a key over which her thing must mostly not go the
 #: key's way before it is taken not to be hers: about a second.
 ANSWERING_OVER = 40
@@ -216,10 +220,12 @@ class WhichIsHers:
         self.highest: list[float] = [-math.inf, -math.inf]
         self._taps: list[tuple[str, float, tuple[float, float]]] = []
         self._made: dict[tuple[str, int], list[tuple[float, float]]] = defaultdict(list)
+        self._pressed: dict[str, int] = defaultdict(int)
         self.makes: dict[str, Makes] = {}
         self._pointer: list[tuple[float, float, float]] = []
         self._followed: dict[int, list[tuple[float, float, float]]] = defaultdict(list)
         self._looked = 0
+        self._sighted: int | None = None
         self.follows_pointer = False
         self._new_screen_at = -math.inf
         #: The axes along which it follows: a paddle under the pointer may follow only across.
@@ -243,6 +249,7 @@ class WhichIsHers:
     def tapped(self, key: str, at: float) -> None:
         if self.last_seen is not None:
             self._taps.append((key, at, self.last_seen))
+            self._pressed[key] += 1
 
     def pointed(self, x: float, y: float, at: float) -> None:
         """The pointer was taken to (x, y), in working pixels."""
@@ -304,10 +311,19 @@ class WhichIsHers:
             if kind not in nearest or len(seen) < 20:
                 continue
             along = tuple(bool(v) for v in self._with_the_pointer(seen, _extent(moves)))
-            if any(along):
-                self.number, self.kind, self.follows_pointer = nearest[kind].number, kind, True
-                self.follows_along = along
-                return
+            if not any(along):
+                continue
+            # Once is a sighting; the same again on pictures taken since is a
+            # finding. Tested every few pictures at a few delays, chance
+            # agreement turns up now and then (offline 2026-10-04, the other
+            # paddle during a long Pong game), and seldom twice running.
+            if self._sighted != kind:
+                self._sighted = kind
+                seen.clear()
+                continue
+            self.number, self.kind, self.follows_pointer = nearest[kind].number, kind, True
+            self.follows_along = along
+            return
 
     def _still_follows(self, moves: Any, at: float) -> None:
         """Whether her thing still goes where she points, measured as she plays; if not, it was never hers.
@@ -407,7 +423,7 @@ class WhichIsHers:
         beginning again, her paddle's number belonged to the ball in the new
         game, and she steered the ball for a game.
         """
-        self.number = None
+        self.number, self._sighted = None, None
         for kept in (self._by_thing, self._followed, self.not_mine):
             kept.clear()
         self._since_believed, self._answered, self._answered_by = [], [], None
@@ -507,10 +523,17 @@ class WhichIsHers:
                 for _when, number in births[-6:]
                 if number in moves.things and moves.things[number].moved
             ]
-            if len(births) >= 2 and speeds:
+            # A key that fires makes its shot most times it is pressed. Things
+            # also turn up beside her by themselves now and then, and pressed
+            # a hundred times while dodging, offline 2026-10-04, the arrow
+            # keys each "made" a falling rock twice.
+            made_often = len(births) >= MADE_EVERY * self._pressed[key]
+            if len(births) >= 2 and speeds and made_often:
                 vx, vy = _mean(speeds)
                 if math.hypot(vx, vy) > REALLY_MOVES:
                     self.makes[key] = Makes(key, kind, vx, vy, len(births))
+            elif key in self.makes and self.makes[key].kind == kind and not made_often:
+                del self.makes[key]
 
     # -- what she knows ----------------------------------------------------
 
