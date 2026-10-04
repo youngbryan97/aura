@@ -389,7 +389,7 @@ def _controls(watch: _Watch, keys: list[str]) -> tuple[dict[str, tuple[float, fl
         meant = _DIRECTIONS[key]
         along = way[0] * meant[0] + way[1] * meant[1]
         if along < -10:
-            return ways, (WRONG, f"the {key} key moves my paddle the other way")
+            return ways, (WRONG, f"the {key} key moves {_mine(watch)} the other way")
     moved = [key for key in named if math.hypot(*ways.get(key, (0.0, 0.0))) > 10]
     if named and not moved:
         return ways, (UNMEASURED, "")
@@ -423,6 +423,14 @@ def _went_through(watch: _Watch) -> tuple[str, str]:
     return UNMEASURED, ""
 
 
+def _mine(watch: _Watch) -> str:
+    """What she controls, as she sees it: "my white bar", or "what I control" before she knows."""
+    from core.agency.playing_as_it_happens import describe
+
+    mine = watch.hers.thing(watch.moves)
+    return f"my {describe(watch.moves, mine.kind, mine)}" if mine is not None else "what I control"
+
+
 def _escaped(watch: _Watch) -> tuple[str, str]:
     """Things stay in play: a thing left through the top or bottom and the game stood still after it."""
     for departure in watch.went:
@@ -453,7 +461,7 @@ def _credited(watch: _Watch) -> tuple[str, str]:
             if where is None or not -0.5 <= at - departure["at"] < 2.0 or delta <= 0:
                 continue
             if (where[0] < 0.5) == (her_side < 0.5):
-                return WRONG, "when the ball got past me, the score on my side went up"
+                return WRONG, "when something got past me, the score on my side went up"
             verdict = (RIGHT, "")
     return verdict
 
@@ -479,6 +487,30 @@ def _idle_actor(watch: _Watch) -> tuple[str, str]:
     return RIGHT, ""
 
 
+async def _used(page: Any, behaviour: Behaviour, failed: list[str]) -> Behaviour:
+    """A page of controls, used once each (what_a_page_does.py), read as the same three-valued checks."""
+    from core.self_modification.what_a_page_does import what_a_page_does
+
+    began = time.monotonic()
+    use = await what_a_page_does(page, before=behaviour.errors, failed=failed)
+    if use.errors:
+        behaviour.findings["errors"] = f"the page threw an error: {use.errors[0]}"
+    elif use.used:
+        behaviour.right.add("errors")
+    if use.dead:
+        behaviour.findings["dead"] = f"{len(use.dead)} of {len(use.used)} controls changed nothing when used: {', '.join(use.dead[:4])}"
+    elif use.used:
+        behaviour.right.add("dead")
+    if use.failed:
+        behaviour.findings["failed"] = f"it could not load {use.failed[0].rsplit('/', 1)[-1]}"
+    else:
+        behaviour.right.add("failed")
+    behaviour.seconds = round(time.monotonic() - began, 1)
+    behaviour.evidence = {"used": use.used, "dead": use.dead, "errors": use.errors[:5], "failed": use.failed[:5],
+                          "right": sorted(behaviour.right), "pictures": 0, "pictures_a_second": 0, "hers": ""}
+    return behaviour
+
+
 async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], seconds: float = 12.0) -> Behaviour:
     """Load ``address`` in ``page`` with fixed randomness and watch what it does."""
     from core.agency.what_meeting_things_does import Readouts
@@ -487,6 +519,10 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
 
     behaviour = Behaviour()
     page.on("pageerror", lambda error: behaviour.errors.append(str(error)[:200]))
+    failed: list[str] = []
+    folder = address.rsplit("/", 1)[0]
+    page.on("requestfailed", lambda request: failed.append(request.url) if request.url.startswith(folder) else None)
+    page.on("response", lambda response: failed.append(response.url) if response.status >= 400 and response.url.startswith(folder) else None)
     await page.add_init_script(_SAME_DICE)
     await page.goto(address)
     await page.wait_for_timeout(300)
@@ -495,8 +531,8 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
         " const r = c.getBoundingClientRect(); return {x: r.left, y: r.top, width: r.width, height: r.height}; })()"
     )
     if not clip:
-        behaviour.findings["nothing drawn"] = "the page draws nothing to watch"
-        return behaviour
+        # Not a moving picture: a page of controls, judged by using them.
+        return await _used(page, behaviour, failed)
     began = time.monotonic()
     behaviour.started_by = await _start(page, clip, words)
     watch = _Watch(moves=WhatMoves(), hers=WhichIsHers(), readouts=Readouts())

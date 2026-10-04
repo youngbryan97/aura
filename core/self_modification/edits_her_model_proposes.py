@@ -107,7 +107,7 @@ async def edits_her_model_proposes(
             from core.brain.llm.structured_llm import StructuredLLM
 
             advisor = StructuredLLM(ProposedEdits, max_retries=1)
-        except (ImportError, AttributeError, RuntimeError, KeyError) as why:
+        except Exception as why:  # noqa: BLE001 - no model here (offline, or not yet registered) means no proposals
             logger.info("no model to ask about the code: %s", why)
             return []
     payload = {"program": _numbered(source), "seen_wrong": seen_wrong}

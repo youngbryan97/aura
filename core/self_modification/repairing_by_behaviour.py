@@ -78,8 +78,13 @@ def _title(source: str) -> str:
     return " ".join(found.group(1).split()) if found else ""
 
 
-def what_she_knows_about(title: str, findings: dict[str, str]) -> list[str]:
-    """Sentences from her reference corpus about the thing the program is a version of, nearest the findings."""
+def what_she_knows_about(title: str, findings: dict[str, str], own_words: str = "") -> list[str]:
+    """Sentences from her reference corpus about the thing the program is a version of.
+
+    Nearest what was seen wrong and what the program says of itself (its
+    title and the words it shows), and nothing else: which words matter is
+    read from this program, not from a list kept for one kind of program.
+    """
     if not title:
         return []
     try:
@@ -92,7 +97,7 @@ def what_she_knows_about(title: str, findings: dict[str, str]) -> list[str]:
         logger.info("her reference corpus could not be read for %r: %s", title, exc)
         return []
     sentences = re.split(r"(?<=[.!?])\s+", " ".join(body.split()))
-    wanted = set(re.findall(r"[a-z]{4,}", " ".join(findings.values()).lower())) | {"paddle", "ball", "point", "points", "player", "return", "score", "opponent", "control", "controls"}
+    wanted = set(re.findall(r"[a-z]{4,}", " ".join([*findings.values(), own_words]).lower()))
     scored = sorted(
         ((len(wanted & set(re.findall(r"[a-z]{4,}", sentence.lower()))), sentence) for sentence in sentences[:80]),
         key=lambda pair: -pair[0],
@@ -336,7 +341,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 first = await _watched(browser, source, words, keys, path.parent, WATCH_S * 2.5)
             repair.before = dict(first.findings)
             tell(_what_is_wrong(first))
-            repair.knowledge = what_she_knows_about(_title(source), first.findings)
+            repair.knowledge = what_she_knows_about(_title(source), first.findings, words)
             if repair.knowledge:
                 tell(f"What I know about {_title(source)}: {repair.knowledge[0]}")
             suspicions = what_looks_wrong(source, ".html")
@@ -451,19 +456,25 @@ MOST_ASKS = 2
 #: What a check never seen either way is about, in words.
 _UNSEEN_SAID = {
     "controls": "what the keys do",
-    "went through": "the ball meet every part of my paddle",
-    "escaped": "the ball reach both the top and bottom walls",
-    "credited": "a ball get past me and the score change",
-    "idle": "the other player's paddle",
+    "went through": "something meet every part of what I control",
+    "escaped": "something reach both the top and bottom edges",
+    "credited": "something get past me and the score change",
+    "idle": "the other side's player",
+    "errors": "it run without an error",
+    "dead": "what each control does",
+    "failed": "everything it asks for load",
 }
 
 #: What a check coming right shows, in words.
 _RIGHT_SAID = {
-    "controls": "each key move my paddle the way it says",
-    "went through": "the ball turn back off my paddle",
-    "escaped": "the ball bounce off the walls",
+    "controls": "each key move what I control the way it says",
+    "went through": "things turn back off what I control",
+    "escaped": "things turn back at the top and bottom edges",
     "credited": "a miss count for the other side",
-    "idle": "the other paddle moving",
+    "idle": "the other side's player moving",
+    "errors": "it run without an error",
+    "dead": "every control do something when used",
+    "failed": "everything it asks for load",
 }
 
 
