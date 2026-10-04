@@ -62,6 +62,11 @@ def test_each_register_owns_its_declaration_or_its_clause() -> None:
         [TokenSpan(2, 3), TokenSpan(6, 7)], [TokenSpan(10, 11), TokenSpan(20, 21)], 30
     )
     assert stretches == ((0, 3), (3, 7), (10, 20), (20, 30))
+    # Inline literals after the operations: a declaration holds no operation.
+    nested = register_stretches(
+        [TokenSpan(12, 13), TokenSpan(17, 18)], [TokenSpan(2, 5), TokenSpan(7, 10)], 24
+    )
+    assert nested[:2] == ((10, 13), (13, 18))
 
 
 def test_the_fitter_sees_training_rows_only() -> None:

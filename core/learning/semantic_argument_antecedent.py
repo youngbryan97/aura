@@ -104,14 +104,18 @@ def register_stretches(
 ) -> tuple[tuple[int, int], ...]:
     """The part of the request each register owns, inputs first, then operations.
 
-    An input owns its declaration, from the end of the input before it in the
-    text; an operation owns its clause and the one naming its result, up to
-    the next operation in the text.
+    An input owns its declaration, from the end of the input or operation
+    before it in the text; an operation owns its clause and the one naming its
+    result, up to the next operation in the text. A declaration holds no
+    operation: in "the whole-number quotient of the whole-number quotient of
+    88 divided by 41" the first input's stretch ran from the start of the
+    sentence to "88", operations and all, and a later "the" was read back to
+    it (3 October, the readout's two training losses).
     """
     stretches: list[tuple[int, int]] = []
-    input_ends = sorted(span.end for span in input_spans)
+    boundaries = sorted({span.end for span in input_spans} | {span.end for span in operation_spans})
     for span in input_spans:
-        before = [end for end in input_ends if end < span.end]
+        before = [end for end in boundaries if end <= span.start]
         stretches.append((max(before) if before else 0, span.end))
     starts = sorted(span.start for span in operation_spans)
     for span in operation_spans:
