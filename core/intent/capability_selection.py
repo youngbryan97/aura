@@ -116,6 +116,19 @@ def points_at_something_real(text: str) -> bool:
     return False
 
 
+#: How far the best declaration match must lead the next for it alone to be
+#: the capability asked for, and how much of the request it must match.
+DECISIVE_LEAD, DECISIVE_LEAST = 2.0, 4.0
+
+
+def _decisive(ranked: list[tuple[str, float]]) -> str | None:
+    """The capability that matches the request decisively better than every other, or None."""
+    if not ranked or ranked[0][1] < DECISIVE_LEAST:
+        return None
+    runner_up = ranked[1][1] if len(ranked) > 1 else 0.0
+    return ranked[0][0] if ranked[0][1] >= DECISIVE_LEAD * runner_up else None
+
+
 def select_capabilities(
     objective: str,
     skills: Mapping[str, Any],
@@ -192,6 +205,18 @@ def select_capabilities(
     # from the request's objects, so compound tasks retain their working set.
     strongest = ranked[0][1] if ranked else 0.0
     ordered = [name for name, score in ranked if score == strongest]
+    # One capability that says what was asked far better than any other is
+    # the one asked for, and is offered alone. A working set beside it is a
+    # toolbox to look around in first: LIVE 2026-10-04, offered the repair
+    # and file reading for "fix it, then play it", the model read the file
+    # twice and spent three and a half minutes before calling the repair,
+    # which reads the file itself.
+    decisive = _decisive(ranked)
+    if decisive is not None:
+        meta = skills.get(decisive)
+        scope = str(getattr(meta, "effect_scope", "") or "").strip().lower()
+        if scope in admissible_scopes or skill_has_action_within(resolve_skill_target(meta), scope, ceiling):
+            return [decisive]
     # A question that names something real is a request, whatever its mood.
     #
     # LIVE, 2026-08-22: "why is the test failing in <path>" is not imperative,

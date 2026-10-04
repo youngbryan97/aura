@@ -109,7 +109,14 @@ async def _watched(browser: Any, html: str, words: str, keys: list[str], folder:
     await get_file_write_gateway().write_text_async(copy, html, source="repairing_by_behaviour")
     page = await browser.new_page(viewport={"width": 900, "height": 700})
     try:
-        return await what_it_does(page, copy.resolve().as_uri(), words=words, keys=keys, seconds=seconds)
+        behaviour = await what_it_does(page, copy.resolve().as_uri(), words=words, keys=keys, seconds=seconds)
+        evidence = getattr(behaviour, "evidence", {}) or {}
+        logger.info(
+            "watched %.0fs: %s pictures (%s a second), hers %r, wrong %s, right %s",
+            getattr(behaviour, "seconds", 0) or 0, evidence.get("pictures"), evidence.get("pictures_a_second"),
+            evidence.get("hers"), sorted(getattr(behaviour, "wrong", ()) or ()), sorted(getattr(behaviour, "right", ()) or ()),
+        )
+        return behaviour
     finally:
         await page.close()
         get_file_write_gateway().delete_file(copy, source="repairing_by_behaviour")
@@ -250,9 +257,14 @@ CONFIRM_PAIRS = 3
 
 async def _try_edits(browser: Any, current: str, words: str, keys: list[str], folder: Path,
                      now: _Believed, seconds: float = WATCH_S, refused: set[str] | None = None,
-                     in_pairs: bool = False) -> tuple[Suspicion, list[Edit], Any] | None:
-    """Every edit the code suggests, watched in parallel; the one that mends the most and breaks nothing."""
-    candidates = [c for c in _candidates(what_looks_wrong(current, ".html")) if _name_of(c[1]) not in (refused or set())]
+                     in_pairs: bool = False, proposed: list[Suspicion] | None = None) -> tuple[Suspicion, list[Edit], Any] | None:
+    """Every edit the code suggests, watched in parallel; the one that mends the most and breaks nothing.
+
+    ``proposed`` replaces the code's own suggestions with edits from elsewhere
+    (edits_her_model_proposes.py), tried the same way.
+    """
+    suggested = proposed if proposed is not None else what_looks_wrong(current, ".html")
+    candidates = [c for c in _candidates(suggested) if _name_of(c[1]) not in (refused or set())]
     if in_pairs:
         candidates = _pairs(candidates)
     best = None
@@ -273,6 +285,25 @@ async def _try_edits(browser: Any, current: str, words: str, keys: list[str], fo
             if _improves(behaviour, now) and (best is None or _worth(behaviour, now) > _worth(best[2], now)):
                 best = (suspicion, edit, behaviour)
     return best
+
+
+async def _what_else_could_do_it(browser: Any, current: str, words: str, keys: list[str], folder: Path,
+                                 last: _Believed, refused: set[str], tell: Callable[[str], None]) -> Any:
+    """Past the shapes she knows: ask her own model what else in the code could do what is seen, and try each.
+
+    Thinking it through before trying anything, privately; what comes back
+    is a list of guesses, tried on copies and kept only for what they are
+    seen to mend.
+    """
+    from core.self_modification.edits_her_model_proposes import edits_her_model_proposes
+
+    proposed = await edits_her_model_proposes(current, dict(last.findings))
+    if not proposed:
+        return None
+    tell(f"None of the shapes I know in code settles it, so I thought about what else could do this, "
+         f"and I am trying {len(proposed)} idea(s) on copies.")
+    return await _try_edits(browser, current, words, keys, folder, last, seconds=WATCH_S * 2.5,
+                            refused=refused, proposed=proposed)
 
 
 async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = None) -> Repair:
@@ -298,6 +329,11 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
         browser = await playwright.chromium.launch(headless=True)
         try:
             first = await _watched(browser, source, words, keys, path.parent)
+            if not first.findings and not first.right:
+                # A look that measured nothing, right or wrong, has not seen
+                # the program do anything yet; it is not a finding that it does
+                # nothing wrong (LIVE 2026-10-04, a first look on a busy machine).
+                first = await _watched(browser, source, words, keys, path.parent, WATCH_S * 2.5)
             repair.before = dict(first.findings)
             tell(_what_is_wrong(first))
             repair.knowledge = what_she_knows_about(_title(source), first.findings)
@@ -307,6 +343,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             tell(_what_looks_wrong(suspicions))
             current, last = source, _Believed.from_watch(first)
             refused: set[str] = set()
+            asked = 0
             # On while anything helps, not only while something is known to be
             # wrong: a fault that has not happened in a watch yet is still a
             # fault, and an edit that makes a check come right where it had
@@ -330,6 +367,9 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                     tell("No one change settles it alone, so I am trying them two at a time.")
                     chosen = await _try_edits(browser, current, words, keys, path.parent, last,
                                               seconds=WATCH_S * 2.5, refused=refused, in_pairs=True)
+                if chosen is None and last.wrong and asked < MOST_ASKS:
+                    asked += 1
+                    chosen = await _what_else_could_do_it(browser, current, words, keys, path.parent, last, refused, tell)
                 if chosen is None:
                     break
                 suspicion, edit, behaviour = chosen
@@ -404,6 +444,9 @@ def _and_now(mended: list[str], before: Any, after: Any) -> str:
 
 #: The most rounds of trying edits in one repair.
 MOST_ROUNDS = 8
+
+#: How many times in one repair her model is asked what else could be wrong.
+MOST_ASKS = 2
 
 #: What a check never seen either way is about, in words.
 _UNSEEN_SAID = {

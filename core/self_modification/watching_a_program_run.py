@@ -531,5 +531,8 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
         "alike_across": {n: len(v) for n, v in watch.still_others.items()},
         "were_hers": sorted(watch.were_hers),
         "right": sorted(behaviour.right),
+        "pictures": watch.moves.pictures,
+        "pictures_a_second": round(watch.moves.pictures / max(0.1, behaviour.seconds), 1),
+        "hers": behaviour.hers,
     }
     return behaviour
