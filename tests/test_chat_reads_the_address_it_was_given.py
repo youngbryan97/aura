@@ -89,3 +89,24 @@ def test_the_turn_attaches_the_page_it_read():
     assert "named_url_evidence = await _collect_named_url_evidence(" in source
     assert "[PAGE THE USER NAMED]" in source
     assert "could not be read:" in source
+
+
+def test_a_page_served_as_html_is_read_as_its_prose(monkeypatch):
+    """LIVE 2026-10-03: her answer quoted '<span>help</span></a></li>' from the sidebar."""
+
+    page = (
+        "<html><body><nav><ul><li><a href='/'><span>Main page</span></a></li>"
+        "<li><a href='/help'><span>help</span></a></li></ul></nav>"
+        "<p>On March 10, 2026, Bam Adebayo scored 83 points for the Miami Heat in a 150 to 129 win.</p>"
+        "<p>The performance is the second-highest single-game total in NBA history, behind Wilt Chamberlain.</p>"
+        "</body></html>"
+    )
+
+    async def serves_html(name, params, *, objective, extra_context):
+        return {"ok": True, "result": {"title": "Game", "body": page}}
+
+    import interface.routes.chat as chat
+    monkeypatch.setattr(chat._chat_capability_inventory, "_execute_governed_live_skill", serves_html)
+    got = asyncio.run(_collect_named_url_evidence("https://en.wikipedia.org/wiki/Bam_Adebayo%27s_83-point_game"))
+    assert got["ok"] is True
+    assert "<span>" not in got["text"] and "scored 83 points" in got["text"]
