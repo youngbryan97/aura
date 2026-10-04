@@ -130,6 +130,47 @@ _IMPERATIVE_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: An imperative by its shape, whatever its verb: a clause that opens on a
+#: word of the open classes and goes straight on to an object. "Fix it, then
+#: play it against the computer" was AMBIGUOUS (LIVE 2026-10-04) because "fix"
+#: is not in the list above, and beside "The Pong game is broken" the whole
+#: turn read as a remark, so no capability was offered and she only read the
+#: file. Any list of verbs is the list somebody thought of; the shape is
+#: English. What can open a clause and still not be its verb is a closed
+#: class, and that is what is named here: pronouns, determiners, auxiliaries
+#: and modals, conjunctions, prepositions, wh-words, negation, greetings and
+#: thanks. A word ending -ed or -ing at the head is a past or a progressive
+#: ("Nailed it", "Loving it"), not an order.
+_CLOSED_CLASS_HEADS = (
+    "the|a|an|this|that|these|those|my|your|our|his|her|their|its|i|you|we|they|he|"
+    "she|it|me|us|him|them|there|here|is|are|was|were|be|been|being|am|do|does|did|"
+    "have|has|had|will|would|can|could|should|shall|may|might|must|if|when|while|"
+    "because|since|and|but|or|nor|so|then|than|as|of|in|on|at|by|for|with|from|to|"
+    "into|onto|about|after|before|over|under|without|what|which|who|whom|whose|"
+    "where|why|how|not|no|yes|thanks|thank|sorry|hello|hi|hey|ok|okay|well|oh|ah|"
+    "just|also|all|both|each|every|some|any|either|neither|maybe|perhaps|like|love|"
+    "got|made|wow|cheers|bye|goodbye|good|great|nice|cool|fine"
+)
+_GOVERNS_AN_OBJECT_RE = re.compile(
+    r"^\s*(?:(?:ok|okay|now|then|next|also|and|so|hey|please|first|finally|just)[,\s]+)*"
+    rf"(?:please\s+)?(?!(?:{_CLOSED_CLASS_HEADS})\b)(?![a-z]+(?:ed|ing)\b)[a-z]+\s+"
+    r"(?:it|them|me|us|him|this|that|these|those|the|my|your|our|his|their|its|a|an|"
+    r"everything|something)\b"
+    r"(?!\s*(?:'|\u2019|\s(?:is|are|was|were|has|have|had|will|would|can|could|"
+    r"should|does|did|do|seems?|looks?)\b))",
+    re.IGNORECASE,
+)
+
+#: The same shape as an aside: a comma and then a whole clause, subject and
+#: finite verb. "Hold that thought, this is really interesting" asks for
+#: nothing; the words before the comma do the work of "hold on".
+_AN_ASIDE_BEFORE_A_CLAUSE_RE = re.compile(
+    r"^[^,]*,\s*(?:this|that|it|i|you|we|they|he|she|there)\s*"
+    r"(?:'|\u2019|\s(?:is|are|was|were|am|have|has|had|do|did|will|would|can|could|"
+    r"should|really|just)\b)",
+    re.IGNORECASE,
+)
+
 #: An action verb at the head of a turn that governs nothing, because what
 #: follows it is a whole clause rather than something to act on.
 #:
@@ -551,8 +592,28 @@ def names_a_thing_without_asking_for_it(message: str) -> bool:
     The predicate the capability router needs: naming a tool is not a request
     to use it. Deliberately returns False for AMBIGUOUS — the router's other
     evidence decides those, and this only speaks when the grammar does.
+
+    Nor when a clause the mood left undecided has the shape of an order. "The
+    Pong game is broken. Fix it, then play it" was a remark with an undecided
+    clause after it, so the router offered nothing for it (LIVE 2026-10-04).
+    The mood itself keeps that clause undecided: whether "analyse the
+    tradeoffs" asks for an act or for words is not this gate's question. This
+    gate asks only whether the turn is all talk about something, and a clause
+    shaped as an order says it is not.
     """
-    return assess_request_mood(message).is_about_rather_than_asking
+    verdict = assess_request_mood(message)
+    if not verdict.is_about_rather_than_asking:
+        return False
+    # Where the person has said not to act, what they ask for instead is not
+    # read as an order to act ("I don't want you to restart it; just explain").
+    if "refusal_to_act" in verdict.reasons:
+        return True
+    return not any(_shaped_as_an_order(clause) for clause in verdict.ambiguous_clauses)
+
+
+def _shaped_as_an_order(clause: str) -> bool:
+    """A clause that opens on an open-class word going straight on to an object, and is not an aside."""
+    return bool(_GOVERNS_AN_OBJECT_RE.search(clause)) and not _AN_ASIDE_BEFORE_A_CLAUSE_RE.search(clause)
 
 
 __all__ = [

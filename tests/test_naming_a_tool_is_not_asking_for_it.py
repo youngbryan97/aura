@@ -208,3 +208,24 @@ class TestTheRouterUsesIt:
 
         monkeypatch.setattr(mood_module, "names_a_thing_without_asking_for_it", boom)
         assert CapabilityEngine._is_mention_rather_than_request("What do you think of X?") is False
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "The Pong game at /Users/bryan/aura-demos/pong/pong.html is broken. Fix it, then play it against the computer until you win.",
+        "The page at ~/site/index.html is broken. Mend it.",
+        "This script is slow. Debug it for me.",
+    ],
+)
+def test_a_remark_followed_by_an_order_is_not_only_a_remark(message):
+    """An order is an order whatever its verb: "fix", "mend" and "debug" are in no list of actions."""
+    from core.conversation.request_mood import names_a_thing_without_asking_for_it
+
+    assert not names_a_thing_without_asking_for_it(message)
+
+
+def test_an_aside_before_a_clause_is_still_not_an_order():
+    from core.conversation.request_mood import names_a_thing_without_asking_for_it
+
+    assert names_a_thing_without_asking_for_it("The demo is tomorrow. Hold that thought, this is really interesting.")
