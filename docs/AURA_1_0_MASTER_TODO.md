@@ -1499,8 +1499,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   stops an exact match on a word the request uses everywhere from counting as
   a name: composition 47 and 48 of 48 against 31 and 31 (33 gains, no
   losses), validation 498, train 762, folds 736. Scoring the antecedent
-  relative to each span's best register gives 46 and 47, train 763. G03 stays
-  open on one composition request, two training rows and two validation rows.
+  relative to each span's best register gives 46 and 47, train 763. [A
+  declaration holds no operation, and a conditional
+  fit](evidence/G03_DECLARATIONS_AND_CONDITIONAL_FIT_2026-10-03.md): 47 and 47
+  of 48 (32 gains, no losses), validation 498, train 764 of 764, folds 736.
+  G03 stays open on two composition requests and two validation rows.
   [Preparation stall replay](evidence/G03_PREPARATION_STALL_REPLAY_2026-10-03.md)
   records the v2 terminal timeout after 444 completed pools. Its handoff
   refused training. The next unfinished source completed against unchanged
