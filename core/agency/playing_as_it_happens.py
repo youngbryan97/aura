@@ -43,6 +43,10 @@ logger = logging.getLogger("Aura.PlayingAsItHappens")
 
 __all__ = ["controls_named_in", "play_as_it_happens", "the_world_moves_on_its_own"]
 
+#: How soon after something last moved a picture must have been taken for its
+#: words to count as seen during play.
+MOVING_WHEN_READ_S = 0.3
+
 #: How long each key is held while she finds out what it does.
 TRY_A_KEY_S = 0.3
 
@@ -483,7 +487,13 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
     if run.reading is not None and run.reading.done():
         regions, when = run.reading.result()
         run.reading = None
-        for region in regions:
+        # Words on screen while it was moving are the game's furniture. The
+        # still screen at the end is not: LIVE 2026-10-04 she read "Press
+        # SPACE to play again" in the seconds the end screen stood before her
+        # play noticed nothing moved, so the restart that ended a won game
+        # was taken for furniture, and she started another game.
+        while_moving = when - run.last_moving < MOVING_WHEN_READ_S
+        for region in regions if while_moving else ():
             said = " ".join(str(region.get("text") or "").lower().split())
             if said and len(run.words_seen) < 200:
                 run.words_seen.add(said)

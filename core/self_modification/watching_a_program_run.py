@@ -304,10 +304,15 @@ def _note_bounces(watch: _Watch) -> None:
     Turned back with nothing else near it, and still going the same way
     across. A ball sent back by a paddle that happens to be near the top is
     the paddle's doing, and taking it for the wall's once let a missing wall
-    be believed present (offline 2026-10-04).
+    be believed present (offline 2026-10-04). Nothing else means anything,
+    still or not, and the thing at its own size: LIVE 2026-10-04 a ball
+    passing the top dash of the net drew as one blob with it, the blob's
+    middle jumped down, and a court with no top wall was said to have one.
     """
+    import statistics
+
     tall, _wide = watch.moves.shape
-    others = [t for t in watch.moves.things.values() if t.moved or t.number in watch.were_hers]
+    others = list(watch.moves.things.values())
     for thing in watch.moves.things.values():
         if not thing.moved or thing.number in watch.were_hers:
             continue
@@ -325,7 +330,9 @@ def _note_bounces(watch: _Watch) -> None:
             or abs(other.y - thing.y) > (other.h + thing.h) / 2 + 8
             for other in others
         )
-        if wall and flipped and same_across and alone:
+        usual = statistics.median(thing.sizes) if thing.sizes else thing.size
+        its_own_size = max(thing.size, usual) / max(1.0, min(thing.size, usual)) < 1.5
+        if wall and flipped and same_across and alone and its_own_size:
             watch.bounces += 1
             watch.bounced_off[wall] = watch.bounced_off.get(wall, 0) + 1
 
