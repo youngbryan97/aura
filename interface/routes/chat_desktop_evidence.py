@@ -687,7 +687,10 @@ async def _collect_desktop_required_search_evidence(
                     # invoked it again afterward, doubling model work and
                     # turning a retrieval deadline into a generation timeout.
                     "deep": False,
-                    "retain": _user_requested_research_memory_save(user_message),
+                    # Asked to save: kept. Otherwise the pipeline's own rule
+                    # (current queries and searches that found facts are kept);
+                    # False here meant nothing she looked up was ever learned.
+                    "retain": True if _user_requested_research_memory_save(user_message) else None,
                     "force_refresh": True,
                 },
                 objective=user_message,
