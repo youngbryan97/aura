@@ -141,7 +141,7 @@ async def rebuild(
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
     written: list[Check] = []
     for at in range(0, len(genome.features), FEATURES_AT_ONCE):
-        written.extend(await checks_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask))
+        written.extend(await checks_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask, sources=sources, asked=asked))
     checks = await checks_that_mean_something(written, folder / "empty.html", browser=browser)
     (folder / "checks.json").write_text(json.dumps([c.model_dump() for c in checks], indent=1), "utf-8")
     await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")

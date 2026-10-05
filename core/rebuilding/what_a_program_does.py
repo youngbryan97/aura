@@ -189,7 +189,9 @@ async def genome_of(program: str, sources: list[Source], ask: Asker, *, asked: s
     prompt = (
         opening + reading
         + f"list the features a person uses, at most {MOST_FEATURES}, the ones a person would miss first ahead. "
-        "Everything the person asked for is a feature. Each says what a person does and what they then see. "
+        "Everything the person asked for is a feature, and so is what is written of the program as what it does, "
+        "reads or writes (its own file format among them), as far as a page can do it. "
+        "Each says what a person does and what they then see. "
         "Leave out what a web page cannot do (installing, licensing, cloud accounts, other programs). "
         "Give the program a name of its own.\n\n"
         + (written or ("(nothing written was found; use what you know)" if program else ""))
@@ -236,13 +238,28 @@ Controls are named by what a person reads on them: "Bold", "Insert Table", "Save
 Each check starts from a fresh, empty program, so it types what it needs first."""
 
 
-async def checks_for(genome: Genome, features: list[Feature], ask: Asker) -> list[Check]:
-    """The checks a person would make of these features, written from their description alone."""
-    listed = "\n".join(f"- {f.name}: {f.how} -> {f.shows} (menu: {f.place or 'any'})" for f in features)
+async def checks_for(genome: Genome, features: list[Feature], ask: Asker, *, sources: list[Source] = (), asked: str = "") -> list[Check]:
+    """The checks a person would make of these features, one for each rule of them, grounded in what is written.
+
+    A check written from a feature's name alone guesses what it should show,
+    and a wrong guess throws away right code. Tests written one for each stated
+    rule catch more faults and reject less right code than tests asked to "try
+    the edges" (Specification Grounding Drives Test Effectiveness for LLM Code,
+    2026). So each feature comes with what is written about it, and the person's
+    own words, and each check names the rule it tests.
+    """
+    listed = "\n".join(
+        f"- {f.name}: {f.how} -> {f.shows} (menu: {f.place or 'any'})"
+        + (f"\n  What is written about it: {said}" if (said := what_is_written_of(f, sources)) else "")
+        for f in features
+    )
+    wanted = f"What the person asked for, in their words: {asked}\n" if asked else ""
     prompt = (
-        f"{genome.name}: {genome.what_it_is}\nThe work area: {genome.work}\n\n"
-        f"Write one or two checks for each of these features, naming the feature exactly:\n{listed}\n\n"
-        + _HOW_CHECKS_ARE_WRITTEN
+        f"{genome.name}: {genome.what_it_is}\nThe work area: {genome.work}\n{wanted}\n"
+        f"For each of these features, first work out its rules: what a person relies on it doing, the formats it "
+        f"reads and writes, what it keeps, from what is written and what you know of programs of this kind. Then "
+        f"write one check for each rule, at most three for a feature, naming the feature exactly and the rule it tests:\n"
+        f"{listed}\n\n" + _HOW_CHECKS_ARE_WRITTEN
     )
     got = await ask(prompt, _Checks, 2048)
     if not isinstance(got, _Checks):
@@ -255,6 +272,26 @@ async def checks_for(genome: Genome, features: list[Feature], ask: Asker) -> lis
             continue
         kept.append(check.model_copy(update={"feature": name}))
     return kept
+
+
+_PLAIN = frozenset("the and for with from that this into when then what which their them they your have will are can its".split())
+
+
+def what_is_written_of(feature: Feature, sources: list[Source], *, at_most: int = 2) -> str:
+    """The sentences of what is written that are about ``feature``: those sharing most of its own words."""
+    words = {w for w in re.findall(r"[a-z]{3,}", f"{feature.name} {feature.how} {feature.shows}".lower()) if w not in _PLAIN}
+    if not words:
+        return ""
+    named = {w for w in re.findall(r"[a-z]{3,}", feature.name.lower()) if w not in _PLAIN}
+    scored = []
+    for source in sources:
+        for sentence in re.split(r"(?<=[.!?])\s+", source.text):
+            said = {w for w in re.findall(r"[a-z]{3,}", sentence.lower())}
+            # About it: one of the words of its name, and more of its words besides.
+            if named & said and len(words & said) >= 2 and 30 <= len(sentence) <= 400:
+                scored.append((len(words & said) + 2 * len(named & said), sentence.strip()))
+    scored.sort(key=lambda pair: -pair[0])
+    return " ".join(sentence for _n, sentence in scored[:at_most])
 
 
 def said_as_json(thing: BaseModel) -> str:

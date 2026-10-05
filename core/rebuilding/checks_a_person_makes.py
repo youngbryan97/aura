@@ -68,6 +68,7 @@ class Expectation(BaseModel):
 
 class Check(BaseModel):
     feature: str = Field(max_length=120)
+    rule: str = Field(default="", max_length=300, description="the one rule of the feature this check tests, as it is written or known of the program")
     steps: list[Step] = Field(default_factory=list, max_length=14)
     expect: list[Expectation] = Field(default_factory=list, min_length=1, max_length=5)
 
@@ -75,7 +76,7 @@ class Check(BaseModel):
         """The check in a person's words, for the record and for the model."""
         steps = "; ".join(f"{s.do} {s.target!r}" + (f" {s.value!r}" if s.value else "") for s in self.steps)
         seen = "; ".join(f"{e.see} {e.target!r}" + (f" {e.property}" if e.property else "") + (f" = {e.value!r}" if e.value else "") for e in self.expect)
-        return f"{steps} -> expect {seen}"
+        return (f"[{self.rule}] " if self.rule else "") + f"{steps} -> expect {seen}"
 
 
 @dataclass

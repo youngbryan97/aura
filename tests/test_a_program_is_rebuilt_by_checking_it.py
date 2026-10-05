@@ -266,3 +266,30 @@ async def test_a_control_is_found_as_its_check_names_it_wherever_it_is(tmp_path)
     assert runs[0].held, runs[0].why
     runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK)]).write(tmp_path / "e.html"), [check])
     assert not runs[0].held
+
+
+def test_checks_are_written_from_what_is_written_about_each_feature():
+    """One check for each rule, each feature shown what is written about it (specification grounding)."""
+    import asyncio
+
+    from core.rebuilding.what_a_program_does import Feature, Source, checks_for, what_is_written_of
+
+    article = Source("Microsoft Word", (
+        "Microsoft Word is a word processor. Its native file format is DOCX, introduced in 2007. "
+        "Word can export documents to PDF and to plain text. The company was founded in 1975 in Albuquerque."
+    ), "her corpus")
+    export = Feature(name="Export to DOCX", how="File, Export, choose DOCX", shows="a .docx file is saved")
+    assert "native file format is DOCX" in what_is_written_of(export, [article])
+    assert what_is_written_of(Feature(name="Bold", how="press B", shows="bold text"), [article]) == ""
+
+    asked: list[str] = []
+
+    async def ask(prompt, schema, max_tokens):
+        asked.append(prompt)
+        return schema.model_validate({"checks": [{"feature": "Export to DOCX", "rule": "saves its native format, DOCX",
+                                                  "steps": [{"do": "click", "target": "Export"}], "expect": [{"see": "download", "value": ".docx"}]}]})
+
+    genome = Genome.model_validate({"name": "Writer", "features": [export.model_dump()]})
+    got = asyncio.run(checks_for(genome, [export], ask, sources=[article], asked="and export it to my Desktop"))
+    assert "native file format is DOCX" in asked[0] and "export it to my Desktop" in asked[0]
+    assert got[0].rule and got[0].said().startswith("[saves its native format")
