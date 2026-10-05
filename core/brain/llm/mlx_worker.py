@@ -55,6 +55,15 @@ from .mlx_worker_recurrent_adapters import (  # noqa: F401  (re-exported: they w
     _load_unified_recurrent_shadow,
     _validate_expert_adapter_dir,
 )
+from .mlx_worker_surface_markers import (  # noqa: F401  (re-exported: they were defined here)
+    _LEADING_GENERATION_ROLE_RE,
+    _LEADING_ROLE_NO_SEPARATOR_RE,
+    _ROLE_CONTINUATION_RE,
+    _first_stop_in_reply,
+    _strip_leading_chatml_prefix,
+    _truncate_reply_role_continuation,
+    _truncate_role_continuation,
+)
 from .model_registry import resolve_personality_adapter
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
@@ -1102,44 +1111,6 @@ def _proof_prompt_declares_format(text: str) -> bool:
     return bool(_EXPLICIT_FORMAT_REQUEST_RE.search(str(text or "")))
 
 
-def _strip_leading_chatml_prefix(text: str) -> str:
-    cleaned = str(text or "")
-    prefixes = (
-        "<|im_start|>assistant\n",
-        "<|im_start|>assistant",
-        "<｜Assistant｜>",
-        "Assistant:",
-    )
-    changed = True
-    while changed:
-        changed = False
-        for prefix in prefixes:
-            if cleaned.startswith(prefix):
-                cleaned = cleaned[len(prefix) :].lstrip("\n")
-                changed = True
-    return cleaned
-
-
-_ROLE_CONTINUATION_RE = re.compile(
-    r"(?is)(?:<\|im_end\|>\s*)?<\|im_start\|>\s*"
-    r"(?:user|human|system|assistant|aura)\b.*$"
-    r"|(?:^|\n|(?<=[.!?]))\s*(?:User|Human|System|Assistant|Aura)\s*[:：].*$"
-)
-_LEADING_GENERATION_ROLE_RE = re.compile(
-    r"^\s*(?:<\|im_start\|>\s*)?(?:User|Human|Assistant|Aura|System)\s*[:：]\s*",
-    re.IGNORECASE,
-)
-_LEADING_ROLE_NO_SEPARATOR_RE = re.compile(
-    r"^\s*(?:user|human|assistant|system)(?=(?:i['’]?m\b|i\b|you\b|"
-    r"what\b|who\b|when\b|where\b|why\b|how\b|yes\b|no\b|the\b))",
-    re.IGNORECASE,
-)
-_USER_CONTINUATION_NO_COLON_RE = re.compile(
-    r"(?is)(?:^|\n)\s*(?:User|Human)\s+"
-    r"(?=(?:what|who|when|where|why|how|can|could|would|if|i\b|you\b|"
-    r"yes\b|no\b|tell\b|translate\b|name\b|write\b|hello\b|hi\b|[\"'0-9])).*$"
-)
-_ROLE_SUFFIX_RE = re.compile(r"(?is)_user\b.*$")
 _STRICT_ANSWER_ENVELOPE_RE = re.compile(r"(?is)<answer>\s*(.*?)\s*</answer>")
 _CHAT_CONTROL_TOKEN_RE = re.compile(r"(?is)<\|im_(?:start|end)\|>\s*(?:assistant|user|system)?\s*")
 
@@ -1203,41 +1174,6 @@ def _merge_stop_sequences(job_stops: Any = None) -> list[str]:
         if stop not in merged:
             merged.append(stop)
     return merged
-
-
-def _truncate_role_continuation(text: str, *, final: bool = False) -> tuple[str, bool]:
-    """Clip generation when the model starts simulating another chat turn.
-
-    ``final`` decides whether trailing whitespace may be trimmed, and it is the
-    whole reason this parameter exists.
-
-    This runs on the ENTIRE accumulated buffer after every token. The trailing
-    ``.strip()`` therefore deleted the newline the model had just emitted,
-    every time it emitted one, before the next token could arrive. Asked for
-    three fruits one per line, the live runtime returned::
-
-        AppleBananaOrange
-
-    and asked to echo a Python block, ``import randomdef f(x): return x + 1``
-    — which is why the 2048 reconstruction kept failing with "invalid syntax
-    at line 1" on code the model had written correctly. In Python, whitespace
-    IS the syntax; in prose it is every paragraph she has ever written.
-
-    Mid-stream the buffer is not finished, so its trailing whitespace is not
-    trailing — it is the next line beginning.
-    """
-    cleaned = _strip_leading_chatml_prefix(str(text or ""))
-    for _ in range(2):
-        stripped = _LEADING_GENERATION_ROLE_RE.sub("", cleaned).lstrip()
-        if stripped == cleaned:
-            break
-        cleaned = stripped
-    cleaned = _LEADING_ROLE_NO_SEPARATOR_RE.sub("", cleaned).lstrip()
-    original = cleaned
-    cleaned = _ROLE_CONTINUATION_RE.sub("", cleaned)
-    cleaned = _USER_CONTINUATION_NO_COLON_RE.sub("", cleaned)
-    cleaned = _ROLE_SUFFIX_RE.sub("", cleaned)
-    return (cleaned.strip() if final else cleaned), cleaned != original
 
 
 def _message_content_to_text(content: Any) -> str:
@@ -5740,7 +5676,7 @@ def _mlx_worker_loop_part_22(engine, expected_empty_precompile, logger, response
             steering_obs_exc,
         )
 
-def _mlx_worker_loop_why_ended_beside(_budget_applied, _spent_the_whole_budget, configured_stop_sequence, deadline_hit, logger, model_path, native_thinking, semantic_completion_state, total_generated_tokens):
+def _mlx_worker_loop_why_ended_beside(_budget_applied, _spent_the_whole_budget, configured_stop_sequence, deadline_hit, logger, model_path, native_thinking, semantic_completion_state, total_generated_tokens, stop_reason=""):
     # Why it ended, beside the fact that it did. The
     # matched stop sequence and the token limit were both
     # recorded and neither was reported, so an answer that
@@ -5748,16 +5684,20 @@ def _mlx_worker_loop_why_ended_beside(_budget_applied, _spent_the_whole_budget, 
     # own reasoning and an answer that ran out of budget
     # arrived here looking identical — and the first was
     # being read as the second, which is a budget problem
-    # that widening the budget cannot fix.
+    # that widening the budget cannot fix. And the classified stop
+    # beside them: on 5 October four passes ended at a role label in the
+    # private channel and printed stop=none, because a role-drift cut sets
+    # no configured stop.
     from core.brain.llm.mlx_worker_surface_quality import (
         semantic_completion_blockers,
     )
 
     logger.warning(
         "User-surface generation ended before semantic completion: "
-        "because=%s | tokens=%d stop=%s spent_budget=%s thinking=%s deadline=%s",
+        "because=%s | tokens=%d ended=%s stop=%s spent_budget=%s thinking=%s deadline=%s",
         ", ".join(semantic_completion_blockers(semantic_completion_state)) or "-",
         total_generated_tokens,
+        stop_reason or "-",
         repr(configured_stop_sequence) if configured_stop_sequence else "none",
         bool(_spent_the_whole_budget),
         native_thinking,
@@ -7923,7 +7863,9 @@ def _mlx_worker_loop(
 
                                         current_response += response.text
                                         current_response, role_continuation_hit = (
-                                            _truncate_role_continuation(current_response)
+                                            _truncate_reply_role_continuation(
+                                                current_response, native_thinking=native_thinking
+                                            )
                                         )
 
                                         # Cooperative preemption is observed only
@@ -7953,13 +7895,13 @@ def _mlx_worker_loop(
                                             break
 
                                         # Manual check for any dynamic stop sequences passed in the job
-                                        if any(s in current_response for s in stop_sequences):
-                                            for s in stop_sequences:
-                                                if s in current_response:
-                                                    current_response = current_response.split(s)[0]
-                                                    configured_stop_hit = True
-                                                    configured_stop_sequence = s
-                                                    break
+                                        stop_index, stop_seen = _first_stop_in_reply(
+                                            current_response, stop_sequences, native_thinking=native_thinking
+                                        )
+                                        if stop_index >= 0:
+                                            current_response = current_response[:stop_index]
+                                            configured_stop_hit = True
+                                            configured_stop_sequence = stop_seen
                                             break
 
                                         # ── Sentinel: feed every token ────────────────────
@@ -8142,21 +8084,6 @@ def _mlx_worker_loop(
                                                 "🏁 [WORKER] Hard token limit (8192) reached. Truncating."
                                             )
                                             hard_token_limit_hit = True
-                                            break
-
-                                        stop_hit = role_continuation_hit
-                                        for stop in stop_sequences:
-                                            stop_index = current_response.find(stop)
-                                            # index zero is a real stop (response BEGINS
-                                            # with the stop sequence) — same fix the
-                                            # stream path received.
-                                            if stop_index >= 0:
-                                                current_response = current_response[:stop_index]
-                                                configured_stop_hit = True
-                                                configured_stop_sequence = stop
-                                                stop_hit = True
-                                                break
-                                        if stop_hit:
                                             break
 
                                     generation_stream_elapsed_s = max(
@@ -9062,7 +8989,7 @@ def _mlx_worker_loop(
                         semantic_completion_state["semantic_completion_incomplete"]
                         and not expected_empty_precompile
                     ):
-                        _mlx_worker_loop_why_ended_beside(_budget_applied, _spent_the_whole_budget, configured_stop_sequence, deadline_hit, logger, model_path, native_thinking, semantic_completion_state, total_generated_tokens)
+                        _mlx_worker_loop_why_ended_beside(_budget_applied, _spent_the_whole_budget, configured_stop_sequence, deadline_hit, logger, model_path, native_thinking, semantic_completion_state, total_generated_tokens, preliminary_stop_reason)
 
                     # Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.
@@ -9502,8 +9429,8 @@ def _mlx_worker_loop(
                                     token_text = response.text
                                     visible_len = len(full_text)
                                     full_text += token_text
-                                    full_text, role_continuation_hit = _truncate_role_continuation(
-                                        full_text
+                                    full_text, role_continuation_hit = _truncate_reply_role_continuation(
+                                        full_text, native_thinking=native_thinking
                                     )
 
                                     # ── Sentinel: mid-stream intervention ─────
@@ -9570,12 +9497,12 @@ def _mlx_worker_loop(
                                     # could never be retracted; a stop at index
                                     # zero was explicitly missed by the old > 0.
                                     stop_hit = role_continuation_hit
-                                    for stop in stop_sequences:
-                                        stop_index = full_text.find(stop)
-                                        if stop_index >= 0:
-                                            full_text = full_text[:stop_index]
-                                            stop_hit = True
-                                            break
+                                    stop_index, _ = _first_stop_in_reply(
+                                        full_text, stop_sequences, native_thinking=native_thinking
+                                    )
+                                    if stop_index >= 0:
+                                        full_text = full_text[:stop_index]
+                                        stop_hit = True
 
                                     # Absolute cap check precedes emission so the
                                     # 8193rd token is never visible.
