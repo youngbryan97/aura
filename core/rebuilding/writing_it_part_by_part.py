@@ -407,6 +407,8 @@ async def write_it(
         await _say(tell, f"Writing the work area of {genome.name}: {genome.work}")
         program = await _the_work_area(genome, checks, ask, out, program, tried)
         await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes, holding)
+    # A feature left out before that the frame now gives is not done: it is tried with the frame's part.
+    outcomes = [o for o in outcomes if o.kept or o.feature.name not in (given or {})]
     done_already = {o.feature.name for o in outcomes}
     for feature in genome.features:
         if feature.name in done_already:
