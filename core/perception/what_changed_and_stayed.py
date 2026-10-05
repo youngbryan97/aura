@@ -57,7 +57,7 @@ class WhatChangedAndStayed:
         for thing in things.values():
             box = tuple(float(v) for v in thing.box())
             boxes.append(box)
-            if thing.moved or thing.number in never:
+            if thing.number in never or _travelling(thing, at):
                 _mask(moving, box)
         if self._kept and self._kept[-1][1].shape != grey_now.shape:
             self._kept.clear()
@@ -105,3 +105,20 @@ def _same_place(a: tuple[float, float, float, float], b: tuple[float, float, flo
         abs((a[0] + a[2]) - (b[0] + b[2])) / 2 < 3.0 and abs((a[1] + a[3]) - (b[1] + b[3])) / 2 < 3.0
         and a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
     )
+
+
+def _travelling(thing: Any, at: float) -> bool:
+    """Whether a thing has gone further than half its own size in the last half second.
+
+    Not whether it ever moved: a digit redrawn from 1 to 2 shifts its own
+    middle, was counted as having moved, and its place was kept out of the
+    counting for good (offline 2026-10-04, three misses and one change seen).
+    """
+    path = [(x, y) for when, x, y in getattr(thing, "path", ()) if at - when <= 0.5]
+    if len(path) < 2:
+        # Nothing kept of where it has been: its speed says.
+        speed = math.hypot(getattr(thing, "vx", 0.0), getattr(thing, "vy", 0.0))
+        return bool(getattr(thing, "moved", False)) and (speed > 20.0 or not hasattr(thing, "vx"))
+    reach = max(4.0, 0.5 * max(thing.w, thing.h))
+    first = path[0]
+    return any(math.hypot(x - first[0], y - first[1]) > reach for x, y in path[1:])

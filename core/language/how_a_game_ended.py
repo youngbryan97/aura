@@ -16,7 +16,7 @@ import re
 import unicodedata
 from typing import Final
 
-__all__ = ["asks_to_win", "how_it_ended", "what_it_asks_of_a_player"]
+__all__ = ["asks_to_win", "how_it_ended", "how_it_ended_in", "what_it_asks_of_a_player"]
 
 _WINNING: Final = re.compile(r"\b(win|wins|won|winner|victory|victorious|beat|beats|defeated|champion)\b")
 _THE_PLAYER: Final = frozenset({"you", "player", "player 1", "p1", "your", "yours"})
@@ -26,7 +26,10 @@ _SIDES: Final = re.compile(r"\b(you|player)\s*:?\s*(\d+)\D{1,24}?\b([a-z]+)\s*:?
 
 
 def _plain(text: str) -> str:
-    value = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode("ascii")
+    # A zero drawn in a game's font is read as a letter as often as a digit
+    # ("Computer o", "You Ø"); standing alone where a score stands, it is one.
+    value = re.sub(r"(?<=\s)[oOØø](?=\s|$)", "0", str(text or ""))
+    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
     return " ".join(value.casefold().split())
 
 
@@ -42,6 +45,43 @@ def _who_won(clause: str) -> str:
         after = re.findall(r"[a-z0-9]+", clause[found.end():])
         subject = subject or (after[0] if after and after[0] in ("is",) and len(after) > 1 else "")
     return subject
+
+
+def how_it_ended_in(parts: list[str]) -> str:
+    """How it ended, read from a screen's separate pieces of writing first.
+
+    Text read off a screen in one run interleaves its pieces: LIVE 2026-10-04
+    "You win!" in large letters over "You 5 Computer 0" came out as "You You 5
+    win! Computer o Press SPACE to play again", in which nobody wins, and
+    "play again" said only that it was over, so a win was taken for a loss.
+    A piece that says who won, or what each side scored, is taken first; a
+    screen that only says it is over is read whole.
+    """
+    for part in parts:
+        said = _who_it_says_won(_plain(part))
+        if said:
+            return said
+    return how_it_ended(" ".join(parts))
+
+
+def _who_it_says_won(text: str) -> str:
+    """"won" or "lost" where the words say who won or what each side scored; "" otherwise."""
+    if not text:
+        return ""
+    sides = _SIDES.search(text)
+    if sides and sides.group(3) not in ("to", "and", "points"):
+        mine, theirs = int(sides.group(2)), int(sides.group(4))
+        if mine != theirs:
+            return "won" if mine > theirs else "lost"
+    for clause in re.split(r"[.!?;\n]+", text):
+        who = _who_won(clause)
+        if not who:
+            continue
+        if who in _THE_PLAYER or who.endswith("you"):
+            return "won"
+        if not re.search(r"\b(not|didn't|did not|never)\b", clause):
+            return "lost"
+    return ""
 
 
 def how_it_ended(words: str) -> str:

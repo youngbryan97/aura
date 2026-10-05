@@ -55,6 +55,8 @@ class PlayingAsItHappens:
     recalled: bool = False
     #: The words of the screen that ended the run, for whoever asks how it ended.
     ending_words: str = ""
+    #: The same screen's pieces of writing, each as it was read.
+    ending_parts: list[str] = field(default_factory=list)
     _clip: dict[str, float] | None = None
     _focused: bool = False
     _frames: Any = None
@@ -185,6 +187,7 @@ class PlayingAsItHappens:
         if appeared:
             self.over_because = f"a way to start again appeared ({', '.join(sorted(appeared))})"
             self.ending_words = " ".join(str(observation.get("text") or "").split())
+            self.ending_parts = _lines_of(observation.get("layout") or [])
             logger.info("the run is over: %s", self.over_because)
             return True
         return False
@@ -246,6 +249,34 @@ class PlayingAsItHappens:
         if self.over_because:
             parts.append(f"the run is over: {self.over_because}")
         return "; ".join(part for part in parts if part)
+
+
+def _lines_of(regions: list[dict[str, Any]]) -> list[str]:
+    """A screen's writing as lines: pieces at one height, left to right.
+
+    Text recognition hands back pieces, and a title in large letters comes
+    back as one piece a word ("You", "win!") read in among the smaller line
+    below it. Pieces whose middles are within half a piece's height of each
+    other are one line.
+    """
+    pieces = []
+    for region in regions:
+        text = str(region.get("text") or "").strip()
+        if not text:
+            continue
+        height = float(region.get("height") or 0.0)
+        middle = float(region.get("center_y") if region.get("center_y") is not None else float(region.get("y") or 0.0) + height / 2)
+        left = float(region.get("x") or region.get("center_x") or 0.0)
+        pieces.append((middle, height, left, text))
+    lines: list[list[tuple[float, float, float, str]]] = []
+    for piece in sorted(pieces):
+        for line in lines:
+            if abs(line[0][0] - piece[0]) <= 0.5 * max(line[0][1], piece[1], 1e-6):
+                line.append(piece)
+                break
+        else:
+            lines.append([piece])
+    return [" ".join(text for _m, _h, _l, text in sorted(line, key=lambda p: p[2])) for line in lines]
 
 
 def _this_game(page: Any) -> str:

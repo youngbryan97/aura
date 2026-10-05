@@ -30,7 +30,6 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -90,8 +89,7 @@ class _Watch:
     restarts: int = 0
     bounces: int = 0
     bounced_off: dict[str, int] = field(default_factory=dict)
-    counted_at: float = 0.0
-    kept: Any = field(default_factory=lambda: deque(maxlen=8))
+    changes: Any = None
     were_hers: set[int] = field(default_factory=set)
     _heading: dict[int, tuple[float, float]] = field(default_factory=dict)
 
@@ -267,54 +265,27 @@ async def _play(page: Any, clip: dict[str, float], watch: _Watch, keys: list[str
         await page.keyboard.up(_KEY.get(held, held))
 
 
-#: How often a picture is kept for finding counters that changed, and how far apart compared.
-_COUNTER_EVERY_S = 0.25
-
-
 def _note_changes_in_place(watch: _Watch, happened: list[dict[str, Any]], at: float) -> None:
     """Somewhere still that changed and then stayed changed is writing that changed: a counter.
 
     Text recognition misses a lone digit (a "0" on a black court is read as
     nothing at any size), so a counter cannot always be read. That it changed,
-    and where, can be seen without reading it: pictures half a second apart
-    differ there, the next half second does not, and nothing moving passed
-    over the place. A change over much of the picture is a screen being drawn.
+    and where, is seen without reading it, by the same finder her play uses
+    (core/perception/what_changed_and_stayed.py). This had its own copy, which
+    kept out the place of anything that had ever moved, and a score digit
+    going from 1 to 2 moves its own middle: the score was kept out of its own
+    counting (offline 2026-10-04, three misses and one change seen).
     """
-    import numpy as np
+    from core.perception.what_changed_and_stayed import WhatChangedAndStayed
 
-    from core.perception.picture_arithmetic import apart, grey, pieces
-
+    if any(h.get("what") == "new screen" for h in happened):
+        watch.changes = None
+        return
+    if watch.changes is None:
+        watch.changes = WhatChangedAndStayed()
     picture = getattr(watch.moves, "_last", None)
-    if picture is None or at - watch.counted_at < _COUNTER_EVERY_S:
-        return
-    watch.counted_at = at
-    tall, wide = picture.shape[:2]
-    grey_now = grey(picture)
-    moving = np.zeros((tall, wide), dtype=bool)
-    for thing in watch.moves.things.values():
-        # Anything that has ever moved, still or not: a paddle that stops in a
-        # new place has changed the picture there, and is not a counter.
-        if thing.moved or thing.number in watch.were_hers:
-            left, top, right, bottom = (int(v) for v in thing.box())
-            moving[max(0, top - 4) : bottom + 5, max(0, left - 4) : right + 5] = True
-    watch.kept.append((at, grey_now, moving))
-    if len(watch.kept) < 5 or any(h.get("what") == "new screen" for h in happened):
-        return
-    (_t0, first, _m0), (when, middle, _m1), (_t2, last, _m2) = watch.kept[-5], watch.kept[-3], watch.kept[-1]
-    passed = np.zeros_like(moving)
-    for _when, _grey, mask in list(watch.kept)[-5:]:
-        passed |= mask
-    changed = (apart(first, middle) > 40) & (apart(middle, last) < 20) & ~passed
-    if changed.mean() > 0.10 or not changed.any():
-        return
-    count, _labels, stats, centres = pieces(changed)
-    for label in range(1, count):
-        if stats[label][4] < 3:
-            continue
-        x, y = centres[label][0] / wide, centres[label][1] / tall
+    for when, x, y in watch.changes.see(picture, watch.moves.things, at, never=set(watch.were_hers)):
         name = f"changed at {x:.2f},{y:.1f}"
-        if any(n == name and when - t < 1.5 for t, n, _d in watch.counter_changes):
-            continue
         watch.readouts.where[name] = (x, y)
         watch.counter_changes.append((when, name, 1))
 
@@ -455,22 +426,47 @@ def _escaped(watch: _Watch) -> tuple[str, str]:
 
 
 def _credited(watch: _Watch) -> tuple[str, str]:
-    """When a thing got past her, the counter that went up was on her half, or on the other."""
-    verdict: tuple[str, str] = (UNMEASURED, "")
+    """When a thing got past her, the counter that went up was on her half, or on the other.
+
+    Each time something got past her, the counter change nearest it in time
+    is the one it caused; and a verdict needs two such times that agree, more
+    than disagree. One reading decided it before, and a score misread once
+    turned the right edit of two mirrored score lines down and kept the wrong
+    one (LIVE 2026-10-04).
+    """
+    # A score is written again and again in one place. A place that changed
+    # once is as likely the end screen's writing appearing, or a stray: a
+    # miss credited to a one-off change in mid-court made a game whose
+    # misses scored for her read as right (offline 2026-10-04).
+    times: dict[str, int] = {}
+    for _at, name, _delta in watch.counter_changes:
+        times[name] = times.get(name, 0) + 1
+    counters = {name for name, n in times.items() if n >= 2 or name.startswith("number")}
+    hers_went_up = others_went_up = 0
     for departure in watch.went:
         her_side = departure.get("her_side")
         if not departure["behind_her"] or her_side is None:
             continue
-        for at, name, delta in watch.counter_changes:
-            where = watch.readouts.where.get(name)
-            # The score is redrawn as the ball leaves, and the leaving is only
-            # called a quarter second later, so the change can come first.
-            if where is None or not -0.5 <= at - departure["at"] < 2.0 or delta <= 0:
-                continue
-            if (where[0] < 0.5) == (her_side < 0.5):
-                return WRONG, "when something got past me, the score on my side went up"
-            verdict = (RIGHT, "")
-    return verdict
+        # The score is redrawn as the ball leaves, and the leaving is only
+        # called a quarter second later, so the change can come first.
+        near = [
+            (abs(at - departure["at"]), where)
+            for at, name, delta in watch.counter_changes
+            if delta > 0 and name in counters and (where := watch.readouts.where.get(name)) is not None
+            and -0.5 <= at - departure["at"] < 2.0
+        ]
+        if not near:
+            continue
+        where = min(near, key=lambda pair: pair[0])[1]
+        if (where[0] < 0.5) == (her_side < 0.5):
+            hers_went_up += 1
+        else:
+            others_went_up += 1
+    if hers_went_up >= 2 and hers_went_up > others_went_up:
+        return WRONG, "when something got past me, the score on my side went up"
+    if others_went_up >= 2 and others_went_up > hers_went_up:
+        return RIGHT, ""
+    return UNMEASURED, ""
 
 
 def _idle_actor(watch: _Watch) -> tuple[str, str]:

@@ -181,10 +181,12 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
 
 
 def _how_the_run_went(reflexes: Any, result: Mapping[str, Any]) -> dict[str, str]:
-    from core.language.how_a_game_ended import how_it_ended
+    from core.language.how_a_game_ended import how_it_ended, how_it_ended_in
 
     words = reflexes.ending_words or str(result.get("last_seen") or "")
-    return {"ended": how_it_ended(words), "words": " ".join(words.split()), "said": reflexes.what_it_came_to()}
+    parts = list(getattr(reflexes, "ending_parts", None) or [])
+    ended = how_it_ended_in(parts) if parts else how_it_ended(words)
+    return {"ended": ended, "words": " ".join(words.split()), "said": reflexes.what_it_came_to()}
 
 
 def _for_points_only(reflexes: Any, goal: str) -> bool:
