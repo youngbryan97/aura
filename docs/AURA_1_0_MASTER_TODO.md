@@ -2597,6 +2597,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Not yet reproduced with her full working in hand. The host was saturated
   when it was seen and the same question now returns
   `canonical_chat_no_reply`.
+  2026-10-05, the same question typed into her chat twice. At 14:46 the
+  cortex reasoned four times and each pass stopped at 212 to 237 tokens
+  with no text: the clip for a model simulating the next chat turn read
+  her private channel too, so a role label written while she worked ended
+  the pass. The smaller model answered and stopped before the distance.
+  Fixed in `fbff38090` (a role label ends a decode only in the reply). At
+  15:22 the cortex answered: closing speed 90 + 60 = 150 km/h, two hours,
+  120 x 2 = 240 km, in 2 min 24 s. The 480 seen on 21 September did not
+  come back; one correct answer does not show the mean-for-sum error is
+  gone.
   [Public-channel diagnostic](evidence/G06_PUBLIC_CHANNEL_DIAGNOSTIC_2026-09-14.md)
   found 18 token-capped and 42 stopped/unparsed ordinary CP1003 outputs.
   One real 27B development task now reaches a correct public result after
