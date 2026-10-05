@@ -264,3 +264,59 @@ def test_an_inflection_is_shared_and_a_derivation_is_not():
     assert "that" not in content_terms("that's the amazing part") and "that's" not in content_terms(
         "that's the amazing part"
     )
+
+
+_KASEYA_TURN = "How much did the Kaseya Center cost to build?"
+_KASEYA_REPLY = (
+    "$213 million. That's the documented construction figure: Wikipedia lists it plainly, "
+    "NBC Miami confirms it, and it lines up with what a 19,500-seat waterfront arena "
+    "opened in 1999 would have run."
+)
+
+
+def _judge(monkeypatch, *, relevant: bool, measured: bool = True):
+    from core.cognition import evidence_relevance
+
+    asked = []
+
+    def assess(question, passages):
+        asked.append((question, list(passages)))
+        score = 0.7 if relevant else 0.3
+        return [evidence_relevance.EvidenceAlignment(relevant, measured, score, 0.5, (), "stand-in")
+                for _ in passages]
+
+    monkeypatch.setattr(evidence_relevance, "assess_evidence_alignments", assess)
+    return asked
+
+
+def test_an_answer_in_other_words_is_read_by_meaning(monkeypatch):
+    """LIVE 2026-10-04: "cost to build" answered with "construction figure" was logged as abandoned."""
+    asked = _judge(monkeypatch, relevant=True)
+
+    verdict = assess_thread_continuity(_KASEYA_TURN, _KASEYA_REPLY)
+
+    assert not verdict.abandoned
+    assert verdict.reason == "engaged_by_meaning"
+    assert asked == [(_KASEYA_TURN, [_KASEYA_REPLY])]
+
+
+def test_the_judge_is_not_asked_when_the_words_already_engage(monkeypatch):
+    asked = _judge(monkeypatch, relevant=False)
+
+    verdict = assess_thread_continuity(
+        _KASEYA_TURN, "The Kaseya Center cost about $213 million to build when it opened in 1999 on Biscayne Bay."
+    )
+
+    assert verdict.reason == "engaged" and asked == []
+
+
+def test_a_reply_the_judge_also_finds_unrelated_is_abandoned(monkeypatch):
+    _judge(monkeypatch, relevant=False)
+
+    assert assess_thread_continuity(_KASEYA_TURN, _KASEYA_REPLY).abandoned
+
+
+def test_an_unmeasured_judge_leaves_the_words_standing(monkeypatch):
+    _judge(monkeypatch, relevant=True, measured=False)
+
+    assert assess_thread_continuity(_KASEYA_TURN, _KASEYA_REPLY).abandoned

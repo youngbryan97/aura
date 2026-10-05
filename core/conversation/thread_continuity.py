@@ -25,11 +25,14 @@ prompts that name no subject of their own.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from core.language.word_forms import matching_inflections
+
+logger = logging.getLogger(__name__)
 
 _WORD = re.compile(r"[a-z0-9][a-z0-9'’-]*", re.IGNORECASE)
 
@@ -172,6 +175,33 @@ def assess_thread_continuity(
             False, "engaged", turn_overlap, thread_overlap, shared
         )
 
+    if _bears_on_the_turn_by_meaning(turn, reply):
+        return ThreadContinuityVerdict(
+            False, "engaged_by_meaning", turn_overlap, thread_overlap, shared
+        )
+
     return ThreadContinuityVerdict(
         True, "reply_abandons_thread", turn_overlap, thread_overlap, shared
     )
+
+
+def _bears_on_the_turn_by_meaning(turn: str, reply: str) -> bool:
+    """Whether her encoder reads the reply as bearing on the turn.
+
+    Shared words miss an answer given in other words. LIVE 2026-10-04: "How
+    much did the Kaseya Center cost to build?" answered "$213 million. That's
+    the documented construction figure ..." shares no content word with the
+    question and was logged as abandoning it. The evidence judge
+    (core/cognition/evidence_relevance.py) reads by meaning against a boundary
+    measured on matched pairs; when it has not measured, the words stand.
+    Asked only after the words found nothing, so an engaged reply costs no
+    encoding.
+    """
+    try:
+        from core.cognition.evidence_relevance import assess_evidence_alignments
+
+        verdicts = assess_evidence_alignments(turn, [reply])
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("thread continuity read by words alone: %s", exc)
+        return False
+    return bool(verdicts and verdicts[0].measured and verdicts[0].relevant)
