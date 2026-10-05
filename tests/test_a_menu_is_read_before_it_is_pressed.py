@@ -35,3 +35,22 @@ def test_a_screen_that_only_moves_keeps_what_was_tried():
     later = _screen("SCORE", "0015300", "Next")
     noticed(state, playing, later, worked=True, acting='click "SCORE"')
     assert 'click "SCORE"' in state.tried
+
+
+def test_what_a_label_did_last_time_is_not_carried_to_a_new_session():
+    from core.agency.what_i_can_do_here import WhatWorksHere
+
+    remembered = {"told": ["up"], "did_something": {"up": 3}, "did_nothing": {'click "Play"': 4, "left": 3}}
+    now = WhatWorksHere.from_memory(remembered, told=["up"])
+    assert 'click "Play"' not in now.did_nothing and now.did_nothing.get("left") == 3
+
+
+def test_a_label_that_goes_on_is_offered_beside_working_keys():
+    from core.agency.what_i_can_do_here import WhatWorksHere
+
+    here = WhatWorksHere(told=("left", "right"))
+    here.looked_at(['click "Easy"', 'click "Hard"', 'click "SCORE"'])
+    here.looked_at(['click "Easy"', 'click "Hard"', 'click "SCORE"'])
+    offered = here.available()
+    assert offered[:2] == ("left", "right")
+    assert 'click "Easy"' in offered and 'click "SCORE"' not in offered

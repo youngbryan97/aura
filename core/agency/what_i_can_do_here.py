@@ -68,6 +68,13 @@ def a_click_on(label: str) -> str:
     return f'click "{" ".join(str(label or "").split())}"'
 
 
+def _goes_on(move: str) -> bool:
+    from core.language.a_way_on import how_much_it_leads_on
+
+    label = what_is_clicked(move)
+    return bool(label) and how_much_it_leads_on(label) > 1.0
+
+
 def what_is_clicked(move: str) -> str | None:
     """What a click move clicks, or None when the move is not a click."""
     name = str(move or "").strip()
@@ -211,14 +218,19 @@ class WhatWorksHere:
         # made 199 moves with the arrow keys and never pressed space.
         asked = tuple(key for key in self.asked_for if key not in self.told)
         told = tuple(key for key in self.told if key not in dead)
+        # A label that goes on (Play, Next, Easy) is offered whatever the keys
+        # are doing: on a menu that moves on its own, keys look as if they work
+        # and the labels never joined. LIVE-like 2026-10-05 she pressed left
+        # forty times on a game's "Easy / Hard" screen.
+        goes_on = tuple(click for click in self.on_screen if click not in dead and _goes_on(click))
         if asked:
-            return asked + told
+            return asked + told + goes_on
         # Only what she was told can be shown wrong about what she was told.
         # A key nobody named that never did anything says nothing about the
         # ones they did: a remembered dead "down" took the caller's Tab and
         # Return away before either had been pressed once.
         if told and len(told) == len(self.told):
-            return told
+            return told + goes_on
         wider = list(told) + [
             key for key in worth_trying(self.told) if key not in dead and key not in told
         ]
@@ -263,13 +275,17 @@ class WhatWorksHere:
         if not isinstance(held, dict):
             return cls(told=named)
 
+        # A label works on its own screen: "Play" does nothing on the
+        # instructions page and everything on the title. Kept across sessions,
+        # LIVE-like 2026-10-05, "click Play never does anything" was the first
+        # thing she knew on a game's title screen, and she never pressed it.
         def counts(value: object) -> dict[str, int]:
             if not isinstance(value, dict):
                 return {}
             return {
                 str(key): int(times)
                 for key, times in value.items()
-                if isinstance(times, (int, float))
+                if isinstance(times, (int, float)) and what_is_clicked(str(key)) is None
             }
 
         return cls(
