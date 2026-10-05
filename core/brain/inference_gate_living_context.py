@@ -445,7 +445,7 @@ class _BuildsTheLivingContext:
             # veto on code_repl.
             ceiling, allowed_scopes = requested_effect_ceiling(text)
 
-            required, ceiling, allowed_scopes = await her_reading(text, derive_capability_set(text), ceiling, allowed_scopes)
+            required, ceiling, allowed_scopes = await her_reading(text, derive_capability_set(text), ceiling, allowed_scopes, client=client)
             if not required:
                 # Said, so a request that should have reached a capability and
                 # was answered in words can be traced: LIVE 2026-10-05 a repair

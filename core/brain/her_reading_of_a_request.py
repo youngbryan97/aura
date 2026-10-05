@@ -26,7 +26,30 @@ __all__ = ["her_reading", "her_reading_chose"]
 _CHOSE: contextvars.ContextVar[tuple[str, str]] = contextvars.ContextVar("aura_her_reading_chose", default=("", ""))
 
 
-async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any) -> tuple[list[str], str, Any]:
+def _asking(client: Any) -> Any:
+    """Asking the model client the turn already holds: inside a turn the router's lane is the turn's own,
+    and a second request through it is refused at once (LIVE 2026-10-05, answered in 0.18 seconds)."""
+    if client is None or not hasattr(client, "generate_text_async"):
+        return None
+    import json
+    import re
+
+    from core.intent.what_her_model_reads_it_needs import _Needs
+
+    async def ask(prompt: str) -> Any:
+        asked = f'{prompt}\n\nAnswer with one JSON object: {{"capabilities": ["name", ...]}}'
+        raw = await client.generate_text_async(
+            asked, messages=[{"role": "user", "content": asked}], max_tokens=160, temperature=0.0,
+            schema=_Needs.model_json_schema(), output_shape="json_object", origin="her_reading_of_a_request",
+            internal_inference=True, foreground_request=True,
+        )
+        found = re.search(r"\{.*\}", re.sub(r"<think>.*?</think>", "", str(raw or ""), flags=re.S), re.S)
+        return _Needs.model_validate(json.loads(found.group(0))) if found else None
+
+    return ask
+
+
+async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any, *, client: Any = None) -> tuple[list[str], str, Any]:
     """The capabilities ``text`` needs, its words' or her model's reading of it, and the ceiling it asked for."""
     from core.container import ServiceContainer
     from core.intent.capability_selection import the_one_asked_for
@@ -40,7 +63,7 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any)
     if not worth_reading(text):
         return required, ceiling, scopes
     engine = ServiceContainer.get("capability_engine", default=None)
-    read = await capabilities_her_model_reads(text, getattr(engine, "skills", None) or {})
+    read = await capabilities_her_model_reads(text, getattr(engine, "skills", None) or {}, ask=_asking(client))
     if not read:
         return required, ceiling, scopes
     logger.info("🔧 Tool handoff: the words left it open; her reading needs %s.", ", ".join(read))

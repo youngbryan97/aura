@@ -66,3 +66,20 @@ def test_repairing_is_the_act_of_fixing():
     from core.intent.declared_capability import verb_class_of
 
     assert {"repair", "mend", "patch"} <= verb_class_of("fix")
+
+
+def test_her_reading_asks_the_model_client_the_turn_holds(engine):
+    """Inside a turn the router's lane is the turn's own; a reading through it was refused at once."""
+    from core.brain.her_reading_of_a_request import her_reading
+
+    asked_with: list[dict] = []
+
+    class _Client:
+        async def generate_text_async(self, prompt, **kwargs):
+            asked_with.append(kwargs)
+            return 'Thinking... {"capabilities": ["repair_a_program"]}'
+
+    asked = f"my pong game ({engine}) is messed up - get it working and win a round"
+    required, ceiling, _ = asyncio.run(her_reading(asked, ["file_operation"], "sandboxed_compute", frozenset(), client=_Client()))
+    assert required == ["repair_a_program"] and ceiling == "read_write_artifacts"
+    assert asked_with and asked_with[0]["internal_inference"] is True
