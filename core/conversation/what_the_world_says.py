@@ -180,8 +180,9 @@ def answer_from_earlier_reading(evidence: WorldEvidence, request: str, session_i
     return bool(evidence.sources)
 
 
-#: Where one claim in an answer ends and the next begins.
-_BETWEEN_CLAIMS = re.compile(r"(?<=[.!?])\s+|\s*[;:—–]\s*")
+#: Where one claim in an answer ends and the next begins. An en dash between
+#: two numbers is a range ("1999–2021"), not a break.
+_BETWEEN_CLAIMS = re.compile(r"(?<=[.!?])\s+|\s*[;:—]\s*|\s+–\s+")
 
 
 def claim_asked_about(request: str, previous_reply: str, previous_request: str = "") -> str:

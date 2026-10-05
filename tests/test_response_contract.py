@@ -228,6 +228,22 @@ Crash Course (https://www.youtube.com/@crashcourse): Broad academic overviews.
     assert "structured_learning_bundle" in contract.reason
 
 
+def test_her_screen_notes_do_not_make_a_question_a_learning_bundle():
+    """LIVE 2026-10-04: the notes attached to a one-line question read as a list of resources."""
+    notes = "\n".join(
+        ["[YOUR OWN RECENT PERCEPTION — NOTES, NOT A REPLY]", "You looked at the screen yourself moments ago.",
+         "Windows open (front to back):"]
+        + [f"- Safari — “Page {n} https://example.com/page/{n}” (visible)" for n in range(6)]
+        + ["These are your notes on what you saw, not a draft answer.", "[END YOUR OWN RECENT PERCEPTION]"]
+    )
+
+    contract = build_response_contract(
+        AuraState.default(), f"When did the Kaseya Center open?\n\n{notes}", is_user_facing=True,
+    )
+
+    assert "structured_learning_bundle" not in contract.reason
+
+
 def test_response_contract_marks_reasoned_defense_for_how_do_you_know():
     state = AuraState.default()
 

@@ -1332,6 +1332,19 @@ def derive_capability_set(objective: str, *, limit: int = _DEFAULT_CAPABILITY_SE
         return []
 
 
+def _the_persons_words(objective: Any) -> str:
+    """The objective without what the turn attached to it.
+
+    LIVE 2026-10-04: "When did the Kaseya Center open?" carried her screen
+    notes ("[YOUR OWN RECENT PERCEPTION ...]", window titles with addresses),
+    the notes read as a pasted list of learning resources, and the turn was
+    served a 59,218-character system prompt for structured_learning_bundle.
+    """
+    from core.utils.injected_blocks import strip_injected_blocks
+
+    return strip_injected_blocks(objective).strip()
+
+
 def build_response_contract(
     state: AuraState,
     objective: str,
@@ -1340,7 +1353,7 @@ def build_response_contract(
 ) -> ResponseContract:
     from core.runtime.turn_analysis import analyze_turn
 
-    text = str(objective or "").strip()
+    text = _the_persons_words(objective)
     lower = normalize_memory_intent_text(text)
     prompt_shape = analyze_prompt_shape(text)
     is_embodied_control = "[embodied control contract]" in lower

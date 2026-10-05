@@ -419,6 +419,11 @@ def test_a_question_about_her_grounds_is_checked_against_the_claim_it_points_at(
         "Kaseya Center open: American Airlines Arena first, then FTX Arena after they bought it for "
         "$135 million in 2022"
     )
+    # A range is not a break between claims (LIVE 2026-10-04 the query began "2021), then").
+    ranged = "The naming history: American Airlines Arena first (1999–2021), then FTX Arena in 2022 — a short deal."
+    assert claim_asked_about(question, ranged, "When did the Kaseya Center open?") == (
+        "Kaseya Center open: American Airlines Arena first (1999–2021), then FTX Arena in 2022"
+    )
     # Naming nothing puts the whole answer in question.
     assert claim_asked_about("Where did that come from?", _OPENING_REPLY, "When did the Kaseya Center open?") == (
         "When did the Kaseya Center open?"
