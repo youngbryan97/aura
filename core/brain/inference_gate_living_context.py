@@ -421,6 +421,7 @@ class _BuildsTheLivingContext:
         # such as "code" or "build" inside a correction cannot open a tool
         # lane the caller explicitly closed.
         if not allow_tools:
+            logger.info("🔧 Tool handoff: not offered, this turn does not allow tools.")
             return None
 
         # The person's own words, not the assembled prompt. The scaffold runs
@@ -445,6 +446,10 @@ class _BuildsTheLivingContext:
 
             required = derive_capability_set(text)
             if not required:
+                # Said, so a request that should have reached a capability and
+                # was answered in words can be traced: LIVE 2026-10-05 a repair
+                # request became a conversation and nothing said why.
+                logger.info("🔧 Tool handoff: no capability derived for this request (ceiling %s).", ceiling)
                 return None
             pending = remaining_capabilities(required, completed_capability_evidence)
             if required and not pending:

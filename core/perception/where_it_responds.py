@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -259,6 +260,11 @@ def _middle(values: Sequence[float]) -> tuple[float, float]:
     return (kept[0], kept[-1])
 
 
+def _words_of(reading: dict[tuple[int, int], str]) -> set[str]:
+    """The words a reading holds, of three letters or more, lower-cased."""
+    return {w for text in reading.values() for w in re.findall(r"[a-z]{3,}", text.lower())}
+
+
 def places_and_text(observation: dict[str, Any]) -> dict[tuple[int, int], str]:
     """The reading as text by position, rounded so a pixel of drift is not a change.
 
@@ -348,6 +354,14 @@ def noticed(
     if answered_now:
         state.unanswered = 0
         state.unanswered_by.clear()
+        # A click that led to another screen, its words mostly new, leaves
+        # labels that are new controls even where they read the same: "Next"
+        # on every page of a game's rules. LIVE-like 2026-10-05 the second
+        # page's Next was passed over as tried, and every other label on it
+        # was clicked first. A screen that only moves keeps its record.
+        said_before, said_now = _words_of(was), _words_of(now)
+        if acting.startswith("click ") and len(said_before & said_now) * 2 < len(said_before | said_now):
+            state.tried = {act for act in state.tried if not act.startswith("click ")}
     else:
         state.unanswered += 1
         if acting:

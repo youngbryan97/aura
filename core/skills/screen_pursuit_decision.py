@@ -135,6 +135,15 @@ from .screen_pursuit_surface import (
 
 
 
+def _first_what_goes_on(telling: dict[str, float]) -> dict[str, float]:
+    """A menu is read before it is pressed: a click on a label that goes on (Play, Next) before one on a
+    label to read (Score), and keys as they were."""
+    from core.agency.what_i_can_do_here import what_is_clicked
+    from core.language.a_way_on import how_much_it_leads_on
+
+    return {name: value * (how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0) for name, value in (telling or {}).items()}
+
+
 def _the_layout_is_made(success_when: str, knows: Any, laid_out: Any) -> bool:
     """Whether the thing she is acting in is laid out as the goal says, where the goal is a layout."""
     from core.agency.what_she_is_after import goal_in
@@ -1260,7 +1269,7 @@ async def decide_the_next_move(
         #
         # It goes to nought by itself as the evidence rules them out, so
         # there is nothing to turn off.
-        telling = worth_finding_out(
+        telling = _first_what_goes_on(worth_finding_out(
             knows.rules,
             laid_out,
             [option.name for option in available],
@@ -1272,7 +1281,7 @@ async def decide_the_next_move(
                 for option in available
                 if option.name not in responds["state"].tried
             ],
-        )
+        ))
         if telling:
             if ahead:
                 ahead = {

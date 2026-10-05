@@ -119,6 +119,20 @@ window.__checks = (() => {
     }
     return null;
   }
+  // A click on something that is not a control: "the page", "the canvas", "the
+  // first cell". An element of the work area that names it (its label, title,
+  // class, id or role), else the place the work is done.
+  function inTheWork(target) {
+    const want = norm(target).replace(/^the\s+/, "");
+    const work = document.querySelector("#app-work") || document.body;
+    const all = [work, ...work.querySelectorAll("*")].filter(visible);
+    const said = (el) => [el.getAttribute("aria-label"), el.getAttribute("title"), el.getAttribute("role"), el.id,
+      typeof el.className === "string" ? el.className : "", el.tagName].map(norm).join(" ");
+    const hit = all.find((el) => said(el).split(/[\s_-]+/).includes(want)) || all.find((el) => said(el).includes(want));
+    if (hit) return hit;
+    if (/^(page|document|editor|text|work ?area|canvas|board|sheet|area|body|paper|writing area)$/.test(want)) return editable();
+    return null;
+  }
   function mark(el) { if (!el) return null; const id = "c" + Math.random().toString(36).slice(2); el.setAttribute("data-check", id); return id; }
   function opener(el) {
     if (!el || visible(el)) return null;
@@ -198,7 +212,7 @@ window.__checks = (() => {
     try { return work.querySelectorAll(selector).length; } catch (e) { return -1; } }
   function bodyText() { return norm([...document.body.querySelectorAll("#app-work, #app-side, #app-status, [role=dialog], #app-notice, #app-title")]
     .map((el) => el.innerText + " " + [...el.querySelectorAll("input, textarea")].map((i) => i.value).join(" ")).join(" ")); }
-  return { find: (t) => mark(find(t, CONTROLS)), field: (t) => mark(fieldFor(t)), opener: (id) => opener(document.querySelector(`[data-check='${id}']`)),
+  return { find: (t) => mark(find(t, CONTROLS) || inTheWork(t)), field: (t) => mark(fieldFor(t)), opener: (id) => opener(document.querySelector(`[data-check='${id}']`)),
     editable: () => mark(editable()), selectText, style, count, bodyText, norm,
     dialog: (t) => [...document.querySelectorAll("[role=dialog]")].filter(visible).some((d) => norm(d.getAttribute("aria-label") + " " + d.innerText).includes(norm(t))) };
 })();
