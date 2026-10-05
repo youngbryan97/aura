@@ -221,19 +221,20 @@ def test_an_operation_owns_its_whole_sentence_when_sentence_ends_are_known() -> 
     """ "Form the lead calculation by subtract ..." names the result before the operation's word.
 
     Tokens: 0-9 "inputs are a = 7 ; b = 3 ." (a@4, b@8), 10-13 "Form the lead calculation by"
-    (10-14), 15 subtract, 16-19 "b from a .", 20-25 "Save that as the result .", 26 add ...
+    (10-14), 15 subtract, 16-19 "b from a .", 20-25 "Save that as the result .", 26 "Then",
+    27 add, 28 "it", 29 multiply ...
     """
     a, b = TokenSpan(4, 5), TokenSpan(8, 9)
-    subtract, add, multiply = TokenSpan(15, 16), TokenSpan(26, 27), TokenSpan(29, 30)
+    subtract, add, multiply = TokenSpan(15, 16), TokenSpan(27, 28), TokenSpan(29, 30)
     sentences = (0, 10, 20, 26)
 
     stretches = register_stretches((a, b), (subtract, add, multiply), 34, sentences)
 
-    assert stretches[2] == (10, 26), "the subtraction owns its lead-in and the sentence naming its result"
-    assert stretches[3] == (26, 29), "an operation sharing a sentence keeps the text up to the next one's word"
+    assert stretches[2] == (10, 27), "the subtraction owns its lead-in and the sentence naming its result"
+    assert stretches[3] == (27, 29), "operations sharing a sentence each start at their own word"
     assert stretches[4] == (29, 34)
     # Without sentence ends, as before.
-    assert register_stretches((a, b), (subtract, add, multiply), 34)[2] == (15, 26)
+    assert register_stretches((a, b), (subtract, add, multiply), 34)[2] == (15, 27)
 
 
 def test_a_full_stop_inside_a_literal_ends_no_sentence() -> None:

@@ -137,7 +137,11 @@ def register_stretches(
     subtraction's result before the operation's word, and those tokens
     belonged to no register, so "the lead calculation", used three sentences
     later, could not be read back to the subtraction (scalar_branch_weave_five,
-    5 October). A second operation in the same sentence starts at its own word.
+    5 October). Only an operation alone in its sentence takes the lead-in: in
+    "the whole-number quotient of the whole-number quotient of 88 divided by
+    41" every operation starts at its own word, or "Return the" goes to the
+    first and a later "the" is read back to it (three arithmetic:nominal_nested
+    training rows lost, 5 October, run v7).
     """
     stretches: list[tuple[int, int]] = []
     boundaries = sorted({span.end for span in input_spans} | {span.end for span in operation_spans})
@@ -148,8 +152,9 @@ def register_stretches(
     begins: list[int] = []
     for span in operation_spans:
         sentence = max((start for start in sentences if start <= span.start), default=None)
+        following = min((start for start in sentences if start > span.start), default=token_count)
         shares = sentence is not None and any(
-            sentence <= other.start < span.start for other in operation_spans
+            other is not span and sentence <= other.start < following for other in operation_spans
         )
         if sentence is None or shares:
             begins.append(span.start)
