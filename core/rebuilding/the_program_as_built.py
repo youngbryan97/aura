@@ -15,6 +15,8 @@ from pathlib import Path
 __all__ = ["Part", "ProgramAsBuilt"]
 
 _FRAME = Path(__file__).with_name("an_application_frame.html")
+#: The files people exchange documents as, written and read in the frame (app.formats).
+_FORMATS = Path(__file__).with_name("document_formats.js")
 
 
 @dataclass
@@ -48,6 +50,7 @@ class ProgramAsBuilt:
             .replace("__DOCUMENT__", html.escape(self.document))
             .replace("__ACCENT__", self.accent if _a_colour(self.accent) else "#2b579a")
             .replace("__STYLE__", self.style.replace("</style", ""))
+            .replace("__FORMATS__", _FORMATS.read_text("utf-8").replace("</script", "<\\/script"))
             .replace("__PARTS__", parts)
         )
 

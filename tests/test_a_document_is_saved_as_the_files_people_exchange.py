@@ -1,0 +1,119 @@
+"""A document made in a program she built is saved as files other programs open, and opened back from them.
+
+The formats are code in the frame (core/rebuilding/document_formats.js), so a
+part only calls them; checked here with the programs that read those files.
+"""
+from __future__ import annotations
+
+import asyncio
+import base64
+import io
+import shutil
+
+import pytest
+
+from core.rebuilding.the_program_as_built import Part, ProgramAsBuilt
+
+_WORK = """
+const page = app.make("div", {class: "page", contenteditable: "true", "aria-label": "Document"});
+page.innerHTML = '<h1>Quarterly Letter</h1><p>Dear <b>Ms. Reyes</b>, thank you for <i>everything</i>.</p>'
+  + '<p style="text-align:center">Café — naïve “quotes”</p><ul><li>First point</li><li>Second point</li></ul>'
+  + '<table><tr><td>Region</td><td>Sales</td></tr><tr><td>North</td><td>42</td></tr></table>';
+app.work.append(page); app.doc = page;
+"""
+
+
+async def _written(tmp_path, kind: str) -> bytes:
+    from playwright.async_api import async_playwright
+
+    page_file = ProgramAsBuilt("Writer", parts=[Part("work area", _WORK)]).write(tmp_path / "w.html")
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch()
+        page = await browser.new_page()
+        await page.goto(page_file.resolve().as_uri())
+        made = await page.evaluate("""async (kind) => { const bytes = new Uint8Array(await app.formats.write(kind).arrayBuffer());
+            let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); }""", kind)
+        await browser.close()
+    return base64.b64decode(made)
+
+
+@pytest.mark.asyncio
+async def test_a_docx_opens_in_a_reader_of_word_files(tmp_path):
+    import docx
+
+    document = docx.Document(io.BytesIO(await _written(tmp_path, "docx")))
+    paragraphs = document.paragraphs
+    assert paragraphs[0].text == "Quarterly Letter" and paragraphs[0].style.name.lower().startswith("heading 1")
+    letter = next(p for p in paragraphs if p.text.startswith("Dear"))
+    assert letter.text == "Dear Ms. Reyes, thank you for everything."
+    assert any(r.bold and r.text == "Ms. Reyes" for r in letter.runs) and any(r.italic and r.text == "everything" for r in letter.runs)
+    assert any("Café — naïve “quotes”" in p.text for p in paragraphs)
+    assert [p.text for p in paragraphs if "point" in p.text] == ["First point", "Second point"]
+    assert document.tables[0].cell(1, 1).text == "42"
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(shutil.which("textutil") is None, reason="textutil is the macOS reader of these files")
+@pytest.mark.parametrize("kind", ["docx", "rtf", "odt", "html"])
+async def test_the_system_reads_each_kind(tmp_path, kind):
+    path = tmp_path / f"letter.{kind}"
+    path.write_bytes(await _written(tmp_path, kind))
+    read = await asyncio.create_subprocess_exec("textutil", "-convert", "txt", "-stdout", str(path), stdout=asyncio.subprocess.PIPE)
+    text = (await read.communicate())[0].decode("utf-8", "ignore")
+    assert "Quarterly Letter" in text and "Ms. Reyes" in text and "Café" in text, text[:300]
+
+
+@pytest.mark.asyncio
+async def test_plain_kinds_say_what_the_document_says(tmp_path):
+    md = (await _written(tmp_path, "md")).decode()
+    assert md.startswith("# Quarterly Letter") and "**Ms. Reyes**" in md and "- First point" in md
+    txt = (await _written(tmp_path, "txt")).decode()
+    assert "Dear Ms. Reyes, thank you for everything." in txt and "• First point" in txt
+
+
+@pytest.mark.asyncio
+async def test_a_docx_from_another_program_is_opened_back(tmp_path):
+    """Read back from a compressed .docx written by another program, not only from its own."""
+    import docx
+    from playwright.async_api import async_playwright
+
+    made = docx.Document()
+    made.add_heading("From elsewhere", level=1)
+    para = made.add_paragraph("Plain then ")
+    para.add_run("bold").bold = True
+    held = io.BytesIO()
+    made.save(held)
+    data_url = "data:application/octet-stream;base64," + base64.b64encode(held.getvalue()).decode()
+    page_file = ProgramAsBuilt("Writer", parts=[Part("work area", _WORK)]).write(tmp_path / "r.html")
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch()
+        page = await browser.new_page()
+        await page.goto(page_file.resolve().as_uri())
+        html = await page.evaluate("(url) => app.formats.read({name: 'other.docx', dataUrl: url})", data_url)
+        rtf = await page.evaluate("""() => app.formats.read({name: 'x.rtf', text: '{\\\\rtf1\\\\ansi{\\\\fonttbl{\\\\f0 Arial;}}Hello \\\\b world\\\\b0\\\\par Next}'})""")
+        await browser.close()
+    assert "<h1>From elsewhere</h1>" in html and "<strong>bold</strong>" in html
+    assert "Hello world" in rtf and "Next" in rtf and "Arial" not in rtf
+
+
+def test_the_formats_a_program_saves_are_read_from_what_is_written():
+    from core.rebuilding.what_the_frame_gives import formats_named
+
+    article = ("Microsoft Word is a word processor. Its native file format is DOCX. Word can also save documents as "
+               "Rich Text Format and plain text, and open OpenDocument files. The company sells Word Documents online.")
+    assert formats_named([article]) == ["docx", "odt", "rtf", "txt"]
+    assert formats_named(["A drawing program with layers."]) == []
+    assert formats_named(["and export it to my Desktop as a .docx"]) == ["docx"]
+
+
+@pytest.mark.asyncio
+async def test_a_format_named_is_given_by_the_frame_with_nothing_asked_of_her_model(tmp_path):
+    from core.rebuilding.rebuilding_a_program import rebuild
+    from tests.test_a_program_is_rebuilt_by_checking_it import _NoCorpus, _Script
+
+    script = _Script()
+    done = await rebuild("Writer", script, tmp_path, corpus=_NoCorpus(), online=False, asked="rebuild it, and let me save my letters as .docx files")
+    saving = {o.feature.name: o for o in done.built.outcomes}["Save as Word Document (.docx)"]
+    assert saving.kept and saving.held == 1
+    assert not [p for p in script.asked if 'part for the feature "Save as Word Document' in p]
+    assert 'app.formats.save("docx")' in done.built.path.read_text()

@@ -34,6 +34,7 @@ from core.rebuilding.what_a_program_does import (
     genome_of,
     what_is_written_about,
 )
+from core.rebuilding.what_the_frame_gives import what_the_frame_gives
 from core.rebuilding.writing_it_part_by_part import Built, Teller, _say, write_it
 
 logger = logging.getLogger("Rebuilding")
@@ -139,14 +140,18 @@ async def rebuild(
         built = await _as_code(genome, ask, folder, tell)
         await asyncio.to_thread(keep_the_record, folder, built)
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
-    written: list[Check] = []
-    for at in range(0, len(genome.features), FEATURES_AT_ONCE):
-        written.extend(await checks_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask, sources=sources, asked=asked))
+    # What the frame already does is given by code, its parts and checks with it (core/rebuilding/what_the_frame_gives.py).
+    genome.features, given = what_the_frame_gives(genome.features, sources, asked)
+    written: list[Check] = [check for gift in given.values() for check in gift.checks]
+    asked_of_her = [f for f in genome.features if f.name not in given]
+    for at in range(0, len(asked_of_her), FEATURES_AT_ONCE):
+        written.extend(await checks_for(genome, asked_of_her[at : at + FEATURES_AT_ONCE], ask, sources=sources, asked=asked))
     checks = await checks_that_mean_something(written, folder / "empty.html", browser=browser)
     (folder / "checks.json").write_text(json.dumps([c.model_dump() for c in checks], indent=1), "utf-8")
     await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")
     left = max(60.0, deadline_s - (time.monotonic() - began))
-    built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left)
+    built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left,
+                           given={name: gift.part for name, gift in given.items()})
     await asyncio.to_thread(keep_the_record, folder, built)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
 

@@ -274,8 +274,10 @@ def test_checks_are_written_from_what_is_written_about_each_feature():
 
     genome = Genome.model_validate({"name": "Writer", "features": [export.model_dump()]})
     got = asyncio.run(checks_for(genome, [export], ask, sources=[article], asked="and export it to my Desktop"))
-    assert "native file format is DOCX" in asked[0] and "export it to my Desktop" in asked[0]
+    assert "rule 2: Its native file format is DOCX" in asked[0] and "export it to my Desktop" in asked[0]
     assert got[0].rule and got[0].said().startswith("[saves its native format")
+    # The check covered rule 2; only rule 1 was asked for again, once.
+    assert len(asked) == 2 and "rule 1: File, Export, choose DOCX" in asked[1] and "rule 2" not in asked[1]
 
 
 class _SecondProgram(_Script):

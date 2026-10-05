@@ -189,9 +189,7 @@ async def genome_of(program: str, sources: list[Source], ask: Asker, *, asked: s
     prompt = (
         opening + reading
         + f"list the features a person uses, at most {MOST_FEATURES}, the ones a person would miss first ahead. "
-        "Everything the person asked for is a feature, and so is what is written of the program as what it does, "
-        "reads or writes (its own file format among them), as far as a page can do it. "
-        "Each says what a person does and what they then see. "
+        "Everything the person asked for is a feature. Each says what a person does and what they then see. "
         "Leave out what a web page cannot do (installing, licensing, cloud accounts, other programs). "
         "Give the program a name of its own.\n\n"
         + (written or ("(nothing written was found; use what you know)" if program else ""))
@@ -239,39 +237,66 @@ Each check starts from a fresh, empty program, so it types what it needs first."
 
 
 async def checks_for(genome: Genome, features: list[Feature], ask: Asker, *, sources: list[Source] = (), asked: str = "") -> list[Check]:
-    """The checks a person would make of these features, one for each rule of them, grounded in what is written.
+    """The checks a person would make of these features: one for each of a feature's rules, the rules found by code.
 
     A check written from a feature's name alone guesses what it should show,
     and a wrong guess throws away right code. Tests written one for each stated
     rule catch more faults and reject less right code than tests asked to "try
     the edges" (Specification Grounding Drives Test Effectiveness for LLM Code,
-    2026). So each feature comes with what is written about it, and the person's
-    own words, and each check names the rule it tests.
+    2026). A feature's rules are what it says it does and the sentences written
+    about it (`rules_of`); which rules got a check is counted here, and only
+    the rules left without one are asked for again.
     """
-    listed = "\n".join(
-        f"- {f.name}: {f.how} -> {f.shows} (menu: {f.place or 'any'})"
-        + (f"\n  What is written about it: {said}" if (said := what_is_written_of(f, sources)) else "")
-        for f in features
-    )
-    wanted = f"What the person asked for, in their words: {asked}\n" if asked else ""
-    prompt = (
-        f"{genome.name}: {genome.what_it_is}\nThe work area: {genome.work}\n{wanted}\n"
-        f"For each of these features, first work out its rules: what a person relies on it doing, the formats it "
-        f"reads and writes, what it keeps, from what is written and what you know of programs of this kind. Then "
-        f"write one check for each rule, at most three for a feature, naming the feature exactly and the rule it tests:\n"
-        f"{listed}\n\n" + _HOW_CHECKS_ARE_WRITTEN
-    )
-    got = await ask(prompt, _Checks, 2048)
-    if not isinstance(got, _Checks):
-        return []
     named = {f.name.lower(): f.name for f in features}
+    unchecked = {f.name: rules_of(f, sources) for f in features}
     kept: list[Check] = []
-    for check in got.checks:
-        name = named.get(check.feature.lower()) or next((n for k, n in named.items() if k in check.feature.lower() or check.feature.lower() in k), None)
-        if name is None or not check.expect:
-            continue
-        kept.append(check.model_copy(update={"feature": name}))
+    for _round in range(2):
+        wanting = [f for f in features if unchecked[f.name]]
+        if not wanting:
+            break
+        listed = "\n".join(
+            f"- {f.name} (menu: {f.place or 'any'})\n" + "\n".join(f"  rule {n}: {r}" for n, r in enumerate(unchecked[f.name], start=1))
+            for f in wanting
+        )
+        wanted = f"What the person asked for, in their words: {asked}\n" if asked else ""
+        prompt = (
+            f"{genome.name}: {genome.what_it_is}\nThe work area: {genome.work}\n{wanted}\n"
+            f"Write a check for each rule of each feature below, naming the feature exactly and the rule it checks:\n{listed}\n\n"
+            + _HOW_CHECKS_ARE_WRITTEN
+        )
+        got = await ask(prompt, _Checks, CHECKS_TOKENS)
+        new: list[Check] = []
+        for check in got.checks if isinstance(got, _Checks) else []:
+            name = named.get(check.feature.lower()) or next((n for k, n in named.items() if k in check.feature.lower() or check.feature.lower() in k), None)
+            if name is not None and check.expect:
+                new.append(check.model_copy(update={"feature": name}))
+        kept += new
+        # Which rules have a check now, counted here; only the rest are asked for again.
+        for f in wanting:
+            mine = [c for c in new if c.feature == f.name]
+            unchecked[f.name] = [r for n, r in enumerate(unchecked[f.name], start=1) if not any(_checks_rule(c, r, n) for c in mine)]
     return kept
+
+
+#: The longest answer asked for when checks are written, in tokens.
+CHECKS_TOKENS = 2048
+
+
+def rules_of(feature: Feature, sources: list[Source]) -> list[str]:
+    """A feature's rules: what it says it does, and what is written about it, each a thing a person can see."""
+    said = [f"{feature.how} -> {feature.shows}".strip(" ->")]
+    written = what_is_written_of(feature, sources)
+    said += [s for s in re.split(r"(?<=[.!?])\s+", written) if s.strip()]
+    return [r for r in said if r][:3]
+
+
+def _checks_rule(check: Check, rule: str, number: int) -> bool:
+    """Whether ``check`` says it checks ``rule`` (by its number or most of its words)."""
+    said = check.rule.lower()
+    if re.search(rf"\brule\s*{number}\b", said) or said.strip() == str(number):
+        return True
+    words = {w for w in re.findall(r"[a-z]{3,}", rule.lower()) if w not in _PLAIN}
+    return bool(words) and len(words & set(re.findall(r"[a-z]{3,}", said))) * 2 >= len(words)
 
 
 _PLAIN = frozenset("the and for with from that this into when then what which their them they your have will are can its".split())

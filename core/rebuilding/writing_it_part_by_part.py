@@ -65,6 +65,10 @@ no libraries; the page has no network. `app` has:
   app.download(name, content, type)  save a file.        app.pickFile(accept) -> Promise of {name, text, dataUrl} or null
   app.keep(key, value) / app.kept(key, fallback)          remember across reopening (JSON values).
   app.zip({path: text or bytes}, type)  a Blob of a zip of those files: what .docx, .xlsx, .odt and .epub files are.
+  app.formats.save(kind, name)  save the document as kind: "docx" | "odt" | "rtf" | "html" | "md" | "txt" (a real file of it).
+  app.formats.open(accept)      pick a .docx/.odt/.rtf/.html/.md/.txt file and put it in the document.
+  app.formats.write(kind) -> Blob    app.formats.read(file) -> Promise of HTML    app.formats.kinds  {kind: {ext, label, type}}
+                                The document is app.doc (an element), else the work area's editable element.
   app.on("change"|"selection"|"ready", fn)   app.changed()   call after changing the document.
   app.name                      the document's name (get/set).
   app.make(tag, props, children) make an element: props are attributes or DOM properties (class or className, text,
@@ -277,6 +281,7 @@ async def write_it(
     tell: Teller | None = None,
     browser: Any = None,
     deadline_s: float = 3 * 3600.0,
+    given: dict[str, Part] | None = None,
 ) -> Built:
     """The program, written part by part: the work area, then each feature that can be made to hold."""
     began = time.monotonic()
@@ -316,7 +321,15 @@ async def write_it(
         if time.monotonic() - began > deadline_s:
             outcomes.append(FeatureOutcome(feature, why_not="out of time"))
             continue
-        program, outcome, held = await write_a_feature(genome, program, feature, [c for c in checks if c.feature == feature.name], ask, tried)
+        own = [c for c in checks if c.feature == feature.name]
+        from_the_frame = (given or {}).get(feature.name)
+        reused = await _reused(program, feature, own, from_the_frame, tried) if from_the_frame is not None and own else None
+        if reused is not None:
+            program, kept = reused
+            outcome, held = FeatureOutcome(feature, held=len(kept), of=len(own), kept=True), [r.check for r in kept]
+            logger.info("rebuilding: %s works, from the frame (%d of %d checks hold)", feature.name, len(kept), len(own))
+        else:
+            program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried)
         outcomes.append(outcome)
         holding.extend(held)
         # Kept as it goes: a build cut short leaves what it had made, to use and to build on.

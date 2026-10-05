@@ -275,7 +275,7 @@ class _Doing:
         try:
             path = await download.path()
             data = await asyncio.to_thread(Path(path).read_bytes) if path else b""
-            text = data[:400_000].decode("utf-8", "ignore")
+            text = _what_a_file_says(data)
         except Exception as why:  # noqa: BLE001 - a download that cannot be read is still a download
             text = f"(unreadable: {why})"
         self.downloads.append((download.suggested_filename, text))
@@ -538,3 +538,19 @@ def the_option_meant(offered: list[list[str]], wanted: str) -> str | None:
     # More than half of what was asked for, and in that one option alone.
     meant = best[0] * 2 > len(want) and [n for n, _v in scored].count(best[0]) == 1
     return best[1] if meant else None
+
+
+def _what_a_file_says(data: bytes) -> str:
+    """The text a saved file holds, as a person opening it would read it: a zipped document (.docx, .odt) by its own words."""
+    import io
+    import zipfile
+
+    if data[:4] == b"PK\x03\x04":
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                said = [re.sub(r"<[^>]+>", " ", archive.read(name).decode("utf-8", "ignore"))
+                        for name in archive.namelist() if name.endswith(".xml")]
+            return " ".join(" ".join(said).split())[:400_000]
+        except (zipfile.BadZipFile, OSError, ValueError):
+            pass
+    return data[:400_000].decode("utf-8", "ignore")
