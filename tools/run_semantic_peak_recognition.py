@@ -289,6 +289,11 @@ def main() -> int:
         help="what text an operation's register owns: from its word, or its whole sentence",
     )
     parser.add_argument(
+        "--stacked-labeler",
+        action="store_true",
+        help="name operation spans from their words as well as their context, weighted on held-out constructions",
+    )
+    parser.add_argument(
         "--arguments-within-sentence",
         action="store_true",
         help="no argument option starts before its operation's sentence (needs --antecedent-stretches sentence)",
@@ -347,7 +352,8 @@ def main() -> int:
         sentence_ends = sentence_end_token_ids(Tokenizer.from_file(str(args.tokenizer.expanduser())))
         print(f"sentence-ending tokens: {len(sentence_ends)}", flush=True)
 
-    recognizer = fit_peak_operation_recognizer(training)
+    groups = json.loads(args.folds.read_text())["assignments"] if args.stacked_labeler else None
+    recognizer = fit_peak_operation_recognizer(training, construction_groups=groups)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
         replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
@@ -397,7 +403,7 @@ def main() -> int:
             )
             fold_candidate = PeakRecognitionTransducer(
                 incumbent,
-                fit_peak_operation_recognizer(kept),
+                fit_peak_operation_recognizer(kept, construction_groups=groups),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
                 replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,

@@ -110,6 +110,15 @@ def _labeler_feature(
     return _unit_rows(_channel(hidden[end - 1 : end], channels, widths, LABELER_CHANNEL))[0]
 
 
+def _lexical_feature(
+    hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int], span: TokenSpan
+) -> np.ndarray:
+    """The span's words, out of context: the mean of their input embeddings."""
+    rows = _unit_rows(_channel(hidden[span.start : span.end], channels, widths, FIRST_POSITION_CHANNEL))
+    mean = rows.mean(axis=0)
+    return mean / (np.linalg.norm(mean) + 1e-9)
+
+
 def _first_feature(
     hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int]
 ) -> np.ndarray:
@@ -156,6 +165,10 @@ class PeakOperationRecognizer:
     #: Operation names offered per span, best first.
     label_limit: int
     fit_receipt: Mapping[str, Any]
+    #: A readout of the span's words out of context, and how much each readout
+    #: is trusted, fitted on held-out constructions (fit_peak_operation_recognizer).
+    lexical_labeler: LinearClassifierHead | None = None
+    label_weights: tuple[float, float] = (1.0, 0.0)
 
     def __post_init__(self) -> None:
         if (
@@ -188,9 +201,19 @@ class PeakOperationRecognizer:
             return _probabilities(
                 self.first_labeler, _first_feature(hidden, channels, widths)[None]
             )[0]
-        return _probabilities(
+        contextual = _probabilities(
             self.labeler, _labeler_feature(hidden, channels, widths, span.end)[None]
         )[0]
+        if self.lexical_labeler is None:
+            return contextual
+        lexical = _probabilities(
+            self.lexical_labeler, _lexical_feature(hidden, channels, widths, span)[None]
+        )[0]
+        logits = self.label_weights[0] * np.log(np.clip(contextual, 1e-12, 1.0)) + self.label_weights[
+            1
+        ] * np.log(np.clip(lexical, 1e-12, 1.0))
+        logits -= logits.max()
+        return np.exp(logits) / np.exp(logits).sum()
 
     def operation_candidates(
         self,
@@ -275,6 +298,14 @@ class PeakOperationRecognizer:
             "span_floor_ratio": float(self.span_floor_ratio),
             "label_limit": self.label_limit,
             "fit_receipt": dict(self.fit_receipt),
+            **(
+                {
+                    "lexical_labeler": _head_dict(self.lexical_labeler),
+                    "label_weights": [float(weight) for weight in self.label_weights],
+                }
+                if self.lexical_labeler is not None
+                else {}
+            ),
         }
 
     @property
@@ -299,6 +330,8 @@ def peak_operation_recognizer_from_dict(value: Mapping[str, Any]) -> PeakOperati
         span_floor_ratio=float(value["span_floor_ratio"]),
         label_limit=int(value["label_limit"]),
         fit_receipt=dict(value["fit_receipt"]),
+        lexical_labeler=_head_from_dict(value["lexical_labeler"]) if "lexical_labeler" in value else None,
+        label_weights=tuple(float(weight) for weight in value.get("label_weights", (1.0, 0.0))),
     )
 
 
@@ -330,19 +363,75 @@ def _centred_head(
     )
 
 
+def _stacked_label_weights(
+    contextual: np.ndarray,
+    lexical: np.ndarray,
+    names: Sequence[str],
+    groups: Sequence[Any],
+    operations: tuple[str, ...],
+) -> tuple[float, float]:
+    """How much to trust each readout, from how each does on constructions it was not fitted on.
+
+    Both readouts are refitted without each held-out group and score that
+    group; the weights maximise the likelihood of those out-of-fold labels.
+    Fitted on the same rows the readouts saw, the contextual readout is near
+    perfect and would take all the weight; the question is how each does on a
+    wording it has not seen, which is what a held-out construction is.
+    """
+    from scipy.optimize import minimize
+
+    groups = np.asarray(list(groups))
+    target = np.asarray([operations.index(name) for name in names])
+    out_contextual = np.zeros((len(target), len(operations)))
+    out_lexical = np.zeros((len(target), len(operations)))
+    for group in sorted(set(groups.tolist())):
+        held = groups == group
+        kept_names = [name for name, keep in zip(names, ~held, strict=True) if keep]
+        if len(set(kept_names)) < len(operations):
+            continue
+        out_contextual[held] = _probabilities(
+            _centred_head(operations, contextual[~held], kept_names, balanced=False), contextual[held]
+        )
+        out_lexical[held] = _probabilities(
+            _centred_head(operations, lexical[~held], kept_names, balanced=False), lexical[held]
+        )
+    scored = out_contextual.sum(axis=1) > 0
+    if not scored.any():
+        return 1.0, 0.0  # no group could be held out: the contextual readout alone
+    log_contextual = np.log(np.clip(out_contextual[scored], 1e-12, 1.0))
+    log_lexical = np.log(np.clip(out_lexical[scored], 1e-12, 1.0))
+    rows = np.arange(int(scored.sum()))
+
+    def loss(weights: np.ndarray) -> float:
+        logits = weights[0] * log_contextual + weights[1] * log_lexical
+        logits = logits - logits.max(axis=1, keepdims=True)
+        return -float((logits[rows, target[scored]] - np.log(np.exp(logits).sum(axis=1))).mean())
+
+    fitted = minimize(loss, x0=np.array([1.0, 0.0]), method="L-BFGS-B", bounds=[(0.0, None), (0.0, None)])
+    return float(fitted.x[0]), float(fitted.x[1])
+
+
 def fit_peak_operation_recognizer(
     examples: Sequence[Any],
     *,
     peak_limit: int = 10,
     span_floor_ratio: float = 0.5,
     label_limit: int = 2,
+    construction_groups: Mapping[str, Any] | None = None,
 ) -> PeakOperationRecognizer:
-    """Fit every readout on training rows; any other split is refused."""
+    """Fit every readout on training rows; any other split is refused.
+
+    With ``construction_groups`` (source sha256 to held-out group), a readout of
+    the span's words out of context joins the contextual one, each weighted by
+    how it does on constructions it was not fitted on. LIVE validation
+    2026-10-05: "after removing", a wording training never had, read at its
+    last token as add 0.347 against sub 0.346; the words alone read it as sub.
+    """
     examples = tuple(examples)
     if not examples or any(item.split != "train" for item in examples):
         raise ValueError("peak operation recognition is fitted on training rows only")
     token_rows, token_tags, first_rows = [], [], []
-    label_rows, label_firsts, label_names = [], [], []
+    label_rows, label_firsts, label_names, label_words, label_groups = [], [], [], [], []
     for item in examples:
         hidden = np.asarray(item.hidden_states)
         channels, widths = item.hidden_channels, item.hidden_channel_widths
@@ -363,6 +452,9 @@ def fit_peak_operation_recognizer(
                 )[0]
             )
             label_names.append(instruction.op)
+            if construction_groups is not None:
+                label_words.append(_lexical_feature(hidden, channels, widths, instruction.operation_span))
+                label_groups.append(construction_groups[item.ir.source_text_sha256])
     operations = tuple(sorted(set(label_names)))
     if len(operations) < 2:
         raise ValueError("peak operation recognition needs at least two operations")
@@ -378,12 +470,20 @@ def fit_peak_operation_recognizer(
         balanced=False,
         mean=first_matrix.mean(axis=0),
     )
+    lexical_labeler, label_weights = None, (1.0, 0.0)
+    if construction_groups is not None:
+        lexical_matrix = np.stack(label_words)
+        lexical_labeler = _centred_head(operations, lexical_matrix, label_names, balanced=False)
+        label_weights = _stacked_label_weights(
+            np.stack(label_rows), lexical_matrix, label_names, label_groups, operations
+        )
     receipt = {
         "training_sources": sorted(item.ir.source_text_sha256 for item in examples),
         "training_rows": len(examples),
         "operation_tokens": int(sum(tag == OPERATION_TAG for tag in token_tags)),
         "operations": list(operations),
         "splits_used": ["train"],
+        **({"label_weights": list(label_weights)} if lexical_labeler is not None else {}),
     }
     return PeakOperationRecognizer(
         tagger=_centred_head(tags, np.concatenate(token_rows), token_tags, balanced=True),
@@ -394,6 +494,8 @@ def fit_peak_operation_recognizer(
         span_floor_ratio=span_floor_ratio,
         label_limit=label_limit,
         fit_receipt={**receipt, "receipt_sha256": _sha(receipt)},
+        lexical_labeler=lexical_labeler,
+        label_weights=label_weights,
     )
 
 

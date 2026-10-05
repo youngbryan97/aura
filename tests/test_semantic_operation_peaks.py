@@ -259,3 +259,32 @@ def test_representation_differences_name_every_field_that_moved() -> None:
     second = {"model": {"path": "m", "count": 4}, "layers": [10, 21], "source": "a", "extra": 1}
     assert representation_differences(first, second) == ["extra", "layers[1]", "model.count"]
     assert representation_differences(first, first) == []
+
+
+def test_a_tie_in_context_is_broken_by_the_words_when_the_words_have_earned_it() -> None:
+    """LIVE validation 2026-10-05: "after removing" read as add 0.347 against sub 0.346 in context."""
+    tied = _recognizer(
+        labeler=_head(("add", "sub"), [[0, 0, 0], [0, 0, 0]]),
+        lexical_labeler=_head(("add", "sub"), [[0, 0, 4], [0, 0, -4]]),
+        label_weights=(1.0, 1.0),
+    )
+    # Context says nothing; the span's own word embedding reads as sub.
+    hidden = _hidden([BACKGROUND, (0.0, 1.0, 0.0), BACKGROUND], [BACKGROUND, (0.0, 1.0, -1.0), BACKGROUND])
+    first = {}
+    for node in _nodes(tied, hidden):
+        first.setdefault(node.span, node.operation)
+    assert first[TokenSpan(1, 2)] == "sub"
+    restored = peak_operation_recognizer_from_dict(tied.to_dict())
+    assert restored.label_weights == (1.0, 1.0) and restored.lexical_labeler is not None
+
+
+def test_the_stacked_readout_is_fitted_with_held_out_groups() -> None:
+    examples = _fixture_examples()
+    train = tuple(item for item in examples if item.split == "train")
+    groups = {item.ir.source_text_sha256: index % 2 for index, item in enumerate(train)}
+
+    recognizer = fit_peak_operation_recognizer(train, construction_groups=groups)
+
+    assert recognizer.lexical_labeler is not None
+    assert all(weight >= 0.0 for weight in recognizer.label_weights)
+    assert recognizer.fit_receipt["label_weights"] == list(recognizer.label_weights)
