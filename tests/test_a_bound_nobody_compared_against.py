@@ -148,3 +148,41 @@ def test_the_bound_and_the_channel_agree():
         "the channel turns red at the count the governor permits, so one of "
         "them is wrong"
     )
+
+
+def test_the_channels_follow_the_envelope_the_runtime_was_given():
+    """LIVE 21 September to 4 October: 53 cells and 258 bindings read yellow and red on every boot.
+
+    The limits were the defaults of ``MorphBounds`` (64 cells, 256 bindings);
+    the live governor is built from ``MorphogenesisConfig`` with 256 and 512,
+    and had refused nothing.
+    """
+    from core.fsw.telemetry_dictionary import LimitState, get_telemetry, reset_telemetry_for_test, write
+    from core.morphogenesis import telemetry
+    from core.morphogenesis.governor import MorphBounds
+    from core.morphogenesis.types import MorphogenesisConfig
+
+    config = MorphogenesisConfig()
+    bounds = MorphBounds(max_cells=config.max_cells, max_edges=config.max_edges)
+    reset_telemetry_for_test()
+    try:
+        telemetry.declare(bounds.to_dict())
+        assert int(get_telemetry().spec(telemetry.CHANNEL_EDGES).limits.red_high) == bounds.max_edges
+        assert write(telemetry.CHANNEL_CELLS, 53) is LimitState.NOMINAL
+        assert write(telemetry.CHANNEL_EDGES, 258) is LimitState.NOMINAL
+        assert write(telemetry.CHANNEL_EDGES, bounds.max_edges) is LimitState.RED_HIGH
+    finally:
+        reset_telemetry_for_test()
+
+
+def test_a_published_status_declares_with_its_own_envelope():
+    from core.fsw.telemetry_dictionary import get_telemetry, reset_telemetry_for_test
+    from core.morphogenesis import telemetry
+
+    reset_telemetry_for_test()
+    try:
+        telemetry.publish({"bounds": {"max_cells": 100, "max_edges": 400}, "nodes": 10, "edges": 20})
+        limits = get_telemetry().spec(telemetry.CHANNEL_CELLS).limits
+        assert (limits.yellow_high, limits.red_high) == (75, 100)
+    finally:
+        reset_telemetry_for_test()

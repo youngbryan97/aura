@@ -57,8 +57,32 @@ _declared_names: tuple[str, ...] = ()
 _last_components = 1
 
 
-def declare() -> list[str]:
-    """Declare the layer's channels and events. Idempotent."""
+def _envelope_limits(bounds: Any) -> tuple[tuple[int, int], tuple[int, int]]:
+    """(yellow, red) for the cell and binding channels, from the governor's envelope.
+
+    Red is the cap itself and yellow three quarters of it, the proportion the
+    limits were first declared with (48 and 64 cells, 192 and 256 bindings).
+    Those numbers were the defaults of ``MorphBounds``; the live runtime builds
+    its governor from ``MorphogenesisConfig`` with 256 cells and 512
+    bindings, so a healthy boot of 53 cells and 258 bindings read yellow and
+    red on every start (LIVE 21 September to 4 October) while the governor
+    had half its room left.
+    """
+    from .governor import MorphBounds
+
+    declared = MorphBounds()
+    envelope = dict(bounds) if isinstance(bounds, dict) else {}
+    cells = int(envelope.get("max_cells") or declared.max_cells)
+    edges = int(envelope.get("max_edges") or declared.max_edges)
+    return (cells * 3 // 4, cells), (edges * 3 // 4, edges)
+
+
+def declare(bounds: dict[str, Any] | None = None) -> list[str]:
+    """Declare the layer's channels and events. Idempotent.
+
+    ``bounds`` is the governor's envelope (``MorphBounds.to_dict()``); the
+    first declaration fixes the limits, because a channel has one meaning.
+    """
     global _declared, _declared_names
     from core.fsw.telemetry_dictionary import still_declared
 
@@ -74,6 +98,7 @@ def declare() -> list[str]:
         return []
 
     owner = "core/morphogenesis/governor.py"
+    (cells_yellow, cells_red), (edges_yellow, edges_red) = _envelope_limits(bounds)
     names: list[str] = []
     for spec in (
         dict(
@@ -84,13 +109,14 @@ def declare() -> list[str]:
         dict(
             identifier=0x0802, name=CHANNEL_CELLS, type=ChannelType.INT, unit="count",
             description="cells in the population",
-            owner=owner, group="morphogenesis", yellow_high=48, red_high=64, stale_after_s=600.0,
+            owner=owner, group="morphogenesis", yellow_high=cells_yellow, red_high=cells_red,
+            stale_after_s=600.0,
         ),
         dict(
             identifier=0x0803, name=CHANNEL_EDGES, type=ChannelType.INT, unit="count",
             description="bindings in the topology",
             owner="core/morphogenesis/graph.py", group="morphogenesis",
-            yellow_high=192, red_high=256, stale_after_s=600.0,
+            yellow_high=edges_yellow, red_high=edges_red, stale_after_s=600.0,
         ),
         dict(
             identifier=0x0804, name=CHANNEL_COMPONENTS, type=ChannelType.INT, unit="count",
@@ -214,7 +240,7 @@ def declare() -> list[str]:
 def publish(status: dict[str, Any]) -> None:
     """Write one sample per channel from a governor status dict."""
     global _last_components
-    if not declare():
+    if not declare(status.get("bounds")):
         return
     try:
         from core.fsw.telemetry_dictionary import emit_event, write

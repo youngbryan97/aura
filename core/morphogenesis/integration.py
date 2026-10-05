@@ -447,7 +447,7 @@ async def start_morphogenesis_runtime(runtime: MorphogeneticRuntime | None = Non
         from core.morphogenesis import invariants as _morph_invariants  # noqa: F401
         from core.morphogenesis import telemetry as _morph_telemetry
 
-        _morph_telemetry.declare()
+        _morph_telemetry.declare(rt.governor.bounds.to_dict())
     except (ImportError, AttributeError, RuntimeError) as verify_exc:
         _record_morphogenesis_integration_degradation(
             verify_exc,
