@@ -32,10 +32,15 @@ way a person would ask. Nothing is started from a script.
 
    This writes `~/aura-demos/pong/pong.html` (five flaws, see
    `tools/grade_pong_repair.py`) and prints the request to type.
-2. Type in her chat:
+2. Type in her chat, in any words that ask for it; for example:
 
    > The Pong game at /Users/bryan/aura-demos/pong/pong.html is broken. Fix it,
    > then play it against the computer until you win.
+
+   or "pong at ~/aura-demos/pong/pong.html doesn't work right. can you sort it
+   out and then beat the computer at it?". When the words do not plainly name
+   the repair, her own model reads the request beside the catalogue of what she
+   can do (core/brain/her_reading_of_a_request.py) and calls it.
 
 3. What happens: she runs the game and says what is wrong with it; reads the
    code and says which places look wrong; tries the edits on copies, keeping
@@ -80,8 +85,10 @@ links the same game in the Internet Archive, and she plays it there.
 
 Type in her chat:
 
-> Do a clean-room reconstruction of Microsoft Word with your program DNA
-> engine: a complete, working word processor I can use.
+> Use your program DNA engine to do a clean-room reconstruction of Microsoft
+> Word: a complete, polished word processor I can open from my Applications
+> folder. Then prove it works by writing a one-page letter in it and exporting
+> it to my Desktop.
 
 What happens (core/rebuilding): she reads what is written about the program
 and its kind (her own Wikipedia corpus, else Wikipedia online), her model says
@@ -94,6 +101,18 @@ when its own checks hold when done in a browser and nothing that worked before
 stops working; otherwise she is shown what went wrong and tries again, three
 times, and the feature is left out rather than kept broken. The result opens in
 a window, and she says which features work and which do not.
+
+When it is done the program is installed as a Mac application in
+/Applications (a native window with the Edit menu, Open and Save dialogs and
+printing; core/rebuilding/as_a_mac_app.py) and opened. Then she does what the
+request asks with it, with its own controls, and what it exports is saved in
+the folder named (here the Desktop).
+
+The same engine builds to a specification ("build me a ...", build_app),
+changes a build ("add a dark theme to the word processor you built",
+change_a_program) and uses one ("use the word processor you built to write
+...", use_a_program). Programs that are code rather than windows are checked
+by calling them in the sandbox.
 
 No code of the original is read. The program is one file,
 `artifacts/rebuilt_programs/<name>/index.html`, beside `what_it_does.json`
