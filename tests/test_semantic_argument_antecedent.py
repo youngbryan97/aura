@@ -249,3 +249,17 @@ def test_the_readout_keeps_its_sentence_ends_through_serialization() -> None:
     readout = ArgumentAntecedent(tuple(0.0 for _ in FEATURES), 0.0, {}, sentence_end_token_ids=(13, 30))
 
     assert argument_antecedent_from_dict(readout.to_dict()).sentence_end_token_ids == (13, 30)
+
+
+def test_no_argument_option_starts_before_its_operations_sentence() -> None:
+    """scalar_branch_weave_five-0-0: "add intake flow and return flow" took a declaration two sentences back."""
+    from core.learning.semantic_argument_antecedent import within_sentence
+
+    add, subtract = SimpleNamespace(span=TokenSpan(64, 65)), SimpleNamespace(span=TokenSpan(81, 82))
+    declaration, name, later = TokenSpan(30, 34), TokenSpan(68, 70), TokenSpan(90, 92)
+    options = [((declaration, 1.0), (name, 0.5), (later, 0.2)), ((TokenSpan(24, 25), 1.0), (TokenSpan(85, 87), 0.4))]
+
+    bounded = within_sentence(options, (add, subtract), sentences=(0, 59, 78))
+
+    assert bounded[0] == ((name, 0.5), (later, 0.2)), "what comes after the clause is kept"
+    assert bounded[1] == ((TokenSpan(85, 87), 0.4),)

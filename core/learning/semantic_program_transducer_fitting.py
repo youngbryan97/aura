@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 import numpy as np
 
+from core.learning.semantic_argument_antecedent import argument_sentences, within_sentence
 from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_definition_candidates import (
     _LEGACY_DEFINITION_CANDIDATE_STRATEGY as _LEGACY_DEFINITION_CANDIDATE_STRATEGY,
@@ -433,8 +434,13 @@ def _argument_proposals_by_operation(
     operation_nodes: Sequence[_OperationNode],
     max_span_tokens: int,
     clause_local: bool,
+    sentences: Sequence[int] = (),
 ) -> tuple[tuple[tuple[TokenSpan, float], ...], ...]:
-    """Allocate argument evidence independently to every operation clause."""
+    """Allocate argument evidence independently to every operation clause.
+
+    With ``sentences``, no option starts before its operation's sentence
+    (semantic_argument_antecedent.within_sentence).
+    """
 
     global_proposals = list(
         scores.decode_candidates(
@@ -453,7 +459,8 @@ def _argument_proposals_by_operation(
     ]
     if not clause_local:
         shared = tuple(global_proposals)
-        return tuple(shared for _node in operation_nodes)
+        unbounded = [shared for _node in operation_nodes]
+        return within_sentence(unbounded, operation_nodes, sentences) if sentences else tuple(unbounded)
 
     by_operation: list[tuple[tuple[TokenSpan, float], ...]] = [()] * len(operation_nodes)
     token_count = scores.start.size
@@ -489,7 +496,7 @@ def _argument_proposals_by_operation(
                 key=lambda item: (-item[1], item[0].start, item[0].end),
             )
         )
-    return tuple(by_operation)
+    return within_sentence(by_operation, operation_nodes, sentences) if sentences else tuple(by_operation)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1549,11 +1556,10 @@ def _assign_typed_arguments(
     ):
         return None
     proposals_by_operation = _argument_proposals_by_operation(
-        argument_pointer_scores,
-        input_spans=input_spans,
-        operation_nodes=operation_nodes,
+        argument_pointer_scores, input_spans=input_spans, operation_nodes=operation_nodes,
         max_span_tokens=model.max_span_tokens,
         clause_local=model.schema == COMPOSITIONAL_SEMANTIC_TRANSDUCER_SCHEMA,
+        sentences=argument_sentences(argument_antecedent, source_token_ids, input_spans),
     )
     if model.training_receipt.get("argument_literal_boundaries") == "atomic_v1":
         proposals_by_operation = tuple(

@@ -289,6 +289,11 @@ def main() -> int:
         help="what text an operation's register owns: from its word, or its whole sentence",
     )
     parser.add_argument(
+        "--arguments-within-sentence",
+        action="store_true",
+        help="no argument option starts before its operation's sentence (needs --antecedent-stretches sentence)",
+    )
+    parser.add_argument(
         "--tokenizer",
         type=Path,
         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15/tokenizer.json"),
@@ -347,7 +352,8 @@ def main() -> int:
     antecedent = (
         replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
                 own_result_is_not_an_input=args.own_result_is_not_an_input,
-                named_inputs_are_used_by_name=args.named_inputs_are_used_by_name)
+                named_inputs_are_used_by_name=args.named_inputs_are_used_by_name,
+                arguments_within_sentence=args.arguments_within_sentence)
         if args.argument_antecedent else None
     )
     candidate = PeakRecognitionTransducer(incumbent, recognizer, ownership, antecedent)
@@ -395,7 +401,8 @@ def main() -> int:
                 fit_argument_ownership(kept) if args.argument_ownership else None,
                 replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,
-                        named_inputs_are_used_by_name=args.named_inputs_are_used_by_name)
+                        named_inputs_are_used_by_name=args.named_inputs_are_used_by_name,
+                arguments_within_sentence=args.arguments_within_sentence)
                 if args.argument_antecedent else None,
             )
             fold_audit = audit_semantic_cohort(

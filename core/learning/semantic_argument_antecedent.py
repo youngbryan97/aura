@@ -291,6 +291,10 @@ class ArgumentAntecedent:
     #: The tokenizer's sentence-ending tokens. When present, an operation's
     #: register owns its whole sentence (register_stretches).
     sentence_end_token_ids: tuple[int, ...] = ()
+    #: Whether an operation's argument options start no earlier than its own
+    #: sentence (within_sentence, below). Needs
+    #: sentence_end_token_ids.
+    arguments_within_sentence: bool = False
 
     def __post_init__(self) -> None:
         if len(self.weight) != len(FEATURES) or not all(
@@ -337,6 +341,7 @@ class ArgumentAntecedent:
                 {"sentence_end_token_ids": list(self.sentence_end_token_ids)}
                 if self.sentence_end_token_ids else {}
             ),
+            **({"arguments_within_sentence": True} if self.arguments_within_sentence else {}),
         }
 
     @property
@@ -430,6 +435,7 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
         bool(value.get("own_result_is_not_an_input", False)),
         bool(value.get("named_inputs_are_used_by_name", False)),
         tuple(int(token) for token in value.get("sentence_end_token_ids", ())),
+        bool(value.get("arguments_within_sentence", False)),
     )
 
 
@@ -574,9 +580,52 @@ def fit_argument_antecedent(
     )
 
 
+def argument_sentences(
+    argument_antecedent: Any, source_token_ids: Sequence[int] | None, input_spans: Sequence[TokenSpan]
+) -> tuple[int, ...]:
+    """Where the request's sentences start, when the readout bounds arguments by them."""
+    if (
+        not argument_antecedent
+        or not getattr(argument_antecedent, "arguments_within_sentence", False)
+        or not argument_antecedent.sentence_end_token_ids
+        or source_token_ids is None
+    ):
+        return ()
+    return sentence_starts(source_token_ids, argument_antecedent.sentence_end_token_ids, input_spans)
+
+
+def within_sentence(
+    by_operation: Sequence[tuple[tuple[TokenSpan, float], ...]],
+    operation_nodes: Sequence[Any],
+    sentences: Sequence[int],
+) -> tuple[tuple[tuple[TokenSpan, float], ...], ...]:
+    """Drop each operation's options that start before its sentence or the operation before it.
+
+    scalar_branch_weave_five-0-0: "Build the primary path by add intake flow
+    and return flow" took "turbine reserve = 6283", from the declarations two
+    sentences earlier, as its second argument, and the subtraction took
+    return flow's literal "83651". Every input literal is offered to every
+    operation, and the first operation's clause began at token 0. Across
+    train, validation, test and both composition bundles (1,860 requests) no
+    annotated argument starts before its operation's sentence or the
+    operation before it; 96 nominal_nested arguments come after the clause,
+    and those are kept.
+    """
+    ordered = sorted(range(len(operation_nodes)), key=lambda index: operation_nodes[index].span.start)
+    bounded = list(by_operation)
+    for position, index in enumerate(ordered):
+        span = operation_nodes[index].span
+        previous = operation_nodes[ordered[position - 1]].span.end if position else 0
+        sentence = max((start for start in sentences if start <= span.start), default=0)
+        floor = max(previous, sentence)
+        bounded[index] = tuple(item for item in by_operation[index] if item[0].start >= floor)
+    return tuple(bounded)
+
+
 __all__ = [
     "ANTECEDENT_SCHEMA",
     "ArgumentAntecedent",
+    "argument_sentences",
     "antecedent_features",
     "antecedent_training_rows",
     "argument_antecedent_from_dict",
@@ -584,6 +633,7 @@ __all__ = [
     "register_stretches",
     "sentence_end_token_ids",
     "sentence_starts",
+    "within_sentence",
 ]
 
 
