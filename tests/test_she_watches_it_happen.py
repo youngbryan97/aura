@@ -95,7 +95,9 @@ def test_her_own_acts_are_not_things_going_on():
 
 def test_she_waits_while_it_plays_and_not_after(monkeypatch):
     monkeypatch.setattr(watching_it_happen, "SCENE_ENDS_AFTER_S", 0.5)
-    pictures = iter([_picture(_BUTTON, (0.1 * (n % 5), 0.1, 0.1 * (n % 5) + 0.1, 0.2)) for n in range(10)] + [_picture(_BUTTON)] * 1000)
+    # A scene: one line, a pause, the next line, a pause, then still.
+    lines = [(0.1, 0.1, 0.4, 0.2), (0.5, 0.1, 0.9, 0.2), (0.1, 0.3, 0.4, 0.4)]
+    pictures = iter([_picture(_BUTTON, *lines[: 1 + n // 8]) for n in range(24)] + [_picture(_BUTTON, *lines)] * 1000)
 
     async def take():
         return next(pictures)
@@ -103,7 +105,7 @@ def test_she_waits_while_it_plays_and_not_after(monkeypatch):
     async def scene() -> float:
         watching = Watching(take=take, per_second=20.0)
         watching.start()
-        await asyncio.sleep(0.3)
+        await asyncio.sleep(0.55)  # past the first line of the scene
         said = []
         watched = await watching.watch(at_most_s=5.0, tell=said.append)
         later = await watching.watch(at_most_s=5.0)
@@ -124,3 +126,11 @@ def test_a_scenes_lines_are_read_not_pressed_and_its_answer_is_believed():
     assert "COMING TO LIFE" in what_it_says(seen, drawn_where=(0, 0, 1, 1))
     assert it_was_answered(True, {"answered": True}) and it_was_answered(True, {})
     assert not it_was_answered(True, {"answered": False}) and not it_was_answered(False, {"answered": True})
+
+
+def test_a_world_in_motion_is_played_not_waited_for():
+    """A ball moving every frame is a game to play; waiting it out would give the game its points."""
+    now = time.monotonic()
+    frames = [(now - 3.0 + n / 8, _picture(_BUTTON, (0.05 * (n % 18), 0.5, 0.05 * (n % 18) + 0.04, 0.55))) for n in range(24)]
+    watching = _stream(frames)
+    assert watching.in_motion(now) and not watching.playing_on_its_own(now)

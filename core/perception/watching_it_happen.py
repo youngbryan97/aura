@@ -63,6 +63,11 @@ ANSWERS_WITHIN_S = 2.0
 #: all the time, and is part of the picture.
 ALWAYS = 0.6
 
+#: Over how long, and in what share of its frames, a picture changing by
+#: itself is a world in motion (a game being played) rather than a scene.
+IN_MOTION_OVER_S = 2.0
+IN_MOTION = 0.6
+
 #: How long a stretch with no change of its own ends a scene, and the longest
 #: she watches one before acting anyway.
 SCENE_ENDS_AFTER_S = 4.0
@@ -163,9 +168,23 @@ class Watching:
         return any((m.cells & ~busy).any() or m.share > 0.5 for m in after)
 
     def playing_on_its_own(self, now: float | None = None) -> bool:
-        """Whether something is going on by itself: a change of its own in the last few seconds."""
+        """Whether a scene is playing by itself: changes of its own in the last few seconds, in bursts with stillness between.
+
+        Not a game in motion: a ball that moves every frame is something to
+        play, not a scene to wait out, and waiting would give the game its
+        points (``in_motion``).
+        """
         now = time.monotonic() if now is None else now
-        return bool(self._of_its_own(now - SCENE_ENDS_AFTER_S))
+        return bool(self._of_its_own(now - SCENE_ENDS_AFTER_S)) and not self.in_motion(now)
+
+    def in_motion(self, now: float | None = None) -> bool:
+        """Whether the picture is changing by itself in most of its frames of late: a world moving, not a scene stepping."""
+        now = time.monotonic() if now is None else now
+        recent = [m for m in self.moments if m.at >= now - IN_MOTION_OVER_S]
+        if len(recent) < 4:
+            return False
+        moving = len(self._of_its_own(now - IN_MOTION_OVER_S))
+        return moving >= IN_MOTION * len(recent)
 
     def keeps_changing_on_its_own(self, box: tuple[float, float, float, float], since_s: float = 20.0) -> bool:
         """Whether the part ``box`` (left, top, width, height as shares) has changed by itself more than once lately."""
