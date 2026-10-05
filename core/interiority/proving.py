@@ -523,15 +523,32 @@ def ablation_report(
     arbitrating with a fixed generator, so a delta of zero means the
     faculty changed nothing rather than that a quantum failed to release.
     """
+    from core.interiority import arbitration
+
+    results: list[AblationResult] = []
+    everything = list(faculties or registry().all())
+    # Measured against the tendencies this report's own runs produce, not the
+    # process's: the vocabulary is global and grows with every arbitration,
+    # so the same report read differently after other work, and a calibration
+    # sweep that ran one parameter after another saw orderings move that no
+    # parameter had moved (2026-10-05). Put back afterwards.
+    seen_before = set(arbitration._TENDENCIES_SEEN)
+    arbitration._TENDENCIES_SEEN.clear()
+    try:
+        _ablate_each(everything, results)
+    finally:
+        arbitration._TENDENCIES_SEEN.clear()
+        arbitration._TENDENCIES_SEEN.update(seen_before)
+    return results
+
+
+def _ablate_each(everything: list[Faculty], results: list[AblationResult]) -> None:
     import random
 
     from core.interiority.arbitration import arbitrate
     from core.interiority.cleft import SynapticCleft
     from core.interiority.core_affect import core_affect
     from core.interiority.receptors import ReceptorBank
-
-    results: list[AblationResult] = []
-    everything = list(faculties or registry().all())
 
     for target in everything:
         frame = activating_frame(target)
@@ -579,7 +596,6 @@ def ablation_report(
                 unheld=tuple(sorted(held_before - held_after)),
             )
         )
-    return results
 
 
 def summary() -> dict[str, Any]:

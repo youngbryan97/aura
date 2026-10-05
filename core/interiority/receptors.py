@@ -190,39 +190,58 @@ class Receptor:
         coupled = max(0.0, self.surface * (1.0 - self.phosphorylated))
         return max(_MIN_GAIN.value, min(_MAX_GAIN.value, coupled * self.scale))
 
-    def transduce(self, signal: float, dt: float | None = None) -> float:
-        """Pass a signal through the channel and advance its adaptation."""
+    def transduce(
+        self, signal: float, dt: float | None = None, *, exposure: float | None = None
+    ) -> float:
+        """Pass a signal through the channel and advance its adaptation.
+
+        ``exposure`` is what the channel carried over the elapsed ``dt``, and
+        ``signal`` is what arrives now. For a released transmitter they
+        differ: cleared at four per second, a release is gone within a
+        quarter of a second, and adapting as though the new release had been
+        there for the whole interval (up to 60 s between interior ticks) took
+        a channel to the gain floor in one step. LIVE 2026-10-04: f16_neat and
+        f27_pursuit_gait were fully internalised after two ticks in 72 s, and
+        interiority.worst_tolerance read 0.95. Without ``exposure`` the signal
+        stands for the interval. The first-order arms are integrated exactly,
+        so no interval, however long, overshoots to a clamp.
+        """
         now = time.time()
         if dt is None:
             dt = max(0.0, min(60.0, now - self.last_step))
         self.last_step = now
+        if dt > 0.0:
+            self._adapt(self.occupancy(signal if exposure is None else exposure), dt)
+        return max(0.0, self.occupancy(signal) * self.gain())
 
-        occupancy = self.occupancy(signal)
-        out = occupancy * self.gain()
-
-        # Fast arm: occupancy drives phosphorylation, which decays back.
-        d_phos = (
-            _K_PHOS.value * occupancy * (1.0 - self.phosphorylated)
-            - _K_DEPHOS.value * self.phosphorylated
+    def _adapt(self, occupancy: float, dt: float) -> None:
+        """Advance both arms and the scaling over ``dt`` with ``occupancy`` held."""
+        # Fast arm: dP/dt = k_phos * o * (1 - P) - k_dephos * P.
+        rate = _K_PHOS.value * occupancy + _K_DEPHOS.value
+        start = self.phosphorylated
+        settled = _K_PHOS.value * occupancy / rate if rate > 0.0 else start
+        decay = math.exp(-rate * dt)
+        self.phosphorylated = max(0.0, min(1.0, settled + (start - settled) * decay))
+        mean_phosphorylated = (
+            settled + (start - settled) * (1.0 - decay) / (rate * dt) if rate > 0.0 else start
         )
-        self.phosphorylated = max(0.0, min(1.0, self.phosphorylated + d_phos * dt))
 
-        # Slow arm: uncoupled receptors internalise; internalised recycle.
-        d_int = (
-            _K_INTERNALISE.value * self.phosphorylated * self.surface
-            - _K_RECYCLE.value * self.internalised
-        )
-        self.internalised = max(0.0, min(1.0, self.internalised + d_int * dt))
+        # Slow arm, driven by the fast arm's mean over the interval:
+        # dI/dt = k_int * P * (1 - I) - k_recycle * I.
+        rate = _K_INTERNALISE.value * mean_phosphorylated + _K_RECYCLE.value
+        start = self.internalised
+        settled = _K_INTERNALISE.value * mean_phosphorylated / rate if rate > 0.0 else start
+        self.internalised = max(0.0, min(1.0, settled + (start - settled) * math.exp(-rate * dt)))
         self.surface = max(_MIN_GAIN.value, min(1.0, 1.0 - self.internalised))
 
         # Homeostatic scaling toward the target activity. Multiplicative,
         # so two inputs that differed by a factor still do afterwards.
-        self.activity += (out - self.activity) * min(1.0, dt * 0.1)
+        carried = occupancy * self.gain()
+        self.activity += (carried - self.activity) * (1.0 - math.exp(-0.1 * dt))
         error = _TARGET_ACTIVITY.value - self.activity
         self.scale = max(
-            _MIN_GAIN.value, min(_MAX_GAIN.value, self.scale * (1.0 + _SCALING_RATE.value * error * dt))
+            _MIN_GAIN.value, min(_MAX_GAIN.value, self.scale * math.exp(_SCALING_RATE.value * error * dt))
         )
-        return max(0.0, out)
 
     def withdrawal(self) -> float:
         """How far below its adapted set point this channel currently sits.
@@ -279,10 +298,12 @@ class ReceptorBank:
                 self._receptors[channel] = r
             return r
 
-    def transduce(self, channel: str, signal: float, dt: float | None = None) -> float:
+    def transduce(
+        self, channel: str, signal: float, dt: float | None = None, *, exposure: float | None = None
+    ) -> float:
         with self._lock:
             self._passes += 1
-            return self.receptor(channel).transduce(signal, dt)
+            return self.receptor(channel).transduce(signal, dt, exposure=exposure)
 
     def idle(self, channels: tuple[str, ...], dt: float | None = None) -> None:
         """Advance channels that received nothing this tick.

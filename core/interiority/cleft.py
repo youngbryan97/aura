@@ -131,6 +131,14 @@ _FACILITATION_TAU = _p(
 )
 
 
+def _carried_over(concentration: float, step: float) -> float:
+    """Mean concentration in the gap over ``step`` while it clears at the clearance rate."""
+    rate = _CLEARANCE.value * step
+    if rate <= 0.0:
+        return concentration
+    return concentration * (1.0 - math.exp(-rate)) / rate
+
+
 @dataclass
 class _Terminal:
     """One channel's presynaptic side."""
@@ -239,7 +247,10 @@ class SynapticCleft:
             step = dt if dt is not None else max(0.0, min(60.0, now - terminal.last_step))
             terminal.last_step = now
 
-            # Clear what is already in the gap before adding to it.
+            # Clear what is already in the gap before adding to it. What the
+            # receptor carried over the step is that clearing concentration,
+            # not the release about to be added.
+            exposure = _carried_over(terminal.concentration, step)
             terminal.concentration *= math.exp(-_CLEARANCE.value * step)
             terminal.facilitation *= math.exp(-step / _FACILITATION_TAU.value)
 
@@ -267,7 +278,9 @@ class SynapticCleft:
                     spill[neighbour] = amount
 
             modulator = self._modulators.get(channel, 1.0)
-            post = self._bank.transduce(channel, terminal.concentration * modulator, step)
+            post = self._bank.transduce(
+                channel, terminal.concentration * modulator, step, exposure=exposure * modulator
+            )
 
             return Transmission(
                 channel=channel,
@@ -289,9 +302,12 @@ class SynapticCleft:
             now = time.time()
             step = dt if dt is not None else max(0.0, min(60.0, now - terminal.last_step))
             terminal.last_step = now
+            exposure = _carried_over(terminal.concentration, step)
             terminal.concentration *= math.exp(-_CLEARANCE.value * step)
             modulator = self._modulators.get(channel, 1.0)
-            return self._bank.transduce(channel, terminal.concentration * modulator, step)
+            return self._bank.transduce(
+                channel, terminal.concentration * modulator, step, exposure=exposure * modulator
+            )
 
     def reliability(self, channel: str) -> float:
         with self._lock:
