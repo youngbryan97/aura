@@ -172,10 +172,13 @@ def publish(state: Any, *, faculties: int, declines: int) -> None:
                 event_id=getattr(state, "event_id", "unknown"),
             )
         for faculty in state.failed_to_cross:
+            # What tried to cross. The transmitted strength of a state that
+            # released nothing is 0 by definition, so every one of these read
+            # "activated at 0.0" (LIVE, f27_pursuit_gait, 37 in one log).
             emit_event(
                 "interiority.state_failed_to_cross",
                 faculty=faculty,
-                intensity=round(state.transmitted.get(faculty, 0.0), 4),
+                intensity=round(getattr(state, "intended", {}).get(faculty, 0.0), 4),
             )
         for constraint in state.hard_constraints:
             emit_event(

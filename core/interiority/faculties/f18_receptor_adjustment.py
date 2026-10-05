@@ -69,7 +69,13 @@ class ReceptorAdjustment(Faculty):
 
     def compute(self, ctx: FacultyContext) -> Activation:
         bank = ctx.receptors()
-        gains = bank.gains()
+        # Every channel but its own. Its report passes through the bank like
+        # every faculty's, so reading its own channel fed its tolerance back
+        # into its intensity: once anything adapted it fired, its channel
+        # desensitized under the firing, and it reported that, at 0.95, for
+        # the life of the process. LIVE 2026-10-04 its channel was the only
+        # one red on interiority.worst_tolerance, every boot since 23 September.
+        gains = {name: gain for name, gain in bank.gains().items() if name != self.id}
         if not gains:
             return Activation(
                 faculty=self.id,
@@ -77,7 +83,7 @@ class ReceptorAdjustment(Faculty):
                 declined="no channel has carried a signal yet",
             )
 
-        snapshot = bank.snapshot()["channels"]
+        snapshot = {name: state for name, state in bank.snapshot()["channels"].items() if name != self.id}
         tolerances = {k: v["tolerance"] for k, v in snapshot.items()}
         withdrawals = {k: v["withdrawal"] for k, v in snapshot.items()}
 

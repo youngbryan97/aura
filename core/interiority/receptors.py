@@ -176,8 +176,6 @@ class Receptor:
     #: Running activity estimate that scaling drives toward the target.
     activity: float = _TARGET_ACTIVITY.value
     last_step: float = field(default_factory=lambda: time.time())
-    #: Peak gain reached, for the withdrawal calculation.
-    _peak_scale: float = 1.0
 
     def occupancy(self, signal: float) -> float:
         """Hill occupancy for a normalised input."""
@@ -224,7 +222,6 @@ class Receptor:
         self.scale = max(
             _MIN_GAIN.value, min(_MAX_GAIN.value, self.scale * (1.0 + _SCALING_RATE.value * error * dt))
         )
-        self._peak_scale = max(self._peak_scale, self.scale)
         return max(0.0, out)
 
     def withdrawal(self) -> float:
@@ -234,13 +231,19 @@ class Receptor:
         stopped: the gain is now wrong in the direction of deficit. This
         is the same quantity as missing something, and several faculties
         read it rather than modelling absence separately.
+
+        What the channel adapted to a signal is measured by the receptors it
+        internalised under it, the slow arm that outlasts the stimulus. Gain
+        raised by a long silence is supersensitivity, not something missed:
+        counted with a floor of half the deficit, it gave every channel that
+        had never carried a signal a withdrawal near 0.5 (LIVE 2026-10-04,
+        f16_neat 0.516 and f27_pursuit_gait 0.544 with nothing internalised).
         """
         expected = self.activity
         if expected >= _TARGET_ACTIVITY.value:
             return 0.0
         deficit = (_TARGET_ACTIVITY.value - expected) / max(1e-6, _TARGET_ACTIVITY.value)
-        adapted = max(0.0, self._peak_scale - 1.0) + self.internalised
-        return max(0.0, min(1.0, deficit * (0.5 + 0.5 * min(1.0, adapted))))
+        return max(0.0, min(1.0, deficit * min(1.0, self.internalised)))
 
     def tolerance(self) -> float:
         """How much of this channel's original gain has been adapted away."""

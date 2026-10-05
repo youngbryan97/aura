@@ -86,6 +86,8 @@ class Arbitrated:
     #: The event this state was appraised from, so a later outcome can be
     #: attributed back to the faculties that fired on it.
     event_id: str = ""
+    #: Per-faculty intensity before transmission: what tried to cross.
+    intended: Mapping[str, float] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -177,6 +179,7 @@ def arbitrate(
     retention: dict[str, RetentionClaim] = {}
     tendencies: Counter[str] = Counter()
     transmitted: dict[str, float] = {}
+    intended: dict[str, float] = {}
     failed: list[str] = []
     declines: dict[str, str] = {}
 
@@ -193,6 +196,7 @@ def arbitrate(
         crossing = medium.release(activation.faculty, activation.intensity, dt)
         strength = crossing.postsynaptic
         transmitted[activation.faculty] = strength
+        intended[activation.faculty] = activation.intensity
         if crossing.quanta_attempted > 0 and crossing.quanta_released == 0:
             failed.append(activation.faculty)
 
@@ -254,6 +258,7 @@ def arbitrate(
         failed_to_cross=tuple(failed),
         declines=declines,
         event_id=event_id,
+        intended=intended,
     )
 
 
