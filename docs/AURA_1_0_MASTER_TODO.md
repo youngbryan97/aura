@@ -2866,8 +2866,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   for learning promotion; measure retention, forgetting, and regression.
 - [ ] L04 Integrate reusable learned abstractions across RLC and Claude's
   generality/improvement work; test actual consumers and transfer.
-- [ ] L05 Verify unified access to model knowledge, offline Wikipedia, web,
+- [x] L05 Verify unified access to model knowledge, offline Wikipedia, web,
   retained memory, provenance, freshness, and uncertainty across turns.
+  CLOSED 2026-10-05. [Knowledge across
+  turns](evidence/L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md): every turn typed
+  into her chat. One turn reads her own knowledge, the offline Wikipedia copy
+  (labelled "as of 2026-07-03"), the web, and what her searches kept (labelled
+  with the date read and the page), each as its own source; a search she kept
+  answers the same question after a restart without going online. Asked how
+  sure she was of a detail, she went back to the page the answer came from,
+  kept what it said and named the rest as half-remembered. Since 5 October a
+  dated claim is read against the whole of the turn's sources before the
+  reply goes out, and an opinion is not sent to research. Ten defects
+  found on the way are listed there with their commits. Not shown: claims
+  without a year are not checked, and the check has not yet met a live
+  disagreement since its two fixes.
 - [ ] L06 Close action outcome, selfhood reinforcement, prediction resolution,
   and CRSM feedback edges where advertised; measure what actually updates.
   PARTIAL 2026-09-07. The action-outcome edge now fires. `IntentionLoop.revise`
