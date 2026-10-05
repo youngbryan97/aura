@@ -69,6 +69,7 @@ def what_to_do_with_it(asked: str) -> str:
 
 async def use_what_she_built(page: Path, task: str, asked: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Do ``task`` with the program at ``page`` through her browser pursuit, keeping what it exports where ``asked`` says."""
+    from core.capabilities.where_downloads_go import _default as downloads_go_to_default
     from core.capabilities.where_downloads_go import downloads_go_to, kept_downloads
     from core.container import ServiceContainer
 
@@ -76,6 +77,15 @@ async def use_what_she_built(page: Path, task: str, asked: str, context: dict[st
     if engine is None or not hasattr(engine, "execute"):
         return {"ok": False, "error": "no capability engine to drive her browser", "files": []}
     folder = the_folder_named_in(asked)
+    # Writing something and keeping it is done with the program's own controls by code
+    # (core/rebuilding/using_it_by_its_controls.py); her browser pursuit is for the rest.
+    from core.rebuilding.her_model import ask_her_model, patiently
+    from core.rebuilding.using_it_by_its_controls import write_it_in
+
+    used = await write_it_in(page, task, folder or downloads_go_to_default(), patiently(ask_her_model))
+    if used is not None:
+        return {"ok": used.ok, "files": [str(f) for f in used.files], "report": {"summary": used.summary(), "error": used.why_not},
+                "folder": str(folder or "")}
     since = len(kept_downloads())
     child = {k: v for k, v in dict(context or {}).items() if k not in _THE_TURN_S_OWN}
     goal = f"{task}. Do it in the program open on this page, with its own controls, as a person using it would."
