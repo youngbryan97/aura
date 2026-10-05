@@ -758,6 +758,45 @@ ABOVE_EVERYTHING = 20
 
 
 
+async def _set_out(
+    *, goal: str, target_app: str, move_keys: Any, narrate: bool, ends_at: float
+) -> tuple[Any, Any]:
+    """Everything before her first look, as (early response, display hold).
+
+    The early response is ``_SEAM_FELL_THROUGH`` when the pursuit goes on.
+    """
+    # A walk to something in a world seen through a camera is its own loop.
+    from core.runtime.watched_goal import a_trip_asked_for
+
+    if target_app and a_trip_asked_for(goal):
+        from core.skills.in_a_world_through_a_camera import a_trip_for_the_pursuit
+
+        return await a_trip_for_the_pursuit(
+            a_trip_asked_for(goal), target_app, move_keys,
+            tell=_tell if narrate else None, within_s=max(1.0, ends_at - time.monotonic()),
+        ), None
+    # How far she could see is a fact about this run, not the last one.
+    from core.agency.looking_ahead import forget_how_far_she_saw
+
+    forget_how_far_she_saw()
+    # The display stays awake from here, not from the first keystroke.
+    #
+    # Between being asked and getting to the thing there is finding it,
+    # bringing it forward and waiting for whatever is in the way — minutes,
+    # in which nobody has touched the machine and its idle timer runs out
+    # under her (live, 2026-09-18, twice).
+    awake_from_here = None
+    awake_from_here = _keep_the_screen_awake(
+        awake_from_here=awake_from_here,
+        target_app=target_app,
+    )
+    return await _wait_for_a_screen_or_stop(
+        awake_from_here=awake_from_here,
+        ends_at=ends_at,
+        target_app=target_app,
+    ), awake_from_here
+
+
 async def pursue_on_screen(
     *,
     goal: str,
@@ -830,35 +869,8 @@ async def pursue_on_screen(
     began = time.monotonic()
     ends_at = min(began + float(max_seconds), float(deadline_at) if deadline_at > 0.0 else math.inf)
     MOVES_SAID.set({"at": 0.0, "line": ""})
-    # A walk to something in a world seen through a camera is its own loop.
-    from core.runtime.watched_goal import a_trip_asked_for
-
-    if target_app and a_trip_asked_for(goal):
-        from core.skills.in_a_world_through_a_camera import a_trip_for_the_pursuit
-
-        return await a_trip_for_the_pursuit(
-            a_trip_asked_for(goal), target_app, move_keys,
-            tell=_tell if narrate else None, within_s=max(1.0, ends_at - time.monotonic()),
-        )
-    # How far she could see is a fact about this run, not the last one.
-    from core.agency.looking_ahead import forget_how_far_she_saw
-
-    forget_how_far_she_saw()
-    # The display stays awake from here, not from the first keystroke.
-    #
-    # Between being asked and getting to the thing there is finding it,
-    # bringing it forward and waiting for whatever is in the way — minutes,
-    # in which nobody has touched the machine and its idle timer runs out
-    # under her (live, 2026-09-18, twice).
-    awake_from_here = None
-    awake_from_here = _keep_the_screen_awake(
-        awake_from_here=awake_from_here,
-        target_app=target_app,
-    )
-    _seam_early_response = await _wait_for_a_screen_or_stop(
-        awake_from_here=awake_from_here,
-        ends_at=ends_at,
-        target_app=target_app,
+    _seam_early_response, awake_from_here = await _set_out(
+        goal=goal, target_app=target_app, move_keys=move_keys, narrate=narrate, ends_at=ends_at,
     )
     if _seam_early_response is not _SEAM_FELL_THROUGH:
         return _seam_early_response
@@ -1032,12 +1044,9 @@ async def pursue_on_screen(
         Where the hand-over brought reflexes, what moves on its own is played
         as it happens first, and this look is of the screen that play ends on.
         """
-        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+        from .screen_pursuit_as_it_happens import looked_at_as_it_happens
 
-        reflexes = AS_IT_HAPPENS.get()
-        if reflexes is not None:
-            await reflexes.while_it_moves()
-        seen = await observe_the_screen(
+        return await looked_at_as_it_happens(lambda: observe_the_screen(
             SimpleNamespace(
                 anchor=anchor,
                 at_rest=at_rest,
@@ -1049,18 +1058,12 @@ async def pursue_on_screen(
                 reading_took=reading_took,
                 target_app=target_app,
             ),
-        )
-        if reflexes is not None:
-            reflexes.read(seen)
-        return seen
+        ))
 
     def satisfied(observation: dict[str, Any]) -> bool:
-        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+        from .screen_pursuit_as_it_happens import a_handed_over_run_is_over
 
-        # A run played and over is the end of a hand-over: what comes after
-        # it belongs to whoever handed it over.
-        reflexes = AS_IT_HAPPENS.get()
-        if reflexes is not None and reflexes.run_is_over(observation):
+        if a_handed_over_run_is_over(observation):
             return True
         # A layout is met on the board, which the decision reads and says.
         if pending.get("the_layout_is_made"):

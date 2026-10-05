@@ -1503,6 +1503,64 @@ def _antecedent_readings(
     return antecedents, antecedents.inputs_used_by_name(mentions)
 
 
+def _best_two_assignments(
+    states: Sequence[Any],
+    *,
+    inputs: Sequence[SemanticValue],
+    model: CompositionalSemanticProgramTransducer,
+    operation_nodes: Sequence[_OperationNode],
+) -> _TypedArgumentAssignment | None:
+    """The best complete assignment in execution order, carrying the runner-up's score."""
+    valid: list[_TypedArgumentAssignment] = []
+    for score, arguments, spans, dependencies in states:
+        order = _operation_order(
+            dependencies,
+            operation_nodes,
+            require_connected=True,
+        )
+        if order is None:
+            continue
+        referenced = {dependency for values in dependencies for dependency in values}
+        sink = next(index for index in range(len(operation_nodes)) if index not in referenced)
+        use_counts = Counter(register for values in arguments for register in values)
+        if not model.register_use_contract.accepts_complete(
+            use_counts,
+            n_inputs=len(inputs),
+            operation_count=len(operation_nodes),
+            sink=sink,
+        ):
+            continue
+        output_registers = {
+            source_index: len(inputs) + target_index
+            for target_index, source_index in enumerate(order)
+        }
+        ordered_arguments = tuple(
+            tuple(
+                register if register < len(inputs) else output_registers[register - len(inputs)]
+                for register in arguments[source_index]
+            )
+            for source_index in order
+        )
+        valid.append(
+            _TypedArgumentAssignment(
+                operation_nodes=tuple(operation_nodes[index] for index in order),
+                arguments=ordered_arguments,
+                argument_spans=tuple(spans[index] for index in order),
+                score=score,
+                runner_up_score=None,
+            )
+        )
+        if len(valid) == 2:
+            break
+    if not valid:
+        return None
+    winner = valid[0]
+    return replace(
+        winner,
+        runner_up_score=valid[1].score if len(valid) > 1 else None,
+    )
+
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1867,54 +1925,7 @@ def _assign_typed_arguments(
             binding_chart_solver(chart, operation_nodes=operation_nodes, input_spans=input_spans, inputs=inputs,
                                  source_id=source_text_sha256, time_limit_s=remaining))
         states = [optimized] if optimized is not None else []
-    valid: list[_TypedArgumentAssignment] = []
-    for score, arguments, spans, dependencies in states:
-        order = _operation_order(
-            dependencies,
-            operation_nodes,
-            require_connected=True,
-        )
-        if order is None:
-            continue
-        referenced = {dependency for values in dependencies for dependency in values}
-        sink = next(index for index in range(len(operation_nodes)) if index not in referenced)
-        use_counts = Counter(register for values in arguments for register in values)
-        if not model.register_use_contract.accepts_complete(
-            use_counts,
-            n_inputs=len(inputs),
-            operation_count=len(operation_nodes),
-            sink=sink,
-        ):
-            continue
-        output_registers = {
-            source_index: len(inputs) + target_index
-            for target_index, source_index in enumerate(order)
-        }
-        ordered_arguments = tuple(
-            tuple(
-                register if register < len(inputs) else output_registers[register - len(inputs)]
-                for register in arguments[source_index]
-            )
-            for source_index in order
-        )
-        valid.append(
-            _TypedArgumentAssignment(
-                operation_nodes=tuple(operation_nodes[index] for index in order),
-                arguments=ordered_arguments,
-                argument_spans=tuple(spans[index] for index in order),
-                score=score,
-                runner_up_score=None,
-            )
-        )
-        if len(valid) == 2:
-            break
-    if not valid:
-        return None
-    winner = valid[0]
-    return replace(
-        winner,
-        runner_up_score=valid[1].score if len(valid) > 1 else None,
-    )
+    return _best_two_assignments(states, inputs=inputs, model=model, operation_nodes=operation_nodes)
 
 
 def _operation_order(

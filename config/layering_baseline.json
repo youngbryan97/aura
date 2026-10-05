@@ -1,6 +1,6 @@
 {
   "description": "Grandfathered layering violations. This list may only SHRINK: tools/check_layering.py fails on any violation not listed here, and refuses to add new entries.",
-  "count": 37,
+  "count": 36,
   "grandfathered": [
     "core/runtime/action_executor.py::core.brain.preaction_cortex",
     "core/runtime/action_executor.py::core.self_modification.safe_modification_harness",
@@ -36,7 +36,6 @@
     "core/runtime/proposal_governance.py::core.goals.standing_objective",
     "core/runtime/self_healing.py::core.self_improvement.reimplementation_lab",
     "core/runtime/self_repair_ladder.py::core.self_modification.mutation_safety",
-    "core/runtime/service_access.py::core.brain.llm.mlx_client",
     "core/runtime/service_access.py::core.social.dialogue_cognition",
     "core/runtime/service_access.py::core.social.social_imagination"
   ]

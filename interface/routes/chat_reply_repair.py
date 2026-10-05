@@ -441,6 +441,83 @@ def _assessment_or_none(user_message: str, reply: str, recent_user_messages: Any
         return None
 
 
+def _what_to_serve_of_the_cleaned_reply(
+    user_message: str,
+    cleaned: str,
+    *,
+    valid_cleaned: bool,
+    recent_user_messages: Any,
+    needs_self_expression: bool,
+    requires_first_person_anchor: bool,
+) -> str:
+    """The sanitized reply if it passes every check, what she finished of it
+    if only its last sentence is cut off, or "" when neither holds."""
+    from .chat import _has_unexpected_cjk, _is_objective_parrot_reply
+
+    cleaned_generic, _cleaned_reason = _looks_generic_assistantish(user_message, cleaned)
+    cleaned_objective_parrot = _is_objective_parrot_reply(user_message, cleaned)
+    cleaned_lacks_self_anchor = (
+        needs_self_expression or requires_first_person_anchor
+    ) and not _has_first_person_anchor(cleaned)
+    cleaned_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(
+        cleaned
+    )
+    cleaned_unexpected_cjk = _has_unexpected_cjk(user_message, cleaned)
+    cleaned_off_topic, _cleaned_off_topic_reason = _evaluate_reply_topicality(
+        user_message,
+        cleaned,
+        recent_user_messages=recent_user_messages,
+    )
+    cleaned_stale_repeat = _is_actionably_stale_response(user_message, cleaned)
+    cleaned_same_diff = _is_same_answer_different_prompt(user_message, cleaned)
+    cleaned_truncated_tail = _chat_desktop_repair._looks_truncated_tail(cleaned)
+    cleaned_semantic_glitch, _cleaned_semantic_reason = _looks_semantically_glitched(
+        user_message, cleaned
+    )
+    cleaned_assessment = _assessment_or_none(
+        user_message, cleaned, recent_user_messages
+    )
+    if (
+        valid_cleaned
+        and not cleaned_generic
+        and not cleaned_objective_parrot
+        and not cleaned_lacks_self_anchor
+        and not cleaned_lacks_live_grounding
+        and not cleaned_unexpected_cjk
+        and not cleaned_off_topic
+        and not cleaned_stale_repeat
+        and not cleaned_same_diff
+        and not cleaned_truncated_tail
+        and not cleaned_semantic_glitch
+        and not _reply_assessment_requires_repair(cleaned_assessment)
+        and len(cleaned) >= 16
+    ):
+        return cleaned
+    if cleaned_truncated_tail and valid_cleaned and not any((
+        cleaned_generic, cleaned_objective_parrot, cleaned_lacks_self_anchor,
+        cleaned_lacks_live_grounding, cleaned_unexpected_cjk, cleaned_off_topic,
+        cleaned_stale_repeat, cleaned_same_diff,
+        cleaned_semantic_glitch and _cleaned_semantic_reason != "truncated_tail",
+    )):
+        # Only the last sentence is unfinished: serve what she finished,
+        # held to the same checks, rather than a regenerated reply.
+        finished = _chat_desktop_repair._up_to_its_last_finished_sentence(cleaned)
+        if (
+            len(finished) >= 16
+            and not _chat_desktop_repair._looks_truncated_tail(finished)
+            and not _looks_semantically_glitched(user_message, finished)[0]
+            and not _reply_assessment_requires_repair(
+                _assessment_or_none(user_message, finished, recent_user_messages)
+            )
+        ):
+            logger.info(
+                "Served her answer up to its last finished sentence (%d of %d chars).",
+                len(finished), len(cleaned),
+            )
+            return finished
+    return ""
+
+
 async def _stabilize_user_facing_reply(
     user_message: str,
     reply_text: Any,
@@ -742,67 +819,14 @@ async def _stabilize_user_facing_reply(
             valid_cleaned, _reason, _score = gate.validate_output(
                 cleaned, enforce_supervision=False
             )
-            cleaned_generic, _cleaned_reason = _looks_generic_assistantish(user_message, cleaned)
-            cleaned_objective_parrot = _is_objective_parrot_reply(user_message, cleaned)
-            cleaned_lacks_self_anchor = (
-                needs_self_expression or requires_first_person_anchor
-            ) and not _has_first_person_anchor(cleaned)
-            cleaned_lacks_live_grounding = needs_self_expression and not _has_live_aura_grounding(
-                cleaned
-            )
-            cleaned_unexpected_cjk = _has_unexpected_cjk(user_message, cleaned)
-            cleaned_off_topic, _cleaned_off_topic_reason = _evaluate_reply_topicality(
-                user_message,
-                cleaned,
+            served = _what_to_serve_of_the_cleaned_reply(
+                user_message, cleaned, valid_cleaned=valid_cleaned,
                 recent_user_messages=recent_user_messages,
+                needs_self_expression=needs_self_expression,
+                requires_first_person_anchor=requires_first_person_anchor,
             )
-            cleaned_stale_repeat = _is_actionably_stale_response(user_message, cleaned)
-            cleaned_same_diff = _is_same_answer_different_prompt(user_message, cleaned)
-            cleaned_truncated_tail = _chat_desktop_repair._looks_truncated_tail(cleaned)
-            cleaned_semantic_glitch, _cleaned_semantic_reason = _looks_semantically_glitched(
-                user_message, cleaned
-            )
-            cleaned_assessment = _assessment_or_none(
-                user_message, cleaned, recent_user_messages
-            )
-            if (
-                valid_cleaned
-                and not cleaned_generic
-                and not cleaned_objective_parrot
-                and not cleaned_lacks_self_anchor
-                and not cleaned_lacks_live_grounding
-                and not cleaned_unexpected_cjk
-                and not cleaned_off_topic
-                and not cleaned_stale_repeat
-                and not cleaned_same_diff
-                and not cleaned_truncated_tail
-                and not cleaned_semantic_glitch
-                and not _reply_assessment_requires_repair(cleaned_assessment)
-                and len(cleaned) >= 16
-            ):
-                return cleaned
-            if cleaned_truncated_tail and valid_cleaned and not any((
-                cleaned_generic, cleaned_objective_parrot, cleaned_lacks_self_anchor,
-                cleaned_lacks_live_grounding, cleaned_unexpected_cjk, cleaned_off_topic,
-                cleaned_stale_repeat, cleaned_same_diff,
-                cleaned_semantic_glitch and _cleaned_semantic_reason != "truncated_tail",
-            )):
-                # Only the last sentence is unfinished: serve what she finished,
-                # held to the same checks, rather than a regenerated reply.
-                finished = _chat_desktop_repair._up_to_its_last_finished_sentence(cleaned)
-                if (
-                    len(finished) >= 16
-                    and not _chat_desktop_repair._looks_truncated_tail(finished)
-                    and not _looks_semantically_glitched(user_message, finished)[0]
-                    and not _reply_assessment_requires_repair(
-                        _assessment_or_none(user_message, finished, recent_user_messages)
-                    )
-                ):
-                    logger.info(
-                        "Served her answer up to its last finished sentence (%d of %d chars).",
-                        len(finished), len(cleaned),
-                    )
-                    return finished
+            if served:
+                return served
             if internal_state_leak:
                 logger.warning(
                     "Blocked internal state leak in user-facing reply (len=%d).", len(text)

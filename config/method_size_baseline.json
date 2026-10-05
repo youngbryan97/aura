@@ -1,7 +1,7 @@
 {
   "threshold_lines": 400,
   "tracked": 58,
-  "total_lines": 54810,
+  "total_lines": 54697,
   "functions": {
     "core/brain/cognitive_engine_quick_reply.py::_AnswersTheDesktopDirectly._direct_desktop_quick_reply": {
       "lines": 765,
@@ -104,8 +104,8 @@
       "returns": 44
     },
     "core/brain/llm/mlx_worker.py::_mlx_worker_loop": {
-      "lines": 3976,
-      "complexity": 521,
+      "lines": 3961,
+      "complexity": 515,
       "returns": 13
     },
     "core/brain/llm_health_router_endpoint_call.py::_CallsTheEndpoint._call_endpoint": {
@@ -249,8 +249,8 @@
       "returns": 11
     },
     "core/skills/screen_pursuit.py::pursue_on_screen": {
-      "lines": 897,
-      "complexity": 99,
+      "lines": 879,
+      "complexity": 97,
       "returns": 14
     },
     "core/skills/screen_pursuit_decision.py::decide_the_next_move": {
@@ -264,13 +264,13 @@
       "returns": 1
     },
     "interface/routes/chat.py::_api_chat_turn": {
-      "lines": 3994,
-      "complexity": 597,
+      "lines": 3966,
+      "complexity": 592,
       "returns": 108
     },
     "interface/routes/chat.py::_run_cognitive_engine_chat_turn": {
-      "lines": 2792,
-      "complexity": 454,
+      "lines": 2771,
+      "complexity": 453,
       "returns": 83
     },
     "interface/routes/chat_delivery.py::_paired_chat_response_boundary": {
@@ -279,8 +279,8 @@
       "returns": 12
     },
     "interface/routes/chat_reply_repair.py::_stabilize_user_facing_reply": {
-      "lines": 646,
-      "complexity": 165,
+      "lines": 615,
+      "complexity": 150,
       "returns": 27
     },
     "interface/routes/chat_turn_contract.py::_build_live_turn_contract_payload": {

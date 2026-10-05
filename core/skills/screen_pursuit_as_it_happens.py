@@ -28,7 +28,7 @@ from typing import Any
 
 logger = logging.getLogger("Aura.ScreenPursuit.AsItHappens")
 
-__all__ = ["AS_IT_HAPPENS", "PlayingAsItHappens"]
+__all__ = ["AS_IT_HAPPENS", "PlayingAsItHappens", "a_handed_over_run_is_over", "looked_at_as_it_happens"]
 
 #: How long the reflexes leave a moving screen alone after finding nothing on
 #: it that answers to her: a title screen that animates is not a game yet.
@@ -318,3 +318,24 @@ def _getting_somewhere(said: str) -> None:
 AS_IT_HAPPENS: contextvars.ContextVar[PlayingAsItHappens | None] = contextvars.ContextVar(
     "aura_playing_as_it_happens", default=None
 )
+
+
+async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
+    """``await look()``, with the hand-over's reflexes around it when there are any.
+
+    What moves on its own is played first, and the look is of the screen that
+    play ends on; the reflexes then read what the look saw.
+    """
+    reflexes = AS_IT_HAPPENS.get()
+    if reflexes is not None:
+        await reflexes.while_it_moves()
+    seen = await look()
+    if reflexes is not None:
+        reflexes.read(seen)
+    return seen
+
+
+def a_handed_over_run_is_over(observation: dict[str, Any]) -> bool:
+    """A run played and over ends a hand-over; what follows belongs to whoever handed it over."""
+    reflexes = AS_IT_HAPPENS.get()
+    return reflexes is not None and reflexes.run_is_over(observation)
