@@ -302,8 +302,12 @@ class RunawayDetector:
             return self._verdict(
                 RunawayState.RUNAWAY, slope_per_hour, len(samples), window,
                 net_change, mitigations_in_window, projected,
-                f"growing {slope_per_hour:.1f}/h — projected to breach ceiling "
-                f"{self.policy.ceiling:.0f} in {projected / 60:.0f}min",
+                # The rate the projection used. LIVE 2026-10-05 this printed the
+                # whole-window 25245.4/h beside a projection made from a recent
+                # tail near 3,500/h, and read as a leak eight times its size.
+                f"growing {recent_slope:.1f}/h now ({slope_per_hour:.1f}/h across the "
+                f"window) — projected to breach ceiling {self.policy.ceiling:.0f} in "
+                f"{projected / 60:.0f}min",
             )
 
         if not still_growing:
