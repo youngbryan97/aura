@@ -8590,9 +8590,13 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
         deep_probe_request = False
         try:
+            from core.conversation.session_scope import the_persons_own_words
             from core.runtime.turn_analysis import looks_like_deep_mind_probe
 
-            deep_probe_request = looks_like_deep_mind_probe(prompt)
+            # The person's words, not the prompt built around them: LIVE
+            # 2026-10-05 a repair request's prompt carried a history of talk
+            # about her mind, read as a probe of it, and its tools were taken away.
+            deep_probe_request = looks_like_deep_mind_probe(the_persons_own_words(prompt))
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
             logger.debug("Deep-probe classifier unavailable, not treating it as one: %s", exc)
             deep_probe_request = False

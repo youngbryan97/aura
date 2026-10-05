@@ -313,9 +313,23 @@ _LEFT_OPEN: list[Any] = []
 
 
 async def _open_for_the_person(path: Path) -> str:
-    """The rebuilt program opened in a window of her browser, left open for the person to use."""
+    """The program installed as a Mac application and opened; else opened in a window of her browser."""
     if path.suffix.lower() not in (".html", ".htm"):
         return ""  # code is used by calling it, not by looking at it
+    try:
+        import json as _json
+        import subprocess
+
+        from core.rebuilding.as_a_mac_app import as_a_mac_app
+
+        kept = path.parent / "program.json"
+        made = _json.loads(kept.read_text("utf-8")) if kept.exists() else {}
+        name = str(made.get("title") or path.parent.name.replace("-", " ").title())
+        app = await asyncio.to_thread(as_a_mac_app, path, name, accent=str(made.get("accent") or ""))
+        await asyncio.to_thread(subprocess.run, ["open", str(app)], check=False, timeout=30)
+        return f"It is installed as an application, {app}, and I opened it for you."
+    except Exception as why:  # noqa: BLE001 - no application here: the page still opens in her browser
+        logger.info("the program could not be made an application: %s", why)
     try:
         from core.capabilities.phantom_browser import PhantomBrowser
 
