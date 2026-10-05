@@ -38,8 +38,15 @@ async def checked_reply(
     recent_user_messages: list[str],
     grounding: list[str],
     antecedent: str,
+    mark: Callable[..., None] | None = None,
 ) -> tuple[str, str, Any]:
-    """The reply, the text assessed, and its assessment, after both checks."""
+    """The reply, the text assessed, and its assessment, after both checks.
+
+    ``mark`` records on the turn's trace that the reply served is the repair
+    retry's. The full-mind proof accepts two foreground generations under that
+    path and no other; LIVE 2026-10-05 a clean retry was refused as
+    duplicate_foreground_model_generation and the person got the apology.
+    """
     from core.conversation.response_reliability import (
         assess_user_facing_reply,
         numeric_answer_missing,
@@ -73,6 +80,8 @@ async def checked_reply(
 
     revised = await _against_its_sources(visible, text, retry)
     if revised:
+        if mark is not None:
+            mark(cognitive_engine_reply_accepted=True, response_path="cognitive_engine_repair_retry")
         return revised, revised, assess(revised)
     return text, assessment_text, assessment
 

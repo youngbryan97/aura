@@ -128,3 +128,27 @@ def test_a_draft_its_sources_agree_with_is_not_asked_again(judge, monkeypatch):
 
     agreeing = "It opened on December 31, 1999. FTX Arena dates from March 2021."
     assert asyncio.run(chat_reply_checks._against_its_sources("When did it open?", agreeing, retry)) is None
+
+
+def test_a_revised_reply_is_marked_as_the_repair_retrys(judge, monkeypatch):
+    """LIVE 2026-10-05: a clean retry served under the plain path was refused as a duplicate generation."""
+    from core.conversation import response_reliability, turn_evidence_custody
+    from interface.routes import chat_reply_checks
+
+    monkeypatch.setattr(turn_evidence_custody, "turn_world_sources", lambda: (PAGE,))
+    monkeypatch.setattr(turn_evidence_custody, "record_turn_world_evidence", lambda text: True)
+    monkeypatch.setattr(turn_evidence_custody, "record_turn_grounding", lambda text: True)
+    monkeypatch.setattr(response_reliability, "numeric_answer_missing", lambda question, reply: False)
+    monkeypatch.setattr(response_reliability, "assess_user_facing_reply", lambda *args, **kwargs: "assessed")
+    marks: list[dict] = []
+
+    async def retry(draft, reasons):
+        return "FTX bought the naming rights in March 2021."
+
+    text, _assessed_text, assessment = asyncio.run(chat_reply_checks.checked_reply(
+        "When did the Kaseya Center open?", REPLY, REPLY, "first", retry=retry,
+        recent_user_messages=[], grounding=[], antecedent="", mark=lambda **fields: marks.append(fields),
+    ))
+
+    assert text == "FTX bought the naming rights in March 2021." and assessment == "assessed"
+    assert marks == [{"cognitive_engine_reply_accepted": True, "response_path": "cognitive_engine_repair_retry"}]

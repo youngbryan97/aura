@@ -4816,7 +4816,7 @@ async def _run_cognitive_engine_chat_turn(
         text, assessment_text, assessment = await _chat_reply_checks.checked_reply(
             visible, text, assessment_text, assessment, retry=_attempt_repair_retry,
             recent_user_messages=recent_user_messages, grounding=route_assessment_grounding,
-            antecedent=route_assessment_antecedent,
+            antecedent=route_assessment_antecedent, mark=_mark_turn_trace,
         )
         if (
             require_engine
