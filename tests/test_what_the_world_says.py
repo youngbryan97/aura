@@ -479,3 +479,40 @@ def test_the_grammar_reads_a_question_about_her_grounds() -> None:
         assert asks_about_grounds(question) is True, question
     for other in ("What is the source of the Nile?", "Where did you grow up?", "Are you sure you want to delete it?"):
         assert asks_about_grounds(other) is not True, other
+
+
+def test_a_question_asking_her_view_is_not_sent_to_research(judge, monkeypatch) -> None:
+    """Bryan, 5 October: an opinion is a subjective view, not a research question."""
+    from core.cognition import evidence_relevance as relevance
+
+    monkeypatch.setattr(relevance, "matched_alignment_median", lambda: 0.78)
+    asked: list[str] = []
+
+    async def search(query):
+        asked.append(query)
+        return []
+
+    view = "Which was better, Bam's 83 point game or Kobe's 81 point game?"
+    evidence = asyncio.run(gather_world_evidence(view, store=_Corpus(), search=search))
+    assert asked == [], "her view went to the web"
+    assert {source.title for source in evidence.sources} >= {"Bam Adebayo's 83-point game"}, (
+        "what the offline copy holds is still offered"
+    )
+    # An instruction to look wins over the reading.
+    asyncio.run(gather_world_evidence("Look up Bam's 83 point game and tell me what you think", store=_Corpus(), search=search))
+    assert asked
+
+
+def test_the_grammar_reads_a_question_asking_her_view() -> None:
+    from core.language.her_view import asks_for_her_view
+
+    for question in (
+        "Which was better, Bam's 83 point game or Kobe's 81 point game?",
+        "What do you think of the Kaseya Center as an arena?",
+        "Who's the greatest Miami Heat player ever?",
+        "What's your take on LeBron leaving Miami?",
+        "Is Bam overrated?",
+    ):
+        assert asks_for_her_view(question) is True, question
+    for question in ("When did the Kaseya Center open?", "Which is bigger, Texas or Alaska?", "Who won the game last night?"):
+        assert asks_for_her_view(question) is not True, question

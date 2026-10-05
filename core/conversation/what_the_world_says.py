@@ -391,6 +391,19 @@ def _from_corpus(
     return candidates
 
 
+def _asks_her_view(question: str) -> bool:
+    """A question asking for her view is not a research question.
+
+    Bryan, 5 October: an opinion is a subjective view, though evidence can
+    support it. What the offline copy holds is still offered when it bears on
+    the question; the web is reached only when she is asked to look, or when
+    the question is about something current.
+    """
+    from core.language.her_view import asks_for_her_view
+
+    return asks_for_her_view(question) is True
+
+
 def _answers_only_in_part(question: str, local: Sequence[WorldSource]) -> bool:
     """A factual question about a named thing that the offline copy leaves open.
 
@@ -484,7 +497,9 @@ async def gather_world_evidence(
     )
     evidence.sources.extend(local[:3])
 
-    if search is not None and (asked_for or (outside_wanted and not local) or _answers_only_in_part(question, local)):
+    if search is not None and (
+        asked_for or (outside_wanted and not local) or (not _asks_her_view(question) and _answers_only_in_part(question, local))
+    ):
         query = asked_for or question
         try:
             results = await asyncio.wait_for(search(query), timeout=remaining())

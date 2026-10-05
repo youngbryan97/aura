@@ -1117,6 +1117,14 @@ async def _what_the_world_says_for_the_turn(
 
     turn_began = time.time()
     should_collect, _query, contract = _should_collect_desktop_required_search_evidence(user_message)
+    # Her view is not research (core/language/her_view.py): the contract's
+    # search stands down unless sources were asked for. Something current
+    # still reaches outside below, and so does an instruction to look.
+    from core.conversation.asks_about_the_world import asks_for_sources
+    from core.language.her_view import asks_for_her_view
+
+    if should_collect and asks_for_her_view(user_message) is True and not asks_for_sources(user_message):
+        should_collect = False
     try:
         from core.conversation.asks_about_the_world import wants_outside_evidence
 
