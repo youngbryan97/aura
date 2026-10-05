@@ -135,13 +135,15 @@ from .screen_pursuit_surface import (
 
 
 
-def _first_what_goes_on(telling: dict[str, float]) -> dict[str, float]:
+def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, float]:
     """A menu is read before it is pressed: a click on a label that goes on (Play, Next) before one on a
-    label to read (Score), and keys as they were."""
+    label to read (Score), and keys as they were; and on a screen she has been on before, what led on from it then."""
     from core.agency.what_i_can_do_here import what_is_clicked
     from core.language.a_way_on import how_much_it_leads_on
 
-    return {name: value * (how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0) for name, value in (telling or {}).items()}
+    leads = getattr(getattr(can_do, "leads", None), "how_it_led", lambda _act: 1.0)
+    return {name: value * leads(name) * (how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
+            for name, value in (telling or {}).items()}
 
 
 def _the_layout_is_made(success_when: str, knows: Any, laid_out: Any) -> bool:
@@ -1269,7 +1271,7 @@ async def decide_the_next_move(
         #
         # It goes to nought by itself as the evidence rules them out, so
         # there is nothing to turn off.
-        telling = _first_what_goes_on(worth_finding_out(
+        telling = _first_what_goes_on(can_do, worth_finding_out(
             knows.rules,
             laid_out,
             [option.name for option in available],

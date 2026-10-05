@@ -34,6 +34,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Sequence
 
+from core.agency.where_things_lead import WhereThingsLead
+
 __all__ = [
     "COMMITS_TO_NOTHING",
     "ENOUGH_TO_JUDGE",
@@ -152,12 +154,14 @@ class WhatWorksHere:
     #: What she has done since the screen last answered anything, all of it to
     #: no effect: the screen in front of her has not been moved by any of it.
     quiet_since: set[str] = field(default_factory=set)
+    #: The screens of this place and where each act on them led, across sittings.
+    leads: WhereThingsLead = field(default_factory=WhereThingsLead)
 
     def asked_for_by(self, words: str) -> None:
         """Keys the screen's own words ask her to press, while it is asking."""
         self.asked_for = keys_a_screen_asks_for(words)
 
-    def looked_at(self, clickable: Sequence[str]) -> None:
+    def looked_at(self, clickable: Sequence[str], says: str = "") -> None:
         """What she can click now: the writing that was there at the last look too.
 
         A control stays where it is; a readout changes. LIVE 2026-10-03 04:49,
@@ -168,6 +172,7 @@ class WhatWorksHere:
         now = tuple(clickable)
         self.on_screen = tuple(label for label in now if label in self.seen_before)
         self.seen_before = now
+        self.leads.looked(now, says)
 
     # ── finding out ──────────────────────────────────────────────────────
 
@@ -177,6 +182,7 @@ class WhatWorksHere:
         name = name if what_is_clicked(name) is not None else name.lower()
         if not name:
             return
+        self.leads.acted(name, changed)
         if changed:
             self.quiet_since.clear()
             self.did_something[name] = self.did_something.get(name, 0) + 1
@@ -222,6 +228,10 @@ class WhatWorksHere:
         return tuple(key for key in worth_trying(self.told) if key not in seen)
 
     def available(self) -> tuple[str, ...]:
+        """What to offer her now, what led on from this screen before first (`core.agency.where_things_lead`)."""
+        return self.leads.in_order(self._available())
+
+    def _available(self) -> tuple[str, ...]:
         """What to offer her now.
 
         What she was told, minus anything that has proved inert, plus
@@ -284,6 +294,7 @@ class WhatWorksHere:
             "told": list(self.told),
             "did_something": dict(self.did_something),
             "did_nothing": dict(self.did_nothing),
+            "leads": self.leads.as_memory(),
         }
 
     @classmethod
@@ -310,4 +321,5 @@ class WhatWorksHere:
             told=named or tuple(str(key) for key in (held.get("told") or ())),
             did_something=counts(held.get("did_something")),
             did_nothing=counts(held.get("did_nothing")),
+            leads=WhereThingsLead.from_memory(held.get("leads")),
         )

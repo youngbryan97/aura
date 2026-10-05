@@ -814,9 +814,8 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     from .screen_pursuit import _tell
     from .screen_pursuit_bearings import things_to_click, what_it_says
 
-    clickable = things_to_click(observation, drawn_where)
-    can_do.looked_at(clickable)
-    says, paced = what_it_says(observation, drawn_where), MOVES_SAID.get()
+    clickable, says, paced = things_to_click(observation, drawn_where), what_it_says(observation, drawn_where), MOVES_SAID.get()
+    can_do.looked_at(clickable, says)
     if hasattr(can_do, "asked_for_by"):
         from core.agency.what_i_can_do_here import what_is_clicked
 
