@@ -102,3 +102,42 @@ def test_playing_is_asked_for_in_other_words_too():
     assert _asks_to_play("get it working and win a round")
     assert _asks_to_play("fix it then have a go against the AI")
     assert not _asks_to_play("fix the typo in it")
+
+
+def test_a_reading_that_lands_on_the_reply_itself_asks_for_no_tool(engine, monkeypatch):
+    """LIVE 2026-10-05: a word problem was read as needing native_chat, called with no message,
+    and "No message provided." was served as her answer."""
+    from core.brain.her_reading_of_a_request import her_reading
+    from core.container import ServiceContainer
+    from core.skills.native_chat import NativeChatSkill
+
+    skills = ServiceContainer.get("capability_engine").skills
+    skills["native_chat"] = SimpleNamespace(
+        description="Conversational engine with robust dependency resolution.", enabled=True,
+        trigger_patterns=[], skill_class=NativeChatSkill,
+    )
+    _reads(monkeypatch, ["native_chat"])
+    asked = "Two trains start 300 km apart and run toward each other; how far does the bird fly?"
+
+    required, ceiling, _scopes = asyncio.run(her_reading(asked, [], "sandboxed_compute", frozenset()))
+
+    assert required == [] and ceiling == "sandboxed_compute"
+
+
+def test_the_reply_itself_is_not_in_the_catalogue_her_model_reads():
+    from core.intent.what_her_model_reads_it_needs import capabilities_her_model_reads
+    from core.skills.native_chat import NativeChatSkill
+
+    seen: list[str] = []
+
+    async def ask(prompt):
+        seen.append(prompt)
+        return SimpleNamespace(capabilities=[])
+
+    skills = {
+        "native_chat": SimpleNamespace(description="Conversational engine.", enabled=True, skill_class=NativeChatSkill),
+        "file_operation": SimpleNamespace(description="Read, write, list or delete a file on disk.", enabled=True),
+    }
+    asyncio.run(capabilities_her_model_reads("open the notes file", skills, ask=ask))
+
+    assert "file_operation" in seen[0] and "native_chat" not in seen[0]

@@ -139,6 +139,12 @@ class NativeChatSkill(BaseSkill):
 
     name = "native_chat"
     description = "Conversational engine with robust dependency resolution."
+    #: This skill is the reply in words, not a capability a reply calls. LIVE
+    #: 2026-10-05 a reading of what a request needs chose it for a word
+    #: problem, the hand-off called it with no message, and "No message
+    #: provided." was served as her answer
+    #: (core/intent/what_her_model_reads_it_needs.py).
+    answers_in_words = True
     aliases = ["chat", "talk"]
     inputs = {"message": "User input to respond to."}
 

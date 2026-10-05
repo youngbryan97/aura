@@ -72,6 +72,11 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
     # meanings (core/intent/capability_by_meaning.py), measured, not guessed.
     meant = await asyncio.to_thread(meant_capability, text, skills)
     read = [meant] if meant else await capabilities_her_model_reads(text, skills, ask=_asking(client))
+    # A reading that lands on the reply in words asks for no tool: the turn is
+    # answered in words (LIVE 2026-10-05, native_chat called with no message).
+    from core.intent.what_her_model_reads_it_needs import answers_in_words
+
+    read = [name for name in read if not answers_in_words(skills.get(name))]
     if not read:
         return required, ceiling, scopes
     logger.info("🔧 Tool handoff: the words left it open; %s needs %s.", "its meaning" if meant else "her reading", ", ".join(read))

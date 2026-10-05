@@ -48,6 +48,11 @@ def worth_reading(text: str) -> bool:
     return bool(acts & set(re.findall(r"[a-z]+", str(text or "").lower())))
 
 
+def answers_in_words(meta: Any) -> bool:
+    """Whether a skill is the reply in words itself (native_chat), which a reading never hands off to."""
+    return bool(getattr(getattr(meta, "skill_class", None), "answers_in_words", False))
+
+
 def _first_sentence(description: str) -> str:
     said = " ".join(str(description or "").split())
     return re.split(r"(?<=[.:;])\s", said, maxsplit=1)[0][:180]
@@ -63,7 +68,7 @@ async def capabilities_her_model_reads(
     catalogue = {
         name: _first_sentence(getattr(meta, "description", "") or "")
         for name, meta in skills.items()
-        if getattr(meta, "enabled", True) and getattr(meta, "description", "")
+        if getattr(meta, "enabled", True) and getattr(meta, "description", "") and not answers_in_words(meta)
     }
     if not catalogue:
         return []
