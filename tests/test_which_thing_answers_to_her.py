@@ -125,3 +125,28 @@ def test_a_thing_that_keeps_pace_with_the_pointer_far_from_it_does_not_follow_it
         thing.x, thing.seen = 200.0 - x * 0.9 + (x - 80) * 1.9, at
         hers.saw(moves, [], at)
     assert not hers.follows_pointer
+
+
+def test_one_key_wrongly_believed_does_not_disown_her_thing():
+    """LIVE 2026-10-05: 'left' was believed to move her paddle; while she held
+    it the paddle did not move, she disowned her own paddle and played the
+    computer's for a game."""
+    mine, other = _Thing(1, 0), _Thing(3, 0)
+    other.x = 400.0
+    moves = _Moves([mine, other])
+    hers = WhichIsHers()
+    at = 0.0
+    for _ in range(60):
+        hers._hers.add("left", 0.0, -120.0)  # the wrong belief
+    for step in range(400):
+        key = ("up", "down", "left", "left", "left")[(step // 10) % 5]
+        hers.holding(key, at, trying=True)
+        at += 0.03
+        mine.vy = {"up": -120.0, "down": 120.0}.get(key, 0.0)
+        mine.y = min(400.0, max(10.0, mine.y + mine.vy * 0.03))
+        other.vy = 90.0 if (step // 4) % 2 else -90.0
+        other.y = min(400.0, max(10.0, other.y + other.vy * 0.03))
+        for thing in (mine, other):
+            thing.seen = at
+        hers.saw(moves, [], at)
+    assert hers.number == 1 and 1 not in hers.not_mine

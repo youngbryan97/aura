@@ -60,6 +60,10 @@ MADE_EVERY = 0.3
 #: key's way before it is taken not to be hers: about a second.
 ANSWERING_OVER = 40
 
+#: How much better another thing must answer her keys before it, and not the
+#: one that has been answering them, is taken to be hers.
+SWITCH_OVER = 2.0
+
 
 @dataclass
 class Makes:
@@ -238,7 +242,7 @@ class WhichIsHers:
         self.not_mine: set[int] = set()
         self.lost_at = -math.inf
         self.last_shape: tuple[float, float] | None = None
-        self._answered: list[float] = []
+        self._answered: dict[str, list[float]] = {}
         self._answered_by: int | None = None
         self._expecting: dict[str, tuple[float, float]] = {}
 
@@ -391,19 +395,25 @@ class WhichIsHers:
         # its own pictures go into what she knows of her keys, and a thing
         # that never moves would soon teach her that no key moves her.
         if self._answered_by != thing.number:
-            self._answered, self._answered_by, self._expecting = [], thing.number, {}
+            self._answered, self._answered_by, self._expecting = {}, thing.number, {}
         way = self._expecting.get(key) or self._hers.typical(key)
         if way is None:
             return
         self._expecting[key] = way
         if math.hypot(*way) <= REALLY_MOVES or self._pinned_toward(thing, way):
             return
-        self._answered.append((thing.vx * way[0] + thing.vy * way[1]) / (way[0] ** 2 + way[1] ** 2))
-        del self._answered[:-ANSWERING_OVER]
-        if len(self._answered) == ANSWERING_OVER and statistics.median(self._answered) < 0.2:
+        heard = self._answered.setdefault(key, [])
+        heard.append((thing.vx * way[0] + thing.vy * way[1]) / (way[0] ** 2 + way[1] ** 2))
+        del heard[:-ANSWERING_OVER]
+        # Judged key by key: a thing none of her keys moves is not hers, but one
+        # key taken wrongly for hers is not every key. LIVE 2026-10-05 "left"
+        # was believed to move her paddle; holding it moved nothing, and she
+        # disowned her own paddle and played the computer's.
+        judged = [statistics.median(v) for v in self._answered.values() if len(v) >= 3]
+        if sum(map(len, self._answered.values())) >= ANSWERING_OVER and judged and all(m < 0.2 for m in judged):
             self.not_mine.add(thing.number)
             self.number, self.lost_at = None, at
-            self._answered = []
+            self._answered = {}
             self.lowest, self.highest = [math.inf, math.inf], [-math.inf, -math.inf]
 
     def _pinned_toward(self, thing: Any, way: tuple[float, float]) -> bool:
@@ -437,7 +447,7 @@ class WhichIsHers:
         self.number, self._sighted = None, None
         for kept in (self._by_thing, self._followed, self.not_mine):
             kept.clear()
-        self._since_believed, self._answered, self._answered_by = [], [], None
+        self._since_believed, self._answered, self._answered_by = [], {}, None
 
     def saw(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
         if any(h.get("what") == "new screen" for h in happened):
@@ -471,6 +481,14 @@ class WhichIsHers:
             f, widest = speeds.ratio()
             if f > best_f and widest > REALLY_MOVES:
                 best, best_f = number, f
+        # Hers stays hers while it answers: LIVE 2026-10-05 the computer's paddle,
+        # chasing the ball while she tried left and right (which move nothing),
+        # answered a little better for a moment and she played as it for a game.
+        current = self._by_thing.get(self.number) if self.number in moves.things else None
+        if best is not None and current is not None and best != self.number:
+            held_f = current.ratio()[0]
+            if held_f > ANSWERS and best_f < SWITCH_OVER * held_f:
+                best = self.number
         if best is not None:
             if best != self.number:
                 for key, values in self._by_thing[best].by_key.items():
