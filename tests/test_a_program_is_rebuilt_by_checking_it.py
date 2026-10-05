@@ -107,3 +107,47 @@ def test_the_kind_of_program_is_read_from_how_its_article_opens():
     assert _its_kind("Microsoft Word, or simply Word, is a word processing program developed by Microsoft.", "Microsoft Word") == "word processor"
     assert _its_kind("Google Docs is an online word processor and part of the free suite.", "Google Docs") == "word processor"
     assert _its_kind("Microsoft Excel is a spreadsheet editor developed by Microsoft.", "Microsoft Excel") == "spreadsheet editor"
+
+
+_ITALIC = 'app.command({label: "Italic", icon: "I", group: "Font", run: () => document.execCommand("italic")});'
+
+
+class _ChangeScript(_Script):
+    """Asked for a change, says it adds Italic; and writes Italic as it should be, or as `breaking` says."""
+
+    def __init__(self, breaking: bool = False) -> None:
+        super().__init__()
+        self.breaking = breaking
+
+    async def __call__(self, prompt, schema, max_tokens):
+        if schema.__name__ == "_TheChange":
+            return schema.model_validate({"features": [{"name": "Italic", "how": "select text, press Italic", "shows": "italic text"}]})
+        if schema.__name__ == "_Checks" and "The person asks" not in prompt and '"Italic"' not in prompt and "- Italic:" in prompt and "- Bold" not in prompt:
+            return schema.model_validate({"checks": [_ITALIC_CHECK.model_dump()]})
+        if schema is WrittenPart and '"Italic"' in prompt and "Bold" not in prompt.split("Features already in the program:")[0]:
+            return WrittenPart(code=_BREAKS if self.breaking else _ITALIC)
+        return await super().__call__(prompt, schema, max_tokens)
+
+
+@pytest.mark.asyncio
+async def test_a_change_is_kept_when_it_works_and_breaks_nothing(tmp_path):
+    from core.rebuilding.changing_what_was_built import change_it
+
+    done = await rebuild("Writer", _Script(), tmp_path, corpus=_NoCorpus(), online=False)
+    folder = done.built.path.parent
+    changed = await change_it(folder, "add italic", _ChangeScript())
+    assert [o.kept for o in changed.outcomes] == [True], changed.summary()
+    page = (folder / "index.html").read_text()
+    assert 'execCommand("italic")' in page and 'execCommand("bold")' in page
+    assert (folder / "index.before-change.html").exists()
+
+
+@pytest.mark.asyncio
+async def test_a_change_that_breaks_what_worked_is_not_kept(tmp_path):
+    from core.rebuilding.changing_what_was_built import change_it
+
+    done = await rebuild("Writer", _Script(), tmp_path, corpus=_NoCorpus(), online=False)
+    folder = done.built.path.parent
+    changed = await change_it(folder, "add italic", _ChangeScript(breaking=True))
+    assert [o.kept for o in changed.outcomes] == [False]
+    assert "replaceChildren" not in (folder / "program.json").read_text()

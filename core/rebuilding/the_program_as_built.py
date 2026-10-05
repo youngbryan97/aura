@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import html
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 __all__ = ["Part", "ProgramAsBuilt"]
@@ -53,8 +53,23 @@ class ProgramAsBuilt:
 
     def with_part(self, part: Part) -> ProgramAsBuilt:
         """This program with ``part`` added, or put in place of the part of that name."""
-        kept = [p for p in self.parts if p.name != part.name]
-        return ProgramAsBuilt(self.title, self.document, self.accent, self.style, [*kept, part])
+        if any(p.name == part.name for p in self.parts):
+            parts = [part if p.name == part.name else p for p in self.parts]
+        else:
+            parts = [*self.parts, part]
+        return ProgramAsBuilt(self.title, self.document, self.accent, self.style, parts)
+
+    def keep(self, folder: str | Path) -> Path:
+        """Its parts kept beside it, so it can be opened again and changed part by part."""
+        out = Path(folder) / "program.json"
+        out.write_text(json.dumps(asdict(self), indent=1), "utf-8")
+        return out
+
+    @classmethod
+    def kept_in(cls, folder: str | Path) -> ProgramAsBuilt:
+        data = json.loads((Path(folder) / "program.json").read_text("utf-8"))
+        parts = [Part(**p) for p in data.pop("parts", [])]
+        return cls(**data, parts=parts)
 
     def write(self, path: str | Path) -> Path:
         out = Path(path)

@@ -97,8 +97,11 @@ class ProgramDNAReconstructSkill(BaseSkill):
             params = ProgramDNAInput.model_validate(params)
 
         asked = " ".join(str((context or {}).get(key) or "") for key in ("objective", "message", "user_message", "goal")).strip()
-        if not params.target.strip():
-            params.target = await the_program_named_in(asked)
+        # The program the person named, in their words, over the caller's
+        # restatement of it: LIVE 2026-10-05 the target arrived as
+        # "reconstruction of microsoft word" and no article was found for it.
+        named = await the_program_named_in(asked) if asked else ""
+        params.target = named or params.target.strip()
         if not params.target:
             return {"ok": False, "skill": self.name, "error": "no program was named",
                     "summary": "Which program should I reconstruct? I need its name."}
@@ -132,7 +135,7 @@ class ProgramDNAReconstructSkill(BaseSkill):
         if params.analysis_mode == "reconstruct" and not engine._policy_blocks(
             str(params.authorization or "").strip().lower(), f"{asked} {params.target}".lower()
         ):
-            return await _rebuild_it(params, self.name)
+            return await _rebuild_it(params, self.name, asked)
 
         result = await engine.reconstruct(params.model_dump())
         payload = result.to_dict() if hasattr(result, "to_dict") else dict(result)
@@ -265,17 +268,18 @@ async def the_program_named_in(asked: str) -> str:
     return named.program.strip() if isinstance(named, _Named) else ""
 
 
-async def _rebuild_it(params: ProgramDNAInput, skill: str) -> dict[str, Any]:
+async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "") -> dict[str, Any]:
     """Rebuild the program clean-room as a working one, open it where the person can use it, and say what works."""
     from core.rebuilding.her_model import ask_her_model
     from core.rebuilding.rebuilding_a_program import rebuild
+    from core.runtime.payload_values import payload_path
     from core.skills.screen_pursuit import _tell
 
-    named = str(params.output_dir or "").strip()
-    where = await asyncio.to_thread(
-        lambda: Path(named).expanduser() if named else Path(__file__).resolve().parents[2] / "artifacts" / "rebuilt_programs"
-    )
-    rebuilt = await rebuild(params.target, ask_her_model, where, tell=_tell)
+    # Confined to the runtime's own place for built programs, as build_app is:
+    # a folder the caller names is a folder under it, never anywhere on disk.
+    root = await asyncio.to_thread(lambda: (Path(__file__).resolve().parents[2] / "artifacts" / "rebuilt_programs").resolve())
+    where = payload_path({"out_dir": str(params.output_dir or "")}, "out_dir", root=root, default=root)
+    rebuilt = await rebuild(params.target, ask_her_model, where, tell=_tell, asked=asked)
     opened = ""
     if rebuilt.built is not None and rebuilt.built.working():
         opened = await _open_for_the_person(rebuilt.built.path)

@@ -12,6 +12,7 @@ identity/personality system prompt so responses sound like Aura, not a bare LLM.
 Timeouts are kept tight (45s) for conversational responsiveness.
 """
 from .inference_gate_initialization import _GateInitializationMixin
+from .a_typed_answer import judged_by_its_parser
 from .inference_gate_thinking_budget import _ThinkingBudgetMixin
 from .inference_gate_first_attempt import (  # noqa: F401  (re-exported: they were defined here)
     _warm_the_foreground_lane_before_the_first_attempt,
@@ -981,7 +982,6 @@ def admission_permits(
     return True, ""
 
 
-
 def _transition_age_s(client: Any, lane: Mapping[str, Any] | None = None) -> float:
     """How long the lane has held its current state, measured monotonically.
 
@@ -1214,7 +1214,6 @@ def local_deep_solver_enabled(
     )
 
 
-
 def _asks_for_a_document(user_message: Any) -> bool:
     """Whether the reply has to contain a program or a page.
 
@@ -1229,7 +1228,6 @@ def _asks_for_a_document(user_message: Any) -> bool:
     except _INFERENCE_RECOVERABLE_ERRORS as exc:
         logger.debug("Software-request classifier unavailable: %s", exc)
         return False
-
 
 
 async def _apply_strict_proof_answer_contract(
@@ -7977,6 +7975,8 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                         ",".join(integrity.reasons) or "unknown",
                         len(cleaned),
                     )
+                    return self._strip_silence(cleaned)
+                if judged_by_its_parser(kwargs, integrity_reasons):  # core/brain/a_typed_answer.py
                     return self._strip_silence(cleaned)
                 if bool(kwargs.get("internal_inference", False)) and integrity_reasons <= {
                     "truncated_tail"

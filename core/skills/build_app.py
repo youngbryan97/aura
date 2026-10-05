@@ -39,9 +39,10 @@ class BuildAppSkill(BaseSkill):
 
     name = "build_app"
     description = (
-        "Build a real, runnable single-file web app (tool, tracker, or toy) from a natural "
-        "description: plan it, compile it, check every control and view is wired and that its "
-        "logic matches the runtime's own model of it, then write it to disk to open and use."
+        "Build a real, runnable program (an app, a tool, a tracker, a game) to a person's specification: "
+        "say what it must do as features, write the checks a person would make before any code, write it "
+        "part by part keeping each part only when its checks hold, measure and mend how finished it is, "
+        "then open it to use."
     )
     input_model = BuildAppInput
 
@@ -57,10 +58,9 @@ class BuildAppSkill(BaseSkill):
         """
         return True
 
-    # Planning is one short call; the build after it is measured in
-    # milliseconds. The old ceiling was 1500 seconds for a loop that
-    # generated, tested and repaired whole documents.
-    timeout_seconds = 180.0
+    #: Written part by part by her own model and checked as it goes
+    #: (core/rebuilding); a small program takes minutes, a large one an hour.
+    timeout_seconds = 10800.0
     metabolic_cost = 1
     effect_scope = "read_write_artifacts"
     requires_approval = False
@@ -86,6 +86,12 @@ class BuildAppSkill(BaseSkill):
         from core.construction.build_app_system import build_app
         from core.conversation.session_scope import the_persons_own_words
 
+        # Built to the specification by the same engine that rebuilds a named
+        # program, checked feature by feature; the compiled plan below is what
+        # is left when her model cannot say what the program is to do.
+        built = await _built_to_specification(the_persons_own_words(params.spec), Path(str(out_dir or root)))
+        if built is not None:
+            return built
         # The requirement is what the person asked for; `spec` is the model's
         # restatement of it. Reading a requirement from a paraphrase is how a
         # six-slide request became a three-section deck reported as finished.
@@ -113,6 +119,30 @@ class BuildAppSkill(BaseSkill):
             "result": payload,
             "summary": result.summary(),
         }
+
+
+async def _built_to_specification(asked: str, where: Path) -> dict[str, Any] | None:
+    """The program the person specified, built and checked by core/rebuilding, or None when nothing could be said of it."""
+    from core.rebuilding.her_model import ask_her_model
+    from core.rebuilding.rebuilding_a_program import rebuild
+    from core.skills.program_dna_reconstruct import _open_for_the_person
+    from core.skills.screen_pursuit import _tell
+
+    rebuilt = await rebuild("", ask_her_model, where, tell=_tell, asked=asked)
+    if rebuilt.built is None:
+        return None
+    working = rebuilt.built.working()
+    opened = await _open_for_the_person(rebuilt.built.path) if working else ""
+    return {
+        "ok": bool(working),
+        "skill": "build_app",
+        "spec": asked,
+        "path": str(rebuilt.built.path),
+        "title": rebuilt.genome.name if rebuilt.genome else "",
+        "features": [o.feature.name for o in working],
+        "not_working": [o.feature.name for o in rebuilt.built.outcomes if not o.kept],
+        "summary": rebuilt.summary() + (f" {opened}" if opened else ""),
+    }
 
 
 __all__ = ["BuildAppInput", "BuildAppSkill"]

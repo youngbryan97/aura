@@ -64,6 +64,8 @@ class Rebuilt:
             line += " Working: " + ", ".join(o.feature.name for o in working) + "."
         if missing:
             line += " Not working: " + ", ".join(o.feature.name for o in missing) + "."
+        if self.built.unfinished:
+            line += f" Still unfinished, measured: {'; '.join(self.built.unfinished[:6])}."
         return line
 
 
@@ -111,18 +113,24 @@ async def rebuild(
     online: bool = True,
     browser: Any = None,
     deadline_s: float = 3 * 3600.0,
+    asked: str = "",
 ) -> Rebuilt:
-    """Rebuild ``program`` from what is written about it into ``where``; see the module's account."""
+    """Rebuild ``program`` from what is written about it into ``where``; see the module's account.
+
+    With no program named, what is built is what ``asked`` specifies: the
+    person's words are the only source, and everything after is the same.
+    """
     began = time.monotonic()
     record: list[Path] = []
     ask = _recorded(ask, record)
-    sources = await what_is_written_about(program, corpus=corpus, online=online)
+    sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
     named = [f"{s.title} ({s.where})" for s in sources]
-    await _say(tell, f"Reading about {program}: " + ("; ".join(named) or "nothing written found, so from what I know") + ".")
-    genome = await genome_of(program, sources, ask)
+    if program:
+        await _say(tell, f"Reading about {program}: " + ("; ".join(named) or "nothing written found, so from what I know") + ".")
+    genome = await genome_of(program, sources, ask, asked=asked)
     if genome is None:
-        return Rebuilt(program, None, None, named, time.monotonic() - began, "I could not say what it does")
-    await _say(tell, f"{program} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
+        return Rebuilt(program or "it", None, None, named, time.monotonic() - began, "I could not say what it does")
+    await _say(tell, f"{program or genome.name} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
     folder = Path(where) / _folder_name(genome.name)
     folder.mkdir(parents=True, exist_ok=True)
     record.append(folder / "what_she_asked.jsonl")
@@ -135,8 +143,15 @@ async def rebuild(
     await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")
     left = max(60.0, deadline_s - (time.monotonic() - began))
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left)
+    await asyncio.to_thread(keep_the_record, folder, built)
+    return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
+
+
+def keep_the_record(folder: Path, built: Built) -> None:
+    """What works and what does not, and the program's parts, beside it."""
+    built.program.keep(folder)
     (folder / "what_works.json").write_text(json.dumps([
         {"feature": o.feature.name, "works": o.kept, "checks_held": o.held, "checks": o.of, "tries": o.tries, "why_not": o.why_not}
         for o in built.outcomes
     ], indent=1), "utf-8")
-    return Rebuilt(program, genome, built, named, time.monotonic() - began)
+    (folder / "holding.json").write_text(json.dumps([c.model_dump() for c in built.holding], indent=1), "utf-8")

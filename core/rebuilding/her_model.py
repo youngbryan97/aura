@@ -113,6 +113,8 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
             purpose="rebuilding_a_program",
             is_background=False,
             foreground_request=True,
+            # Read by code, not a reply to anybody: its shape's parser judges it.
+            internal_inference=True,
             max_tokens=int(max_tokens),
             temperature=0.2,
         )

@@ -36,7 +36,7 @@ __all__ = ["Built", "FRAME_API", "WrittenPart", "write_it"]
 TRIES = 3
 
 #: The longest part her model is asked for, in tokens.
-PART_TOKENS = 2400
+PART_TOKENS = 2048
 
 #: What a part plugs into. Shown to her model with every part it writes.
 FRAME_API = """\
@@ -91,6 +91,7 @@ class Built:
     outcomes: list[FeatureOutcome] = field(default_factory=list)
     holding: list[Check] = field(default_factory=list)
     seconds: float = 0.0
+    unfinished: list[str] = field(default_factory=list)
 
     def working(self) -> list[FeatureOutcome]:
         return [o for o in self.outcomes if o.kept]
@@ -118,7 +119,9 @@ def _the_work_area_prompt(genome: Genome, checks: list[Check]) -> str:
     )
 
 
-def _a_feature_prompt(genome: Genome, built: ProgramAsBuilt, feature: Feature, checks: list[Check], wrong: str, before: str) -> str:
+def _a_feature_prompt(
+    genome: Genome, built: ProgramAsBuilt, feature: Feature, checks: list[Check], wrong: str, before: str, *, as_it_is: bool = False,
+) -> str:
     work = next((p for p in built.parts if p.name == "work area"), None)
     others = ", ".join(c for p in built.parts for c in p.serves if p.name != "work area") or "none yet"
     shown = "\n".join(f"- {c.said()}" for c in checks)
@@ -129,7 +132,9 @@ def _a_feature_prompt(genome: Genome, built: ProgramAsBuilt, feature: Feature, c
         f"Features already in the program: {others}.\n\n"
         f"The work-area part already written:\n```js\n{work.code if work else ''}\n```\n\n{FRAME_API}"
     )
-    if wrong:
+    if as_it_is:
+        text += f"\nThis part as it is now, to be changed so it does the above:\n```js\n{before[:6000]}\n```\n"
+    elif wrong:
         text += f"\nYour last version of this part:\n```js\n{before[:5000]}\n```\nDoing the checks with it showed: {wrong}\nWrite it again so the checks pass."
     return text
 
@@ -166,6 +171,59 @@ def _what_went_wrong(runs: list[CheckRun], broke: list[CheckRun], errors: list[s
     return "; ".join(said) or "nothing held"
 
 
+class _Trying:
+    """Putting a candidate program on disk and doing the checks on it: its own, and every one that holds so far."""
+
+    def __init__(self, trial: Path, holding: list[Check], browser: Any) -> None:
+        self.trial, self.holding, self.browser = trial, holding, browser
+
+    async def __call__(self, candidate: ProgramAsBuilt, own: list[Check]) -> tuple[list[CheckRun], list[CheckRun], list[str]]:
+        await asyncio.to_thread(candidate.write, self.trial)
+        runs = await run_checks(self.trial, [*own, *self.holding], browser=self.browser)
+        mine, before = runs[: len(own)], runs[len(own) :]
+        errors = sorted({e for r in runs for e in r.errors})
+        return mine, [r for r in before if not r.held], errors
+
+
+async def write_a_feature(
+    genome: Genome, program: ProgramAsBuilt, feature: Feature, own: list[Check], ask: Asker, tried: _Trying,
+) -> tuple[ProgramAsBuilt, FeatureOutcome, list[Check]]:
+    """One feature's part, written and tried until its checks hold without breaking any that held; the program with it, or as it was."""
+    outcome = FeatureOutcome(feature, of=len(own))
+    if not own:
+        outcome.why_not = "no check could be written for it"
+        return program, outcome, []
+    existing = next((p for p in program.parts if p.name == feature.name), None)
+    wrong, before, best = "", existing.code if existing else "", None
+    for outcome.tries in range(1, TRIES + 1):
+        written = await _write(ask, _a_feature_prompt(genome, program, feature, own, wrong, before, as_it_is=existing is not None and not wrong))
+        if written is None:
+            wrong = "nothing was written"
+            continue
+        before = written.code
+        unparsed = await _does_not_parse(written.code)
+        if unparsed:
+            wrong = f"the code does not parse: {unparsed}"
+            continue
+        candidate = program.with_part(Part(feature.name, written.code, [feature.name]))
+        candidate.style = "\n".join(s for s in (program.style, written.style) if s)
+        mine, broke, errors = await tried(candidate, own)
+        held = [r for r in mine if r.held]
+        if held and not broke and (best is None or len(held) > len(best[1])):
+            best = (candidate, held)
+        if len(held) == len(own) and not broke:
+            break
+        wrong = _what_went_wrong(mine, broke, errors)
+    if best is None:
+        outcome.why_not = wrong
+        logger.info("rebuilding: %s left out: %s", feature.name, wrong[:300])
+        return program, outcome, []
+    program, held = best
+    outcome.kept, outcome.held = True, len(held)
+    logger.info("rebuilding: %s works (%d of %d checks hold)", feature.name, len(held), len(own))
+    return program, outcome, [r.check for r in held]
+
+
 async def write_it(
     genome: Genome,
     checks: list[Check],
@@ -182,15 +240,7 @@ async def write_it(
     holding: list[Check] = []
     outcomes: list[FeatureOutcome] = []
     out = Path(out)
-    trial = out.with_name(out.stem + ".trying.html")
-
-    async def tried(candidate: ProgramAsBuilt, own: list[Check]) -> tuple[list[CheckRun], list[CheckRun], list[str]]:
-        candidate.write(trial)
-        runs = await run_checks(trial, [*own, *holding], browser=browser)
-        mine, before = runs[: len(own)], runs[len(own) :]
-        errors = sorted({e for r in runs for e in r.errors})
-        return mine, [r for r in before if not r.held], errors
-
+    tried = _Trying(out.with_name(out.stem + ".trying.html"), holding, browser)
     await _say(tell, f"Writing the work area of {genome.name}: {genome.work}")
     for attempt in range(TRIES):
         written = await _write(ask, _the_work_area_prompt(genome, checks))
@@ -210,43 +260,17 @@ async def write_it(
         if time.monotonic() - began > deadline_s:
             outcomes.append(FeatureOutcome(feature, why_not="out of time"))
             continue
-        own = [c for c in checks if c.feature == feature.name]
-        outcome = FeatureOutcome(feature, of=len(own))
+        program, outcome, held = await write_a_feature(genome, program, feature, [c for c in checks if c.feature == feature.name], ask, tried)
         outcomes.append(outcome)
-        if not own:
-            outcome.why_not = "no check could be written for it"
-            continue
-        wrong, before, best = "", "", None
-        for outcome.tries in range(1, TRIES + 1):
-            written = await _write(ask, _a_feature_prompt(genome, program, feature, own, wrong, before))
-            if written is None:
-                wrong = "nothing was written"
-                continue
-            before = written.code
-            unparsed = await _does_not_parse(written.code)
-            if unparsed:
-                wrong = f"the code does not parse: {unparsed}"
-                continue
-            candidate = program.with_part(Part(feature.name, written.code, [feature.name]))
-            candidate.style = "\n".join(s for s in (program.style, written.style) if s)
-            mine, broke, errors = await tried(candidate, own)
-            held = [r for r in mine if r.held]
-            if held and not broke and (best is None or len(held) > len(best[1])):
-                best = (candidate, held)
-            if len(held) == len(own) and not broke:
-                break
-            wrong = _what_went_wrong(mine, broke, errors)
-        if best is not None:
-            program, held = best
-            holding.extend(r.check for r in held)
-            outcome.kept, outcome.held = True, len(held)
-            logger.info("rebuilding: %s works (%d of %d checks hold)", feature.name, len(held), len(own))
-        else:
-            outcome.why_not = wrong
-            logger.info("rebuilding: %s left out: %s", feature.name, wrong[:300])
+        holding.extend(held)
         done = len(outcomes)
         if done % 5 == 0 and done < len(genome.features):
             await _say(tell, f"{done} of {len(genome.features)} features written; {sum(o.kept for o in outcomes)} of them work.")
-    program.write(out)
-    trial.unlink(missing_ok=True)
-    return Built(program, out, outcomes, holding, time.monotonic() - began)
+    from core.rebuilding.how_finished_it_is import finishing
+
+    await _say(tell, "Every feature written; now measuring how finished it looks and handles, and mending what is not.")
+    program, unfinished = await finishing(program, holding, ask, tried, out.with_name(out.stem + ".finishing.html"), browser=browser)
+    await asyncio.to_thread(program.write, out)
+    await asyncio.to_thread(tried.trial.unlink, missing_ok=True)
+    left = [*unfinished.found, *(f'using "{d}" changes nothing' for d in unfinished.dead), *unfinished.errors]
+    return Built(program, out, outcomes, holding, time.monotonic() - began, left)

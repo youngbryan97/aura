@@ -37,7 +37,7 @@ SOURCE_CHARS = 14_000
 MOST_FEATURES = 30
 
 #: Features whose checks are written in one ask.
-FEATURES_AT_ONCE = 4
+FEATURES_AT_ONCE = 3
 
 #: Ask her model for typed data: (prompt, schema class, max tokens) -> instance or None.
 Asker = Callable[[str, type[BaseModel], int], Awaitable[BaseModel | None]]
@@ -116,7 +116,8 @@ def _from_the_corpus(title: str, corpus: Any) -> Source | None:
             from core.knowledge.local_corpus import get_local_corpus_store
 
             corpus = get_local_corpus_store()
-        hit = next((h for t in dict.fromkeys((title, title[:1].upper() + title[1:])) if (h := corpus.by_title(t))), None)
+        spellings = (title, title[:1].upper() + title[1:], " ".join(w[:1].upper() + w[1:] for w in title.split()))
+        hit = next((h for t in dict.fromkeys(spellings) if (h := corpus.by_title(t))), None)
         if hit is None:
             plain = re.sub(r"\(.*?\)", " ", title)
             words = {w for w in re.findall(r"[a-z0-9]+", plain.lower()) if len(w) > 2}
@@ -166,18 +167,31 @@ def _the_useful_part(text: str) -> str:
     return "\n".join(ordered)[:SOURCE_CHARS]
 
 
-async def genome_of(program: str, sources: list[Source], ask: Asker) -> Genome | None:
-    """Her model reads what is written and says what the program does, as features a person uses."""
+async def genome_of(program: str, sources: list[Source], ask: Asker, *, asked: str = "") -> Genome | None:
+    """Her model reads what is written, and what the person asked for, and says what the program does as features a person uses.
+
+    With a program named, it is rebuilt clean-room from what is written about
+    it; with only the person's words, it is built to their specification. The
+    person's words come first either way: "rebuild it, with a dark theme" asks
+    for the theme too.
+    """
     written = "\n\n".join(f"[{s.title}, from {s.where}]\n{_the_useful_part(s.text)}" for s in sources)
+    wanted = f"What the person asked for, in their words: {asked}\n" if asked else ""
+    if program:
+        opening = f"The program to rebuild, clean-room, as a web application: {program}.\n{wanted}"
+        reading = "From what the person asked for, what is written about it below, and what you know of it and of programs of its kind, "
+    else:
+        opening = f"A program to build as a web application, to the person's specification.\n{wanted}"
+        reading = "From what the person asked for, and what you know of programs of this kind, "
     prompt = (
-        f"The program to rebuild, clean-room, as a web application: {program}.\n"
-        "From what is written about it below and from what you know of it and of programs of its kind, "
-        f"list the features a person uses, at most {MOST_FEATURES}, the ones a person would miss first ahead. "
-        "Each says what a person does and what they then see. Leave out what a web page cannot do "
-        "(installing, licensing, cloud accounts, other programs). Give the rebuilt program a name of its own.\n\n"
-        + (written or "(nothing written was found; use what you know)")
+        opening + reading
+        + f"list the features a person uses, at most {MOST_FEATURES}, the ones a person would miss first ahead. "
+        "Everything the person asked for is a feature. Each says what a person does and what they then see. "
+        "Leave out what a web page cannot do (installing, licensing, cloud accounts, other programs). "
+        "Give the program a name of its own.\n\n"
+        + (written or ("(nothing written was found; use what you know)" if program else ""))
     )
-    genome = await ask(prompt, Genome, 4500)
+    genome = await ask(prompt, Genome, 2048)
     if not isinstance(genome, Genome) or not genome.features:
         return None
     seen: set[str] = set()
@@ -222,7 +236,7 @@ async def checks_for(genome: Genome, features: list[Feature], ask: Asker) -> lis
         f"Write one or two checks for each of these features, naming the feature exactly:\n{listed}\n\n"
         + _HOW_CHECKS_ARE_WRITTEN
     )
-    got = await ask(prompt, _Checks, 2600)
+    got = await ask(prompt, _Checks, 2048)
     if not isinstance(got, _Checks):
         return []
     named = {f.name.lower(): f.name for f in features}
