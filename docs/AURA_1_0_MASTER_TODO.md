@@ -1473,7 +1473,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Exact-contract activation validates; composition remains shadow-only.
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
-- [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+- [x] G03 Close learned semantic binding/composition failures on development cohorts.
+  CLOSED 2026-10-05 on binding and composition, with candidate v9
+  (`~/.aura/rlc-evidence/semantic-peak-antecedent-v9-20261005`, from
+  `08df41d87`): train 764 of 764, both composition bundles 48 of 48 (34 gains
+  over the incumbent, no losses), validation 498 of 500, held-out construction
+  folds 734 of 764. The two validation rows left
+  (`sequence-cataphoric-5`, "after removing") fail at naming an operation in a
+  wording training never had, which is vocabulary transfer and is carried to
+  G04. Reading the words as well as the context fixed one and broke seven
+  other held-out rows ([negative](evidence/G03_A_STACKED_LABELER_DOES_NOT_HOLD_2026-10-05.md)).
   [Peak recognition](evidence/G03_PEAK_RECOGNITION_2026-10-02.md) finds
   operations as local maxima of a token tagger over her middle and final layers,
   names each at its last token, and reads the first token from the input
@@ -2570,6 +2579,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   local source-conditioned graph choice, but base failures first diverge at
   operation selection. Operation-conditioned binding and fresh-family
   controls remain pending; these results do not close G04.
+  Carried from G03 (2026-10-05): two `sequence-cataphoric-5` validation rows
+  where v9 names "after removing", a wording no training row has, as add (0.347
+  against sub 0.346 at its last token); and held-out folds at 734 of 764, the
+  two rows given up in fold 2 being nominal_nested requests where the fold's
+  recognizer places an operation on "integer" in "Use integer arithmetic."
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies
