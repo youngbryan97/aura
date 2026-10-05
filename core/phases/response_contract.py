@@ -1230,6 +1230,13 @@ def _orders_a_named_file_changed(objective: str) -> bool:
         return False
     if first_existing_path(objective) is None:
         return False
+    # An order to change it, not to read it: "read /etc/hosts and tell me the
+    # first line" names a file and gives an order, and changes nothing.
+    from core.intent.declared_capability import verb_class_of
+
+    changing = verb_class_of("fix") | verb_class_of("write")
+    if not changing & set(re.findall(r"[a-z]+", objective.lower())):
+        return False
     verdict = assess_request_mood(objective)
     if "refusal_to_act" in verdict.reasons:
         return False

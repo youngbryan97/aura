@@ -1,0 +1,326 @@
+<!doctype html>
+<!--
+  The frame every rebuilt application sits in: what a desktop program has
+  whatever it is for. A title, menus, a toolbar, the place the work is done,
+  a status line, dialogs, opening and saving files, keyboard shortcuts, and
+  remembering. Nothing here knows what the program is: each part of it is
+  written separately and plugs in through `app`.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root {
+  --bg: #f3f3f3; --panel: #ffffff; --ink: #1f1f1f; --muted: #616161; --line: #e0e0e0;
+  --accent: __ACCENT__; --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --hover: #ebebeb; --radius: 6px; --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font: 13px/1.4 var(--font); color: var(--ink); background: var(--bg); display: flex; flex-direction: column; overflow: hidden; }
+#app-title { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 14px; background: var(--accent); color: #fff; flex: none; }
+#app-title .app-name { font-weight: 600; letter-spacing: .2px; }
+#app-title .doc-name { opacity: .92; background: transparent; border: 1px solid transparent; color: inherit; font: inherit; padding: 2px 6px; border-radius: 4px; min-width: 60px; }
+#app-title .doc-name:hover, #app-title .doc-name:focus { border-color: rgba(255,255,255,.5); outline: none; }
+#app-title .doc-state { margin-left: auto; font-size: 12px; opacity: .85; }
+#app-menus { display: flex; gap: 2px; padding: 2px 8px; background: var(--panel); border-bottom: 1px solid var(--line); flex: none; }
+.app-menu { position: relative; }
+.app-menu > button { background: none; border: 0; padding: 6px 10px; border-radius: 4px; font: inherit; color: var(--ink); cursor: pointer; }
+.app-menu > button:hover, .app-menu.open > button { background: var(--hover); }
+.app-menu .app-menu-items { display: none; position: absolute; top: 100%; left: 0; min-width: 220px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 4px; z-index: 50; }
+.app-menu.open .app-menu-items { display: block; }
+.app-menu-items button { display: flex; width: 100%; align-items: center; gap: 10px; background: none; border: 0; padding: 7px 10px; border-radius: 4px; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.app-menu-items button:hover { background: var(--hover); }
+.app-menu-items .keys { margin-left: auto; color: var(--muted); font-size: 12px; }
+.app-menu-items .icon { width: 18px; text-align: center; }
+#app-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 6px 8px; background: var(--panel); border-bottom: 1px solid var(--line); flex: none; }
+.app-group { display: flex; align-items: center; gap: 2px; padding: 0 6px; border-right: 1px solid var(--line); }
+.app-group:last-child { border-right: 0; }
+.app-tool { min-width: 30px; height: 30px; padding: 0 7px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; background: none; border: 1px solid transparent; border-radius: 4px; font: inherit; color: var(--ink); cursor: pointer; }
+.app-tool:hover { background: var(--hover); }
+.app-tool[aria-pressed="true"] { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.app-tool .icon { font-size: 15px; line-height: 1; }
+.app-field { display: inline-flex; align-items: center; gap: 4px; }
+.app-field select, .app-field input { height: 28px; border: 1px solid var(--line); border-radius: 4px; background: #fff; font: inherit; color: var(--ink); padding: 0 6px; }
+.app-field input[type=color] { width: 34px; padding: 2px; }
+.app-field input[type=number] { width: 64px; }
+#app-body { flex: 1; display: flex; min-height: 0; }
+#app-work { flex: 1; overflow: auto; position: relative; outline: none; }
+#app-side { width: 260px; background: var(--panel); border-left: 1px solid var(--line); overflow: auto; display: none; padding: 10px; }
+#app-side.open { display: block; }
+#app-status { display: flex; gap: 18px; align-items: center; height: 26px; padding: 0 12px; background: var(--panel); border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; flex: none; }
+#app-status .app-status-right { margin-left: auto; display: flex; gap: 18px; }
+.app-dialog-back { position: fixed; inset: 0; background: rgba(0,0,0,.28); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.app-dialog { background: var(--panel); border-radius: 10px; box-shadow: 0 18px 48px rgba(0,0,0,.25); min-width: 340px; max-width: 90vw; max-height: 86vh; overflow: auto; }
+.app-dialog h2 { margin: 0; padding: 16px 18px 6px; font-size: 16px; font-weight: 600; }
+.app-dialog form { padding: 8px 18px 16px; display: grid; gap: 10px; }
+.app-dialog label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+.app-dialog label.inline { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; }
+.app-dialog input:not([type=checkbox]), .app-dialog select, .app-dialog textarea { border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; font: inherit; color: var(--ink); }
+.app-dialog .app-dialog-text { color: var(--ink); white-space: pre-wrap; }
+.app-dialog .buttons { display: flex; justify-content: flex-end; gap: 8px; padding-top: 6px; }
+.app-dialog .buttons button { padding: 6px 16px; border-radius: 4px; border: 1px solid var(--line); background: #fff; font: inherit; cursor: pointer; }
+.app-dialog .buttons button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+#app-notice { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: #323232; color: #fff; padding: 8px 16px; border-radius: 6px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 120; }
+#app-notice.shown { opacity: .95; }
+@media print {
+  #app-title, #app-menus, #app-toolbar, #app-status, #app-side, .app-dialog-back, #app-notice { display: none !important; }
+  body, #app-body, #app-work { overflow: visible; height: auto; display: block; background: #fff; }
+}
+__STYLE__
+</style>
+</head>
+<body>
+<header id="app-title"><span class="app-name">__TITLE__</span><input class="doc-name" id="app-doc-name" aria-label="Document name" value="__DOCUMENT__"><span class="doc-state" id="app-doc-state"></span></header>
+<nav id="app-menus" role="menubar"></nav>
+<div id="app-toolbar" role="toolbar" aria-label="Toolbar"></div>
+<div id="app-body"><main id="app-work" tabindex="-1"></main><aside id="app-side" aria-label="Side panel"></aside></div>
+<footer id="app-status"><span class="app-status-left"></span><span class="app-status-right"></span></footer>
+<div id="app-notice" role="status"></div>
+<script>
+"use strict";
+window.__appErrors = [];
+window.__appPrinted = 0;
+window.addEventListener("error", (e) => window.__appErrors.push(String(e.message || e.error || e)));
+window.addEventListener("unhandledrejection", (e) => window.__appErrors.push(String(e.reason && e.reason.message || e.reason)));
+const app = (() => {
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const make = (tag, props = {}, kids = []) => {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(props)) {
+      if (k === "class") el.className = v; else if (k === "text") el.textContent = v;
+      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else if (v !== undefined && v !== null) el.setAttribute(k, v);
+    }
+    for (const kid of [].concat(kids)) if (kid) el.append(kid);
+    return el;
+  };
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+  const listeners = {};
+  const commands = new Map();
+  const groups = new Map();
+  const statuses = [];
+  const shortcuts = new Map();
+  const work = $("#app-work");
+  let refreshQueued = false;
+  let savedSince = true;
+
+  function emit(name, detail) { for (const fn of listeners[name] || []) { try { fn(detail); } catch (e) { window.__appErrors.push(`${name} listener: ${e.message}`); } } }
+  function keyName(e) {
+    const parts = [];
+    if (e.ctrlKey || e.metaKey) parts.push("Mod");
+    if (e.altKey) parts.push("Alt");
+    if (e.shiftKey) parts.push("Shift");
+    let k = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+    parts.push(k);
+    return parts.join("+");
+  }
+  function normalKeys(keys) {
+    return String(keys || "").split("+").map((p) => p.trim()).map((p) => /^(ctrl|cmd|command|meta|control)$/i.test(p) ? "Mod" : p.length === 1 ? p.toUpperCase() : p[0].toUpperCase() + p.slice(1)).join("+");
+  }
+  function shownKeys(keys) { return normalKeys(keys).replace("Mod", isMac ? "⌘" : "Ctrl"); }
+  function menu(name) {
+    let m = document.querySelector(`.app-menu[data-menu="${CSS.escape(name)}"]`);
+    if (m) return m;
+    const items = make("div", { class: "app-menu-items", role: "menu" });
+    const opener = make("button", { type: "button", "aria-haspopup": "true", text: name });
+    m = make("div", { class: "app-menu", "data-menu": name }, [opener, items]);
+    opener.addEventListener("click", (e) => { e.stopPropagation(); const open = !m.classList.contains("open"); closeMenus(); if (open) m.classList.add("open"); });
+    opener.addEventListener("mouseenter", () => { if (document.querySelector(".app-menu.open") && !m.classList.contains("open")) { closeMenus(); m.classList.add("open"); } });
+    $("#app-menus").append(m);
+    return m;
+  }
+  function closeMenus() { document.querySelectorAll(".app-menu.open").forEach((m) => m.classList.remove("open")); }
+  function group(name) {
+    if (groups.has(name)) return groups.get(name);
+    const g = make("div", { class: "app-group", role: "group", "aria-label": name });
+    $("#app-toolbar").append(g);
+    groups.set(name, g);
+    return g;
+  }
+  function keepSelection(el) { el.addEventListener("mousedown", (e) => { if (e.target.tagName !== "SELECT" && e.target.tagName !== "INPUT") e.preventDefault(); }); }
+  async function run(id, arg) {
+    const c = commands.get(id);
+    if (!c) return;
+    closeMenus();
+    try { await c.run(arg); } catch (e) { window.__appErrors.push(`${c.label}: ${e.message}`); notify(`${c.label} failed: ${e.message}`); }
+    changed();
+  }
+  function command(spec) {
+    const c = Object.assign({ id: spec.label, menu: "", group: "", icon: "", keys: "", toolbar: !!spec.group }, spec);
+    if (typeof c.run !== "function") throw new Error(`command ${c.label} has nothing to run`);
+    commands.set(c.id, c);
+    const title = c.keys ? `${c.label} (${shownKeys(c.keys)})` : c.label;
+    if (c.menu) {
+      const item = make("button", { type: "button", role: "menuitem", "data-command": c.id, "aria-label": c.label, onclick: () => run(c.id) },
+        [make("span", { class: "icon", text: c.icon || "" }), make("span", { text: c.label }), make("span", { class: "keys", text: c.keys ? shownKeys(c.keys) : "" })]);
+      keepSelection(item);
+      $(".app-menu-items", menu(c.menu)).append(item);
+    }
+    if (c.toolbar) {
+      const button = make("button", { type: "button", class: "app-tool", title, "aria-label": c.label, "data-command": c.id, onclick: () => run(c.id) },
+        [c.icon ? make("span", { class: "icon", text: c.icon }) : make("span", { text: c.label })]);
+      if (c.active) button.setAttribute("aria-pressed", "false");
+      keepSelection(button);
+      group(c.group || c.menu || "Tools").append(button);
+    }
+    if (c.keys) shortcuts.set(normalKeys(c.keys), c.id);
+    return c;
+  }
+  function control(spec) {
+    const c = Object.assign({ id: spec.label, group: "", kind: "select", options: [] }, spec);
+    let input;
+    if (c.kind === "select") {
+      input = make("select", { "aria-label": c.label, title: c.label });
+      for (const o of c.options) { const [value, text] = Array.isArray(o) ? o : [o, o]; input.append(make("option", { value, text: String(text) })); }
+    } else {
+      input = make("input", { type: c.kind, "aria-label": c.label, title: c.label });
+      if (c.min !== undefined) input.min = c.min; if (c.max !== undefined) input.max = c.max;
+    }
+    let saved = null;
+    input.addEventListener("mousedown", () => { saved = selection(); });
+    input.addEventListener("focus", () => { saved = saved || selection(); });
+    input.addEventListener("change", async () => {
+      restore(saved); saved = null;
+      try { await c.set(input.value); } catch (e) { window.__appErrors.push(`${c.label}: ${e.message}`); }
+      changed();
+    });
+    const wrap = make("label", { class: "app-field" }, [input]);
+    group(c.group || "Tools").append(wrap);
+    commands.set(c.id, Object.assign(c, { input }));
+    return c;
+  }
+  function selection() {
+    const s = window.getSelection();
+    return s && s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
+  }
+  function restore(range) {
+    if (!range) return;
+    const s = window.getSelection();
+    s.removeAllRanges(); s.addRange(range);
+  }
+  function status(spec) {
+    const s = Object.assign({ side: "left" }, spec);
+    s.el = make("span", { "aria-label": s.label, title: s.label });
+    $(s.side === "right" ? ".app-status-right" : ".app-status-left").append(s.el);
+    statuses.push(s);
+    refresh();
+    return s;
+  }
+  function refresh() {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    requestAnimationFrame(() => {
+      refreshQueued = false;
+      for (const s of statuses) { try { s.el.textContent = String(s.value()); } catch (e) { s.el.textContent = ""; } }
+      for (const c of commands.values()) {
+        try {
+          if (c.active) { const on = !!c.active(); document.querySelectorAll(`.app-tool[data-command="${CSS.escape(c.id)}"]`).forEach((b) => b.setAttribute("aria-pressed", String(on))); }
+          if (c.input && c.value && document.activeElement !== c.input) { const v = c.value(); if (v !== undefined && v !== null && v !== "") c.input.value = String(v); }
+        } catch (e) { /* a state that cannot be read now is shown as it was */ }
+      }
+      $("#app-doc-state").textContent = savedSince ? "" : "Edited";
+    });
+  }
+  function changed(kind = "change") { if (kind === "change") savedSince = false; emit(kind); refresh(); }
+  function ask(spec) {
+    return new Promise((resolve) => {
+      const fields = (spec.fields || []).map((f, i) => {
+        const id = `app-field-${Date.now()}-${i}`;
+        let input;
+        if (f.kind === "select") {
+          input = make("select", { id, name: f.name || f.label });
+          for (const o of f.options || []) { const [value, text] = Array.isArray(o) ? o : [o, o]; input.append(make("option", { value, text: String(text) })); }
+          if (f.value !== undefined) input.value = f.value;
+        } else if (f.kind === "textarea") {
+          input = make("textarea", { id, name: f.name || f.label, rows: f.rows || 4 }); input.value = f.value ?? "";
+        } else {
+          input = make("input", { id, name: f.name || f.label, type: f.kind || "text" });
+          if (f.kind === "checkbox") input.checked = !!f.value; else input.value = f.value ?? "";
+          if (f.min !== undefined) input.min = f.min; if (f.max !== undefined) input.max = f.max;
+        }
+        const label = make("label", { for: id, class: f.kind === "checkbox" ? "inline" : "" }, f.kind === "checkbox" ? [input, make("span", { text: f.label })] : [make("span", { text: f.label }), input]);
+        return { f, input, label };
+      });
+      const range = selection();
+      const finish = (ok) => {
+        back.remove(); restore(range);
+        if (!ok) return resolve(null);
+        const out = {};
+        for (const { f, input } of fields) out[f.name || f.label] = f.kind === "checkbox" ? input.checked : f.kind === "number" ? Number(input.value) : input.value;
+        resolve(out);
+      };
+      const buttons = make("div", { class: "buttons" }, [
+        spec.cancel === false ? null : make("button", { type: "button", text: spec.cancel || "Cancel", onclick: () => finish(false) }),
+        make("button", { type: "submit", class: "primary", text: spec.ok || "OK" }),
+      ]);
+      const form = make("form", { onsubmit: (e) => { e.preventDefault(); finish(true); } },
+        [spec.text ? make("div", { class: "app-dialog-text", text: spec.text }) : null, ...fields.map((x) => x.label), buttons]);
+      const box = make("div", { class: "app-dialog", role: "dialog", "aria-modal": "true", "aria-label": spec.title || "Dialog" }, [make("h2", { text: spec.title || "" }), form]);
+      const back = make("div", { class: "app-dialog-back", onkeydown: (e) => { if (e.key === "Escape") finish(false); } }, [box]);
+      document.body.append(back);
+      (fields[0] ? fields[0].input : $("button.primary", box)).focus();
+    });
+  }
+  function tell(title, text) { return ask({ title, text, cancel: false }); }
+  let noticeTimer = 0;
+  function notify(text) { const n = $("#app-notice"); n.textContent = text; n.classList.add("shown"); clearTimeout(noticeTimer); noticeTimer = setTimeout(() => n.classList.remove("shown"), 2200); }
+  function download(name, content, type = "text/plain") {
+    const blob = content instanceof Blob ? content : new Blob([content], { type });
+    const a = make("a", { href: URL.createObjectURL(blob), download: name });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    savedSince = true; refresh();
+  }
+  function pickFile(accept = "") {
+    return new Promise((resolve) => {
+      const input = make("input", { type: "file", accept, style: "display:none" });
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        input.remove();
+        if (!file) return resolve(null);
+        const asText = new FileReader(), asUrl = new FileReader();
+        asText.onload = () => { asUrl.onload = () => resolve({ name: file.name, type: file.type, text: asText.result, dataUrl: asUrl.result, file }); asUrl.readAsDataURL(file); };
+        asText.readAsText(file);
+      });
+      document.body.append(input); input.click();
+    });
+  }
+  const prefix = "app:" + document.title + ":";
+  function keep(key, value) { try { localStorage.setItem(prefix + key, JSON.stringify(value)); } catch (e) { /* nowhere to keep it */ } }
+  function kept(key, fallback = null) { try { const v = localStorage.getItem(prefix + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } }
+  function on(name, fn) { (listeners[name] = listeners[name] || []).push(fn); }
+  function side(content) {
+    const panel = $("#app-side");
+    if (content === null || content === undefined) { panel.classList.remove("open"); panel.replaceChildren(); return panel; }
+    panel.replaceChildren(content); panel.classList.add("open"); return panel;
+  }
+  function part(name, fn) {
+    try { fn(app); } catch (e) { window.__appErrors.push(`${name}: ${e.message}`); console.error(name, e); }
+  }
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest(".app-dialog")) return;
+    const id = shortcuts.get(keyName(e));
+    if (id) { e.preventDefault(); run(id); }
+  }, true);
+  document.addEventListener("click", (e) => { if (!e.target.closest(".app-menu")) closeMenus(); });
+  document.addEventListener("selectionchange", () => { emit("selection"); refresh(); });
+  const realPrint = window.print.bind(window);
+  window.print = () => { window.__appPrinted += 1; if (!navigator.webdriver) realPrint(); };
+  $("#app-doc-name").addEventListener("change", () => { emit("rename", $("#app-doc-name").value); });
+  const app = {
+    work, make, command, control, run, status, changed, refresh, ask, tell, notify, download, pickFile, keep, kept, on, side, part, selection, restore,
+    get name() { return $("#app-doc-name").value || "Untitled"; },
+    set name(v) { $("#app-doc-name").value = v; },
+    get saved() { return savedSince; },
+    set saved(v) { savedSince = !!v; refresh(); },
+    commands,
+  };
+  return app;
+})();
+</script>
+__PARTS__
+<script>app.changed("ready"); app.saved = true;</script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+"""Rebuilding a program clean-room: from what is written about it to a working program, checked by use.
+
+The whole of it, in the order a person would do it:
+
+  1. read what is written about the program and its kind (her corpus, Wikipedia)
+  2. say what it does, as features a person uses (her model, reading those)
+  3. write how a person would check each feature, before any code exists,
+     and keep only the checks that fail on the empty frame
+  4. write the program part by part, keeping each part for what doing the
+     checks shows (writing_it_part_by_part.py)
+  5. say which features were seen working, and which were not
+
+No code of the original is read at any point; only what is written about what
+it does. Nothing here knows what any program is.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import re
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from core.rebuilding.checks_a_person_makes import Check, run_checks
+from core.rebuilding.the_program_as_built import ProgramAsBuilt
+from core.rebuilding.what_a_program_does import (
+    FEATURES_AT_ONCE,
+    Asker,
+    Genome,
+    checks_for,
+    genome_of,
+    what_is_written_about,
+)
+from core.rebuilding.writing_it_part_by_part import Built, Teller, _say, write_it
+
+logger = logging.getLogger("Rebuilding")
+
+__all__ = ["Rebuilt", "checks_that_mean_something", "rebuild"]
+
+
+@dataclass
+class Rebuilt:
+    program: str
+    genome: Genome | None
+    built: Built | None
+    sources: list[str]
+    seconds: float
+    why_not: str = ""
+
+    def summary(self) -> str:
+        if self.built is None or self.genome is None:
+            return f"I could not rebuild {self.program}: {self.why_not}"
+        working = self.built.working()
+        missing = [o for o in self.built.outcomes if not o.kept]
+        line = (
+            f"I rebuilt {self.program} clean-room as {self.genome.name}, from {', '.join(self.sources) or 'what I know'}: "
+            f"{len(working)} of {len(self.built.outcomes)} features work, each one seen working by doing it "
+            f"({sum(o.held for o in working)} checks hold). It is at {self.built.path}."
+        )
+        if working:
+            line += " Working: " + ", ".join(o.feature.name for o in working) + "."
+        if missing:
+            line += " Not working: " + ", ".join(o.feature.name for o in missing) + "."
+        return line
+
+
+async def checks_that_mean_something(checks: list[Check], scratch: Path, *, browser: Any = None) -> list[Check]:
+    """Only the checks that fail on the frame with nothing in it: one that holds on nothing checks nothing."""
+    empty = await asyncio.to_thread(ProgramAsBuilt("Empty").write, scratch)
+    runs = await run_checks(empty, checks, browser=browser)
+    await asyncio.to_thread(scratch.unlink, missing_ok=True)
+    return [r.check for r in runs if not r.held]
+
+
+def _recorded(ask: Asker, where: list[Path]) -> Asker:
+    """``ask``, with each question and answer kept beside the program, so what her model wrote can be read afterwards."""
+
+    async def asking(prompt: str, schema: type, max_tokens: int) -> Any:
+        began = time.monotonic()
+        answer = await ask(prompt, schema, max_tokens)
+        if where:
+            line = json.dumps({
+                "asked_for": schema.__name__, "seconds": round(time.monotonic() - began, 1), "answered": answer is not None,
+                "prompt": prompt[:6000], "answer": answer.model_dump() if answer is not None else None,
+            })
+            await asyncio.to_thread(_append, where[0], line)
+        return answer
+
+    return asking
+
+
+def _append(path: Path, line: str) -> None:
+    with path.open("a", encoding="utf-8") as out:
+        out.write(line + "\n")
+
+
+def _folder_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "rebuilt"
+
+
+async def rebuild(
+    program: str,
+    ask: Asker,
+    where: Path,
+    *,
+    tell: Teller | None = None,
+    corpus: Any = None,
+    online: bool = True,
+    browser: Any = None,
+    deadline_s: float = 3 * 3600.0,
+) -> Rebuilt:
+    """Rebuild ``program`` from what is written about it into ``where``; see the module's account."""
+    began = time.monotonic()
+    record: list[Path] = []
+    ask = _recorded(ask, record)
+    sources = await what_is_written_about(program, corpus=corpus, online=online)
+    named = [f"{s.title} ({s.where})" for s in sources]
+    await _say(tell, f"Reading about {program}: " + ("; ".join(named) or "nothing written found, so from what I know") + ".")
+    genome = await genome_of(program, sources, ask)
+    if genome is None:
+        return Rebuilt(program, None, None, named, time.monotonic() - began, "I could not say what it does")
+    await _say(tell, f"{program} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
+    folder = Path(where) / _folder_name(genome.name)
+    folder.mkdir(parents=True, exist_ok=True)
+    record.append(folder / "what_she_asked.jsonl")
+    (folder / "what_it_does.json").write_text(json.dumps(genome.model_dump(), indent=1), "utf-8")
+    written: list[Check] = []
+    for at in range(0, len(genome.features), FEATURES_AT_ONCE):
+        written.extend(await checks_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask))
+    checks = await checks_that_mean_something(written, folder / "empty.html", browser=browser)
+    (folder / "checks.json").write_text(json.dumps([c.model_dump() for c in checks], indent=1), "utf-8")
+    await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")
+    left = max(60.0, deadline_s - (time.monotonic() - began))
+    built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left)
+    (folder / "what_works.json").write_text(json.dumps([
+        {"feature": o.feature.name, "works": o.kept, "checks_held": o.held, "checks": o.of, "tries": o.tries, "why_not": o.why_not}
+        for o in built.outcomes
+    ], indent=1), "utf-8")
+    return Rebuilt(program, genome, built, named, time.monotonic() - began)

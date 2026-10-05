@@ -76,6 +76,15 @@ _ASKS_FOR = re.compile(
     re.IGNORECASE,
 )
 
+#: Asking for a named thing to be made again: "rebuild Microsoft Paint", "a
+#: clean-room reconstruction of Microsoft Word". A copy exists afterwards as
+#: much as a first one does, and the program is named, not a noun from a list.
+_ASKS_TO_REMAKE = re.compile(
+    r"\b(?:[Rr]ebuild|[Rr]econstruct|[Rr]ecreate|[Rr]e-create|[Rr]eimplement|[Rr]e-implement|[Cc]lone|[Rr]eplicate|[Rr]emake)"
+    r"\s+(?:me\s+|us\s+)?(?:a\s+|an\s+|the\s+)?[A-Z0-9]"
+    r"|\b(?:reconstruction|reimplementation|recreation|remake|replica|clone|rebuild)\s+of\s+\S",
+)
+
 #: A bare shape with a count is a request for one: "six slides, no fluff".
 _COUNTED_ARTIFACT = re.compile(
     rf"\b\d{{1,2}}[\s-]*(?:{_ARTIFACT_NOUNS})\b"
@@ -117,7 +126,7 @@ def names_an_artifact(message: object) -> bool:
     text = str(message or "")
     if not text.strip():
         return False
-    if _ASKS_FOR.search(text) or _COUNTED_ARTIFACT.search(text):
+    if _ASKS_FOR.search(text) or _COUNTED_ARTIFACT.search(text) or _ASKS_TO_REMAKE.search(text):
         return True
     design = _ASKS_TO_DESIGN.search(text)
     if not design:
@@ -147,6 +156,7 @@ _WANTS_A_THING = _LearnedMatcher(
         "draw me a schematic of the cooling loop",
         "can you engineer a bracket that holds 200 kg",
         "sketch out how the gearbox would be laid out",
+        "do a clean-room reconstruction of the program I use every day",
     ),
     negatives=(
         "what is a deck?",

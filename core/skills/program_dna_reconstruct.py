@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -18,9 +20,11 @@ from core.service_names import ServiceNames
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 
+logger = logging.getLogger(__name__)
+
 
 class ProgramDNAInput(BaseModel):
-    target: str = Field(..., description="Program/app/library name or target path label.")
+    target: str = Field("", description="Program/app/library name or target path label. Read from the request when not given.")
     authorization: str = Field(
         "unspecified",
         description=(
@@ -73,10 +77,15 @@ class ProgramDNAReconstructSkill(BaseSkill):
     description = (
         "Authorized clean-room reconstruction and mechanism study of a program's behavior DNA "
         "from source, metadata, UI/UX observations, Aura/host/network/hardware interactions, "
-        "research notes, and similar-program hints."
+        "research notes, and similar-program hints. Asked to reconstruct or rebuild a named "
+        "application, builds a working one from what is written about it and checks every "
+        "feature by using it."
     )
     input_model = ProgramDNAInput
-    timeout_seconds = 120.0
+    #: Rebuilding an application is written part by part by her own model and
+    #: checked as it goes (core/rebuilding), which is measured in tens of
+    #: minutes; the other lanes finish well inside it.
+    timeout_seconds = 10800.0
     metabolic_cost = 2
     effect_scope = "read_write_artifacts"
     requires_approval = False
@@ -87,6 +96,12 @@ class ProgramDNAReconstructSkill(BaseSkill):
         elif not isinstance(params, ProgramDNAInput):
             params = ProgramDNAInput.model_validate(params)
 
+        asked = " ".join(str((context or {}).get(key) or "") for key in ("objective", "message", "user_message", "goal")).strip()
+        if not params.target.strip():
+            params.target = await the_program_named_in(asked)
+        if not params.target:
+            return {"ok": False, "skill": self.name, "error": "no program was named",
+                    "summary": "Which program should I reconstruct? I need its name."}
         engine = get_runtime_service(ServiceNames.PROGRAM_DNA_RECONSTRUCTION, default=None)
         if engine is None:
             program_dna = importlib.import_module("core.self_improvement.program_dna")
@@ -112,6 +127,12 @@ class ProgramDNAReconstructSkill(BaseSkill):
             reverse = await self._reverse_engineer_host(engine, params.target)
             if reverse is not None:
                 return reverse
+        # Any other program asked to be reconstructed is rebuilt as a working
+        # one: a blueprint is not what a person asking for a program can use.
+        if params.analysis_mode == "reconstruct" and not engine._policy_blocks(
+            str(params.authorization or "").strip().lower(), f"{asked} {params.target}".lower()
+        ):
+            return await _rebuild_it(params, self.name)
 
         result = await engine.reconstruct(params.model_dump())
         payload = result.to_dict() if hasattr(result, "to_dict") else dict(result)
@@ -220,4 +241,79 @@ class ProgramDNAReconstructSkill(BaseSkill):
         )
 
 
-__all__ = ["ProgramDNAInput", "ProgramDNAReconstructSkill"]
+class _Named(BaseModel):
+    program: str = Field(default="", max_length=80, description="the program's usual name, or empty if none is named")
+
+
+#: "a clean-room reconstruction of Microsoft Word", "rebuild Paint", "clone of Trello"
+_NAMED_AFTER = re.compile(
+    r"(?:reconstruct(?:ion)?|rebuild|recreate|re-create|clone|reimplement(?:ation)?|copy)\s+(?:of\s+)?(?:the\s+)?"
+    r"((?:[A-Z][\w+.#'-]*)(?:\s+(?:[A-Z0-9][\w+.#'-]*))*)"
+)
+
+
+async def the_program_named_in(asked: str) -> str:
+    """The program a request asks to reconstruct: what its words name, else what her model reads in them."""
+    found = _NAMED_AFTER.search(asked or "")
+    if found:
+        return found.group(1).strip(" .,;:")
+    if not asked:
+        return ""
+    from core.rebuilding.her_model import ask_her_model
+
+    named = await ask_her_model(f"Which program does this request ask to be rebuilt? Request: {asked}", _Named, 60)
+    return named.program.strip() if isinstance(named, _Named) else ""
+
+
+async def _rebuild_it(params: ProgramDNAInput, skill: str) -> dict[str, Any]:
+    """Rebuild the program clean-room as a working one, open it where the person can use it, and say what works."""
+    from core.rebuilding.her_model import ask_her_model
+    from core.rebuilding.rebuilding_a_program import rebuild
+    from core.skills.screen_pursuit import _tell
+
+    named = str(params.output_dir or "").strip()
+    where = await asyncio.to_thread(
+        lambda: Path(named).expanduser() if named else Path(__file__).resolve().parents[2] / "artifacts" / "rebuilt_programs"
+    )
+    rebuilt = await rebuild(params.target, ask_her_model, where, tell=_tell)
+    opened = ""
+    if rebuilt.built is not None and rebuilt.built.working():
+        opened = await _open_for_the_person(rebuilt.built.path)
+    summary = rebuilt.summary() + (f" {opened}" if opened else "")
+    working = rebuilt.built.working() if rebuilt.built is not None else []
+    return {
+        "ok": bool(working),
+        "skill": skill,
+        "target": params.target,
+        "path": str(rebuilt.built.path) if rebuilt.built is not None else "",
+        "features": [o.feature.name for o in working],
+        "not_working": [o.feature.name for o in (rebuilt.built.outcomes if rebuilt.built is not None else []) if not o.kept],
+        "sources": rebuilt.sources,
+        "seconds": round(rebuilt.seconds, 1),
+        "summary": summary,
+    }
+
+
+#: Windows left open for the person, held so nothing closes them behind their back.
+_LEFT_OPEN: list[Any] = []
+
+
+async def _open_for_the_person(path: Path) -> str:
+    """The rebuilt program opened in a window of her browser, left open for the person to use."""
+    try:
+        from core.capabilities.phantom_browser import PhantomBrowser
+
+        browser = PhantomBrowser(visible=True, browser_type="chromium", principal="owner")
+        if not await browser.ensure_ready():
+            return ""
+        await browser.page.goto(path.as_uri(), wait_until="load")
+        await browser.page.bring_to_front()
+        await browser.come_forward()
+        _LEFT_OPEN.append(browser)
+        return "I opened it in a window for you."
+    except Exception as why:  # noqa: BLE001 - not opening it leaves it on disk, where the summary says it is
+        logger.info("the rebuilt program could not be opened: %s", why)
+        return ""
+
+
+__all__ = ["ProgramDNAInput", "ProgramDNAReconstructSkill", "the_program_named_in"]

@@ -72,7 +72,7 @@ def _read_comprehension(*, url: str, title: str, text: str) -> dict[str, Any]:
 
 
 class BrowserAction(BaseModel):
-    type: Literal["click", "type", "scroll", "wait", "get_html", "screenshot"] = Field(
+    type: Literal["click", "type", "scroll", "wait", "get_html", "screenshot", "go"] = Field(
         ...,
         description="Browser action type.",
     )
@@ -94,7 +94,10 @@ class BrowserAction(BaseModel):
                 raise ValueError("browser wait duration must be between 0 and 10 seconds")
         if self.type == "scroll" and str(self.value or "down").lower() not in {"up", "down"}:
             raise ValueError("browser scroll direction must be 'up' or 'down'")
+        if self.type == "go" and not str(self.value or "").strip():
+            raise ValueError("browser action go requires an address or words to look up")
         return self
+
 
 class BrowserInput(BaseModel):
     mode: Literal["search", "browse", "interact", "pursue"] = Field(
@@ -420,6 +423,10 @@ def _moves_from_the_decision(
             ))
     for item in decision.get("actions") or []:
         if not isinstance(item, dict):
+            continue
+        # Leaving the page needs no control on it (sovereign_browser_going.py).
+        if str(item.get("type") or "").lower() == "go" and str(item.get("value") or "").strip():
+            moves.append((BrowserAction(type="go", value=str(item["value"])), ""))
             continue
         try:
             index = int(item.get("index"))
@@ -1415,6 +1422,10 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     elif action.type == "wait":
                         await asyncio.sleep(min(float(action.value or 1), 10.0))  # Cap wait at 10s
                         success = True
+                    elif action.type == "go":
+                        from core.skills.sovereign_browser_going import where_to_go
+
+                        success = await self._safe_browse(browser, where_to_go(action.value or ""))
                     elif action.type == "get_html":
                         if browser.page:
                             html = await asyncio.wait_for(browser.page.content(), timeout=10.0)
@@ -1505,19 +1516,6 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         "radio", "checkbox", "switch", "option", "select", "textarea",
         "text", "email", "password", "search", "number", "button", "submit", "drawing",
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     #: How many independent questions are decided at once. A screen of a survey
     #: is six or so; the cap is what keeps a pathological page from opening a

@@ -171,6 +171,12 @@ class _BuildsTheLivingContext:
         # capability's own declaration decisively, and its own trigger
         # phrases too, two readings agree on what was asked for.
         one = the_one_asked_for(text, tools)
+        # Called once a turn. LIVE 2026-10-04 a repair that had run sixteen
+        # minutes and come back mended was called twice more by a later pass
+        # reading the same request.
+        if one is not None and one in capabilities_run_this_turn():
+            logger.info("🔧 Tool handoff skipped: %s already ran this turn.", one)
+            return None
         if one is not None:
             return await _await_while_it_is_working(
                 _call_the_one(one, text, loop_context),
@@ -440,11 +446,11 @@ class _BuildsTheLivingContext:
             required = derive_capability_set(text)
             if not required:
                 return None
-            pending = [n for n in remaining_capabilities(required, completed_capability_evidence) if n not in capabilities_run_this_turn()]
+            pending = remaining_capabilities(required, completed_capability_evidence)
             if required and not pending:
                 logger.info(
                     "🔧 Tool handoff skipped: every required capability already "
-                    "has runtime-stamped evidence or ran this turn (%s).",
+                    "has runtime-stamped evidence (%s).",
                     ",".join(sorted(required)),
                 )
                 return None

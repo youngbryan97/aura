@@ -317,7 +317,10 @@ class _UnderstandsThePage(_PlacesHerself):
             alike = element.get("alike")
             if isinstance(alike, (list, tuple)) and len(alike) == 2 and not element.get("group"):
                 # Its place among the controls like it, counted by the page.
-                state.append(f"{alike[0]} of {alike[1]} alike")
+                # Counted both ways a person might count them: the list's
+                # first item is its number 1, or its number 0. LIVE 2026-10-05
+                # she worked out "number 10" and clicked [10], the first game.
+                state.append(f"{alike[0]} of {alike[1]} alike, number {alike[0] - 1} counting from 0")
             if element.get("checked") is True:
                 state.append("already answered")
             if element.get("value"):
@@ -1118,10 +1121,10 @@ class _UnderstandsThePage(_PlacesHerself):
                     "type": "object",
                     "properties": {
                         "index": {"type": "integer"},
-                        "type": {"type": "string", "enum": ["click", "type", "scroll"]},
+                        "type": {"type": "string", "enum": ["click", "type", "scroll", "go"]},
                         "value": {"type": "string"},
                     },
-                    "required": ["index", "type"],
+                    "required": ["type"],
                 },
             },
             "why": {"type": "string"},
@@ -1556,8 +1559,8 @@ class _UnderstandsThePage(_PlacesHerself):
             + f"{self._render_observation(observation, goal)}\n\n"
             f"{positions}\n\n"
             "Act on this page from that understanding. Answer with JSON only:\n"
-            '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll", '
-            '"value": "<text for type, up/down for scroll>"}], '
+            '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll"|"go", '
+            '"value": "<text for type, up/down for scroll, for go an address or words to look up on the web>"}], '
             '"stand": "<where you place yourself among the positions this '
             'page offers, in your own words, worked out before you pick one: '
             'which of them is more you and how much more. There is no right '

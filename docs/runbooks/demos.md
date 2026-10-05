@@ -76,6 +76,30 @@ Type in her chat:
 The museum refuses its game files to an automated browser. Each game page
 links the same game in the Internet Archive, and she plays it there.
 
+## Demo 3: a clean-room reconstruction of Microsoft Word
+
+Type in her chat:
+
+> Do a clean-room reconstruction of Microsoft Word with your program DNA
+> engine: a complete, working word processor I can use.
+
+What happens (core/rebuilding): she reads what is written about the program
+and its kind (her own Wikipedia corpus, else Wikipedia online), her model says
+what it does as features a person uses, and writes for each the checks a
+person would make, before any code exists. A check that already holds on an
+empty program is dropped. Then her model writes the program part by part
+inside a general application frame (menus, toolbar, work area, status bar,
+dialogs, files): the work area first, then each feature. A part is kept only
+when its own checks hold when done in a browser and nothing that worked before
+stops working; otherwise she is shown what went wrong and tries again, three
+times, and the feature is left out rather than kept broken. The result opens in
+a window, and she says which features work and which do not.
+
+No code of the original is read. The program is one file,
+`artifacts/rebuilt_programs/<name>/index.html`, beside `what_it_does.json`
+(the features), `checks.json` (the checks) and `what_works.json` (each
+feature, whether its checks held, and how many tries it took).
+
 ## If something goes wrong
 
 | Symptom | Check |

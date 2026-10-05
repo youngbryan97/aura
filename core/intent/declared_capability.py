@@ -90,6 +90,18 @@ _STOP_WORDS = frozenset(
 #: spells it. This is the ONLY place a synonym is written down, and it is
 #: indexed by act rather than by skill, so it does not grow with the catalogue.
 _VERB_CLASSES: tuple[frozenset[str], ...] = (
+    # Making again what already exists somewhere: a copy of a program, a
+    # clean-room rebuild. Not the act of making something new, which is the
+    # producing class below.
+    frozenset(
+        {
+            "rebuild", "rebuilds", "rebuilding", "reconstruct", "reconstructs",
+            "reconstructing", "recreate", "recreates", "recreating", "remake",
+            "remakes", "remaking", "reimplement", "reimplements",
+            "reimplementing", "clone", "clones", "cloning", "replicate",
+            "replicates", "replicating",
+        }
+    ),
     frozenset(
         {
             "run", "runs", "running", "execute", "executes", "executing",
@@ -279,6 +291,13 @@ _DISCOURSE_LEAD = frozenset(
 #: "use the web" asks for whatever the web is for.
 _PRO_VERBS = frozenset({"use", "using"})
 
+#: Verbs that carry no act of their own and take it from the noun after them.
+_LIGHT_VERBS = frozenset({"do", "perform", "carry"})
+
+#: A person in front of the act makes it something said about them, not asked
+#: for: "do you know what a reconstruction is".
+_A_PERSON = frozenset({"i", "you", "we", "they", "he", "she", "it", "u"})
+
 _NEGATION = frozenset(
     {
         "not", "no", "never", "cant", "cannot", "wont", "dont", "doesnt",
@@ -357,6 +376,14 @@ def _act_named_by(word: str) -> frozenset[str]:
     direct = verb_class_of(lowered)
     if direct:
         return direct
+    # And the act named as a thing done: a "reconstruction" is what
+    # reconstructing makes, so "do a reconstruction" has named the act.
+    for suffix in ("ions", "ion"):
+        if lowered.endswith(suffix) and len(lowered) > len(suffix) + 3:
+            stem = lowered[: -len(suffix)]
+            found = verb_class_of(stem) or verb_class_of(stem + "e")
+            if found:
+                return found
     for suffix in ("ers", "ors", "er", "or"):
         if lowered.endswith(suffix) and len(lowered) > len(suffix) + 2:
             stem = lowered[: -len(suffix)]
@@ -383,6 +410,10 @@ def _asks_rather_than_mentions(clause_words: list[str], verb_positions: set[int]
         if any(word in _ADDRESSES_THE_LISTENER for word in preceding):
             return True
         if clause_words[index - 1] == "to":
+            return True
+        # "Do a clean-room reconstruction of it": a verb with no content of its
+        # own at the head of the clause, and the act named as a thing done.
+        if preceding[0] in _LIGHT_VERBS and len(preceding) <= 5 and not set(preceding) & _A_PERSON:
             return True
     return False
 

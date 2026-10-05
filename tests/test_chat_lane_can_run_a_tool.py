@@ -413,3 +413,22 @@ def test_a_turn_that_already_read_the_world_is_not_offered_the_lookups_again(gat
     )
     _answer(gate, client, "save what you found to a file")
     assert offered == ["file_operation"]
+
+
+def test_the_capability_plainly_asked_for_is_called_once_a_turn(gate, monkeypatch):
+    """LIVE 2026-10-04: a repair called directly ran sixteen minutes and came
+    back mended, and a later pass reading the same request called it twice more."""
+    called: list[str] = []
+
+    async def _call(name, text, loop_context):
+        called.append(name)
+        return {"content": "mended", "tool_calls": []}
+
+    monkeypatch.setattr("core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["repair_a_program"])
+    monkeypatch.setattr("core.brain.llm.runtime_wiring.build_agentic_tool_map", lambda *a, **k: {"repair_a_program": {"name": "repair_a_program"}})
+    monkeypatch.setattr("core.brain.inference_gate_living_context.the_one_asked_for", lambda text, tools: "repair_a_program")
+    monkeypatch.setattr("core.brain.inference_gate_living_context._call_the_one", _call)
+    monkeypatch.setattr("core.brain.inference_gate_living_context.capabilities_run_this_turn", lambda: frozenset({"repair_a_program"}))
+    client = _Client({"content": "", "tool_calls": []})
+    assert _answer(gate, client, "The game at /tmp/pong.html is broken. Fix it.") is None
+    assert called == []
