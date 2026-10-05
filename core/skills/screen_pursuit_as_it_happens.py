@@ -57,6 +57,8 @@ class PlayingAsItHappens:
     ending_words: str = ""
     _clip: dict[str, float] | None = None
     _focused: bool = False
+    _frames: Any = None
+    _canvas: Any = None
 
     # -- eyes ---------------------------------------------------------------
 
@@ -73,9 +75,24 @@ class PlayingAsItHappens:
         return self._clip
 
     async def look(self) -> tuple[Any, float] | None:
+        from core.perception.frames_as_they_are_drawn import CanvasFrames, PageFrames
         from core.perception.picture_arithmetic import decode
 
         clip = await self._where()
+        # The drawing read from its own canvas where it can be; else frames as
+        # the browser draws them; a screenshot a picture only where neither.
+        if self._canvas is None:
+            self._canvas = CanvasFrames(self.page)
+        if not self._canvas.unavailable:
+            read = await self._canvas.look(clip)
+            if read is not None:
+                return read
+        if self._frames is None:
+            self._frames = PageFrames(self.page)
+        if not self._frames.unavailable:
+            streamed = await self._frames.look(clip)
+            if streamed is not None:
+                return streamed
         try:
             # At the page's own pixels: on a high-density screen a picture
             # at device pixels is four times the size for the same view, and
@@ -88,6 +105,12 @@ class PlayingAsItHappens:
         if picture is None:
             return None
         return picture, at
+
+    async def close(self) -> None:
+        """Stop streaming frames, when the run is over."""
+        if self._frames is not None:
+            await self._frames.close()
+            self._frames = None
 
     # -- hands --------------------------------------------------------------
 

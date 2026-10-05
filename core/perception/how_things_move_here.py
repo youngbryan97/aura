@@ -91,6 +91,11 @@ class HowThingsMoveHere:
         self.looks: dict[int, tuple[tuple[int, int, int], float]] = {}
         self._last: dict[int, tuple[float, float, float, float, float, int]] = {}
         self.shape: tuple[int, int] = (0, 0)
+        #: What was worked out from what was learned, for this picture: the
+        #: look-ahead asks the same questions thousands of times a picture,
+        #: and answered afresh each time they were most of a picture's work
+        #: (LIVE-like profile 2026-10-04, 18 s of 100).
+        self._this_picture: dict[tuple[Any, ...], Any] = {}
 
     # -- learning --------------------------------------------------------------
 
@@ -100,6 +105,7 @@ class HowThingsMoveHere:
 
     def saw(self, moves: Any, hers: Any, happened: list[dict[str, Any]], at: float) -> None:
         """One picture's worth of motion."""
+        self._this_picture.clear()
         self.shape = moves.shape
         mine = hers.thing(moves)
         seen = set()
@@ -195,6 +201,12 @@ class HowThingsMoveHere:
 
     def alike(self, kind: int) -> list[_Kind]:
         """This kind and the kinds that look like it: one ball seen as two kinds is one ball's physics."""
+        known = self._this_picture.get(("alike", kind))
+        if known is None:
+            known = self._this_picture[("alike", kind)] = self._alike(kind)
+        return known
+
+    def _alike(self, kind: int) -> list[_Kind]:
         looks = self.looks.get(kind)
         if looks is None:
             return [self.kinds[kind]] if kind in self.kinds else []
@@ -220,6 +232,12 @@ class HowThingsMoveHere:
 
     def edge(self, kind: int, name: str) -> tuple[str, float | None, float]:
         """What an edge does to a kind, where it really is, and how much speed a bounce keeps."""
+        known = self._this_picture.get(("edge", kind, name))
+        if known is None:
+            known = self._this_picture[("edge", kind, name)] = self._edge(kind, name)
+        return known
+
+    def _edge(self, kind: int, name: str) -> tuple[str, float | None, float]:
         records = [r.edges[name] for r in self.alike(kind) if name in r.edges]
         if not records:
             return "", None, 1.0

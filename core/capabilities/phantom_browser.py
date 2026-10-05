@@ -19,6 +19,7 @@ import logging
 import os
 import random
 import re
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -547,10 +548,7 @@ class PhantomBrowser(_ActsOnThePage):
             user_agent = self._get_random_ua()
 
             try:
-                self.context = await self.browser.new_context(
-                    viewport={'width': 1280, 'height': 800},
-                    user_agent=user_agent
-                )
+                self.context = await self.browser.new_context(**self._page_size(), user_agent=user_agent)
                 await self._apply_stealth(self.context)
                 self.page = await self.context.new_page()
             except (
@@ -662,13 +660,15 @@ class PhantomBrowser(_ActsOnThePage):
             self._last_executable_attempts.append(label)
             kwargs: dict[str, Any] = {
                 "headless": not self.visible,
-                "args": (["--disable-blink-features=AutomationControlled"] if _hides_automation() else []) + _KEEPS_RUNNING,
+                "args": (["--disable-blink-features=AutomationControlled"] if _hides_automation() else []) + _KEEPS_RUNNING
+                + (["--window-size=1280,880"] if self.visible else []),
                 "timeout": self.LAUNCH_TIMEOUT_S * 1000.0,
             }
             if executable:
                 kwargs["executable_path"] = executable
             try:
                 browser = await self.playwright.chromium.launch(**kwargs)
+                self._executable = executable or str(getattr(getattr(self.playwright, "chromium", None), "executable_path", "") or "")
                 return browser, label
             except (
                 PlaywrightError,
@@ -787,10 +787,7 @@ class PhantomBrowser(_ActsOnThePage):
                 # and stealth setup ran, so a failure left the object holding
                 # a broken context while the old session stayed open with
                 # nothing to close it (CP126 ``d1b5bf25``).
-                new_context = await self.browser.new_context(
-                    viewport={'width': 1280, 'height': 800},
-                    user_agent=ua,
-                )
+                new_context = await self.browser.new_context(**self._page_size(), user_agent=ua)
                 await self._apply_stealth(new_context)
                 new_page = await new_context.new_page()
             except (RuntimeError, AttributeError, TypeError, ValueError, PlaywrightError) as exc:
@@ -1771,6 +1768,38 @@ class PhantomBrowser(_ActsOnThePage):
             "interaction": dict(self._last_interaction),
             "extraction": dict(self._last_extraction),
         }
+
+    def _page_size(self) -> dict[str, Any]:
+        """The page's size: a fixed one headless; in a window, the window's own.
+
+        A viewport set apart from the window it is shown in is scaled into it
+        on every frame: LIVE 2026-10-04 a game played in her window ran at
+        sixteen pictures a second, drawn at half size in its corner, where the
+        same game headless gave forty.
+        """
+        return {"no_viewport": True} if self.visible else {"viewport": {"width": 1280, "height": 800}}
+
+    async def come_forward(self) -> bool:
+        """Put her browser's window in front of the person, where what she does in it can be watched.
+
+        A window behind others is one the system lets sleep: LIVE 2026-10-04
+        a game she had mended and opened to play stood still at 0-0 for a
+        minute in a window behind the one the person was in, and every
+        stretch of play ended "nothing on the screen has moved". The app is
+        asked to come forward the way a click on it would; no setting is
+        changed.
+        """
+        executable = str(getattr(self, "_executable", "") or "")
+        if not self.visible or sys.platform != "darwin" or ".app/" not in executable:
+            return False
+        app = executable[: executable.index(".app/") + len(".app")]
+        try:
+            opened = await asyncio.create_subprocess_exec("/usr/bin/open", "-a", app)
+            await asyncio.wait_for(opened.wait(), timeout=5.0)
+        except (OSError, TimeoutError) as why:
+            logger.info("her browser could not be brought forward: %s", why)
+            return False
+        return opened.returncode == 0
 
     async def close(self):
         self._close_failures = []

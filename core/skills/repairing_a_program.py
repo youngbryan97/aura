@@ -119,8 +119,10 @@ async def _play_it(address: str, request: str) -> dict[str, Any]:
         if not await browser.ensure_ready():
             return {"error": "her browser could not be opened"}
         await browser.page.goto(address, wait_until="load")
-        # In front, where the person watching can see it.
+        # In front, where the person watching can see it, and where the
+        # system does not let it sleep.
         await browser.page.bring_to_front()
+        await browser.come_forward()
         await asyncio.sleep(0.5)
         return await played_on_the_drawing(browser, request, {"url": address})
     finally:

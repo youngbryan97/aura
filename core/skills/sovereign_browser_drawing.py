@@ -176,6 +176,7 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
     finally:
         AS_IT_HAPPENS.reset(quick)
         HER_OWN_PAGE.reset(held)
+        await reflexes.close()
     return result, reflexes
 
 

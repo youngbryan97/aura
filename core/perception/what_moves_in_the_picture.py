@@ -282,8 +282,10 @@ class WhatMoves:
             left, top, right, bottom = thing.box()
             held[max(0, int(top) - 2) : min(tall, int(bottom) + 3), max(0, int(left) - 2) : min(wide, int(right) + 3)] = True
         rate = min(1.0, BACKDROP_DRIFT * max(0.0, dt))
-        free = ~held
-        self._backdrop[free] += rate * (small[free].astype(np.float32) - self._backdrop[free])
+        # A weight a pixel, nought under what she follows: the same blend as
+        # picking the free pixels out, without copying them out and back.
+        weight = np.where(held, np.float32(0.0), np.float32(rate))[..., None]
+        self._backdrop += weight * (small.astype(np.float32) - self._backdrop)
 
     def _what_differs(self, small: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
         from core.perception.picture_arithmetic import grow
@@ -369,8 +371,10 @@ class WhatMoves:
         px, py = px + thing.vx * dt, py + thing.vy * dt
         reach = 6.0 + 1.5 * math.hypot(thing.vx, thing.vy) * dt + 0.5 * max(thing.w, thing.h)
         distance = math.hypot(blob["x"] - px, blob["y"] - py) / reach
+        if distance > 1.0:
+            return math.inf
         looks = _look_apart(thing.look, blob["look"])
-        if distance > 1.0 or looks > 0.8:
+        if looks > 0.8:
             return math.inf
         ratio = max(blob["w"] * blob["h"], thing.size) / max(1.0, min(blob["w"] * blob["h"], thing.size))
         return distance + looks + 0.3 * math.log(ratio)
