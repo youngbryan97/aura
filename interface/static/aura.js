@@ -4078,8 +4078,12 @@ const PLAIN_LANGUAGE_RULES = [
     // probe or proof-integrity result elsewhere in the same report.
     [/^Flagged response for distillation \(confidence=([\d.]+)/i,
      (m) => `Marked an answer she was only ${Math.round(+m[1] * 100)}% sure of, to learn from later.`],
+    // φ is integrated information in nats and has no ceiling: an 8-node part
+    // read 2.62 on 5 October, and "out of 1" told the reader otherwise.
+    [/max-phi complex is not the full system.*?phi=([\d.]+), (\d+)\/(\d+) nodes/i,
+     (m) => `Measured how unified her mind is right now: most in ${m[2]} of her ${m[3]} parts (φ ${(+m[1]).toFixed(2)}).`],
     [/max-phi complex.*?phi=([\d.]+)/i,
-     (m) => `Measured how unified her mind is right now (${(+m[1]).toFixed(2)} out of 1).`],
+     (m) => `Measured how unified her mind is right now: most as a whole (φ ${(+m[1]).toFixed(2)}).`],
     [/^Lane reconciler:/i, () => 'Reloading her main language model.'],
     [/^CriticalityRegulator initialized/i, () => 'Tuned how close to the edge of chaos she runs.'],
     [/^Semantic (?:sleep|Defrag)/i, () => 'Tidying memory in the background.'],

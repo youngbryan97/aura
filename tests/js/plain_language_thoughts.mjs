@@ -14,6 +14,7 @@ const CASES = [
   ["stem cell captured: organ=self_object schema=1 bytes=26", /recovery snapshot of self object/],
   ["Flagged response for distillation (confidence=0.40, queue=55)", /only 40% sure/],
   ["PhiCore exclusion postulate: max-phi complex = full 16-node system (phi=0.61610)", /how unified her mind is.*0\.62/],
+  ["PhiCore exclusion postulate: max-phi complex is not the full system. Max-phi subset: [valence, arousal] (phi=1.37674, 10/16 nodes). Full-system phi=0.79992.", /most in 10 of her 16 parts \(φ 1\.38\)\.$/],
   ["Sweep complete: 0 procs reaped, 0.0MB storage reclaimed.", /nothing to clean up/],
 ];
 const UNTOUCHED = [
