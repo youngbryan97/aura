@@ -317,10 +317,11 @@ class _Doing:
                 return f"there is no field named {target!r}"
             tag = await box.evaluate("(el) => el.tagName + ':' + (el.type || '')")
             if tag.startswith("SELECT"):
-                try:
-                    await box.select_option(label=value, timeout=2000)
-                except Exception:  # noqa: BLE001 - offered by value rather than by its shown name
-                    await box.select_option(value=value, timeout=2000)
+                offered = await box.evaluate("(el) => [...el.options].map((o) => [o.value, o.text])")
+                closest = the_option_meant(offered, value)
+                if closest is None:
+                    return f"the list {target!r} has no {value!r} in it"
+                await box.select_option(value=closest, timeout=2000)
             elif tag.endswith(":checkbox") or tag.endswith(":radio"):
                 await box.set_checked(value.lower() not in ("false", "no", "off", "0"), timeout=2000)
             else:
@@ -333,6 +334,24 @@ class _Doing:
         await page.wait_for_timeout(SETTLE_MS)
         return ""
 
+    async def _how_many(self, selector: str, *, anywhere: bool) -> tuple[int, str]:
+        """How many elements ``selector`` names in the work area; for one that is just there, in the whole window.
+
+        A selector is taken as its writer meant it, CSS or the browser driver's
+        own (``button:has-text('B')``), and a control that is there is there
+        whether it sits on the page or on the toolbar. LIVE 2026-10-05 Bold
+        was left out of a program whose Bold button worked, its check naming
+        the button in a form only the driver reads, and looking on the page alone.
+        """
+        found = int(await self.page.evaluate("(s) => window.__checks.count(s)", selector))
+        if found > 0 or (found == 0 and not anywhere):
+            return found, "the work area"
+        try:
+            scope = self.page if anywhere else self.page.locator("#app-work")
+            return await scope.locator(selector).count(), "the window" if anywhere else "the work area"
+        except Exception:  # noqa: BLE001 - a selector neither CSS nor the driver reads
+            return found, "the work area"
+
     async def sees(self, expectation: Expectation, reopen: Any) -> tuple[bool, str]:
         page, e = self.page, expectation
         if e.see in ("text", "no_text"):
@@ -344,13 +363,13 @@ class _Doing:
             held, said = await page.evaluate("([t, p, v]) => window.__checks.style(t, p, v)", [e.target, e.property, e.value])
             return bool(held), said
         if e.see in ("element", "count"):
-            found = await page.evaluate("(s) => window.__checks.count(s)", e.target)
+            found, where = await self._how_many(e.target, anywhere=e.see == "element")
             if found < 0:
                 return False, f"{e.target!r} names no kind of element"
             if e.see == "element":
-                return found > 0, f"{found} {e.target!r} in the work area"
+                return found > 0, f"{found} {e.target!r} in {where}"
             wanted = int(re.sub(r"\D", "", e.value) or 0)
-            return (found >= wanted if e.value.strip().startswith(">") else found == wanted), f"{found} {e.target!r} in the work area"
+            return (found >= wanted if e.value.strip().startswith(">") else found == wanted), f"{found} {e.target!r} in {where}"
         if e.see == "download":
             await page.wait_for_timeout(400)
             for name, text in self.downloads:
@@ -483,3 +502,27 @@ async def run_checks(path: str | Path, checks: list[Check], *, browser: Any = No
         if owned is not None:
             await browser.close()
             await owned.stop()
+
+
+def the_option_meant(offered: list[list[str]], wanted: str) -> str | None:
+    """The value of the option in a list a person means by ``wanted``: by its shown name or value, else the one sharing most words.
+
+    A person after "Word (.docx)" in a list that says "Word Document (.docx)"
+    takes that one. LIVE 2026-10-05 an export check failed on exactly that,
+    and a working export was left out of the program for it.
+    """
+    import re
+
+    def words(text: str) -> set[str]:
+        return set(re.findall(r"[a-z0-9]+", str(text or "").lower()))
+
+    wanted_text = str(wanted or "").strip().lower()
+    for value, text in offered:
+        if wanted_text in (str(text).strip().lower(), str(value).strip().lower()):
+            return str(value)
+    want = words(wanted)
+    scored = [(len(want & (words(text) | words(value))), str(value)) for value, text in offered]
+    best = max(scored, default=(0, ""))
+    # More than half of what was asked for, and in that one option alone.
+    meant = best[0] * 2 > len(want) and [n for n, _v in scored].count(best[0]) == 1
+    return best[1] if meant else None

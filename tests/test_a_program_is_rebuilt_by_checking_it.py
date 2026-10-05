@@ -213,3 +213,56 @@ async def test_the_file_a_check_gives_is_ready_before_the_click_that_asks_for_it
                                   "expect": [{"see": "text", "target": "Quarterly Report"}]})
     runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK), opener]).write(tmp_path / "p.html"), [check])
     assert runs[0].held, runs[0].why
+
+
+_WRONG_ITALIC_CHECK = _check("Italic", [{"do": "type", "value": "hello"}, {"do": "select_all"}, {"do": "click", "target": "Italic"}],
+                             [{"see": "style", "target": "hello", "property": "font-style", "value": "italic"}, {"see": "dialog", "target": "Italic"}])
+
+
+class _ReadsItsChecksAgain(_Script):
+    """Wrote a check no right part can pass (a dialog after a toolbar button); read again, it drops the dialog."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.read_again = 0
+
+    async def __call__(self, prompt, schema, max_tokens):
+        if schema.__name__ == "_Checks":
+            return schema.model_validate({"checks": [c.model_dump() for c in (_BOLD_CHECK, _WRONG_ITALIC_CHECK, _COUNT_CHECK)]})
+        if schema.__name__ == "_TheChecksAgain":
+            self.read_again += 1
+            return schema.model_validate({"right": False, "checks": [_ITALIC_CHECK.model_dump()]})
+        if schema is WrittenPart and '"Italic"' in prompt:
+            return WrittenPart(code=_ITALIC)
+        return await super().__call__(prompt, schema, max_tokens)
+
+
+@pytest.mark.asyncio
+async def test_a_check_nothing_passes_is_read_again(tmp_path):
+    script = _ReadsItsChecksAgain()
+    done = await rebuild("Writer", script, tmp_path, corpus=_NoCorpus(), online=False)
+    italic = {o.feature.name: o for o in done.built.outcomes}["Italic"]
+    assert script.read_again == 1
+    assert italic.kept and italic.tries == 4, italic
+    assert 'execCommand("italic")' in done.built.path.read_text()
+
+
+def test_the_option_a_person_means_is_chosen():
+    from core.rebuilding.checks_a_person_makes import the_option_meant
+
+    formats = [["txt", "Plain Text (.txt)"], ["docx", "Word Document (.docx)"], ["pdf", "PDF"]]
+    assert the_option_meant(formats, "Word (.docx)") == "docx"
+    assert the_option_meant(formats, "PDF") == "pdf" and the_option_meant(formats, "txt") == "txt"
+    assert the_option_meant(formats, "Rich Text") is None
+    assert the_option_meant([["a", "Document one"], ["b", "Document two"]], "Document") is None  # no one of them
+
+
+@pytest.mark.asyncio
+async def test_a_control_is_found_as_its_check_names_it_wherever_it_is(tmp_path):
+    """LIVE 2026-10-05 Bold was left out: its check named the button as the driver reads it, and only the page was looked at."""
+    check = Check.model_validate({"feature": "Bold", "steps": [{"do": "type", "value": "hi"}],
+                                  "expect": [{"see": "element", "target": "button[title='Bold'], button:has-text('B')"}]})
+    runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK), Part("Bold", _BOLD)]).write(tmp_path / "p.html"), [check])
+    assert runs[0].held, runs[0].why
+    runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK)]).write(tmp_path / "e.html"), [check])
+    assert not runs[0].held

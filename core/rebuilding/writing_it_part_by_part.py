@@ -230,6 +230,59 @@ async def write_a_feature(
     return program, outcome, [r.check for r in held]
 
 
+class _TheChecksAgain(BaseModel):
+    """Her reading, as the person using the feature, of checks no version of its part passed."""
+
+    right: bool = Field(description="true when a program that does the feature would pass the checks as written")
+    checks: list[Check] = Field(default_factory=list, description="when they are not right: the checks as that person would really do and see them")
+
+
+async def _the_checks_again(genome: Genome, feature: Feature, own: list[Check], wrong: str, ask: Asker, tried: _Trying) -> list[Check]:
+    """Checks no version of a part could pass, read again; the ones rewritten, if any, that still test something.
+
+    A check is written before any code and can ask for what the feature does
+    not do. LIVE 2026-10-05 "Save As" was checked for its dialog still being
+    open after Save was pressed in it, and three right versions were thrown
+    away for it. A person whose every try fails one test reads the test again.
+    """
+    from core.rebuilding.rebuilding_a_program import checks_that_mean_something
+    from core.rebuilding.what_a_program_does import _HOW_CHECKS_ARE_WRITTEN
+
+    shown = "\n".join(f"- {c.said()}" for c in own)
+    prompt = (
+        f"{genome.name}: {genome.what_it_is}\nThe feature \"{feature.name}\": {feature.how} -> {feature.shows}.\n"
+        f"These checks were written for it before any code, and no version of its part passed them:\n{shown}\n"
+        f"Doing them showed: {wrong[:900]}\n\n"
+        "Read them as the person who uses the feature. If a program that does the feature would pass them as "
+        "written, they are right. If not (they expect what the feature does not do, or what an earlier step undoes, "
+        "such as a dialog still open after it was closed), write them as that person would really do them and "
+        f"what they would see, naming the feature exactly.\n\n{_HOW_CHECKS_ARE_WRITTEN}"
+    )
+    again = await ask(prompt, _TheChecksAgain, 1024)
+    if not isinstance(again, _TheChecksAgain) or again.right:
+        return []
+    rewritten = [c.model_copy(update={"feature": feature.name}) for c in again.checks if c.expect][:2]
+    if not rewritten:
+        return []
+    return await checks_that_mean_something(rewritten, tried.trial.with_name("empty.html"), browser=tried.browser)
+
+
+async def a_feature_and_its_checks(
+    genome: Genome, program: ProgramAsBuilt, feature: Feature, own: list[Check], ask: Asker, tried: _Trying,
+) -> tuple[ProgramAsBuilt, FeatureOutcome, list[Check]]:
+    """`write_a_feature`; and where its own checks were what failed every try, those checks read again and one more go."""
+    program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried)
+    if outcome.kept or not outcome.why_not.startswith("check "):
+        return program, outcome, held
+    again = await _the_checks_again(genome, feature, own, outcome.why_not, ask, tried)
+    if not again:
+        return program, outcome, held
+    logger.info("rebuilding: the checks of %s read again: %s", feature.name, " | ".join(c.said()[:200] for c in again))
+    program, second, held = await write_a_feature(genome, program, feature, again, ask, tried)
+    second.tries += outcome.tries
+    return program, second, held
+
+
 async def write_it(
     genome: Genome,
     checks: list[Check],
@@ -276,7 +329,7 @@ async def write_it(
         if time.monotonic() - began > deadline_s:
             outcomes.append(FeatureOutcome(feature, why_not="out of time"))
             continue
-        program, outcome, held = await write_a_feature(genome, program, feature, [c for c in checks if c.feature == feature.name], ask, tried)
+        program, outcome, held = await a_feature_and_its_checks(genome, program, feature, [c for c in checks if c.feature == feature.name], ask, tried)
         outcomes.append(outcome)
         holding.extend(held)
         done = len(outcomes)
