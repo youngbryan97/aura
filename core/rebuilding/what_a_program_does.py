@@ -65,6 +65,9 @@ class Genome(BaseModel):
     what_it_is: str = Field(default="", max_length=400)
     work: str = Field(default="", max_length=400, description="what a person works on in the main area, and how it looks")
     accent: str = Field(default="#2b579a", max_length=7, description="the colour of its title bar, as #rrggbb")
+    kind: str = Field(default="application", description=(
+        '"application" for a program used through a window (documents, tools, games); '
+        '"code" for one used by calling its functions or running it in a terminal (a library, a command-line tool)'))
     features: list[Feature] = Field(default_factory=list)
 
 

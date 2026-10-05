@@ -135,6 +135,10 @@ async def rebuild(
     folder.mkdir(parents=True, exist_ok=True)
     record.append(folder / "what_she_asked.jsonl")
     (folder / "what_it_does.json").write_text(json.dumps(genome.model_dump(), indent=1), "utf-8")
+    if genome.kind.strip().lower() == "code":
+        built = await _as_code(genome, ask, folder, tell)
+        await asyncio.to_thread(keep_the_record, folder, built)
+        return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
     written: list[Check] = []
     for at in range(0, len(genome.features), FEATURES_AT_ONCE):
         written.extend(await checks_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask))
@@ -145,6 +149,19 @@ async def rebuild(
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left)
     await asyncio.to_thread(keep_the_record, folder, built)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
+
+
+async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None) -> Built:
+    """A program that is code: its calls written first, then its functions, each kept for what calling it showed."""
+    from core.rebuilding.programs_in_code import calls_for, write_code
+
+    calls = []
+    for at in range(0, len(genome.features), FEATURES_AT_ONCE):
+        calls.extend(await calls_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask))
+    await _say(tell, f"Wrote {len(calls)} calls a person would make of it, before any code; each is made in a sandbox with no network.")
+    began = time.monotonic()
+    program, outcomes, holding = await write_code(genome, calls, ask, folder / "program.py")
+    return Built(program, folder / "program.py", outcomes, holding, time.monotonic() - began)
 
 
 def keep_the_record(folder: Path, built: Built) -> None:

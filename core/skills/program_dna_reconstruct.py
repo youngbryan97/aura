@@ -303,7 +303,7 @@ async def _used_as_asked(built: Any, asked: str, context: dict[str, Any] | None)
     from core.skills.using_a_program import how_the_use_went, use_what_she_built, what_to_do_with_it
 
     task = what_to_do_with_it(asked)
-    if built is None or not task or not built.working():
+    if built is None or not task or not built.working() or built.path.suffix.lower() != ".html":
         return ""
     return " " + how_the_use_went(await use_what_she_built(built.path, task, asked, context))
 
@@ -314,6 +314,8 @@ _LEFT_OPEN: list[Any] = []
 
 async def _open_for_the_person(path: Path) -> str:
     """The rebuilt program opened in a window of her browser, left open for the person to use."""
+    if path.suffix.lower() not in (".html", ".htm"):
+        return ""  # code is used by calling it, not by looking at it
     try:
         from core.capabilities.phantom_browser import PhantomBrowser
 
