@@ -286,10 +286,39 @@ async def _confirmed(browser: Any, before: str, after: str, words: str, keys: li
 CONFIRM_PAIRS = 3
 
 
+def _alongside(best: tuple[Suspicion, list[Edit], Any], improving: list[Any], now: _Believed) -> list[Any]:
+    """The other trials of the same round that each mend something the best does not, in other places of the code.
+
+    One fix a round meant five rounds for five faults, a minute and a half
+    each, with the person waiting. Trials that mend different things, by
+    edits in different places, are faults of their own: watched together,
+    they are kept together.
+    """
+    def gains(behaviour: Any) -> set[str]:
+        return (now.wrong & behaviour.right) | (behaviour.right - now.right - now.wrong)
+
+    def where(edits: list[Edit]) -> list[tuple[int, int]]:
+        return [(e.start, e.end) for e in edits]
+
+    taken, covered, places = [], set(gains(best[2])), where(best[1])
+    seen = {(best[0].pattern, best[0].line)}
+    for suspicion, edit, behaviour in sorted(improving, key=lambda t: _worth(t[2], now), reverse=True):
+        mine = gains(behaviour)
+        if (suspicion.pattern, suspicion.line) in seen or not mine - covered:
+            continue
+        if any(a < d and c < b for a, b in where(edit) for c, d in places):
+            continue  # edits in the same place are two ways of doing one fix
+        taken.append((suspicion, edit, behaviour))
+        covered |= mine
+        places += where(edit)
+        seen.add((suspicion.pattern, suspicion.line))
+    return taken
+
+
 async def _try_edits(browser: Any, current: str, words: str, keys: list[str], folder: Path,
                      now: _Believed, seconds: float = WATCH_S, refused: set[str] | None = None,
                      in_pairs: bool = False, proposed: list[Suspicion] | None = None,
-                     tell: Callable[[str], None] | None = None) -> tuple[Suspicion, list[Edit], Any] | None:
+                     tell: Callable[[str], None] | None = None, also: list[Any] | None = None) -> tuple[Suspicion, list[Edit], Any] | None:
     """Every edit the code suggests, watched in parallel; the one that mends the most and breaks nothing.
 
     ``proposed`` replaces the code's own suggestions with edits from elsewhere
@@ -319,6 +348,8 @@ async def _try_edits(browser: Any, current: str, words: str, keys: list[str], fo
                 "tried %s at line %s (%d edit(s)): wrong %s, right %s",
                 suspicion.pattern, suspicion.line, len(edit), sorted(behaviour.wrong), sorted(behaviour.right),
             )
+            if _improves(behaviour, now) and also is not None:
+                also.append((suspicion, edit, behaviour))
             if _improves(behaviour, now) and (best is None or _worth(behaviour, now) > _worth(best[2], now)):
                 best = (suspicion, edit, behaviour)
         if tell is not None and start + AT_ONCE < len(candidates):
@@ -327,6 +358,36 @@ async def _try_edits(browser: Any, current: str, words: str, keys: list[str], fo
         tell(f"The one that helps most: line {best[0].line}, {best[0].why}." if best is not None
              else "None of those made it play better on its own.")
     return best
+
+
+async def _kept_together(browser: Any, current: str, words: str, keys: list[str], folder: Path, last: _Believed,
+                         fixes: list[Any], tell: Callable[[str], None]) -> dict[str, Any] | None:
+    """Fixes that each mend something different, confirmed together as one is: kept, each said; or None, and the best is tried alone."""
+    from types import SimpleNamespace
+
+    tell(f"{len(fixes)} of those fixes each mend something different, in different places. Watching them together, "
+         "beside the game without them, to be sure they help and break nothing.")
+    edits = [e for _s, edit, _b in fixes for e in edit]
+    trial = SimpleNamespace(right=set().union(*(b.right for _s, _e, b in fixes)),
+                            wrong=set.intersection(*(set(b.wrong) for _s, _e, b in fixes)))
+    after = applied(current, edits)
+    confirmed = await _confirmed(browser, current, after, words, keys, folder, last, trial)
+    if confirmed is None:
+        tell("Together they did not hold up, so I am checking the best of them alone.")
+        return None
+    again, shown = confirmed
+    kept = []
+    for suspicion, edit, behaviour in fixes:
+        mine = [name for name in shown if name.startswith("no longer: ") or name in behaviour.right]
+        kept.append(({
+            "where": suspicion.function, "line": suspicion.line, "pattern": suspicion.pattern,
+            "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why,
+            "shown": [f"no longer {_WRONG_SAID.get(n[11:], n[11:])}" if n.startswith("no longer: ") else _RIGHT_SAID.get(n, n) for n in mine],
+        }, _what_this_change_did(suspicion, edit, current, mine)))
+    believed = last
+    for _s, _e, behaviour in fixes:
+        believed = believed.after(behaviour)
+    return {"kept": kept, "current": after, "last": believed.after(again)}
 
 
 async def _what_else_could_do_it(browser: Any, current: str, words: str, keys: list[str], folder: Path,
@@ -396,7 +457,8 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             # 2026-10-04, the top wall was never seen missing, the loop
             # stopped when nothing was known wrong, and it was left missing).
             for _round in range(MOST_ROUNDS):
-                chosen = await _try_edits(browser, current, words, keys, path.parent, last, refused=refused, tell=tell)
+                improving: list[Any] = []
+                chosen = await _try_edits(browser, current, words, keys, path.parent, last, refused=refused, tell=tell, also=improving)
                 if chosen is None:
                     # Nothing settled it in a short watch. A fault that shows
                     # only now and then needs a longer one before an edit can
@@ -417,6 +479,15 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                     chosen = await _what_else_could_do_it(browser, current, words, keys, path.parent, last, refused, tell)
                 if chosen is None:
                     break
+                together = _alongside(chosen, improving, last)
+                if together:
+                    kept_together = await _kept_together(browser, current, words, keys, path.parent, last, [chosen, *together], tell)
+                    if kept_together is not None:
+                        for entry, said in kept_together["kept"]:
+                            repair.kept.append(entry)
+                            tell(said)
+                        current, last = kept_together["current"], kept_together["last"]
+                        continue
                 suspicion, edit, behaviour = chosen
                 tell("Watching the game with that fix again, beside the game without it, to be sure it helps and breaks nothing.")
                 confirmed = await _confirmed(browser, current, applied(current, edit), words, keys, path.parent, last, behaviour)
