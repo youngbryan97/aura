@@ -288,7 +288,7 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
     from core.skills.screen_pursuit_on_a_page import HER_OWN_PAGE, OnAPage
 
     reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=deadline, keep=keep)
-    held = HER_OWN_PAGE.set(OnAPage(page=page, name=HER_BROWSER))
+    held = HER_OWN_PAGE.set(on := OnAPage(page=page, name=HER_BROWSER))
     quick = AS_IT_HAPPENS.set(reflexes)
     try:
         result = await pursue_on_screen(
@@ -303,6 +303,7 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
         AS_IT_HAPPENS.reset(quick)
         HER_OWN_PAGE.reset(held)
         await reflexes.close()
+        await on.stop_watching()
     return result, reflexes
 
 

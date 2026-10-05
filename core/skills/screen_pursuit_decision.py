@@ -117,6 +117,7 @@ from .screen_pursuit_looking import (
     _why_nothing_answers,
     clear_what_is_in_front,
 )
+from .screen_pursuit_on_a_page import it_was_answered
 from .screen_pursuit_surface import (
     LABEL_REACH,  # noqa: F401
     PRESSABLE_KEYS,
@@ -647,10 +648,10 @@ async def decide_the_next_move(
         if previous.chosen is not None and expected["took"] == 1:
             # A key that never changes anything is not one of her actions
             # in this world, whoever wrote it down.
-            can_do.tried(previous.chosen.name, attempt.verdict.observed_change)
+            can_do.tried(previous.chosen.name, it_was_answered(attempt.verdict.observed_change, observation))
             _grade_how_soon_she_came_back(run, previous.chosen.name, attempt.verdict.held, moves)
             _it_did_nothing_from_here(
-                pending, laid_out, previous.chosen.name, attempt.verdict.observed_change
+                pending, laid_out, previous.chosen.name, it_was_answered(attempt.verdict.observed_change, observation)
             )
             # And whether the way it was sent reaches the thing at all.
             from .screen_pursuit_surface import it_answered
@@ -658,7 +659,7 @@ async def decide_the_next_move(
             it_answered(
                 target_app or anchor["app"],
                 previous.chosen.name,
-                attempt.verdict.observed_change,
+                it_was_answered(attempt.verdict.observed_change, observation),
             )
             # And what stood around it when it did no harm — the two
             # pieces either side of a gap, found by taking things away

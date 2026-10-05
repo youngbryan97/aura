@@ -42,6 +42,7 @@ from core.skills.screen_pursuit_bearings import (
 from core.skills.screen_pursuit_looking import (
     _placed_in,
 )
+from core.skills.screen_pursuit_on_a_page import it_was_answered
 from core.skills.screen_pursuit_surface import (
     _a_pass_in_moves,
 )
@@ -203,7 +204,7 @@ def _decide_the_next_move_learned_same_measurement(
             # nothing — the control for working out which part of the
             # screen answers to her — so the band stopped settling and
             # nothing downstream of it could form.
-            worked=attempt.verdict.observed_change,
+            worked=it_was_answered(attempt.verdict.observed_change, observation),
             # Which act it was, so a run of one thing doing nothing
             # is not read as the world having ended.
             acting=previous.chosen.name if previous.chosen is not None else "",

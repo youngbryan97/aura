@@ -25,7 +25,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["HER_OWN_PAGE", "OnAPage", "on_her_page"]
+__all__ = ["HER_OWN_PAGE", "OnAPage", "it_was_answered", "on_her_page"]
 
 #: Where keys go when a page is the surface: the pursuit's names to the
 #: browser's.
@@ -74,15 +74,39 @@ class OnAPage:
     page: Any
     name: str
     _focused: bool = field(default=False, init=False)
+    #: The page watched as one stream while she uses it (core/perception/watching_it_happen.py).
+    watching: Any = field(default=None, init=False)
+    _watching_over: Any = field(default=None, init=False)
 
     async def read(self, over: tuple[float, float, float, float] | None = None) -> dict[str, Any]:
         from core.perception.what_her_page_shows import look_at_a_page
 
+        await self._watch(over)
         seen = await look_at_a_page(self.page, over, name=self.name)
         if seen is None:
             return {"ok": False, "text": "", "layout": [], "error": "her page could not be photographed"}
         seen.setdefault("ok", True)
+        _what_the_stream_shows(seen, self.watching)
         return seen
+
+    async def _watch(self, over: tuple[float, float, float, float] | None) -> None:
+        """Watch the part being read as a stream from the first look; and while something plays by itself, wait for it."""
+        from core.perception.watching_it_happen import Watching
+
+        if self.watching is None or over != self._watching_over:
+            if self.watching is not None:
+                await self.watching.stop()
+            self.watching, self._watching_over = Watching(take=await _pictures_of(self.page, over)), over
+            self.watching.start()
+            return
+        from .screen_pursuit import _tell
+
+        await self.watching.watch(tell=_tell)
+
+    async def stop_watching(self) -> None:
+        if self.watching is not None:
+            await self.watching.stop()
+            self.watching = None
 
     async def _focus(self) -> None:
         if self._focused:
@@ -103,6 +127,8 @@ class OnAPage:
             await self.page.keyboard.press(_KEY_NAMES.get(name, name))
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False
+        if self.watching is not None:
+            self.watching.acted(name)
         return True
 
     async def press_many(self, keys: Sequence[str]) -> int:
@@ -128,6 +154,8 @@ class OnAPage:
             await self.page.mouse.click(left + x * wide, top + y * tall)
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False
+        if self.watching is not None:
+            self.watching.acted(f"click at {x:.2f}, {y:.2f}")
         # A click on the drawing is also what gives it the keyboard.
         self._focused = True
         return True
@@ -138,6 +166,55 @@ class OnAPage:
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             title = ""
         return {"url": str(getattr(self.page, "url", "") or ""), "title": title, "error": ""}
+
+
+async def _pictures_of(page: Any, over: tuple[float, float, float, float] | None) -> Any:
+    """Where the stream's pictures come from: the page's own frames as it draws them, else screenshots of the part."""
+    from core.perception.frames_as_they_are_drawn import PageFrames
+    from core.perception.what_her_page_shows import _decoded, the_page_size
+
+    wide, tall = await the_page_size(page)
+    left, top, right, bottom = over if over is not None else (0.0, 0.0, 1.0, 1.0)
+    clip = {"x": left * wide, "y": top * tall, "width": max(1.0, (right - left) * wide), "height": max(1.0, (bottom - top) * tall)}
+    frames = PageFrames(page)
+
+    async def take() -> Any:
+        if not frames.unavailable:
+            streamed = await frames.look(clip)
+            if streamed is not None:
+                return streamed
+        png = await page.screenshot(clip=clip, type="png")
+        return _decoded(png) if png else None
+
+    return take
+
+
+def _what_the_stream_shows(seen: dict[str, Any], watching: Any) -> None:
+    """Mark the writing that keeps changing by itself, a scene's lines, which are read and not pressed; and whether her last act was answered."""
+    if watching is None:
+        return
+    for region in seen.get("layout") or []:
+        try:
+            box = (float(region["x"]), float(region["y"]), float(region["width"]), float(region["height"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if watching.keeps_changing_on_its_own(box):
+            region["of_its_own"] = True
+    if watching.acts:
+        when, _act = watching.acts[-1]
+        import time
+
+        seen["answered"] = watching.answered(when, within_s=max(2.0, time.monotonic() - when))
+
+
+def it_was_answered(changed: bool, observation: dict[str, Any]) -> bool:
+    """Whether her act was answered: the picture differs, and the stream does not say it was only going on by itself.
+
+    Two stills differ after a click on a scene that plays by itself whatever
+    she clicked; the stream, which saw the scene changing before she acted,
+    says so (``answered`` False). Where there is no stream, the stills decide.
+    """
+    return bool(changed) and observation.get("answered") is not False
 
 
 #: The page a hand-over is playing on, for as long as it plays.

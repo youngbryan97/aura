@@ -116,7 +116,8 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
     found: dict[str, None] = {}
     for region in regions:
         text = " ".join(str(region.get("text") or "").split())
-        if text and not _set_as_a_paragraph(region, regions):
+        # Writing that keeps changing by itself is a scene talking, not a control.
+        if text and not region.get("of_its_own") and not _set_as_a_paragraph(region, regions):
             found.setdefault(a_click_on(text), None)
     # And the drawn buttons with no words on them, named by where they are.
     for region in observation.get("shapes") or []:
@@ -136,7 +137,7 @@ def what_it_says(observation: dict[str, Any], drawn_where: Any) -> str:
     regions = [region for region in observation.get("layout") or [] if isinstance(region, dict)]
     lines = [
         region for region in regions
-        if " ".join(str(region.get("text") or "").split()) and _set_as_a_paragraph(region, regions)
+        if " ".join(str(region.get("text") or "").split()) and (region.get("of_its_own") or _set_as_a_paragraph(region, regions))
     ]
     lines.sort(key=lambda region: (float(region.get("y", 0.0)), float(region.get("x", 0.0))))
     return " ".join(" ".join(str(region.get("text") or "").split()) for region in lines)
