@@ -12,7 +12,7 @@ identity/personality system prompt so responses sound like Aura, not a bare LLM.
 Timeouts are kept tight (45s) for conversational responsiveness.
 """
 from .inference_gate_initialization import _GateInitializationMixin
-from .a_typed_answer import judged_by_its_parser
+from .a_typed_answer import judged_by_its_parser, keeps_its_length
 from .inference_gate_thinking_budget import _ThinkingBudgetMixin
 from .inference_gate_first_attempt import (  # noqa: F401  (re-exported: they were defined here)
     _warm_the_foreground_lane_before_the_first_attempt,
@@ -9920,7 +9920,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                     )
                     max_tokens = _affordable
 
-        max_tokens = self._generate_with_metadata_sink_serving_lane(_grounded, context, initial_visible_user_prompt, max_tokens, messages, morpho_kwargs, system_prompt)
+        max_tokens = self._generate_with_metadata_sink_serving_lane(_grounded, context, initial_visible_user_prompt, keeps_its_length(context, max_tokens), messages, morpho_kwargs, system_prompt)
         self._generate_with_metadata_sink_part_28(max_tokens, messages, origin, prompt_chars, prompt_mode, request_chars, scaffold_chars, system_prompt)
 
         if (
