@@ -36,3 +36,20 @@ def test_a_pronoun_with_its_set_in_the_message_is_not_a_challenge(asked: str) ->
 )
 def test_a_bare_pronoun_still_is(asked: str) -> None:
     assert _is_contextual_relevance_challenge(asked) is True
+
+
+@pytest.mark.parametrize(
+    "asked",
+    [
+        "How sure are you about the FTX part, and where did that come from?",
+        "Where did that come from?",
+        "What are you talking about, how do you know that?",
+    ],
+)
+def test_a_question_about_her_grounds_is_not_a_challenge(asked: str) -> None:
+    """LIVE 2026-10-04: the drift repair answered a question about where a claim came from."""
+    assert _is_contextual_relevance_challenge(asked) is False
+
+
+def test_a_challenge_with_no_question_about_grounds_still_is() -> None:
+    assert _is_contextual_relevance_challenge("what are you talking about?") is True

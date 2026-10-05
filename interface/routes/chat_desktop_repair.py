@@ -54,7 +54,6 @@ _CONTEXTUAL_RELEVANCE_CHALLENGE_MARKERS = (
     "why the interest",
     "why are you interested",
     "why are you talking about",
-    "where did that come from",
     "who are you talking about",
     "who do you mean",
     "who needs to",
@@ -132,8 +131,24 @@ def _is_contextual_relevance_challenge(user_message: str) -> bool:
             continue
         if marker in {"what one", "which one"} and _pronoun_has_a_set_in_this_message(text, marker):
             continue
-        return True
+        return not _asks_about_her_grounds(user_message)
     return False
+
+
+def _asks_about_her_grounds(user_message: str) -> bool:
+    """A question about what her answer stood on, which is not a complaint that she drifted.
+
+    LIVE 2026-10-04: "How sure are you about the FTX part, and where did that
+    come from?" matched "where did that come from" in the list above. The
+    cortex was handed the drift repair ("I may have drifted from the thread.
+    The last completed exchange I have is ...") as evidence, wrote a drift
+    apology, the reliability gate refused it, and the smaller model answered.
+    The language substrate reads a question about her grounds
+    (core/language/search_request.py); that phrase is now read there.
+    """
+    from core.language.search_request import asks_about_grounds
+
+    return asks_about_grounds(user_message) is True
 
 
 _BOUNDED_PLANNING_REQUEST_RE = re.compile(

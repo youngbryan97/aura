@@ -828,9 +828,16 @@ def _turn_asks_where_that_came_from(user_message: str) -> bool:
         return False
 
     def _lexical(candidate: str) -> bool:
+        # The language substrate's grammar for a question about her grounds
+        # ("where did that come from?") is part of the floor: without it
+        # this question was a provenance question only when the encoder
+        # happened to be loaded.
+        from core.language.search_request import asks_about_grounds
+
         return bool(
             _ASKS_WHERE_CODE_LIVES_RE.search(candidate)
             or _ASKS_TO_INSPECT_SHOWN_SOURCE_RE.search(candidate)
+            or asks_about_grounds(candidate, grammar_only=True)
         )
 
     try:

@@ -203,13 +203,18 @@ _GROUNDS_QUESTION = re.compile(
 )
 
 
-def asks_about_grounds(text: str) -> bool | None:
-    """Whether ``text`` asks how she knows what she said; None when neither reader can tell."""
+def asks_about_grounds(text: str, *, grammar_only: bool = False) -> bool | None:
+    """Whether ``text`` asks how she knows what she said; None when neither reader can tell.
+
+    ``grammar_only`` asks the floor alone, for a caller that uses it as one.
+    """
     message = str(text or "").strip()
     if not message:
         return False
     if _GROUNDS_QUESTION.search(message):
         return True
+    if grammar_only:
+        return False
     return _ASKS_ABOUT_GROUNDS.decide_without_waiting(message)
 
 
