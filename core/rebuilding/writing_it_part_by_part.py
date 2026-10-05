@@ -25,6 +25,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.rebuilding.checks_a_person_makes import Check, CheckRun, run_checks
+from core.rebuilding.parts_that_worked import parts_like, shown, work_area_like
 from core.rebuilding.the_program_as_built import Part, ProgramAsBuilt
 from core.rebuilding.what_a_program_does import Asker, Feature, Genome
 
@@ -127,6 +128,7 @@ def _the_work_area_prompt(genome: Genome, checks: list[Check]) -> str:
 
 def _a_feature_prompt(
     genome: Genome, built: ProgramAsBuilt, feature: Feature, checks: list[Check], wrong: str, before: str, *, as_it_is: bool = False,
+    worked_before: str = "",
 ) -> str:
     work = next((p for p in built.parts if p.name == "work area"), None)
     others = ", ".join(c for p in built.parts for c in p.serves if p.name != "work area") or "none yet"
@@ -136,7 +138,7 @@ def _a_feature_prompt(
         f"Write the part for the feature \"{feature.name}\": {feature.how} -> {feature.shows} (menu: {feature.place or 'any'}).\n"
         f"It must pass these checks, done by a person on a fresh, empty program:\n{shown}\n"
         f"Features already in the program: {others}.\n\n"
-        f"The work-area part already written:\n```js\n{work.code if work else ''}\n```\n\n{FRAME_API}"
+        f"The work-area part already written:\n```js\n{work.code if work else ''}\n```\n\n{FRAME_API}{worked_before}"
     )
     if as_it_is:
         text += f"\nThis part as it is now, to be changed so it does the above:\n```js\n{before[:6000]}\n```\n"
@@ -191,6 +193,15 @@ class _Trying:
         return mine, [r for r in before if not r.held], errors
 
 
+async def _reused(program: ProgramAsBuilt, feature: Feature, own: list[Check], found: Any, tried: _Trying) -> tuple[ProgramAsBuilt, list[CheckRun]] | None:
+    """This program with an earlier build's part for a feature like this one, when every check of this one holds with it and nothing breaks."""
+    candidate = program.with_part(Part(feature.name, found.code, [feature.name]))
+    candidate.style = program.style
+    mine, broke, _errors = await tried(candidate, own)
+    held = [r for r in mine if r.held]
+    return (candidate, held) if len(held) == len(own) and not broke else None
+
+
 async def write_a_feature(
     genome: Genome, program: ProgramAsBuilt, feature: Feature, own: list[Check], ask: Asker, tried: _Trying,
 ) -> tuple[ProgramAsBuilt, FeatureOutcome, list[Check]]:
@@ -201,8 +212,20 @@ async def write_a_feature(
         return program, outcome, []
     existing = next((p for p in program.parts if p.name == feature.name), None)
     wrong, before, best = "", existing.code if existing else "", None
+    # What worked for a feature like it in her earlier builds, kept beside this one (core/rebuilding/parts_that_worked.py):
+    # tried as it is first, and kept with no part written at all when this program's checks hold with it.
+    alike = parts_like(feature, tried.trial.parent.parent, leaving_out=tried.trial.parent, at_most=2)
+    for found in alike if existing is None else ():
+        reused = await _reused(program, feature, own, found, tried)
+        if reused is not None:
+            program, held = reused
+            outcome.kept, outcome.held = True, len(held)
+            logger.info("rebuilding: %s works with the part from %s (%d of %d checks hold)", feature.name, found.program, len(held), len(own))
+            return program, outcome, [r.check for r in held]
+    worked_before = shown(alike[:1])
     for outcome.tries in range(1, TRIES + 1):
-        written = await _write(ask, _a_feature_prompt(genome, program, feature, own, wrong, before, as_it_is=existing is not None and not wrong))
+        written = await _write(ask, _a_feature_prompt(genome, program, feature, own, wrong, before, as_it_is=existing is not None and not wrong,
+                                                      worked_before=worked_before))
         if written is None:
             wrong = "nothing was written"
             continue
@@ -230,57 +253,19 @@ async def write_a_feature(
     return program, outcome, [r.check for r in held]
 
 
-class _TheChecksAgain(BaseModel):
-    """Her reading, as the person using the feature, of checks no version of its part passed."""
-
-    right: bool = Field(description="true when a program that does the feature would pass the checks as written")
-    checks: list[Check] = Field(default_factory=list, description="when they are not right: the checks as that person would really do and see them")
-
-
-async def _the_checks_again(genome: Genome, feature: Feature, own: list[Check], wrong: str, ask: Asker, tried: _Trying) -> list[Check]:
-    """Checks no version of a part could pass, read again; the ones rewritten, if any, that still test something.
-
-    A check is written before any code and can ask for what the feature does
-    not do. LIVE 2026-10-05 "Save As" was checked for its dialog still being
-    open after Save was pressed in it, and three right versions were thrown
-    away for it. A person whose every try fails one test reads the test again.
-    """
-    from core.rebuilding.rebuilding_a_program import checks_that_mean_something
-    from core.rebuilding.what_a_program_does import _HOW_CHECKS_ARE_WRITTEN
-
-    shown = "\n".join(f"- {c.said()}" for c in own)
-    prompt = (
-        f"{genome.name}: {genome.what_it_is}\nThe feature \"{feature.name}\": {feature.how} -> {feature.shows}.\n"
-        f"These checks were written for it before any code, and no version of its part passed them:\n{shown}\n"
-        f"Doing them showed: {wrong[:900]}\n\n"
-        "Read them as the person who uses the feature. If a program that does the feature would pass them as "
-        "written, they are right. If not (they expect what the feature does not do, or what an earlier step undoes, "
-        "such as a dialog still open after it was closed), write them as that person would really do them and "
-        f"what they would see, naming the feature exactly.\n\n{_HOW_CHECKS_ARE_WRITTEN}"
-    )
-    again = await ask(prompt, _TheChecksAgain, 1024)
-    if not isinstance(again, _TheChecksAgain) or again.right:
-        return []
-    rewritten = [c.model_copy(update={"feature": feature.name}) for c in again.checks if c.expect][:2]
-    if not rewritten:
-        return []
-    return await checks_that_mean_something(rewritten, tried.trial.with_name("empty.html"), browser=tried.browser)
+def what_works(outcomes: list[FeatureOutcome]) -> list[dict[str, Any]]:
+    """Each feature, whether it works, and why not, as kept beside the program."""
+    return [
+        {"feature": o.feature.name, "works": o.kept, "checks_held": o.held, "checks": o.of, "tries": o.tries, "why_not": o.why_not}
+        for o in outcomes
+    ]
 
 
-async def a_feature_and_its_checks(
-    genome: Genome, program: ProgramAsBuilt, feature: Feature, own: list[Check], ask: Asker, tried: _Trying,
-) -> tuple[ProgramAsBuilt, FeatureOutcome, list[Check]]:
-    """`write_a_feature`; and where its own checks were what failed every try, those checks read again and one more go."""
-    program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried)
-    if outcome.kept or not outcome.why_not.startswith("check "):
-        return program, outcome, held
-    again = await _the_checks_again(genome, feature, own, outcome.why_not, ask, tried)
-    if not again:
-        return program, outcome, held
-    logger.info("rebuilding: the checks of %s read again: %s", feature.name, " | ".join(c.said()[:200] for c in again))
-    program, second, held = await write_a_feature(genome, program, feature, again, ask, tried)
-    second.tries += outcome.tries
-    return program, second, held
+def _kept_so_far(folder: Path, program: ProgramAsBuilt, outcomes: list[FeatureOutcome]) -> None:
+    import json
+
+    program.keep(folder)
+    (folder / "what_works.json").write_text(json.dumps(what_works(outcomes), indent=1), "utf-8")
 
 
 async def write_it(
@@ -305,9 +290,11 @@ async def write_it(
     # loads without an error. LIVE 2026-10-05 one that threw as it loaded was
     # kept on its last try, and every feature after it failed reaching into it.
     wrong, before, fallback = "", "", None
+    area_before = work_area_like(genome, out.parent.parent, leaving_out=out.parent)
+    worked_before = shown([area_before]) if area_before is not None else ""
     for _attempt in range(WORK_AREA_TRIES):
         again = f"\nYour last version:\n```js\n{before[:5000]}\n```\nLoading it, the page said: {wrong}\nWrite it again so it loads without errors." if wrong else ""
-        written = await _write(ask, _the_work_area_prompt(genome, checks) + again)
+        written = await _write(ask, _the_work_area_prompt(genome, checks) + worked_before + again)
         if written is None:
             continue
         before = written.code
@@ -329,9 +316,11 @@ async def write_it(
         if time.monotonic() - began > deadline_s:
             outcomes.append(FeatureOutcome(feature, why_not="out of time"))
             continue
-        program, outcome, held = await a_feature_and_its_checks(genome, program, feature, [c for c in checks if c.feature == feature.name], ask, tried)
+        program, outcome, held = await write_a_feature(genome, program, feature, [c for c in checks if c.feature == feature.name], ask, tried)
         outcomes.append(outcome)
         holding.extend(held)
+        # Kept as it goes: a build cut short leaves what it had made, to use and to build on.
+        await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes)
         done = len(outcomes)
         if done % 5 == 0 and done < len(genome.features):
             await _say(tell, f"{done} of {len(genome.features)} features written; {sum(o.kept for o in outcomes)} of them work.")

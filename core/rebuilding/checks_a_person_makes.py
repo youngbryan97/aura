@@ -226,7 +226,9 @@ window.__checks = (() => {
     .map((el) => el.innerText + " " + [...el.querySelectorAll("input, textarea")].map((i) => i.value).join(" ")).join(" ")); }
   return { find: (t) => mark(find(t, CONTROLS) || inTheWork(t)), field: (t) => mark(fieldFor(t)), opener: (id) => opener(document.querySelector(`[data-check='${id}']`)),
     editable: () => mark(editable()), selectText, style, count, bodyText, norm,
-    dialog: (t) => [...document.querySelectorAll("[role=dialog]")].filter(visible).some((d) => norm(d.getAttribute("aria-label") + " " + d.innerText).includes(norm(t))) };
+    dialog: (t) => [...document.querySelectorAll("[role=dialog]")].filter(visible).some((d) => norm(d.getAttribute("aria-label") + " " + d.innerText).includes(norm(t))),
+    passing: () => [...document.querySelectorAll("[role=dialog], #app-notice.shown, [role=alert]")].filter(visible)
+      .map((d) => norm((d.getAttribute("aria-label") || "") + " " + d.innerText)) };
 })();
 """
 
@@ -254,6 +256,10 @@ class _Doing:
         self.check = check
         self.downloads: list[tuple[str, str]] = []
         self.to_give: tuple[str, str] | None = None
+        #: What dialogs and notices said while the steps were done. A dialog a
+        #: person opened and then closed with its own button, and a notice that
+        #: faded, were seen: "Save As opens" holds after Save is pressed in it.
+        self.passing: list[str] = []
         page.on("download", lambda d: asyncio.ensure_future(self._saved(d)))
         page.on("filechooser", lambda chooser: asyncio.ensure_future(self._give(chooser)))
 
@@ -358,7 +364,8 @@ class _Doing:
         if e.see in ("text", "no_text"):
             shown = await page.evaluate("window.__checks.bodyText()")
             want = " ".join((e.target or e.value).lower().split())
-            there = want in shown
+            # A message that came and went (a notice, a dialog) was shown.
+            there = want in shown or (e.see == "text" and any(want in said for said in self.passing))
             return (there if e.see == "text" else not there), f"the page shows {shown[:200]!r}"
         if e.see == "style":
             held, said = await page.evaluate("([t, p, v]) => window.__checks.style(t, p, v)", [e.target, e.property, e.value])
@@ -380,7 +387,10 @@ class _Doing:
                     return True, f"saved {name}"
             return False, f"saved {[n for n, _ in self.downloads] or 'nothing'}"
         if e.see == "dialog":
-            return bool(await page.evaluate("(t) => window.__checks.dialog(t)", e.target or e.value)), "dialogs looked at"
+            want = " ".join(str(e.target or e.value).lower().split())
+            if await page.evaluate("(t) => window.__checks.dialog(t)", e.target or e.value) or any(want in said for said in self.passing):
+                return True, "a dialog saying it was seen"
+            return False, f"dialogs seen: {self.passing[-3:] or 'none'}"
         if e.see == "value":
             box = await self._mark("field", e.target)
             if box is None:
@@ -462,6 +472,7 @@ async def _one(context: Any, url: str, check: Check) -> CheckRun:
             wrong = await doing.step(step)
             if wrong:
                 return CheckRun(check, False, f"at {step.do} {step.target or step.value!r}: {wrong}", errors)
+            doing.passing.extend(await page.evaluate("window.__checks.passing()"))
         for expectation in check.expect:
             held, said = await doing.sees(expectation, reopen)
             if not held:

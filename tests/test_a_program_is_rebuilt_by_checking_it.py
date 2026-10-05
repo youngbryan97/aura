@@ -215,36 +215,19 @@ async def test_the_file_a_check_gives_is_ready_before_the_click_that_asks_for_it
     assert runs[0].held, runs[0].why
 
 
-_WRONG_ITALIC_CHECK = _check("Italic", [{"do": "type", "value": "hello"}, {"do": "select_all"}, {"do": "click", "target": "Italic"}],
-                             [{"see": "style", "target": "hello", "property": "font-style", "value": "italic"}, {"see": "dialog", "target": "Italic"}])
-
-
-class _ReadsItsChecksAgain(_Script):
-    """Wrote a check no right part can pass (a dialog after a toolbar button); read again, it drops the dialog."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.read_again = 0
-
-    async def __call__(self, prompt, schema, max_tokens):
-        if schema.__name__ == "_Checks":
-            return schema.model_validate({"checks": [c.model_dump() for c in (_BOLD_CHECK, _WRONG_ITALIC_CHECK, _COUNT_CHECK)]})
-        if schema.__name__ == "_TheChecksAgain":
-            self.read_again += 1
-            return schema.model_validate({"right": False, "checks": [_ITALIC_CHECK.model_dump()]})
-        if schema is WrittenPart and '"Italic"' in prompt:
-            return WrittenPart(code=_ITALIC)
-        return await super().__call__(prompt, schema, max_tokens)
+_SAVE_AS = 'app.command({label: "Save As", menu: "File", run: async () => { const got = await app.ask({title: "Save As", fields: [{label: "Name", name: "name", value: app.name}], ok: "Save"}); if (got) app.name = got.name; }});'
+_SAVE_AS_CHECK = Check.model_validate({"feature": "Save As", "steps": [{"do": "type", "value": "My Document"}, {"do": "click", "target": "Save As"},
+                                       {"do": "fill", "target": "Name", "value": "Renamed"}, {"do": "click", "target": "Save"}],
+                                       "expect": [{"see": "dialog", "target": "Save As"}, {"see": "name", "value": "Renamed"}]})
 
 
 @pytest.mark.asyncio
-async def test_a_check_nothing_passes_is_read_again(tmp_path):
-    script = _ReadsItsChecksAgain()
-    done = await rebuild("Writer", script, tmp_path, corpus=_NoCorpus(), online=False)
-    italic = {o.feature.name: o for o in done.built.outcomes}["Italic"]
-    assert script.read_again == 1
-    assert italic.kept and italic.tries == 4, italic
-    assert 'execCommand("italic")' in done.built.path.read_text()
+async def test_a_dialog_opened_and_closed_by_the_steps_was_seen(tmp_path):
+    """LIVE 2026-10-05 a right Save As was left out: its check expected the dialog still open after Save was pressed in it."""
+    runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK), Part("Save As", _SAVE_AS)]).write(tmp_path / "p.html"), [_SAVE_AS_CHECK])
+    assert runs[0].held, runs[0].why
+    runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK)]).write(tmp_path / "e.html"), [_SAVE_AS_CHECK])
+    assert not runs[0].held
 
 
 def test_the_option_a_person_means_is_chosen():
@@ -293,3 +276,43 @@ def test_checks_are_written_from_what_is_written_about_each_feature():
     got = asyncio.run(checks_for(genome, [export], ask, sources=[article], asked="and export it to my Desktop"))
     assert "native file format is DOCX" in asked[0] and "export it to my Desktop" in asked[0]
     assert got[0].rule and got[0].said().startswith("[saves its native format")
+
+
+class _SecondProgram(_Script):
+    """Another word processor, whose Bold part is asked for after Writer was built."""
+
+    async def __call__(self, prompt, schema, max_tokens):
+        if schema is Genome:
+            return Genome.model_validate({"name": "Scribe", "what_it_is": "a word processor", "work": "a page of text", "features": [
+                {"name": "Bold", "how": "select text, press Bold", "shows": "bold text", "weight": 3}]})
+        if schema.__name__ == "_Checks":
+            return schema.model_validate({"checks": [_BOLD_CHECK.model_dump()]})
+        return await super().__call__(prompt, schema, max_tokens)
+
+
+@pytest.mark.asyncio
+async def test_a_part_that_worked_before_is_used_for_a_feature_like_it(tmp_path):
+    await rebuild("Writer", _Script(), tmp_path, corpus=_NoCorpus(), online=False)
+    second = _SecondProgram()
+    done = await rebuild("Scribe", second, tmp_path, corpus=_NoCorpus(), online=False)
+    # Writer's Bold part holds Scribe's checks as it is: kept with nothing written for it.
+    assert not [p for p in second.asked if 'feature "Bold"' in p]
+    asked_for_area = [p for p in second.asked if "work-area part of" in p]
+    assert "earlier program of hers, Writer" in asked_for_area[0]
+    assert {o.feature.name for o in done.built.outcomes if o.kept} == {"Bold"}
+    assert 'execCommand("bold")' in done.built.path.read_text()
+
+
+class _CutShort(_Script):
+    async def __call__(self, prompt, schema, max_tokens):
+        if schema is WrittenPart and '"Word count"' in prompt:
+            raise RuntimeError("the machine was restarted")
+        return await super().__call__(prompt, schema, max_tokens)
+
+
+@pytest.mark.asyncio
+async def test_a_build_cut_short_keeps_what_it_had_made(tmp_path):
+    with pytest.raises(RuntimeError):
+        await rebuild("Writer", _CutShort(), tmp_path, corpus=_NoCorpus(), online=False)
+    kept = ProgramAsBuilt.kept_in(next(tmp_path.glob("*/program.json")).parent)
+    assert {p.name for p in kept.parts} >= {"work area", "Bold"}

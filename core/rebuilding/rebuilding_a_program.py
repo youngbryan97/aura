@@ -166,11 +166,10 @@ async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None
 
 def keep_the_record(folder: Path, built: Built) -> None:
     """What works and what does not, and the program's parts, beside it."""
+    from core.rebuilding.writing_it_part_by_part import what_works
+
     built.program.keep(folder)
-    (folder / "what_works.json").write_text(json.dumps([
-        {"feature": o.feature.name, "works": o.kept, "checks_held": o.held, "checks": o.of, "tries": o.tries, "why_not": o.why_not}
-        for o in built.outcomes
-    ], indent=1), "utf-8")
+    (folder / "what_works.json").write_text(json.dumps(what_works(built.outcomes), indent=1), "utf-8")
     (folder / "holding.json").write_text(json.dumps([c.model_dump() for c in built.holding], indent=1), "utf-8")
 
 
