@@ -4,8 +4,8 @@ An end screen says who won in a sentence: "You win!", "The computer wins.",
 "Game over", "Congratulations, you beat level 3", "Try again". Who won is the
 subject of the winning verb. When it is the player ("you", "player") she won;
 when it is anyone else she lost. A screen that names no winner but says the
-game is over, or asks to try again, is a loss. Two sides' scores written out
-("You 5 Computer 3") settle it by the numbers.
+game is over, or asks to try again, is a loss, and so is a player with nothing left to lose ("Lives: 0"). Two
+sides' scores written out ("You 5 Computer 3") settle it by the numbers.
 
 It abstains when the words do not say, so an unread ending is never reported
 as a win.
@@ -21,8 +21,13 @@ __all__ = ["asks_to_win", "how_it_ended", "how_it_ended_in", "what_it_asks_of_a_
 _WINNING: Final = re.compile(r"\b(win|wins|won|winner|victory|victorious|beat|beats|defeated|champion)\b")
 _THE_PLAYER: Final = frozenset({"you", "player", "player 1", "p1", "your", "yours"})
 _OVER: Final = re.compile(r"\b(game over|you lose|you lost|try again|out of lives|no lives|time'?s up|you died|defeat)\b")
-_PRAISED: Final = re.compile(r"\b(congratulations|congrats|well done|you did it|level complete|stage clear|you made it)\b")
+_PRAISED: Final = re.compile(
+    r"\b(congratulations|congrats|well done|you did it|you made it|"
+    r"(?:level|stage|round|wave|mission|world)\s*\d*\s*(?:complete|completed|clear|cleared|passed|beaten))\b"
+)
 _SIDES: Final = re.compile(r"\b(you|player)\s*:?\s*(\d+)\D{1,24}?\b([a-z]+)\s*:?\s*(\d+)\b")
+#: What a player has of their own to lose, at nothing: "Lives: 0", "health 0", "0 hearts".
+_NOTHING_LEFT: Final = re.compile(r"\b(lives|life|health|hp|hearts|energy|chances|balls left|tries left)\s*:?\s*0\b|\b0\s+(lives|hearts|chances)\b")
 
 
 def _plain(text: str) -> str:
@@ -104,7 +109,7 @@ def how_it_ended(words: str) -> str:
             return "lost"
     if _PRAISED.search(text):
         return "won"
-    if _OVER.search(text):
+    if _OVER.search(text) or _NOTHING_LEFT.search(text):
         return "lost"
     return ""
 
