@@ -95,7 +95,9 @@ class ProgramDNAReconstructSkill(BaseSkill):
         elif not isinstance(params, ProgramDNAInput):
             params = ProgramDNAInput.model_validate(params)
 
-        asked = " ".join(str((context or {}).get(key) or "") for key in ("objective", "message", "user_message", "goal")).strip()
+        from core.conversation.session_scope import the_request_in
+
+        asked = the_request_in(context)
         # The program the person named, in their words, over the caller's
         # restatement of it: LIVE 2026-10-05 the target arrived as
         # "reconstruction of microsoft word" and no article was found for it.
@@ -131,7 +133,10 @@ class ProgramDNAReconstructSkill(BaseSkill):
                 return reverse
         # Any other program asked to be reconstructed is rebuilt as a working
         # one: a blueprint is not what a person asking for a program can use.
-        if params.analysis_mode == "reconstruct" and not engine._policy_blocks(
+        # Evidence handed in (its source files, what it was seen to do) is
+        # analysed as the evidence it is.
+        handed_in = bool(params.source_paths or params.observed_behaviors)
+        if params.analysis_mode == "reconstruct" and not handed_in and not engine._policy_blocks(
             str(params.authorization or "").strip().lower(), f"{asked} {params.target}".lower()
         ):
             return await _rebuild_it(params, self.name, asked, context)

@@ -203,6 +203,22 @@ def current_user_question() -> str:
     return str(user_question_var.get() or "")
 
 
+def the_request_in(context: object) -> str:
+    """The request a capability was called for, from its call's context: each different wording once.
+
+    The objective and the message of one call are usually the same words, and
+    joined they were the request twice over (LIVE 2026-10-05, a build's record
+    of what was asked).
+    """
+    said: list[str] = []
+    held = context if isinstance(context, dict) else {}
+    for key in ("objective", "message", "user_message", "goal"):
+        text = " ".join(str(held.get(key) or "").split())
+        if text and not any(text in other for other in said):
+            said = [other for other in said if other not in text] + [text]
+    return " ".join(said)
+
+
 def the_persons_own_words(fallback: object = "") -> str:
     """What the person asked, preferring their words over anything restated.
 

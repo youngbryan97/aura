@@ -61,7 +61,9 @@ class RepairAProgramSkill(BaseSkill):
             params = RepairAProgramInput(**{k: v for k, v in params.items() if k == "path"})
         elif not isinstance(params, RepairAProgramInput):
             params = RepairAProgramInput.model_validate(params)
-        asked = " ".join(str((context or {}).get(key) or "") for key in ("objective", "message", "user_message", "goal"))
+        from core.conversation.session_scope import the_request_in
+
+        asked = the_request_in(context)
         named = params.path or the_file_named_in(asked)
         if not named:
             return {"ok": False, "skill": self.name, "error": "no file was named to repair",

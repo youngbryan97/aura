@@ -63,3 +63,16 @@ def test_a_screen_read_a_little_differently_is_the_same_screen():
     other = leads.which(screen_words([a_click_on("GAME OVER"), a_click_on("Play Again"), a_click_on("Main Menu")]))
     assert one == misread and other != one
     assert screen_words(['click "the shape at 90% across, 90% down"', 'click "0015250"']) == frozenset()
+
+
+def test_what_led_on_from_one_screen_is_tried_first_on_the_next():
+    """The arrow that turned a comic's first page is pressed first on its second, a page she has not seen."""
+    arrow = 'click "the shape at 95% across, 90% down"'
+    leads = WhereThingsLead()
+    page_one = [a_click_on("DAD BOWLING IS SO BORING"), a_click_on("WHEN ARE WE GOING HOME"), arrow]
+    page_two = [a_click_on("THE PINS ARE COMING TO LIFE"), a_click_on("LET'S ROLL"), arrow]
+    leads.looked(page_one)
+    leads.looked(page_two)
+    leads.acted(arrow, True)
+    leads.looked(page_two)
+    assert leads.in_order(["up", a_click_on("LET'S ROLL"), arrow])[0] == arrow

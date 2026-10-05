@@ -124,13 +124,11 @@ class UseAProgramSkill(BaseSkill):
             params = UseAProgramInput(**{k: v for k, v in params.items() if k in ("task", "path")})
         elif not isinstance(params, UseAProgramInput):
             params = UseAProgramInput.model_validate(params)
-        from core.conversation.session_scope import the_persons_own_words
+        from core.conversation.session_scope import the_persons_own_words, the_request_in
         from core.rebuilding.rebuilding_a_program import the_build_meant
         from core.skills.changing_a_program import where_builds_are
 
-        asked = the_persons_own_words(params.task) or " ".join(
-            str((context or {}).get(key) or "") for key in ("objective", "message", "user_message", "goal")
-        ).strip()
+        asked = the_persons_own_words(params.task) or the_request_in(context)
         folder = await asyncio.to_thread(the_build_meant, f"{params.path} {asked}", where_builds_are())
         if folder is None:
             return {"ok": False, "skill": self.name, "error": "no build of hers was found to use",

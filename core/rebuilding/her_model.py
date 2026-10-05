@@ -148,7 +148,9 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
 
         router = ServiceContainer.get("llm_router", default=None)
     if router is None:
-        raise HerModelIsAwayError("there is no model to ask")
+        # No model in this runtime at all is not one that is away: nothing will come back to wait for.
+        logger.info("no model to ask")
+        return None
     asked = f"{prompt}\n\nAnswer with one JSON object that follows this JSON schema:\n{json.dumps(schema.model_json_schema())}"
     try:
         reply = await router.generate_with_metadata(

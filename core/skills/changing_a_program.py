@@ -53,16 +53,14 @@ class ChangeAProgramSkill(BaseSkill):
             params = ChangeAProgramInput(**{k: v for k, v in params.items() if k in ("change", "path")})
         elif not isinstance(params, ChangeAProgramInput):
             params = ChangeAProgramInput.model_validate(params)
-        from core.conversation.session_scope import the_persons_own_words
+        from core.conversation.session_scope import the_persons_own_words, the_request_in
         from core.rebuilding.changing_what_was_built import change_it
         from core.rebuilding.her_model import ask_her_model
         from core.rebuilding.rebuilding_a_program import the_build_meant
         from core.skills.program_dna_reconstruct import _open_for_the_person
         from core.skills.screen_pursuit import _tell
 
-        asked = the_persons_own_words(params.change) or " ".join(
-            str((context or {}).get(key) or "") for key in ("objective", "message", "user_message", "goal")
-        ).strip()
+        asked = the_persons_own_words(params.change) or the_request_in(context)
         folder = await asyncio.to_thread(the_build_meant, f"{params.path} {asked}", where_builds_are())
         if folder is None:
             return {"ok": False, "skill": self.name, "error": "no build of hers was found to change",

@@ -82,3 +82,12 @@ def test_using_what_she_built_keeps_its_export_where_the_person_said(tmp_path, m
     finally:
         ServiceContainer.register_instance("capability_engine", None)
     assert used["files"] == [str(desktop / "Letter.docx")] and (desktop / "Letter.docx").exists()
+
+
+def test_the_request_is_read_once_however_many_times_the_call_carries_it():
+    from core.conversation.session_scope import the_request_in
+
+    asked = "rebuild Word, then export a letter"
+    assert the_request_in({"objective": asked, "message": asked, "user_message": asked}) == asked
+    assert the_request_in({"objective": "rebuild Word", "message": asked}) == asked
+    assert the_request_in({"objective": "fix pong", "goal": "and win"}) == "fix pong and win"

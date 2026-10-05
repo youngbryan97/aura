@@ -114,7 +114,16 @@ class WhereThingsLead:
         """How much more ``act`` is worth trying on this screen for where it led before: above one led on, below one did nothing."""
         if self._here is None:
             return 1.0
-        counts = self.went.get(f"{self._here}|{act}") or {}
+        counts = self.went.get(f"{self._here}|{act}")
+        if counts is None:
+            # Not done on this screen yet: what it did on the others. The arrow
+            # in a comic's corner that turned the first page turns the second
+            # (LIVE-like 2026-10-05 it was taken for tried and never pressed
+            # again, and she pressed keys at the last page for six minutes).
+            elsewhere = [c for key, c in self.went.items() if key.split("|", 1)[1] == act]
+            on = sum(c.get("on", 0) for c in elsewhere)
+            back = sum(c.get("back", 0) for c in elsewhere)
+            return 1.0 + 0.75 * on / (on + back + 1) if on > back else 1.0
         on, back, nothing, moved = (counts.get(k, 0) for k in ("on", "back", "nothing", "moved"))
         if on > back:
             return 1.0 + 1.5 * on / (on + back + nothing + 1)
