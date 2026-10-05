@@ -80,13 +80,48 @@ def _check(label: str, kind: str) -> Check:
     })
 
 
+def _opens(feature: Feature) -> bool:
+    """A feature for opening a document from a file: open, import or load, of a document or a file."""
+    words = f"{feature.name} {feature.how}".lower()
+    return bool(re.search(r"\b(open|import|load)\w*", words)) and bool(re.search(r"\b(document|file|docx|odt|rtf|txt|text)", words)) \
+        and not re.search(r"\b(recent|template|new)\b", feature.name.lower())
+
+
+def _saves_its_own(feature: Feature) -> bool:
+    """A feature for saving the document as the program keeps it, not as some other kind."""
+    name = feature.name.lower()
+    return bool(re.search(r"\bsave\b", name)) and not re.search(r"\b(as|export|pdf|print|copy|auto)\b", name)
+
+
+def _opening(label: str, kind: str) -> tuple[Part, Check]:
+    code = f"app.command({{label: {json.dumps(label)}, menu: \"File\", keys: \"Mod+O\", run: () => app.formats.open()}});"
+    check = Check.model_validate({
+        "feature": label, "rule": f"it opens a .{kind} file and shows what it holds",
+        "steps": [{"do": "type", "value": "What was here before"}, {"do": "click", "target": label},
+                  {"do": "give_file", "target": f"opened.{kind}", "value": "What the file holds"}],
+        "expect": [{"see": "text", "target": "What the file holds"}, {"see": "no_text", "target": "What was here before"}],
+    })
+    return Part(label, code, [label]), check
+
+
 def what_the_frame_gives(features: list[Feature], sources: Sequence[Any], asked: str) -> tuple[list[Feature], dict[str, Given]]:
-    """The features with one for saving each format named, and what the frame gives each such feature, by its name."""
+    """The features with one for saving each format named, and what the frame gives each such feature, by its name.
+
+    Opening a document, and saving it as the program keeps it (its own kind,
+    the first named), are the frame's too, under the names her model gave them.
+    """
     kinds = formats_named([asked, *(getattr(s, "text", "") for s in sources)])
     given: dict[str, Given] = {}
     features = list(features)
+    own = kinds[0] if kinds else ""
+    for feature in features:
+        if own and _opens(feature):
+            part, check = _opening(feature.name, "docx" if "docx" in kinds else own)
+            given[feature.name] = Given(feature, part, [check])
+        elif own and _saves_its_own(feature):
+            given[feature.name] = Given(feature, _part(feature.name, own), [_check(feature.name, own)])
     for kind in kinds:
-        mine = next((f for f in features if _for_kind(f, kind)), None)
+        mine = next((f for f in features if _for_kind(f, kind) and f.name not in given), None)
         if mine is None:
             mine = Feature(name=f"Save as {_SHOWN[kind]}", how=f"File menu, Save as {_SHOWN[kind]}",
                            shows=f"a .{kind} file of the document is saved", place="File", weight=2)

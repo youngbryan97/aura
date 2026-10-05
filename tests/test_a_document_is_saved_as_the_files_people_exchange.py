@@ -159,3 +159,20 @@ async def test_a_new_build_never_takes_up_the_leavings_of_another(tmp_path):
     (stale / "checks.json").write_text("[]")
     done = await rebuild("Writer", _Script(), tmp_path, corpus=_NoCorpus(), online=False)
     assert done.built.path.parent.name == "writer-2" and any(o.kept for o in done.built.outcomes)
+
+
+@pytest.mark.asyncio
+async def test_opening_and_saving_a_document_are_the_frames(tmp_path):
+    """LIVE 2026-10-05 her model's Open read a .docx as plain text; opening and saving are the frame's, by code."""
+    from core.rebuilding.checks_a_person_makes import run_checks
+    from core.rebuilding.what_a_program_does import Feature
+    from core.rebuilding.what_the_frame_gives import what_the_frame_gives
+
+    mine = [Feature(name="Open a document", how="File, Open, pick a .docx or .txt", shows="it loads"),
+            Feature(name="Save document", how="File, Save", shows="a file is saved"),
+            Feature(name="Bold", how="select, press B", shows="bold")]
+    features, given = what_the_frame_gives(mine, [], "rebuild it; I keep my letters as .docx files")
+    assert set(given) >= {"Open a document", "Save document"} and "Bold" not in given
+    parts = [Part("work area", _WORK), *(g.part for g in given.values())]
+    runs = await run_checks(ProgramAsBuilt("W", parts=parts).write(tmp_path / "p.html"), [c for g in given.values() for c in g.checks])
+    assert all(r.held for r in runs), [r.why for r in runs if not r.held]
