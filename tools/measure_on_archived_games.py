@@ -101,7 +101,7 @@ async def _one(number: int, address: str, minutes: float, visible: bool, trace: 
 
     kept = None
     if trace is not None:
-        trace.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(trace.mkdir, parents=True, exist_ok=True)
         kept = logging.FileHandler(trace / f"game{number}.log")
         kept.setFormatter(logging.Formatter("%(asctime)s %(name)s %(message)s"))
         logging.getLogger().addHandler(kept)
