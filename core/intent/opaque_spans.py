@@ -28,7 +28,13 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["OPAQUE_SPAN_RE", "first_named_url", "without_opaque_spans", "without_web_addresses"]
+__all__ = [
+    "OPAQUE_SPAN_RE",
+    "first_named_url",
+    "without_absolute_paths",
+    "without_opaque_spans",
+    "without_web_addresses",
+]
 
 #: A URL somebody typed. Trailing punctuation ends the sentence, not the
 #: address, and a closing bracket belongs to whatever opened it.
@@ -58,6 +64,16 @@ def without_web_addresses(text: object) -> str:
     is what file-name patterns look for.
     """
     return _WEB_ADDRESS_RE.sub(" ", str(text or ""))
+
+
+#: A path from the root or the home directory. Unlike a relative path, which
+#: shares its shape with "24/7" and "AC/DC", nobody says one as words.
+_ABSOLUTE_PATH_RE = re.compile(r"(?<![\w])~?/[\w.\-~]+(?:/[\w.\-~]+)+/?")
+
+
+def without_absolute_paths(text: object) -> str:
+    """The message with its absolute file paths replaced by spaces."""
+    return _ABSOLUTE_PATH_RE.sub(" ", str(text or ""))
 
 
 #: What an address looks like, in the order that matters.

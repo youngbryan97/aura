@@ -183,12 +183,15 @@ def referent_phrases(text: str) -> list[str]:
 
     Numbers are kept: "83" is what tells Bam Adebayo's 83-point game from his
     career. Question scaffolding is dropped, so a phrase that names nothing
-    gives no query.
+    gives no query. Addresses are not words: LIVE 2026-10-04 "The Pong game
+    at /Users/bryan/aura-demos/pong/pong.html is broken" searched the
+    encyclopedia for "Pong game Users bryan aura-demos pong".
     """
+    from core.intent.opaque_spans import without_absolute_paths
     from core.knowledge.corpus_grounding import _QUESTION_SCAFFOLDING
 
     phrases: list[str] = []
-    for part in _BETWEEN_REFERENTS.split(URL_RE.sub(" ", str(text or ""))):
+    for part in _BETWEEN_REFERENTS.split(without_absolute_paths(URL_RE.sub(" ", str(text or "")))):
         words = re.findall(r"[A-Za-z][A-Za-z'’-]*|\d+", part)
         kept = []
         for word in words:
@@ -306,11 +309,20 @@ def _corpus_origin(hit: Any, body: str, as_of: str) -> tuple[str, str]:
 
 
 def _from_corpus(phrases: Sequence[str], terms: Sequence[str], *, store: Any) -> list[WorldSource]:
+    """The corpus documents the phrases name, at the conversation lane's deadline.
+
+    The offline deadline (5 s) lets a phrase that no document matches whole run
+    its any-term fallback over seven million pages. Every chat turn from 4
+    October 16:24 UTC spent 7.3 to 8.2 s here and found nothing; a real topic
+    answers in under 0.1 s.
+    """
+    from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S
+
     candidates: list[WorldSource] = []
     as_of = _as_of(store)
     seen: set[int] = set()
     for phrase in phrases[:4]:
-        for hit in store.search(phrase, limit=2):
+        for hit in store.search(phrase, limit=2, deadline_s=CONVERSATION_SEARCH_DEADLINE_S):
             if hit.doc_id in seen:
                 continue
             seen.add(hit.doc_id)

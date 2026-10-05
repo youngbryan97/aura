@@ -322,3 +322,26 @@ def test_a_kept_search_says_when_it_was_read_and_from_which_page(monkeypatch, tm
     kept = origins["kept from a web search"]
     assert kept.origin.startswith(f"kept from a web search, read {read_on}")
     assert kept.location == "https://en.wikipedia.org/wiki/Kaseya_Center"
+
+
+def test_a_file_path_is_not_searched_for_as_words() -> None:
+    """LIVE 2026-10-04: the encyclopedia was searched for "Pong game Users bryan aura-demos pong"."""
+    phrases = referent_phrases("The Pong game at /Users/bryan/aura-demos/pong/pong.html is broken.")
+
+    assert phrases == ["Pong game broken"]
+    assert referent_phrases("What happened on 9/11?") == ["happened 9 11"]
+
+
+def test_the_corpus_is_searched_at_the_conversation_lane_deadline() -> None:
+    """Every chat turn from 4 October 16:24 UTC spent 7.3 to 8.2 s here and found nothing."""
+    from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S
+
+    deadlines: list[float] = []
+
+    class _Timed(_Corpus):
+        def search(self, query, limit=5, *, deadline_s=5.0):
+            deadlines.append(deadline_s)
+            return super().search(query, limit)
+
+    asyncio.run(gather_world_evidence("Did Bam score 83?", store=_Timed()))
+    assert deadlines and set(deadlines) == {CONVERSATION_SEARCH_DEADLINE_S}
