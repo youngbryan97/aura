@@ -60,6 +60,116 @@ _WHERE_IT_DRAWS = """
 """
 
 
+#: What the page puts over the middle of its drawing, when that is something to
+#: press and not the drawing itself: an emulator's power button, a player's
+#: "click to play". Shadow roots are looked into, as a player's overlay is in one.
+_PUT_OVER_IT = """
+(function (x, y) {
+  var el = document.elementFromPoint(x, y), depth = 0;
+  while (el && el.shadowRoot && depth < 6) {
+    var inner = el.shadowRoot.elementFromPoint(x, y);
+    if (!inner || inner === el) break;
+    el = inner; depth++;
+  }
+  if (!el || el.tagName === 'CANVAS' || el.tagName === 'EMBED' || el.tagName === 'OBJECT') return '';
+  var pressed = el.closest ? (el.closest('button,a,[role=button]') || el) : el;
+  var pressable = getComputedStyle(pressed).cursor === 'pointer' || /^(BUTTON|A|IMG|INPUT|SVG|PATH)$/i.test(pressed.tagName)
+    || pressed.getAttribute('role') === 'button' || typeof pressed.onclick === 'function';
+  return pressable ? (pressed.tagName + ' ' + (pressed.getAttribute('aria-label') || pressed.getAttribute('alt') || pressed.className || '')).slice(0, 80) : '';
+})(%f, %f)
+"""
+
+#: The close controls of notices laid over the drawing (a player's warning, a
+#: page's banner), by their own words or sign, as viewport points to click.
+_CLOSES_OVER_IT = """
+(function (l, t, r, b) {
+  var found = [];
+  var walk = function (root) {
+    var all = root.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      if (el.shadowRoot) walk(el.shadowRoot);
+      var said = ((el.getAttribute('aria-label') || '') + ' ' + (el.getAttribute('title') || '')).toLowerCase();
+      var sign = (el.children.length === 0 ? (el.textContent || '') : '').trim();
+      if (!/\b(close|dismiss)\b/.test(said) && !/^[\u00d7\u2715\u2716\u2573]$/.test(sign)) continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width < 4 || rect.height < 4 || rect.width > 120 || rect.height > 120) continue;
+      var x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
+      if (x < l || x > r || y < t || y > b) continue;
+      if (getComputedStyle(el).visibility === 'hidden') continue;
+      found.push([x, y]);
+    }
+  };
+  walk(document);
+  return JSON.stringify(found.slice(0, 3));
+})(%f, %f, %f, %f)
+"""
+
+#: A page she plays on stays where it is. A key the game does not take is the
+#: page's to act on, and arrows and space scroll it: LIVE-like 2026-10-05, an
+#: archived game's page scrolled to its description under her keys and she read
+#: the description as the game. The page's default is held back only for those
+#: keys, after the game has had them, and only while she plays.
+_HOLD_IT_STILL = """
+(function () {
+  if (window.__herPlay) return true;
+  var stop = new AbortController(), x = window.scrollX, y = window.scrollY;
+  var scrolls = [' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'];
+  window.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    if (scrolls.indexOf(e.key) >= 0) e.preventDefault();
+  }, {signal: stop.signal});
+  window.addEventListener('scroll', function () {
+    if (window.scrollX !== x || window.scrollY !== y) window.scrollTo(x, y);
+  }, {signal: stop.signal});
+  window.__herPlay = stop;
+  return true;
+})()
+"""
+
+_LET_IT_GO = "(function () { if (window.__herPlay) { window.__herPlay.abort(); window.__herPlay = null; } return true; })()"
+
+#: How many times something put over the drawing is pressed, and how long the
+#: drawing is given to start after each.
+PRESSES_TO_START = 3
+STARTS_WITHIN_S = 20.0
+
+
+async def _start_what_is_covered(page: Any, band: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """Press what the page puts over its drawing until the drawing shows, and say where it draws then.
+
+    A person in front of an archived game presses the power button over it
+    before anything else; a key pressed at a still cover goes to the page.
+    """
+    import asyncio
+    import time
+
+    from core.perception.what_her_page_shows import the_page_size
+
+    for _ in range(PRESSES_TO_START):
+        wide, tall = await the_page_size(page)
+        x, y = (band[0] + band[2]) / 2 * wide, (band[1] + band[3]) / 2 * tall
+        over = str(await page.evaluate(_PUT_OVER_IT % (x, y)) or "")
+        if not over:
+            break
+        _tell("The game has a button over it to start it; pressing that first.")
+        await page.mouse.click(x, y)
+        began = time.monotonic()
+        while time.monotonic() - began < STARTS_WITHIN_S:
+            await asyncio.sleep(1.0)
+            if str(await page.evaluate(_PUT_OVER_IT % (x, y)) or "") != over:
+                break
+        await asyncio.sleep(2.0)
+        band = _the_band(await page.evaluate(_WHERE_IT_DRAWS)) or band
+    wide, tall = await the_page_size(page)
+    closes = json.loads(str(await page.evaluate(_CLOSES_OVER_IT % (band[0] * wide, band[1] * tall, band[2] * wide, band[3] * tall)) or "[]"))
+    for x, y in closes:
+        _tell("A notice is over the game; closing it.")
+        await page.mouse.click(float(x), float(y))
+    return band
+
+
 def chose_the_drawing(moves: list[tuple[Any, Any]]) -> bool:
     """Whether any of this round's moves is the drawing."""
     return any(str(getattr(action, "selector", "") or "") == DRAWING for action, _said in moves)
@@ -96,7 +206,23 @@ async def played_on_the_drawing(
         band = None
     if band is None:
         return {**step, "error": "the page no longer says where it draws"}
+    try:
+        band = await _start_what_is_covered(page, band)
+        await page.evaluate(_HOLD_IT_STILL)
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        record_degradation("sovereign_browser", exc, severity="info", action="start the drawing and hold its page still")
+    try:
+        return await _played(page, band, goal, url, step)
+    finally:
+        try:
+            await page.evaluate(_LET_IT_GO)
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+            pass  # a page gone is a page that no longer needs letting go
 
+
+async def _played(page: Any, band: tuple[float, float, float, float], goal: str, url: str,
+                  step: dict[str, Any]) -> dict[str, Any]:
+    """The runs of one game, until it is won, the time is up, or it cannot be gone on with."""
     import time
 
     from core.language.how_a_game_ended import asks_to_win

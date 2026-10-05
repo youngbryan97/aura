@@ -118,6 +118,10 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
         text = " ".join(str(region.get("text") or "").split())
         if text and not _set_as_a_paragraph(region, regions):
             found.setdefault(a_click_on(text), None)
+    # And the drawn buttons with no words on them, named by where they are.
+    for region in observation.get("shapes") or []:
+        if isinstance(region, dict) and region.get("text"):
+            found.setdefault(a_click_on(str(region["text"])), None)
     return tuple(found)
 
 
@@ -179,7 +183,7 @@ def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -
 def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
     """The middle of the writing a click move names, in the reading's own frame."""
     wanted = " ".join(str(label or "").split()).lower()
-    for region in observation.get("layout") or []:
+    for region in [*(observation.get("layout") or []), *(observation.get("shapes") or [])]:
         text = " ".join(str((region or {}).get("text") or "").split()).lower()
         if text != wanted:
             continue

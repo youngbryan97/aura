@@ -62,7 +62,7 @@ def test_the_pursuit_names_the_acts_she_has_not_taken():
     from core.skills import screen_pursuit
 
     source = pursuit_loop_source()
-    at = source.index("telling = worth_finding_out(")
+    at = source.index("worth_finding_out(", source.index("telling = "))
     nearby = source[at : at + 600]
     assert "never_tried=[" in nearby
     assert 'responds["state"].tried' in nearby

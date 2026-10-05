@@ -1390,6 +1390,12 @@ async def _read_until_settled(
     if not still and wait_for_stillness:
         looker.would_not_read |= set(unread)
     looked_took = time.monotonic() - began
+    if wait_for_stillness and (still or at_rest_but_unread) and isinstance(reading, dict):
+        # The drawn buttons of a still screen, beside its words: an arrow or
+        # a triangle is often the only way on a game's screen offers.
+        from core.perception.shapes_that_look_pressable import pressable_shapes
+
+        reading["shapes"] = await asyncio.to_thread(pressable_shapes, picture, apart_from=reading.get("layout") or ())
     shape = (int(picture.shape[1]), int(picture.shape[0]))
     return reading, still, at_rest_but_unread, pictures, shape, looked_took
 
