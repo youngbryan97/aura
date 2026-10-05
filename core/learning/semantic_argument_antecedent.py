@@ -99,8 +99,27 @@ def _channel(hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int],
     return block / (np.linalg.norm(block, axis=1, keepdims=True) + 1e-9)
 
 
+def sentence_starts(
+    token_ids: Sequence[int], sentence_end_ids: Sequence[int], input_spans: Sequence[TokenSpan] = ()
+) -> tuple[int, ...]:
+    """Where each sentence of a request begins: after a sentence-ending token, outside a literal.
+
+    A full stop inside an input's value ("6.5") ends no sentence.
+    """
+    ends = frozenset(int(token) for token in sentence_end_ids)
+    starts = [0]
+    for index, token in enumerate(token_ids):
+        inside = any(span.start <= index < span.end for span in input_spans)
+        if int(token) in ends and not inside and index + 1 < len(token_ids):
+            starts.append(index + 1)
+    return tuple(starts)
+
+
 def register_stretches(
-    input_spans: Sequence[TokenSpan], operation_spans: Sequence[TokenSpan], token_count: int
+    input_spans: Sequence[TokenSpan],
+    operation_spans: Sequence[TokenSpan],
+    token_count: int,
+    sentences: Sequence[int] = (),
 ) -> tuple[tuple[int, int], ...]:
     """The part of the request each register owns, inputs first, then operations.
 
@@ -111,16 +130,35 @@ def register_stretches(
     88 divided by 41" the first input's stretch ran from the start of the
     sentence to "88", operations and all, and a later "the" was read back to
     it (3 October, the readout's two training losses).
+
+    With ``sentences`` (sentence_starts), an operation that opens its sentence
+    owns the whole sentence, from after the last input declared in it. "Form
+    the lead calculation by subtract return flow from intake flow" names the
+    subtraction's result before the operation's word, and those tokens
+    belonged to no register, so "the lead calculation", used three sentences
+    later, could not be read back to the subtraction (scalar_branch_weave_five,
+    5 October). A second operation in the same sentence starts at its own word.
     """
     stretches: list[tuple[int, int]] = []
     boundaries = sorted({span.end for span in input_spans} | {span.end for span in operation_spans})
     for span in input_spans:
         before = [end for end in boundaries if end <= span.start]
         stretches.append((max(before) if before else 0, span.end))
-    starts = sorted(span.start for span in operation_spans)
+    input_ends = sorted(span.end for span in input_spans)
+    begins: list[int] = []
     for span in operation_spans:
-        later = [start for start in starts if start > span.start]
-        stretches.append((span.start, min(later) if later else token_count))
+        sentence = max((start for start in sentences if start <= span.start), default=None)
+        shares = sentence is not None and any(
+            sentence <= other.start < span.start for other in operation_spans
+        )
+        if sentence is None or shares:
+            begins.append(span.start)
+        else:
+            declared = [end for end in input_ends if sentence < end <= span.start]
+            begins.append(max([sentence, *declared]))
+    for begin, span in zip(begins, operation_spans, strict=True):
+        later = [other for other, op in zip(begins, operation_spans, strict=True) if op.start > span.start]
+        stretches.append((begin, min(later) if later else token_count))
     return tuple(stretches)
 
 
@@ -245,6 +283,9 @@ class ArgumentAntecedent:
     #: "turbine reserve = 6283" and "83651" were taken as arguments over
     #: "turbine reserve" and "return flow", the names that use them.
     named_inputs_are_used_by_name: bool = False
+    #: The tokenizer's sentence-ending tokens. When present, an operation's
+    #: register owns its whole sentence (register_stretches).
+    sentence_end_token_ids: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         if len(self.weight) != len(FEATURES) or not all(
@@ -261,12 +302,18 @@ class ArgumentAntecedent:
         widths: Sequence[int],
         input_spans: Sequence[TokenSpan],
         operation_spans: Sequence[TokenSpan],
+        source_token_ids: Sequence[int] | None = None,
     ) -> _AntecedentScorer:
         """Log P(register | mention) for one request, computed once per mention."""
+        sentences = (
+            sentence_starts(source_token_ids, self.sentence_end_token_ids, input_spans)
+            if self.sentence_end_token_ids and source_token_ids is not None
+            else ()
+        )
         return _AntecedentScorer(
             self,
             _similarities_for(hidden, channels, widths),
-            register_stretches(input_spans, operation_spans, len(hidden)),
+            register_stretches(input_spans, operation_spans, len(hidden), sentences),
             input_spans,
         )
 
@@ -281,6 +328,10 @@ class ArgumentAntecedent:
             **({"scoring": self.scoring} if self.scoring != "absolute" else {}),
             **({"own_result_is_not_an_input": True} if self.own_result_is_not_an_input else {}),
             **({"named_inputs_are_used_by_name": True} if self.named_inputs_are_used_by_name else {}),
+            **(
+                {"sentence_end_token_ids": list(self.sentence_end_token_ids)}
+                if self.sentence_end_token_ids else {}
+            ),
         }
 
     @property
@@ -373,17 +424,29 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
         str(value.get("scoring", "absolute")),
         bool(value.get("own_result_is_not_an_input", False)),
         bool(value.get("named_inputs_are_used_by_name", False)),
+        tuple(int(token) for token in value.get("sentence_end_token_ids", ())),
     )
 
 
-def antecedent_training_groups(item: Any) -> list[tuple[list[list[float]], int]]:
-    """Per annotated mention: the feature rows of the registers its operation could read, and the gold one's index."""
+def _item_stretches(item: Any, sentence_end_token_ids: Sequence[int]) -> tuple[tuple[int, int], ...]:
     ir = item.ir
     operations = [instruction.operation_span for instruction in ir.instructions]
+    sentences = (
+        sentence_starts(ir.source_token_ids, sentence_end_token_ids, ir.input_spans)
+        if sentence_end_token_ids else ()
+    )
+    return register_stretches(ir.input_spans, operations, len(item.hidden_states), sentences)
+
+
+def antecedent_training_groups(
+    item: Any, sentence_end_token_ids: Sequence[int] = ()
+) -> list[tuple[list[list[float]], int]]:
+    """Per annotated mention: the feature rows of the registers its operation could read, and the gold one's index."""
+    ir = item.ir
     similarities = _Similarities(
         np.asarray(item.hidden_states), item.hidden_channels, item.hidden_channel_widths
     )
-    stretches = register_stretches(ir.input_spans, operations, len(item.hidden_states))
+    stretches = _item_stretches(item, sentence_end_token_ids)
     groups: list[tuple[list[list[float]], int]] = []
     for step, instruction in enumerate(ir.instructions):
         own = ir.n_inputs + step
@@ -424,14 +487,15 @@ def _fit_conditional(groups: Sequence[tuple[list[list[float]], int]]) -> tuple[f
     return tuple(float(value) for value in result.x)
 
 
-def antecedent_training_rows(item: Any) -> tuple[list[list[float]], list[int]]:
+def antecedent_training_rows(
+    item: Any, sentence_end_token_ids: Sequence[int] = ()
+) -> tuple[list[list[float]], list[int]]:
     """Each annotated argument mention against every register its operation could read."""
     ir = item.ir
-    operations = [instruction.operation_span for instruction in ir.instructions]
     similarities = _Similarities(
         np.asarray(item.hidden_states), item.hidden_channels, item.hidden_channel_widths
     )
-    stretches = register_stretches(ir.input_spans, operations, len(item.hidden_states))
+    stretches = _item_stretches(item, sentence_end_token_ids)
     rows: list[list[float]] = []
     labels: list[int] = []
     for step, instruction in enumerate(ir.instructions):
@@ -448,7 +512,9 @@ def antecedent_training_rows(item: Any) -> tuple[list[list[float]], list[int]]:
     return rows, labels
 
 
-def fit_argument_antecedent(examples: Sequence[Any], *, objective: str = "pairwise") -> ArgumentAntecedent:
+def fit_argument_antecedent(
+    examples: Sequence[Any], *, objective: str = "pairwise", sentence_end_token_ids: Sequence[int] = ()
+) -> ArgumentAntecedent:
     """Fit on each training argument mention against every other register of its request.
 
     ``objective`` "pairwise" fits each (mention, register) pair as a yes or no;
@@ -463,7 +529,8 @@ def fit_argument_antecedent(examples: Sequence[Any], *, objective: str = "pairwi
     if objective not in ("pairwise", "conditional"):
         raise ValueError("argument antecedents are fitted pairwise or conditionally")
     if objective == "conditional":
-        groups = [group for item in examples for group in antecedent_training_groups(item)]
+        ends = tuple(int(token) for token in sentence_end_token_ids)
+        groups = [group for item in examples for group in antecedent_training_groups(item, ends)]
         if not groups:
             raise ValueError("argument antecedents need annotated mentions")
         receipt = {
@@ -472,12 +539,16 @@ def fit_argument_antecedent(examples: Sequence[Any], *, objective: str = "pairwi
             "mentions": len(groups),
             "objective": "conditional",
             "splits_used": ["train"],
+            **({"stretches": "sentence"} if ends else {}),
         }
-        return ArgumentAntecedent(_fit_conditional(groups), 0.0, {**receipt, "receipt_sha256": _sha(receipt)})
+        return ArgumentAntecedent(
+            _fit_conditional(groups), 0.0, {**receipt, "receipt_sha256": _sha(receipt)},
+            sentence_end_token_ids=ends,
+        )
     rows: list[list[float]] = []
     labels: list[int] = []
     for item in examples:
-        item_rows, item_labels = antecedent_training_rows(item)
+        item_rows, item_labels = antecedent_training_rows(item, tuple(sentence_end_token_ids))
         rows.extend(item_rows)
         labels.extend(item_labels)
     if len(set(labels)) < 2:
@@ -494,6 +565,7 @@ def fit_argument_antecedent(examples: Sequence[Any], *, objective: str = "pairwi
         tuple(float(value) for value in fitted.coef_[0]),
         float(fitted.intercept_[0]),
         {**receipt, "receipt_sha256": _sha(receipt)},
+        sentence_end_token_ids=tuple(int(token) for token in sentence_end_token_ids),
     )
 
 
@@ -505,4 +577,20 @@ __all__ = [
     "argument_antecedent_from_dict",
     "fit_argument_antecedent",
     "register_stretches",
+    "sentence_end_token_ids",
+    "sentence_starts",
 ]
+
+
+def sentence_end_token_ids(tokenizer: Any) -> tuple[int, ...]:
+    """The tokenizer's tokens that end a sentence: closing punctuation around a ".", "?" or "!"."""
+    vocabulary = tokenizer.get_vocab()
+    ends = []
+    for token_id in sorted(vocabulary.values()):
+        text = tokenizer.decode([token_id]).strip()
+        if text and set(text) <= set(".?!\"'”’)") and set(text) & set(".?!"):
+            ends.append(int(token_id))
+    if not ends:
+        raise ValueError("the tokenizer has no sentence-ending token")
+    return tuple(ends)
+

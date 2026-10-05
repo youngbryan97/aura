@@ -282,6 +282,18 @@ def main() -> int:
         default="pairwise",
         help="fit the antecedent pair by pair, or as each mention's distribution over registers",
     )
+    parser.add_argument(
+        "--antecedent-stretches",
+        choices=("declaration", "sentence"),
+        default="declaration",
+        help="what text an operation's register owns: from its word, or its whole sentence",
+    )
+    parser.add_argument(
+        "--tokenizer",
+        type=Path,
+        default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15/tokenizer.json"),
+        help="the tokenizer whose sentence-ending tokens --antecedent-stretches sentence binds",
+    )
     args = parser.parse_args()
 
     from tools.refit_semantic_argument_proposals import (
@@ -321,10 +333,19 @@ def main() -> int:
         flush=True,
     )
 
+    sentence_ends: tuple[int, ...] = ()
+    if args.antecedent_stretches == "sentence":
+        from tokenizers import Tokenizer
+
+        from core.learning.semantic_argument_antecedent import sentence_end_token_ids
+
+        sentence_ends = sentence_end_token_ids(Tokenizer.from_file(str(args.tokenizer.expanduser())))
+        print(f"sentence-ending tokens: {len(sentence_ends)}", flush=True)
+
     recognizer = fit_peak_operation_recognizer(training)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
-        replace(fit_argument_antecedent(training, objective=args.antecedent_fit), scoring=args.antecedent_scoring,
+        replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
                 own_result_is_not_an_input=args.own_result_is_not_an_input,
                 named_inputs_are_used_by_name=args.named_inputs_are_used_by_name)
         if args.argument_antecedent else None
@@ -372,7 +393,7 @@ def main() -> int:
                 incumbent,
                 fit_peak_operation_recognizer(kept),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
-                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit), scoring=args.antecedent_scoring,
+                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,
                         named_inputs_are_used_by_name=args.named_inputs_are_used_by_name)
                 if args.argument_antecedent else None,

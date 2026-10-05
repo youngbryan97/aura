@@ -1476,6 +1476,26 @@ def _assign_typed_arguments_candidates(
     states = sorted(candidates, key=lambda item: (-item[0], item[1]))[:_ARGUMENT_BEAM]
     return states
 
+def _antecedent_readings(
+    argument_antecedent: Any,
+    model: CompositionalSemanticProgramTransducer,
+    hidden: np.ndarray,
+    input_spans: Sequence[TokenSpan],
+    operation_spans: Sequence[TokenSpan],
+    source_token_ids: Sequence[int] | None,
+    proposals_by_operation: Sequence[Sequence[tuple[TokenSpan, float]]],
+) -> tuple[Any, frozenset[int]]:
+    """The request's antecedent scorer, and the inputs it says are used by name."""
+    if not argument_antecedent:
+        return None, frozenset()
+    antecedents = argument_antecedent.scorer(
+        hidden, model.hidden_channels, model.hidden_channel_widths, input_spans, operation_spans,
+        source_token_ids=source_token_ids,
+    )
+    mentions = [span for proposals in proposals_by_operation for span, _score in proposals]
+    return antecedents, antecedents.inputs_used_by_name(mentions)
+
+
 def _assign_typed_arguments(
     *,
     model: CompositionalSemanticProgramTransducer,
@@ -1651,10 +1671,8 @@ def _assign_typed_arguments(
     relation_definition_matrices = {}
     operation_spans = tuple(node.span for node in operation_nodes)
     ownership_by_mention: dict[TokenSpan, tuple[float, ...]] = {}
-    antecedents = argument_antecedent and argument_antecedent.scorer(
-        hidden, model.hidden_channels, model.hidden_channel_widths, input_spans, operation_spans)
-    used_by_name = antecedents.inputs_used_by_name(
-        [span for proposals in proposals_by_operation for span, _score in proposals]) if antecedents else frozenset()
+    antecedents, used_by_name = _antecedent_readings(
+        argument_antecedent, model, hidden, input_spans, operation_spans, source_token_ids, proposals_by_operation)
     for node_index, node in enumerate(operation_nodes):
         argument_types, _result_type = operation_types[node_index]
         if len(argument_types) > len(model.argument_role_heads):

@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from core.learning.semantic_argument_antecedent import (
+    FEATURES,
     ArgumentAntecedent,
     argument_antecedent_from_dict,
     fit_argument_antecedent,
@@ -214,3 +215,36 @@ def test_an_input_named_elsewhere_is_used_through_its_name() -> None:
         item.hidden_states, CHANNELS, (WIDTH, WIDTH), item.ir.input_spans, operations
     )
     assert plain.inputs_used_by_name(mentions) == frozenset()
+
+
+def test_an_operation_owns_its_whole_sentence_when_sentence_ends_are_known() -> None:
+    """ "Form the lead calculation by subtract ..." names the result before the operation's word.
+
+    Tokens: 0-9 "inputs are a = 7 ; b = 3 ." (a@4, b@8), 10-13 "Form the lead calculation by"
+    (10-14), 15 subtract, 16-19 "b from a .", 20-25 "Save that as the result .", 26 add ...
+    """
+    a, b = TokenSpan(4, 5), TokenSpan(8, 9)
+    subtract, add, multiply = TokenSpan(15, 16), TokenSpan(26, 27), TokenSpan(29, 30)
+    sentences = (0, 10, 20, 26)
+
+    stretches = register_stretches((a, b), (subtract, add, multiply), 34, sentences)
+
+    assert stretches[2] == (10, 26), "the subtraction owns its lead-in and the sentence naming its result"
+    assert stretches[3] == (26, 29), "an operation sharing a sentence keeps the text up to the next one's word"
+    assert stretches[4] == (29, 34)
+    # Without sentence ends, as before.
+    assert register_stretches((a, b), (subtract, add, multiply), 34)[2] == (15, 26)
+
+
+def test_a_full_stop_inside_a_literal_ends_no_sentence() -> None:
+    from core.learning.semantic_argument_antecedent import sentence_starts
+
+    period = 13
+    tokens = [1, 2, 3, period, 4, 5, period, 6, 7]
+    assert sentence_starts(tokens, (period,), (TokenSpan(2, 5),)) == (0, 7)
+
+
+def test_the_readout_keeps_its_sentence_ends_through_serialization() -> None:
+    readout = ArgumentAntecedent(tuple(0.0 for _ in FEATURES), 0.0, {}, sentence_end_token_ids=(13, 30))
+
+    assert argument_antecedent_from_dict(readout.to_dict()).sentence_end_token_ids == (13, 30)
