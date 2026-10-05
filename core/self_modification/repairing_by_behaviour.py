@@ -139,16 +139,36 @@ class _Believed:
     wrong: set[str] = field(default_factory=set)
     right: set[str] = field(default_factory=set)
     findings: dict[str, str] = field(default_factory=dict)
+    #: How many watches have seen each check right, and wrong.
+    seen_right: dict[str, int] = field(default_factory=dict)
+    seen_wrong: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_watch(cls, behaviour: Any) -> _Believed:
-        return cls(set(behaviour.wrong), set(behaviour.right), dict(behaviour.findings))
+        return cls().after(behaviour)
 
     def after(self, behaviour: Any) -> _Believed:
         wrong = (self.wrong - behaviour.right) | behaviour.wrong
         right = (self.right - behaviour.wrong) | behaviour.right
         findings = {**{k: v for k, v in self.findings.items() if k in wrong}, **behaviour.findings}
-        return _Believed(wrong, right, findings)
+        seen_right = dict(self.seen_right)
+        seen_wrong = dict(self.seen_wrong)
+        for name in behaviour.right:
+            seen_right[name] = seen_right.get(name, 0) + 1
+        for name in behaviour.wrong:
+            seen_wrong[name] = seen_wrong.get(name, 0) + 1
+        return _Believed(wrong, right, findings, seen_right, seen_wrong)
+
+    @property
+    def surely_right(self) -> set[str]:
+        """Checks seen right in two watches or more and never wrong: what an edit can be said to break.
+
+        One reading is not enough to veto a repair: offline 2026-10-04 a first
+        watch read the broken score as right, and when the mended controls let
+        the real fault show, every right edit "broke" the score and was turned
+        down.
+        """
+        return {name for name in self.right if self.seen_right.get(name, 0) >= 2 and not self.seen_wrong.get(name, 0)}
 
 
 def _improves(behaviour: Any, now: _Believed) -> bool:
@@ -163,7 +183,7 @@ def _improves(behaviour: Any, now: _Believed) -> bool:
     """
     mended = now.wrong & behaviour.right
     newly_right = behaviour.right - now.right - now.wrong
-    harmed = behaviour.wrong & now.right
+    harmed = behaviour.wrong & now.surely_right
     return not harmed and bool(mended or newly_right)
 
 
@@ -237,7 +257,7 @@ async def _confirmed(browser: Any, before: str, after: str, words: str, keys: li
             _watched(browser, before, words, keys, folder, WATCH_S * 2.5),
             _watched(browser, after, words, keys, folder, WATCH_S * 2.5),
         )
-        harm = again.wrong & (now.right - trial.wrong)
+        harm = again.wrong & (now.surely_right - trial.wrong)
         if harm:
             # One watch is one game: a ball that clips a corner can read as
             # harm once. A third watch settles it, and harm seen twice in
