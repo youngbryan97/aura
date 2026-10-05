@@ -29,6 +29,7 @@ from core.capabilities.browser_authority import (
     BrowserAction,
     authorize_browser_action,
 )
+from core.capabilities.where_downloads_go import keep_downloads
 from core.runtime.errors import (
     DependencyUnavailable,
     FallbackClassification,
@@ -549,6 +550,7 @@ class PhantomBrowser(_ActsOnThePage):
 
             try:
                 self.context = await self.browser.new_context(**self._page_size(), user_agent=user_agent)
+                keep_downloads(self.context)  # core/capabilities/where_downloads_go.py
                 await self._apply_stealth(self.context)
                 self.page = await self.context.new_page()
             except (
@@ -788,6 +790,7 @@ class PhantomBrowser(_ActsOnThePage):
                 # a broken context while the old session stayed open with
                 # nothing to close it (CP126 ``d1b5bf25``).
                 new_context = await self.browser.new_context(**self._page_size(), user_agent=ua)
+                keep_downloads(new_context)
                 await self._apply_stealth(new_context)
                 new_page = await new_context.new_page()
             except (RuntimeError, AttributeError, TypeError, ValueError, PlaywrightError) as exc:

@@ -1205,9 +1205,27 @@ def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
     # a thing to exist.
     from core.intent.artifact_request import asks_for_an_artifact
 
-    if asks_for_an_artifact(str(objective or "")) or _orders_a_named_file_changed(str(objective or "")):
+    if asks_for_an_artifact(str(objective or "")) or _orders_a_named_file_changed(str(objective or "")) or _asks_her_build_changed(str(objective or "")):
         return _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
     return _SELF_SERVICE_CEILING, frozenset(_SELF_SERVICE_EFFECT_SCOPES)
+
+
+def _asks_her_build_changed(objective: str) -> bool:
+    """Whether the turn asks for something she built to be changed or used to make something.
+
+    The same principle as a file named and ordered changed: "add a dark theme
+    to the word processor you built" names no path, and asks for a write.
+    """
+    from core.intent.declared_capability import verb_class_of
+
+    if not re.search(r"\b(?:you|she)\s+(?:built|made|rebuilt|wrote|created)\b", objective, re.IGNORECASE):
+        return False
+    # "The word processor you built should number its pages" asks for a change
+    # by saying how it should be.
+    if re.search(r"\b(?:you|she)\s+(?:built|made|rebuilt|wrote|created)\b[^.?!]{0,60}\b(?:should|needs\s+to|must|has\s+to)\b", objective, re.IGNORECASE):
+        return True
+    acts = verb_class_of("fix") | verb_class_of("write") | verb_class_of("add") | verb_class_of("use") | {"use", "export"}
+    return bool(acts & set(re.findall(r"[a-z]+", objective.lower())))
 
 
 def _orders_a_named_file_changed(objective: str) -> bool:

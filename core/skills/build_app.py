@@ -39,10 +39,9 @@ class BuildAppSkill(BaseSkill):
 
     name = "build_app"
     description = (
-        "Build a real, runnable program (an app, a tool, a tracker, a game) to a person's specification: "
-        "say what it must do as features, write the checks a person would make before any code, write it "
-        "part by part keeping each part only when its checks hold, measure and mend how finished it is, "
-        "then open it to use."
+        "Build a real, runnable single-file web app (tool, tracker, toy, game or program) from a natural "
+        "description, to the person's specification: say what it must do as features, check every control and "
+        "view is wired by using it, keep each part only when its checks hold, then write it to disk to open and use."
     )
     input_model = BuildAppInput
 
@@ -89,7 +88,7 @@ class BuildAppSkill(BaseSkill):
         # Built to the specification by the same engine that rebuilds a named
         # program, checked feature by feature; the compiled plan below is what
         # is left when her model cannot say what the program is to do.
-        built = await _built_to_specification(the_persons_own_words(params.spec), Path(str(out_dir or root)))
+        built = await _built_to_specification(the_persons_own_words(params.spec), Path(str(out_dir or root)), context)
         if built is not None:
             return built
         # The requirement is what the person asked for; `spec` is the model's
@@ -121,11 +120,11 @@ class BuildAppSkill(BaseSkill):
         }
 
 
-async def _built_to_specification(asked: str, where: Path) -> dict[str, Any] | None:
+async def _built_to_specification(asked: str, where: Path, context: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """The program the person specified, built and checked by core/rebuilding, or None when nothing could be said of it."""
     from core.rebuilding.her_model import ask_her_model
     from core.rebuilding.rebuilding_a_program import rebuild
-    from core.skills.program_dna_reconstruct import _open_for_the_person
+    from core.skills.program_dna_reconstruct import _open_for_the_person, _used_as_asked
     from core.skills.screen_pursuit import _tell
 
     rebuilt = await rebuild("", ask_her_model, where, tell=_tell, asked=asked)
@@ -141,7 +140,7 @@ async def _built_to_specification(asked: str, where: Path) -> dict[str, Any] | N
         "title": rebuilt.genome.name if rebuilt.genome else "",
         "features": [o.feature.name for o in working],
         "not_working": [o.feature.name for o in rebuilt.built.outcomes if not o.kept],
-        "summary": rebuilt.summary() + (f" {opened}" if opened else ""),
+        "summary": rebuilt.summary() + (f" {opened}" if opened else "") + await _used_as_asked(rebuilt.built, asked, context),
     }
 
 

@@ -155,3 +155,24 @@ def keep_the_record(folder: Path, built: Built) -> None:
         for o in built.outcomes
     ], indent=1), "utf-8")
     (folder / "holding.json").write_text(json.dumps([c.model_dump() for c in built.holding], indent=1), "utf-8")
+
+
+def the_build_meant(asked: str, roots: list[Path]) -> Path | None:
+    """The folder of the build a request means: the one it names by path or by name, else the newest.
+
+    "Add a dark theme to Inkwell" names it; "make the word processor you built
+    save as PDF" means the one she built last, which is the newest kept.
+    """
+    from core.language.named_paths import first_existing_path
+
+    named = first_existing_path(asked or "")
+    if named is not None:
+        folder = Path(named) if Path(named).is_dir() else Path(named).parent
+        if (folder / "program.json").exists():
+            return folder
+    builds = [p.parent for root in roots if root.is_dir() for p in root.glob("*/program.json")]
+    words = set(re.findall(r"[a-z0-9]+", str(asked or "").lower()))
+    for folder in builds:
+        if set(folder.name.split("-")) <= words:
+            return folder
+    return max(builds, key=lambda p: (p / "program.json").stat().st_mtime, default=None)

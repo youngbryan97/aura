@@ -15,7 +15,11 @@ from typing import Any
 __all__ = ["judged_by_its_parser"]
 
 #: What a reader of prose objects to that the parser of a shape settles itself.
-_THE_PARSER_SETTLES = frozenset({"low_lexical_diversity_loop", "repetitive_phrase_loop", "low_information_loop", "truncated_tail"})
+_THE_PARSER_SETTLES = frozenset({
+    "low_lexical_diversity_loop", "repetitive_phrase_loop", "low_information_loop", "truncated_tail",
+    # "\n" inside a JSON string is how JSON writes a line break, not a leak.
+    "escaped_control_artifact",
+})
 
 
 def judged_by_its_parser(asked: Mapping[str, Any], reasons: Iterable[str]) -> bool:

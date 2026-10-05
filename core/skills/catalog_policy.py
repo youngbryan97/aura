@@ -124,6 +124,8 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "program_dna_reconstruct": "read_write_artifacts",
     # Writes the mended file and a copy of the original beside it, through the gateway.
     "repair_a_program": "read_write_artifacts",
+    "change_a_program": "read_write_artifacts",
+    "use_a_program": "read_write_artifacts",
     "propagation": "pure_compute",
     "query_beliefs": "read_only",
     "query_visual_context": "read_only",

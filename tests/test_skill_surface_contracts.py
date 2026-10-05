@@ -100,6 +100,8 @@ EXPECTED_REGISTERED_SKILLS = {
     "web_search",
     "program_dna_reconstruct",
     "repair_a_program",
+    "change_a_program",
+    "use_a_program",
     "program_dna_equivalence_battery",
     "x_tools",
     # 2026-07-12 capability corpus

@@ -214,6 +214,14 @@ _TABLE: dict[str, list[str]] = {
     ],
     # Somebody else's program that does not work: run it, read it, mend it.
     # Named by what it is (a game, an app, a page) or by its file.
+    "change_a_program": [
+        r"\b(?:add|change|modify|update|give|make)\b[^.?!]{0,80}?\b(?:to|in|on|of)\s+(?:the|your|that)\s+(?:[\w-]+\s+){0,4}?(?:you|she)\s+(?:built|made|rebuilt)\b",
+        r"\b(?:the|your|that)\s+(?:[\w-]+\s+){0,4}?(?:you|she)\s+(?:built|made|rebuilt)\b[^.?!]{0,80}?\b(?:should|needs?\s+to|must|has\s+to)\b",
+    ],
+    "use_a_program": [
+        r"\buse\s+(?:the|your|that)\s+(?:[\w-]+\s+){0,4}?(?:you|she)\s+(?:built|made|rebuilt)\b",
+        r"\bprove\s+(?:to\s+me\s+)?(?:that\s+)?it\s+works\b",
+    ],
     "repair_a_program": [
         r"(?:fix|repair|debug|mend) (?:this |that |the |my |a |their )?[\w\s-]{0,30}?(?:game|app|program|page|script|website)\b",
         r"\b(?:game|app|program|page|script|website)\b[^!?\n]{0,80}?\b(?:is|seems|looks|are) (?:broken|buggy)",

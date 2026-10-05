@@ -135,7 +135,7 @@ class ProgramDNAReconstructSkill(BaseSkill):
         if params.analysis_mode == "reconstruct" and not engine._policy_blocks(
             str(params.authorization or "").strip().lower(), f"{asked} {params.target}".lower()
         ):
-            return await _rebuild_it(params, self.name, asked)
+            return await _rebuild_it(params, self.name, asked, context)
 
         result = await engine.reconstruct(params.model_dump())
         payload = result.to_dict() if hasattr(result, "to_dict") else dict(result)
@@ -268,7 +268,7 @@ async def the_program_named_in(asked: str) -> str:
     return named.program.strip() if isinstance(named, _Named) else ""
 
 
-async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "") -> dict[str, Any]:
+async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "", context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Rebuild the program clean-room as a working one, open it where the person can use it, and say what works."""
     from core.rebuilding.her_model import ask_her_model
     from core.rebuilding.rebuilding_a_program import rebuild
@@ -283,7 +283,7 @@ async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "") -> d
     opened = ""
     if rebuilt.built is not None and rebuilt.built.working():
         opened = await _open_for_the_person(rebuilt.built.path)
-    summary = rebuilt.summary() + (f" {opened}" if opened else "")
+    summary = rebuilt.summary() + (f" {opened}" if opened else "") + await _used_as_asked(rebuilt.built, asked, context)
     working = rebuilt.built.working() if rebuilt.built is not None else []
     return {
         "ok": bool(working),
@@ -296,6 +296,16 @@ async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "") -> d
         "seconds": round(rebuilt.seconds, 1),
         "summary": summary,
     }
+
+
+async def _used_as_asked(built: Any, asked: str, context: dict[str, Any] | None) -> str:
+    """When the request also asks for the program to be used ("prove it works by..."), that, done with its own controls."""
+    from core.skills.using_a_program import how_the_use_went, use_what_she_built, what_to_do_with_it
+
+    task = what_to_do_with_it(asked)
+    if built is None or not task or not built.working():
+        return ""
+    return " " + how_the_use_went(await use_what_she_built(built.path, task, asked, context))
 
 
 #: Windows left open for the person, held so nothing closes them behind their back.
