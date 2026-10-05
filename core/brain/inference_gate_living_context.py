@@ -17,6 +17,7 @@ import os
 from typing import Any
 
 from core.brain.living_mind_context import PRIORITY_COLOUR, TRUST_LEARNED
+from core.conversation.surface_disposition import capabilities_run_this_turn
 from core.intent.capability_selection import the_one_asked_for
 from core.utils.completed_capability import remaining_capabilities
 
@@ -439,11 +440,11 @@ class _BuildsTheLivingContext:
             required = derive_capability_set(text)
             if not required:
                 return None
-            pending = remaining_capabilities(required, completed_capability_evidence)
+            pending = [n for n in remaining_capabilities(required, completed_capability_evidence) if n not in capabilities_run_this_turn()]
             if required and not pending:
                 logger.info(
                     "🔧 Tool handoff skipped: every required capability already "
-                    "has runtime-stamped evidence (%s).",
+                    "has runtime-stamped evidence or ran this turn (%s).",
                     ",".join(sorted(required)),
                 )
                 return None

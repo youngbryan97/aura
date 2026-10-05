@@ -31,7 +31,7 @@ from core.conversation.response_reliability import (
     repair_instruction_shape,
     requested_output_contract,
 )
-from core.conversation.surface_disposition import COMPLETION_REASONS
+from core.conversation.surface_disposition import COMPLETION_REASONS, capabilities_run_this_turn
 from core.phases.dialogue_policy import (
     enforce_dialogue_contract,
     validate_dialogue_response,
@@ -973,7 +973,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         # the turn here also repeats work already completed by the tool lane.
         completed = frozenset(turn_completed_capabilities) | completed_capabilities(
             runtime_context.get("completed_capability_evidence")
-        )
+        ) | capabilities_run_this_turn()
         if completed:
             state.response_modifiers["reasoning_amplifier_v2_active_phase"] = {
                 "task_type": task_type,

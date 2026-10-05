@@ -533,6 +533,58 @@ async def test_completed_capability_turn_keeps_its_grounded_draft(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_a_capability_that_ran_during_the_reply_keeps_its_draft(monkeypatch):
+    """LIVE 2026-10-04: a repair called while the reply was made ran twice more from the pass after it."""
+    from core.conversation.surface_disposition import begin_turn_tool_receipts, record_tool_receipt
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+
+    async def amplifier_must_not_run(*_args, **_kwargs):
+        raise AssertionError("work done in this turn cannot be regenerated")
+
+    monkeypatch.setattr("core.brain.reasoning_amplifier_v2.amplify_turn", amplifier_must_not_run)
+    phase = _phase_stub()
+    state = AuraState.default()
+    router = _StubRouter("must not run")
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        begin_turn_tool_receipts()
+        record_tool_receipt("code_repl", ok=True, action="execute", observed_content="42")
+        out = await phase._maybe_amplify_response(
+            objective="Compute 21 * 2 with code_repl and return the exact result.",
+            draft="The verified result is 42.",
+            router=router,
+            state=state,
+            request_timeout=180.0,
+            origin="desktop_ui",
+            tier="primary",
+            runtime_context={"desktop_cognitive_engine_required": True},
+            is_user_facing=True,
+            is_background=False,
+            proof_or_benchmark=False,
+        )
+    assert out == "The verified result is 42."
+    assert router.calls == 0
+    assert state.response_modifiers["reasoning_amplifier_v2_active_phase"]["completed_capabilities"] == ["code_repl"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_run_does_not_count_as_done():
+    from core.conversation.surface_disposition import (
+        begin_turn_tool_receipts,
+        capabilities_run_this_turn,
+        record_tool_receipt,
+    )
+    from core.conversation.turn_evidence_custody import bind_turn_evidence_custody
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        begin_turn_tool_receipts()
+        record_tool_receipt("code_repl", ok=False, action="execute", observed_content="ImportError")
+        assert capabilities_run_this_turn() == frozenset()
+        record_tool_receipt("repair_a_program", ok=True, action="execute", observed_content="mended")
+        assert capabilities_run_this_turn() == frozenset({"repair_a_program"})
+    assert capabilities_run_this_turn() == frozenset()
+
+
+@pytest.mark.asyncio
 async def test_turn_start_capability_authority_survives_mutable_context_boundary(
     monkeypatch,
 ):

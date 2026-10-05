@@ -70,6 +70,7 @@ __all__ = [
     "requests_a_brief_answer",
     "short_draft_answers_closed_question",
     "begin_turn_tool_receipts",
+    "capabilities_run_this_turn",
     "record_tool_receipt",
     "turn_tool_receipts",
 ]
@@ -282,6 +283,20 @@ def turn_tool_receipts() -> tuple[dict[str, Any], ...]:
 
     custody = current_turn_evidence_custody()
     return custody.receipts() if custody is not None else ()
+
+
+def capabilities_run_this_turn() -> frozenset[str]:
+    """The capabilities this turn already ran and that came back done.
+
+    A turn is answered in passes: the reply, then a pass that may check or
+    better it. Each pass that reads the request afresh finds the same
+    capability asked for, and LIVE on 2026-10-04 a repair that had run for
+    sixteen minutes and come back mended was dispatched twice more by the pass
+    after it. What was asked for once is done once.
+    """
+    return frozenset(
+        str(row.get("tool") or "") for row in turn_tool_receipts() if row.get("ok") and row.get("tool")
+    )
 
 
 # The bare model's own answer, before any of this runs.
