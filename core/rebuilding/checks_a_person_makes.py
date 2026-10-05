@@ -268,8 +268,8 @@ class _Doing:
         if self.to_give is None:
             return
         name, text = self.to_give
-        kind = "text/html" if name.lower().endswith((".html", ".htm")) else "text/plain"
-        await chooser.set_files({"name": name, "mimeType": kind, "buffer": text.encode("utf-8")})
+        kind, data = await asyncio.to_thread(a_file_of_its_kind, name, text)
+        await chooser.set_files({"name": name, "mimeType": kind, "buffer": data})
 
     async def _saved(self, download: Any) -> None:
         try:
@@ -554,3 +554,45 @@ def _what_a_file_says(data: bytes) -> str:
         except (zipfile.BadZipFile, OSError, ValueError):
             pass
     return data[:400_000].decode("utf-8", "ignore")
+
+
+def a_file_of_its_kind(name: str, text: str) -> tuple[str, bytes]:
+    """A file named ``name`` holding ``text``, made as the kind its name says, as a person's file of that name is:
+    a .docx a word processor wrote, an .odt, an .rtf, else the text itself. LIVE 2026-10-05 a check gave a
+    program plain text named test.docx, and the program, rightly, could not open it."""
+    import io
+    import zipfile
+
+    lowered = name.lower()
+    if lowered.endswith(".docx"):
+        try:
+            import docx
+
+            document = docx.Document()
+            for line in text.split("\n"):
+                document.add_paragraph(line)
+            held = io.BytesIO()
+            document.save(held)
+            return "application/vnd.openxmlformats-officedocument.wordprocessingml.document", held.getvalue()
+        except ImportError:
+            pass
+    if lowered.endswith(".odt"):
+        held = io.BytesIO()
+        paras = "".join(f"<text:p>{_xml(line)}</text:p>" for line in text.split("\n"))
+        with zipfile.ZipFile(held, "w") as archive:
+            archive.writestr(zipfile.ZipInfo("mimetype"), "application/vnd.oasis.opendocument.text")
+            archive.writestr("META-INF/manifest.xml", '<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">'
+                             '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/></manifest:manifest>')
+            archive.writestr("content.xml", '<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" '
+                             f'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:text>{paras}</office:text></office:body></office:document-content>')
+        return "application/vnd.oasis.opendocument.text", held.getvalue()
+    if lowered.endswith(".rtf"):
+        body = "\\par\n".join(line.replace("\\", "\\\\").replace("{", "\\{").replace("}", "\\}") for line in text.split("\n"))
+        return "application/rtf", ("{\\rtf1\\ansi " + body + "}").encode("utf-8")
+    if lowered.endswith((".html", ".htm")):
+        return "text/html", text.encode("utf-8")
+    return "text/plain", text.encode("utf-8")
+
+
+def _xml(text: str) -> str:
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")

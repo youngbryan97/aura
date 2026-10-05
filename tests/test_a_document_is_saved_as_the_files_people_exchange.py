@@ -134,3 +134,28 @@ async def test_asking_for_a_format_added_to_a_build_is_done_by_the_frame(tmp_pat
     changed = await change_it(done.built.path.parent, "add an export to .docx files to it", says_nothing_useful)
     assert [o.kept for o in changed.outcomes] == [True], changed.summary()
     assert 'app.formats.save("docx")' in (done.built.path.parent / "index.html").read_text()
+
+
+@pytest.mark.asyncio
+async def test_a_check_gives_a_real_file_of_the_kind_it_names(tmp_path):
+    """LIVE 2026-10-05 a check gave plain text named test.docx, and a right Open was left out for it."""
+    from core.rebuilding.checks_a_person_makes import Check, run_checks
+
+    opening = Part("Open", 'app.command({label: "Open", menu: "File", run: () => app.formats.open()});', ["Open"])
+    check = Check.model_validate({"feature": "Open", "steps": [{"do": "type", "value": "Existing content"}, {"do": "click", "target": "Open"},
+                                                                {"do": "give_file", "target": "test.docx", "value": "New document content"}],
+                                  "expect": [{"see": "text", "target": "New document content"}, {"see": "no_text", "target": "Existing content"}]})
+    runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK), opening]).write(tmp_path / "o.html"), [check])
+    assert runs[0].held, runs[0].why
+
+
+@pytest.mark.asyncio
+async def test_a_new_build_never_takes_up_the_leavings_of_another(tmp_path):
+    from core.rebuilding.rebuilding_a_program import rebuild
+    from tests.test_a_program_is_rebuilt_by_checking_it import _NoCorpus, _Script
+
+    stale = tmp_path / "writer"
+    stale.mkdir()
+    (stale / "checks.json").write_text("[]")
+    done = await rebuild("Writer", _Script(), tmp_path, corpus=_NoCorpus(), online=False)
+    assert done.built.path.parent.name == "writer-2" and any(o.kept for o in done.built.outcomes)

@@ -138,8 +138,7 @@ async def rebuild(
         if genome is None:
             return Rebuilt(program or "it", None, None, named, time.monotonic() - began, "I could not say what it does")
         await _say(tell, f"{program or genome.name} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
-        folder = Path(where) / _folder_name(genome.name)
-        folder.mkdir(parents=True, exist_ok=True)
+        folder = _a_new_folder(Path(where), genome.name)
         (folder / "what_it_does.json").write_text(json.dumps(genome.model_dump(), indent=1), "utf-8")
         _the_build_is(folder, program, asked, finished=False)
         return await _building(program, ask, folder, record, sources, named, began, tell=tell, browser=browser, deadline_s=deadline_s, asked=asked)
@@ -161,6 +160,7 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
     genome.features, given = what_the_frame_gives(genome.features, sources, asked)
     if (folder / "checks.json").exists():
         checks = [Check.model_validate(c) for c in json.loads((folder / "checks.json").read_text("utf-8"))]
+        checks += [c for gift in given.values() for c in gift.checks if not any(k.feature == c.feature for k in checks)]
     else:
         written: list[Check] = [check for gift in given.values() for check in gift.checks]
         asked_of_her = [f for f in genome.features if f.name not in given]
@@ -175,6 +175,17 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
     await asyncio.to_thread(keep_the_record, folder, built)
     _the_build_is(folder, program, asked, finished=True)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
+
+
+def _a_new_folder(where: Path, name: str) -> Path:
+    """A folder of its own for a new build: never one an earlier build left things in, whose checks and parts are another program's."""
+    base = where / _folder_name(name)
+    folder, n = base, 1
+    while folder.exists() and any(folder.iterdir()):
+        n += 1
+        folder = base.with_name(f"{base.name}-{n}")
+    folder.mkdir(parents=True, exist_ok=True)
+    return folder
 
 
 def _the_build_is(folder: Path, program: str, asked: str, *, finished: bool) -> None:
