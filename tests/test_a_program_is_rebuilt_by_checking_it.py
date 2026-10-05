@@ -383,3 +383,22 @@ def test_an_empty_answer_is_her_model_being_away():
     for router in (_Empty(), _Down()):
         with pytest.raises(HerModelIsAwayError):
             asyncio.run(ask_her_model("write it", WrittenPart, 100, router=router))
+
+
+def test_an_answer_that_only_overruns_a_bound_is_cut_to_it_and_kept():
+    """LIVE 2026-10-05 one rule a few words over its limit threw away the nine checks answered with it."""
+    import asyncio
+    import json
+
+    from core.rebuilding.her_model import ask_her_model
+    from core.rebuilding.what_a_program_does import _Checks
+
+    long_rule = "x" * 400
+    answer = {"checks": [_BOLD_CHECK.model_dump(), {**_COUNT_CHECK.model_dump(), "rule": long_rule}]}
+
+    class _Router:
+        async def generate_with_metadata(self, *args, **kwargs):
+            return {"text": json.dumps(answer)}
+
+    got = asyncio.run(ask_her_model("write checks", _Checks, 100, router=_Router()))
+    assert isinstance(got, _Checks) and len(got.checks) == 2 and len(got.checks[1].rule) == 300

@@ -194,5 +194,36 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
     try:
         return schema.model_validate(data)
     except ValidationError as why:
+        mended = _within_bounds(data, why)
+        if mended is not None:
+            try:
+                return schema.model_validate(mended)
+            except ValidationError:
+                pass
         logger.info("her model's answer did not fit %s: %s", schema.__name__, str(why)[:300])
         return None
+
+
+def _within_bounds(data: Any, why: ValidationError) -> Any:
+    """The answer with what only overran a bound cut to it: a text or a list longer than its field allows.
+
+    One check's rule a few words over its limit threw away the nine checks
+    answered with it, three minutes of her model's time (LIVE 2026-10-05).
+    Anything else wrong is left wrong, and the answer is not taken.
+    """
+    import copy
+
+    mended = copy.deepcopy(data)
+    for error in why.errors():
+        if error.get("type") not in ("string_too_long", "too_long"):
+            return None
+        limit = int((error.get("ctx") or {}).get("max_length") or 0)
+        *path, last = list(error.get("loc") or ()) or [None]
+        holder = mended
+        try:
+            for key in path:
+                holder = holder[key]
+            holder[last] = holder[last][:limit]
+        except (KeyError, IndexError, TypeError):
+            return None
+    return mended

@@ -210,7 +210,7 @@ def _small(picture: Any) -> np.ndarray | None:
     pixels = np.asarray(picture, dtype=np.float32)
     if pixels.ndim == 3:
         pixels = pixels[..., :3].mean(axis=2)
-    if pixels.ndim != 2 or min(pixels.shape) < 8:
-        return None
+    if pixels.ndim != 2 or pixels.shape[0] < 2 * CELLS[1] or pixels.shape[1] < 2 * CELLS[0]:
+        return None  # smaller than the grid it is measured on: nothing to measure
     step = max(1, int(round(pixels.shape[1] / LOOKED_AT_WIDE)))
     return pixels[::step, ::step]
