@@ -37,6 +37,7 @@ refused by the fitter.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import math
@@ -68,6 +69,9 @@ PEAK_TRANSDUCER_SCHEMA: Final = "aura.semantic_peak_recognition_transducer.v1"
 
 #: The two classes of the token tagger.
 OPERATION_TAG: Final = "operation"
+#: Where a stacked labeler reads the words: the span's mean, the tagger's peak
+#: token, or the whole word holding the peak.
+LEXICAL_AT: Final = ("span", "peak", "word")
 BACKGROUND_TAG: Final = "background"
 
 #: Channels as the feature bundles name them.
@@ -119,10 +123,61 @@ def _lexical_feature(
     return mean / (np.linalg.norm(mean) + 1e-9)
 
 
+def _word_at(
+    hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int], token: int
+) -> np.ndarray:
+    """One token's word out of context: its input embedding.
+
+    Read at the tagger's peak, the word that names the operation. A span's mean
+    is mostly the words around it ("after", "the", "only"), and the decoder
+    names spans of every length grown from one peak.
+    """
+    return _unit_rows(_channel(hidden[token : token + 1], channels, widths, FIRST_POSITION_CHANNEL))[0]
+
+
+def _words_at(
+    hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int], start: int, end: int
+) -> np.ndarray:
+    rows = _unit_rows(_channel(hidden[start:end], channels, widths, FIRST_POSITION_CHANNEL))
+    mean = rows.mean(axis=0)
+    return mean / (np.linalg.norm(mean) + 1e-9)
+
+
+def _word_around(token_ids: Sequence[int], token: int, continuations: frozenset[int]) -> tuple[int, int]:
+    """The tokens of the word holding ``token``: "multip" and "licity" are one word."""
+    start = token
+    while start > 0 and int(token_ids[start]) in continuations:
+        start -= 1
+    end = token + 1
+    while end < len(token_ids) and int(token_ids[end]) in continuations:
+        end += 1
+    return start, end
+
+
+def word_continuation_token_ids(tokenizer: Any) -> tuple[int, ...]:
+    """The tokenizer's tokens that carry on the word before them: text that starts with a letter."""
+    return tuple(sorted(
+        int(token_id) for token_id in tokenizer.get_vocab().values()
+        if (tokenizer.decode([token_id]) or "")[:1].isalpha()
+    ))
+
+
+def _bitmap(ids: frozenset[int]) -> dict[str, Any]:
+    size = max(ids, default=-1) + 1
+    flags = np.zeros(size, dtype=np.uint8)
+    flags[list(ids)] = 1
+    return {"size": size, "bits": base64.b64encode(np.packbits(flags).tobytes()).decode("ascii")}
+
+
+def _from_bitmap(value: Mapping[str, Any]) -> frozenset[int]:
+    flags = np.unpackbits(np.frombuffer(base64.b64decode(value["bits"]), dtype=np.uint8))[: int(value["size"])]
+    return frozenset(int(index) for index in np.flatnonzero(flags))
+
+
 def _first_feature(
     hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int]
 ) -> np.ndarray:
-    return _unit_rows(_channel(hidden[:1], channels, widths, FIRST_POSITION_CHANNEL))[0]
+    return _word_at(hidden, channels, widths, 0)
 
 
 def _probabilities(head: LinearClassifierHead, rows: np.ndarray) -> np.ndarray:
@@ -132,6 +187,18 @@ def _probabilities(head: LinearClassifierHead, rows: np.ndarray) -> np.ndarray:
     logits -= logits.max(axis=-1, keepdims=True)
     exp = np.exp(logits)
     return exp / exp.sum(axis=-1, keepdims=True)
+
+
+def _operation_probabilities(
+    tagger: LinearClassifierHead,
+    first_tagger: LinearClassifierHead,
+    hidden: np.ndarray,
+    channels: Sequence[str],
+    widths: Sequence[int],
+) -> np.ndarray:
+    scores = _probabilities(tagger, _tagger_features(hidden, channels, widths))[:, 1]
+    scores[0] = _probabilities(first_tagger, _first_feature(hidden, channels, widths)[None])[0, 1]
+    return scores
 
 
 def _head_dict(head: LinearClassifierHead) -> dict[str, Any]:
@@ -169,6 +236,11 @@ class PeakOperationRecognizer:
     #: is trusted, fitted on held-out constructions (fit_peak_operation_recognizer).
     lexical_labeler: LinearClassifierHead | None = None
     label_weights: tuple[float, float] = (1.0, 0.0)
+    #: Where the words are read: the span's mean ("span"), its peak ("peak"),
+    #: or the word holding its peak ("word").
+    lexical_at: str = "span"
+    #: Tokens that carry on the word before them, bound from the tokenizer.
+    word_continuations: frozenset[int] = frozenset()
 
     def __post_init__(self) -> None:
         if (
@@ -181,6 +253,8 @@ class PeakOperationRecognizer:
             or not 0.0 < float(self.span_floor_ratio) <= 1.0
             or type(self.label_limit) is not int
             or not 1 <= self.label_limit <= len(self.labeler.labels)
+            or self.lexical_at not in LEXICAL_AT
+            or (self.lexical_at == "word" and not self.word_continuations)
         ):
             raise ValueError("peak operation recognizer parameters are invalid")
 
@@ -188,14 +262,16 @@ class PeakOperationRecognizer:
         self, hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int]
     ) -> np.ndarray:
         """How much each token reads as part of an operation phrase."""
-        scores = _probabilities(self.tagger, _tagger_features(hidden, channels, widths))[:, 1]
-        scores[0] = _probabilities(
-            self.first_tagger, _first_feature(hidden, channels, widths)[None]
-        )[0, 1]
-        return scores
+        return _operation_probabilities(self.tagger, self.first_tagger, hidden, channels, widths)
 
     def _labels(
-        self, hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int], span: TokenSpan
+        self,
+        hidden: np.ndarray,
+        channels: Sequence[str],
+        widths: Sequence[int],
+        span: TokenSpan,
+        peak: int,
+        token_ids: Sequence[int] | None,
     ) -> np.ndarray:
         if span.end == 1:
             return _probabilities(
@@ -206,9 +282,15 @@ class PeakOperationRecognizer:
         )[0]
         if self.lexical_labeler is None:
             return contextual
-        lexical = _probabilities(
-            self.lexical_labeler, _lexical_feature(hidden, channels, widths, span)[None]
-        )[0]
+        if self.lexical_at == "word":
+            if token_ids is None:
+                raise ValueError("the word readout needs the request's token ids")
+            words = _words_at(hidden, channels, widths, *_word_around(token_ids, peak, self.word_continuations))
+        elif self.lexical_at == "peak":
+            words = _word_at(hidden, channels, widths, peak)
+        else:
+            words = _lexical_feature(hidden, channels, widths, span)
+        lexical = _probabilities(self.lexical_labeler, words[None])[0]
         logits = self.label_weights[0] * np.log(np.clip(contextual, 1e-12, 1.0)) + self.label_weights[
             1
         ] * np.log(np.clip(lexical, 1e-12, 1.0))
@@ -223,6 +305,7 @@ class PeakOperationRecognizer:
         max_span_tokens: int,
         hidden_channels: Sequence[str],
         hidden_channel_widths: Sequence[int],
+        token_ids: Sequence[int] | None = None,
     ) -> tuple[OperationCandidate, ...]:
         """Every span and name worth a chart, strongest peak first."""
         hidden = np.asarray(hidden)
@@ -269,7 +352,9 @@ class PeakOperationRecognizer:
                 ):
                     continue
                 seen.add(span)
-                probabilities = self._labels(hidden, hidden_channels, hidden_channel_widths, span)
+                probabilities = self._labels(
+                    hidden, hidden_channels, hidden_channel_widths, span, peak, token_ids
+                )
                 evidence = math.log(max(float(scores[peak]), 1e-12))
                 for index in np.argsort(-probabilities, kind="stable")[: self.label_limit]:
                     confidence = float(probabilities[index])
@@ -302,6 +387,12 @@ class PeakOperationRecognizer:
                 {
                     "lexical_labeler": _head_dict(self.lexical_labeler),
                     "label_weights": [float(weight) for weight in self.label_weights],
+                    **({"lexical_at": self.lexical_at} if self.lexical_at != "span" else {}),
+                    **(
+                        {"word_continuations": _bitmap(self.word_continuations)}
+                        if self.lexical_at == "word"
+                        else {}
+                    ),
                 }
                 if self.lexical_labeler is not None
                 else {}
@@ -332,6 +423,10 @@ def peak_operation_recognizer_from_dict(value: Mapping[str, Any]) -> PeakOperati
         fit_receipt=dict(value["fit_receipt"]),
         lexical_labeler=_head_from_dict(value["lexical_labeler"]) if "lexical_labeler" in value else None,
         label_weights=tuple(float(weight) for weight in value.get("label_weights", (1.0, 0.0))),
+        lexical_at=str(value.get("lexical_at", "span")),
+        word_continuations=(
+            _from_bitmap(value["word_continuations"]) if "word_continuations" in value else frozenset()
+        ),
     )
 
 
@@ -408,7 +503,15 @@ def _stacked_label_weights(
         return -float((logits[rows, target[scored]] - np.log(np.exp(logits).sum(axis=1))).mean())
 
     fitted = minimize(loss, x0=np.array([1.0, 0.0]), method="L-BFGS-B", bounds=[(0.0, None), (0.0, None)])
-    return float(fitted.x[0]), float(fitted.x[1])
+    context, words = float(fitted.x[0]), float(fitted.x[1])
+    if context <= 0.0:
+        return 0.0, 1.0
+    # The trust between the two, at the contextual readout's own scale. The
+    # fit's overall size is a temperature for the held-out likelihood, and the
+    # chart adds a span's log-confidence to scores whose scale was set by the
+    # contextual readout alone. Fitted (16.29, 7.75) as given, LIVE validation
+    # 2026-10-05 lost five cataphoric rows; at (1, 0.48) it lost none.
+    return 1.0, words / context
 
 
 def fit_peak_operation_recognizer(
@@ -418,6 +521,8 @@ def fit_peak_operation_recognizer(
     span_floor_ratio: float = 0.5,
     label_limit: int = 2,
     construction_groups: Mapping[str, Any] | None = None,
+    lexical_at: str = "span",
+    word_continuations: Sequence[int] = (),
 ) -> PeakOperationRecognizer:
     """Fit every readout on training rows; any other split is refused.
 
@@ -426,12 +531,18 @@ def fit_peak_operation_recognizer(
     how it does on constructions it was not fitted on. LIVE validation
     2026-10-05: "after removing", a wording training never had, read at its
     last token as add 0.347 against sub 0.346; the words alone read it as sub.
+
+    ``lexical_at="peak"`` reads the words at the token the fitted tagger scores
+    highest inside each operation span, which is where the decoder reads them;
+    ``"word"`` reads the whole word holding that token, with
+    ``word_continuations`` from ``word_continuation_token_ids``.
     """
+    continuations = frozenset(int(token_id) for token_id in word_continuations)
     examples = tuple(examples)
     if not examples or any(item.split != "train" for item in examples):
         raise ValueError("peak operation recognition is fitted on training rows only")
     token_rows, token_tags, first_rows = [], [], []
-    label_rows, label_firsts, label_names, label_words, label_groups = [], [], [], [], []
+    label_rows, label_firsts, label_names, label_spans, label_groups = [], [], [], [], []
     for item in examples:
         hidden = np.asarray(item.hidden_states)
         channels, widths = item.hidden_channels, item.hidden_channel_widths
@@ -453,7 +564,7 @@ def fit_peak_operation_recognizer(
             )
             label_names.append(instruction.op)
             if construction_groups is not None:
-                label_words.append(_lexical_feature(hidden, channels, widths, instruction.operation_span))
+                label_spans.append((item, instruction.operation_span))
                 label_groups.append(construction_groups[item.ir.source_text_sha256])
     operations = tuple(sorted(set(label_names)))
     if len(operations) < 2:
@@ -470,9 +581,13 @@ def fit_peak_operation_recognizer(
         balanced=False,
         mean=first_matrix.mean(axis=0),
     )
+    tagger = _centred_head(tags, np.concatenate(token_rows), token_tags, balanced=True)
     lexical_labeler, label_weights = None, (1.0, 0.0)
     if construction_groups is not None:
-        lexical_matrix = np.stack(label_words)
+        lexical_matrix = np.stack([
+            _training_words(item, span, tagger, first_tagger, lexical_at, continuations)
+            for item, span in label_spans
+        ])
         lexical_labeler = _centred_head(operations, lexical_matrix, label_names, balanced=False)
         label_weights = _stacked_label_weights(
             np.stack(label_rows), lexical_matrix, label_names, label_groups, operations
@@ -484,9 +599,10 @@ def fit_peak_operation_recognizer(
         "operations": list(operations),
         "splits_used": ["train"],
         **({"label_weights": list(label_weights)} if lexical_labeler is not None else {}),
+        **({"lexical_at": lexical_at} if lexical_labeler is not None and lexical_at != "span" else {}),
     }
     return PeakOperationRecognizer(
-        tagger=_centred_head(tags, np.concatenate(token_rows), token_tags, balanced=True),
+        tagger=tagger,
         labeler=_centred_head(operations, np.stack(label_rows), label_names, balanced=False),
         first_tagger=first_tagger,
         first_labeler=first_labeler,
@@ -496,7 +612,33 @@ def fit_peak_operation_recognizer(
         fit_receipt={**receipt, "receipt_sha256": _sha(receipt)},
         lexical_labeler=lexical_labeler,
         label_weights=label_weights,
+        lexical_at=lexical_at,
+        word_continuations=continuations if lexical_at == "word" else frozenset(),
     )
+
+
+def _training_words(
+    item: Any,
+    span: TokenSpan,
+    tagger: LinearClassifierHead,
+    first_tagger: LinearClassifierHead,
+    lexical_at: str,
+    continuations: frozenset[int],
+) -> np.ndarray:
+    """A training operation's words, read where the decoder will read them."""
+    hidden = np.asarray(item.hidden_states)
+    channels, widths = item.hidden_channels, item.hidden_channel_widths
+    if lexical_at == "span":
+        return _lexical_feature(hidden, channels, widths, span)
+    scores = _operation_probabilities(tagger, first_tagger, hidden, channels, widths)
+    for literal in item.ir.input_spans:
+        scores[literal.start : literal.end] = 0.0
+    peak = span.start + int(np.argmax(scores[span.start : span.end]))
+    if lexical_at == "word":
+        return _words_at(
+            hidden, channels, widths, *_word_around(item.ir.source_token_ids, peak, continuations)
+        )
+    return _word_at(hidden, channels, widths, peak)
 
 
 class PeakRecognitionTransducer:

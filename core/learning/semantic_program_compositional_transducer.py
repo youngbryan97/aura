@@ -976,6 +976,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         nodes = tuple(_OperationNode(**candidate._asdict()) for candidate in operation_recognizer.operation_candidates(
             hidden=hidden, input_spans=input_spans, max_span_tokens=self.max_span_tokens,
             hidden_channels=self.hidden_channels, hidden_channel_widths=self.hidden_channel_widths,
+            token_ids=tokens,
         )) if operation_recognizer is not None else _operation_nodes(
             pointer=self.operation_pointer,
             classifier=self.operation_head,

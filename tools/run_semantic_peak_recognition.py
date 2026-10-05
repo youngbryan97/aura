@@ -294,6 +294,12 @@ def main() -> int:
         help="name operation spans from their words as well as their context, weighted on held-out constructions",
     )
     parser.add_argument(
+        "--lexical-at",
+        choices=("span", "peak", "word"),
+        default="span",
+        help="where the stacked labeler reads the words: the span's mean, the tagger's peak, or its word",
+    )
+    parser.add_argument(
         "--arguments-within-sentence",
         action="store_true",
         help="no argument option starts before its operation's sentence (needs --antecedent-stretches sentence)",
@@ -302,7 +308,7 @@ def main() -> int:
         "--tokenizer",
         type=Path,
         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15/tokenizer.json"),
-        help="the tokenizer whose sentence-ending tokens --antecedent-stretches sentence binds",
+        help="the tokenizer whose sentence-ending tokens (--antecedent-stretches sentence) and word-continuing tokens (--lexical-at word) are bound",
     )
     args = parser.parse_args()
 
@@ -353,7 +359,15 @@ def main() -> int:
         print(f"sentence-ending tokens: {len(sentence_ends)}", flush=True)
 
     groups = json.loads(args.folds.read_text())["assignments"] if args.stacked_labeler else None
-    recognizer = fit_peak_operation_recognizer(training, construction_groups=groups)
+    continuations = ()
+    if args.lexical_at == "word":
+        from tokenizers import Tokenizer
+
+        from core.learning.semantic_operation_peaks import word_continuation_token_ids
+
+        continuations = word_continuation_token_ids(Tokenizer.from_file(str(args.tokenizer.expanduser())))
+        print(f"word-continuing tokens: {len(continuations)}", flush=True)
+    recognizer = fit_peak_operation_recognizer(training, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
         replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
@@ -403,7 +417,7 @@ def main() -> int:
             )
             fold_candidate = PeakRecognitionTransducer(
                 incumbent,
-                fit_peak_operation_recognizer(kept, construction_groups=groups),
+                fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
                 replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,

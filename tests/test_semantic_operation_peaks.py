@@ -288,3 +288,82 @@ def test_the_stacked_readout_is_fitted_with_held_out_groups() -> None:
     assert recognizer.lexical_labeler is not None
     assert all(weight >= 0.0 for weight in recognizer.label_weights)
     assert recognizer.fit_receipt["label_weights"] == list(recognizer.label_weights)
+    # The words are weighed against the context at the context's own scale,
+    # the scale the chart's scores were built on.
+    assert recognizer.label_weights[0] in (0.0, 1.0)
+
+
+def test_the_words_read_at_the_peak_name_every_span_grown_from_it() -> None:
+    """v10 read a span's words as their mean, and "after" outvoted "removing".
+
+    Every span the decoder grows from one peak shares the peak's word, so it
+    shares the reading of what that word does.
+    """
+    contextual = [BACKGROUND, (0.5, 1.0, 0.0), (0.0, 1.0, 0.0)]
+    embedding = [BACKGROUND, (0.0, 0.1, 1.0), (0.0, 1.0, -1.0)]
+    hidden = _hidden(contextual, embedding)
+    readings = {}
+    for lexical_at in ("span", "peak"):
+        tied = _recognizer(
+            labeler=_head(("add", "sub"), [[0, 0, 0], [0, 0, 0]]),
+            lexical_labeler=_head(("add", "sub"), [[0, 0, 4], [0, 0, -4]]),
+            label_weights=(1.0, 1.0),
+            lexical_at=lexical_at,
+        )
+        first = {}
+        for node in _nodes(tied, hidden):
+            first.setdefault(node.span, node.operation)
+        readings[lexical_at] = first
+    assert set(readings["peak"]) == {TokenSpan(1, 3), TokenSpan(2, 3)}
+    assert readings["span"][TokenSpan(1, 3)] == "add"
+    assert set(readings["peak"].values()) == {"sub"}
+
+
+def test_the_peak_readout_is_fitted_where_the_decoder_reads_it() -> None:
+    examples = _fixture_examples()
+    train = tuple(item for item in examples if item.split == "train")
+    groups = {item.ir.source_text_sha256: index % 2 for index, item in enumerate(train)}
+
+    recognizer = fit_peak_operation_recognizer(train, construction_groups=groups, lexical_at="peak")
+
+    assert recognizer.lexical_at == "peak"
+    assert recognizer.fit_receipt["lexical_at"] == "peak"
+    replay = peak_operation_recognizer_from_dict(recognizer.to_dict())
+    assert replay.lexical_at == "peak"
+    assert replay.identity_sha256 == recognizer.identity_sha256
+    with pytest.raises(ValueError):
+        _recognizer(lexical_at="middle")
+
+
+def test_the_word_readout_takes_in_every_piece_of_the_word() -> None:
+    """"multiplicity" is two tokens, "multip" and "licity"; the peak may be either."""
+    from core.learning.semantic_operation_peaks import _word_around
+
+    # 7 = " the", 8 = " multip", 9 = "licity", 10 = " of"; 9 carries on the word.
+    ids = (7, 8, 9, 10)
+    assert _word_around(ids, 1, frozenset({9})) == (1, 3)
+    assert _word_around(ids, 2, frozenset({9})) == (1, 3)
+    assert _word_around(ids, 3, frozenset({9})) == (3, 4)
+
+
+def test_the_word_readout_needs_the_tokenizer_and_the_request() -> None:
+    with pytest.raises(ValueError):
+        _recognizer(lexical_at="word")
+    contextual = [BACKGROUND, (0.0, 1.0, 0.0), BACKGROUND]
+    hidden = _hidden(contextual, [BACKGROUND, (0.0, 1.0, -1.0), BACKGROUND])
+    reader = _recognizer(
+        lexical_labeler=_head(("add", "sub"), [[0, 0, 4], [0, 0, -4]]),
+        label_weights=(1.0, 1.0),
+        lexical_at="word",
+        word_continuations=frozenset({99}),
+    )
+    with pytest.raises(ValueError, match="token ids"):
+        _nodes(reader, hidden)
+    nodes = reader.operation_candidates(
+        hidden=hidden, input_spans=(), max_span_tokens=4,
+        hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS, token_ids=(1, 2, 3),
+    )
+    assert nodes[0].operation == "sub"
+    replay = peak_operation_recognizer_from_dict(reader.to_dict())
+    assert replay.word_continuations == frozenset({99})
+    assert replay.identity_sha256 == reader.identity_sha256
