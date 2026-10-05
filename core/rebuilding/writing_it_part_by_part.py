@@ -60,6 +60,7 @@ no libraries; the page has no network. `app` has:
   app.side(element|null)        show or hide a side panel holding element.
   app.download(name, content, type)  save a file.        app.pickFile(accept) -> Promise of {name, text, dataUrl} or null
   app.keep(key, value) / app.kept(key, fallback)          remember across reopening (JSON values).
+  app.zip({path: text or bytes}, type)  a Blob of a zip of those files: what .docx, .xlsx, .odt and .epub files are.
   app.on("change"|"selection"|"ready", fn)   app.changed()   call after changing the document.
   app.name                      the document's name (get/set).   app.make(tag, props, children)   make an element.
   app.selection() / app.restore(range)      save and put back the text selection.

@@ -151,3 +151,25 @@ async def test_a_change_that_breaks_what_worked_is_not_kept(tmp_path):
     changed = await change_it(folder, "add italic", _ChangeScript(breaking=True))
     assert [o.kept for o in changed.outcomes] == [False]
     assert "replaceChildren" not in (folder / "program.json").read_text()
+
+
+@pytest.mark.asyncio
+async def test_the_frame_writes_a_zip_that_opens(tmp_path):
+    """A .docx, .xlsx or .odt is a zip; the frame writes one a zip reader opens."""
+    import base64
+    import io
+    import zipfile
+
+    from playwright.async_api import async_playwright
+
+    page_file = ProgramAsBuilt("Z").write(tmp_path / "z.html")
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch()
+        page = await browser.new_page()
+        await page.goto(page_file.resolve().as_uri())
+        made = await page.evaluate("""(async () => { const bytes = new Uint8Array(await app.zip({"a.txt": "café", "d/b.xml": "<x/>"}).arrayBuffer());
+            let s = ""; for (const b of bytes) s += String.fromCharCode(b); return btoa(s); })()""")
+        await browser.close()
+    archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(made)))
+    assert archive.testzip() is None
+    assert archive.read("a.txt").decode() == "café" and archive.namelist() == ["a.txt", "d/b.xml"]

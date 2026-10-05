@@ -287,6 +287,26 @@ const app = (() => {
       document.body.append(input); input.click();
     });
   }
+  // A zip of named files, stored: what .docx, .xlsx, .odt and .epub files are.
+  const crcTable = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(bytes) { let c = 0xffffffff; for (const b of bytes) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
+  function zip(files, type = "application/zip") {
+    const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+    const le = (n, size) => { const a = new Uint8Array(size); for (let i = 0; i < size; i++) a[i] = (n >>> (8 * i)) & 0xff; return a; };
+    for (const [name, content] of Object.entries(files)) {
+      const data = typeof content === "string" ? enc.encode(content) : new Uint8Array(content);
+      const path = enc.encode(name), crc = crc32(data);
+      const head = [le(0x04034b50, 4), le(20, 2), le(0x0800, 2), le(0, 2), le(0, 2), le(0x21, 2), le(crc, 4), le(data.length, 4), le(data.length, 4), le(path.length, 2), le(0, 2), path];
+      const size = head.reduce((n, a) => n + a.length, 0);
+      parts.push(...head, data);
+      central.push(le(0x02014b50, 4), le(20, 2), le(20, 2), le(0x0800, 2), le(0, 2), le(0, 2), le(0x21, 2), le(crc, 4), le(data.length, 4), le(data.length, 4),
+        le(path.length, 2), le(0, 2), le(0, 2), le(0, 2), le(0, 2), le(0, 4), le(offset, 4), path);
+      offset += size + data.length;
+    }
+    const centralSize = central.reduce((n, a) => n + a.length, 0), count = Object.keys(files).length;
+    return new Blob([...parts, ...central, le(0x06054b50, 4), le(0, 2), le(0, 2), le(count, 2), le(count, 2), le(centralSize, 4), le(offset, 4), le(0, 2)], { type });
+  }
   const prefix = "app:" + document.title + ":";
   function keep(key, value) { try { localStorage.setItem(prefix + key, JSON.stringify(value)); } catch (e) { /* nowhere to keep it */ } }
   function kept(key, fallback = null) { try { const v = localStorage.getItem(prefix + key); return v === null ? fallback : JSON.parse(v); } catch (e) { return fallback; } }
@@ -310,7 +330,7 @@ const app = (() => {
   window.print = () => { window.__appPrinted += 1; if (!navigator.webdriver) realPrint(); };
   $("#app-doc-name").addEventListener("change", () => { emit("rename", $("#app-doc-name").value); });
   const app = {
-    work, make, command, control, run, status, changed, refresh, ask, tell, notify, download, pickFile, keep, kept, on, side, part, selection, restore,
+    work, make, command, control, run, status, changed, refresh, ask, tell, notify, download, pickFile, keep, kept, on, side, part, selection, restore, zip,
     get name() { return $("#app-doc-name").value || "Untitled"; },
     set name(v) { $("#app-doc-name").value = v; },
     get saved() { return savedSince; },
