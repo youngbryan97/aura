@@ -87,13 +87,24 @@ window.addEventListener("error", (e) => window.__appErrors.push(String(e.message
 window.addEventListener("unhandledrejection", (e) => window.__appErrors.push(String(e.reason && e.reason.message || e.reason)));
 const app = (() => {
   const $ = (sel, root = document) => root.querySelector(sel);
+  // Attributes or DOM properties, as either is written: class or className,
+  // text or textContent, html or innerHTML, a style object, onclick or onClick.
   const make = (tag, props = {}, kids = []) => {
     const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(props)) {
-      if (k === "class") el.className = v; else if (k === "text") el.textContent = v;
-      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v); else if (v !== undefined && v !== null) el.setAttribute(k, v);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (v === undefined || v === null) continue;
+      if (k === "class" || k === "className") el.className = Array.isArray(v) ? v.join(" ") : v;
+      else if (k === "text" || k === "textContent") el.textContent = v;
+      else if (k === "html" || k === "innerHTML") el.innerHTML = v;
+      else if (k === "style" && typeof v === "object") Object.assign(el.style, v);
+      else if (k === "dataset" && typeof v === "object") Object.assign(el.dataset, v);
+      else if (/^on[A-Za-z]/.test(k) && typeof v === "function") el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === "for" || k === "htmlFor") el.htmlFor = v;
+      else if (/[A-Z]/.test(k) && k in el) el[k] = v;
+      else if (typeof v === "boolean") { if (k in el) el[k] = v; else if (v) el.setAttribute(k, ""); }
+      else el.setAttribute(k, v);
     }
-    for (const kid of [].concat(kids)) if (kid) el.append(kid);
+    for (const kid of [].concat(kids ?? [])) if (kid !== null && kid !== undefined && kid !== false) el.append(kid instanceof Node ? kid : String(kid));
     return el;
   };
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);

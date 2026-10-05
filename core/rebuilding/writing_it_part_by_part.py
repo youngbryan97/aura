@@ -35,6 +35,9 @@ __all__ = ["Built", "FRAME_API", "WrittenPart", "write_it"]
 #: Tries at one part before the feature is left out.
 TRIES = 3
 
+#: Tries at the work area, which everything else is built on.
+WORK_AREA_TRIES = 5
+
 #: The longest part her model is asked for, in tokens.
 PART_TOKENS = 2048
 
@@ -62,7 +65,9 @@ no libraries; the page has no network. `app` has:
   app.keep(key, value) / app.kept(key, fallback)          remember across reopening (JSON values).
   app.zip({path: text or bytes}, type)  a Blob of a zip of those files: what .docx, .xlsx, .odt and .epub files are.
   app.on("change"|"selection"|"ready", fn)   app.changed()   call after changing the document.
-  app.name                      the document's name (get/set).   app.make(tag, props, children)   make an element.
+  app.name                      the document's name (get/set).
+  app.make(tag, props, children) make an element: props are attributes or DOM properties (class or className, text,
+                                html, a style object, onClick ...); children are elements or text.
   app.selection() / app.restore(range)      save and put back the text selection.
   app.run(label)                run another command by its label.
 Commands keep the text selection when their buttons are clicked. A part may also put things on `app` for later
@@ -243,20 +248,30 @@ async def write_it(
     out = Path(out)
     tried = _Trying(out.with_name(out.stem + ".trying.html"), holding, browser)
     await _say(tell, f"Writing the work area of {genome.name}: {genome.work}")
-    for attempt in range(TRIES):
-        written = await _write(ask, _the_work_area_prompt(genome, checks))
+    # Everything else is built on the work area, so it is kept only when it
+    # loads without an error. LIVE 2026-10-05 one that threw as it loaded was
+    # kept on its last try, and every feature after it failed reaching into it.
+    wrong, before, fallback = "", "", None
+    for _attempt in range(WORK_AREA_TRIES):
+        again = f"\nYour last version:\n```js\n{before[:5000]}\n```\nLoading it, the page said: {wrong}\nWrite it again so it loads without errors." if wrong else ""
+        written = await _write(ask, _the_work_area_prompt(genome, checks) + again)
         if written is None:
             continue
+        before = written.code
         unparsed = await _does_not_parse(written.code)
         if unparsed:
-            logger.info("the work area did not parse: %s", unparsed)
+            wrong = f"it does not parse: {unparsed}"
             continue
         candidate = program.with_part(Part("work area", written.code, ["the work area"]))
         candidate.style = written.style
         _mine, _broke, errors = await tried(candidate, [])
-        if not errors or attempt == TRIES - 1:
-            program = candidate
+        if not errors:
+            program, fallback = candidate, None
             break
+        wrong, fallback = "; ".join(errors[:3]), candidate
+    if fallback is not None:
+        program = fallback
+        logger.info("rebuilding: the work area still says %s", wrong[:300])
     for feature in genome.features:
         if time.monotonic() - began > deadline_s:
             outcomes.append(FeatureOutcome(feature, why_not="out of time"))

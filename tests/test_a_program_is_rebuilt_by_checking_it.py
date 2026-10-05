@@ -173,3 +173,43 @@ async def test_the_frame_writes_a_zip_that_opens(tmp_path):
     archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(made)))
     assert archive.testzip() is None
     assert archive.read("a.txt").decode() == "café" and archive.namelist() == ["a.txt", "d/b.xml"]
+
+
+def test_a_number_where_words_are_meant_is_read_as_words():
+    """LIVE 2026-10-05 a batch of checks was lost to one 'wait 500' written as a number."""
+    check = Check.model_validate({"feature": "f", "steps": [{"do": "wait", "value": 500}], "expect": [{"see": "count", "target": "tr", "value": 3}]})
+    assert check.steps[0].value == "500" and check.expect[0].value == "3"
+
+
+def test_code_given_as_code_is_taken():
+    """LIVE 2026-10-05 a part came back as the code itself, not inside the shape asked for, and was dropped."""
+    import asyncio
+
+    from core.rebuilding.her_model import ask_her_model
+
+    class _Router:
+        async def generate_with_metadata(self, *args, **kwargs):
+            return {"text": "Here it is:\n```javascript\napp.command({label: 'New', run: () => {}});\n```"}
+
+    got = asyncio.run(ask_her_model("write it", WrittenPart, 100, router=_Router()))
+    assert isinstance(got, WrittenPart) and got.code.startswith("app.command")
+
+
+@pytest.mark.asyncio
+async def test_elements_are_made_as_either_convention_writes_them(tmp_path):
+    """LIVE 2026-10-05 the work area was written with className and contentEditable, which the frame
+    set as attributes nothing reads, and everything built on it failed."""
+    part = Part("work area", '''const page = app.make("div", {className: "page"}, [app.make("div", {className: "body", contentEditable: "true", style: {minHeight: "50px"}})]);
+app.work.append(page); app.doc = page.querySelector(".body"); app.doc.focus();''')
+    check = Check.model_validate({"feature": "type", "steps": [{"do": "click", "target": "page"}, {"do": "type", "value": "hello"}], "expect": [{"see": "text", "target": "hello"}]})
+    runs = await run_checks(ProgramAsBuilt("W", parts=[part]).write(tmp_path / "p.html"), [check])
+    assert runs[0].held and not runs[0].errors
+
+
+@pytest.mark.asyncio
+async def test_the_file_a_check_gives_is_ready_before_the_click_that_asks_for_it(tmp_path):
+    opener = Part("open", 'app.command({label: "Open", menu: "File", run: async () => { const f = await app.pickFile(".txt"); if (f) app.doc.innerText = f.text; }});')
+    check = Check.model_validate({"feature": "open", "steps": [{"do": "click", "target": "Open"}, {"do": "give_file", "target": "r.txt", "value": "Quarterly Report"}],
+                                  "expect": [{"see": "text", "target": "Quarterly Report"}]})
+    runs = await run_checks(ProgramAsBuilt("W", parts=[Part("work area", _WORK), opener]).write(tmp_path / "p.html"), [check])
+    assert runs[0].held, runs[0].why

@@ -50,6 +50,16 @@ def the_object_in(text: str) -> str | None:
     return None
 
 
+def _the_code_in(text: str) -> str:
+    """The code an answer gives as code: its fenced block, or the whole answer when it reads as code."""
+    text = re.sub(r"<think>.*?</think>", "", str(text or ""), flags=re.S).strip()
+    fenced = re.findall(r"```[\w+-]*\n(.*?)```", text, flags=re.S)
+    if fenced:
+        return max(fenced, key=len).strip()
+    looks_like_code = sum(text.count(c) for c in "{};()=") > len(text) / 40
+    return text if looks_like_code else ""
+
+
 def what_was_finished(text: str) -> str | None:
     """An answer cut off by its token budget, closed after its last finished item.
 
@@ -123,14 +133,21 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
         return None
     text = str(reply.get("text") or "") if isinstance(reply, dict) else str(reply or "")
     found = the_object_in(text) or what_was_finished(text)
-    if found is None:
-        logger.info("her model answered without an object (%d chars)", len(text))
+    data: Any = None
+    if found is not None:
+        try:
+            data = json.loads(found)
+        except ValueError:
+            data = None  # braces in code are not an object
+    if not isinstance(data, dict):
+        # Asked for code, a model may answer with the code itself.
+        written = _the_code_in(text) if "code" in schema.model_fields else ""
+        if written:
+            return schema.model_validate({"code": written})
+        logger.info("her model answered without an object (%d chars): %r", len(text), text[:300])
         return None
     try:
-        return schema.model_validate_json(found)
-    except ValidationError:
-        try:
-            return schema.model_validate(json.loads(found))
-        except (ValidationError, ValueError) as why:
-            logger.info("her model's answer did not fit %s: %s", schema.__name__, str(why)[:300])
-            return None
+        return schema.model_validate(data)
+    except ValidationError as why:
+        logger.info("her model's answer did not fit %s: %s", schema.__name__, str(why)[:300])
+        return None

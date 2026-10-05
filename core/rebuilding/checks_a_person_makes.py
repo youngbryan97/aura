@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger("Rebuilding.Checks")
 
@@ -39,10 +39,19 @@ SIDE_BY_SIDE = 4
 CHECK_S = 20.0
 
 
+def _as_text(value: object) -> object:
+    """A number or a yes/no where words are meant is those words: a wait of 500 is "500"."""
+    if value is None:
+        return ""
+    return str(value).lower() if isinstance(value, bool) else str(value) if isinstance(value, (int, float)) else value
+
+
 class Step(BaseModel):
     do: Literal["click", "type", "press", "select_text", "select_all", "fill", "choose", "wait", "click_text", "give_file"]
     target: str = Field(default="", max_length=200)
     value: str = Field(default="", max_length=600)
+
+    _text = field_validator("target", "value", mode="before")(_as_text)
 
 
 class Expectation(BaseModel):
@@ -53,6 +62,8 @@ class Expectation(BaseModel):
     target: str = Field(default="", max_length=200)
     property: str = Field(default="", max_length=60)
     value: str = Field(default="", max_length=600)
+
+    _text = field_validator("target", "property", "value", mode="before")(_as_text)
 
 
 class Check(BaseModel):
@@ -416,6 +427,12 @@ async def _one(context: Any, url: str, check: Check) -> CheckRun:
         await page.goto(url)
         await page.evaluate(_HELPERS)
         doing = _Doing(page, check)
+        # The file a check gives is ready before it starts, as a person has
+        # it ready: "click Open, then give report.docx" opens the chooser on
+        # the click, before the giving step is reached.
+        giving = next((s for s in check.steps if s.do == "give_file"), None)
+        if giving is not None:
+            doing.to_give = (giving.target or "document.txt", giving.value)
 
         async def reopen() -> None:
             await page.reload()
