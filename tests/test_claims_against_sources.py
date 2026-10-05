@@ -45,7 +45,7 @@ def judge(monkeypatch):
         out = []
         for passage in passages:
             shared = len(asked & set(passage.lower().split())) / max(1, len(asked))
-            score = 0.5 + 0.5 * shared
+            score = 0.6 + 0.4 * shared
             out.append(evidence_relevance.EvidenceAlignment(score >= 0.55, True, score, 0.5, (), "stand-in"))
         return out
 
@@ -65,6 +65,19 @@ def test_the_claim_its_source_dates_otherwise_is_the_one_reported(judge):
     assert [one.claim for one in found] == ["then FTX Arena after they bought the rights for $135 million in 2022"]
     assert found[0].says.startswith("In March 2021, FTX acquired the naming rights")
     assert found[0].location == PAGE["location"]
+
+
+def test_a_sentence_that_only_bears_on_the_claim_does_not_date_it(monkeypatch):
+    """LIVE 2026-10-05: the bankruptcy (2022) was paired at 0.516 with the naming deal (2021)."""
+    monkeypatch.setattr(
+        evidence_relevance,
+        "assess_evidence_alignments",
+        lambda question, passages: [
+            evidence_relevance.EvidenceAlignment(True, True, 0.516, 0.5, (), "stand-in") for _ in passages
+        ],
+    )
+
+    assert disagreements("FTX filed for bankruptcy in November 2022.", [PAGE], "names?") == []
 
 
 def test_silence_is_not_disagreement(judge):

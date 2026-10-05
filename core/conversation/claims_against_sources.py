@@ -15,7 +15,11 @@ whole of each source for the claims the reply makes:
 * the source sentences that could bear on it are the ones that name something
   the claim names and carry a year themselves;
 * which of them is about the same thing is decided by meaning, by the evidence
-  judge (core/cognition/evidence_relevance.py) and its measured boundary;
+  judge (core/cognition/evidence_relevance.py): the closest sentence, scoring
+  at least the floor its matched calibration pairs reach. Bearing on the claim
+  is not enough. LIVE 2026-10-05 "FTX filed for bankruptcy in November 2022"
+  was paired at 0.516 with a sentence about the 2021 naming deal and called a
+  disagreement; the FTX naming claim that was wrong scored 0.795;
 * the claim disagrees when the sentence most about the same thing gives years
   and the claim's year is not among them.
 
@@ -120,7 +124,7 @@ def disagreements(
     claims = claims_with_years(reply, request)
     if not claims or not sources:
         return []
-    from core.cognition.evidence_relevance import assess_evidence_alignments
+    from core.cognition.evidence_relevance import EVIDENCE_MATCHED_FLOOR, assess_evidence_alignments
 
     found: list[Disagreement] = []
     for claim, names in claims:
@@ -140,7 +144,7 @@ def disagreements(
         measured = [
             (verdict.score, sentence, source)
             for verdict, (sentence, source) in zip(verdicts, candidates, strict=True)
-            if verdict.measured and verdict.relevant and verdict.score is not None
+            if verdict.measured and verdict.score is not None and verdict.score >= EVIDENCE_MATCHED_FLOOR
         ]
         if not measured:
             continue
