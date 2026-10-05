@@ -86,7 +86,7 @@ async def _against_its_sources(visible: str, text: str, retry: Retry) -> str | N
     was about the opening date. Returns None when nothing disagrees, or when
     asking again produced nothing; the draft then stands.
     """
-    from core.conversation.claims_against_sources import disagreements
+    from core.conversation.claims_against_sources import claims_with_years, disagreements
     from core.conversation.turn_evidence_custody import (
         record_turn_grounding,
         record_turn_world_evidence,
@@ -103,6 +103,12 @@ async def _against_its_sources(visible: str, text: str, retry: Retry) -> str | N
         record_degradation("chat.claims_against_sources", exc, severity="info", action="served the draft unchecked")
         return None
     if not found:
+        claims = claims_with_years(text, visible)
+        if claims:
+            logger.info(
+                "📚 Read %d dated claim(s) of her draft against %d source(s); none dated otherwise.",
+                len(claims), len(sources),
+            )
         return None
     for one in found:
         logger.warning(
