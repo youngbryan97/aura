@@ -106,7 +106,7 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
             context = await chromium.new_context(accept_downloads=True)
             page = await context.new_page()
             page.on("download", lambda d: asyncio.ensure_future(keep(d)))
-            await page.goto(page_file.resolve().as_uri())
+            await page.goto(await asyncio.to_thread(lambda: page_file.resolve().as_uri()))
             # A program of hers, with a command that keeps a file, before anything is written for it.
             try:
                 labels = [str(x) for x in await page.evaluate("[...app.commands.values()].map((c) => c.label)")]
