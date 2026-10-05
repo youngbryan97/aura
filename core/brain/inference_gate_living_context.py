@@ -16,6 +16,7 @@ import asyncio
 import os
 from typing import Any
 
+from core.brain.her_reading_of_a_request import her_reading, her_reading_chose
 from core.brain.living_mind_context import PRIORITY_COLOUR, TRUST_LEARNED
 from core.conversation.surface_disposition import capabilities_run_this_turn
 from core.intent.capability_selection import the_one_asked_for
@@ -170,7 +171,7 @@ class _BuildsTheLivingContext:
         # was never run. Where what the request says matches one
         # capability's own declaration decisively, and its own trigger
         # phrases too, two readings agree on what was asked for.
-        one = the_one_asked_for(text, tools)
+        one = the_one_asked_for(text, tools) or her_reading_chose(text, tools)
         # Called once a turn. LIVE 2026-10-04 a repair that had run sixteen
         # minutes and come back mended was called twice more by a later pass
         # reading the same request.
@@ -444,7 +445,7 @@ class _BuildsTheLivingContext:
             # veto on code_repl.
             ceiling, allowed_scopes = requested_effect_ceiling(text)
 
-            required = derive_capability_set(text)
+            required, ceiling, allowed_scopes = await her_reading(text, derive_capability_set(text), ceiling, allowed_scopes)
             if not required:
                 # Said, so a request that should have reached a capability and
                 # was answered in words can be traced: LIVE 2026-10-05 a repair

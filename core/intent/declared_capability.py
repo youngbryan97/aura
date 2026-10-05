@@ -180,6 +180,11 @@ _VERB_CLASSES: tuple[frozenset[str], ...] = (
             "modify", "modifies", "modifying", "update", "updates",
             "updating", "fix", "fixes", "fixing", "improve", "improves",
             "improving", "refactor", "refactors", "rewrite", "rewrites",
+            # Mending is changing what is wrong: "Can you repair it?" asks
+            # for the same act as "fix it" (LIVE 2026-10-05, read as a request
+            # to read the file).
+            "repair", "repairs", "repairing", "mend", "mends", "mending",
+            "correct", "corrects", "correcting", "patch", "patches", "patching",
         }
     ),
     frozenset(
