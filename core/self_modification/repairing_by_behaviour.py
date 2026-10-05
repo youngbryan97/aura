@@ -288,16 +288,22 @@ CONFIRM_PAIRS = 3
 
 async def _try_edits(browser: Any, current: str, words: str, keys: list[str], folder: Path,
                      now: _Believed, seconds: float = WATCH_S, refused: set[str] | None = None,
-                     in_pairs: bool = False, proposed: list[Suspicion] | None = None) -> tuple[Suspicion, list[Edit], Any] | None:
+                     in_pairs: bool = False, proposed: list[Suspicion] | None = None,
+                     tell: Callable[[str], None] | None = None) -> tuple[Suspicion, list[Edit], Any] | None:
     """Every edit the code suggests, watched in parallel; the one that mends the most and breaks nothing.
 
     ``proposed`` replaces the code's own suggestions with edits from elsewhere
-    (edits_her_model_proposes.py), tried the same way.
+    (edits_her_model_proposes.py), tried the same way. Where she is in it is
+    said as she goes, so a person watching knows what the minutes are for.
     """
     suggested = proposed if proposed is not None else what_looks_wrong(current, ".html")
     candidates = [c for c in _candidates(suggested) if _name_of(c[1]) not in (refused or set())]
     if in_pairs:
         candidates = _pairs(candidates)
+    if tell is not None and candidates:
+        rounds = -(-len(candidates) // AT_ONCE)
+        tell(f"Trying {len(candidates)} possible {'pairs of fixes' if in_pairs else 'fixes'} on copies of the game, {AT_ONCE} at a time, "
+             f"watching each copy play for about {seconds:.0f} seconds (about {rounds * seconds / 60:.0f} minute(s)).")
     best = None
     for start in range(0, len(candidates), AT_ONCE):
         batch = candidates[start : start + AT_ONCE]
@@ -315,6 +321,11 @@ async def _try_edits(browser: Any, current: str, words: str, keys: list[str], fo
             )
             if _improves(behaviour, now) and (best is None or _worth(behaviour, now) > _worth(best[2], now)):
                 best = (suspicion, edit, behaviour)
+        if tell is not None and start + AT_ONCE < len(candidates):
+            tell(f"{start + len(batch)} of {len(candidates)} tried.")
+    if tell is not None and candidates:
+        tell(f"The one that helps most: line {best[0].line}, {best[0].why}." if best is not None
+             else "None of those made it play better on its own.")
     return best
 
 
@@ -334,7 +345,7 @@ async def _what_else_could_do_it(browser: Any, current: str, words: str, keys: l
     tell(f"None of the shapes I know in code settles it, so I thought about what else could do this, "
          f"and I am trying {len(proposed)} idea(s) on copies.")
     return await _try_edits(browser, current, words, keys, folder, last, seconds=WATCH_S * 2.5,
-                            refused=refused, proposed=proposed)
+                            refused=refused, proposed=proposed, tell=tell)
 
 
 async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = None) -> Repair:
@@ -345,6 +356,9 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     began = time.monotonic()
+    # Copies an earlier repair was trying when it was cut short (a restart) are hers to clear.
+    for stale in await asyncio.to_thread(lambda: list(path.parent.glob(".trying-*.html"))):
+        get_file_write_gateway().delete_file(stale, source="repairing_by_behaviour")
     source = await asyncio.to_thread(path.read_text)
     words = the_programs_own_words(source)
     keys = [key for key in controls_named_in(words)[0] if key in ("up", "down", "left", "right")]
@@ -382,7 +396,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             # 2026-10-04, the top wall was never seen missing, the loop
             # stopped when nothing was known wrong, and it was left missing).
             for _round in range(MOST_ROUNDS):
-                chosen = await _try_edits(browser, current, words, keys, path.parent, last, refused=refused)
+                chosen = await _try_edits(browser, current, words, keys, path.parent, last, refused=refused, tell=tell)
                 if chosen is None:
                     # Nothing settled it in a short watch. A fault that shows
                     # only now and then needs a longer one before an edit can
@@ -390,22 +404,24 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                     if last.wrong:
                         tell("Nothing I tried settled it in a short watch, so I am watching each try for longer.")
                     chosen = await _try_edits(browser, current, words, keys, path.parent, last,
-                                              seconds=WATCH_S * 2.5, refused=refused)
+                                              seconds=WATCH_S * 2.5, refused=refused, tell=tell)
                 if chosen is None and last.wrong:
                     # Two faults can each hide what mending the other would
                     # show: a ball that goes through the paddle never tests the
                     # scoring. Mended together, both come right at once.
                     tell("No one change settles it alone, so I am trying them two at a time.")
                     chosen = await _try_edits(browser, current, words, keys, path.parent, last,
-                                              seconds=WATCH_S * 2.5, refused=refused, in_pairs=True)
+                                              seconds=WATCH_S * 2.5, refused=refused, in_pairs=True, tell=tell)
                 if chosen is None and last.wrong and asked < MOST_ASKS:
                     asked += 1
                     chosen = await _what_else_could_do_it(browser, current, words, keys, path.parent, last, refused, tell)
                 if chosen is None:
                     break
                 suspicion, edit, behaviour = chosen
+                tell("Watching the game with that fix again, beside the game without it, to be sure it helps and breaks nothing.")
                 confirmed = await _confirmed(browser, current, applied(current, edit), words, keys, path.parent, last, behaviour)
                 if confirmed is None:
+                    tell("Watched again, that fix did not hold up, so I left it out and went on.")
                     refused.add(_name_of(edit))
                     continue
                 again, shown = confirmed
@@ -419,6 +435,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 })
                 tell(_what_this_change_did(suspicion, edit, current, shown))
                 current, last = applied(current, edit), last.after(behaviour).after(again)
+            tell(f"{len(repair.kept)} fix(es) kept. Watching the mended game as a whole once more before I write it back.")
             final = await _watched(browser, current, words, keys, path.parent)
             if final.wrong:
                 # A fault said to remain is said to the person: seen twice, or not said.

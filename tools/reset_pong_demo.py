@@ -26,7 +26,9 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     folder = Path(args.to).expanduser()
     folder.mkdir(parents=True, exist_ok=True)
-    for left in (folder / "pong.html.before-repair",):
+    # What a repair leaves beside the game: the original it kept, and the copies
+    # it was trying when it was cut short.
+    for left in (folder / "pong.html.before-repair", *folder.glob(".trying-*.html")):
         left.unlink(missing_ok=True)
     shutil.copyfile(BROKEN, folder / "pong.html")
     print(f"Broken Pong put back at {folder / 'pong.html'}")
