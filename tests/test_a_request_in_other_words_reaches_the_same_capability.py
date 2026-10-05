@@ -93,3 +93,12 @@ def test_the_capability_that_does_most_of_it_is_called_when_it_needs_only_the_re
     asked = f"my pong game ({engine}) is messed up - get it working and win a round"
     required, ceiling, _ = asyncio.run(her_reading(asked, ["file_operation"], "sandboxed_compute", frozenset()))
     assert required == ["repair_a_program"] and ceiling == "read_write_artifacts"
+
+
+def test_playing_is_asked_for_in_other_words_too():
+    from core.skills.repairing_a_program import _asks_to_play
+
+    assert _asks_to_play("can you sort it out and then beat the computer at it?")
+    assert _asks_to_play("get it working and win a round")
+    assert _asks_to_play("fix it then have a go against the AI")
+    assert not _asks_to_play("fix the typo in it")

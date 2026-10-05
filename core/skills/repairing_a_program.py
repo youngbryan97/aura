@@ -105,7 +105,8 @@ class RepairAProgramSkill(BaseSkill):
 def _asks_to_play(request: str) -> bool:
     from core.language.how_a_game_ended import asks_to_win
 
-    return asks_to_win(request) or bool(re.search(r"\bplay\b", request, re.IGNORECASE))
+    return asks_to_win(request) or bool(re.search(
+        r"\bplay\b|\bagainst\s+(?:the\s+)?(?:computer|ai|cpu|bot|machine|opponent)\b|\bhave\s+a\s+go\b", request, re.IGNORECASE))
 
 
 async def _play_it(address: str, request: str) -> dict[str, Any]:
