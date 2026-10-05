@@ -331,8 +331,12 @@ async def _try_edits(browser: Any, current: str, words: str, keys: list[str], fo
         candidates = _pairs(candidates)
     if tell is not None and candidates:
         rounds = -(-len(candidates) // AT_ONCE)
-        tell(f"Trying {len(candidates)} possible {'pairs of fixes' if in_pairs else 'fixes'} on copies of the game, {AT_ONCE} at a time, "
-             f"watching each copy play for about {seconds:.0f} seconds (about {rounds * seconds / 60:.0f} minute(s)).")
+        many = len(candidates) != 1
+        what = ("pairs of fixes" if many else "pair of fixes") if in_pairs else ("fixes" if many else "fix")
+        took = rounds * seconds
+        tell(f"Trying {len(candidates)} possible {what} on copies of the game{f', {AT_ONCE} at a time' if len(candidates) > AT_ONCE else ''}, "
+             f"watching each copy play for about {seconds:.0f} seconds"
+             f"{f' (about {took / 60:.0f} minutes)' if took >= 90 else ''}.")
     best = None
     for start in range(0, len(candidates), AT_ONCE):
         batch = candidates[start : start + AT_ONCE]
@@ -459,7 +463,8 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             for _round in range(MOST_ROUNDS):
                 improving: list[Any] = []
                 chosen = await _try_edits(browser, current, words, keys, path.parent, last, refused=refused, tell=tell, also=improving)
-                if chosen is None:
+                left_to_try = [c for c in _candidates(what_looks_wrong(current, ".html")) if _name_of(c[1]) not in refused]
+                if chosen is None and left_to_try:
                     # Nothing settled it in a short watch. A fault that shows
                     # only now and then needs a longer one before an edit can
                     # be said to have mended it.
@@ -467,7 +472,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                         tell("Nothing I tried settled it in a short watch, so I am watching each try for longer.")
                     chosen = await _try_edits(browser, current, words, keys, path.parent, last,
                                               seconds=WATCH_S * 2.5, refused=refused, tell=tell)
-                if chosen is None and last.wrong:
+                if chosen is None and last.wrong and len(left_to_try) > 1:
                     # Two faults can each hide what mending the other would
                     # show: a ball that goes through the paddle never tests the
                     # scoring. Mended together, both come right at once.
@@ -475,6 +480,13 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                     chosen = await _try_edits(browser, current, words, keys, path.parent, last,
                                               seconds=WATCH_S * 2.5, refused=refused, in_pairs=True, tell=tell)
                 if chosen is None and last.wrong and asked < MOST_ASKS:
+                    # What is still believed wrong may only be unseen since: a
+                    # look at the game as it now is comes before thinking up
+                    # changes the code's own shapes did not suggest.
+                    looked = await _watched(browser, current, words, keys, path.parent, WATCH_S * 2.5)
+                    last = last.after(looked)
+                    if not last.wrong:
+                        break
                     asked += 1
                     chosen = await _what_else_could_do_it(browser, current, words, keys, path.parent, last, refused, tell)
                 if chosen is None:
