@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from core.rebuilding.checks_a_person_makes import Check, run_checks
+from core.rebuilding.her_model import HerModelIsAwayError, patiently
 from core.rebuilding.the_program_as_built import ProgramAsBuilt
 from core.rebuilding.what_a_program_does import (
     FEATURES_AT_ONCE,
@@ -35,7 +36,7 @@ from core.rebuilding.what_a_program_does import (
     what_is_written_about,
 )
 from core.rebuilding.what_the_frame_gives import what_the_frame_gives
-from core.rebuilding.writing_it_part_by_part import Built, Teller, _say, write_it
+from core.rebuilding.writing_it_part_by_part import Built, Teller, _say, so_far_in, write_it
 
 logger = logging.getLogger("Rebuilding")
 
@@ -123,37 +124,91 @@ async def rebuild(
     """
     began = time.monotonic()
     record: list[Path] = []
-    ask = _recorded(ask, record)
+    ask = patiently(_recorded(ask, record), tell)
     sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
     named = [f"{s.title} ({s.where})" for s in sources]
-    if program:
-        await _say(tell, f"Reading about {program}: " + ("; ".join(named) or "nothing written found, so from what I know") + ".")
-    genome = await genome_of(program, sources, ask, asked=asked)
-    if genome is None:
-        return Rebuilt(program or "it", None, None, named, time.monotonic() - began, "I could not say what it does")
-    await _say(tell, f"{program or genome.name} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
-    folder = Path(where) / _folder_name(genome.name)
-    folder.mkdir(parents=True, exist_ok=True)
+    taken_up = await asyncio.to_thread(an_unfinished_build_of, program, asked, Path(where))
+    try:
+        if taken_up is not None:
+            await _say(tell, f"Taking up the build of {program or 'it'} I had not finished, from what I kept in {taken_up}.")
+            return await _building(program, ask, taken_up, record, sources, named, began, tell=tell, browser=browser, deadline_s=deadline_s, asked=asked)
+        if program:
+            await _say(tell, f"Reading about {program}: " + ("; ".join(named) or "nothing written found, so from what I know") + ".")
+        genome = await genome_of(program, sources, ask, asked=asked)
+        if genome is None:
+            return Rebuilt(program or "it", None, None, named, time.monotonic() - began, "I could not say what it does")
+        await _say(tell, f"{program or genome.name} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
+        folder = Path(where) / _folder_name(genome.name)
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "what_it_does.json").write_text(json.dumps(genome.model_dump(), indent=1), "utf-8")
+        _the_build_is(folder, program, asked, finished=False)
+        return await _building(program, ask, folder, record, sources, named, began, tell=tell, browser=browser, deadline_s=deadline_s, asked=asked)
+    except HerModelIsAwayError as why:
+        return await asyncio.to_thread(_as_far_as_it_got, program, asked, Path(where), named, time.monotonic() - began, str(why))
+
+
+async def _building(program: str, ask: Asker, folder: Path, record: list[Path], sources: list[Any], named: list[str], began: float, *,
+                    tell: Teller | None, browser: Any, deadline_s: float, asked: str) -> Rebuilt:
+    """The build in ``folder``, from what is kept there: its features, its checks once written, its parts once kept."""
     record.append(folder / "what_she_asked.jsonl")
-    (folder / "what_it_does.json").write_text(json.dumps(genome.model_dump(), indent=1), "utf-8")
+    genome = Genome.model_validate_json((folder / "what_it_does.json").read_text("utf-8"))
     if genome.kind.strip().lower() == "code":
         built = await _as_code(genome, ask, folder, tell)
         await asyncio.to_thread(keep_the_record, folder, built)
+        _the_build_is(folder, program, asked, finished=True)
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
     # What the frame already does is given by code, its parts and checks with it (core/rebuilding/what_the_frame_gives.py).
     genome.features, given = what_the_frame_gives(genome.features, sources, asked)
-    written: list[Check] = [check for gift in given.values() for check in gift.checks]
-    asked_of_her = [f for f in genome.features if f.name not in given]
-    for at in range(0, len(asked_of_her), FEATURES_AT_ONCE):
-        written.extend(await checks_for(genome, asked_of_her[at : at + FEATURES_AT_ONCE], ask, sources=sources, asked=asked))
-    checks = await checks_that_mean_something(written, folder / "empty.html", browser=browser)
-    (folder / "checks.json").write_text(json.dumps([c.model_dump() for c in checks], indent=1), "utf-8")
-    await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")
+    if (folder / "checks.json").exists():
+        checks = [Check.model_validate(c) for c in json.loads((folder / "checks.json").read_text("utf-8"))]
+    else:
+        written: list[Check] = [check for gift in given.values() for check in gift.checks]
+        asked_of_her = [f for f in genome.features if f.name not in given]
+        for at in range(0, len(asked_of_her), FEATURES_AT_ONCE):
+            written.extend(await checks_for(genome, asked_of_her[at : at + FEATURES_AT_ONCE], ask, sources=sources, asked=asked))
+        checks = await checks_that_mean_something(written, folder / "empty.html", browser=browser)
+        (folder / "checks.json").write_text(json.dumps([c.model_dump() for c in checks], indent=1), "utf-8")
+        await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")
     left = max(60.0, deadline_s - (time.monotonic() - began))
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left,
-                           given={name: gift.part for name, gift in given.items()})
+                           given={name: gift.part for name, gift in given.items()}, so_far=await asyncio.to_thread(so_far_in, folder, genome))
     await asyncio.to_thread(keep_the_record, folder, built)
+    _the_build_is(folder, program, asked, finished=True)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
+
+
+def _the_build_is(folder: Path, program: str, asked: str, *, finished: bool) -> None:
+    """What the build in ``folder`` is of, and whether it was finished: how a build cut short is found again."""
+    (folder / "build.json").write_text(json.dumps({"program": program, "asked": asked, "finished": finished}, indent=1), "utf-8")
+
+
+def an_unfinished_build_of(program: str, asked: str, where: Path) -> Path | None:
+    """The newest build in ``where`` of the same program (or, with none named, of the same request) that was not finished."""
+    for manifest in sorted(Path(where).glob("*/build.json"), key=lambda p: -p.stat().st_mtime):
+        try:
+            said = json.loads(manifest.read_text("utf-8"))
+        except (OSError, ValueError):
+            continue
+        same = (str(said.get("program") or "").casefold() == program.casefold()) if program else str(said.get("asked") or "") == asked
+        if same and not said.get("finished") and (manifest.parent / "what_it_does.json").exists():
+            return manifest.parent
+    return None
+
+
+def _as_far_as_it_got(program: str, asked: str, where: Path, named: list[str], seconds: float, why: str) -> Rebuilt:
+    """A build her model went away from, as far as it got: kept on disk, to be taken up when she is asked again."""
+    folder = an_unfinished_build_of(program, asked, where)
+    said = f"my model stopped answering ({why}) and did not come back while I waited"
+    if folder is None:
+        return Rebuilt(program or "it", None, None, named, seconds, said)
+    genome = Genome.model_validate_json((folder / "what_it_does.json").read_text("utf-8"))
+    so_far = so_far_in(folder, genome)
+    if so_far is None:
+        return Rebuilt(program or genome.name, None, None, named, seconds, f"{said}; nothing was kept yet, in {folder}")
+    so_far.program.write(folder / "index.html")
+    built = Built(so_far.program, folder / "index.html", so_far.outcomes, so_far.holding, seconds,
+                  [f"{said}; what is kept is in {folder}, and asking again takes the build up from there"])
+    return Rebuilt(program or genome.name, genome, built, named, seconds)
 
 
 async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None) -> Built:

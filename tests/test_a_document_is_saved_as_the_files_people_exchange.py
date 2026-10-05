@@ -117,3 +117,20 @@ async def test_a_format_named_is_given_by_the_frame_with_nothing_asked_of_her_mo
     assert saving.kept and saving.held == 1
     assert not [p for p in script.asked if 'part for the feature "Save as Word Document' in p]
     assert 'app.formats.save("docx")' in done.built.path.read_text()
+
+
+@pytest.mark.asyncio
+async def test_asking_for_a_format_added_to_a_build_is_done_by_the_frame(tmp_path):
+    """"Add .docx export to the word processor you built": the change is read from the words and given by code."""
+    from core.rebuilding.changing_what_was_built import change_it
+    from core.rebuilding.rebuilding_a_program import rebuild
+    from tests.test_a_program_is_rebuilt_by_checking_it import _NoCorpus, _Script
+
+    done = await rebuild("Writer", _Script(), tmp_path, corpus=_NoCorpus(), online=False)
+
+    async def says_nothing_useful(prompt, schema, max_tokens):
+        return None
+
+    changed = await change_it(done.built.path.parent, "add an export to .docx files to it", says_nothing_useful)
+    assert [o.kept for o in changed.outcomes] == [True], changed.summary()
+    assert 'app.formats.save("docx")' in (done.built.path.parent / "index.html").read_text()

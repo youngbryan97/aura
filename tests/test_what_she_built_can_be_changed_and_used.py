@@ -48,3 +48,37 @@ def test_asking_for_her_build_to_change_is_asking_for_an_effect():
     assert requested_effect_ceiling("Add a dark theme to the word processor you built.")[0] == "read_write_artifacts"
     assert requested_effect_ceiling("The app you made needs to save as PDF.")[0] == "read_write_artifacts"
     assert requested_effect_ceiling("what did you build yesterday?")[0] != "read_write_artifacts"
+
+
+def test_using_what_she_built_keeps_its_export_where_the_person_said(tmp_path, monkeypatch):
+    """LIVE 2026-10-05 the use of a finished build failed on an import before anything was done."""
+    import asyncio
+    from pathlib import Path
+
+    from core.capabilities import where_downloads_go
+    from core.container import ServiceContainer
+    from core.skills.using_a_program import use_what_she_built
+
+    desktop = tmp_path / "Desktop"
+
+    class _Download:
+        suggested_filename = "Letter.docx"
+
+        async def save_as(self, path):
+            await asyncio.to_thread(Path(path).write_bytes, b"PK\x03\x04 a letter")
+
+    class _Engine:
+        async def execute(self, skill, params, context=None):
+            assert skill == "sovereign_browser" and params["url"].startswith("file://")
+            await where_downloads_go._keep(_Download())
+            return {"ok": True}
+
+    monkeypatch.setattr("core.skills.using_a_program.the_folder_named_in", lambda asked: desktop)
+    ServiceContainer.register_instance("capability_engine", _Engine())
+    try:
+        page = tmp_path / "index.html"
+        page.write_text("<html></html>")
+        used = asyncio.run(use_what_she_built(page, "write a letter and export it", "export it to my Desktop"))
+    finally:
+        ServiceContainer.register_instance("capability_engine", None)
+    assert used["files"] == [str(desktop / "Letter.docx")] and (desktop / "Letter.docx").exists()

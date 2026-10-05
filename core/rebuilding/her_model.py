@@ -16,10 +16,50 @@ from pydantic import BaseModel, ValidationError
 
 logger = logging.getLogger("Rebuilding.HerModel")
 
-__all__ = ["ask_her_model", "the_object_in", "what_was_finished"]
+__all__ = ["HerModelIsAwayError", "ask_her_model", "patiently", "the_object_in", "what_was_finished"]
 
 #: The longest one ask may take, in seconds.
 ASK_S = 900.0
+
+#: How long a build waits for her model to come back from one absence, in all, and the first and longest pause.
+PATIENCE_S = 900.0
+FIRST_PAUSE_S = 15.0
+LONGEST_PAUSE_S = 120.0
+
+
+class HerModelIsAwayError(RuntimeError):
+    """Her model gave no answer at all: not there, refused, or empty. Not the same as an answer that does not fit.
+
+    LIVE 2026-10-05 the event loop stalled, the model's endpoint was marked
+    stale, and every ask came back empty in milliseconds; a build read thirteen
+    empty answers as thirteen features nothing could be written for, in two
+    seconds. An absence is waited out; a bad answer is tried again.
+    """
+
+
+def patiently(ask: Any, tell: Any = None, *, patience_s: float | None = None) -> Any:
+    """``ask``, waiting her model's absences out (pauses doubling up to a bound) before trying again; still away past ``patience_s``, it says so."""
+    import asyncio
+
+    async def asking(prompt: str, schema: type[BaseModel], max_tokens: int) -> Any:
+        waited, pause, limit = 0.0, FIRST_PAUSE_S, PATIENCE_S if patience_s is None else patience_s
+        while True:
+            try:
+                return await ask(prompt, schema, max_tokens)
+            except HerModelIsAwayError as why:
+                if waited >= limit:
+                    raise
+                if waited == 0.0:
+                    logger.info("her model is away (%s); waiting for it", why)
+                    if tell is not None:
+                        said = tell(f"My model is not answering ({why}); waiting for it to come back. What I have built so far is kept.")
+                        if asyncio.iscoroutine(said):
+                            await said
+                await asyncio.sleep(pause)
+                waited += pause
+                pause = min(pause * 2.0, LONGEST_PAUSE_S)
+
+    return asking
 
 
 def the_object_in(text: str) -> str | None:
@@ -108,8 +148,7 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
 
         router = ServiceContainer.get("llm_router", default=None)
     if router is None:
-        logger.info("no model to ask")
-        return None
+        raise HerModelIsAwayError("there is no model to ask")
     asked = f"{prompt}\n\nAnswer with one JSON object that follows this JSON schema:\n{json.dumps(schema.model_json_schema())}"
     try:
         reply = await router.generate_with_metadata(
@@ -128,10 +167,14 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
             max_tokens=int(max_tokens),
             temperature=0.2,
         )
-    except (RuntimeError, TimeoutError, ValueError, TypeError, OSError) as why:
-        logger.info("her model could not be asked: %s", why)
+    except (RuntimeError, TimeoutError, OSError) as why:
+        raise HerModelIsAwayError(f"it could not be asked: {str(why)[:200]}") from why
+    except (ValueError, TypeError) as why:
+        logger.info("her model could not be asked this: %s", why)
         return None
     text = str(reply.get("text") or "") if isinstance(reply, dict) else str(reply or "")
+    if not re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip():
+        raise HerModelIsAwayError("an empty answer")
     found = the_object_in(text) or what_was_finished(text)
     data: Any = None
     if found is not None:

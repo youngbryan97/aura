@@ -69,11 +69,7 @@ def what_to_do_with_it(asked: str) -> str:
 
 async def use_what_she_built(page: Path, task: str, asked: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Do ``task`` with the program at ``page`` through her browser pursuit, keeping what it exports where ``asked`` says."""
-    from core.capabilities.where_downloads_go import (
-        downloads_go_to,
-        kept_downloads,
-        the_folder_named_in,
-    )
+    from core.capabilities.where_downloads_go import downloads_go_to, kept_downloads
     from core.container import ServiceContainer
 
     engine = ServiceContainer.get("capability_engine", default=None)

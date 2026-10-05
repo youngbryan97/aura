@@ -318,3 +318,68 @@ async def test_a_build_cut_short_keeps_what_it_had_made(tmp_path):
         await rebuild("Writer", _CutShort(), tmp_path, corpus=_NoCorpus(), online=False)
     kept = ProgramAsBuilt.kept_in(next(tmp_path.glob("*/program.json")).parent)
     assert {p.name for p in kept.parts} >= {"work area", "Bold"}
+
+
+class _GoesAway(_Script):
+    """Her model, gone for ``away_for`` asks once the Word count part is asked for; for ever if None."""
+
+    def __init__(self, away_for: int | None) -> None:
+        super().__init__()
+        self.away_for = away_for
+
+    async def __call__(self, prompt, schema, max_tokens):
+        from core.rebuilding.her_model import HerModelIsAwayError
+
+        if schema is WrittenPart and '"Word count"' in prompt and (self.away_for is None or self.away_for > 0):
+            if self.away_for is not None:
+                self.away_for -= 1
+            raise HerModelIsAwayError("an empty answer")
+        return await super().__call__(prompt, schema, max_tokens)
+
+
+@pytest.mark.asyncio
+async def test_a_build_waits_for_her_model_to_come_back(tmp_path, monkeypatch):
+    """LIVE 2026-10-05 thirteen features were left out in two seconds while her model's endpoint was down."""
+    from core.rebuilding import her_model
+
+    monkeypatch.setattr(her_model, "FIRST_PAUSE_S", 0.01)
+    told: list[str] = []
+    done = await rebuild("Writer", _GoesAway(away_for=3), tmp_path, corpus=_NoCorpus(), online=False, tell=told.append)
+    assert {o.feature.name: o.kept for o in done.built.outcomes}["Word count"]
+    assert any("not answering" in line for line in told)
+
+
+@pytest.mark.asyncio
+async def test_a_build_her_model_left_is_kept_and_taken_up_again(tmp_path, monkeypatch):
+    from core.rebuilding import her_model
+
+    monkeypatch.setattr(her_model, "FIRST_PAUSE_S", 0.01)
+    monkeypatch.setattr(her_model, "PATIENCE_S", 0.05)
+    left = await rebuild("Writer", _GoesAway(away_for=None), tmp_path, corpus=_NoCorpus(), online=False)
+    assert "stopped answering" in left.summary() and 'execCommand("bold")' in left.built.path.read_text()
+    again = _Script()
+    done = await rebuild("Writer", again, tmp_path, corpus=_NoCorpus(), online=False)
+    outcome = {o.feature.name: o for o in done.built.outcomes}
+    assert outcome["Word count"].kept and outcome["Bold"].kept
+    # Taken up where it was: the features, checks and Bold part kept were not asked for again.
+    assert not [p for p in again.asked if '"Bold"' in p or "work-area part of" in p]
+    assert again.asked and all("Word count" in p for p in again.asked if "Write the part" in p)
+    assert len(list(tmp_path.glob("*/build.json"))) == 1
+
+
+def test_an_empty_answer_is_her_model_being_away():
+    import asyncio
+
+    from core.rebuilding.her_model import HerModelIsAwayError, ask_her_model
+
+    class _Empty:
+        async def generate_with_metadata(self, *args, **kwargs):
+            return {"text": "<think>hm</think>  "}
+
+    class _Down:
+        async def generate_with_metadata(self, *args, **kwargs):
+            raise RuntimeError("endpoint failed validation")
+
+    for router in (_Empty(), _Down()):
+        with pytest.raises(HerModelIsAwayError):
+            asyncio.run(ask_her_model("write it", WrittenPart, 100, router=router))

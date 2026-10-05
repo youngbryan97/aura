@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
@@ -244,28 +243,11 @@ class ProgramDNAReconstructSkill(BaseSkill):
         )
 
 
-class _Named(BaseModel):
-    program: str = Field(default="", max_length=80, description="the program's usual name, or empty if none is named")
-
-
-#: "a clean-room reconstruction of Microsoft Word", "rebuild Paint", "clone of Trello"
-_NAMED_AFTER = re.compile(
-    r"(?:reconstruct(?:ion)?|rebuild|recreate|re-create|clone|reimplement(?:ation)?|copy)\s+(?:of\s+)?(?:the\s+)?"
-    r"((?:[A-Z][\w+.#'-]*)(?:\s+(?:[A-Z0-9][\w+.#'-]*))*)"
-)
-
-
 async def the_program_named_in(asked: str) -> str:
-    """The program a request asks to reconstruct: what its words name, else what her model reads in them."""
-    found = _NAMED_AFTER.search(asked or "")
-    if found:
-        return found.group(1).strip(" .,;:")
-    if not asked:
-        return ""
-    from core.rebuilding.her_model import ask_her_model
+    """The program a request asks to reconstruct, read by code from its words and her corpus (core/rebuilding/which_program_is_named.py)."""
+    from core.rebuilding.which_program_is_named import the_program_named_in as named_in
 
-    named = await ask_her_model(f"Which program does this request ask to be rebuilt? Request: {asked}", _Named, 60)
-    return named.program.strip() if isinstance(named, _Named) else ""
+    return await asyncio.to_thread(named_in, asked or "")
 
 
 async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "", context: dict[str, Any] | None = None) -> dict[str, Any]:

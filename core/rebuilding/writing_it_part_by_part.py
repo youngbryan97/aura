@@ -31,7 +31,7 @@ from core.rebuilding.what_a_program_does import Asker, Feature, Genome
 
 logger = logging.getLogger("Rebuilding.PartByPart")
 
-__all__ = ["Built", "FRAME_API", "WrittenPart", "write_it"]
+__all__ = ["Built", "FRAME_API", "SoFar", "WrittenPart", "so_far_in", "write_it"]
 
 #: Tries at one part before the feature is left out.
 TRIES = 3
@@ -265,35 +265,52 @@ def what_works(outcomes: list[FeatureOutcome]) -> list[dict[str, Any]]:
     ]
 
 
-def _kept_so_far(folder: Path, program: ProgramAsBuilt, outcomes: list[FeatureOutcome]) -> None:
+def _kept_so_far(folder: Path, program: ProgramAsBuilt, outcomes: list[FeatureOutcome], holding: list[Check]) -> None:
     import json
 
     program.keep(folder)
     (folder / "what_works.json").write_text(json.dumps(what_works(outcomes), indent=1), "utf-8")
+    (folder / "holding.json").write_text(json.dumps([c.model_dump() for c in holding], indent=1), "utf-8")
 
 
-async def write_it(
-    genome: Genome,
-    checks: list[Check],
-    ask: Asker,
-    out: Path,
-    *,
-    tell: Teller | None = None,
-    browser: Any = None,
-    deadline_s: float = 3 * 3600.0,
-    given: dict[str, Part] | None = None,
-) -> Built:
-    """The program, written part by part: the work area, then each feature that can be made to hold."""
-    began = time.monotonic()
-    program = ProgramAsBuilt(genome.name, accent=genome.accent or "#2b579a")
-    holding: list[Check] = []
-    outcomes: list[FeatureOutcome] = []
-    out = Path(out)
-    tried = _Trying(out.with_name(out.stem + ".trying.html"), holding, browser)
-    await _say(tell, f"Writing the work area of {genome.name}: {genome.work}")
-    # Everything else is built on the work area, so it is kept only when it
-    # loads without an error. LIVE 2026-10-05 one that threw as it loaded was
-    # kept on its last try, and every feature after it failed reaching into it.
+def so_far_in(folder: Path, genome: Genome) -> SoFar | None:
+    """What a build cut short had kept in ``folder``: its program and the features it had finished. A feature left
+    out because nothing was written for it is not finished, and is tried again."""
+    import json
+
+    if not (folder / "program.json").exists():
+        return None
+    try:
+        program = ProgramAsBuilt.kept_in(folder)
+        said = json.loads((folder / "what_works.json").read_text("utf-8")) if (folder / "what_works.json").exists() else []
+        holding = [Check.model_validate(c) for c in json.loads((folder / "holding.json").read_text("utf-8"))] if (folder / "holding.json").exists() else []
+    except (OSError, ValueError, TypeError):
+        return None
+    features = {f.name: f for f in genome.features}
+    outcomes = [
+        FeatureOutcome(features[o["feature"]], held=int(o.get("checks_held") or 0), of=int(o.get("checks") or 0), tries=int(o.get("tries") or 0),
+                       kept=bool(o.get("works")), why_not=str(o.get("why_not") or ""))
+        for o in said if o.get("feature") in features and (o.get("works") or o.get("why_not") not in ("nothing was written", "out of time"))
+    ]
+    return SoFar(program, outcomes, holding)
+
+
+@dataclass
+class SoFar:
+    """A build cut short, as it was kept on disk: its program, what each feature came to, and the checks that hold."""
+
+    program: ProgramAsBuilt
+    outcomes: list[FeatureOutcome] = field(default_factory=list)
+    holding: list[Check] = field(default_factory=list)
+
+
+async def _the_work_area(genome: Genome, checks: list[Check], ask: Asker, out: Path, program: ProgramAsBuilt, tried: _Trying) -> ProgramAsBuilt:
+    """The program with its work area: kept only when it loads without an error, else the last one tried.
+
+    Everything else is built on the work area. LIVE 2026-10-05 one that threw
+    as it loaded was kept on its last try, and every feature after it failed
+    reaching into it.
+    """
     wrong, before, fallback = "", "", None
     area_before = work_area_like(genome, out.parent.parent, leaving_out=out.parent)
     worked_before = shown([area_before]) if area_before is not None else ""
@@ -311,13 +328,41 @@ async def write_it(
         candidate.style = written.style
         _mine, _broke, errors = await tried(candidate, [])
         if not errors:
-            program, fallback = candidate, None
-            break
+            return candidate
         wrong, fallback = "; ".join(errors[:3]), candidate
     if fallback is not None:
-        program = fallback
         logger.info("rebuilding: the work area still says %s", wrong[:300])
+        return fallback
+    return program
+
+
+async def write_it(
+    genome: Genome,
+    checks: list[Check],
+    ask: Asker,
+    out: Path,
+    *,
+    tell: Teller | None = None,
+    browser: Any = None,
+    deadline_s: float = 3 * 3600.0,
+    given: dict[str, Part] | None = None,
+    so_far: SoFar | None = None,
+) -> Built:
+    """The program, written part by part: the work area, then each feature that can be made to hold; from ``so_far`` when a build is taken up again."""
+    began = time.monotonic()
+    program = so_far.program if so_far is not None else ProgramAsBuilt(genome.name, accent=genome.accent or "#2b579a")
+    holding: list[Check] = list(so_far.holding) if so_far is not None else []
+    outcomes: list[FeatureOutcome] = list(so_far.outcomes) if so_far is not None else []
+    out = Path(out)
+    tried = _Trying(out.with_name(out.stem + ".trying.html"), holding, browser)
+    if not any(p.name == "work area" for p in program.parts):
+        await _say(tell, f"Writing the work area of {genome.name}: {genome.work}")
+        program = await _the_work_area(genome, checks, ask, out, program, tried)
+        await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes, holding)
+    done_already = {o.feature.name for o in outcomes}
     for feature in genome.features:
+        if feature.name in done_already:
+            continue
         if time.monotonic() - began > deadline_s:
             outcomes.append(FeatureOutcome(feature, why_not="out of time"))
             continue
@@ -332,8 +377,8 @@ async def write_it(
             program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried)
         outcomes.append(outcome)
         holding.extend(held)
-        # Kept as it goes: a build cut short leaves what it had made, to use and to build on.
-        await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes)
+        # Kept as it goes: a build cut short leaves what it had made, to use and to take up again.
+        await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes, holding)
         done = len(outcomes)
         if done % 5 == 0 and done < len(genome.features):
             await _say(tell, f"{done} of {len(genome.features)} features written; {sum(o.kept for o in outcomes)} of them work.")
