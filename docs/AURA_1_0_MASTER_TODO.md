@@ -1508,8 +1508,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   name given before the operation's word ("Form the lead calculation by
   subtract ...") is read back to it when the operation is alone in its
   sentence. v8: 47 and 48 of 48, validation 498, train 764, folds 735 (one
-  held-out arithmetic row behind v5). G03 stays open on one composition
-  request and two validation rows.
+  held-out arithmetic row behind v5). [No argument option starts before its
+  operation's sentence](evidence/G03_ARGUMENTS_WITHIN_THEIR_SENTENCE_2026-10-05.md),
+  checked first on all 1,860 annotated requests (no annotated argument starts
+  there): v9 answers all 48 of both composition bundles (34 gains, no losses),
+  validation 498, train 764, folds 734. The two held-out rows it gives up are
+  nominal_nested rows where the fold's recognizer puts an operation on
+  "integer" in "Use integer arithmetic."; v5's credit for one was a right
+  value from a wrong parse. G03 stays open on two validation rows
+  (sequence-cataphoric-5, failing at the operation).
   [Preparation stall replay](evidence/G03_PREPARATION_STALL_REPLAY_2026-10-03.md)
   records the v2 terminal timeout after 444 completed pools. Its handoff
   refused training. The next unfinished source completed against unchanged
