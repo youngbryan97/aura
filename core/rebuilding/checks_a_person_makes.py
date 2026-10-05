@@ -269,7 +269,10 @@ class _Doing:
             return
         name, text = self.to_give
         kind, data = await asyncio.to_thread(a_file_of_its_kind, name, text)
-        await chooser.set_files({"name": name, "mimeType": kind, "buffer": data})
+        try:
+            await chooser.set_files({"name": name, "mimeType": kind, "buffer": data})
+        except Exception as why:  # noqa: BLE001 - a page closed before its chooser was answered asks for nothing now
+            logger.debug("a file chooser went unanswered: %s", why)
 
     async def _saved(self, download: Any) -> None:
         try:
