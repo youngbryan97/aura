@@ -27,6 +27,7 @@ from core.runtime.skill_contract import ActionExpectation
 from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
+from core.skills.sovereign_browser_going import the_archived_copy
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
 
@@ -1553,8 +1554,11 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         """
 
         if url and not await self._safe_browse(browser, url):
-            return {"ok": False, "error": self._could_not_load(url)}
-        if url:  # said at once: her first look can take a minute (LIVE 2026-10-02)
+            copy = await the_archived_copy(self, browser, url)  # refused: the archive's copy (sovereign_browser_going.py)
+            if not copy:
+                return {"ok": False, "error": self._could_not_load(url)}
+            url = copy
+        elif url:  # said at once: her first look can take a minute (LIVE 2026-10-02)
             self._say_out_loud(where_she_is_going(url, goal), {"label": "Going to", "said": url})
 
         steps: list[dict[str, Any]] = []

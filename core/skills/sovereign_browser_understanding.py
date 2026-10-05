@@ -21,6 +21,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
 from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
+from .sovereign_browser_going import its_archived_copy, refused
 from .sovereign_browser_one_question import (  # noqa: F401  (re-exported: the pursuit and tests read them here)
     ASKED_AT,
     HER_MIND_THIS_PURSUIT,
@@ -254,6 +255,9 @@ class _UnderstandsThePage(_PlacesHerself):
                 [f"Asked at: {time.strftime('%A %d %B %Y, %H:%M %Z', time.localtime(asked))}"]
                 if (asked := ASKED_AT.get()) else []
             ),
+            # A refusal is a page too, and the way on from it is somewhere else.
+            *([f"This page refused your browser. The same address as the Internet Archive keeps it, to go to: {its_archived_copy(str(observation.get('url') or ''))}"]
+              if refused(str(observation.get("title") or ""), str(observation.get("text") or "")) else []),
             "",
             "PAGE TEXT:",
             "",  # filled in last, with the room the rest leaves
