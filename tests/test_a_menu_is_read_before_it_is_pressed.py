@@ -54,3 +54,34 @@ def test_a_label_that_goes_on_is_offered_beside_working_keys():
     offered = here.available()
     assert offered[:2] == ("left", "right")
     assert 'click "Easy"' in offered and 'click "SCORE"' not in offered
+
+
+def test_when_no_key_moves_the_screen_its_labels_are_offered():
+    """LIVE-like 2026-10-05, a level select: up had worked in the game before, so it was never written
+    off, and "Strike Em Out" was never offered because it does not read as a way on."""
+    from core.agency.what_i_can_do_here import WhatWorksHere, a_click_on
+
+    here = WhatWorksHere(told=("up", "down", "left", "right", "space"))
+    here.tried("up", True)  # it worked on the screen before this one
+    here.looked_at([a_click_on("Strike Em Out"), a_click_on("Road Rage")])
+    here.looked_at([a_click_on("Strike Em Out"), a_click_on("Road Rage")])
+    assert a_click_on("Strike Em Out") not in here.available()
+    for key in ("down", "left", "up"):
+        here.tried(key, False)
+    assert a_click_on("Strike Em Out") in here.available()
+    here.tried("up", True)  # the screen answered: the keys are worth pressing again
+    assert a_click_on("Strike Em Out") not in here.available()
+
+
+def test_short_lines_one_over_another_are_items_not_prose():
+    from core.skills.screen_pursuit_bearings import things_to_click, what_it_says
+
+    def line(text, y, h=0.07):
+        return {"text": text, "x": 0.02, "y": y, "width": 0.25, "height": h}
+
+    level_select = {"layout": [line("Road Rage", 0.395, 0.09), line("Backyard", 0.55), line("Beatdown", 0.638)]}
+    offered = things_to_click(level_select, drawn_where=(0, 0, 1, 1))
+    assert 'click "Road Rage"' in offered and 'click "Backyard"' in offered
+    rules = {"layout": [line("Bump into the cars and make them spin", 0.3), line("until they reach the parking spot", 0.38)]}
+    assert things_to_click(rules, drawn_where=(0, 0, 1, 1)) == ()
+    assert what_it_says(rules, drawn_where=(0, 0, 1, 1)).startswith("Bump into")

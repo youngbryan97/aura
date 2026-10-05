@@ -149,6 +149,9 @@ class WhatWorksHere:
     asked_for: tuple[str, ...] = ()
     #: What the look before this one could click, to hold the next look to.
     seen_before: tuple[str, ...] = ()
+    #: What she has done since the screen last answered anything, all of it to
+    #: no effect: the screen in front of her has not been moved by any of it.
+    quiet_since: set[str] = field(default_factory=set)
 
     def asked_for_by(self, words: str) -> None:
         """Keys the screen's own words ask her to press, while it is asking."""
@@ -175,6 +178,7 @@ class WhatWorksHere:
         if not name:
             return
         if changed:
+            self.quiet_since.clear()
             self.did_something[name] = self.did_something.get(name, 0) + 1
             self.did_nothing.pop(name, None)
             # A click that changed the screen may have changed what works:
@@ -183,7 +187,20 @@ class WhatWorksHere:
             if what_is_clicked(name) is not None:
                 self.did_nothing.clear()
         else:
+            self.quiet_since.add(name)
             self.did_nothing[name] = self.did_nothing.get(name, 0) + 1
+
+    def keys_do_nothing_here(self) -> bool:
+        """Whether every key she was told has been pressed at this screen since it last answered, and none moved it.
+
+        A key that worked on another screen is not dead, and while it is not
+        the labels that do not read as a way on were never offered. LIVE-like
+        2026-10-05, a game's level select ("Strike Em Out", "Backyard
+        Beatdown"): she pressed up twenty times, because up had worked in the
+        game before, and never clicked a level.
+        """
+        pressed = self.quiet_since & set(self.told)
+        return bool(self.told) and len(pressed) >= min(len(self.told), 3)
 
     # ── using it ─────────────────────────────────────────────────────────
 
@@ -222,7 +239,8 @@ class WhatWorksHere:
         # are doing: on a menu that moves on its own, keys look as if they work
         # and the labels never joined. LIVE-like 2026-10-05 she pressed left
         # forty times on a game's "Easy / Hard" screen.
-        goes_on = tuple(click for click in self.on_screen if click not in dead and _goes_on(click))
+        goes_on = tuple(click for click in self.on_screen if click not in dead
+                        and (_goes_on(click) or self.keys_do_nothing_here()))
         if asked:
             return asked + told + goes_on
         # Only what she was told can be shown wrong about what she was told.

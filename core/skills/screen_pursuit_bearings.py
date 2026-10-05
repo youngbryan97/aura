@@ -175,9 +175,22 @@ def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -
         # of a line; a title differs from the line under it by half again.
         one_size = max(height, oheight) < line * 1.5
         below, above = oy - (y + height), y - (oy + oheight)
-        if overlaps and one_size and (0.0 <= below < line or 0.0 <= above < line):
+        # And prose runs on: two short lines one over the other are a menu's
+        # items or a label on two lines. LIVE-like 2026-10-05 a level select's
+        # "Road Rage" over "Backyard" / "Beatdown" was read out as a sentence
+        # and only the first level could be clicked.
+        short = _words(region) <= SHORT_LINE and _words(other) <= SHORT_LINE
+        if overlaps and one_size and not short and (0.0 <= below < line or 0.0 <= above < line):
             return True
     return False
+
+
+#: The most words a line has that is a label rather than a line of prose.
+SHORT_LINE = 3
+
+
+def _words(region: dict[str, Any]) -> int:
+    return len(str(region.get("text") or "").split())
 
 
 def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
