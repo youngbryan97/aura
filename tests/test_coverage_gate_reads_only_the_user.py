@@ -262,3 +262,20 @@ class TestAnAssembledPromptCannotConvictAReply:
         """Negative control: the assembled prompt is genuinely unreadable."""
         assert visible_user_request(_ASSEMBLED_LIVE_PROMPT) == ""
         assert visible_user_request("Why do leaves change color in autumn?")
+
+
+def test_her_screen_notes_are_not_a_second_question():
+    """LIVE 2026-10-04: "missed 'Answer the question that was actually asked, in your own words'"."""
+    from core.conversation.response_request_coverage import visible_user_request
+
+    attached = (
+        "When did the Kaseya Center open?\n\n"
+        "[YOUR OWN RECENT PERCEPTION — NOTES, NOT A REPLY]\n"
+        "You looked at the screen yourself moments ago.\n"
+        "Windows open (front to back):\n- Safari — “Aura” (visible)\n"
+        "These are your notes on what you saw, not a draft answer. Answer the question that was "
+        "actually asked, in your own words, using only what is relevant here.\n"
+        "[END YOUR OWN RECENT PERCEPTION]"
+    )
+
+    assert visible_user_request(attached) == "When did the Kaseya Center open?"

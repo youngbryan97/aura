@@ -30,9 +30,16 @@ def visible_user_request(user_message: Any) -> str:
         _TRANSCRIPT_REPLAY_LINE_RE,
     )
 
+    from core.utils.injected_blocks import strip_injected_blocks
+
     text = str(user_message or "")
     if not text.strip():
         return ""
+    # The banners every turn attaches are read from the one shared list
+    # first. LIVE 2026-10-04 her screen notes, missing from the markers
+    # below, were read as a second question: "missed 'Answer the question
+    # that was actually asked, in your own words'".
+    text = strip_injected_blocks(text)
 
     kept: list[str] = []
     in_scaffold_block = False
