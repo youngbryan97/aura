@@ -135,6 +135,9 @@ TASK_INSTRUCTIONS: dict[str, str] = {
     ),
     "evidence": ("Given a claim, retrieve passages that support or contradict it"),
     "document": ("Given a question, retrieve passages from the provided documents that answer it"),
+    # A person's request against what each of her capabilities says it does
+    # (core/intent/capability_by_meaning.py).
+    "capability": ("Given a person's request, retrieve the description of the capability that carries it out"),
 }
 
 #: Used when a call site names no task. Deliberately the recall instruction

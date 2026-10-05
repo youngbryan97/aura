@@ -45,6 +45,11 @@ async def _call_the_one(name: str, text: str, loop_context: dict[str, Any]) -> d
             name, {}, _agent_execution_context(loop_context, objective=text, tool_name=name, tool_call_id=call_id, model_path="")
         )
     said = str(raw.get("summary") or raw.get("error") or "") if isinstance(raw, dict) else ""
+    if isinstance(raw, dict) and raw.get("ok"):
+        # A request this capability served is one of its meanings from now on (core/intent/capability_by_meaning.py).
+        from core.brain.requests_by_meaning import served
+
+        await asyncio.to_thread(served, text, name)
     return {
         "content": said,
         "tool_calls": [{

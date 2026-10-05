@@ -62,11 +62,19 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
         return required, ceiling, scopes
     if not worth_reading(text):
         return required, ceiling, scopes
+    import asyncio
+
+    from core.brain.requests_by_meaning import meant_capability
+
     engine = ServiceContainer.get("capability_engine", default=None)
-    read = await capabilities_her_model_reads(text, getattr(engine, "skills", None) or {}, ask=_asking(client))
+    skills = getattr(engine, "skills", None) or {}
+    # By meaning first: her embedding of the request beside each capability's
+    # meanings (core/intent/capability_by_meaning.py), measured, not guessed.
+    meant = await asyncio.to_thread(meant_capability, text, skills)
+    read = [meant] if meant else await capabilities_her_model_reads(text, skills, ask=_asking(client))
     if not read:
         return required, ceiling, scopes
-    logger.info("🔧 Tool handoff: the words left it open; her reading needs %s.", ", ".join(read))
+    logger.info("🔧 Tool handoff: the words left it open; %s needs %s.", "its meaning" if meant else "her reading", ", ".join(read))
     first = (getattr(engine, "skills", None) or {}).get(read[0])
     # The capability that does most of it is called with the request when it
     # needs nothing else to begin (no required arguments): it reads what it
