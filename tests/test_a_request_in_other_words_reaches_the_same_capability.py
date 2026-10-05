@@ -22,7 +22,8 @@ def engine(monkeypatch, tmp_path):
     page = tmp_path / "pong.html"
     page.write_text("<canvas></canvas>")
     skills = {
-        "repair_a_program": SimpleNamespace(description="Fix a broken program somebody else wrote.", enabled=True, trigger_patterns=[]),
+        "repair_a_program": SimpleNamespace(description="Fix a broken program somebody else wrote.", enabled=True, trigger_patterns=[],
+                                            input_model=__import__("core.skills.repairing_a_program", fromlist=["x"]).RepairAProgramInput),
         "file_operation": SimpleNamespace(description="Read, write, list or delete a file on disk.", enabled=True, trigger_patterns=[]),
     }
     fake = SimpleNamespace(skills=skills)
@@ -83,3 +84,12 @@ def test_her_reading_asks_the_model_client_the_turn_holds(engine):
     required, ceiling, _ = asyncio.run(her_reading(asked, ["file_operation"], "sandboxed_compute", frozenset(), client=_Client()))
     assert required == ["repair_a_program"] and ceiling == "read_write_artifacts"
     assert asked_with and asked_with[0]["internal_inference"] is True
+
+
+def test_the_capability_that_does_most_of_it_is_called_when_it_needs_only_the_request(engine, monkeypatch):
+    from core.brain.her_reading_of_a_request import her_reading
+
+    _reads(monkeypatch, ["repair_a_program", "file_operation"])
+    asked = f"my pong game ({engine}) is messed up - get it working and win a round"
+    required, ceiling, _ = asyncio.run(her_reading(asked, ["file_operation"], "sandboxed_compute", frozenset()))
+    assert required == ["repair_a_program"] and ceiling == "read_write_artifacts"

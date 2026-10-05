@@ -67,6 +67,12 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
     if not read:
         return required, ceiling, scopes
     logger.info("🔧 Tool handoff: the words left it open; her reading needs %s.", ", ".join(read))
+    first = (getattr(engine, "skills", None) or {}).get(read[0])
+    # The capability that does most of it is called with the request when it
+    # needs nothing else to begin (no required arguments): it reads what it
+    # needs from the person's words, as the plainly named one is called.
+    if len(read) > 1 and _needs_only_the_request(first):
+        read = read[:1]
     if len(read) > 1:
         return [*read, *(r for r in required if r not in read)], ceiling, scopes
     _CHOSE.set((text, read[0]))
@@ -81,6 +87,13 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
     if SKILL_EFFECT_SCOPES.get(read[0]) in _REQUESTED_ARTIFACT_SCOPES and (points_at_something_real(text) or asks_for_an_artifact(text)):
         ceiling, scopes = _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
     return [read[0]], ceiling, scopes
+
+
+def _needs_only_the_request(meta: Any) -> bool:
+    """Whether a capability can begin from the request alone: its input declares nothing required."""
+    model = getattr(meta, "input_model", None)
+    fields = getattr(model, "model_fields", None)
+    return isinstance(fields, dict) and not any(field.is_required() for field in fields.values())
 
 
 def her_reading_chose(text: str, offered: Any) -> str | None:
