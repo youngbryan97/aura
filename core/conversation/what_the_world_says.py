@@ -82,6 +82,10 @@ class WorldSource:
     location: str
     text: str
     score: float | None = None
+    #: The whole document the passage was taken from, never shown: what a
+    #: reply that goes beyond the passage is checked against
+    #: (core/conversation/claims_against_sources.py).
+    full_text: str = ""
 
 
 @dataclass
@@ -170,7 +174,7 @@ def answer_from_earlier_reading(evidence: WorldEvidence, request: str, session_i
         earlier = _last_read.get(session_id, ())
     label = "read for the answer being asked about" if grounds else "read for an earlier turn"
     evidence.sources = _within_the_evidence_budget([
-        WorldSource(f"{label} ({source.origin})", source.title, source.location, source.text, source.score)
+        WorldSource(f"{label} ({source.origin})", source.title, source.location, source.text, source.score, source.full_text)
         for source in earlier
     ] + evidence.sources)
     if evidence.sources:
@@ -309,7 +313,7 @@ def _judge(question: str, candidates: list[WorldSource], *, solicited: bool) -> 
 
     verdicts = assess_evidence_alignments(question, [f"{c.title}\n{c.text}" for c in candidates])
     admitted = [
-        WorldSource(c.origin, c.title, c.location, c.text, verdict.score)
+        WorldSource(c.origin, c.title, c.location, c.text, verdict.score, c.full_text)
         for c, verdict in zip(candidates, verdicts, strict=True)
         if verdict.relevant
         and (solicited or (verdict.measured and verdict.score is not None and verdict.score >= EVIDENCE_MATCHED_FLOOR))
@@ -383,7 +387,7 @@ def _from_corpus(
             body = store.body(hit.doc_id)
             if body:
                 origin, location = _corpus_origin(hit, body, as_of)
-                candidates.append(WorldSource(origin, hit.title, location, passage_of(body, terms)))
+                candidates.append(WorldSource(origin, hit.title, location, passage_of(body, terms), full_text=body))
     return candidates
 
 
@@ -449,14 +453,14 @@ async def gather_world_evidence(
         if page and str(page.get("text") or "").strip():
             evidence.read.append(url)
             evidence.sources.append(
-                WorldSource("the page you sent", str(page.get("title") or url), url, passage_of(page["text"], terms, limit=2 * _PASSAGE_CHARS))
+                WorldSource("the page you sent", str(page.get("title") or url), url, passage_of(page["text"], terms, limit=2 * _PASSAGE_CHARS), full_text=page["text"])
             )
             continue
         title = wikipedia_title(url)
         hit = await asyncio.to_thread(store.by_title, title) if title else None
         body = await asyncio.to_thread(store.body, hit.doc_id) if hit else ""
         if body:
-            evidence.sources.append(WorldSource(f"offline Wikipedia copy of the page you sent{_as_of(store)}", hit.title, url, passage_of(body, terms, limit=2 * _PASSAGE_CHARS)))
+            evidence.sources.append(WorldSource(f"offline Wikipedia copy of the page you sent{_as_of(store)}", hit.title, url, passage_of(body, terms, limit=2 * _PASSAGE_CHARS), full_text=body))
         else:
             evidence.unreadable.append(url)
 
@@ -495,7 +499,7 @@ async def gather_world_evidence(
             url = str(result.get("url") or "")
             if result.get("text"):
                 evidence.read.append(url)
-            candidates.append(WorldSource("web", str(result.get("title") or url), url, passage_of(text, terms)))
+            candidates.append(WorldSource("web", str(result.get("title") or url), url, passage_of(text, terms), full_text=text))
         evidence.sources.extend(_judge(asked_for or question, candidates, solicited=True)[:_PAGES_PER_SEARCH])
         if asked.decided_by == "instruction":
             from core.language.search_request import teach_from_the_floor

@@ -26,6 +26,8 @@ for a quantity.
 """
 from __future__ import annotations
 
+import inspect
+
 import pytest
 
 from core.conversation.response_reliability import (
@@ -115,15 +117,16 @@ def test_the_cognitive_engine_path_also_consults_it() -> None:
     """
 
     chat = chat_lane_source()
-    # Imported where the engine path assesses its reply...
+    # Called where the engine path assesses its reply...
     block = chat[chat.index("            is_status_check_turn,") :]
     block = block[: block.index("_is_explicit_capability_inventory_request(visible)")]
-    assert "numeric_answer_missing," in block, "the engine path must import the floor"
-    assert "if numeric_answer_missing(visible, text):" in block, (
-        "the engine path must apply the floor to its own reply"
-    )
-    # ...and the reply is replaced rather than served.
-    assert "I didn't actually work that out" in block
+    assert "_chat_reply_checks.checked_reply(" in block, "the engine path must run the reply checks"
+    # ...which apply the floor and replace the reply rather than serve it.
+    import interface.routes.chat_reply_checks as checks
+
+    source = inspect.getsource(checks.checked_reply)
+    assert "if numeric_answer_missing(visible, text):" in source
+    assert "I didn't actually work that out" in source
 
 
 def test_the_serving_gate_consults_it_before_the_arithmetic_verdict() -> None:

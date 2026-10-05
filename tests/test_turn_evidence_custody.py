@@ -202,3 +202,19 @@ async def test_transcript_follows_legitimate_children_but_not_other_turns() -> N
     assert custody.transcript() is None
     with bind_turn_evidence_custody(session_id="s", turn_id="next"):
         assert turn_transcript() is None
+
+
+def test_a_source_read_for_the_turn_is_kept_whole_and_only_for_that_turn() -> None:
+    """The passage she is shown is chosen by the question; checks on her reply read the whole page."""
+    from core.conversation.turn_evidence_custody import record_turn_world_source, turn_world_sources
+    from core.conversation.what_the_world_says import WorldSource
+
+    page = WorldSource("web", "Kaseya Center", "https://example.org/k", "the passage", full_text="the whole page " * 50)
+    with bind_turn_evidence_custody(session_id="s", turn_id="t1"):
+        assert record_turn_world_source(page)
+        assert record_turn_world_source(page)  # once is enough
+        assert turn_world_sources() == (
+            {"origin": "web", "title": "Kaseya Center", "location": "https://example.org/k", "text": page.full_text},
+        )
+    with bind_turn_evidence_custody(session_id="s", turn_id="t2"):
+        assert turn_world_sources() == ()

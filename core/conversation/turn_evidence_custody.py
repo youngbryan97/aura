@@ -53,12 +53,14 @@ __all__ = [
     "record_turn_transcript",
     "record_turn_sensory_evidence",
     "record_turn_world_evidence",
+    "record_turn_world_source",
     "turn_capability_availability",
     "turn_model_generations",
     "turn_grounding_evidence",
     "turn_transcript",
     "turn_sensory_evidence",
     "turn_world_evidence",
+    "turn_world_sources",
 ]
 
 
@@ -89,6 +91,7 @@ class TurnEvidenceCustody:
         self._receipts: list[dict[str, Any]] = []
         self._grounding: list[str] = []
         self._world_evidence: list[str] = []
+        self._world_sources: list[dict[str, str]] = []
         self._transcript: tuple[tuple[str, str], ...] | None = None
         self._sensory_evidence: dict[str, dict[str, Any]] = {}
         self._generations: list[dict[str, Any]] = []
@@ -230,6 +233,35 @@ class TurnEvidenceCustody:
             return ()
         with self._lock:
             return tuple(self._world_evidence)
+
+    def append_world_source(self, source: Any) -> bool:
+        """Keep one source read for this turn whole, for checks on what her reply says."""
+
+        if not self.admits_current_execution():
+            return False
+        get = source.get if isinstance(source, dict) else (lambda key, default="": getattr(source, key, default))
+        kept = {
+            "origin": str(get("origin", "") or ""),
+            "title": str(get("title", "") or ""),
+            "location": str(get("location", "") or ""),
+            "text": str(get("full_text", "") or get("text", "") or "")[:60_000],
+        }
+        if not kept["text"].strip():
+            return False
+        with self._lock:
+            if self._closed:
+                return False
+            if kept not in self._world_sources and len(self._world_sources) < 12:
+                self._world_sources.append(kept)
+            return True
+
+    def world_sources(self) -> tuple[dict[str, str], ...]:
+        """The sources read for this turn, each with its whole text."""
+
+        if not self.admits_current_execution():
+            return ()
+        with self._lock:
+            return tuple(dict(source) for source in self._world_sources)
 
     def record_transcript(self, exchanges: Any) -> bool:
         """Keep the admitted dialogue unchanged across model handoffs."""
@@ -399,6 +431,20 @@ def turn_world_evidence() -> tuple[str, ...]:
 
     custody = current_turn_evidence_custody()
     return custody.world_evidence() if custody is not None else ()
+
+
+def record_turn_world_source(source: Any) -> bool:
+    """Keep one source read for the active turn whole (its full text, not the passage shown)."""
+
+    custody = current_turn_evidence_custody()
+    return bool(custody and custody.append_world_source(source))
+
+
+def turn_world_sources() -> tuple[dict[str, str], ...]:
+    """The sources read for the current exact turn, each with its whole text."""
+
+    custody = current_turn_evidence_custody()
+    return custody.world_sources() if custody is not None else ()
 
 
 def record_turn_transcript(exchanges: Any) -> bool:

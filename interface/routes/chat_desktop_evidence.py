@@ -1183,7 +1183,8 @@ async def _what_the_world_says_for_the_turn(
         found = _pages_from_search(contracted.get("result"))
         evidence.sources = [
             WorldSource("web", str(page.get("title") or page.get("url")), str(page.get("url") or ""),
-                        passage_of(str(page.get("text") or page.get("snippet") or "")))
+                        passage_of(str(page.get("text") or page.get("snippet") or "")),
+                        full_text=str(page.get("text") or page.get("snippet") or ""))
             for page in found
         ] + evidence.sources
         evidence.searched.append(str(contracted.get("query") or user_message))
@@ -1198,6 +1199,10 @@ async def _what_the_world_says_for_the_turn(
     logger.info("🌍 What the world says for this turn: %s", evidence.to_dict())
     if not rendered:
         return contracted, effective_user_message
+    from core.conversation.turn_evidence_custody import record_turn_world_source
+
+    for source in evidence.sources:  # whole, for checking what her reply says against them
+        record_turn_world_source(source)
     completed = contracted
     if ran:
         result = ran["result"]
