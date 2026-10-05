@@ -299,7 +299,10 @@ class WhichIsHers:
         # paddles); neither is under it, which is what _follows asks.
         nearest: dict[int, Any] = {}
         for thing in moves.things.values():
-            if thing.seen != at:
+            # Only what moves can follow anything. Of a column of identical
+            # still things (the dashes of a net), the one nearest a pointer
+            # swept up and down rises and falls with it (LIVE 2026-10-04).
+            if thing.seen != at or not thing.moved:
                 continue
             best = nearest.get(thing.kind)
             if best is None or math.dist((thing.x, thing.y), pointer) < math.dist((best.x, best.y), pointer):

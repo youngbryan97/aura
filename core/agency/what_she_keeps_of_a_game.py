@@ -41,7 +41,7 @@ def to_keep(keep: dict[str, Any]) -> dict[str, Any]:
         held["evidence"] = {
             str(kind): [
                 round(e.touch_sum, 3), round(e.shoot, 3), e.touched, e.passed, e.shot,
-                round(e.pass_sum, 3), e.touches_settled, e.passes_settled,
+                round(e.pass_sum, 3), e.touches_settled, e.passes_settled, e.immediate,
             ]
             for kind, e in meeting.evidence.items()
         }

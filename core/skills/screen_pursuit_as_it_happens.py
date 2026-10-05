@@ -77,7 +77,10 @@ class PlayingAsItHappens:
 
         clip = await self._where()
         try:
-            data = await self.page.screenshot(clip=clip, type="jpeg", quality=80)
+            # At the page's own pixels: on a high-density screen a picture
+            # at device pixels is four times the size for the same view, and
+            # live play ran at thirteen pictures a second (2026-10-04).
+            data = await self.page.screenshot(clip=clip, type="jpeg", quality=80, scale="css")
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return None
         at = time.monotonic()
@@ -180,7 +183,14 @@ class PlayingAsItHappens:
         if not self.keep and not self.recalled:
             self.recalled = True
             self.keep.update(_what_she_kept_of(self.page))
-        keys, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]))
+        named, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]))
+        # The game's controls are every key any of its screens has named, not
+        # only this screen's: LIVE 2026-10-04 a run begun from the end screen
+        # ("Press SPACE to play again") was played with space alone, and the
+        # arrows the title screen had named were never pressed.
+        keys = list(dict.fromkeys([*(self.keep.get("named_keys") or []), *named]))
+        pointer_first = pointer_first or bool(self.keep.get("pointer_named"))
+        self.keep["named_keys"], self.keep["pointer_named"] = keys, pointer_first
         logger.info("it moves on its own: playing it as it happens with %s%s", keys, " and the pointer" if pointer_first else "")
         stretch = await play_as_it_happens(
             self.look, self, keys=keys, seconds=min(STRETCH_S, self.ends_at - now),

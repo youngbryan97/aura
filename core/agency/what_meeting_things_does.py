@@ -180,6 +180,8 @@ class _Evidence:
     pass_sum: float = 0.0
     touches_settled: int = 0
     passes_settled: int = 0
+    #: Touches followed at once by a loss: a cost that is the meeting's own.
+    immediate: int = 0
 
     @property
     def meet(self) -> float:
@@ -313,6 +315,8 @@ class WhatMeetingDoes:
             if event["what"] == "touched":
                 kept.touch_sum += better
                 kept.touches_settled += 1
+                if any(v["what"] == "loss" and 0.0 <= v["at"] - event["at"] <= AT_ONCE_S for v in self.verdicts):
+                    kept.immediate += 1
             elif event["what"] == "passed":
                 kept.pass_sum += better
                 kept.passes_settled += 1
@@ -462,7 +466,7 @@ class WhatMeetingDoes:
             return MEET
         if kept.shoot >= 0.5:
             return SHOOT
-        if kept.meet <= -0.6:
+        if kept.meet <= -0.6 and _a_cost_shown(kept):
             return AVOID
         if fixture and kept.touched >= 2 and kept.meet < 0.5:
             return IGNORE
@@ -478,7 +482,7 @@ class WhatMeetingDoes:
         kept = self.evidence.get(kind)
         if kept is None:
             return False
-        return kept.meet <= -0.6 or kept.shoot >= 0.5 or (kept.meet >= 0.5 and kept.touches_settled >= 3)
+        return (kept.meet <= -0.6 and _a_cost_shown(kept)) or kept.shoot >= 0.5 or (kept.meet >= 0.5 and kept.touches_settled >= 3)
 
 
 def _close(a: tuple[float, float, float, float], b: tuple[float, float, float, float], margin: float) -> bool:
@@ -514,3 +518,20 @@ def _inside(thing: Any, mine: Any) -> bool:
     """Whether a thing's middle is within her box."""
     left, top, right, bottom = mine.box()
     return left <= thing.x <= right and top <= thing.y <= bottom
+
+
+#: How soon after a touch a loss is the touch's own doing.
+AT_ONCE_S = 0.5
+
+
+def _a_cost_shown(kept: _Evidence) -> bool:
+    """Whether meeting a kind is shown to cost: at once, or against letting it by.
+
+    A cost is believed at once when it comes at once: a bomb takes a life as
+    it is touched. A loss that comes later, after a ball met and sent away
+    came back and got by, is only evidence against meeting it when letting it
+    by has been seen to do better. LIVE 2026-10-04, six seconds into a game,
+    one return followed by a lost point and nothing yet let by taught her to
+    dodge the ball.
+    """
+    return kept.immediate > 0 or kept.passes_settled > 0

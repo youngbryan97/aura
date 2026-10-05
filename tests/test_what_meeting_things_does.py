@@ -134,3 +134,11 @@ def test_meeting_a_ball_that_costs_only_sometimes_beats_letting_it_by_that_costs
         at += 5.0
     meeting._settle(at + 10.0)
     assert meeting.stance(7) == MEET
+
+
+def test_a_loss_long_after_a_return_does_not_make_a_ball_a_thing_to_dodge():
+    """Nothing let by yet, and the loss not at the touch: no grounds to keep clear of it."""
+    meeting = WhatMeetingDoes()
+    _settled(meeting, "touched", 5.0, {"what": "loss", "at": 6.2, "since": 4.6})
+    assert meeting.evidence[7].meet < 0
+    assert meeting.stance(7) == MEET

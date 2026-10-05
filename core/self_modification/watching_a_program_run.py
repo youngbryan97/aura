@@ -100,7 +100,7 @@ async def _look(page: Any, clip: dict[str, float]) -> tuple[Any, float] | None:
     from core.perception.picture_arithmetic import decode
 
     try:
-        data = await page.screenshot(clip=clip, type="jpeg", quality=80)
+        data = await page.screenshot(clip=clip, type="jpeg", quality=80, scale="css")
     except Exception:  # noqa: BLE001 - a page that cannot be photographed ends the watch
         return None
     picture = decode(data)
