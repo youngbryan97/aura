@@ -1123,12 +1123,13 @@ async def _what_the_world_says_for_the_turn(
         outside = should_collect or wants_outside_evidence(user_message)
     except _CHAT_RECOVERABLE_ERRORS:
         outside = should_collect
-    previous = ""
+    previous = previous_reply = ""
     try:
         recent = await _chat_memory_state._recent_completed_conversation_exchanges(
             current_user_message=user_message, session_id=session_id, limit=1, allow_cross_session=False,
         )
         previous = str((recent[-1] if recent else {}).get("user") or "")
+        previous_reply = str((recent[-1] if recent else {}).get("aura") or "")
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.world_evidence", exc, severity="info", action="read the request without the one before it")
     ran: dict[str, Any] = {}
@@ -1155,9 +1156,14 @@ async def _what_the_world_says_for_the_turn(
     # read by the language substrate, whose query leaves the instruction out
     # and whose search keeps what it read; the contract's own reading searched
     # "it. Bam had an 83 point game" and kept nothing (LIVE 2026-10-03).
-    from core.language.search_request import read_search_request
+    from core.language.search_request import asks_about_grounds, read_search_request
 
-    instructed = read_search_request(user_message, previous).decided_by == "instruction"
+    # A question about her grounds is read the same way: what it checks is
+    # the claim it points at in her last answer, not its own words
+    # (core/conversation/what_the_world_says.py, claim_asked_about).
+    instructed = read_search_request(user_message, previous).decided_by == "instruction" or bool(
+        previous_reply and asks_about_grounds(user_message) is True
+    )
     contracted = (
         await _collect_desktop_required_search_evidence(user_message, session_id=session_id)
         if should_collect and not instructed else None
@@ -1166,6 +1172,7 @@ async def _what_the_world_says_for_the_turn(
         evidence = await gather_world_evidence(
             user_message, previous_request=previous, fetch=_read_a_page,
             search=None if contracted else search, outside_wanted=outside, read_since=turn_began,
+            previous_reply=previous_reply,
         )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.world_evidence", exc, severity="warning", action="answered without looking anything up")

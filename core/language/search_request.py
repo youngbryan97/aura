@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "SearchRequest",
+    "asks_about_grounds",
     "asks_to_find_out",
     "asks_what_was_found",
     "read_search_request",
@@ -159,6 +160,59 @@ _FOUND_QUESTION = re.compile(
 )
 
 
+#: A question about how she knows what she just said: how sure she is, where
+#: it came from, what her source was. LIVE 2026-10-04 "How sure are you about
+#: the FTX part, and where did that come from?" went to a web search as
+#: written and came back with stories about the exchange's collapse; the page
+#: her answer had been read from was not looked at again.
+_ASKS_ABOUT_GROUNDS = LearnedMatcher(
+    name="asks_about_her_grounds",
+    positives=(
+        "how sure are you about that?",
+        "where did that come from?",
+        "what's your source for that",
+        "how do you know that?",
+        "are you sure about the date?",
+        "can you back that up?",
+        "did you make that up?",
+        "says who?",
+    ),
+    negatives=(
+        "how are you feeling today?",
+        "where did you grow up?",
+        "what is the source of the Nile?",
+        "google it",
+        "what did you learn",
+        "how reliable is the weather forecast for tomorrow?",
+        "tell me a story about a dragon",
+        "what is 7919 times 6421?",
+    ),
+    features=model_hidden_features,
+)
+
+#: The grammar floor for it: her certainty, or where something she said came
+#: from, with her or what she said as the subject.
+_GROUNDS_QUESTION = re.compile(
+    r"\b(?:how\s+(?:sure|certain|confident)\s+are\s+you"
+    r"|are\s+you\s+(?:sure|certain|positive)(?=\s*[?.!,]|\s*$|\s+(?:about|of|that)\b)"
+    r"|where\s+did\s+(?:that|this|it|the\s+\w+(?:\s+\w+)?)\s+come\s+from"
+    r"|where\s+did\s+you\s+(?:get|read|find|hear)\s+(?:that|this|it)"
+    r"|what(?:'s|’s|\s+is|\s+was|\s+are|\s+were)\s+your\s+sources?"
+    r"|how\s+do\s+you\s+know(?:\s+(?:that|this|it))?\s*[?.!]*$)",
+    re.IGNORECASE,
+)
+
+
+def asks_about_grounds(text: str) -> bool | None:
+    """Whether ``text`` asks how she knows what she said; None when neither reader can tell."""
+    message = str(text or "").strip()
+    if not message:
+        return False
+    if _GROUNDS_QUESTION.search(message):
+        return True
+    return _ASKS_ABOUT_GROUNDS.decide_without_waiting(message)
+
+
 def asks_what_was_found(text: str) -> bool | None:
     """Whether ``text`` asks what a lookup found; None when neither reader can tell."""
     message = str(text or "").strip()
@@ -228,6 +282,8 @@ def teach_from_the_floor(text: str) -> None:
     try:
         if _FOUND_QUESTION.match(message):
             _ASKS_WHAT_WAS_FOUND.observe(message, holds=True)
+        elif _GROUNDS_QUESTION.search(message):
+            _ASKS_ABOUT_GROUNDS.observe(message, holds=True)
         elif read_search_request(message).decided_by == "instruction":
             _FINDS_OUT.observe(message, holds=True)
     except (RuntimeError, TypeError, ValueError) as exc:

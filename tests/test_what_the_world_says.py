@@ -400,3 +400,77 @@ def test_what_this_turn_kept_is_not_read_back_as_another_source(monkeypatch, tmp
     )
 
     assert [source.origin.split(",")[0] for source in evidence.sources] == ["offline Wikipedia"]
+
+
+_OPENING_REPLY = (
+    "December 31, 1999. It opened with a Gloria Estefan concert — New Year's Eve as the launch night. "
+    "The naming rights history is messier than the opening date: American Airlines Arena first, then "
+    "FTX Arena after they bought it for $135 million in 2022 — a deal that lasted barely two months."
+)
+
+
+def test_a_question_about_her_grounds_is_checked_against_the_claim_it_points_at(judge) -> None:
+    """LIVE 2026-10-04: "How sure are you about the FTX part?" searched the web for the question itself."""
+    from core.conversation.what_the_world_says import claim_asked_about
+
+    question = "How sure are you about the FTX part, and where did that come from?"
+    claim = claim_asked_about(question, _OPENING_REPLY, "When did the Kaseya Center open?")
+    assert claim == (
+        "Kaseya Center open: American Airlines Arena first, then FTX Arena after they bought it for "
+        "$135 million in 2022"
+    )
+    # Naming nothing puts the whole answer in question.
+    assert claim_asked_about("Where did that come from?", _OPENING_REPLY, "When did the Kaseya Center open?") == (
+        "When did the Kaseya Center open?"
+    )
+
+    asked: list[str] = []
+
+    async def search(query):
+        asked.append(query)
+        return []
+
+    asyncio.run(gather_world_evidence(
+        question, store=_Corpus(), search=search,
+        previous_request="When did the Kaseya Center open?", previous_reply=_OPENING_REPLY,
+    ))
+    assert asked == [claim]
+
+
+def test_her_grounds_bring_back_what_the_answer_was_read_from(judge, monkeypatch) -> None:
+    from core.conversation import what_the_world_says
+    from core.conversation.what_the_world_says import (
+        WorldEvidence,
+        WorldSource,
+        answer_from_earlier_reading,
+        remember_reading,
+    )
+
+    monkeypatch.setattr(what_the_world_says, "_last_read", what_the_world_says.OrderedDict())
+    remember_reading("session-a", WorldEvidence(sources=[
+        WorldSource("web", "Kaseya Center - Wikipedia", "https://en.wikipedia.org/wiki/Kaseya_Center",
+                    "FTX acquired the naming rights in 2021; the arena was renamed in January 2023."),
+    ]))
+    this_turn = WorldEvidence(sources=[WorldSource("web", "FTX overview", "https://example.com/ftx", "FTX was an exchange.")])
+
+    assert answer_from_earlier_reading(this_turn, "How sure are you about the FTX part?", "session-a")
+    assert [source.origin for source in this_turn.sources] == [
+        "read for the answer being asked about (web)", "web",
+    ]
+    # A question about what was found still takes them only when the turn found nothing.
+    assert not answer_from_earlier_reading(this_turn, "What did you learn?", "session-a")
+
+
+def test_the_grammar_reads_a_question_about_her_grounds() -> None:
+    from core.language.search_request import asks_about_grounds
+
+    for question in (
+        "How sure are you about the FTX part, and where did that come from?",
+        "Where did that come from?",
+        "What's your source?",
+        "How do you know that?",
+        "Are you sure about the date?",
+    ):
+        assert asks_about_grounds(question) is True, question
+    for other in ("What is the source of the Nile?", "Where did you grow up?", "Are you sure you want to delete it?"):
+        assert asks_about_grounds(other) is not True, other

@@ -150,28 +150,69 @@ def remember_reading(session_id: str, evidence: WorldEvidence) -> None:
 
 
 def answer_from_earlier_reading(evidence: WorldEvidence, request: str, session_id: str) -> bool:
-    """Give a question about what was found the sources the last lookup read.
+    """Give a question about what was found, or about her grounds, the sources the last lookup read.
 
-    Only when this turn found nothing of its own, and the language substrate
-    reads the request as asking what was found (core/language/search_request.py).
+    The language substrate (core/language/search_request.py) reads the
+    request. A question about what was found takes them when this turn found
+    nothing of its own. A question about her grounds ("how sure are you about
+    that?") takes them first whatever this turn found, because they are what
+    the answer in question was read from; LIVE 2026-10-04 they were not looked
+    at again, and the turn read five pages about something else.
     """
-    if evidence.sources or not session_id:
+    if not session_id:
         return False
-    from core.language.search_request import asks_what_was_found
+    from core.language.search_request import asks_about_grounds, asks_what_was_found
 
-    if asks_what_was_found(request) is not True:
+    grounds = asks_about_grounds(request) is True
+    if not grounds and (evidence.sources or asks_what_was_found(request) is not True):
         return False
     with _last_read_lock:
         earlier = _last_read.get(session_id, ())
-    evidence.sources = [
-        WorldSource(f"read for an earlier turn ({source.origin})", source.title, source.location, source.text, source.score)
+    label = "read for the answer being asked about" if grounds else "read for an earlier turn"
+    evidence.sources = _within_the_evidence_budget([
+        WorldSource(f"{label} ({source.origin})", source.title, source.location, source.text, source.score)
         for source in earlier
-    ]
+    ] + evidence.sources)
     if evidence.sources:
         from core.language.search_request import teach_from_the_floor
 
         teach_from_the_floor(request)
     return bool(evidence.sources)
+
+
+#: Where one claim in an answer ends and the next begins.
+_BETWEEN_CLAIMS = re.compile(r"(?<=[.!?])\s+|\s*[;:—–]\s*")
+
+
+def claim_asked_about(request: str, previous_reply: str, previous_request: str = "") -> str:
+    """The part of her last answer that a question about her grounds points at, as a query.
+
+    The clauses that carry a name the question uses ("the FTX part" names FTX),
+    after what was asked about when the clause does not say it ("It opened
+    with a Gloria Estefan concert" is about the Kaseya Center). A question
+    that names nothing ("where did that come from?") puts the whole answer in
+    question, and the query is what was asked.
+    """
+    named = {
+        word.lower()
+        for phrase in referent_phrases(request)
+        for word in phrase.split()
+        if word[:1].isupper() or word.isdigit()
+    }
+    if named:
+        clauses = [
+            clause.strip(" .!?")
+            for clause in _BETWEEN_CLAIMS.split(str(previous_reply or ""))
+            if named & {word.lower() for word in re.findall(r"[A-Za-z0-9][A-Za-z0-9'’-]*", clause)}
+        ]
+        if clauses:
+            claim = " ".join(clauses)
+            topic = " ".join(referent_phrases(previous_request))
+            said = {word.lower() for word in claim.split()}
+            if topic and not {word.lower() for word in topic.split()} <= said:
+                claim = f"{topic}: {claim}"
+            return claim[:300]
+    return str(previous_request or "").strip()
 
 
 def links_in(request: str) -> list[str]:
@@ -377,6 +418,7 @@ async def gather_world_evidence(
     outside_wanted: bool = False,
     deadline_s: float = 45.0,
     read_since: float = 0.0,
+    previous_reply: str = "",
 ) -> WorldEvidence:
     """Read what the request names, from the page sent, a search asked for, or the offline corpus.
 
@@ -421,6 +463,13 @@ async def gather_world_evidence(
 
     asked = read_search_request(request, previous_request)
     asked_for = asked.query if asked.about_the_world and asked.query else None
+    if asked_for is None and previous_reply:
+        from core.language.search_request import asks_about_grounds
+
+        if asks_about_grounds(question) is True:
+            # Checked against the world: what the question points at in her
+            # last answer, not the question's own words.
+            asked_for = claim_asked_about(question, previous_reply, previous_request) or None
     local = _judge(
         question,
         await asyncio.to_thread(
@@ -452,16 +501,20 @@ async def gather_world_evidence(
 
             teach_from_the_floor(question)
 
+    evidence.sources = _within_the_evidence_budget(evidence.sources)
+    evidence.seconds = time.monotonic() - started
+    return evidence
+
+
+def _within_the_evidence_budget(sources: Sequence[WorldSource]) -> list[WorldSource]:
     total = 0
     kept: list[WorldSource] = []
-    for source in evidence.sources:
+    for source in sources:
         if total + len(source.text) > _EVIDENCE_CHARS and kept:
             break
         kept.append(source)
         total += len(source.text)
-    evidence.sources = kept
-    evidence.seconds = time.monotonic() - started
-    return evidence
+    return kept
 
 
 __all__ = [
@@ -469,6 +522,7 @@ __all__ = [
     "WorldEvidence",
     "WorldSource",
     "answer_from_earlier_reading",
+    "claim_asked_about",
     "gather_world_evidence",
     "links_in",
     "passage_of",
