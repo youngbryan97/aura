@@ -48,7 +48,7 @@ class Step(BaseModel):
 class Expectation(BaseModel):
     see: Literal[
         "text", "no_text", "style", "element", "count", "download", "dialog", "value", "printed",
-        "text_after_reopen", "name",
+        "text_after_reopen", "name", "moving", "watched",
     ]
     target: str = Field(default="", max_length=200)
     property: str = Field(default="", max_length=60)
@@ -347,12 +347,51 @@ class _Doing:
         if e.see == "name":
             got = await page.evaluate("app.name")
             return str(got).strip().lower() == e.value.strip().lower(), f"the document is named {got!r}"
+        if e.see == "moving":
+            first = await _a_picture_of(page, e.target)
+            await page.wait_for_timeout(600)
+            second = await _a_picture_of(page, e.target)
+            return bool(first) and first != second, "the picture changed" if first != second else "the picture stood still"
+        if e.see == "watched":
+            # A game's behaviour, watched the way she watches any game
+            # (core/self_modification/watching_a_program_run.py): the keys move
+            # what is hers as they are named ("controls"), things turn back off
+            # her ("went through"), a miss counts for the right side
+            # ("credited"), nothing escapes ("escaped"), the other side acts ("idle").
+            from core.self_modification.watching_a_program_run import what_it_does
+
+            words = str(await page.evaluate("document.body.innerText") or "")
+            keys = [k for k in ("up", "down", "left", "right", "space") if k in words.lower()] or ["up", "down", "left", "right"]
+            seen = await what_it_does(page, page.url, words=words, keys=keys, seconds=8.0)
+            wanted = e.target.strip().lower() or "controls"
+            return wanted in seen.right, f"watched it play: right {sorted(seen.right)}, wrong {seen.findings}"
         if e.see == "text_after_reopen":
             await reopen()
             shown = await page.evaluate("window.__checks.bodyText()")
             want = " ".join((e.target or e.value).lower().split())
             return want in shown, f"after reopening the page shows {shown[:200]!r}"
         return False, f"cannot look for {e.see}"
+
+
+async def _a_picture_of(page: Any, target: str) -> str:
+    """What ``target`` (else the largest canvas, else the work area) shows now, as a picture's bytes in text."""
+    shown = await page.evaluate(
+        """(t) => { let el = null; try { el = t ? document.querySelector(t) : null; } catch (e) { el = null; }
+          if (!el) { let area = 0; for (const c of document.querySelectorAll('canvas')) { const r = c.getBoundingClientRect();
+            if (r.width * r.height > area) { area = r.width * r.height; el = c; } } }
+          if (el && el.tagName === 'CANVAS') { try { return el.toDataURL('image/png'); } catch (e) { return ''; } }
+          return ''; }""",
+        target,
+    )
+    if shown:
+        return str(shown)
+    place = page.locator(target or "#app-work").first
+    return (await place.screenshot(timeout=3000)).hex() if await place.count() else ""
+
+
+def _time_for(check: Check) -> float:
+    """How long a check may take: watching a game play is most of a minute."""
+    return CHECK_S + 45.0 * sum(1 for e in check.expect if e.see == "watched")
 
 
 async def _one(context: Any, url: str, check: Check) -> CheckRun:
@@ -401,9 +440,9 @@ async def run_checks(path: str | Path, checks: list[Check], *, browser: Any = No
         async def bounded(check: Check) -> CheckRun:
             async with gate:
                 try:
-                    return await asyncio.wait_for(_one(context, url, check), timeout=CHECK_S)
+                    return await asyncio.wait_for(_one(context, url, check), timeout=_time_for(check))
                 except TimeoutError:
-                    return CheckRun(check, False, f"took longer than {CHECK_S:.0f}s")
+                    return CheckRun(check, False, f"took longer than {_time_for(check):.0f}s")
 
         try:
             return list(await asyncio.gather(*(bounded(c) for c in checks)))

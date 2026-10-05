@@ -224,6 +224,11 @@ What is seen ("see"):
   printed             printing was asked for
   text_after_reopen   after the program is closed and opened again, the text target is shown
   name                the document is named value
+  moving              the picture (CSS selector target, else the largest canvas) changes on its own: a game runs
+  watched             a game is watched as it plays and target is seen right: "controls" (the keys move what the
+                      player controls the way they are named), "went through" (things turn back off the player
+                      rather than pass through), "credited" (a miss counts for the right side), "escaped" (nothing
+                      leaves the play without counting), "idle" (the other side moves and plays)
 Controls are named by what a person reads on them: "Bold", "Insert Table", "Save".
 Each check starts from a fresh, empty program, so it types what it needs first."""
 
