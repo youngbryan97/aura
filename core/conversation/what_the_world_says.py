@@ -45,7 +45,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-import threading
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Sequence
@@ -53,6 +52,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from core.runtime.lockdep import checked_lock
 from core.utils.readable_text import SENTENCE_END as _SENTENCE_END
 from core.utils.readable_text import prose_paragraphs as _prose_paragraphs
 
@@ -135,7 +135,7 @@ class WorldEvidence:
 
 
 _last_read: OrderedDict[str, tuple[WorldSource, ...]] = OrderedDict()
-_last_read_lock = threading.Lock()
+_last_read_lock = checked_lock("core.conversation.what_the_world_says.last_read")
 
 
 def remember_reading(session_id: str, evidence: WorldEvidence) -> None:
