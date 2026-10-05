@@ -402,3 +402,22 @@ def test_an_answer_that_only_overruns_a_bound_is_cut_to_it_and_kept():
 
     got = asyncio.run(ask_her_model("write checks", _Checks, 100, router=_Router()))
     assert isinstance(got, _Checks) and len(got.checks) == 2 and len(got.checks[1].rule) == 300
+
+
+def test_a_part_cut_off_by_an_answers_length_is_continued_to_its_end():
+    """LIVE 2026-10-05 the serving lane admitted 1536 tokens an answer, and a longer part came back cut off every time."""
+    import asyncio
+
+    from core.rebuilding.writing_it_part_by_part import _write
+
+    whole = 'app.command({label: "Bold", icon: "B", run: () => { document.execCommand("bold"); app.changed(); }});'
+    asked: list[str] = []
+
+    async def ask(prompt, schema, max_tokens):
+        asked.append(prompt)
+        if "cut off before it ended" in prompt:
+            return WrittenPart(code='{ document.execCommand("bold"); app.changed(); }});')  # repeats a little of the end, then goes on
+        return WrittenPart(code=whole[:60])
+
+    written = asyncio.run(_write(ask, "write Bold"))
+    assert written.code == whole and len(asked) == 2

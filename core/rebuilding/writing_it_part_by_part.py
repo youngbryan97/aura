@@ -158,7 +158,55 @@ async def _write(ask: Asker, prompt: str) -> WrittenPart | None:
     code = written.code.strip()
     if code.startswith("```"):
         code = code.split("\n", 1)[-1].rsplit("```", 1)[0]
-    return written.model_copy(update={"code": code})
+    return written.model_copy(update={"code": await _to_its_end(ask, code)})
+
+
+#: How many times a part cut off by the length of one answer is continued.
+CONTINUATIONS = 3
+
+
+async def _to_its_end(ask: Asker, code: str) -> str:
+    """``code``, continued where an answer's length cut it off, until it parses to its end.
+
+    A part longer than one answer of her model came back cut off, did not
+    parse, and was asked for again, and came back cut off again: the serving
+    lane admits so many tokens an answer (1536, LIVE 2026-10-05). A person
+    writing something long goes on from where they stopped.
+    """
+    for _ in range(CONTINUATIONS):
+        if not await _cut_off(code):
+            break
+        more = await ask(
+            f"This part of a program was cut off before it ended:\n```js\n{code[-6000:]}\n```\n"
+            "Write only what comes after its last character, to the end of the part.", WrittenPart, PART_TOKENS,
+        )
+        if not isinstance(more, WrittenPart) or not more.code.strip():
+            break
+        code += _past_the_overlap(code, more.code)
+    return code
+
+
+async def _cut_off(code: str) -> bool:
+    """Whether ``code`` stops before its end: compiled alone, with nothing around it to close what it left open, it runs out mid-way."""
+    try:
+        process = await asyncio.create_subprocess_exec(
+            "node", "-e", "try { new (require('vm').Script)(require('fs').readFileSync(0, 'utf8')); } catch (e) { process.stdout.write(String(e.message)); }",
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+    except OSError:
+        return False
+    said, _err = await process.communicate(code.encode())
+    return "end of input" in said.decode("utf-8", "ignore").lower() or "unterminated" in said.decode("utf-8", "ignore").lower()
+
+
+def _past_the_overlap(code: str, more: str) -> str:
+    """What ``more`` adds after ``code``, when it begins by repeating code's last characters."""
+    if more.startswith("```"):
+        more = more.split("\n", 1)[-1].rsplit("```", 1)[0]
+    for size in range(min(len(code), len(more), 400), 8, -1):
+        if code.endswith(more[:size]):
+            return more[size:]
+    return more
 
 
 async def _does_not_parse(code: str) -> str:
