@@ -63,6 +63,7 @@ from core.conversation.response_reliability import (
     is_self_process_question,
     requested_output_contract,
 )
+from core.conversation.session_scope import the_persons_own_words
 from core.conversation.surface_disposition import COMPLETION_REASONS
 from core.conversation.user_surface_contract import (
     bind_user_surface_prompt,  # noqa: F401  (read at call time by the lifted module)
@@ -3715,7 +3716,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         if maximum is not None and value > maximum:
             return float(maximum)
         return value
-
 
 
     #: One RAM reading shared by everything that asks within this window.
@@ -8590,13 +8590,9 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
         deep_probe_request = False
         try:
-            from core.conversation.session_scope import the_persons_own_words
             from core.runtime.turn_analysis import looks_like_deep_mind_probe
 
-            # The person's words, not the prompt built around them: LIVE
-            # 2026-10-05 a repair request's prompt carried a history of talk
-            # about her mind, read as a probe of it, and its tools were taken away.
-            deep_probe_request = looks_like_deep_mind_probe(the_persons_own_words(prompt))
+            deep_probe_request = looks_like_deep_mind_probe(the_persons_own_words(prompt))  # not her scaffold (LIVE 10-05)
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
             logger.debug("Deep-probe classifier unavailable, not treating it as one: %s", exc)
             deep_probe_request = False
