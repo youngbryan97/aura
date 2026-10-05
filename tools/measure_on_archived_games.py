@@ -11,6 +11,7 @@ pursuit would think in words are decided without them.
 
     python tools/measure_on_archived_games.py --games 16 2 9 --minutes 6
     python tools/measure_on_archived_games.py --all --minutes 4 --out report.json
+    python tools/measure_on_archived_games.py --games 6 --minutes 5 --trace /tmp/traces
 
 Each game's report says how many runs she played, whether she won, how each
 ended in the game's own words, and what she said while playing.
@@ -80,7 +81,7 @@ ARCHIVED = {
 }
 
 
-async def _one(number: int, address: str, minutes: float, visible: bool) -> dict:
+async def _one(number: int, address: str, minutes: float, visible: bool, trace: Path | None = None) -> dict:
     from core.capabilities.phantom_browser import PhantomBrowser
     from core.skills import sovereign_browser_drawing as drawing
 
@@ -95,6 +96,16 @@ async def _one(number: int, address: str, minutes: float, visible: bool) -> dict
 
     pursuit._tell = tell
     drawing.PLAY_UNTIL_WON_S = minutes * 60.0
+    # Everything she decided and why, game by game, and the screen she ended on.
+    import logging
+
+    kept = None
+    if trace is not None:
+        trace.mkdir(parents=True, exist_ok=True)
+        kept = logging.FileHandler(trace / f"game{number}.log")
+        kept.setFormatter(logging.Formatter("%(asctime)s %(name)s %(message)s"))
+        logging.getLogger().addHandler(kept)
+        logging.getLogger().setLevel(logging.INFO)
     began = time.monotonic()
     browser = PhantomBrowser(visible=visible, browser_type="chromium", principal="owner")
     try:
@@ -107,6 +118,13 @@ async def _one(number: int, address: str, minutes: float, visible: bool) -> dict
         played = {"error": f"{type(why).__name__}: {why}"}
     finally:
         pursuit._tell = original_tell
+        if trace is not None:
+            try:
+                await browser.page.screenshot(path=str(trace / f"game{number}_end.png"))
+            except Exception:  # noqa: BLE001 - no last picture is still a result
+                pass
+            logging.getLogger().removeHandler(kept)
+            kept.close()
         await browser.close()
     return {
         "game": number,
@@ -127,6 +145,7 @@ async def main(argv: list[str]) -> list[dict]:
     parser.add_argument("--minutes", type=float, default=5.0)
     parser.add_argument("--visible", action="store_true")
     parser.add_argument("--out", default="")
+    parser.add_argument("--trace", default="", help="a folder for each game's log of decisions and its last screen")
     args = parser.parse_args(argv)
     os.environ.setdefault("AURA_BROWSER_STEALTH", "0")
     numbers = sorted(ARCHIVED) if args.all else args.games
@@ -135,7 +154,7 @@ async def main(argv: list[str]) -> list[dict]:
         if number not in ARCHIVED:
             print(json.dumps({"game": number, "error": "no archived copy that plays here"}), flush=True)
             continue
-        result = await _one(number, ARCHIVED[number], args.minutes, args.visible)
+        result = await _one(number, ARCHIVED[number], args.minutes, args.visible, Path(args.trace) if args.trace else None)
         results.append(result)
         print(json.dumps({k: result[k] for k in ("game", "minutes", "runs", "won", "error", "last_seen")}), flush=True)
     return results
