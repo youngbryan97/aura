@@ -339,9 +339,64 @@ def test_the_corpus_is_searched_at_the_conversation_lane_deadline() -> None:
     deadlines: list[float] = []
 
     class _Timed(_Corpus):
-        def search(self, query, limit=5, *, deadline_s=5.0):
+        def search(self, query, limit=5, *, deadline_s=5.0, **shelf):
             deadlines.append(deadline_s)
             return super().search(query, limit)
 
     asyncio.run(gather_world_evidence("Did Bam score 83?", store=_Timed()))
     assert deadlines and set(deadlines) == {CONVERSATION_SEARCH_DEADLINE_S}
+
+
+def _kaseya_store(tmp_path, notes: int):
+    from core.knowledge.local_corpus import LocalCorpusStore
+
+    store = LocalCorpusStore(tmp_path / "corpus.db")
+    store.add_documents([(
+        "Kaseya Center",
+        "The Kaseya Center is an arena in Miami. It opened on December 31, 1999, and the Kaseya Center "
+        "was built on Biscayne Bay. " + "The arena hosts concerts and basketball games. " * 30,
+        "wikipedia",
+    )])
+    for number in range(notes):
+        store.add_retained_document(
+            f"when did the kaseya center open {number}",
+            "[WebLearning] Query: when did the kaseya center open\nAnswer: The Kaseya Center opened in 1999.\n"
+            "Sources:\n- Kaseya Center: https://en.wikipedia.org/wiki/Kaseya_Center",
+            artifact_id=f"a{number}",
+        )
+    return store
+
+
+def _admit_everything(monkeypatch):
+    monkeypatch.setattr(
+        evidence_relevance,
+        "assess_evidence_alignments",
+        lambda question, passages: [
+            evidence_relevance.EvidenceAlignment(True, True, 0.8, 0.5, (), "stand-in") for _ in passages
+        ],
+    )
+
+
+def test_kept_notes_do_not_crowd_the_encyclopedia_out(monkeypatch, tmp_path) -> None:
+    """LIVE 2026-10-04: two kept notes took both places and the offline article was never read."""
+    _admit_everything(monkeypatch)
+    store = _kaseya_store(tmp_path, notes=3)
+
+    evidence = asyncio.run(gather_world_evidence("When did the Kaseya Center open?", store=store))
+
+    origins = [source.origin.split(",")[0] for source in evidence.sources]
+    assert "offline Wikipedia" in origins and "kept from a web search" in origins
+
+
+def test_what_this_turn_kept_is_not_read_back_as_another_source(monkeypatch, tmp_path) -> None:
+    """LIVE 2026-10-04: a search the turn ran and kept came back from the corpus as a second copy."""
+    import time
+
+    _admit_everything(monkeypatch)
+    store = _kaseya_store(tmp_path, notes=1)
+
+    evidence = asyncio.run(
+        gather_world_evidence("When did the Kaseya Center open?", store=store, read_since=time.time() - 60)
+    )
+
+    assert [source.origin.split(",")[0] for source in evidence.sources] == ["offline Wikipedia"]

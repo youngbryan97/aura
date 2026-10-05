@@ -70,6 +70,9 @@ SEARCH_DEADLINE_S = 5.0
 #: where a chat turn cannot.
 CONVERSATION_SEARCH_DEADLINE_S = 0.25
 
+#: The source of what her own web searches kept (core/search/research_pipeline.py).
+RETAINED_SOURCE = "web_retained"
+
 
 @dataclass(frozen=True)
 class CorpusHit:
@@ -189,7 +192,7 @@ class LocalCorpusStore:
 
     def add_retained_document(
         self, title: str, body: str, *, artifact_id: str,
-        source: str = "web_retained",
+        source: str = RETAINED_SOURCE,
     ) -> bool:
         """Insert one verified retained-knowledge document, deduped by
         artifact ID — the corpus grows continuously from what Aura actually
@@ -272,11 +275,14 @@ class LocalCorpusStore:
         return " OR ".join(quoted) if any_term else " ".join(quoted)
 
     def search(
-        self, query: str, limit: int = 5, *, deadline_s: float = SEARCH_DEADLINE_S
+        self, query: str, limit: int = 5, *, deadline_s: float = SEARCH_DEADLINE_S,
+        source: str = "", not_source: str = "",
     ) -> list[CorpusHit]:
         """BM25 search; AND semantics with an OR fallback pass.
 
         Never raises on malformed input; missing/empty corpus returns [].
+        ``source`` keeps only documents from that source and ``not_source``
+        leaves one out, so one shelf of the corpus cannot crowd out another.
 
         Bounded in TIME, not just in rows. The any-term fallback exists so a
         query that shares no single document still returns something, and over
@@ -305,11 +311,11 @@ class LocalCorpusStore:
         # enough that the callback is not itself the cost.
         conn.set_progress_handler(lambda: 1 if time.monotonic() > expires_at else 0, 2000)
         try:
-            rows = self._search_conn(conn, match, limit)
+            rows = self._search_conn(conn, match, limit, source=source, not_source=not_source)
             if not rows and time.monotonic() < expires_at:
                 fallback = self._fts_query(query, any_term=True)
                 if fallback and fallback != match:
-                    rows = self._search_conn(conn, fallback, limit)
+                    rows = self._search_conn(conn, fallback, limit, source=source, not_source=not_source)
             return rows
         finally:
             conn.set_progress_handler(None, 0)
@@ -317,6 +323,7 @@ class LocalCorpusStore:
 
     def _search_conn(
         self, conn: sqlite3.Connection, match: str, limit: int,
+        *, source: str = "", not_source: str = "",
     ) -> list[CorpusHit]:
         try:
             cursor = conn.execute(
@@ -330,10 +337,12 @@ class LocalCorpusStore:
                 FROM docs_fts AS f
                 JOIN docs AS d ON d.id = f.rowid
                 WHERE docs_fts MATCH ?
+                  AND (? = '' OR d.source = ?)
+                  AND (? = '' OR d.source != ?)
                 ORDER BY bm25(docs_fts)
                 LIMIT ?
                 """,
-                (match, max(1, int(limit))),
+                (match, source, source, not_source, not_source, max(1, int(limit))),
             )
             return [
                 CorpusHit(

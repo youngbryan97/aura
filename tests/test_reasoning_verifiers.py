@@ -223,7 +223,7 @@ class _FakeCorpusStore:
     def __init__(self, hits):
         self._hits = hits
 
-    def search(self, query, limit=5, *, deadline_s=None):
+    def search(self, query, limit=5, *, deadline_s=None, source="", not_source=""):
         return self._hits[:limit]
 
 

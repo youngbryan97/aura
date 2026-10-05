@@ -1115,6 +1115,7 @@ async def _what_the_world_says_for_the_turn(
     """
     from core.conversation.what_the_world_says import answer_from_earlier_reading, gather_world_evidence, remember_reading
 
+    turn_began = time.time()
     should_collect, _query, contract = _should_collect_desktop_required_search_evidence(user_message)
     try:
         from core.conversation.asks_about_the_world import wants_outside_evidence
@@ -1164,7 +1165,7 @@ async def _what_the_world_says_for_the_turn(
     try:
         evidence = await gather_world_evidence(
             user_message, previous_request=previous, fetch=_read_a_page,
-            search=None if contracted else search, outside_wanted=outside,
+            search=None if contracted else search, outside_wanted=outside, read_since=turn_began,
         )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.world_evidence", exc, severity="warning", action="answered without looking anything up")
@@ -1180,7 +1181,8 @@ async def _what_the_world_says_for_the_turn(
         ] + evidence.sources
         evidence.searched.append(str(contracted.get("query") or user_message))
         evidence.read.extend(str(page.get("url")) for page in found if page.get("text"))
-        evidence.saved = bool(contracted.get("memory_saved"))
+        # Saved when asked, or kept by the pipeline's own rule (retain=None).
+        evidence.saved = bool(contracted.get("memory_saved") or dict(contracted.get("result") or {}).get("retained"))
     if ran:  # retain above: the pipeline reports whether her memory kept what it read
         evidence.saved = evidence.saved or bool(ran["result"].get("retained"))
     if not answer_from_earlier_reading(evidence, user_message, session_id):

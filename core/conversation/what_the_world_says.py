@@ -308,24 +308,36 @@ def _corpus_origin(hit: Any, body: str, as_of: str) -> tuple[str, str]:
     return "kept from a web search" + (f", read {when}" if when else ""), page.group(0) if page else ""
 
 
-def _from_corpus(phrases: Sequence[str], terms: Sequence[str], *, store: Any) -> list[WorldSource]:
+def _from_corpus(
+    phrases: Sequence[str], terms: Sequence[str], *, store: Any, read_since: float = 0.0
+) -> list[WorldSource]:
     """The corpus documents the phrases name, at the conversation lane's deadline.
 
     The offline deadline (5 s) lets a phrase that no document matches whole run
     its any-term fallback over seven million pages. Every chat turn from 4
     October 16:24 UTC spent 7.3 to 8.2 s here and found nothing; a real topic
     answers in under 0.1 s.
+
+    The encyclopedia and what her searches kept are searched as separate
+    shelves. A kept note is short and full of its query's words, so it
+    outranks the article it was read from: LIVE 2026-10-04 "When did the
+    Kaseya Center open?" took two kept notes and never the offline article. A
+    note kept at or after ``read_since`` is this turn's own reading, already
+    among its sources; it came back as a second copy of the page it read.
     """
-    from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S
+    from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S, RETAINED_SOURCE
 
     candidates: list[WorldSource] = []
     as_of = _as_of(store)
     seen: set[int] = set()
-    for phrase in phrases[:4]:
-        for hit in store.search(phrase, limit=2, deadline_s=CONVERSATION_SEARCH_DEADLINE_S):
+    shelves = ({"not_source": RETAINED_SOURCE}, {"source": RETAINED_SOURCE})
+    for phrase, shelf in ((phrase, shelf) for phrase in phrases[:4] for shelf in shelves):
+        for hit in store.search(phrase, limit=2, deadline_s=CONVERSATION_SEARCH_DEADLINE_S, **shelf):
             if hit.doc_id in seen:
                 continue
             seen.add(hit.doc_id)
+            if hit.source == RETAINED_SOURCE and read_since and getattr(hit, "ingested_at", 0.0) >= read_since:
+                continue
             body = store.body(hit.doc_id)
             if body:
                 origin, location = _corpus_origin(hit, body, as_of)
@@ -364,8 +376,13 @@ async def gather_world_evidence(
     store: Any = None,
     outside_wanted: bool = False,
     deadline_s: float = 45.0,
+    read_since: float = 0.0,
 ) -> WorldEvidence:
-    """Read what the request names, from the page sent, a search asked for, or the offline corpus."""
+    """Read what the request names, from the page sent, a search asked for, or the offline corpus.
+
+    ``read_since`` is when the turn began (epoch seconds): what its own
+    searches kept since then is not read back as a separate source.
+    """
     started = time.monotonic()
     evidence = WorldEvidence()
     question = URL_RE.sub(" ", str(request or "")).strip()
@@ -406,7 +423,9 @@ async def gather_world_evidence(
     asked_for = asked.query if asked.about_the_world and asked.query else None
     local = _judge(
         question,
-        await asyncio.to_thread(_from_corpus, referent_phrases(asked_for or question), terms, store=store),
+        await asyncio.to_thread(
+            _from_corpus, referent_phrases(asked_for or question), terms, store=store, read_since=read_since
+        ),
         solicited=asked_for is not None,
     )
     evidence.sources.extend(local[:3])
