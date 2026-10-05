@@ -1503,7 +1503,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   declaration holds no operation, and a conditional
   fit](evidence/G03_DECLARATIONS_AND_CONDITIONAL_FIT_2026-10-03.md): 47 and 47
   of 48 (32 gains, no losses), validation 498, train 764 of 764, folds 736.
-  G03 stays open on two composition requests and two validation rows.
+  [An operation owns its
+  sentence](evidence/G03_AN_OPERATION_OWNS_ITS_SENTENCE_2026-10-05.md): a
+  name given before the operation's word ("Form the lead calculation by
+  subtract ...") is read back to it when the operation is alone in its
+  sentence. v8: 47 and 48 of 48, validation 498, train 764, folds 735 (one
+  held-out arithmetic row behind v5). G03 stays open on one composition
+  request and two validation rows.
   [Preparation stall replay](evidence/G03_PREPARATION_STALL_REPLAY_2026-10-03.md)
   records the v2 terminal timeout after 444 completed pools. Its handoff
   refused training. The next unfinished source completed against unchanged
