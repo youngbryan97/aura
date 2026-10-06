@@ -251,9 +251,11 @@ def _keys(said: str) -> str:
 class _Doing:
     """One check done on one page."""
 
-    def __init__(self, page: Any, check: Check) -> None:
+    def __init__(self, page: Any, check: Check, *, typing_ms: int = 4) -> None:
         self.page = page
         self.check = check
+        #: Between keys as text is typed: quick for a check, a person's pace where someone is watching.
+        self.typing_ms = typing_ms
         self.downloads: list[tuple[str, str]] = []
         self.to_give: tuple[str, str] | None = None
         #: What dialogs and notices said while the steps were done. A dialog a
@@ -313,7 +315,7 @@ class _Doing:
                     if n:
                         await page.keyboard.press("Enter")
                     if line:
-                        await page.keyboard.type(line, delay=4)
+                        await page.keyboard.type(line, delay=self.typing_ms)
         elif step.do == "press":
             await page.keyboard.press(_keys(value or target))
         elif step.do in ("select_text", "click_text"):

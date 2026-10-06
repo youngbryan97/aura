@@ -75,8 +75,13 @@ def the_command_that_saves(labels: list[str], task: str) -> str | None:
     return keeps[0]
 
 
-async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, browser: Any = None) -> Used | None:
-    """Do ``task`` in the program at ``page_file`` with its own controls and keep what it saves in ``folder``; None when this program is not used this way."""
+async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, browser: Any = None, visible: bool = False,
+                      tell: Any = None) -> Used | None:
+    """Do ``task`` in the program at ``page_file`` with its own controls and keep what it saves in ``folder``; None when this program is not used this way.
+
+    ``visible``: in a window of its own, typed at a person's pace, for a
+    person watching it done, and said as it goes (``tell``).
+    """
     from playwright.async_api import async_playwright
 
     from core.rebuilding.checks_a_person_makes import (
@@ -101,9 +106,9 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
 
     async with async_playwright() as pw:
         owned = browser is None
-        chromium = await pw.chromium.launch() if owned else browser
+        chromium = await pw.chromium.launch(headless=not visible) if owned else browser
         try:
-            context = await chromium.new_context(accept_downloads=True)
+            context = await chromium.new_context(accept_downloads=True, **({"viewport": {"width": 1280, "height": 860}} if visible else {}))
             page = await context.new_page()
             page.on("download", lambda d: asyncio.ensure_future(keep(d)))
             await page.goto(await asyncio.to_thread(lambda: page_file.resolve().as_uri()))
@@ -122,8 +127,12 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
             await page.evaluate(_HELPERS)
             if writing.title:
                 await page.evaluate("(name) => { app.name = name; }", writing.title)
-            doing = _Doing(page, Check.model_validate({"feature": "use", "steps": [], "expect": [{"see": "text", "target": "x"}]}))
-            for step in (Step(do="type", value=text), Step(do="click", target=command)):
+            if visible:
+                await page.bring_to_front()
+                await _said(tell, f"Writing it in {await page.title() or 'the program'}, in a window you can watch; then \"{command}\" saves it.")
+            doing = _Doing(page, Check.model_validate({"feature": "use", "steps": [], "expect": [{"see": "text", "target": "x"}]}),
+                           typing_ms=14 if visible else 4)
+            for step in (*_typed(writing.paragraphs), Step(do="click", target=command)):
                 wrong = await doing.step(step)
                 if wrong:
                     return Used(False, why_not=f"{step.do} {step.target or 'the text'}: {wrong}")
@@ -131,6 +140,8 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
                 if kept:
                     break
                 await asyncio.sleep(0.25)
+            if visible:
+                await asyncio.sleep(2.0)  # what was written, left in view a moment after it is saved
             await context.close()
         finally:
             if owned:
@@ -143,6 +154,34 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
         return Used(False, kept, why_not=f"{kept[0]} does not hold what was written")
     logger.info("used %s: wrote %d characters and saved %s", page_file, len(text), kept)
     return Used(True, kept, said=" ".join(said.split()))
+
+
+def _typed(paragraphs: list[str]) -> list[Any]:
+    """Typing the paragraphs as a person does: a paragraph at a time, Enter between, a long one in pieces at its spaces."""
+    from core.rebuilding.checks_a_person_makes import Step
+
+    steps: list[Any] = []
+    for n, paragraph in enumerate(p.strip() for p in paragraphs if p.strip()):
+        if n:
+            steps.append(Step(do="press", value="Enter"))
+        piece = ""
+        for word in paragraph.split(" "):
+            if piece and len(piece) + 1 + len(word) > 500:
+                steps.append(Step(do="type", value=piece + " "))
+                piece = word
+            else:
+                piece = f"{piece} {word}" if piece else word
+        if piece:
+            steps.append(Step(do="type", value=piece))
+    return steps
+
+
+async def _said(tell: Any, line: str) -> None:
+    if tell is None:
+        return
+    said = tell(line)
+    if asyncio.iscoroutine(said):
+        await said
 
 
 def _free(wanted: Path) -> Path:
