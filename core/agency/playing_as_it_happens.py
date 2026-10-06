@@ -29,7 +29,7 @@ import logging
 import math
 import statistics
 import time
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -121,6 +121,7 @@ class _Run:
     words_read: list[tuple[float, str]] = field(default_factory=list)
     situation: str = ""
     hers_description: str = ""
+    hers_descriptions: Counter[str] = field(default_factory=Counter)
     situation_at: float = -math.inf
     met: list[tuple[float, float]] = field(default_factory=list)
     credited_up_to: int = 0
@@ -769,7 +770,10 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
     mine = hers.thing(moves)
     keys = sorted(hers.keys_that_move_her(run.keys))
     if mine is not None and hers.kind is not None and (keys or hers.follows_pointer):
-        run.hers_description = describe(moves, hers.kind, mine)
+        run.hers_descriptions[describe(moves, hers.kind, mine)] += 1
+        # A brief overlap changes a connected region's outline. Describe the
+        # control by its usual observed shape rather than that one picture.
+        run.hers_description = run.hers_descriptions.most_common(1)[0][0]
     settled = all(hers.tried(k) >= 4 for k in run.keys) or at - run.began > 8.0
     if mine is not None and hers.kind is not None and hers.follows_pointer:
         _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")

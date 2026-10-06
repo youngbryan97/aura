@@ -74,6 +74,35 @@ def test_named_directions_do_not_add_arrows_the_instructions_did_not_offer():
     assert controls_named_in("Arrow keys to walk. Pick up the coins.")[0] == ["up", "down", "left", "right"]
 
 
+def test_play_retries_a_control_whose_many_pictures_were_all_blocked():
+    import asyncio
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _Run, _act
+
+    class Hands:
+        def __init__(self):
+            self.pressed = []
+
+        async def down(self, key):
+            self.pressed.append(key)
+
+        async def up(self, key):
+            pass
+
+    hands = Hands()
+    hers = WhichIsHers()
+    hers.number, hers.kind = 7, 2
+    for _ in range(100):
+        hers._hers.add("a", 0, 0, pinned=True)
+    for _ in range(4):
+        hers._hers.add("q", 0, 80)
+    run = _Run(keys=["q", "a"], began=0, trying=8)
+    choosing = SimpleNamespace(mine=object(), ways={"q": (0, 80)}, danger=lambda way: 0)
+    asyncio.run(_act(hands, run, SimpleNamespace(), hers, WhatMeetingDoes(), choosing, 4))
+    assert hands.pressed == ["a"]
+
+
 def test_restart_keys_do_not_become_active_controls_but_their_other_roles_remain():
     from core.agency.playing_as_it_happens import controls_named_in
 
@@ -91,9 +120,9 @@ def test_current_counter_claim_runs_its_registered_measurement():
     assert _current_counter_invariant() == ()
     suite = ValidationSuite()
     install_realtime_control_claims(suite)
-    check, = suite.tests()
+    check = next(t for t in suite.tests() if t.name == "current_counters_exclude_absent_history")
     assert check.predict(None) is True
-    assert suite.claims()[0].test == check.name
+    assert any(c.test == check.name for c in suite.claims())
 
 
 def test_returning_historical_values_breaks_the_registered_counter_claim(monkeypatch):

@@ -32,6 +32,8 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.verify import invariant
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["Makes", "WhichIsHers"]
@@ -84,9 +86,20 @@ class _Speeds:
     by_press: dict[tuple[str, float], list[tuple[float, float]]] = field(default_factory=dict)
     #: Speeds taken while the thing was not held against the end of its way.
     free: dict[str, list[tuple[float, float]]] = field(default_factory=lambda: defaultdict(list))
+    lowest: list[float] = field(default_factory=lambda: [math.inf, math.inf])
+    highest: list[float] = field(default_factory=lambda: [-math.inf, -math.inf])
 
-    def add(self, key: str, vx: float, vy: float, *, press: float | None = None, pinned: bool = False) -> None:
-        for kept in (self.by_key[key], *(() if pinned else (self.free[key],))):
+    def add(self, key: str, vx: float, vy: float, *, press: float | None = None, pinned: bool = False,
+            settled: bool = True, position: tuple[float, float] | None = None) -> None:
+        if position is not None:
+            for axis, (place, speed) in enumerate(zip(position, (vx, vy), strict=True)):
+                self.lowest[axis] = min(self.lowest[axis], place)
+                self.highest[axis] = max(self.highest[axis], place)
+                if (self.highest[axis] - self.lowest[axis] > 10.0
+                        and min(place - self.lowest[axis], self.highest[axis] - place) < 1.5
+                        and abs(speed) < REALLY_MOVES):
+                    pinned = True
+        for kept in (self.by_key[key], *(() if pinned or not settled else (self.free[key],))):
             kept.append((vx, vy))
             if len(kept) > 200:
                 del kept[:100]
@@ -135,12 +148,30 @@ class _Speeds:
         paddle nowhere, and a plan that holds up into the top for a while
         should not conclude that up does nothing.
         """
+        # A blocked or unsettled observation cannot establish what a key does.
+        # Keep it in the history, but leave the control unknown for another try.
         values = self.free.get(key) or []
-        if len(values) < ENOUGH:
-            values = self.by_key.get(key) or []
         if len(values) < ENOUGH:
             return None
         return statistics.median(v[0] for v in values), statistics.median(v[1] for v in values)
+
+
+def _ambiguous_controls_remain_unknown() -> bool:
+    speeds = _Speeds()
+    for _ in range(20):
+        speeds.add("a", 0.0, 0.0, pinned=True)
+        speeds.add("b", 0.0, 80.0, settled=False)
+    unknown = speeds.typical("a") is None and speeds.typical("b") is None
+    for _ in range(ENOUGH):
+        speeds.add("a", 80.0, 0.0)
+    return unknown and speeds.typical("a") == (80.0, 0.0)
+
+
+@invariant("agency.ambiguous_controls_remain_unknown", scope="agency",
+           owner="core/agency/which_one_answers_to_her.py", observational=False)
+def _control_measurement_invariant() -> tuple:
+    assert _ambiguous_controls_remain_unknown(), "blocked or unsettled motion established a control"
+    return ()
 
 
 #: How far, in working pixels, the pointer must have gone each way along an
@@ -458,10 +489,13 @@ class WhichIsHers:
                 if thing.seen != at or thing.born == at:
                     continue
                 if trying:
-                    self._by_thing[thing.number].add(key, thing.vx, thing.vy, press=press)
-                    self._by_kind[thing.kind].add(key, thing.vx, thing.vy, press=press)
+                    self._by_thing[thing.number].add(key, thing.vx, thing.vy, press=press,
+                                                   settled=press is not None, position=(thing.x, thing.y))
+                    self._by_kind[thing.kind].add(key, thing.vx, thing.vy, press=press,
+                                                 settled=press is not None)
                 if thing.number == self.number:
-                    self._hers.add(key, thing.vx, thing.vy, pinned=self._pinned(thing))
+                    self._hers.add(key, thing.vx, thing.vy, pinned=self._pinned(thing),
+                                   settled=press is not None, position=(thing.x, thing.y))
                     self._answering(thing, key, at - began, at)
         self._what_follows_the_pointer(moves, at)
         if not self.follows_pointer:
@@ -490,6 +524,7 @@ class WhichIsHers:
             if best != self.number:
                 for key, values in self._by_thing[best].by_key.items():
                     self._hers.by_key[key].extend(values[-50:])
+                for key, values in self._by_thing[best].free.items():
                     self._hers.free[key].extend(values[-50:])
             self.number = best
             self.kind = moves.things[best].kind
@@ -584,7 +619,7 @@ class WhichIsHers:
     def tried(self, key: str) -> int:
         if self.kind is None:
             return max((len(s.by_key.get(key) or []) for s in self._by_thing.values()), default=0)
-        return len(self._hers.by_key.get(key) or [])
+        return len(self._hers.free.get(key) or [])
 
     def keys_known(self, keys: list[str]) -> bool:
         """Whether every key has been held long enough on her thing to say what it does."""

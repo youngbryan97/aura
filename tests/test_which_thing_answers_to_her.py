@@ -173,3 +173,65 @@ def test_competing_old_trial_evidence_cannot_revoke_a_control_that_still_answers
                 hers._by_thing[number].add(key, speed if key == "a" else -speed, 0.0, press=press)
     hers._decide(_Moves([mine, other]))
     assert hers.number == mine.number
+
+
+def test_blocked_or_unsettled_pictures_do_not_establish_a_control():
+    from core.agency.which_one_answers_to_her import _Speeds
+
+    speeds = _Speeds()
+    for _ in range(50):
+        speeds.add("a", 0.0, 0.0, pinned=True)
+        speeds.add("b", 0.0, -80.0, settled=False)
+    assert speeds.typical("a") is None
+    assert speeds.typical("b") is None
+    for _ in range(4):
+        speeds.add("a", 80.0, 0.0)
+    assert speeds.typical("a") == (80.0, 0.0)
+
+
+def test_control_discovery_keeps_only_settled_free_trial_measurements():
+    mine = _Thing(1, 0)
+    hers = WhichIsHers()
+    trials = hers._by_thing[mine.number]
+    for press in range(8):
+        key = "q" if press % 2 else "a"
+        for _ in range(4):
+            trials.add(key, 0.0, 80.0 if key == "q" else 0.0,
+                       press=press, pinned=key == "a")
+    hers._decide(_Moves([mine]))
+    assert hers.number == mine.number
+    assert hers.way_of("q") == (0.0, 80.0)
+    assert hers.way_of("a") is None
+    assert not hers.keys_known(["q", "a"])
+    for _ in range(4):
+        hers._hers.add("a", 0.0, -80.0)
+    assert hers.keys_known(["q", "a"])
+    assert hers.way_of("a") == (0.0, -80.0)
+
+
+def test_stationary_observations_at_a_visited_extreme_remain_ambiguous():
+    from core.agency.which_one_answers_to_her import _Speeds
+
+    speeds = _Speeds()
+    speeds.add("q", 80.0, 0.0, position=(20.0, 50.0))
+    speeds.add("q", 80.0, 0.0, position=(80.0, 50.0))
+    for _ in range(20):
+        speeds.add("a", 0.0, 0.0, position=(80.0, 50.0))
+    assert speeds.typical("a") is None
+    # A key observed doing nothing away from either extreme is measured.
+    for _ in range(4):
+        speeds.add("b", 0.0, 0.0, position=(50.0, 50.0))
+    assert speeds.typical("b") == (0.0, 0.0)
+
+
+def test_control_evidence_claim_runs_its_registered_measurement():
+    from core.agency.which_one_answers_to_her import _control_measurement_invariant
+    from core.organism.claims_realtime_control import install_realtime_control_claims
+    from core.organism.model_validation import ValidationSuite
+
+    assert _control_measurement_invariant() == ()
+    suite = ValidationSuite()
+    install_realtime_control_claims(suite)
+    check = next(t for t in suite.tests() if t.name == "ambiguous_controls_remain_unknown")
+    assert check.predict(None) is True
+    assert any(c.test == check.name for c in suite.claims())
