@@ -601,3 +601,36 @@ def test_web_interlocutor_keeps_explicit_target_after_caller_identity():
     assert chat_routes._looks_like_web_interlocutor_execution_request(
         "I'm ChatGPT. Open Claude and ask it one question."
     )
+
+
+def test_the_request_is_not_handed_in_as_something_seen_the_program_do():
+    """LIVE 2026-10-06 the request was passed as an observed behaviour; read as evidence, a blueprint answered it."""
+    asked = ("Use your program DNA engine to do a clean-room reconstruction of Microsoft Word: a complete, polished word processor "
+             "I can open from my Applications folder. Then prove it works by writing a one-page letter in it and exporting it to my Desktop.")
+    params = _chat_capability_inventory._build_program_dna_chat_params("Microsoft Word", asked)
+    assert params["analysis_mode"] == "reconstruct" and params["observed_behaviors"] == []
+
+
+@pytest.mark.asyncio
+async def test_a_request_said_back_as_an_observation_still_rebuilds_the_program(monkeypatch):
+    import core.skills.program_dna_reconstruct as skill
+
+    asked = "Use your program DNA engine to do a clean-room reconstruction of Microsoft Word, then write a letter in it."
+    rebuilt = []
+
+    async def _rebuild(params, name, request, context):
+        rebuilt.append(request)
+        return {"ok": True, "skill": name, "summary": "rebuilt"}
+
+    async def _named(text):
+        return "Microsoft Word"
+
+    monkeypatch.setattr(skill, "_rebuild_it", _rebuild)
+    monkeypatch.setattr(skill, "the_program_named_in", _named)
+    monkeypatch.setattr("core.conversation.session_scope.the_request_in", lambda context: asked)
+    runner = skill.ProgramDNAReconstructSkill()
+    monkeypatch.setattr(runner, "_materialize_named_program", lambda engine, params: asyncio.sleep(0, result=None))
+    monkeypatch.setattr(runner, "_reverse_engineer_host", lambda engine, target: asyncio.sleep(0, result=None))
+    done = await runner.execute({"target": "Microsoft Word", "authorization": "user_owned", "analysis_mode": "reconstruct",
+                                 "observed_behaviors": [asked]}, context={})
+    assert done["summary"] == "rebuilt" and rebuilt == [asked]

@@ -135,7 +135,10 @@ class ProgramDNAReconstructSkill(BaseSkill):
         # one: a blueprint is not what a person asking for a program can use.
         # Evidence handed in (its source files, what it was seen to do) is
         # analysed as the evidence it is.
-        handed_in = bool(params.source_paths or params.observed_behaviors)
+        # The request said back is not evidence handed in: what was seen the program do is.
+        request = " ".join(str(asked or "").split()).lower()
+        seen = [b for b in params.observed_behaviors if " ".join(str(b).split()).lower() not in ("", request)]
+        handed_in = bool(params.source_paths or seen)
         if params.analysis_mode == "reconstruct" and not handed_in and not engine._policy_blocks(
             str(params.authorization or "").strip().lower(), f"{asked} {params.target}".lower()
         ):

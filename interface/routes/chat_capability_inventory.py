@@ -555,7 +555,10 @@ def _build_program_dna_chat_params(target: str, objective: str) -> dict[str, Any
         "output_dir": destination or None,
         "perform_research": wants_research,
         "max_research_results": 3,
-        "observed_behaviors": [objective],
+        # The request is what the person wants, not something seen the program do:
+        # given as an observation, it made the request one to analyse evidence and
+        # a blueprint was answered where a working program was asked for (LIVE 2026-10-06).
+        "observed_behaviors": [],
         "ui_notes": [objective]
         if any(marker in lowered for marker in ("ui", "screen", "visible", "button", "window"))
         else [],
