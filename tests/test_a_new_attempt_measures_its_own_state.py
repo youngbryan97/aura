@@ -115,6 +115,7 @@ def test_control_uses_the_time_until_the_next_picture_instead_of_stopping_short(
     decision.speed = lambda axis: 200.0
     decision.danger = lambda way: 0.0
     decision.next_picture_s = 0.02
+    decision.response_s = 0.0
     assert decision.key("")[0] == "south"
     decision.mine.y = 60.0
     assert decision.key("south")[0] == ""
@@ -122,6 +123,40 @@ def test_control_uses_the_time_until_the_next_picture_instead_of_stopping_short(
     decision.mine.y = 50.0
     decision.next_picture_s = 0.12
     assert decision.key("")[0] == ""
+
+
+def test_a_delayed_command_releases_before_the_old_motion_overshoots():
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _Choosing
+
+    decision = _Choosing.__new__(_Choosing)
+    decision.mine = SimpleNamespace(x=40.0, y=55.0)
+    decision.ways = {"north": (0.0, -200.0), "south": (0.0, 200.0)}
+    decision.target = lambda: ((None, 60.0), "meet", None)
+    decision.speed = lambda axis: 200.0
+    decision.danger = lambda way: 0.0
+    decision.next_picture_s, decision.response_s = 0.02, 0.025
+    assert decision.key("south")[0] == ""
+    decision.response_s = 0.0
+    assert decision.key("south")[0] == "south"
+
+
+def test_visible_movement_measures_the_environment_response_delay():
+    from types import SimpleNamespace
+
+    import pytest
+
+    from core.agency.playing_as_it_happens import _Run, _measure_response
+
+    run = _Run(keys=["south"], began=0)
+    run.previous_control = (7, 40, 55, 1.0, (0, 200), (0, 0))
+    _measure_response(run, SimpleNamespace(number=7, x=40, y=60), 1.05)
+    assert run.motion_responses[-1] == pytest.approx(0.025)
+    assert run.previous_control is None
+    run.previous_control = (7, 40, 55, 2.0, (0, 200), (0, -200))
+    _measure_response(run, SimpleNamespace(number=8, x=40, y=60), 2.05)
+    assert len(run.motion_responses) == 1
 
 
 def test_an_interception_is_predicted_at_first_contact_on_either_axis():
@@ -147,3 +182,45 @@ def test_an_interception_is_predicted_at_first_contact_on_either_axis():
     assert _contact_line(mine, coming, 0) == 12.0
     coming.y = 100.0
     assert _contact_line(mine, coming, 1) == 58.0
+
+
+def test_a_partial_trajectory_does_not_invent_walls_at_its_endpoints():
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _range_of
+
+    moves = SimpleNamespace(shape=(150, 200), things={1: SimpleNamespace(
+        kind=1, path=[(n / 20, 80, 70+n) for n in range(30)])})
+    assert _range_of(moves, 1, 1) == (0, 150)
+    physics = SimpleNamespace(edge=lambda kind, name: ("bounce", 12 if name == "top" else 140, 1))
+    assert _range_of(moves, 1, 1, physics) == (12, 140)
+
+
+def test_an_unreachable_immediate_arrival_is_not_discarded_for_a_distant_one():
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _Choosing
+
+    soon = SimpleNamespace(x=50, y=140, w=4, h=4, vx=-100, vy=0, kind=1, moved=True)
+    later = SimpleNamespace(x=180, y=40, w=4, h=4, vx=-10, vy=0, kind=1, moved=True)
+    decision = _Choosing.__new__(_Choosing)
+    decision.mine = SimpleNamespace(x=20, y=40, w=8, h=24)
+    decision.physics = None
+    decision.moves = SimpleNamespace(shape=(150, 200), things={})
+    decision.others = lambda: [later, soon]
+    decision.stance = lambda thing: "meet"
+    decision.speed = lambda axis: 10
+    assert decision._target_on_a_line(0)[2] is soon
+
+
+def test_a_summary_keeps_the_observed_control_description_after_it_disappears():
+    import time
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _Run, _what_it_came_to
+
+    began = time.monotonic()
+    run = _Run(keys=["q"], began=began, hers_description="blue bar")
+    hers = SimpleNamespace(kind=0, makes={}, keys_that_move_her=lambda keys: {"q": (0, 80)})
+    result = _what_it_came_to(run, SimpleNamespace(kinds=[]), hers, WhatMeetingDoes(), "new screen", began)
+    assert result["hers"] == "blue bar"

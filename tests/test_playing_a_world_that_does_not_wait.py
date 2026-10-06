@@ -33,7 +33,7 @@ async def test_she_finds_her_paddle_and_returns_the_ball():
         came_to = await play_as_it_happens(eyes.look, eyes, keys=TOLD_KEYS, seconds=15.0)
         returns = await page.evaluate("__world.returns")
         await browser.close()
-    assert came_to["keys_that_move_her"] == ["down", "up"]
+    assert came_to["keys_that_move_her"] == ["down", "up"], came_to
     assert came_to["hers"].endswith("bar")
     assert came_to["pictures_a_second"] > 10
     assert returns >= 1, came_to

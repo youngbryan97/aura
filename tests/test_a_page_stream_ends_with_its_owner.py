@@ -132,5 +132,3 @@ async def test_direct_canvas_frames_show_the_requested_surface_in_a_page_with_tw
             assert await CanvasFrames(page).look(partial) is None
         finally:
             await browser.close()
-
-

@@ -120,6 +120,7 @@ class _Run:
     #: Every reading's words, with when its picture was taken.
     words_read: list[tuple[float, str]] = field(default_factory=list)
     situation: str = ""
+    hers_description: str = ""
     situation_at: float = -math.inf
     met: list[tuple[float, float]] = field(default_factory=list)
     credited_up_to: int = 0
@@ -127,6 +128,9 @@ class _Run:
     pictures: int = 0
     picture_at: float | None = None
     intervals: deque[float] = field(default_factory=lambda: deque(maxlen=12))
+    responses: deque[float] = field(default_factory=lambda: deque(maxlen=12))
+    motion_responses: deque[float] = field(default_factory=lambda: deque(maxlen=12))
+    previous_control: tuple[Any, ...] | None = None
     gains: int = 0
     losses: int = 0
     #: How the contest stands (core/agency/how_the_contest_stands.py), and the last of it she said.
@@ -238,13 +242,21 @@ def _ahead(thing: Any, after: float, low: float, high: float, axis: int) -> floa
     return low + (folded if folded <= span else 2 * span - folded)
 
 
-def _range_of(moves: WhatMoves, kind: int, axis: int) -> tuple[float, float]:
-    """The span things of one kind have been seen over along an axis: where they bounce."""
+def _range_of(moves: WhatMoves, kind: int, axis: int, physics: HowThingsMoveHere | None = None) -> tuple[float, float]:
+    """The picture's bounds, replaced by walls whose rebounds have been measured.
+
+    A short path's minimum and maximum are places already visited, and give
+    no evidence that the next step will turn there.
+    """
     tall, wide = moves.shape
     low, high = 0.0, float((wide, tall)[axis])
-    seen = [p[1 + axis] for t in moves.things.values() if t.kind == kind for p in t.path]
-    if len(seen) >= 20:
-        low, high = max(low, min(seen) - 1.0), min(high, max(seen) + 1.0)
+    if physics is not None:
+        names = ("left", "right") if axis == 0 else ("top", "bottom")
+        lower, upper = (physics.edge(kind, name) for name in names)
+        if lower[0] == "bounce" and lower[1] is not None:
+            low = lower[1]
+        if upper[0] == "bounce" and upper[1] is not None:
+            high = upper[1]
     return low, high
 
 
@@ -263,14 +275,37 @@ def _contact_line(mine: Any, coming: Any, axis: int) -> float:
     return here + math.copysign(reach, there - here)
 
 
+def _measure_response(run: _Run, mine: Any, at: float) -> None:
+    """Fit the old command's remaining motion at a visible command transition."""
+    previous, run.previous_control = run.previous_control, None
+    if previous is None or mine is None:
+        return
+    number, x, y, then, before, after = previous
+    dt = at - then
+    if mine.number != number or not 0.0 < dt <= 0.25:
+        return
+    change = (before[0] - after[0], before[1] - after[1])
+    norm = change[0] ** 2 + change[1] ** 2
+    if norm < 20.0 ** 2:
+        return
+    error = (mine.x - x - after[0] * dt, mine.y - y - after[1] * dt)
+    delay = (error[0] * change[0] + error[1] * change[1]) / norm
+    # A result outside this interval does not identify this transition: a
+    # boundary, a collision or another motion changed what the key could do.
+    if -0.1 * dt <= delay <= 1.1 * dt:
+        run.motion_responses.append(min(dt, max(0.0, delay)))
+
+
 class _Choosing:
     """The arithmetic of one decision, from what she has measured so far."""
 
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
-                 physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30) -> None:
+                 physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
+                 response_s: float = 0.0) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
         self.physics = physics
         self.next_picture_s = next_picture_s
+        self.response_s = response_s
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
         self.across, self.updown = hers.follows_along if hers.follows_pointer else hers.axes(keys)
@@ -327,15 +362,16 @@ class _Choosing:
                 continue
             contact = _contact_line(mine, thing, line)
             when = max(0.0, (contact - (thing.x, thing.y)[line]) / closing)
-            low, high = _range_of(self.moves, thing.kind, free)
+            low, high = _range_of(self.moves, thing.kind, free, self.physics)
             there = _ahead(thing, when, low, high, free)
             # Her own physics of this world, once she has some: gravity, where
             # the walls really are, how much a bounce keeps.
             imagined = self.physics.when_it_reaches(thing, line, contact) if self.physics is not None else None
             if imagined is not None:
                 when, there = imagined
-            reachable = abs(there - her_free) <= self.speed(free) * when + (mine.w, mine.h)[free] / 2
-            rank = (0 if reachable else 1, when)
+            # The next arrival is urgent even when she cannot get there in
+            # time. A distant, reachable arrival must not pull her away from it.
+            rank = when
             if best is None or rank < best[0]:
                 best = (rank, there, thing)
         if best is not None:
@@ -365,7 +401,7 @@ class _Choosing:
             if ahead <= 0:
                 continue
             when = abs((thing.x, thing.y)[along] - (mine.x, mine.y)[along]) / max(1.0, flight)
-            low, high = _range_of(self.moves, thing.kind, across)
+            low, high = _range_of(self.moves, thing.kind, across, self.physics)
             there = _ahead(thing, when, low, high, across)
             if best is None or when < best[0]:
                 best = (when, there, thing)
@@ -429,16 +465,20 @@ class _Choosing:
             gy = gy - offset[1] if gy is not None else None
         mine = self.mine
         choices = {"": (0.0, 0.0), **self.ways}
+        moving = choices.get(held, (0.0, 0.0))
+        # The old command keeps moving her while the next one is delivered.
+        # Its measured delay belongs in the prediction before the new command.
+        here_x, here_y = mine.x + moving[0] * self.response_s, mine.y + moving[1] * self.response_s
         best_key, best_cost = held if held in choices else "", math.inf
         for key, way in choices.items():
-            x, y = mine.x + way[0] * self.next_picture_s, mine.y + way[1] * self.next_picture_s
+            x, y = here_x + way[0] * self.next_picture_s, here_y + way[1] * self.next_picture_s
             cost = 0.0
             if gx is not None:
                 cost += abs(gx - x) / self.speed(0)
             if gy is not None:
                 cost += abs(gy - y) / self.speed(1)
             cost += 3.0 * self.danger(way)
-            cost += 0.0 if key == held else 0.01
+            cost += 0.0 if key == held else self.next_picture_s * 0.1
             if cost < best_cost:
                 best_key, best_cost = key, cost
         return best_key, why, aim
@@ -451,7 +491,7 @@ class _Choosing:
         across = 1 - along
         flight = abs((self.shot.vx, self.shot.vy)[along])
         when = abs((aim.x, aim.y)[along] - (self.mine.x, self.mine.y)[along]) / max(1.0, flight)
-        low, high = _range_of(self.moves, aim.kind, across)
+        low, high = _range_of(self.moves, aim.kind, across, self.physics)
         there = _ahead(aim, when, low, high, across)
         if abs(there - (self.mine.x, self.mine.y)[across]) <= (aim.w, aim.h)[across] / 2 + 2:
             return self.shot.key
@@ -504,6 +544,7 @@ async def _hold(hands: Any, run: _Run, hers: WhichIsHers, key: str, at: float, *
         if key:
             await hands.down(key)
             hers.tapped(key, at)
+        run.responses.append(max(0.0, time.monotonic() - at))
     run.held, run.held_since, run.held_trying = key, at, trying
     hers.holding(key, at, trying=trying)
 
@@ -727,6 +768,8 @@ def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers,
 def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> None:
     mine = hers.thing(moves)
     keys = sorted(hers.keys_that_move_her(run.keys))
+    if mine is not None and hers.kind is not None and (keys or hers.follows_pointer):
+        run.hers_description = describe(moves, hers.kind, mine)
     settled = all(hers.tried(k) >= 4 for k in run.keys) or at - run.began > 8.0
     if mine is not None and hers.kind is not None and hers.follows_pointer:
         _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")
@@ -810,10 +853,13 @@ async def play_as_it_happens(
             run.pictures += 1
             happened = moves.see(picture, at)
             hers.saw(moves, happened, at)
+            _measure_response(run, hers.thing(moves), at)
             physics.saw(moves, hers, happened, at)
             _what_the_rules_said_of(rules, moves, meeting, run, say, at)
             choosing = _Choosing(moves, hers, meeting, run.keys, physics,
-                                 next_picture_s=statistics.median(run.intervals) if run.intervals else 1 / 30)
+                                 next_picture_s=statistics.median(run.intervals) if run.intervals else 1 / 30,
+                                 response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
+                                             else statistics.median(run.responses) if run.responses else 0.0))
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
@@ -882,6 +928,11 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
     shift = part * ((choosing.mine.h if choosing.line() == 0 else choosing.mine.w) / 2 if choosing.mine is not None else 0.0)
     offset = (0.0, shift) if choosing.line() == 0 else (shift, 0.0) if choosing.line() == 1 else (0.0, 0.0)
     key, why, aim = choosing.key(run.held, offset=offset)
+    before = choosing.ways.get(run.held, (0.0, 0.0))
+    after = choosing.ways.get(key, (0.0, 0.0))
+    if key != run.held:
+        mine = choosing.mine
+        run.previous_control = (mine.number, mine.x, mine.y, at, before, after)
     await _hold(hands, run, hers, key, at)
     fire = choosing.fire(aim, why)
     if fire and fire != run.held:
@@ -1024,7 +1075,7 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "pictures": run.pictures,
         "pictures_a_second": round(run.pictures / took, 1),
         "ended": ended,
-        "hers": describe(moves, hers.kind, hers.thing(moves)) if hers.kind is not None else "",
+        "hers": run.hers_description or (describe(moves, hers.kind, hers.thing(moves)) if hers.kind is not None else ""),
         "keys_that_move_her": sorted(hers.keys_that_move_her(run.keys)),
         "fires": sorted(hers.makes),
         "learned": learned,
