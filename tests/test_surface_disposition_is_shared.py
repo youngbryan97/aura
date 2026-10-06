@@ -96,13 +96,16 @@ class TestEveryGateConsultsIt:
     def test_response_generation_keeps_a_servable_draft(self):
         from pathlib import Path
 
-        source = (
-            Path(__file__).resolve().parents[1]
-            / "core"
-            / "phases"
-            / "response_generation.py"
-        ).read_text(encoding="utf-8")
-        rejection = source.split("rejected unsafe user-facing draft", 1)[0][-2000:]
+        # Wherever the rejection lives: a size refactor moved it from
+        # response_generation.py into response_generation_drafts.py.
+        phases = Path(__file__).resolve().parents[1] / "core" / "phases"
+        sources = [
+            path.read_text(encoding="utf-8")
+            for path in sorted(phases.glob("response_generation*.py"))
+            if "rejected unsafe user-facing draft" in path.read_text(encoding="utf-8")
+        ]
+        assert len(sources) == 1, "the rejection should live in one module"
+        rejection = sources[0].split("rejected unsafe user-facing draft", 1)[0][-2000:]
         assert "draft_is_servable" in rejection
 
 

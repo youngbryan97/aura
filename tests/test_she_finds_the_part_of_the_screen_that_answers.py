@@ -124,9 +124,9 @@ def test_the_loop_reasons_from_the_part_that_answers():
     # Learned from the same measurement that grades the move, so the control
     # is the move that had no effect.
     # `held` was renamed `observed_change`: the same measurement, and the
-    # one that grades the move. This assertion has been naming a string
-    # that is not in the file since the rename.
-    assert "worked=attempt.verdict.observed_change," in source
+    # one that grades the move. Read through it_was_answered since
+    # e7bd3faaa, which also asks whether the screen answered.
+    assert "worked=it_was_answered(attempt.verdict.observed_change, observation)," in source
 
 
 def test_a_world_that_has_stopped_answering_is_recognised_without_reading_it():

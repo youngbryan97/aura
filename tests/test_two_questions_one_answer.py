@@ -33,8 +33,8 @@ def test_the_band_learner_is_asked_whether_the_act_had_an_effect():
     # part answers. Other things are "noticed(" too — a rung she reached is.
     where = SOURCE.index('noticed(\n            responds["state"],')
     call = SOURCE[where : SOURCE.index("\n        )", where)]
-    assert "worked=attempt.verdict.observed_change" in call
-    assert "worked=attempt.verdict.held" not in call
+    assert "worked=it_was_answered(attempt.verdict.observed_change" in call
+    assert "attempt.verdict.held" not in call
 
 
 def test_the_record_of_what_she_did_still_carries_the_claim():
