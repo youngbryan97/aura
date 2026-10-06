@@ -120,7 +120,11 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
         }
     ),
     "raw_desktop": frozenset({"core/runtime/desktop_action_gateway.py"}),
-    "raw_browser": frozenset(),
+    "raw_browser": frozenset({
+        # This owner acquires and releases a fixed, bounded drawing observer.
+        # It accepts no script payload, draws nothing and sends no input.
+        "core/perception/the_drawing_as_objects.py",
+    }),
     "direct_atomic_file_write": frozenset(
         {
             # Latent-cortex persistence owns only schema-bound private artifact

@@ -5,7 +5,14 @@ from typing import Any
 def install_realtime_control_claims(suite: Any) -> None:
     from core.agency.what_meeting_things_does import _absent_counters_are_not_current
     from core.agency.which_one_answers_to_her import _ambiguous_controls_remain_unknown
-    from core.organism.model_validation import Claim, Evidence, Observation, ValidationTest, boolean_score
+    from core.organism.model_validation import (
+        Claim,
+        Evidence,
+        Observation,
+        ValidationTest,
+        boolean_score,
+    )
+    from core.perception.the_drawing_as_objects import _scene_requires_a_matching_complete_frame
 
     name = "current_counters_exclude_absent_history"
     owner = "core/agency/what_meeting_things_does.py"
@@ -38,4 +45,19 @@ def install_realtime_control_claims(suite: Any) -> None:
         statement="Blocked and unsettled motion cannot establish a key's control response.",
         test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
         evidence_note="Measured ambiguous and free samples; actual task completion requires separate live evidence.",
+    ))
+    name = "drawing_scene_requires_matching_frame"
+    owner = "core/perception/the_drawing_as_objects.py"
+    suite.add_test(ValidationTest(
+        name=name, description="only complete, bounded scene descriptions of the captured frame are accepted",
+        required_capability="", observation=Observation("matching_frame_required", True,
+                "tests/test_the_drawing_can_describe_its_objects.py"),
+        predict=lambda _model: _scene_requires_a_matching_complete_frame(),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="A structured drawing observation requires a complete description matching its captured pixels' dimensions.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Frame and metadata acceptance measured; supported paint and actual control are measured in separate browser runs.",
     ))

@@ -207,6 +207,10 @@ def what_happened(kind: str, thing: Thing, at: float) -> dict[str, Any]:
     return {"what": kind, "thing": thing.number, "kind": thing.kind, "x": thing.x, "y": thing.y, "at": at}
 
 
+def _boxes_overlap(a: tuple, b: tuple) -> bool:
+    return max(a[0], b[0]) < min(a[2], b[2]) and max(a[1], b[1]) < min(a[3], b[3])
+
+
 class WhatMoves:
     """Reads pictures one after another and keeps the things in them.
 
@@ -505,6 +509,9 @@ class WhatMoves:
             return happened
         masks = self._what_differs(small)
         blobs = self._blobs(small, masks) if masks is not None else []
+        scene = getattr(picture, "drawing_scene", None)
+        if scene is not None and masks is not None:
+            blobs = self._drawn_objects(scene, small, masks[0])
         matched, fresh = self._match(blobs, at)
         for number, index in matched.items():
             self._moved(self.things[number], blobs[index], at)
@@ -513,6 +520,44 @@ class WhatMoves:
             happened.append(what_happened("appeared", self._born(blobs[index], at), at))
         self._drift(small, dt)
         return happened
+
+    def _drawn_objects(self, scene: dict[str, Any], small: np.ndarray, foreground: np.ndarray) -> list[dict[str, Any]]:
+        """Exact painted bounds for foreground objects, checked against their pixels.
+
+        The backdrop still distinguishes scenery from objects. The display list
+        supplies their geometry, including two objects whose pixels touch.
+        Text is supplied separately by the renderer and never becomes a body.
+        """
+        from PIL import ImageColor
+
+        tall, wide = self.shape
+        found = []
+        for item in scene["objects"]:
+            x, y, w, h = (float(item[key]) * self.scale for key in ("x", "y", "width", "height"))
+            if w * h < SMALLEST or w * h > LARGEST * wide * tall:
+                continue
+            left, top = max(0, int(math.floor(x))), max(0, int(math.floor(y)))
+            right, bottom = min(wide, int(math.ceil(x + w))), min(tall, int(math.ceil(y + h)))
+            if right <= left or bottom <= top:
+                continue
+            try:
+                colour = ImageColor.getrgb(item["colour"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            patch = small[top:bottom, left:right]
+            painted = np.abs(patch.astype(np.int16) - np.asarray(colour)).max(axis=2) < 50
+            # Geometry describes the paint, but later paint may have covered it.
+            if int(painted.sum()) < SMALLEST:
+                continue
+            visible = foreground[top:bottom, left:right] & painted
+            held = any(_boxes_overlap(t.box(), (x, y, x + w, y + h))
+                       and max(abs(a - b) for a, b in zip(t.colour, colour, strict=True)) < 45
+                       for t in self.things.values())
+            if int(visible.sum()) < SMALLEST and not held:
+                continue
+            found.append({"x": x + w / 2, "y": y + h / 2, "w": w, "h": h,
+                          "look": _look_of(np.asarray([colour])), "colour": colour, "patch": patch.copy()})
+        return found
 
     def _a_new_screen(self, small: np.ndarray) -> bool:
         if self._last is None or self._last.shape != small.shape:

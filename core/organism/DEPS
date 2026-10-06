@@ -17,6 +17,8 @@ include_rules = [
     "+core.knowledge.revision_validation",
     # The scoped-calculation canary checks interval arithmetic and premise taint.
     "+core.reasoning.computational_knowledge",
+    # The registered scene claim measures only the observation contract.
+    "+core.perception.the_drawing_as_objects",
     "+core.organism",
 
     # What this package reaches for today.

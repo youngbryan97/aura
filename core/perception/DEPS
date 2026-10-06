@@ -32,6 +32,8 @@ include_rules = [
     "+core.senses",
     "+core.utils",
     "+core.voice",
+    # Perception registers its matching-frame invariant at its boundary.
+    "+core.verify",
 
     # Everything else.
     "-core",

@@ -480,7 +480,10 @@ class WhichIsHers:
     def saw(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
         if any(h.get("what") == "new screen" for h in happened):
             self._new_screen_at = at
-        held = self._held_at(at - RESPONSE_S)
+        # A renderer may answer immediately. Delaying the control label can
+        # assign the first movement after a change to the previous key.
+        # Use the delivered control and exclude its unsettled motion window.
+        held = self._held_at(at)
         # A screen being drawn afresh moves everything at once, whatever she held.
         if held is not None and at - self._new_screen_at > 0.5:
             began, key, trying = held

@@ -127,6 +127,7 @@ class _Run:
     credited_up_to: int = 0
     touching: set[int] = field(default_factory=set)
     pictures: int = 0
+    observation_sources: Counter[str] = field(default_factory=Counter)
     picture_at: float | None = None
     intervals: deque[float] = field(default_factory=lambda: deque(maxlen=12))
     responses: deque[float] = field(default_factory=lambda: deque(maxlen=12))
@@ -544,37 +545,33 @@ async def _hold(hands: Any, run: _Run, hers: WhichIsHers, key: str, at: float, *
             await hands.up(run.held)
         if key:
             await hands.down(key)
-            hers.tapped(key, at)
         run.responses.append(max(0.0, time.monotonic() - at))
-    run.held, run.held_since, run.held_trying = key, at, trying
-    hers.holding(key, at, trying=trying)
+    delivered = time.monotonic()
+    if key and key != run.held:
+        hers.tapped(key, delivered)
+    run.held, run.held_since, run.held_trying = key, delivered, trying
+    hers.holding(key, delivered, trying=trying)
 
 
 async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves: WhatMoves,
                         picture: Any, at: float, read_words: Callable[[Any], list[dict[str, Any]]] | None) -> None:
     """Read the counters off to one side; take in the last reading when it is done."""
+    from core.perception.the_drawing_as_objects import words_in
+
+    rendered = words_in(picture)
+    if rendered is not None:
+        if run.reading is not None:
+            run.reading.cancel()
+            run.reading = None
+        run.read_at = at
+        _read_the_words(run, meeting, hers, moves, rendered, at)
+        return
     if read_words is None:
         return
     if run.reading is not None and run.reading.done():
         regions, when = run.reading.result()
         run.reading = None
-        # Words on screen while it was moving are the game's furniture; the
-        # still screen at the end is not. Which readings came from that end
-        # is settled when the stretch ends (see _the_words_of_play).
-        for region in regions:
-            said = " ".join(str(region.get("text") or "").lower().split())
-            if said and len(run.words_read) < 400:
-                run.words_read.append((when, said))
-        mine = hers.thing(moves)
-        her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
-        for verdict in meeting.read(regions, when, her_x):
-            if verdict["what"] == "gain":
-                run.gains += 1
-            else:
-                run.losses += 1
-        run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
-        run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when)
-        meeting.writing = _what_is_writing(moves, regions)
+        _read_the_words(run, meeting, hers, moves, regions, when)
     if run.reading is None and at - run.read_at >= READ_EVERY_S:
         run.read_at = at
         bgr = picture[:, :, ::-1].copy()
@@ -583,6 +580,25 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
             return await asyncio.to_thread(read_words, bgr), at
 
         run.reading = asyncio.ensure_future(_read())
+
+
+def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
+                    moves: WhatMoves, regions: list[dict[str, Any]], when: float) -> None:
+    """The same counter semantics for renderer text and text read from pixels."""
+    for region in regions:
+        said = " ".join(str(region.get("text") or "").lower().split())
+        if said and len(run.words_read) < 400:
+            run.words_read.append((when, said))
+    mine = hers.thing(moves)
+    her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
+    for verdict in meeting.read(regions, when, her_x):
+        if verdict["what"] == "gain":
+            run.gains += 1
+        else:
+            run.losses += 1
+    run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
+    run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when)
+    meeting.writing = _what_is_writing(moves, regions)
 
 
 def _what_is_writing(moves: WhatMoves, regions: list[dict[str, Any]]) -> set[int]:
@@ -599,11 +615,11 @@ async def _try_the_keys(hands: Any, run: _Run, hers: WhichIsHers, at: float) -> 
     """Hold each key in turn, with a rest between, to see what answers."""
     if at - run.tried_at < TRY_A_KEY_S:
         return
-    run.tried_at = at
     turn = run.trying % (2 * len(run.keys))
     run.trying += 1
     key = run.keys[turn // 2] if turn % 2 == 0 else ""
     await _hold(hands, run, hers, key, at, trying=True)
+    run.tried_at = run.held_since
 
 
 async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMeetingDoes, at: float,
@@ -797,6 +813,8 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
     # How it stands, said when it changes: the score, what is left to win, what is left to lose.
     standing = run.contest.says()
     if standing and standing != run.contest_said:
+        if at - run.said_at < SAY_EVERY_S:
+            return
         run.contest_said = standing
         _say(run, say, standing[:1].upper() + standing[1:], at)
         return
@@ -851,6 +869,7 @@ async def play_as_it_happens(
                 ended = "the picture could not be taken"
                 break
             picture, at = seen
+            run.observation_sources["canvas-paint-v1" if getattr(picture, "drawing_scene", None) is not None else "pixels"] += 1
             if run.picture_at is not None and 0.0 < at - run.picture_at <= 0.5:
                 run.intervals.append(at - run.picture_at)
             run.picture_at = at
@@ -865,7 +884,8 @@ async def play_as_it_happens(
                                  response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
                                              else statistics.median(run.responses) if run.responses else 0.0))
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
-            _counters_without_reading(run, moves, hers, meeting, at)
+            if getattr(picture, "drawing_scene", None) is None:
+                _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
             await _act(hands, run, moves, hers, meeting, choosing, at)
             _what_she_says(run, say, moves, hers, meeting, at)
@@ -941,7 +961,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
     fire = choosing.fire(aim, why)
     if fire and fire != run.held:
         await hands.tap(fire)
-        hers.tapped(fire, at)
+        hers.tapped(fire, time.monotonic())
         run.taps += 1
 
 
@@ -1086,6 +1106,7 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "gains": run.gains,
         "losses": run.losses,
         "counters": dict(meeting.readouts.values),
+        "observations": dict(run.observation_sources),
         # How the contest stood when the stretch ended, and what its counters alone settle.
         "standing": run.contest.says(),
         "settled": run.contest.settled(),

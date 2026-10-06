@@ -10,19 +10,24 @@ way a person would ask. Nothing is started from a script.
 1. Connect the charger. A live run on battery drains about 1.3% a minute.
 2. Check the power mode: `pmset -g | grep powermode`. Low Power Mode (1) cuts
    her decode speed to a third.
-3. Start her with her browser browsing as what it is:
+3. If Aura is already running, use that instance. For a first launch, start
+   her with her browser browsing as what it is:
 
    ```bash
-   AURA_BROWSER_STEALTH=0 ./launch_aura.sh --reboot
+   AURA_BROWSER_STEALTH=0 ./launch_aura.sh
    ```
 
    Her browser can hide that it is automated (a stealth module, a borrowed
    user agent, the automation flag switched off). The demos do not depend on
    that and must not: a site that refuses automated visitors has said so.
+   Replacing a running instance requires Bryan's explicit restart
+   authorization under `AGENTS.md`; the supported replacement command adds
+   `--reboot`. Check that no training or soak owns the model, preserve logs,
+   and verify one replacement process and its source revision.
 4. Wait for `status: ok` on `curl -s localhost:8000/api/health` (about six
    minutes from launch).
 
-## Demo 2: mend a broken Pong and win it
+## Demo 2: mend a broken game and play three attempts
 
 1. Put the broken game in place:
 
@@ -34,11 +39,10 @@ way a person would ask. Nothing is started from a script.
    `tools/grade_pong_repair.py`) and prints the request to type.
 2. Type in her chat, in any words that ask for it; for example:
 
-   > The Pong game at /Users/bryan/aura-demos/pong/pong.html is broken. Fix it,
-   > then play it against the computer until you win.
+   > Fix the broken game at /Users/bryan/aura-demos/pong/pong.html, then play
+   > it for three attempts to show the repair works.
 
-   or "pong at ~/aura-demos/pong/pong.html doesn't work right. can you sort it
-   out and then beat the computer at it?". When the words do not plainly name
+   The repair and play count can be requested in ordinary words. When the words do not plainly name
    the repair, her own model reads the request beside the catalogue of what she
    can do (core/brain/her_reading_of_a_request.py) and calls it.
 
@@ -47,7 +51,8 @@ way a person would ask. Nothing is started from a script.
    only those that make the game behave right, and says what each change
    mended; saves the file with the original beside it as
    `pong.html.before-repair`; then opens the mended game in a window and plays
-   until she wins.
+   three attempts. A loss counts as an attempt. Winning is a separate goal,
+   requested with words such as "until you win".
 
    Timings from the live runs on 4 October 2026: the request reaches the
    repair in under a minute (a request that plainly names one capability's

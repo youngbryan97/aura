@@ -126,6 +126,22 @@ def asks_to_win(request: str) -> bool:
     return bool(_ASKS.search(_plain(request)))
 
 
+def requested_attempts(request: str) -> int | None:
+    """An explicit count of play attempts, independent of whether winning is asked."""
+    numbers = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+               "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+               "eleven": 11, "twelve": 12}
+    count = r"(\d{1,3}|" + "|".join(numbers) + r")"
+    found = re.search(r"\b(?:play|try|make|take|do)\s+(?:(?:it|the game|this game)\s+)?"
+                      r"(?:(?:for|at most|up to)\s+)?" + count + r"\s+(?:attempts?|tries|times|rounds?)\b",
+                      _plain(request))
+    if not found:
+        return None
+    word = found.group(1)
+    value = numbers.get(word) if word in numbers else int(word)
+    return value if value > 0 else None
+
+
 _FOR_POINTS: Final = re.compile(
     r"\b(as many (?:points|\w+) as (?:possible|you can)|highest score|high score|beat your (?:best|score|record)|"
     r"get the most|score as (?:many|much|high)|before (?:the )?time runs out|in (?:one|two|three|\d+) minutes?)\b"

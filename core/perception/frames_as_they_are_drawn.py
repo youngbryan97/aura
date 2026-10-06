@@ -171,7 +171,8 @@ _THE_CANVAS_NOW = """
     if (!canvas || area < 10000) return null;
     window.__auraCanvas = canvas;
   }
-  try { return canvas.toDataURL('image/jpeg', 0.8); } catch (e) { return null; }
+  try { return {pixels:canvas.toDataURL('image/jpeg', 0.8),
+    scene:window.__auraDrawingObservation?.snapshot(canvas) ?? null}; } catch (e) { return null; }
 })
 """
 
@@ -183,17 +184,23 @@ class CanvasFrames:
         self.unavailable = False
         self._checked = False
         self._closed = False
+        self._observing = False
 
     async def look(self, clip: dict[str, float]) -> tuple[Any, float] | None:
         if self.unavailable or self._closed:
             return None
         try:
+            if not self._observing:
+                from core.perception.the_drawing_as_objects import acquire
+
+                self._observing = await acquire(self.page)
             data = await self.page.evaluate(_THE_CANVAS_NOW, clip)
         except Exception as why:  # noqa: BLE001 - a page that cannot be asked has no canvas to read
             logger.debug("the canvas could not be read: %s", why)
             data = None
         at = time.monotonic()
-        picture = await asyncio.to_thread(_from_data_url, data) if data else None
+        encoded = data.get("pixels") if isinstance(data, dict) else data
+        picture = await asyncio.to_thread(_from_data_url, encoded) if encoded else None
         if picture is None:
             self.unavailable = True
             return None
@@ -202,10 +209,22 @@ class CanvasFrames:
             if not await self._shows_what_the_screen_shows(picture, clip):
                 self.unavailable = True
                 return None
+        if isinstance(data, dict):
+            from core.perception.the_drawing_as_objects import described
+
+            picture = described(picture, data.get("scene"))
         return picture, at
 
     async def close(self) -> None:
         self._closed = True
+        if self._observing:
+            from core.perception.the_drawing_as_objects import release
+
+            self._observing = False
+            try:
+                await release(self.page)
+            except Exception:  # noqa: BLE001 - a closed page has already released its observer
+                pass
 
     async def _shows_what_the_screen_shows(self, picture: Any, clip: dict[str, float]) -> bool:
         """A canvas drawn by WebGL without a kept buffer reads back blank while the screen shows a game."""

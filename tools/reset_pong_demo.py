@@ -33,7 +33,7 @@ def main(argv: list[str]) -> int:
     shutil.copyfile(BROKEN, folder / "pong.html")
     print(f"Broken Pong put back at {folder / 'pong.html'}")
     print("Type in her chat:")
-    print(f"  The Pong game at {folder / 'pong.html'} is broken. Fix it, then play it against the computer until you win.")
+    print(f"  Fix the broken game at {folder / 'pong.html'}, then play it for three attempts to show the repair works.")
     return 0
 
 

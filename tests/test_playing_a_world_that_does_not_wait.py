@@ -13,14 +13,16 @@ import pytest
 pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
 
-async def test_she_finds_her_paddle_and_returns_the_ball():
+@pytest.mark.parametrize("observations", ["pixels", "drawing"])
+async def test_she_finds_her_paddle_and_returns_the_ball(observations):
     playwright_api = pytest.importorskip("playwright.async_api")
     from core.agency.playing_as_it_happens import play_as_it_happens
+    from core.capabilities.phantom_browser import _chromium_graphics_arguments
     from tools.measure_playing_as_it_happens import TOLD_KEYS, WORLDS, _Page
 
     async with playwright_api.async_playwright() as playwright:
         try:
-            browser = await playwright.chromium.launch(headless=True)
+            browser = await playwright.chromium.launch(headless=True, args=_chromium_graphics_arguments())
         except Exception as why:  # noqa: BLE001 - no engine installed here
             pytest.skip(f"no browser engine: {why}")
         page = await browser.new_page(viewport={"width": 800, "height": 600})
@@ -29,7 +31,7 @@ async def test_she_finds_her_paddle_and_returns_the_ball():
             "(() => { const r = document.querySelector('canvas').getBoundingClientRect();"
             " return [r.left, r.top, r.width, r.height]; })()"
         )
-        eyes = _Page(page, box)
+        eyes = _Page(page, box, observations=observations)
         came_to = await play_as_it_happens(eyes.look, eyes, keys=TOLD_KEYS, seconds=15.0)
         returns = await page.evaluate("__world.returns")
         await browser.close()
@@ -39,18 +41,20 @@ async def test_she_finds_her_paddle_and_returns_the_ball():
     assert returns >= 1, came_to
 
 
-async def test_an_instruction_to_click_targets_does_not_require_an_avatar():
+@pytest.mark.parametrize("observations", ["pixels", "drawing"])
+async def test_an_instruction_to_click_targets_does_not_require_an_avatar(observations):
     playwright_api = pytest.importorskip("playwright.async_api")
     from core.agency.playing_as_it_happens import controls_named_in, play_as_it_happens
+    from core.capabilities.phantom_browser import _chromium_graphics_arguments
     from tools.measure_playing_as_it_happens import WORLDS, _Page
 
     async with playwright_api.async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(headless=True, args=_chromium_graphics_arguments())
         try:
             page = await browser.new_page(viewport={"width": 800, "height": 600})
             await page.goto(f"file://{WORLDS / 'gallery.html'}?start=1&seed=5")
             box = await page.locator("canvas").bounding_box()
-            eyes = _Page(page, (box["x"], box["y"], box["width"], box["height"]))
+            eyes = _Page(page, (box["x"], box["y"], box["width"], box["height"]), observations=observations)
             rules = " ".join(await page.evaluate("__world.game.rules"))
             keys, pointer_first = controls_named_in(rules)
             result = await play_as_it_happens(eyes.look, eyes, keys=keys, seconds=6.0,

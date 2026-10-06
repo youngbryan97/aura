@@ -74,11 +74,36 @@ def test_named_directions_do_not_add_arrows_the_instructions_did_not_offer():
     assert controls_named_in("Arrow keys to walk. Pick up the coins.")[0] == ["up", "down", "left", "right"]
 
 
+def test_a_key_is_not_recorded_as_held_before_its_command_arrived(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from core.agency import playing_as_it_happens as playing
+
+    now = [10.0]
+
+    class Hands:
+        async def up(self, key):
+            now[0] += 0.08
+
+        async def down(self, key):
+            now[0] += 0.08
+
+    monkeypatch.setattr(playing, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    run = playing._Run(keys=["a", "b"], began=9, held="a")
+    hers = WhichIsHers()
+    hers.holding("a", 9, trying=True)
+    asyncio.run(playing._hold(Hands(), run, hers, "b", 9.8, trying=True))
+    assert hers._held_at(10.05)[1] == "a"
+    assert hers._held[-1][0] == run.held_since == now[0]
+    assert run.responses[-1] == now[0] - 9.8
+
+
 def test_play_retries_a_control_whose_many_pictures_were_all_blocked():
     import asyncio
     from types import SimpleNamespace
 
-    from core.agency.playing_as_it_happens import _Run, _act
+    from core.agency.playing_as_it_happens import _act, _Run
 
     class Hands:
         def __init__(self):
@@ -176,7 +201,7 @@ def test_visible_movement_measures_the_environment_response_delay():
 
     import pytest
 
-    from core.agency.playing_as_it_happens import _Run, _measure_response
+    from core.agency.playing_as_it_happens import _measure_response, _Run
 
     run = _Run(keys=["south"], began=0)
     run.previous_control = (7, 40, 55, 1.0, (0, 200), (0, 0))

@@ -55,6 +55,22 @@ def test_what_her_own_choices_make_move_is_not_taken_for_hers():
     assert hers.number is None
 
 
+def test_immediate_motion_after_a_key_change_is_not_evidence_for_the_old_key():
+    mine = _Thing(1, 0)
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 0
+    hers.holding("left", 1.0, trying=True)
+    hers.holding("up", 2.0, trying=True)
+    mine.vy, mine.seen = -120.0, 2.01
+    hers.saw(_Moves([mine]), [], mine.seen)
+    assert not hers._hers.free.get("left")
+    assert not hers._hers.free.get("up")
+    assert "left" not in hers._by_thing[1].by_press
+    mine.seen = 2.3
+    hers.saw(_Moves([mine]), [], mine.seen)
+    assert hers._hers.free["up"] == [(0.0, -120.0)]
+
+
 def test_a_ball_that_bounced_between_presses_is_not_taken_for_hers():
     """Picture by picture, a ball going one way through one press and the other way through the next answers to the keys."""
     ball = _Thing(2, 1)
