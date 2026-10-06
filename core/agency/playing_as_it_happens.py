@@ -860,8 +860,11 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         run.contest_said = standing
         _say(run, say, standing[:1].upper() + standing[1:], at)
         return
+    # The counters as read are said only where no standing could be made of
+    # them: LIVE 2026-10-06 an end screen's "You 5 Computer 4" was read as one
+    # counter, and "You computer 4." followed "4-4, level".
     counters = {name: value for name, value in meeting.readouts.values.items() if not name.startswith("number")}
-    if counters and counters != run.counted and at - run.said_at > 25.0:
+    if counters and not run.contest_said and counters != run.counted and at - run.said_at > 25.0:
         run.counted = dict(counters)
         _say(run, say, ", ".join(f"{name} {value}" for name, value in list(counters.items())[:3]).capitalize() + ".", at)
 

@@ -524,6 +524,7 @@ class WhichIsHers:
         measured was forgotten at a game's end screen, the watch never tried
         her keys again, and three of five faults went unseen.
         """
+        logger.info("lost sight of her thing %s, unseen for %.2fs", self.number, at - self.last_seen_at)
         self.number, self._sighted, self.lost_at = None, None, at
         self._since_believed, self._answered, self._answered_by, self._expecting = [], {}, None, {}
 
@@ -584,6 +585,7 @@ class WhichIsHers:
             if nearby is None:
                 self._lost_sight(at)
             else:
+                logger.info("her thing %s goes on as %s", self.number, nearby)
                 self.number = nearby
         # A renderer may answer immediately. Delaying the control label can
         # assign the first movement after a change to the previous key.
@@ -632,6 +634,7 @@ class WhichIsHers:
             best = self._found_by_her_controls(moves)
         if best is not None:
             if best != self.number:
+                logger.info("her thing is %s (was %s): %s", best, self.number, (self.identification.receipts or [{}])[-1].get("reason"))
                 for key, values in self._by_thing[best].by_key.items():
                     self._hers.by_key[key].extend(values[-50:])
                 for key, values in self._by_thing[best].free.items():
@@ -640,6 +643,8 @@ class WhichIsHers:
             self.kind = moves.things[best].kind
         elif self.number not in moves.things and self.kind is not None:
             self.number = self._one_of_her_kind(moves, at)
+            if self.number is not None:
+                logger.info("her thing goes on as %s, the one of her kind within reach", self.number)
         mine = moves.things.get(self.number) if self.number is not None else None
         if mine is not None:
             self.last_seen = (mine.x, mine.y)
