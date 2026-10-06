@@ -55,6 +55,7 @@ from core.runtime.cognitive_provenance import (  # noqa: F401  (read at call tim
     open_tick,
 )
 from core.runtime.errors import record_degradation
+from core.runtime.kernel_phase_context import running_a_kernel_phase
 from core.runtime.pipeline_blueprint import (
     bind_legacy_runtime_phase_attributes,
     kernel_phase_attribute_order,
@@ -448,13 +449,10 @@ class AuraKernel(_TicksAndShutsDown):
         phase_error = ""
         result_state = self.state
         try:
-            result_state = await wrap_phase(
-                phase_name,
-                phase.execute,
-                self.state,
-                objective=objective,
-                priority=priority,
-            )
+            with running_a_kernel_phase(phase_name):
+                result_state = await wrap_phase(
+                    phase_name, phase.execute, self.state, objective=objective, priority=priority,
+                )
             # Her membrane, when it is switched on: every channel she holds
             # carries the trace of what it has been, a turn's worth of phases
             # long. See core/runtime/state_membrane.py.

@@ -60,6 +60,7 @@ from core.brain.llm_health_router_waiting import (  # noqa: F401  (re-exported: 
 from core.phases.response_contract import ResponseContract
 from core.runtime.desktop_boot_safety import desktop_resource_guard_enabled
 from core.runtime.errors import record_degradation
+from core.runtime.kernel_phase_context import phase_holding_the_kernel
 from core.runtime.network_gateway import (
     get_network_gateway,  # noqa: F401  (read at call time by the lifted module)
 )
@@ -1926,8 +1927,11 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             return early_deferral
 
         if request_is_background:
+            # From inside a kernel phase the wait would hold the kernel's lock
+            # (core/runtime/kernel_phase_context.py): try once, then defer.
             acquired = await _acquire_generation_gate_slot(
-                min(_GENERATION_GATE_WAIT_S, _BACKGROUND_GENERATION_GATE_WAIT_S)
+                0.0 if phase_holding_the_kernel()
+                else min(_GENERATION_GATE_WAIT_S, _BACKGROUND_GENERATION_GATE_WAIT_S)
             )
         else:
             # Foreground preemption ladder. A user turn must not sit the full

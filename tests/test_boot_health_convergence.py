@@ -161,6 +161,55 @@ def test_background_gate_wait_never_force_aborts_serving_worker(monkeypatch):
         router_module._release_generation_gate_after_call(lease_id)
 
 
+def test_a_background_request_from_a_kernel_phase_does_not_wait_with_the_lock_held(monkeypatch):
+    """LIVE 2026-10-06: a background UnitaryResponsePhase waited 5.16 s for the gate, kernel lock held."""
+    from core.runtime.kernel_phase_context import running_a_kernel_phase
+
+    gate = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(router_module, "_GENERATION_GATE", gate)
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_ACTIVE_LEASES", {})
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_LEASE_DEADLINES", {})
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_FORCED_LEASES", set())
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_NEXT_LEASE_ID", 0)
+    waits = []
+    real_acquire = router_module._acquire_generation_gate_slot
+
+    async def recording_acquire(wait_s):
+        waits.append(wait_s)
+        return await real_acquire(0.0)
+
+    monkeypatch.setattr(router_module, "_acquire_generation_gate_slot", recording_acquire)
+    assert gate.acquire(False) is True
+    lease_id = router_module._mark_generation_gate_acquired("stream_narrative:unknown")
+    router = HealthAwareLLMRouter()
+    monkeypatch.setattr(router, "_background_suppression_result", lambda **_kwargs: None)
+
+    async def no_adapter(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(router, "_maybe_route_expert_adapter", no_adapter)
+
+    async def ask():
+        return await router.generate_with_metadata(
+            "what to say next", origin="system", purpose="healing_shard", is_background=True
+        )
+
+    async def ask_from_a_phase():
+        with running_a_kernel_phase("UnitaryResponsePhase"):
+            return await ask()
+
+    try:
+        inside = asyncio.run(ask_from_a_phase())
+        outside = asyncio.run(ask())
+        assert inside["endpoint"] == outside["endpoint"] == "generation_gate_background_deferred"
+        assert waits[0] == 0.0
+        assert waits[1] == min(
+            router_module._GENERATION_GATE_WAIT_S, router_module._BACKGROUND_GENERATION_GATE_WAIT_S
+        )
+    finally:
+        router_module._release_generation_gate_after_call(lease_id)
+
+
 def test_generation_gate_snapshot_reports_true_oldest_lease(monkeypatch):
     now = time.time()
     monkeypatch.setattr(
