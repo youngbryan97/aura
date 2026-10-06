@@ -436,7 +436,7 @@ async def write_it(
         if reused is not None:
             program, kept = reused
             outcome, held = FeatureOutcome(feature, held=len(kept), of=len(own), kept=True), [r.check for r in kept]
-            logger.info("rebuilding: %s works, from the frame (%d of %d checks hold)", feature.name, len(kept), len(own))
+            logger.info("rebuilding: %s works, given by code (%d of %d checks hold)", feature.name, len(kept), len(own))
         else:
             program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried)
         outcomes.append(outcome)

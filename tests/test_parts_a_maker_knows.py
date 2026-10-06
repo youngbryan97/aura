@@ -34,7 +34,7 @@ def _given(name: str) -> list[str]:
     ("Paragraph alignment", "alignment"), ("Bulleted and numbered lists", "lists"), ("Undo and Redo", "history"),
     ("Find and Replace", "find and replace"), ("Spell-check and grammar", "proofing"), ("Insert a table", "tables"),
     ("Print preview and print", "printing"), ("Line and paragraph spacing", "spacing"), ("Increase / decrease indent", "indent"),
-    ("Insert an image", "pictures"), ("Save As / Export to Desktop", "save as"), ("New blank document", "new document"),
+    ("Insert an image", "pictures"), ("Save As / Export to Desktop", "save as"), ("New blank document", "new document"), ("Close Document", "new document"),
     # A notes app's, an email composer's and a Markdown editor's, in their own words.
     ("Make text bold or italic", "character styles"), ("Search notes", "find and replace"), ("Bulleted notes", "lists"),
     ("Export note as PDF", "save as"), ("Undo typing", "history"), ("Insert link", "links"), ("Headings", "paragraph styles"),

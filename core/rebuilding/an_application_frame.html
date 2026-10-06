@@ -268,15 +268,17 @@ const app = (() => {
         return { f, input, label };
       });
       const range = selection();
-      const finish = (ok) => {
+      // `choice` is the button that ended it: spec.ok, or one of spec.also ("Don't save" beside Save and Cancel).
+      const finish = (ok, choice) => {
         back.remove(); restore(range);
         if (!ok) return resolve(null);
-        const out = {};
+        const out = { choice: choice || spec.ok || "OK" };
         for (const { f, input } of fields) out[f.name || f.label] = f.kind === "checkbox" ? input.checked : f.kind === "number" ? Number(input.value) : input.value;
         resolve(out);
       };
       const buttons = make("div", { class: "buttons" }, [
         spec.cancel === false ? null : make("button", { type: "button", text: spec.cancel || "Cancel", onclick: () => finish(false) }),
+        ...(spec.also || []).map((label) => make("button", { type: "button", text: label, onclick: () => finish(true, label) })),
         make("button", { type: "submit", class: "primary", text: spec.ok || "OK" }),
       ]);
       const form = make("form", { onsubmit: (e) => { e.preventDefault(); finish(true); } },

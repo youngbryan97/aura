@@ -578,22 +578,40 @@ app.command({ label: "Print", menu: "File", group: "File", keys: "Mod+P", svg: "
 app.command({ label: "Print preview", menu: "File", run: preview });
 
 //== new document ==
-// A new, empty document, after asking what to do with changes not yet saved.
+// A new, empty document, and closing this one, after asking what to do with changes not yet saved.
 const E = app.editing;
 const first = app.name;
+const empty = () => {
+  const s = E.surface();
+  if (!s) return;
+  s.innerHTML = "<p><br></p>";
+  app.name = first;
+  E.focus();
+  E.changed(true);
+  app.saved = true;
+};
 app.command({
   label: "New document", menu: "File", keys: "Mod+N", run: async () => {
     if (!app.saved && E.text().trim()) {
       const go = await app.ask({ title: "Start a new document?", text: "The changes to this document have not been saved.", ok: "Discard changes", cancel: "Keep editing" });
       if (!go) return;
     }
-    const s = E.surface();
-    if (!s) return;
-    s.innerHTML = "<p><br></p>";
-    app.name = first;
-    E.focus();
-    E.changed(true);
-    app.saved = true;
+    empty();
+  },
+});
+// The program's own save, whatever it is called: the File command that saves and is not "Save as".
+const ownSave = () => [...app.commands.values()].find((c) => /^save\b/i.test(c.label) && !/\bas\b/i.test(c.label) && c.menu === "File");
+app.command({
+  label: "Close document", menu: "File", keys: "Mod+W", run: async () => {
+    if (!app.saved && E.text().trim()) {
+      const saving = ownSave();
+      const got = await app.ask({ title: `Save the changes to “${app.name}” before closing?`, text: "If you don't save, your changes will be lost.",
+        ok: saving ? "Save" : "Don't save", also: saving ? ["Don't save"] : [], cancel: "Cancel" });
+      if (!got) return;
+      if (saving && got.choice === "Save") await app.run(saving.id);
+    }
+    empty();
+    app.notify("Document closed");
   },
 });
 
