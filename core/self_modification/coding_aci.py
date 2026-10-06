@@ -129,6 +129,10 @@ class CodingSurface:
     def outline(self, path: str) -> list[Definition]:
         """Every definition in a file, so reading it whole is a choice not a default."""
         source = self._resolve(path).read_text(errors="replace")
+        return self._outline(source)
+
+    @staticmethod
+    def _outline(source: str) -> list[Definition]:
         try:
             tree = ast.parse(source)
         except SyntaxError:
@@ -140,10 +144,10 @@ class CodingSurface:
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                     kind = "class" if isinstance(child, ast.ClassDef) else "function"
                     found.append(Definition(
-                        name=child.name, kind=kind, start=child.lineno,
+                        name=child.name, kind=kind, start=min([child.lineno, *(d.lineno for d in child.decorator_list)]),
                         end=child.end_lineno or child.lineno, parent=parent,
                     ))
-                    walk(child, child.name if isinstance(child, ast.ClassDef) else parent)
+                    walk(child, f"{parent}.{child.name}" if parent else child.name)
 
         walk(tree)
         return found
@@ -152,6 +156,8 @@ class CodingSurface:
         """A bounded slice. Over budget, this refuses rather than returning it."""
         lines = self._resolve(path).read_text(errors="replace").splitlines()
         end = len(lines) if end is None else min(end, len(lines))
+        if start < 1 or end < start:
+            raise ValueError("a source view needs a nonempty range starting at line 1 or later")
         span = end - start + 1
         if span > self._budget:
             raise TooMuchToRead(
@@ -172,16 +178,26 @@ class CodingSurface:
     def replace_definition(self, path: str, name: str, replacement: str) -> Edit:
         """Swap one definition by name. A string replace matching twice corrupts one."""
         target = self._resolve(path)
-        definition = next(
-            (d for d in self.outline(path) if d.qualified == name or d.name == name), None
-        )
-        if definition is None:
+        before = target.read_bytes().decode("utf-8")
+        definitions = self._outline(before)
+        matches = [d for d in definitions if d.qualified == name]
+        if not matches:
+            matches = [d for d in definitions if d.name == name]
+        if not matches:
             raise KeyError(f"{name!r} is not defined in {path}")
-        lines = target.read_text(errors="replace").splitlines()
-        before = "\n".join(lines)
-        after_lines = lines[: definition.start - 1] + replacement.splitlines() + lines[definition.end:]
-        after = "\n".join(after_lines)
-        _write(target, after + "\n")
+        if len(matches) != 1:
+            raise ValueError(f"{name!r} names several definitions; use its qualified name")
+        definition = matches[0]
+        lines = before.splitlines(keepends=True)
+        newline = "\r\n" if "\r\n" in before else "\n"
+        new = newline.join(replacement.splitlines())
+        if lines[definition.end - 1].endswith(("\n", "\r")):
+            new += newline
+        after = "".join(lines[: definition.start - 1]) + new + "".join(lines[definition.end:])
+        ast.parse(after)
+        if target.read_bytes().decode("utf-8") != before:
+            raise ValueError("the source changed while the edit was prepared")
+        _write(target, after)
         edit = Edit(path=path, target=name, before=before, after=after)
         with self._lock:
             self._edits.append(edit)
@@ -189,7 +205,10 @@ class CodingSurface:
 
     def revert(self, edit: Edit) -> None:
         """Restore the file exactly as it was before this edit."""
-        _write(self._resolve(edit.path), edit.before + "\n")
+        target = self._resolve(edit.path)
+        if target.read_bytes().decode("utf-8") != edit.after:
+            raise ValueError("the source changed after this edit; reverting would overwrite newer work")
+        _write(target, edit.before)
 
     def tests_touching(self, names: Sequence[str], *, test_root: str = "tests") -> list[str]:
         """The tests that name or import what changed.

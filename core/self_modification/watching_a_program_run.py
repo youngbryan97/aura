@@ -92,11 +92,16 @@ class _Watch:
     changes: Any = None
     were_hers: set[int] = field(default_factory=set)
     _heading: dict[int, tuple[float, float]] = field(default_factory=dict)
+    frames: Any = None
 
 
-async def _look(page: Any, clip: dict[str, float]) -> tuple[Any, float] | None:
+async def _look(page: Any, clip: dict[str, float], frames: Any = None) -> tuple[Any, float] | None:
     from core.perception.picture_arithmetic import decode
 
+    if frames is not None:
+        seen = await frames.look(clip)
+        if seen is not None:
+            return seen
     try:
         data = await page.screenshot(clip=clip, type="jpeg", quality=80, scale="css")
     except Exception:  # noqa: BLE001 - a page that cannot be photographed ends the watch
@@ -119,7 +124,7 @@ async def _start(page: Any, clip: dict[str, float], words: str) -> str:
 
 
 async def _see(page: Any, clip: dict[str, float], watch: _Watch, keys_held: str, *, trying: bool) -> list[dict[str, Any]]:
-    seen = await _look(page, clip)
+    seen = await _look(page, clip, watch.frames)
     if seen is None:
         return []
     picture, at = seen
@@ -139,11 +144,15 @@ async def _read_counters(page: Any, clip: dict[str, float], watch: _Watch) -> tu
     from core.agency.what_i_can_do_here import keys_a_screen_asks_for
     from core.perception.what_the_pixels_show import recognize_text
 
-    seen = await _look(page, clip)
+    seen = await _look(page, clip, watch.frames)
     if seen is None:
         return ()
     picture, at = seen
-    regions = await asyncio.to_thread(recognize_text, picture[:, :, ::-1].copy())
+    from core.perception.the_drawing_as_objects import words_in
+
+    regions = words_in(picture)
+    if regions is None:
+        regions = await asyncio.to_thread(recognize_text, picture[:, :, ::-1].copy())
     before = dict(watch.readouts.values)
     watch.readouts.read(regions, at, None)
     for name, value in watch.readouts.values.items():
@@ -208,16 +217,21 @@ def _note_contacts(watch: _Watch, at: float) -> None:
 
 
 def _note_departures(watch: _Watch, happened: list[dict[str, Any]], at: float) -> None:
+    if any(event.get("what") == "new screen" for event in happened):
+        return
+    from core.agency.when_motion_breaks_a_rule import departure_edge
     tall, wide = watch.moves.shape
     mine = watch.hers.thing(watch.moves)
     for event in happened:
         if event.get("what") != "gone" or event.get("thing") == watch.hers.number:
             continue
+        if math.hypot(event.get("vx", 0), event.get("vy", 0)) < 8:
+            continue
         x, y = event["x"], event["y"]
-        edge = min((x, "left"), (wide - x, "right"), (y, "top"), (tall - y, "bottom"))
-        if edge[0] < 8:
-            behind = mine is not None and ((edge[1] == "left" and mine.x < wide / 2) or (edge[1] == "right" and mine.x > wide / 2))
-            watch.went.append({"at": at, "edge": edge[1], "behind_her": behind, "her_side": mine.x / max(1, wide) if mine is not None else None})
+        edge = departure_edge(event, watch.moves.shape)
+        if edge:
+            behind = mine is not None and ((edge == "left" and mine.x < wide / 2) or (edge == "right" and mine.x > wide / 2))
+            watch.went.append({"at": at, "edge": edge, "behind_her": behind, "her_side": mine.x / max(1, wide) if mine is not None else None})
 
 
 async def _play(page: Any, clip: dict[str, float], watch: _Watch, keys: list[str], seconds: float, *, still: bool) -> None:
@@ -415,7 +429,9 @@ def _escaped(watch: _Watch) -> tuple[str, str]:
         if departure["edge"] not in ("top", "bottom"):
             continue
         changed = any(0 <= at - departure["at"] < 2.0 for at, _n, _d in watch.counter_changes)
-        if not changed and watch.last_others_moving - departure["at"] < 1.0:
+        if changed:
+            return WRONG, f"something left through the {departure['edge']} and a counter changed instead of it turning back"
+        if watch.last_others_moving - departure["at"] < 1.0:
             return WRONG, f"something left through the {departure['edge']} and the game stood still after it"
     # Both walls seen to turn things back: one wall that works says nothing
     # about the other, and believing it did kept a missing wall from being
@@ -520,6 +536,8 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
     from core.agency.what_meeting_things_does import Readouts
     from core.agency.which_one_answers_to_her import WhichIsHers
     from core.perception.what_moves_in_the_picture import WhatMoves
+    from core.perception.frames_as_they_are_drawn import CanvasFrames
+    from core.perception.the_drawing_as_objects import BOOTSTRAP
 
     behaviour = Behaviour()
     page.on("pageerror", lambda error: behaviour.errors.append(str(error)[:200]))
@@ -528,6 +546,7 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
     page.on("requestfailed", lambda request: failed.append(request.url) if request.url.startswith(folder) else None)
     page.on("response", lambda response: failed.append(response.url) if response.status >= 400 and response.url.startswith(folder) else None)
     await page.add_init_script(_SAME_DICE)
+    await page.add_init_script(BOOTSTRAP)
     await page.goto(address)
     await page.wait_for_timeout(300)
     clip = await page.evaluate(
@@ -539,10 +558,13 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
         return await _used(page, behaviour, failed)
     began = time.monotonic()
     behaviour.started_by = await _start(page, clip, words)
-    watch = _Watch(moves=WhatMoves(), hers=WhichIsHers(), readouts=Readouts())
-    await _try_keys(page, clip, watch, keys)
-    await _play(page, clip, watch, keys, seconds, still=False)
-    await _play(page, clip, watch, keys, seconds, still=True)
+    watch = _Watch(moves=WhatMoves(), hers=WhichIsHers(), readouts=Readouts(), frames=CanvasFrames(page))
+    try:
+        await _try_keys(page, clip, watch, keys)
+        await _play(page, clip, watch, keys, seconds, still=False)
+        await _play(page, clip, watch, keys, seconds, still=True)
+    finally:
+        await watch.frames.close()
     behaviour.controls, controls = _controls(watch, keys)
     behaviour.checks = {"controls", "went through", "escaped", "credited", "idle"}
     for name, (verdict, finding) in (("controls", controls), ("went through", _went_through(watch)),
@@ -575,5 +597,6 @@ async def what_it_does(page: Any, address: str, *, words: str, keys: list[str], 
         "pictures": watch.moves.pictures,
         "pictures_a_second": round(watch.moves.pictures / max(0.1, behaviour.seconds), 1),
         "hers": behaviour.hers,
+        "observation": "canvas and pixels",
     }
     return behaviour

@@ -15,8 +15,8 @@ the paddle.
 
 What the program should do comes from its own words, and from what she
 already knows about the thing it is a version of. That knowledge is looked up
-in her own reference corpus and shown beside each finding, as evidence. Nothing
-here asks a model what the fix is.
+in her own reference corpus and shown as background. Model-suggested edits
+remain hypotheses until execution checks them.
 """
 from __future__ import annotations
 
@@ -60,6 +60,8 @@ class Repair:
     unseen: list[str] = field(default_factory=list)
     #: Behaviour checks actually seen to hold, after the retained edits.
     checked: list[str] = field(default_factory=list)
+    code_checks: list[dict[str, Any]] = field(default_factory=list)
+    required_edges: list[str] = field(default_factory=list)
 
 
 def the_programs_own_words(source: str) -> str:
@@ -467,6 +469,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
 
     from core.agency.playing_as_it_happens import controls_named_in
     from core.runtime.file_write_gateway import get_file_write_gateway
+    from core.self_modification.checking_code_paths import boundary_checks, check_code_paths
 
     began = time.monotonic()
     # Copies an earlier repair was trying when it was cut short (a restart) are hers to clear.
@@ -496,10 +499,37 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             tell(_what_is_wrong(first))
             repair.knowledge = what_she_knows_about(_title(source), first.findings, words)
             if repair.knowledge:
-                tell(f"What I know about {_title(source)}: {repair.knowledge[0]}")
+                tell(f"Reference background about {_title(source)} (this program may use different rules): {repair.knowledge[0]}")
             suspicions = what_looks_wrong(source, ".html")
             tell(_what_looks_wrong(suspicions))
             current, last = source, _Believed.from_watch(first)
+            contracts = boundary_checks(source, path.suffix)
+            repair.required_edges = sorted({edge for c in contracts for edge in
+                                            (("top", "bottom") if c.axis == "y" else ("left", "right"))})
+            if contracts:
+                initial_paths = await check_code_paths(browser, current, suffix=path.suffix, checks=contracts)
+                repair.code_checks.append({"stage": "before", "results": initial_paths})
+                for suspicion in suspicions:
+                    if suspicion.pattern != "one-sided boundary":
+                        continue
+                    after = applied(current, suspicion.edits)
+                    tested = await check_code_paths(browser, after, suffix=path.suffix, checks=contracts)
+                    right_before = {(r["check"]["position"], r["case"]) for r in initial_paths if r["verdict"] == "right"}
+                    now_right = { (r["check"]["position"], r["case"]) for r in tested if r["verdict"] == "right" }
+                    if not right_before <= now_right or len(now_right) <= len(right_before):
+                        continue
+                    tell(f"Line {suspicion.line}: testing each boundary directly on a copy confirmed {suspicion.why}. "
+                         "The changed function keeps the object inside, turns it back, and changes no counters.")
+                    repair.kept.append({"where": suspicion.function, "line": suspicion.line,
+                                        "pattern": suspicion.pattern, "change": ", ".join(e.says(current) for e in suspicion.edits),
+                                        "why": suspicion.why, "shown": ["directed function checks: both boundaries and interior"]})
+                    repair.code_checks.append({"stage": "candidate", "results": tested})
+                    current = after
+                    last = last.after(await _watched(browser, current, words, keys, path.parent))
+                    from types import SimpleNamespace
+
+                    last = last.after(SimpleNamespace(right={"escaped"}, wrong=set(), findings={}))
+                    initial_paths = tested
             refused: set[str] = set()
             asked = 0
             # On while anything helps, not only while something is known to be
@@ -579,15 +609,25 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             repair.after = dict(believed.findings) if believed.wrong else {}
             repair.checked = sorted(believed.right)
             repair.unseen = sorted((final.checks or set(_RIGHT_SAID)) - believed.right - believed.wrong)
+            if contracts:
+                tested = await check_code_paths(browser, current, suffix=path.suffix, checks=contracts)
+                repair.code_checks.append({"stage": "final", "results": tested})
+                if all(r["verdict"] == "right" for r in tested):
+                    if "escaped" not in repair.checked:
+                        repair.checked.append("escaped")
+                    repair.unseen = [name for name in repair.unseen if name != "escaped"]
+                    repair.after.pop("escaped", None)
+                elif any(r["verdict"] == "wrong" for r in tested):
+                    repair.after["escaped"] = "a directed boundary check still fails"
+                    repair.checked = [name for name in repair.checked if name != "escaped"]
         finally:
             await browser.close()
     repair.left = [f"{s.function}: {s.why}" for s in what_looks_wrong(current, ".html")]
     if current != source:
-        gateway = get_file_write_gateway()
-        backup = path.with_name(path.name + ".before-repair")
-        await gateway.write_text_async(backup, source, source="repairing_by_behaviour")
-        await gateway.write_text_async(path, current, source="repairing_by_behaviour")
-        repair.written_to, repair.backup = str(path), str(backup)
+        from core.self_modification.saving_a_verified_repair import save_repair
+
+        repair.backup = await save_repair(path, source, current)
+        repair.written_to = str(path)
     tell(_how_it_ends(repair))
     repair.seconds = round(time.monotonic() - began, 1)
     return repair

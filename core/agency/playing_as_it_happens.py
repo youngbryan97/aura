@@ -846,6 +846,9 @@ async def play_as_it_happens(
     """
     began = time.monotonic()
     keep = keep if keep is not None else {}
+    from core.agency.when_motion_breaks_a_rule import MotionChecks
+
+    motion_checks = MotionChecks(frozenset(keep.get("required_edges") or []), str(keep.get("edge_provenance") or ""))
     moves = WhatMoves(kinds=keep.get("kinds"))
     physics: HowThingsMoveHere = keep.get("physics") or HowThingsMoveHere()
     rules = WhatTheRulesSaid.read(told) if told else None
@@ -887,6 +890,11 @@ async def play_as_it_happens(
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
+            violations = motion_checks.see(moves, happened, at, hers.number)
+            if violations:
+                ended = "runtime contract violated"
+                _say(run, say, "This still behaves incorrectly: " + violations[0]["finding"] + ". I need to check the repair.", at, once="runtime_fault")
+                break
             await _act(hands, run, moves, hers, meeting, choosing, at)
             _what_she_says(run, say, moves, hers, meeting, at)
             _what_kind_of_game(run, say, moves, hers, meeting, physics, at)
@@ -902,7 +910,10 @@ async def play_as_it_happens(
             run.reading.cancel()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest})
-    return _what_it_came_to(run, moves, hers, meeting, ended, began)
+    result = _what_it_came_to(run, moves, hers, meeting, ended, began)
+    result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
+                                "provenance": motion_checks.provenance, "violations": motion_checks.violations}
+    return result
 
 
 async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,

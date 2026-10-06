@@ -212,7 +212,7 @@ async def played_on_the_drawing(
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="start the drawing and hold its page still")
     try:
-        return await _played(page, band, goal, url, step)
+        return await _played(page, band, goal, url, {**step, "runtime_contract": observation.get("runtime_contract") or {}})
     finally:
         try:
             await page.evaluate(_LET_IT_GO)
@@ -232,7 +232,9 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     attempts = requested_attempts(goal)
     limit = min(attempts, MOST_RUNS) if attempts is not None else MOST_RUNS if until_won else 1
     deadline = time.monotonic() + (PLAY_UNTIL_WON_S if until_won or limit > 1 else _one_run_s())
-    keep: dict[str, Any] = {}
+    contract = step.get("runtime_contract") or {}
+    keep: dict[str, Any] = {"required_edges": contract.get("required_edges") or [],
+                            "edge_provenance": contract.get("provenance") or ""}
     runs: list[dict[str, Any]] = []
     moves: list[Any] = []
     result: dict[str, Any] = {}
@@ -243,10 +245,14 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         moves += [{"key": "played as it happened"} for stretch in reflexes.stretches if stretch.get("pictures")]
         run = _how_the_run_went(reflexes, result)
         run["observations"] = [
-            {key: stretch.get(key) for key in ("pictures", "pictures_a_second", "observations", "standing", "settled")}
+            {key: stretch.get(key) for key in ("pictures", "pictures_a_second", "observations", "standing", "settled", "runtime_checks")}
             for stretch in reflexes.stretches if stretch.get("pictures")
         ]
         runs.append(run)
+        violations = [v for s in reflexes.stretches for v in (s.get("runtime_checks") or {}).get("violations", [])]
+        if violations:
+            result["runtime_violations"] = violations
+            break
         if (until_won and run["ended"] == "won") or len(runs) >= limit or not reflexes.over_because:
             break
         if _for_points_only(reflexes, goal):
@@ -260,7 +266,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     last_seen = str(result.get("last_seen") or "")
     won = any(r["ended"] == "won" for r in runs)
     counted = (until_won and won) or attempts is None or (len(runs) >= attempts and all(r["ended"] in ("won", "lost", "finished") for r in runs))
-    complete = (won if until_won else bool(result.get("completed")) or bool(runs and runs[-1]["ended"])) and counted
+    complete = (won if until_won else bool(result.get("completed")) or bool(runs and runs[-1]["ended"])) and counted and not result.get("runtime_violations")
     return {
         **step,
         "landed": len(moves),
@@ -275,6 +281,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         "finished": any(r["ended"] in ("won", "finished") for r in runs),
         "did": what_the_play_came_to(len(moves), result),
         "ok": bool(moves) and complete,
+        "runtime_violations": result.get("runtime_violations") or [],
     }
 
 

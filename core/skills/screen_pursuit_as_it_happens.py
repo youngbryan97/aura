@@ -222,7 +222,7 @@ class PlayingAsItHappens:
             return
         if not await the_world_moves_on_its_own(self.look):
             return
-        if not self.keep and not self.recalled:
+        if not self.keep.get("hers") and not self.recalled:
             self.recalled = True
             self.keep.update(_what_she_kept_of(self.page))
         named, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]),
@@ -244,6 +244,8 @@ class PlayingAsItHappens:
             told=" ".join([self.goal, *self.words[-6:]]),
         )
         self.stretches.append(stretch)
+        if (stretch.get("runtime_checks") or {}).get("violations"):
+            self.over_because = "runtime contract violated"
         _keep_what_she_learned(self.page, self.keep)
         logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "keys_that_move_her", "pictures_a_second", "learned", "gains", "losses")})
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):

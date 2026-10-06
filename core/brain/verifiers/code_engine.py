@@ -403,6 +403,26 @@ class CodeTruthEngine:
 
         hard_fail_markers = ("syntax", "compile", "unsafe", "runtime failure")
         ok = not any(any(m in i for m in hard_fail_markers) for i in issues)
+        function_checks = (context or {}).get("function_examples")
+        if function_checks is not None and ok:
+            from core.self_modification.checking_python import FunctionExample, check_python
+
+            if not isinstance(function_checks, list) or len(function_checks) > 32:
+                return VerificationResult(domain="code", ok=True, checked=False, engine=self.name,
+                                          issues=["independent examples are malformed or exceed the check budget"])
+            try:
+                examples = [FunctionExample.model_validate(e) for e in function_checks]
+            except ValueError:
+                return VerificationResult(domain="code", ok=True, checked=False, engine=self.name,
+                                          issues=["independent examples do not satisfy the function check contract"])
+            measured = await check_python("\n\n".join(blocks), examples)
+            wrong = [c for c in measured.get("cases", []) if c["verdict"] == "wrong"]
+            unknown = [c for c in measured.get("cases", []) if c["verdict"] == "unmeasured"]
+            return VerificationResult(domain="code", ok=not wrong, checked=bool(wrong) or (bool(examples) and not unknown),
+                engine=self.name, score=0.98 if measured.get("verified") else 0.1 if wrong else 0.5,
+                issues=issues+[f"{c['name']}: expected {c['expected']!r}, got {c['actual']!r}" for c in wrong],
+                evidence=evidence+[f"{c['name']}: {c['verdict']} ({c['boundary']})" for c in measured.get("cases", [])],
+                detail={"blocks": len(blocks), "compiled_ok": compiled_ok, "function_checks": measured})
 
         # Demotion: statics passed but the candidate's executable claims could
         # not be run — the engine did NOT meaningfully check this candidate.

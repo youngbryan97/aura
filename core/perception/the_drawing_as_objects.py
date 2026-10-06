@@ -40,6 +40,13 @@ _OBSERVER = r"""
   const full = (s,b) => b && b[0]<=0 && b[1]<=0 && b[0]+b[2]>=s.width && b[1]+b[3]>=s.height;
   const add = (c,s,b,shape,style) => {
     if (!b || !plain(c,s) || !opaque(style)) { s.complete=false; return; }
+    if(shape==='rectangle') {
+      const covers=(t)=>b[0]<=t.x&&b[1]<=t.y&&b[0]+b[2]>=t.x+t.width&&b[1]+b[3]>=t.y+t.height;
+      const meets=(t)=>b[0]<t.x+t.width&&b[0]+b[2]>t.x&&b[1]<t.y+t.height&&b[1]+b[3]>t.y;
+      if(s.texts.some(t=>meets(t)&&!covers(t)))s.complete=false;
+      s.texts=s.texts.filter(t=>!covers(t));
+      s.objects=s.objects.filter(t=>!covers(t));
+    }
     s.objects.push({x:b[0],y:b[1],width:b[2],height:b[3],shape,colour:style});
     if (s.objects.length+s.texts.length>1000) { s.objects=[];s.texts=[];s.complete=false; }
   };
@@ -89,6 +96,7 @@ _OBSERVER = r"""
     const b=box(c,x-m.actualBoundingBoxLeft,y-m.actualBoundingBoxAscent,
       m.actualBoundingBoxLeft+m.actualBoundingBoxRight,m.actualBoundingBoxAscent+m.actualBoundingBoxDescent);
     if(!b){s.complete=false;return;}
+    if(b[0]<0||b[1]<0||b[0]+b[2]>s.width||b[1]+b[3]>s.height){s.complete=false;return;}
     if(String(text).length>2048){s.complete=false;return;}
     s.texts.push({text:String(text),x:b[0],y:b[1],width:b[2],height:b[3]});
     if(s.objects.length+s.texts.length>1000){s.objects=[];s.texts=[];s.complete=false;}

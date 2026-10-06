@@ -132,6 +132,18 @@ async def test_partial_clear_clipping_and_unsupported_paths_use_pixels(canvas):
 
 
 @pytest.mark.asyncio
+async def test_opaque_paint_cannot_leave_hidden_text_as_a_terminal_message(canvas):
+    await canvas.page.evaluate("""() => {
+      const c=document.querySelector('canvas').getContext('2d');
+      c.fillStyle='#000';c.fillRect(0,0,320,200);
+      c.fillStyle='#fff';c.font='18px sans-serif';c.fillText('You win',20,40);
+      c.fillStyle='#000';c.fillRect(0,0,180,60);
+    }""")
+    picture, _ = await canvas.frames.look(canvas.clip)
+    assert words_in(picture) == []
+
+
+@pytest.mark.asyncio
 async def test_the_last_frame_owner_restores_native_drawing_methods(canvas):
     from core.perception.frames_as_they_are_drawn import CanvasFrames
 

@@ -204,7 +204,9 @@ def _without_what_stands_out(still: np.ndarray) -> np.ndarray:
 
 
 def what_happened(kind: str, thing: Thing, at: float) -> dict[str, Any]:
-    return {"what": kind, "thing": thing.number, "kind": thing.kind, "x": thing.x, "y": thing.y, "at": at}
+    return {"what": kind, "thing": thing.number, "kind": thing.kind, "x": thing.x, "y": thing.y,
+            "vx": thing.vx, "vy": thing.vy, "width": thing.w, "height": thing.h, "at": at,
+            "last_visible": list(_measured(thing)), "last_seen_at": thing.seen, "moved": thing.moved}
 
 
 def _boxes_overlap(a: tuple, b: tuple) -> bool:

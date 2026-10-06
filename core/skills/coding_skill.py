@@ -1,6 +1,5 @@
 """
-Coding Skill — Dedicated interface for code generation with Thought Circulation.
-Ensures complex programming tasks are wrapped with <think> tags for high-accuracy reasoning.
+Dedicated code generation with existing reasoning and sandbox execution checks.
 """
 
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
@@ -34,9 +33,6 @@ class CodingSkill(BaseSkill):
 
         logger.info("Executing coding task in %s", language)
 
-        # The local_llm.py now automatically handles the <think> directive detection,
-        # but the coding skill forces the 'coding' task tier explicitly.
-
         system_prompt = (
             "You are an expert software engineer. "
             f"Write clean, efficient, and well-documented {language} code. "
@@ -51,7 +47,13 @@ class CodingSkill(BaseSkill):
             if self.brain is None:
                 return {"ok": False, "error": "Cognitive engine unavailable for coding_skill."}
 
-            # We pass a highly specific prompt that triggers the coding tier in local_llm
+            from core.brain.reasoning_strategies import StrategyType
+
+            checks = params.get("checks")
+            verification_args = {}
+            if checks:
+                verification_args = {"force_strategy": StrategyType.CONSISTENCY,
+                                     "verification_context": {"function_examples": checks}}
             raw_result = await self.brain.generate(
                 prompt=f"Task: {task}",
                 system_prompt=system_prompt,
@@ -62,6 +64,7 @@ class CodingSkill(BaseSkill):
                 max_tokens=int(context.get("max_tokens", 4096) or 4096),
                 temperature=float(context.get("temperature", 0.2) or 0.2),
                 use_strategies=True,
+                **verification_args,
             )
             if isinstance(raw_result, dict):
                 code = str(raw_result.get("response") or raw_result.get("text") or "")
@@ -81,13 +84,30 @@ class CodingSkill(BaseSkill):
                     "thought_process": thought,
                 }
 
+            verification = {"verified": False, "unmeasured": "execution checks are available for Python"}
+            if str(language).lower() in ("python", "py"):
+                from core.self_modification.checking_python import FunctionExample, check_python
+                from core.utils.python_source_extraction import extract_python_code
+
+                code = extract_python_code(code) if "```" in code else code.strip()
+                if not code.strip():
+                    return {"ok": False, "error": "the response did not contain Python code"}
+                examples = params.get("checks")
+                verification = await check_python(code, None if examples is None else [FunctionExample.model_validate(e) for e in examples])
+                verification["oracle"] = "supplied independent examples" if examples is not None else "draft self-examples"
+                verification["independent"] = examples is not None
+                if not verification.get("syntax") or (verification.get("cases") and not verification.get("verified")):
+                    return {"ok": False, "code": code, "verification": verification,
+                            "error": verification.get("error") or "the draft did not pass its executable examples"}
+
             return {
                 "ok": True,
                 "code": code,
                 "thought_process": thought,
                 "note": "Generated through foreground coding reasoning",
+                "verification": verification,
             }
-        except (ImportError, AttributeError, RuntimeError) as e:
+        except (ImportError, AttributeError, RuntimeError, ValueError, TypeError) as e:
             record_degradation('coding_skill', e)
             logger.error("Coding skill failed: %s", e)
             return {"ok": False, "error": str(e)}

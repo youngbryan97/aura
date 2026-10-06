@@ -11,6 +11,7 @@
 description = "core.self_modification: may import only what it already imports; every new edge is an edit here."
 
 include_rules = [
+    "+core.conversation",
     "+core.self_modification",
 
     # What this package reaches for today.
@@ -29,6 +30,7 @@ include_rules = [
     "+core.perception",
     "+core.resilience",
     "+core.runtime",
+    "+core.sandbox",
     "+core.security",
     "+core.skills",
     "+core.thought_stream",

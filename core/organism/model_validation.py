@@ -849,6 +849,7 @@ def install_runtime_validation() -> dict[str, Any]:
     _install_morphogenesis_claims(suite)
 
     _install_knowledge_revision_claims(suite)
+    _install_repair_executor_claims(suite)
     _install_suite_tail(suite)
     _install_phenomena_claims(suite)
 
@@ -3005,6 +3006,26 @@ def _install_knowledge_revision_claims(suite):
         evidence=Evidence.MEASURED_SYNTHETIC,
         evidence_note="Constructed claims on the production graph class; not a broad reasoning result.",
     ))
+
+
+def _install_repair_executor_claims(suite):
+    from core.reasoning.arithmetic_on_the_floor import arithmetic_canary
+    from core.agency.when_motion_breaks_a_rule import _open_edges_are_not_faults
+
+    for name, probe, owner, statement, tests in (
+        ("floor_integer_execution_canary", arithmetic_canary, "core/reasoning/arithmetic_on_the_floor.py",
+         "The integer floor canary preserves large integer exactness, signed division, and an unknown zero-division outcome.",
+         "tests/test_exact_executor_connections.py"),
+        ("motion_contract_canary", _open_edges_are_not_faults, "core/agency/when_motion_breaks_a_rule.py",
+         "The motion canary reports an observed departure only when a supplied boundary contract requires reflection.",
+         "tests/test_directed_program_checks.py"),
+    ):
+        suite.add_test(ValidationTest(name=name, description=statement, required_capability="",
+            observation=Observation(name=name, value=True, source=tests), predict=lambda _m, p=probe: p(),
+            score=lambda p, o: boolean_score(bool(p), expected=bool(o.value), subject="executor canary"), owner=owner))
+        suite.add_claim(Claim(statement=statement, test=name, owner=owner, asserted_in=owner,
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note="Small production-path canaries; neither frontier coding parity nor general semantic qualification."))
 
 
 def _install_suite_tail(suite):
