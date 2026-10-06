@@ -59,6 +59,8 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 | Skill dispatch | `CapabilityEngine` | `core/capability_engine.py` |
 | LLM inference | `InferenceGate` | `core/brain/inference_gate.py` |
 | Output emission | `AutonomousOutputGate` | `core/utils/output_gate.py` |
+| Rendered frame sources | `PageFrames`, `CanvasFrames` | `core/perception/frames_as_they_are_drawn.py`; readers close the sources they own |
+| Realtime control claim registration | `ValidationSuite` | `core/organism/claims_realtime_control.py` |
 
 ## Lifecycle
 

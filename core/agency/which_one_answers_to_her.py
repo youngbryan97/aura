@@ -60,11 +60,6 @@ MADE_EVERY = 0.3
 #: key's way before it is taken not to be hers: about a second.
 ANSWERING_OVER = 40
 
-#: How much better another thing must answer her keys before it, and not the
-#: one that has been answering them, is taken to be hers.
-SWITCH_OVER = 2.0
-
-
 @dataclass
 class Makes:
     """What pressing a key brings into the picture beside her."""
@@ -115,7 +110,9 @@ class _Speeds:
         for (key, _began), values in self.by_press.items():
             if len(values) >= 2:
                 presses[key].append(_mean(values))
-        groups = dict(presses)
+        # Each key needs repeated trials. One transient object seen during
+        # one press can otherwise produce an enormous ratio by chance.
+        groups = {key: values for key, values in presses.items() if len(values) >= 2}
         if len(groups) < 2:
             return 0.0, 0.0
         means = {key: _mean(values) for key, values in groups.items()}
@@ -481,13 +478,13 @@ class WhichIsHers:
             f, widest = speeds.ratio()
             if f > best_f and widest > REALLY_MOVES:
                 best, best_f = number, f
-        # Hers stays hers while it answers: LIVE 2026-10-05 the computer's paddle,
-        # chasing the ball while she tried left and right (which move nothing),
-        # answered a little better for a moment and she played as it for a game.
+        # Keep an established control identity until its own response disproves
+        # it. A competing object's old trial score cannot revoke a response
+        # she is still measuring on her own object.
         current = self._by_thing.get(self.number) if self.number in moves.things else None
         if best is not None and current is not None and best != self.number:
             held_f = current.ratio()[0]
-            if held_f > ANSWERS and best_f < SWITCH_OVER * held_f:
+            if held_f > ANSWERS and self.number not in self.not_mine:
                 best = self.number
         if best is not None:
             if best != self.number:
@@ -519,7 +516,8 @@ class WhichIsHers:
             x, y = self.last_seen
             candidates = [
                 t for t in moves.things.values()
-                if math.hypot(t.x - x, t.y - y) < 30.0 and 0.5 < t.size / self.last_size < 2.0 and t.number not in self.not_mine
+                if math.hypot(t.x - x, t.y - y) < 30.0 and 0.5 < t.size / self.last_size < 2.0
+                and t.number not in self.not_mine and self._her_shape(t)
             ]
         if not candidates:
             return None

@@ -33,12 +33,14 @@ STILL_AFTER_S = 0.25
 class PageFrames:
     """Frames of one page, streamed; started on the first look, stopped on close."""
 
-    def __init__(self, page: Any) -> None:
+    def __init__(self, page: Any, *, every_nth_frame: int = 1) -> None:
         self.page = page
         self._session: Any = None
         self._latest: tuple[str, dict[str, Any], float] | None = None
         self._taken_at = -1.0
         self._arrived = asyncio.Event()
+        self._acks: set[asyncio.Task] = set()
+        self.every_nth_frame = max(1, every_nth_frame)
         self.unavailable = False
 
     async def _start(self) -> bool:
@@ -46,20 +48,21 @@ class PageFrames:
             return self._session is not None
         try:
             session = await self.page.context.new_cdp_session(self.page)
+            self._session = session
             session.on("Page.screencastFrame", self._frame)
             # At the page's own size: a window on a high-density screen
             # otherwise sends each frame at twice that in each direction, and
             # encoding it is most of what a frame costs.
             wide, tall = await self.page.evaluate("[innerWidth, innerHeight]")
             await session.send("Page.startScreencast", {
-                "format": "jpeg", "quality": 80, "everyNthFrame": 1,
+                "format": "jpeg", "quality": 80, "everyNthFrame": self.every_nth_frame,
                 "maxWidth": int(wide), "maxHeight": int(tall),
             })
         except Exception as why:  # noqa: BLE001 - any engine without a screencast: screenshots instead
             logger.info("frames cannot be streamed from this page (%s); taking screenshots", why)
             self.unavailable = True
+            await self.close()
             return False
-        self._session = session
         return True
 
     def _frame(self, params: dict[str, Any]) -> None:
@@ -67,7 +70,15 @@ class PageFrames:
         self._arrived.set()
         session = self._session
         if session is not None:
-            asyncio.ensure_future(session.send("Page.screencastFrameAck", {"sessionId": params.get("sessionId")}))
+            task = asyncio.create_task(self._ack(session, params.get("sessionId")))
+            self._acks.add(task)
+            task.add_done_callback(self._acks.discard)
+
+    async def _ack(self, session: Any, frame_id: Any) -> None:
+        try:
+            await session.send("Page.screencastFrameAck", {"sessionId": frame_id})
+        except Exception as why:  # noqa: BLE001 - closing a page can race its last acknowledgement
+            logger.debug("acknowledging a frame: %s", why)
 
     async def look(self, clip: dict[str, float]) -> tuple[Any, float] | None:
         """The newest frame, cropped to ``clip`` (page pixels), and when it arrived; None if streaming is not possible."""
@@ -93,13 +104,22 @@ class PageFrames:
 
     async def close(self) -> None:
         session, self._session = self._session, None
+        acks = list(self._acks)
+        for task in acks:
+            task.cancel()
+        if acks:
+            await asyncio.gather(*acks, return_exceptions=True)
+        self._acks.clear()
         if session is None:
             return
         try:
             await session.send("Page.stopScreencast")
-            await session.detach()
         except Exception as why:  # noqa: BLE001 - a page already gone has nothing to stop
             logger.debug("stopping the stream: %s", why)
+        try:
+            await session.detach()
+        except Exception as why:  # noqa: BLE001 - detaching remains necessary when stopping failed
+            logger.debug("detaching the stream: %s", why)
 
 
 def _cropped(data: str, metadata: dict[str, Any], clip: dict[str, float]) -> Any:
@@ -133,22 +153,27 @@ def _cropped(data: str, metadata: dict[str, Any], clip: dict[str, float]) -> Any
 #: gives it as fast as headless does (139 a second, LIVE-like 2026-10-04,
 #: against 18 streamed and 7 screenshots from the same window).
 _THE_CANVAS_NOW = """
-(() => {
+((clip) => {
+  const fits = (c) => {
+    if (!c || !c.isConnected) return false;
+    const r = c.getBoundingClientRect();
+    return Math.abs(r.left - clip.x) <= 3 && Math.abs(r.top - clip.y) <= 3
+      && Math.abs(r.width - clip.width) <= 3 && Math.abs(r.height - clip.height) <= 3;
+  };
   let canvas = window.__auraCanvas;
-  if (!canvas || !canvas.isConnected) {
+  if (!fits(canvas)) {
     const found = [];
     const walk = (root) => { for (const el of root.querySelectorAll('*')) {
       if (el.tagName === 'CANVAS') found.push(el); if (el.shadowRoot) walk(el.shadowRoot); } };
     walk(document);
     let area = 0; canvas = null;
-    for (const c of found) { const r = c.getBoundingClientRect(); if (r.width * r.height > area) { area = r.width * r.height; canvas = c; } }
+    for (const c of found) { const r = c.getBoundingClientRect(); if (fits(c) && r.width * r.height > area) { area = r.width * r.height; canvas = c; } }
     if (!canvas || area < 10000) return null;
     window.__auraCanvas = canvas;
   }
   try { return canvas.toDataURL('image/jpeg', 0.8); } catch (e) { return null; }
-})()
+})
 """
-
 
 class CanvasFrames:
     """The drawing read from its own canvas; told apart from a canvas that reads back blank."""
@@ -157,12 +182,13 @@ class CanvasFrames:
         self.page = page
         self.unavailable = False
         self._checked = False
+        self._closed = False
 
     async def look(self, clip: dict[str, float]) -> tuple[Any, float] | None:
-        if self.unavailable:
+        if self.unavailable or self._closed:
             return None
         try:
-            data = await self.page.evaluate(_THE_CANVAS_NOW)
+            data = await self.page.evaluate(_THE_CANVAS_NOW, clip)
         except Exception as why:  # noqa: BLE001 - a page that cannot be asked has no canvas to read
             logger.debug("the canvas could not be read: %s", why)
             data = None
@@ -177,6 +203,9 @@ class CanvasFrames:
                 self.unavailable = True
                 return None
         return picture, at
+
+    async def close(self) -> None:
+        self._closed = True
 
     async def _shows_what_the_screen_shows(self, picture: Any, clip: dict[str, float]) -> bool:
         """A canvas drawn by WebGL without a kept buffer reads back blank while the screen shows a game."""

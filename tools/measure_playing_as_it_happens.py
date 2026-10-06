@@ -115,6 +115,9 @@ async def _one(browser, world, seed, seconds, player):
         stretches.append(stretch)
         state = await page.evaluate("__world.state")
         if state != "play":
+            from core.skills.screen_pursuit_as_it_happens import begin_run
+
+            begin_run(keep)
             await page.evaluate("__world.begin()")
     tally = await page.evaluate(
         "(() => { const w = __world; return {state: w.state, score: w.score, lives: w.lives,"

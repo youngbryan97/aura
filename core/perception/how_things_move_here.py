@@ -317,6 +317,16 @@ class HowThingsMoveHere:
     def when_it_reaches(self, thing: Any, axis: int, line: float, seconds: float = 3.0,
                         start: tuple[float, float, float, float] | None = None) -> tuple[float, float] | None:
         """When a thing run forward first crosses ``line`` on ``axis``, and where it is along the other axis then."""
+        state = start if start is not None else (thing.x, thing.y, thing.vx, thing.vy)
+        key = ("crossing", thing.kind, *state, axis, line, seconds)
+        if key in self._this_picture:
+            return self._this_picture[key]
+        result = self._crossing(thing, axis, line, seconds, start)
+        self._this_picture[key] = result
+        return result
+
+    def _crossing(self, thing: Any, axis: int, line: float, seconds: float,
+                  start: tuple[float, float, float, float] | None) -> tuple[float, float] | None:
         imagined = self.imagine(thing, seconds, start=start)
         previous = imagined.path[0]
         for point in imagined.path[1:]:

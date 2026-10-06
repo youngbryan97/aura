@@ -30,6 +30,19 @@ logger = logging.getLogger("Aura.ScreenPursuit.AsItHappens")
 
 __all__ = ["AS_IT_HAPPENS", "PlayingAsItHappens"]
 
+
+def begin_run(keep: dict[str, Any]) -> None:
+    """A new attempt keeps world knowledge and measures its own state."""
+    from core.agency.how_the_contest_stands import ContestStands
+    from core.agency.which_one_answers_to_her import WhichIsHers
+
+    contest = keep.get("contest")
+    keep["contest"] = ContestStands(wins=contest.wins) if contest is not None else ContestStands()
+    keep["hers"] = WhichIsHers()
+    meeting = keep.get("meeting")
+    if meeting is not None:
+        meeting.begin_run()
+
 #: How long the reflexes leave a moving screen alone after finding nothing on
 #: it that answers to her: a title screen that animates is not a game yet.
 LEAVE_A_MOVING_MENU_S = 20.0
@@ -110,6 +123,9 @@ class PlayingAsItHappens:
 
     async def close(self) -> None:
         """Stop streaming frames, when the run is over."""
+        if self._canvas is not None:
+            await self._canvas.close()
+            self._canvas = None
         if self._frames is not None:
             await self._frames.close()
             self._frames = None
@@ -209,12 +225,15 @@ class PlayingAsItHappens:
         if not self.keep and not self.recalled:
             self.recalled = True
             self.keep.update(_what_she_kept_of(self.page))
-        named, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]))
+        named, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]),
+                                                keys_without_words=(), during_play=True)
         # The game's controls are every key any of its screens has named, not
         # only this screen's: LIVE 2026-10-04 a run begun from the end screen
         # ("Press SPACE to play again") was played with space alone, and the
         # arrows the title screen had named were never pressed.
         keys = list(dict.fromkeys([*(self.keep.get("named_keys") or []), *named]))
+        if not keys:
+            keys = controls_named_in("")[0]
         pointer_first = pointer_first or bool(self.keep.get("pointer_named"))
         self.keep["named_keys"], self.keep["pointer_named"] = keys, pointer_first
         logger.info("it moves on its own: playing it as it happens with %s%s", keys, " and the pointer" if pointer_first else "")

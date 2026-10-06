@@ -226,6 +226,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     import time
 
     from core.language.how_a_game_ended import asks_to_win
+    from core.skills.screen_pursuit_as_it_happens import begin_run
 
     until_won = asks_to_win(goal)
     deadline = time.monotonic() + (PLAY_UNTIL_WON_S if until_won else _one_run_s())
@@ -248,20 +249,22 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             _tell(f"This game has no winner, only a score, and the run is done: {run['words'][:80]!r}.")
             break
         _tell(f"That one ended {run['words'][:80]!r}: I lost it. Again, with what I learned.")
+        begin_run(keep)
     result["as_it_happened"] = "; ".join(r["said"] for r in runs if r["said"])
     last_seen = str(result.get("last_seen") or "")
+    won = any(r["ended"] == "won" for r in runs)
     return {
         **step,
         "landed": len(moves),
         "moved": bool(moves),
         "played": str(result.get("outcome") or ""),
-        "completed": bool(result.get("completed")),
+        "completed": bool(result.get("completed")) and (not until_won or won),
         "last_seen": last_seen,
         "runs": [r["ended"] or "unread" for r in runs],
-        "won": any(r["ended"] == "won" for r in runs),
+        "won": won,
         "finished": any(r["ended"] in ("won", "finished") for r in runs),
         "did": what_the_play_came_to(len(moves), result),
-        "ok": bool(moves),
+        "ok": bool(moves) and (not until_won or won),
     }
 
 

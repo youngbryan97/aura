@@ -17,6 +17,7 @@ sees now, which is why the counts come back discounted rather than whole.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -62,7 +63,10 @@ def named(*parts: str) -> str:
     """
     said = " ".join(str(part or "").strip().lower() for part in parts if str(part or "").strip())
     cleaned = re.sub(r"[^a-z0-9]+", "-", said).strip("-")
-    return cleaned[:80] or "somewhere"
+    if len(cleaned) > 80:
+        digest = hashlib.sha256(said.encode("utf-8")).hexdigest()[:16]
+        return f"{cleaned[:63]}-{digest}"
+    return cleaned or "somewhere"
 
 
 

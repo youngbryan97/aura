@@ -58,6 +58,8 @@ class Repair:
     backup: str = ""
     #: Checks never seen either way, so nothing is claimed about them.
     unseen: list[str] = field(default_factory=list)
+    #: Behaviour checks actually seen to hold, after the retained edits.
+    checked: list[str] = field(default_factory=list)
 
 
 def the_programs_own_words(source: str) -> str:
@@ -575,6 +577,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 final.right |= second.right - final.wrong
             believed = last.after(final)
             repair.after = dict(believed.findings) if believed.wrong else {}
+            repair.checked = sorted(believed.right)
             repair.unseen = sorted((final.checks or set(_RIGHT_SAID)) - believed.right - believed.wrong)
         finally:
             await browser.close()

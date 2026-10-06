@@ -27,7 +27,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import statistics
 import time
+from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -123,6 +125,8 @@ class _Run:
     credited_up_to: int = 0
     touching: set[int] = field(default_factory=set)
     pictures: int = 0
+    picture_at: float | None = None
+    intervals: deque[float] = field(default_factory=lambda: deque(maxlen=12))
     gains: int = 0
     losses: int = 0
     #: How the contest stands (core/agency/how_the_contest_stands.py), and the last of it she said.
@@ -148,7 +152,8 @@ _NAMED_KEYS = (
 )
 
 
-def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space")) -> tuple[list[str], bool]:
+def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space"),
+                      during_play: bool = False) -> tuple[list[str], bool]:
     """The keys a game's own words name, and whether they name the pointer.
 
     "Use the arrow keys to move and space to jump" names five keys; "Move the
@@ -160,9 +165,21 @@ def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "
     from core.runtime.watched_goal import keys_named_in
 
     lowered = " ".join(str(text or "").lower().split())
+    if during_play:
+        # A lifecycle command belongs to the menu, rather than to the active
+        # controls. Keep other uses of the same key, such as space to jump.
+        lowered = re.sub(r"\b(?:press|tap|hit)\s+[^.!?]{0,40}?\b(?:to\s+)?"
+                         r"(?:start|begin|restart|play\s+again)\b", "", lowered)
     words = set(re.findall(r"[a-z]+", lowered))
+    # Restrict generic arrow instructions only when directions qualify the
+    # arrows themselves. "Pick up coins" says nothing about which arrows work.
+    arrow_directions = re.findall(
+        r"\b((?:(?:up|down|left|right)\s*(?:[,/&+-]|\band\b|\bor\b)?\s*)+)"
+        r"(?:arrows?\b|arrow\s+keys?\b|cursor\s+keys?\b)", lowered)
     keys: list[str] = []
     for names, meant in _NAMED_KEYS:
+        if meant == ("up", "down", "left", "right") and arrow_directions:
+            continue
         if any((name in words) if " " not in name else (name in lowered) for name in names):
             keys.extend(key for key in meant if key not in keys)
     keys.extend(key for key in keys_named_in(lowered) if key not in keys)
@@ -239,13 +256,21 @@ def _moved_box(box: tuple[float, float, float, float], dx: float, dy: float, gro
     return (box[0] + dx - grow, box[1] + dy - grow, box[2] + dx + grow, box[3] + dy + grow)
 
 
+def _contact_line(mine: Any, coming: Any, axis: int) -> float:
+    """The incoming thing's centre when the two visible bodies first touch."""
+    here, there = (mine.x, mine.y)[axis], (coming.x, coming.y)[axis]
+    reach = ((mine.w, mine.h)[axis] + (coming.w, coming.h)[axis]) / 2
+    return here + math.copysign(reach, there - here)
+
+
 class _Choosing:
     """The arithmetic of one decision, from what she has measured so far."""
 
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
-                 physics: HowThingsMoveHere | None = None) -> None:
+                 physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
         self.physics = physics
+        self.next_picture_s = next_picture_s
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
         self.across, self.updown = hers.follows_along if hers.follows_pointer else hers.axes(keys)
@@ -300,12 +325,13 @@ class _Choosing:
             closing = (thing.vx, thing.vy)[line]
             if gap * closing <= 0 or abs(closing) < 5.0:
                 continue
-            when = gap / closing
+            contact = _contact_line(mine, thing, line)
+            when = max(0.0, (contact - (thing.x, thing.y)[line]) / closing)
             low, high = _range_of(self.moves, thing.kind, free)
             there = _ahead(thing, when, low, high, free)
             # Her own physics of this world, once she has some: gravity, where
             # the walls really are, how much a bounce keeps.
-            imagined = self.physics.when_it_reaches(thing, line, her_line) if self.physics is not None else None
+            imagined = self.physics.when_it_reaches(thing, line, contact) if self.physics is not None else None
             if imagined is not None:
                 when, there = imagined
             reachable = abs(there - her_free) <= self.speed(free) * when + (mine.w, mine.h)[free] / 2
@@ -405,7 +431,7 @@ class _Choosing:
         choices = {"": (0.0, 0.0), **self.ways}
         best_key, best_cost = held if held in choices else "", math.inf
         for key, way in choices.items():
-            x, y = mine.x + way[0] * 0.12, mine.y + way[1] * 0.12
+            x, y = mine.x + way[0] * self.next_picture_s, mine.y + way[1] * self.next_picture_s
             cost = 0.0
             if gx is not None:
                 cost += abs(gx - x) / self.speed(0)
@@ -505,7 +531,7 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
             else:
                 run.losses += 1
         run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
-        run.contest.counted(meeting.readouts.values, meeting.readouts.where, her_x, when)
+        run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when)
         meeting.writing = _what_is_writing(moves, regions)
     if run.reading is None and at - run.read_at >= READ_EVERY_S:
         run.read_at = at
@@ -538,7 +564,8 @@ async def _try_the_keys(hands: Any, run: _Run, hers: WhichIsHers, at: float) -> 
     await _hold(hands, run, hers, key, at, trying=True)
 
 
-async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMeetingDoes, at: float) -> None:
+async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMeetingDoes, at: float,
+                        *, only_named: bool = False) -> None:
     """With no thing of her own, a click is how she meets things.
 
     She clicks the thing that is about to leave first, among the kinds she
@@ -549,7 +576,9 @@ async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMe
     tall, wide = moves.shape
     candidates = [
         t for t in moves.things.values()
-        if t.moved and t.number not in meeting.writing and meeting.stance(t.kind) in (MEET, CLICK)
+        if (t.moved or meeting.stance(t.kind) == CLICK)
+        and t.number not in meeting.writing and meeting.stance(t.kind) in (MEET, CLICK)
+        and (not only_named or meeting.stance(t.kind) == CLICK)
         and not meeting.clicked_lately(t.number, at)
     ]
     if not candidates:
@@ -775,12 +804,16 @@ async def play_as_it_happens(
                 ended = "the picture could not be taken"
                 break
             picture, at = seen
+            if run.picture_at is not None and 0.0 < at - run.picture_at <= 0.5:
+                run.intervals.append(at - run.picture_at)
+            run.picture_at = at
             run.pictures += 1
             happened = moves.see(picture, at)
             hers.saw(moves, happened, at)
             physics.saw(moves, hers, happened, at)
             _what_the_rules_said_of(rules, moves, meeting, run, say, at)
-            choosing = _Choosing(moves, hers, meeting, run.keys, physics)
+            choosing = _Choosing(moves, hers, meeting, run.keys, physics,
+                                 next_picture_s=statistics.median(run.intervals) if run.intervals else 1 / 30)
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
@@ -807,6 +840,11 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
     # A thing taken for hers that did not answer her keys: try them again.
     if hers.lost_at > run.lost_at:
         run.lost_at, run.trying = hers.lost_at, 0
+    # An instruction to click a visible target already names the interaction.
+    # It does not require discovering an avatar that follows the pointer.
+    if run.pointer_first and any(meeting.stance(t.kind) == CLICK for t in moves.things.values()):
+        await _click_things(hands, run, moves, meeting, at, only_named=True)
+        return
     # Every key is tried once before any is chosen: a plan that knows one key
     # can only go one way.
     trying_the_pointer = run.pointer_first and run.pointed < 2 * len(_POINTER_TRIAL) and not hers.follows_pointer
@@ -874,7 +912,8 @@ def _the_return_they_cannot_reach(choosing: _Choosing) -> float | None:
     if why != "meet" or coming is None:
         return None
     free = 1 - line
-    arrival = physics.when_it_reaches(coming, line, (mine.x, mine.y)[line])
+    contact = _contact_line(mine, coming, line)
+    arrival = physics.when_it_reaches(coming, line, contact)
     if arrival is None:
         return None
     them = _the_other_side(choosing)
@@ -887,10 +926,10 @@ def _the_return_they_cannot_reach(choosing: _Choosing) -> float | None:
         if leaving is None:
             return None
         start = [0.0, 0.0]
-        start[line] = (mine.x, mine.y)[line]
+        start[line] = contact
         start[free] = arrival[1]
         crossing = physics.when_it_reaches(
-            coming, line, (them.x, them.y)[line], start=(start[0], start[1], leaving[0], leaving[1])
+            coming, line, _contact_line(them, coming, line), start=(start[0], start[1], leaving[0], leaving[1])
         )
         if crossing is None:
             continue

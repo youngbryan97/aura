@@ -85,15 +85,17 @@ class RepairAProgramSkill(BaseSkill):
         # Asked to play it, she plays what she mended, having said what still
         # looks wrong: the person asked for both, and a game with one fault
         # left can still be played and still shows what was mended.
-        if _asks_to_play(asked) and repair.kept:
+        if _asks_to_play(asked) and (repair.kept or repair.checked):
             played = await _play_it(path.as_uri(), asked)
             summary += " " + _how_the_play_went(played)
         return {
-            "ok": bool(repair.kept) and not repair.after,
+            "ok": bool(repair.checked) and not repair.after and _requested_play_is_complete(asked, played),
             "skill": self.name,
             "path": str(path),
             "before": repair.before,
             "after": repair.after,
+            "checked": repair.checked,
+            "unseen": repair.unseen,
             "changes": repair.kept,
             "knowledge": repair.knowledge,
             "backup": repair.backup,
@@ -102,6 +104,19 @@ class RepairAProgramSkill(BaseSkill):
             "played": played,
             "summary": summary,
         }
+
+
+def _requested_play_is_complete(request: str, played: dict[str, Any]) -> bool:
+    """Completion includes the play the person asked for, with a witnessed win when required."""
+    from core.language.how_a_game_ended import asks_to_win
+
+    if not _asks_to_play(request):
+        return True
+    if played.get("error"):
+        return False
+    if asks_to_win(request):
+        return bool(played.get("won"))
+    return bool(played.get("completed"))
 
 
 def _asks_to_play(request: str) -> bool:

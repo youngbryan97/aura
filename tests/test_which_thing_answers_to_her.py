@@ -150,3 +150,26 @@ def test_one_key_wrongly_believed_does_not_disown_her_thing():
             thing.seen = at
         hers.saw(moves, [], at)
     assert hers.number == 1 and 1 not in hers.not_mine
+
+
+def test_a_transient_seen_during_one_key_press_cannot_establish_control():
+    from core.agency.which_one_answers_to_her import _Speeds
+
+    speeds = _Speeds()
+    for press, key, speed in [(0.0, "a", 120.0), (1.0, "b", -120.0), (2.0, "b", -120.0)]:
+        for _ in range(10):
+            speeds.add(key, speed, 0.0, press=press)
+    assert speeds.ratio() == (0.0, 0.0)
+
+
+def test_competing_old_trial_evidence_cannot_revoke_a_control_that_still_answers():
+    mine, other = _Thing(1, 0), _Thing(2, 1)
+    hers = WhichIsHers()
+    hers.number, hers.kind = mine.number, mine.kind
+    for number, speed in [(mine.number, 120.0), (other.number, 400.0)]:
+        for press in range(6):
+            key = "a" if press % 2 else "b"
+            for _ in range(10):
+                hers._by_thing[number].add(key, speed if key == "a" else -speed, 0.0, press=press)
+    hers._decide(_Moves([mine, other]))
+    assert hers.number == mine.number

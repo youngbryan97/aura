@@ -376,6 +376,11 @@ class WhatMoves:
         looks = _look_apart(thing.look, blob["look"])
         if looks > 0.8:
             return math.inf
+        # Equal area and colour do not make a tall object a wide one.
+        # Otherwise a control can retain its identity when replaced by text.
+        aspect = (blob["w"] / max(1.0, blob["h"])) / (thing.w / max(1.0, thing.h))
+        if max(aspect, 1.0 / max(1e-6, aspect)) > 2.5:
+            return math.inf
         ratio = max(blob["w"] * blob["h"], thing.size) / max(1.0, min(blob["w"] * blob["h"], thing.size))
         return distance + looks + 0.3 * math.log(ratio)
 

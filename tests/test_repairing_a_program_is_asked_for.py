@@ -60,3 +60,48 @@ def test_a_turn_that_asks_for_a_repair_can_be_offered_it():
     from core.brain.inference_gate import _needs_a_confirmation_nobody_can_give
 
     assert not _needs_a_confirmation_nobody_can_give("repair_a_program", "read_write_artifacts")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("changed", "won"), [(False, True), (True, False), (True, True)])
+async def test_completion_includes_the_requested_win_even_when_no_edit_is_needed(tmp_path, monkeypatch, changed, won):
+    from core.self_modification import repairing_by_behaviour as repairer
+    from core.skills import repairing_a_program as skill
+
+    path = tmp_path / "index.html"
+    path.write_text("<canvas></canvas>")
+    repair = repairer.Repair(path=str(path), checked=["controls", "errors"],
+                            kept=[{"change": "a measured correction"}] if changed else [])
+
+    async def repair_it(*args, **kwargs):
+        return repair
+
+    calls = []
+
+    async def play_it(address, request):
+        calls.append(address)
+        return {"completed": True, "won": won, "runs": ["won" if won else "lost"]}
+
+    monkeypatch.setattr(repairer, "repair_by_behaviour", repair_it)
+    monkeypatch.setattr(skill, "_play_it", play_it)
+    result = await skill.RepairAProgramSkill().execute({"path": str(path)},
+              {"message": "Fix this game, then play until you win."})
+    assert calls == [path.as_uri()]
+    assert result["ok"] is won
+    assert result["checked"] == ["controls", "errors"]
+
+
+@pytest.mark.asyncio
+async def test_no_measured_behaviour_is_not_a_successful_repair(tmp_path, monkeypatch):
+    from core.self_modification import repairing_by_behaviour as repairer
+    from core.skills.repairing_a_program import RepairAProgramSkill
+
+    path = tmp_path / "index.html"
+    path.write_text("<canvas></canvas>")
+
+    async def repair_it(*args, **kwargs):
+        return repairer.Repair(path=str(path), kept=[{"change": "a structural correction"}])
+
+    monkeypatch.setattr(repairer, "repair_by_behaviour", repair_it)
+    result = await RepairAProgramSkill().execute({"path": str(path)}, {"message": "Fix this file."})
+    assert not result["ok"] and not result["checked"]

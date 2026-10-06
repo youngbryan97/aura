@@ -861,6 +861,9 @@ def install_runtime_validation() -> dict[str, Any]:
     from core.organism.claims_computational_knowledge import install_computational_knowledge_claims
     install_computational_knowledge_claims(suite)
 
+    from core.organism.claims_realtime_control import install_realtime_control_claims
+    install_realtime_control_claims(suite)
+
     return {
         "model": model.name,
         "tests": [t.name for t in suite.tests()],
