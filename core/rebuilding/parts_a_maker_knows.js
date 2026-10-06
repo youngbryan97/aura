@@ -230,7 +230,8 @@ app.command({
     E.insertHTML(html ? E.cleaned(html) : text.replace(/&/g, "&amp;").replace(/</g, "&lt;"));
   },
 });
-app.command({ label: "Select all", menu: "Edit", run: () => { const s = E.surface(); if (!s) return; s.focus(); const r = document.createRange(); r.selectNodeContents(s); E.select(r); } });
+const all = () => { const s = E.surface(), r = E.range(); return !!s && !!r && !!s.innerText.trim() && r.toString().replace(/\s/g, "") === s.innerText.replace(/\s/g, ""); };
+app.command({ label: "Select all", menu: "Edit", enabled: () => !all(), run: () => { const s = E.surface(); if (!s) return; s.focus(); const r = document.createRange(); r.selectNodeContents(s); E.select(r); } });
 
 //== find and replace ==
 // Finding words in the document, every one shown, going from one to the next, and replacing them.

@@ -610,6 +610,12 @@ async def _execute_program_dna_request_from_chat(user_message: str) -> dict[str,
     structural_payload = report if report.get("target_name") else {}
     scaffold_path = str(structural_payload.get("scaffold_path") or "").strip()
     standards = structural_payload.get("standards_review") or result.get("standards_review") or []
+    # A program rebuilt as a working one is answered by her own account of it: what works, what does not,
+    # where it is, and what she did with it. Read as a verified analysis or a blueprint it is neither, and
+    # LIVE 2026-10-06 a Word that worked was answered "I didn't get engine rebuilt".
+    if result.get("ok") and result.get("features") and result.get("path") and summary:
+        return {"ok": True, "status": "program_dna_reconstruct_completed", "response": summary, "result": result}
+    target = str(result.get("target") or target)
     ok = bool(result.get("ok")) and (
         epistemic_status == "supported" or bool(structural_payload.get("ok"))
     )

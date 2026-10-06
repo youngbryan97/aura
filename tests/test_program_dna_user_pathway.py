@@ -634,3 +634,21 @@ async def test_a_request_said_back_as_an_observation_still_rebuilds_the_program(
     done = await runner.execute({"target": "Microsoft Word", "authorization": "user_owned", "analysis_mode": "reconstruct",
                                  "observed_behaviors": [asked]}, context={})
     assert done["summary"] == "rebuilt" and rebuilt == [asked]
+
+
+@pytest.mark.asyncio
+async def test_a_program_rebuilt_and_working_is_answered_in_her_own_account(monkeypatch):
+    """LIVE 2026-10-06 a Word that worked, installed and used was answered "I didn't get engine rebuilt"."""
+    from interface.routes import chat as chat_routes
+
+    account = "I rebuilt Microsoft Word clean-room as Quill: 19 of 20 features work. Then I used it as asked, and it saved a letter."
+
+    async def _rebuilt(skill_name, params, *, objective, extra_context=None):
+        return {"ok": True, "skill": skill_name, "target": "Microsoft Word", "path": "/x/quill/index.html",
+                "features": ["Bold", "Italic"], "not_working": ["Close Document"], "summary": account}
+
+    monkeypatch.setattr(_chat_capability_inventory, "_execute_governed_live_skill", _rebuilt)
+    result = await chat_routes._execute_governed_capability_request_from_chat(
+        "Use your program DNA engine to do a clean-room reconstruction of Microsoft Word: a complete, polished word processor I can open "
+        "from my Applications folder. Then prove it works by writing a one-page letter in it and exporting it to my Desktop.")
+    assert result["ok"] is True and result["response"] == account

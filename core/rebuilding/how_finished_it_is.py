@@ -90,11 +90,13 @@ async () => {
   const ids = [...new Set([...document.querySelectorAll('[data-command]')].map((el) => el.getAttribute('data-command')))];
   for (const id of ids) {
     const c = app.commands.get(id);
-    // A command greyed out as not applying here (a table's rows with no table) is not one that does nothing.
-    if (!c || !c.run || (app.applies && !app.applies(c))) continue;
+    if (!c || !c.run) continue;
     if (app.side) app.side(null);
     const place = document.querySelector('#app-work [contenteditable=true], #app-work textarea, #app-work input');
     if (place) { place.focus(); if (place.isContentEditable && !place.innerText.trim()) document.execCommand('insertText', false, 'Some words to try it on'); document.execCommand('selectAll'); }
+    // A command greyed out as not applying here, as the page now stands (a table's rows with no table,
+    // Select all with all selected), is not one that does nothing.
+    if (app.applies && !app.applies(c)) continue;
     const before = state();
     let downloaded = false;
     const real = URL.createObjectURL; URL.createObjectURL = (b) => { downloaded = true; return real(b); };
