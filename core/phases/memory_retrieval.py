@@ -299,6 +299,49 @@ def _cued_by_what_she_feels(
     return reread
 
 
+async def _intentional_hits(container: Any, query: str, retrieval_limit: int) -> Any:
+    """What the runtime's intentional retriever finds for this turn, or None."""
+    # The task-driven retriever the runtime registers, which asks the
+    # ontogenetic organ how wide to search. Only the subject-core
+    # harness called it, in one condition of eight, so development had
+    # no way to change what she recalls in the running organism.
+    try:
+        from core.container import ServiceContainer
+        from core.memory.intentional_retrieval import RetrievalIntent
+
+        retriever = container.get("intentional_retriever", default=None)
+        if retriever is None:
+            retriever = ServiceContainer.get("intentional_retriever", default=None)
+        if retriever is None or not hasattr(retriever, "retrieve"):
+            return None
+        from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S
+
+        # A turn's recall, not research: the reference corpus gets the
+        # conversation lane's ceiling. Its 5 s backstop made every
+        # background tick's recall take 5.0 s when the any-term
+        # fallback found nothing (live, 2026-10-06).
+        intent = RetrievalIntent(
+            task=query, query=query, limit=retrieval_limit,
+            reference_deadline_s=CONVERSATION_SEARCH_DEADLINE_S,
+        )
+        async with asyncio.timeout(15.0):
+            result = await asyncio.to_thread(retriever.retrieve, intent)
+        return list(getattr(result, "hits", None) or [])
+    except TimeoutError as exc:
+        logger.debug(
+            "MemoryRetrieval: optional intentional retrieval timed out; continuing without it: %s",
+            exc,
+        )
+        return None
+    except _MEMORY_RECOVERABLE_ERRORS as exc:
+        _record_memory_degradation(
+            exc,
+            action="continued retrieval without the intentional retriever",
+            stage="intentional_retriever",
+        )
+        return None
+
+
 class MemoryRetrievalPhase(BasePhase):
     """
     Phase 2: Memory Retrieval.
@@ -841,46 +884,8 @@ class MemoryRetrievalPhase(BasePhase):
                 logger.debug("MemoryRetrieval: Episodic recall failed: %s", exc)
             return None
 
-        async def _get_intentional():
-            # The task-driven retriever the runtime registers, which asks the
-            # ontogenetic organ how wide to search. Only the subject-core
-            # harness called it, in one condition of eight, so development had
-            # no way to change what she recalls in the running organism.
-            try:
-                from core.container import ServiceContainer
-                from core.memory.intentional_retrieval import RetrievalIntent
-
-                retriever = self.container.get("intentional_retriever", default=None)
-                if retriever is None:
-                    retriever = ServiceContainer.get("intentional_retriever", default=None)
-                if retriever is None or not hasattr(retriever, "retrieve"):
-                    return None
-                from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S
-
-                # A turn's recall, not research: the reference corpus gets the
-                # conversation lane's ceiling. Its 5 s backstop made every
-                # background tick's recall take 5.0 s when the any-term
-                # fallback found nothing (live, 2026-10-06).
-                intent = RetrievalIntent(
-                    task=query, query=query, limit=retrieval_limit,
-                    reference_deadline_s=CONVERSATION_SEARCH_DEADLINE_S,
-                )
-                async with asyncio.timeout(15.0):
-                    result = await asyncio.to_thread(retriever.retrieve, intent)
-                return list(getattr(result, "hits", None) or [])
-            except TimeoutError as exc:
-                logger.debug(
-                    "MemoryRetrieval: optional intentional retrieval timed out; continuing without it: %s",
-                    exc,
-                )
-                return None
-            except _MEMORY_RECOVERABLE_ERRORS as exc:
-                _record_memory_degradation(
-                    exc,
-                    action="continued retrieval without the intentional retriever",
-                    stage="intentional_retriever",
-                )
-                return None
+        def _get_intentional():
+            return _intentional_hits(self.container, query, retrieval_limit)
 
         # Each source timed, so a slow phase says which part of it was slow.
         # The kernel measured this phase at five to nine seconds a background

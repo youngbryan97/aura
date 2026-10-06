@@ -1,7 +1,7 @@
 {
   "threshold_lines": 400,
   "tracked": 58,
-  "total_lines": 54696,
+  "total_lines": 54667,
   "functions": {
     "core/brain/cognitive_engine_quick_reply.py::_AnswersTheDesktopDirectly._direct_desktop_quick_reply": {
       "lines": 765,
@@ -214,9 +214,9 @@
       "returns": 28
     },
     "core/phases/memory_retrieval.py::MemoryRetrievalPhase.execute": {
-      "lines": 681,
-      "complexity": 154,
-      "returns": 30
+      "lines": 652,
+      "complexity": 147,
+      "returns": 27
     },
     "core/phases/response_generation.py::ResponseGenerationPhase.execute": {
       "lines": 1405,
