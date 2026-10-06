@@ -42,6 +42,7 @@ include_rules = [
     "+core.identity",
     "+core.interiority",
     "+core.introspection",
+    "+core.intent.capability_selection",
     "+core.learning",
     "+core.memory",
     "+core.morphogenesis",

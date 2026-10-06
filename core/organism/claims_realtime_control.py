@@ -61,3 +61,20 @@ def install_realtime_control_claims(suite: Any) -> None:
         test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
         evidence_note="Frame and metadata acceptance measured; supported paint and actual control are measured in separate browser runs.",
     ))
+    from core.intent.capability_selection import _artifact_lane_is_owned_by_the_declaration
+
+    name = "artifact_lane_follows_declared_effect"
+    owner = "core/intent/capability_selection.py"
+    suite.add_test(ValidationTest(
+        name=name, description="an artifact effect takes precedence over a generic desktop shortcut",
+        required_capability="", observation=Observation("declared_artifact_owner", True,
+                "tests/test_artifact_work_precedes_a_desktop_shortcut.py"),
+        predict=lambda _model: _artifact_lane_is_owned_by_the_declaration(),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="A strongest artifact declaration defers generic desktop shortcuts to capability selection.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Lane ownership measured; autonomous repair and use require separate live evidence.",
+    ))

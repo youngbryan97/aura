@@ -425,6 +425,14 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     text = normalize_memory_intent_text(user_message).lower()
     if not text:
         return False
+    # The catalogue owns artifact work. Screen verbs in a compound request
+    # must not let the generic desktop shortcut discard that capability.
+    from core.container import ServiceContainer
+    from core.intent.capability_selection import artifact_capability_precedes_desktop
+
+    engine = ServiceContainer.peek("capability_engine", default=None)
+    if artifact_capability_precedes_desktop(user_message, getattr(engine, "skills", None) or {}):
+        return False
     # A question about how she works is not work.
     #
     # It cannot be answered by doing anything, so routing it to a lane that
