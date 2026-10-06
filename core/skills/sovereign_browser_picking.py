@@ -92,6 +92,34 @@ def the_task_for_each(words: str) -> str:
     return (asked[:1].upper() + asked[1:] + ".") if asked else "Do with it what was asked."
 
 
+#: Tasks done with the thing itself, run: for these a copy that runs comes before a copy of a page about it.
+_RUN_IT = re.compile(r"\b(play|run|launch|watch|listen|hear)\b", re.I)
+
+
+async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: str = "") -> str:
+    """The item opened in ``browser``: where the list points; else, where the task is to run it, a copy the archive runs;
+    else the archive's copy of that page; else whatever the archive keeps by its name."""
+    from core.skills import sovereign_browser_going as going
+
+    if await skill._safe_browse(browser, url):
+        return url
+    runs = bool(_RUN_IT.search(task))
+    tries = [lambda: going.the_same_thing_elsewhere(browser, name, runnable=True)] if runs else []
+    tries += [lambda: going.the_archived_copy(skill, browser, url), lambda: going.the_same_thing_elsewhere(browser, name)]
+    for n, attempt in enumerate(tries):
+        found = await attempt()
+        if not found:
+            continue
+        if found.startswith("https://archive.org/details/"):
+            if not await skill._safe_browse(browser, found):
+                continue
+            skill._say_out_loud(f"“{name}” is not to be had where the list points; the Internet Archive keeps it"
+                                + (", and runs it in its page, so I play it there." if runs and n == 0 else ", so I go there."),
+                                {"label": "Going to", "said": found})
+        return found
+    return ""
+
+
 def _ordinal(n: int) -> str:
     return {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}.get(n, f"number {n}")
 
@@ -131,7 +159,13 @@ async def picked_by_the_rule(skill: Any, browser: Any, url: str, goal: str, max_
         item = items[pick.index]
         skill._say_out_loud(f"The {_ordinal(n)} of {len(picks)}: “{pick.item}”.")
         logger.info("picked by the rule: %s -> %s (%s)", pick.working, pick.item, item["href"])
-        done = await skill._handle_pursue(browser, item["href"], f"{task} (It is “{pick.item}”, the {_ordinal(n)} of the {len(picks)} picked.)",
+        here = await _the_item_itself(skill, browser, item["href"], pick.item, task)
+        if not here:
+            skill._say_out_loud(f"“{pick.item}” cannot be had where the list points, nor anywhere I can find it kept, so I go on to the next.")
+            results.append({"number": pick.number, "item": pick.item, "url": item["href"], "ok": False, "completed": False,
+                            "concluded": "it could not be had anywhere"})
+            continue
+        done = await skill._handle_pursue(browser, None, f"{task} (It is “{pick.item}”, the {_ordinal(n)} of the {len(picks)} picked.)",
                                           max_steps, action_context=action_context, said_before=said_before)
         done = done if isinstance(done, dict) else {}
         results.append({"number": pick.number, "item": pick.item, "url": item["href"], "ok": bool(done.get("ok")),

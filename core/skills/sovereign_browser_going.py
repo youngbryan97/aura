@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import urllib.parse
 
-__all__ = ["where_to_go"]
+__all__ = ["the_same_thing_elsewhere", "where_to_go"]
 
 
 def where_to_go(value: str) -> str:
@@ -61,3 +61,55 @@ async def the_archived_copy(skill: object, browser: object, url: str) -> str:
         {"label": "Going to", "said": copy},
     )
     return str(page.url)
+
+
+_PLAIN = frozenset("the a an of and in to for on at by with".split())
+
+
+def _words(text: str) -> list[str]:
+    return [w for w in re.findall(r"[a-z0-9]+", str(text or "").lower().replace("\u2019", "").replace("'", "")) if w not in _PLAIN and len(w) > 1]
+
+
+def _alike(name: str, title: str) -> float:
+    wanted = set(_words(name))
+    return len(wanted & set(_words(title))) / max(1, len(wanted))
+
+
+#: How much of a name another title must share to be the same thing.
+SAME_THING = 0.6
+
+
+async def the_same_thing_elsewhere(browser: object, name: str, *, runnable: bool = False) -> str:
+    """Where the Internet Archive keeps the thing ``name`` names, or '' where it keeps nothing by that name.
+
+    LIVE 2026-10-06 a game picked from a museum's list could be had neither
+    from the museum, which refuses automated browsers, nor from the archive's
+    copy of the museum's page, which it never made. The game itself was in the
+    archive's collection all along, under nearly the same title. It is looked up
+    by the whole name, then by its last part (a series name before a colon is
+    often left off), through her own browser; the title that shares most of the
+    name's words is taken, one the archive can run in its page first.
+    """
+    page = getattr(browser, "page", None)
+    if page is None or not _words(name):
+        return ""
+    found: list[dict] = []
+    for words in (_words(name), _words(str(name).split(":")[-1])):
+        if not words:
+            continue
+        query = "title:(" + " AND ".join(words) + ")"
+        address = "https://archive.org/advancedsearch.php?" + urllib.parse.urlencode(
+            {"q": query, "fl[]": ["identifier", "title", "emulator"], "rows": 12, "output": "json"}, doseq=True)
+        try:
+            answer = await page.request.get(address, timeout=20000)
+            found = (await answer.json()).get("response", {}).get("docs", []) if answer.ok else []
+        except Exception:  # noqa: BLE001 - an archive that does not answer has nothing to say here
+            found = []
+        if found:
+            break
+    if runnable:
+        found = [d for d in found if d.get("emulator")]  # only a copy the archive runs in its page
+    best = max(found, key=lambda d: (_alike(name, str(d.get("title") or "")), bool(d.get("emulator"))), default=None)
+    if best is None or _alike(name, str(best.get("title") or "")) < SAME_THING:
+        return ""
+    return f"https://archive.org/details/{best['identifier']}"

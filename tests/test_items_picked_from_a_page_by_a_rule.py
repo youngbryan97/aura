@@ -50,15 +50,20 @@ def test_the_list_is_the_pages_repeated_links_in_reading_order(tmp_path):
 
 
 class _Skill:
-    def __init__(self) -> None:
+    def __init__(self, refusing: tuple[str, ...] = ()) -> None:
         self.pursued: list[tuple[str, str]] = []
         self.said: list[str] = []
+        self.opened: list[str] = []
+        self.refusing = refusing
 
     async def _handle_pursue(self, browser, url, goal, max_steps, *, action_context=None, said_before=""):
         self.pursued.append((url, goal))
         return {"ok": True, "completed": True, "concluded": f"done with {url}"}
 
     async def _safe_browse(self, browser, url):
+        if any(r in url for r in self.refusing):
+            return False
+        self.opened.append(url)
         return True
 
     def _say_out_loud(self, line, parts=None):
@@ -97,7 +102,33 @@ def test_each_item_the_rule_picks_is_pursued_in_turn(monkeypatch):
              "the remainder. When that game is over, go back to the list, add 19 to the number, take the remainder again, and play that game. "
              "Then add 19 once more for the third game.")
     done = asyncio.run(picking.pursued(skill, object(), "https://example.org/games", asked, 30))
-    assert [url for url, _goal in skill.pursued] == [f"https://example.org/games/{n}" for n in (23, 42, 5)]
+    assert skill.opened[1:] == [f"https://example.org/games/{n}" for n in (23, 42, 5)]
+    assert [url for url, _goal in skill.pursued] == [None, None, None]  # each pursued where it was opened
     assert all(goal.startswith("Play this game and win it.") for _url, goal in skill.pursued)
     assert "the minute is 23; 23 divided by 56 leaves 23: number 23, “Game 23”" in skill.said[0]
     assert done["completed"] and [p["item"] for p in done["picked"]] == ["Game 23", "Game 42", "Game 5"]
+
+
+@pytest.mark.unit
+def test_an_item_whose_page_cannot_be_had_is_found_where_the_archive_keeps_it(monkeypatch):
+    import core.skills.sovereign_browser_going as going
+    import core.skills.sovereign_browser_picking as picking
+
+    async def the_list(browser):
+        return [{"text": f"Game {n}", "href": f"https://example.org/games/{n}"} for n in range(3)]
+
+    async def no_copy(skill, browser, url):
+        return ""
+
+    async def kept(browser, name, runnable=False):
+        return f"https://archive.org/details/{name.lower().replace(' ', '-')}" if name == "Game 1" else ""
+
+    monkeypatch.setattr(picking, "the_list_on_the_page", the_list)
+    monkeypatch.setattr(going, "the_archived_copy", no_copy)
+    monkeypatch.setattr(going, "the_same_thing_elsewhere", kept)
+    skill = _Skill(refusing=("example.org/games/",))
+    asked = "Go to https://example.org/list and play two of the games. Number the games from 0. Start at 1, take the remainder. Then add 1 and take the remainder again."
+    done = asyncio.run(picking.pursued(skill, object(), "https://example.org/list", asked, 30))
+    assert "https://archive.org/details/game-1" in skill.opened
+    assert [p["ok"] for p in done["picked"]] == [True, False]  # Game 2 is kept nowhere, and is said to be so
+    assert any("nor anywhere I can find it kept" in line for line in skill.said)
