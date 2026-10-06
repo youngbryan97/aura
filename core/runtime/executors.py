@@ -36,6 +36,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
+from core.verify import invariant
 
 logger = logging.getLogger("Aura.Executors")
 
@@ -58,6 +59,8 @@ DURABLE_RECEIPT_POOL = ThreadPoolExecutor(
     thread_name_prefix="aura-durable-receipt",
 )
 
+INTERACTIVE_CPU_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="aura-interactive-cpu")
+
 _POOL_REBUILD_LOCK = threading.Lock()
 
 
@@ -73,8 +76,11 @@ def _live_pool(kind: str) -> ThreadPoolExecutor:
     keeps running earns a fresh pool; real shutdown is still refused by the
     latch check in _register_pool.
     """
-    global HEAVY_CPU_POOL, BLOCKING_IO_POOL, DURABLE_RECEIPT_POOL
+    global HEAVY_CPU_POOL, BLOCKING_IO_POOL, DURABLE_RECEIPT_POOL, INTERACTIVE_CPU_POOL
     pool = (
+        INTERACTIVE_CPU_POOL
+        if kind == "interactive_cpu"
+        else
         HEAVY_CPU_POOL
         if kind == "heavy_cpu"
         else DURABLE_RECEIPT_POOL
@@ -85,6 +91,9 @@ def _live_pool(kind: str) -> ThreadPoolExecutor:
         return pool
     with _POOL_REBUILD_LOCK:
         pool = (
+            INTERACTIVE_CPU_POOL
+            if kind == "interactive_cpu"
+            else
             HEAVY_CPU_POOL
             if kind == "heavy_cpu"
             else DURABLE_RECEIPT_POOL
@@ -92,7 +101,10 @@ def _live_pool(kind: str) -> ThreadPoolExecutor:
             else BLOCKING_IO_POOL
         )
         if getattr(pool, "_shutdown", False):
-            if kind == "heavy_cpu":
+            if kind == "interactive_cpu":
+                INTERACTIVE_CPU_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="aura-interactive-cpu")
+                pool = INTERACTIVE_CPU_POOL
+            elif kind == "heavy_cpu":
                 HEAVY_CPU_POOL = ThreadPoolExecutor(
                     max_workers=2, thread_name_prefix="aura-heavy-cpu"
                 )
@@ -196,6 +208,19 @@ async def run_heavy_cpu[T](
             tag, elapsed, timeout_s * 1000,
         )
         raise
+
+
+async def run_interactive_cpu[T](fn: Callable[..., T], *args: Any, timeout_s: float = 0.5, **kwargs: Any) -> T:
+    """Run short perception computations separately from background work.
+
+    The caller bounds its wait. A busy shared worker pool must not stop
+    observation or leave a control held while a world keeps moving.
+    """
+    pool = _live_pool("interactive_cpu")
+    _register_pool(pool, name="interactive_cpu_thread_pool")
+    context = contextvars.copy_context()
+    return await asyncio.wait_for(asyncio.get_running_loop().run_in_executor(
+        pool, functools.partial(context.run, fn, *args, **kwargs)), timeout=timeout_s)
 
 
 async def run_blocking_io[T](
@@ -479,6 +504,7 @@ def pool_status() -> dict[str, Any]:
         "heavy_cpu": _stats(HEAVY_CPU_POOL, "heavy_cpu"),
         "blocking_io": _stats(BLOCKING_IO_POOL, "blocking_io"),
         "durable_receipt": _stats(DURABLE_RECEIPT_POOL, "durable_receipt"),
+        "interactive_cpu": _stats(INTERACTIVE_CPU_POOL, "interactive_cpu"),
     }
 
 
@@ -490,4 +516,17 @@ def shutdown_pools(wait: bool = False) -> None:
     HEAVY_CPU_POOL.shutdown(wait=wait, cancel_futures=True)
     BLOCKING_IO_POOL.shutdown(wait=wait, cancel_futures=True)
     DURABLE_RECEIPT_POOL.shutdown(wait=wait, cancel_futures=True)
+    INTERACTIVE_CPU_POOL.shutdown(wait=wait, cancel_futures=True)
     logger.info("Executor pools shut down (wait=%s).", wait)
+
+
+def _interactive_and_receipt_workers_are_separate() -> bool:
+    return len({id(HEAVY_CPU_POOL), id(BLOCKING_IO_POOL), id(DURABLE_RECEIPT_POOL),
+                id(INTERACTIVE_CPU_POOL)}) == 4
+
+
+@invariant("runtime.interactive_and_receipt_workers_are_separate", scope="runtime",
+           owner="core/runtime/executors.py", observational=False)
+def _interactive_worker_invariant() -> tuple:
+    assert _interactive_and_receipt_workers_are_separate(), "interactive or receipt work shares a background pool"
+    return ()

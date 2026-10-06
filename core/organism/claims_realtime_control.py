@@ -17,6 +17,24 @@ def install_realtime_control_claims(suite: Any) -> None:
     )
     from core.perception.the_drawing_as_objects import _scene_requires_a_matching_complete_frame
 
+    from core.runtime.executors import _interactive_and_receipt_workers_are_separate
+
+    name = "interactive_and_receipt_workers_are_separate"
+    owner = "core/runtime/executors.py"
+    suite.add_test(ValidationTest(
+        name=name, description="observation and durable receipt workers have separate pool ownership",
+        required_capability="", observation=Observation("separate_workers", True,
+                "tests/test_interactive_work_survives_shared_pool_saturation.py"),
+        predict=lambda _model: _interactive_and_receipt_workers_are_separate(),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="Interactive perception and durable receipt work have separate workers from background work.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Pool ownership and default-pool saturation measured; end-to-end latency needs separate live runs.",
+    ))
+
     name = "current_counters_exclude_absent_history"
     owner = "core/agency/what_meeting_things_does.py"
     suite.add_test(ValidationTest(

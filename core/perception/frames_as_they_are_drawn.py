@@ -22,6 +22,8 @@ import logging
 import time
 from typing import Any
 
+from core.runtime.executors import run_interactive_cpu
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["CanvasFrames", "PageFrames"]
@@ -95,7 +97,11 @@ class PageFrames:
         data, metadata, arrived = self._latest
         fresh = arrived > self._taken_at
         self._taken_at = arrived
-        picture = await asyncio.to_thread(_cropped, data, metadata, clip)
+        try:
+            picture = await run_interactive_cpu(_cropped, data, metadata, clip)
+        except TimeoutError:
+            logger.info("frame decoding exceeded its interactive budget")
+            return None
         if picture is None:
             return None
         # A page standing still sends nothing; the same picture, now, is what
@@ -200,7 +206,11 @@ class CanvasFrames:
             data = None
         at = time.monotonic()
         encoded = data.get("pixels") if isinstance(data, dict) else data
-        picture = await asyncio.to_thread(_from_data_url, encoded) if encoded else None
+        try:
+            picture = await run_interactive_cpu(_from_data_url, encoded) if encoded else None
+        except TimeoutError:
+            logger.info("canvas decoding exceeded its interactive budget")
+            return None
         if picture is None:
             self.unavailable = True
             return None
