@@ -34,7 +34,6 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-
 # Split out when this module crossed the 2,000-line ceiling. These are
 # re-exports, not incidental imports: every caller of
 # `latent_cortex.experiments` keeps working, and the grading digest keeps
@@ -42,7 +41,6 @@ from typing import Any
 # an autofixer deciding a public re-export is an unused import.
 from core.brain.llm.latent_cortex.experiment_grading import (
     _MIN_N_FOR_VERDICT,
-    experiments_implementation_sha256,
     CONJECTURE,
     PROVEN,
     REFUTED,
@@ -55,12 +53,14 @@ from core.brain.llm.latent_cortex.experiment_grading import (
     _coerce_role_outcome,
     _coerce_solver_outcome,
     _holm_adjust,
+    experiments_implementation_sha256,
     grade_paired_treatment_vs_control,
     grade_treatment_vs_control,
 )
 from core.brain.llm.latent_cortex.experiment_tasks import (
     TASK_FAMILIES,
     Task,
+    answer_tokens,
     khop_reachability,
     modular_chain,
     nested_boolean,
@@ -418,7 +418,7 @@ def extract_final_numeric_claim(text: str) -> str:
     drift — an extractor that only saw integers while the verifier accepted
     decimals would vote on a different answer than the one being graded.
     """
-    tokens = [t.strip(".,:;!?()[]{}") for t in str(text or "").split()]
+    tokens = answer_tokens(text)
     numeric = [token for token in tokens if token and _is_answer_shaped(token)]
     return numeric[-1] if numeric else ""
 

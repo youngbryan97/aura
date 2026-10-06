@@ -8,6 +8,7 @@ crossed the 2,000-line ceiling; nothing here grades anything.
 from __future__ import annotations
 
 import random
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -25,6 +26,28 @@ __all__ = [
 # denial-of-service on the experiment runner.
 MAX_TASK_DEPTH = 64
 MAX_PER_CELL = 512
+
+
+#: Spacing a writer puts between thousands groups: "476 583", "476\u202f583".
+_GROUPED_DIGITS = re.compile(r"(?<![\d.,])\d{1,3}(?:[ \u00a0\u2009\u202f]\d{3})+(?!\d)")
+_GROUP_SPACES = re.compile(r"[ \u00a0\u2009\u202f]")
+#: Punctuation and emphasis around a number, never part of it.
+_ANSWER_EDGE = ".,:;!?()[]{}*_`|"
+
+
+def answer_tokens(text: str) -> list[str]:
+    """A reply's whitespace tokens, each a candidate for its final answer.
+
+    Emphasis and punctuation come off a token's edges, a thousands group
+    written with spaces is one number, and a typographic minus is a minus.
+    LIVE 2026-10-06 her correct answers "**2,104,802,751,450**." and
+    "**476 583**" were read as 4 and 9: the bold kept the final number from
+    looking like one, and the last plain number in her working table won.
+    """
+    rejoined = _GROUPED_DIGITS.sub(
+        lambda match: _GROUP_SPACES.sub("", match.group(0)), str(text or "").replace("\u2212", "-")
+    )
+    return [token.strip(_ANSWER_EDGE) for token in rejoined.split()]
 
 
 def is_answer_shaped(token: str) -> bool:
@@ -85,7 +108,7 @@ class Task:
         earlier correct token became the "final" claim — scoring a wrong
         answer as correct.
         """
-        tokens = [t.strip(".,:;!?()[]{}") for t in str(text or "").split()]
+        tokens = answer_tokens(text)
         candidates = [
             token
             for token in tokens
