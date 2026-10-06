@@ -1,7 +1,7 @@
 {
   "threshold_lines": 400,
   "tracked": 58,
-  "total_lines": 54697,
+  "total_lines": 54696,
   "functions": {
     "core/brain/cognitive_engine_quick_reply.py::_AnswersTheDesktopDirectly._direct_desktop_quick_reply": {
       "lines": 765,
@@ -119,8 +119,8 @@
       "returns": 9
     },
     "core/capability_engine.py::CapabilityEngine.execute": {
-      "lines": 1400,
-      "complexity": 196,
+      "lines": 1399,
+      "complexity": 195,
       "returns": 41
     },
     "core/cognitive/state_machine.py::StateMachine._handle_chat": {
