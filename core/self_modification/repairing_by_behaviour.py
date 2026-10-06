@@ -384,9 +384,18 @@ async def _kept_together(browser: Any, current: str, words: str, keys: list[str]
         tell("Together they did not hold up, so I am checking the best of them alone.")
         return None
     again, shown = confirmed
+
+    def mended_by(fault: str) -> list[Any]:
+        # A fault gone when the fixes are watched together is said of the fix
+        # whose own trial mended it, not of every fix in the group: LIVE
+        # 2026-10-06 the scoring fix was said to have mended the keys.
+        return ([b for _s, _e, b in fixes if fault in b.right] or [b for _s, _e, b in fixes if fault not in b.wrong]
+                or [b for _s, _e, b in fixes])
+
     kept = []
     for suspicion, edit, behaviour in fixes:
-        mine = [name for name in shown if name.startswith("no longer: ") or name in behaviour.right]
+        mine = [name for name in shown
+                if (any(b is behaviour for b in mended_by(name[11:])) if name.startswith("no longer: ") else name in behaviour.right)]
         kept.append(({
             "where": suspicion.function, "line": suspicion.line, "pattern": suspicion.pattern,
             "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why,
@@ -437,7 +446,7 @@ async def _kept_from_reading(browser: Any, current: str, words: str, keys: list[
             "where": suspicion.function, "line": suspicion.line, "pattern": suspicion.pattern,
             "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why, "shown": ["from reading the code"],
         })
-        tell(f"In {suspicion.function or 'the code'} (line {suspicion.line}): {suspicion.why}, so I changed "
+        tell(f"In {suspicion.function or 'the code'} (line {suspicion.line}): {suspicion.why}, so I "
              f"{', '.join(e.says(current) for e in edit)}. Watched twice, it breaks nothing.")
         current = after
         done.add((suspicion.pattern, suspicion.line))
@@ -652,7 +661,7 @@ def _what_this_change_did(suspicion: Suspicion, edit: list[Edit], current: str, 
     lines = sorted({current.count("\n", 0, e.start) + 1 for e in edit})
     where = ", ".join(str(n) for n in lines) or str(suspicion.line)
     said = (f"In {suspicion.function or 'the code'} (line {where}): {suspicion.why}, "
-            f"so I changed {', '.join(e.says(current) for e in edit)}.")
+            f"so I {', '.join(e.says(current) for e in edit)}.")
     seen = [f"I can see {_RIGHT_SAID.get(name, name)}" for name in shown if not name.startswith("no longer: ")]
     gone = [f"I no longer see {_WRONG_SAID.get(name[11:], name[11:])}" for name in shown if name.startswith("no longer: ")]
     if seen or gone:

@@ -256,6 +256,10 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             result["runtime_violations"] = violations
             break
         if (until_won and run["ended"] == "won") or len(runs) >= limit or not reflexes.over_because:
+            # The run that ends it is told as it ends too: a win heard of
+            # only in the reply afterwards was not seen by anyone watching.
+            if run["ended"]:
+                _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
             break
         if _for_points_only(reflexes, goal):
             # Nobody wins a game that only counts points: a finished run is the end of it.

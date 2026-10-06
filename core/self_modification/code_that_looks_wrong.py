@@ -33,7 +33,18 @@ class Edit:
     text: str
 
     def says(self, source: str) -> str:
-        return f"{source[self.start:self.end]!r} -> {self.text!r}"
+        """What the change does, as it follows "I": each side set as code, so a ``*`` in it is not read as emphasis."""
+        was = source[self.start:self.end]
+        if not was:
+            return f"added {_as_code(self.text)}"
+        if not self.text:
+            return f"removed {_as_code(was)}"
+        return f"changed {_as_code(was)} to {_as_code(self.text)}"
+
+
+def _as_code(text: str) -> str:
+    shown = repr(text)[1:-1]
+    return f"`` {shown} ``" if "`" in shown else f"`{shown}`"
 
 
 @dataclass

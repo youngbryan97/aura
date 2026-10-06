@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
 import statistics
 import time
 from collections import Counter, deque
@@ -123,6 +124,8 @@ class _Run:
     #: Every reading's words, with when its picture was taken.
     words_read: list[tuple[float, str]] = field(default_factory=list)
     situation: str = ""
+    #: What she has said of the game, each part without where things stood.
+    situation_known: set[str] = field(default_factory=set)
     hers_description: str = ""
     hers_descriptions: Counter[str] = field(default_factory=Counter)
     situation_at: float = -math.inf
@@ -796,6 +799,9 @@ def _counters_without_reading(run: _Run, moves: WhatMoves, hers: WhichIsHers, me
 #: How long between two accounts of what kind of game this is.
 SITUATION_EVERY_S = 30.0
 
+#: Where a thing stands, as where_on_screen names it, inside an account of the game.
+_WHERE_IT_STANDS = re.compile(r" at the (?:(?:top|bottom) )?(?:left|right)\b| at the (?:top|bottom|middle)\b")
+
 
 def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
                        physics: HowThingsMoveHere, at: float) -> None:
@@ -805,8 +811,15 @@ def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers,
     if "me" not in run.said or at - run.situation_at < SITUATION_EVERY_S:
         return
     sentence = in_a_sentence(moves, hers, meeting, physics, run.keys)
-    if not sentence or ";" not in sentence or sentence == run.situation:
+    if not sentence or ";" not in sentence:
         return
+    # Said again only for something learned: her paddle having moved to the
+    # top, or the other side being still a moment, is not news. LIVE
+    # 2026-10-06 the same account came every thirty seconds of a game.
+    parts = {_WHERE_IT_STANDS.sub("", part).strip(" .") for part in sentence.split(";")}
+    if parts <= run.situation_known:
+        return
+    run.situation_known |= parts
     run.situation, run.situation_at = sentence, at
     _say(run, say, sentence[0].upper() + sentence[1:], at, once=f"situation {len(run.lines)}")
 
@@ -888,6 +901,7 @@ async def play_as_it_happens(
     run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first,
                contest=keep.get("contest") or ContestStands())
     run.contest.heard(told)
+    run.situation_known = set(keep.get("situation_known") or ())
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -941,7 +955,7 @@ async def play_as_it_happens(
         if run.reading is not None:
             run.reading.cancel()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
-                 "contest": run.contest})
+                 "contest": run.contest, "situation_known": run.situation_known})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
                                 "provenance": motion_checks.provenance, "violations": motion_checks.violations,

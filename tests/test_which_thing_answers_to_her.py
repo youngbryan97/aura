@@ -349,3 +349,41 @@ def test_control_evidence_claim_runs_its_registered_measurement():
     check = next(t for t in suite.tests() if t.name == "ambiguous_controls_remain_unknown")
     assert check.predict(None) is True
     assert any(c.test == check.name for c in suite.claims())
+
+
+def test_lost_she_knows_herself_by_how_her_keys_move_her_in_two_presses():
+    """What her keys do predicts how her thing moves: two trial presses find her, not a new experiment of eight."""
+    hers = _run(trying=True, ball_follows_keys=False)
+    hers.saw(_Moves([]), [], 10.0)
+    assert hers.lost()
+    mine, still, rival = _Thing(7, 0), _Thing(8, 0), _Thing(9, 0)
+    still.x, rival.x = 300.0, 400.0
+    moves = _Moves([mine, still, rival])
+    at = 12.0
+    for step in range(20):
+        key = "up" if step < 10 else ""
+        hers.holding(key, at, trying=True)
+        at += 0.03
+        mine.vy = -120.0 if key == "up" else 0.0
+        rival.vy = 90.0 if step % 6 < 3 else -90.0  # a lookalike going its own way, as the other side's does
+        for thing in (mine, still, rival):
+            thing.seen = at
+        hers.saw(moves, [], at)
+    assert hers.number == 7
+    assert hers.identification.receipts[-1]["reason"] == "her measured controls predicted its trial presses"
+
+
+def test_lost_she_does_not_take_a_lookalike_her_keys_do_not_move():
+    hers = _run(trying=True, ball_follows_keys=False)
+    hers.saw(_Moves([]), [], 10.0)
+    rival = _Thing(9, 0)
+    moves = _Moves([rival])
+    at = 12.0
+    for step in range(40):
+        key = ("up", "", "down", "")[step // 10]
+        hers.holding(key, at, trying=True)
+        at += 0.03
+        rival.vy = 90.0  # moving, but the same way whatever she holds
+        rival.seen = at
+        hers.saw(moves, [], at)
+    assert hers.number is None and hers.lost()

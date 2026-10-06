@@ -531,6 +531,45 @@ class WhichIsHers:
         """Whether she knows what she is but not which thing on the screen she is now."""
         return self.number is None and self.kind is not None and not self.follows_pointer
 
+    def _found_by_her_controls(self, moves: Any) -> int | None:
+        """Lost from sight, the one thing of her look whose trial presses go as her measured keys say they will.
+
+        What her keys do was measured on her before she was lost, so each
+        trial press predicts how her thing moves. A thing that went as two
+        presses with different predictions said, one of them a movement, and
+        against none, is hers again, where it is the only one. A new
+        experiment from nothing takes eight presses; offline 2026-10-06 her
+        track broke mid-game and she was without herself for twenty seconds.
+        Only trial presses count (they are all ``_by_thing`` holds): a press
+        her play chose follows the ball, and the ball would seem to answer.
+        """
+        fits = []
+        for number, speeds in self._by_thing.items():
+            thing = moves.things.get(number)
+            if thing is None or number in self.not_mine or not self._her_shape(thing):
+                continue
+            agreed: list[tuple[float, float]] = []
+            against = False
+            for (key, _began), values in speeds.by_press.items():
+                expected = self._hers.typical(key)
+                if expected is None or len(values) < 2:
+                    continue
+                seen = _mean(values)
+                if math.dist(seen, expected) <= max(REALLY_MOVES, 0.35 * math.hypot(*expected)):
+                    agreed.append(expected)
+                elif math.hypot(*seen) > REALLY_MOVES:
+                    against = True  # went somewhere her key does not send her
+                    break
+                # Still under a key that moves her: held against an end, not evidence either way.
+            moved = any(math.hypot(*way) > REALLY_MOVES for way in agreed)
+            if not against and moved and any(math.dist(a, b) > REALLY_MOVES for a in agreed for b in agreed):
+                fits.append(number)
+        if len(fits) != 1:
+            return None
+        self.identification.receipts.append({"epoch": self.identification.epoch, "reason": "her measured controls predicted its trial presses",
+                                             "selected": fits[0]})
+        return fits[0]
+
     def saw(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
         if any(h.get("what") == "new screen" for h in happened):
             self._new_screen_at = at
@@ -589,6 +628,8 @@ class WhichIsHers:
         # she is still measuring on her own object.
         best = self.identification.choose(witnesses, visible=set(moves.things),
                                           established=self.number, excluded=self.not_mine)
+        if best is None and self.lost():
+            best = self._found_by_her_controls(moves)
         if best is not None:
             if best != self.number:
                 for key, values in self._by_thing[best].by_key.items():
