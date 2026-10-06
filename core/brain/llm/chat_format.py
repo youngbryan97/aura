@@ -723,8 +723,15 @@ def system_first(messages: object) -> object:
     # Last is still "immediately before the answer", which is what the
     # placement is for. The plain case is unchanged: with nothing after the
     # user's message, before it and at the end are the same place.
+    #
+    # Except after an open answer. A continuation ends on her own unfinished
+    # reply, and nothing may follow it: a block placed after it made the
+    # template close the reply and the continuation render refused it. LIVE
+    # 2026-10-06, the Bam and Kobe turn's continuation fell back to a plain
+    # "System:" prompt instead of her own template.
     something_follows_the_turn = insert_at < len(rest) - 1
-    if something_follows_the_turn:
+    ends_on_her_open_answer = _raw_role(rest[-1]) == "assistant"
+    if something_follows_the_turn and not ends_on_her_open_answer:
         return [canonical, *rest, turn_state]
     return [canonical, *rest[:insert_at], turn_state, *rest[insert_at:]]
 
