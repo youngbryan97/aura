@@ -8,7 +8,7 @@
 // document is whatever the work area edits.
 //
 // app.formats.blocks(el)        the document as blocks (paragraphs, headings, list items, tables) of styled runs
-// app.formats.write(kind, el)   a Blob of the document as kind: "docx" | "odt" | "rtf" | "html" | "md" | "txt"
+// app.formats.write(kind, el)   a Blob of the document as kind: "docx" | "odt" | "rtf" | "html" | "md" | "txt" | "pdf"
 // app.formats.read(file)        Promise of the HTML of a picked file ({name, text, dataUrl, file}) of any of those kinds
 // app.formats.save(kind, name)  write and download it; app.formats.open(accept) pick a file and put it in the document
 (function (app) {
@@ -19,6 +19,7 @@
     html: { ext: "html", label: "Web Page (.html)", type: "text/html" },
     md: { ext: "md", label: "Markdown (.md)", type: "text/markdown" },
     txt: { ext: "txt", label: "Plain Text (.txt)", type: "text/plain" },
+    pdf: { ext: "pdf", label: "PDF (.pdf)", type: "application/pdf", writeOnly: true },
   };
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const BLOCK = /^(P|DIV|H[1-6]|LI|BLOCKQUOTE|PRE|TABLE|UL|OL|HR|SECTION|ARTICLE)$/;
@@ -35,6 +36,19 @@
     const h = [m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("").toUpperCase();
     return h === "000000" ? "" : h;
   }
+  function highlight(el) {
+    for (let e = el; e && e !== documentElement() && e !== document.body; e = e.parentElement) {
+      if (/^(P|LI|H[1-6]|TD|TH|DIV|BLOCKQUOTE)$/.test(e.nodeName)) return "";
+      const h = hex(getComputedStyle(e).backgroundColor);
+      if (h && h !== "FFFFFF") return h;
+    }
+    return "";
+  }
+  function paragraphOf(el) {
+    const cs = getComputedStyle(el), size = parseFloat(cs.fontSize) || 16, lh = parseFloat(cs.lineHeight);
+    return { indent: Math.round((parseFloat(cs.marginLeft) || 0) * 0.75), after: Math.round((parseFloat(cs.marginBottom) || 0) * 0.75 * 2) / 2,
+      before: Math.round((parseFloat(cs.marginTop) || 0) * 0.75 * 2) / 2, lineHeight: isFinite(lh) ? Math.round((lh / size) * 100) / 100 : 0 };
+  }
   function runStyle(el, base) {
     const cs = getComputedStyle(el), deco = cs.textDecorationLine || cs.textDecoration || "";
     const size = parseFloat(cs.fontSize) * 0.75;
@@ -43,6 +57,7 @@
       u: /underline/.test(deco), s: /line-through/.test(deco), color: hex(cs.color),
       size: Math.abs(size - base) > 0.4 ? Math.round(size * 2) / 2 : 0,
       font: (cs.fontFamily || "").split(",")[0].replace(/["']/g, "").trim(), href: el.closest("a") ? el.closest("a").href : "",
+      bg: highlight(el),
     };
   }
   function blocks(root = documentElement()) {
@@ -60,6 +75,8 @@
         if (text.trim() || (text && current.runs.length)) current.runs.push({ text, ...runStyle(node.parentElement, base) });
       } else if (node.nodeName === "BR") {
         current.runs.push({ br: true, text: "" });
+      } else if (node.nodeName === "IMG") {
+        current.runs.push({ img: node, text: "", width: node.getBoundingClientRect().width * 0.75, height: node.getBoundingClientRect().height * 0.75 });
       } else if (node.nodeType === 1) {
         for (const child of node.childNodes) walk(child, node);
       }
@@ -74,12 +91,13 @@
         current = null; return;
       }
       if (tag === "HR") { start("hr", node); current = null; return; }
+      if (node.dataset && node.dataset.break === "page") { start("pagebreak", node); current = null; return; }
       if (tag === "TABLE") {
         const rows = [...node.querySelectorAll(":scope > tr, :scope > * > tr")].map((tr) => [...tr.children].map((td) => blocks(td)));
         start("table", node, { rows }); current = null; return;
       }
       const type = /^H[1-6]$/.test(tag) ? tag.toLowerCase() : tag === "LI" ? "li" : "p";
-      start(type, node, type === "li" ? { list: list ? list.kind : "ul", level: list ? list.level : 0 } : {});
+      start(type, node, { ...paragraphOf(node), ...(type === "li" ? { list: list ? list.kind : "ul", level: list ? list.level : 0 } : {}) });
       for (const child of node.childNodes) {
         if (child.nodeType === 1 && BLOCK.test(child.nodeName)) { walk(child, node, list); start("p", node); }
         else walk(child, node, list);
@@ -87,7 +105,7 @@
       current = null;
     };
     for (const child of root.childNodes) walk(child, root);
-    return out.filter((b) => b.type === "hr" || b.type === "table" || b.runs.some((r) => r.text.trim() || r.br) || b.type !== "p" || out.length === 1);
+    return out.filter((b) => b.type === "hr" || b.type === "table" || b.type === "pagebreak" || b.runs.some((r) => r.text.trim() || r.br || r.img) || b.type !== "p" || out.length === 1);
   }
 
   // ── writing ─────────────────────────────────────────────────────────
@@ -98,6 +116,7 @@
     return `<w:r>${p ? `<w:rPr>${p}</w:rPr>` : ""}<w:t xml:space="preserve">${esc(r.text)}</w:t></w:r>`;
   }
   function docxBlock(b) {
+    if (b.type === "pagebreak") return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
     if (b.type === "hr") return '<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr></w:pPr></w:p>';
     if (b.type === "table") {
       return `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"]
@@ -135,7 +154,8 @@
         `<w:abstractNum w:abstractNumId="1">${[0, 1, 2].map((i) => lvl(i, ["decimal", "lowerLetter", "lowerRoman"][i], `%${i + 1}.`)).join("")}</w:abstractNum>` +
         '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num><w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>',
       "word/document.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${bs.map(docxBlock).join("")}` +
-        '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>',
+        `<w:sectPr><w:pgSz w:w="${Math.round(paper().w * 20)}" w:h="${Math.round(paper().h * 20)}"${paper().w > paper().h ? ' w:orient="landscape"' : ""}/>` +
+        `<w:pgMar w:top="${Math.round(paper().m * 20)}" w:right="${Math.round(paper().m * 20)}" w:bottom="${Math.round(paper().m * 20)}" w:left="${Math.round(paper().m * 20)}" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>`,
     }, KINDS.docx.type);
   }
   function odt(bs) {
@@ -219,11 +239,192 @@
       return b.type === "hr" ? "----------" : b.type === "table" ? b.rows.map((row) => row.map((c) => txt(c).trim()).join("\t")).join("\n")
         : (b.type === "li" ? "  ".repeat(b.level || 0) + (b.list === "ol" ? `${++n}. ` : "• ") : "") + b.runs.map((r) => (r.br ? "\n" : r.text)).join("").trim(); }).join("\n\n") + "\n";
   }
+
+  // The page: its size and margins in points, as the program's page setup has them, else US Letter with an inch.
+  function paper() {
+    const ps = app.pageSetup && app.pageSetup.get ? app.pageSetup.get() : null;
+    const [w, h] = ps && app.pageSetup.inches ? app.pageSetup.inches() : [8.5, 11];
+    return { w: w * 72, h: h * 72, m: (ps ? Number(ps.margin) || 1 : 1) * 72 };
+  }
+
+  // ── PDF ─────────────────────────────────────────────────────────────
+  // Laid out here into pages: each paragraph's lines broken where its words would break, in the faces
+  // every PDF reader has (Helvetica, Times, Courier, each in bold and italic), every run in its own
+  // size and colour, underlined, struck through or highlighted as it is; headings, lists, indents,
+  // line spacing, alignment (justified lines spread to both edges), tables, pictures and page breaks.
+  const FACES = { sans: ["Helvetica", "Helvetica-Bold", "Helvetica-Oblique", "Helvetica-BoldOblique"],
+    serif: ["Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic"], mono: ["Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique"] };
+  const SHOWN_AS = { sans: "Helvetica, Arial, sans-serif", serif: "Times, 'Times New Roman', serif", mono: "Courier, 'Courier New', monospace" };
+  const faceOf = (font) => { const f = String(font || "").toLowerCase();
+    return /mono|courier|menlo|consol|code/.test(f) ? "mono" : /times|georgia|garamond|cambria|palatino|book|minion|serif/.test(f) && !/sans/.test(f) ? "serif" : "sans"; };
+  const WIN = { 0x20ac: 0x80, 0x201a: 0x82, 0x0192: 0x83, 0x201e: 0x84, 0x2026: 0x85, 0x2020: 0x86, 0x2021: 0x87, 0x02c6: 0x88, 0x2030: 0x89, 0x0160: 0x8a,
+    0x2039: 0x8b, 0x0152: 0x8c, 0x017d: 0x8e, 0x2018: 0x91, 0x2019: 0x92, 0x201c: 0x93, 0x201d: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97, 0x02dc: 0x98,
+    0x2122: 0x99, 0x0161: 0x9a, 0x203a: 0x9b, 0x0153: 0x9c, 0x017e: 0x9e, 0x0178: 0x9f };
+  const plainSpaces = (t) => String(t).replace(/ /g, "    ").replace(/[    ]/g, " ").replace(/[​‌‍﻿]/g, "");
+  function pdfText(t) {
+    let out = "(";
+    for (const ch of plainSpaces(t)) {
+      const c = ch.codePointAt(0);
+      const b = c < 128 ? c : c >= 0xa0 && c <= 0xff ? c : WIN[c] || 63;
+      if (b === 40 || b === 41 || b === 92) out += "\\" + String.fromCharCode(b);
+      else if (b < 32 || b > 126) out += "\\" + b.toString(8).padStart(3, "0");
+      else out += String.fromCharCode(b);
+    }
+    return out + ")";
+  }
+  const ruler = document.createElement("canvas").getContext("2d");
+  function measure(text, face, b, i, size) { ruler.font = `${i ? "italic " : ""}${b ? "bold " : ""}${size}px ${SHOWN_AS[face]}`; return ruler.measureText(plainSpaces(text)).width; }
+  const num = (n) => (Math.round(n * 100) / 100).toString();
+  const rgb = (h) => [0, 2, 4].map((k) => num(parseInt(h.slice(k, k + 2), 16) / 255)).join(" ");
+  function pdf(bs) {
+    const { w: W, h: H, m: M } = paper();
+    const root = documentElement(), rootStyle = getComputedStyle(root);
+    const baseSize = Math.round(parseFloat(rootStyle.fontSize) * 0.75 * 2) / 2 || 12, baseFace = faceOf(rootStyle.fontFamily);
+    const fonts = [], images = [], pages = [];
+    let ops = [], y = 0;
+    const fontId = (face, b, i) => { const name = FACES[face][(b ? 1 : 0) + (i ? 2 : 0)]; let k = fonts.indexOf(name); if (k < 0) { fonts.push(name); k = fonts.length - 1; } return `F${k + 1}`; };
+    const newPage = () => { ops = []; pages.push(ops); y = H - M; };
+    const room = (tall) => { if (y - tall < M && y < H - M - 0.5) newPage(); };
+    newPage();
+    function words(runs) {
+      // A run cut into words and the spaces between, each with its style and width.
+      const out = [];
+      for (const r of runs) {
+        if (r.br) { out.push({ br: true }); continue; }
+        if (r.img) { out.push({ img: r.img, width: r.width, height: r.height }); continue; }
+        const face = r.font ? faceOf(r.font) : baseFace, size = r.size || baseSize;
+        for (const piece of plainSpaces(r.text).split(/(\s+)/)) {
+          if (!piece) continue;
+          out.push({ text: piece, space: /^\s+$/.test(piece), face, b: r.b, i: r.i, u: r.u, s: r.s, color: r.color, bg: r.bg, size, width: measure(piece, face, r.b, r.i, size) });
+        }
+      }
+      return out;
+    }
+    function lines(pieces, width) {
+      const out = []; let line = [], used = 0;
+      const end = () => { while (line.length && line[line.length - 1].space) used -= line.pop().width; out.push({ pieces: line, width: used }); line = []; used = 0; };
+      for (let p of pieces) {
+        if (p.br) { end(); out[out.length - 1].forced = true; continue; }
+        if (p.space && !line.length) continue;
+        if (used + p.width > width && line.length && !p.space) end();
+        if (p.width > width && !p.space && !p.img) {
+          // One word wider than the line: broken by letters.
+          let part = "";
+          for (const ch of p.text) { const next = part + ch; if (measure(next, p.face, p.b, p.i, p.size) > width && part) { line.push({ ...p, text: part, width: measure(part, p.face, p.b, p.i, p.size) }); end(); part = ch; } else part = next; }
+          p = { ...p, text: part, width: measure(part, p.face, p.b, p.i, p.size) };
+        }
+        line.push(p); used += p.width;
+      }
+      if (line.length || !out.length) end();
+      return out;
+    }
+    function draw(line, x0, width, align, last, spacing) {
+      const tall = Math.max(...line.pieces.map((p) => p.img ? p.height : p.size), baseSize);
+      const lead = line.pieces.some((p) => p.img) ? tall + 4 : tall * spacing;
+      room(lead);
+      const baseline = y - Math.max(...line.pieces.map((p) => (p.img ? p.height : p.size * 0.8)), baseSize * 0.8);
+      const gaps = line.pieces.filter((p) => p.space).length;
+      const spread = align === "justify" && !last && !line.forced && gaps ? (width - line.width) / gaps : 0;
+      let x = x0 + (align === "center" ? (width - line.width) / 2 : align === "right" ? width - line.width : 0);
+      for (const p of line.pieces) {
+        if (p.img) {
+          try {
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(p.width * 2)); canvas.height = Math.max(1, Math.round(p.height * 2));
+            const ctx = canvas.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.drawImage(p.img, 0, 0, canvas.width, canvas.height);
+            const bytes = atob(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+            let hexed = ""; for (let k = 0; k < bytes.length; k++) hexed += bytes.charCodeAt(k).toString(16).padStart(2, "0");
+            images.push({ w: canvas.width, h: canvas.height, data: hexed + ">" });
+            ops.push(`q ${num(p.width)} 0 0 ${num(p.height)} ${num(x)} ${num(baseline)} cm /Im${images.length} Do Q`);
+          } catch (e) { /* a picture from elsewhere that the page may not copy is left out */ }
+          x += p.width; continue;
+        }
+        if (p.bg) ops.push(`${rgb(p.bg)} rg ${num(x)} ${num(baseline - p.size * 0.22)} ${num(p.width + (p.space ? spread : 0))} ${num(p.size * 1.1)} re f`);
+        if (!p.space) {
+          ops.push(`BT /${fontId(p.face, p.b, p.i)} ${num(p.size)} Tf ${p.color ? rgb(p.color) : "0 0 0"} rg 1 0 0 1 ${num(x)} ${num(baseline)} Tm ${pdfText(p.text)} Tj ET`);
+          const lineAt = (dy) => ops.push(`${p.color ? rgb(p.color) : "0 0 0"} RG ${num(Math.max(0.5, p.size / 16))} w ${num(x)} ${num(baseline + dy)} m ${num(x + p.width)} ${num(baseline + dy)} l S`);
+          if (p.u) lineAt(-p.size * 0.12);
+          if (p.s) lineAt(p.size * 0.3);
+        }
+        x += p.width + (p.space ? spread : 0);
+      }
+      y -= lead;
+    }
+    function paragraph(b, x0, width) {
+      const heading = /^h[1-6]$/.test(b.type);
+      const before = b.before || (heading ? 10 : 0);
+      if (before && y < H - M - 0.5) y -= before;
+      const left = (b.indent || 0) + (b.type === "li" ? 18 * ((b.level || 0) + 1) : 0);
+      const all = lines(words(b.runs), width - left);
+      const spacing = b.lineHeight || 1.15;
+      all.forEach((line, n) => {
+        if (n === 0 && b.type === "li") {
+          room(Math.max(...line.pieces.map((p) => p.size || baseSize), baseSize) * spacing);
+          const size = line.pieces[0] && line.pieces[0].size || baseSize;
+          ops.push(`BT /${fontId(baseFace, false, false)} ${num(size)} Tf 0 0 0 rg 1 0 0 1 ${num(x0 + left - 14)} ${num(y - size * 0.8)} Tm ${pdfText(b.marker)} Tj ET`);
+        }
+        draw(line, x0 + left, width - left, b.align || "left", n === all.length - 1, spacing);
+      });
+      y -= b.after !== undefined && b.after !== 0 ? b.after : heading ? 4 : b.type === "li" ? 2 : 8;
+    }
+    function table(b, x0, width) {
+      const cols = Math.max(1, ...b.rows.map((r) => r.length)), cw = width / cols, pad = 4;
+      for (const row of b.rows) {
+        const cells = row.map((cell) => cell.flatMap((cb) => lines(words(cb.runs), cw - 2 * pad).map((l) => ({ line: l, align: cb.align }))));
+        const tall = Math.max(...cells.map((ls) => ls.reduce((n, l) => n + Math.max(...l.line.pieces.map((p) => p.size || baseSize), baseSize) * 1.2, 0)), baseSize * 1.2) + 2 * pad;
+        room(tall);
+        const top = y;
+        cells.forEach((ls, c) => {
+          ops.push(`0.6 0.62 0.65 RG 0.6 w ${num(x0 + c * cw)} ${num(top - tall)} ${num(cw)} ${num(tall)} re S`);
+          y = top - pad;
+          for (const l of ls) draw(l.line, x0 + c * cw + pad, cw - 2 * pad, l.align || "left", true, 1.2);
+        });
+        y = top - tall;
+      }
+      y -= 8;
+    }
+    const counters = [];
+    for (let b of bs) {
+      if (b.type === "pagebreak") { newPage(); continue; }
+      if (b.type === "hr") { room(14); y -= 6; ops.push(`0.75 0.77 0.8 RG 0.75 w ${num(M)} ${num(y)} m ${num(W - M)} ${num(y)} l S`); y -= 8; continue; }
+      if (b.type === "table") { table(b, M, W - 2 * M); continue; }
+      if (b.type === "li") {
+        const level = b.level || 0;
+        counters.length = level + 1;
+        counters[level] = b.list === "ol" ? (counters[level] || 0) + 1 : 0;
+        b = { ...b, marker: b.list === "ol" ? `${counters[level]}.` : "•" };
+      } else counters.length = 0;
+      paragraph(b, M, W - 2 * M);
+    }
+    // The file: fonts, pictures, then each page and what is drawn on it.
+    const objects = [];
+    const add = (body) => { objects.push(body); return objects.length; };
+    const catalog = add(""), tree = add("");
+    const fontRefs = fonts.map((name) => add(`<< /Type /Font /Subtype /Type1 /BaseFont /${name} /Encoding /WinAnsiEncoding >>`));
+    const imageRefs = images.map((im) => add(`<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length ${im.data.length} >>\nstream\n${im.data}\nendstream`));
+    const resources = `<< /Font << ${fontRefs.map((r, k) => `/F${k + 1} ${r} 0 R`).join(" ")} >>${imageRefs.length ? ` /XObject << ${imageRefs.map((r, k) => `/Im${k + 1} ${r} 0 R`).join(" ")} >>` : ""} >>`;
+    const kids = pages.map((page) => {
+      const content = page.join("\n");
+      const stream = add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+      return add(`<< /Type /Page /Parent ${tree} 0 R /MediaBox [0 0 ${num(W)} ${num(H)}] /Resources ${resources} /Contents ${stream} 0 R >>`);
+    });
+    objects[catalog - 1] = `<< /Type /Catalog /Pages ${tree} 0 R >>`;
+    objects[tree - 1] = `<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(" ")}] /Count ${kids.length} >>`;
+    const when = new Date(), two = (n) => String(n).padStart(2, "0");
+    const info = add(`<< /Title ${pdfText(app.name || "Untitled")} /Producer ${pdfText(document.title || "")} /CreationDate (D:${when.getFullYear()}${two(when.getMonth() + 1)}${two(when.getDate())}${two(when.getHours())}${two(when.getMinutes())}${two(when.getSeconds())}) >>`);
+    let out = "%PDF-1.4\n";
+    const offsets = objects.map((body, k) => { const at = out.length; out += `${k + 1} 0 obj\n${body}\nendobj\n`; return at; });
+    const xref = out.length;
+    out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+    out += `trailer\n<< /Size ${objects.length + 1} /Root ${catalog} 0 R /Info ${info} 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+    return new Blob([out], { type: "application/pdf" });
+  }
   function write(kind, el) {
     const bs = blocks(el || documentElement());
     if (kind === "docx") return docx(bs);
     if (kind === "odt") return odt(bs);
     if (kind === "rtf") return rtf(bs);
+    if (kind === "pdf") return pdf(bs);
     if (kind === "html") return new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${esc(app.name)}</title></head><body>${htmlOf(bs)}</body></html>`], { type: KINDS.html.type });
     if (kind === "md") return new Blob([md(bs)], { type: KINDS.md.type });
     return new Blob([txt(bs)], { type: KINDS.txt.type });
@@ -322,6 +523,7 @@
   function kindOf(name) { const ext = String(name || "").toLowerCase().split(".").pop(); return ext === "htm" ? "html" : ext === "markdown" ? "md" : KINDS[ext] ? ext : "txt"; }
   async function read(file) {
     const kind = kindOf(file.name);
+    if (KINDS[kind] && KINDS[kind].writeOnly) throw new Error(`a ${KINDS[kind].label} file is written here, not opened`);
     const buffer = file.file ? await file.file.arrayBuffer() : file.dataUrl ? await (await fetch(file.dataUrl)).arrayBuffer() : new TextEncoder().encode(file.text || "").buffer;
     if (kind === "docx") return fromDocx(xml((await unzip(buffer))["word/document.xml"]));
     if (kind === "odt") return fromOdt(xml((await unzip(buffer))["content.xml"]));
@@ -337,7 +539,7 @@
     app.download(`${base}.${KINDS[k].ext}`, write(k), KINDS[k].type);
     app.notify(`Saved ${base}.${KINDS[k].ext}`);
   }
-  async function open(accept = Object.values(KINDS).map((k) => "." + k.ext).join(",")) {
+  async function open(accept = Object.values(KINDS).filter((k) => !k.writeOnly).map((k) => "." + k.ext).join(",")) {
     const file = await app.pickFile(accept);
     if (!file) return null;
     documentElement().innerHTML = await read(file);

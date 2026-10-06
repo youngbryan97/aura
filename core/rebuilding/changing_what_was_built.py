@@ -62,8 +62,12 @@ class Changed:
         if self.why_not and not done:
             return f"I did not change it: {self.why_not}"
         line = f"I changed it as asked: {len(done)} of {len(self.outcomes)} changes work, each seen working by doing it, and everything that worked before still works."
-        if done:
-            line += " Done: " + ", ".join(o.feature.name for o in done) + "."
+        made = [o for o in done if not o.why_not]
+        if made:
+            line += " Done: " + ", ".join(o.feature.name for o in made) + "."
+        had = [o for o in done if o.why_not]
+        if had:
+            line += " It already did this, as checking it shows: " + ", ".join(o.feature.name for o in had) + "."
         missing = [o for o in self.outcomes if not o.kept]
         if missing:
             line += " Not done: " + ", ".join(f"{o.feature.name} ({o.why_not[:120]})" for o in missing) + "."
@@ -118,10 +122,16 @@ async def change_it(folder: Path, asked: str, ask: Asker, *, tell: Teller | None
         await asyncio.to_thread(program.write, now)
         runs = await run_checks(now, written, browser=browser)
         checks = [r.check for r in runs if not r.held]
+        # A change every check of which holds on the program as it is was made already: it does that now.
+        already = {r.check.feature for r in runs} - {c.feature for c in checks}
         await asyncio.to_thread(now.unlink, missing_ok=True)
         await _say(tell, f"Wrote {len(written)} checks for it before changing anything; {len(checks)} fail on the program as it is.")
         await asyncio.to_thread(shutil.copyfile, folder / "index.html", folder / "index.before-change.html")
         for feature in change.features:
+            if feature.name in already:
+                held_now = [r.check for r in runs if r.check.feature == feature.name]
+                outcomes.append(FeatureOutcome(feature, held=len(held_now), of=len(held_now), kept=True, why_not="it already does this"))
+                continue
             own = [c for c in checks if c.feature == feature.name]
             gift = given.get(feature.name)
             reused = await _reused(program, feature, own, gift.part, tried) if gift is not None and own else None

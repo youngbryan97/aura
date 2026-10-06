@@ -90,7 +90,9 @@ async () => {
   const ids = [...new Set([...document.querySelectorAll('[data-command]')].map((el) => el.getAttribute('data-command')))];
   for (const id of ids) {
     const c = app.commands.get(id);
-    if (!c || !c.run) continue;
+    // A command greyed out as not applying here (a table's rows with no table) is not one that does nothing.
+    if (!c || !c.run || (app.applies && !app.applies(c))) continue;
+    if (app.side) app.side(null);
     const place = document.querySelector('#app-work [contenteditable=true], #app-work textarea, #app-work input');
     if (place) { place.focus(); if (place.isContentEditable && !place.innerText.trim()) document.execCommand('insertText', false, 'Some words to try it on'); document.execCommand('selectAll'); }
     const before = state();
@@ -99,10 +101,12 @@ async () => {
     try { await Promise.race([app.run(id), new Promise((r) => setTimeout(r, 600))]); } catch (e) { /* an error is counted elsewhere */ }
     URL.createObjectURL = real;
     await new Promise((r) => setTimeout(r, 150));
+    // Asking for a file to open is doing something, though the page shows nothing until one is given.
+    const askedForAFile = !!document.querySelector('input[type=file]');
     const after = state();
     document.querySelectorAll('.app-dialog-back').forEach((d) => d.remove());
     document.querySelectorAll('input[type=file]').forEach((d) => d.remove());
-    if (before === after && !downloaded) dead.push(c.label);
+    if (before === after && !downloaded && !askedForAFile) dead.push(c.label);
   }
   return dead;
 }

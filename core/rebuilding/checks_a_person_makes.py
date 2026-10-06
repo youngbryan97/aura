@@ -206,7 +206,7 @@ window.__checks = (() => {
     if (prop.startsWith("text-decoration")) { const line = upward(el, (e, st) => (st.textDecorationLine || "").includes(want) ? st.textDecorationLine : null);
       return [want === "none" ? !upward(el, (e, st) => st.textDecorationLine !== "none" ? 1 : null) : !!line, `text-decoration ${line || s.textDecorationLine}`]; }
     if (prop === "color") return [near(s.color, toRgb(value)), `color ${s.color}`];
-    if (prop === "background-color" || prop === "background") { const bg = upward(el, (e, st) => rgb(st.backgroundColor).length === 3 && !/, 0\)$/.test(st.backgroundColor) && st.backgroundColor !== "transparent" ? st.backgroundColor : null);
+    if (prop === "background-color" || prop === "background") { const bg = upward(el, (e, st) => rgb(st.backgroundColor).length === 3 && !/^rgba\(.*,\s*0\)$/.test(st.backgroundColor) && st.backgroundColor !== "transparent" ? st.backgroundColor : null);
       return [!!bg && near(bg, toRgb(value)), `background ${bg || "none"}`]; }
     if (prop === "font-size") { const px = parseFloat(s.fontSize); const n = parseFloat(value);
       const ok = /pt$/.test(want) ? Math.abs(px - n * 4 / 3) <= 1.5 : /px$/.test(want) ? Math.abs(px - n) <= 1.5 : Math.abs(px - n) <= 1.5 || Math.abs(px - n * 4 / 3) <= 1.5;
@@ -543,10 +543,35 @@ def the_option_meant(offered: list[list[str]], wanted: str) -> str | None:
     return best[1] if meant else None
 
 
+def _pdf_text(data: bytes) -> str:
+    """The words a PDF shows: the strings its pages draw, in order, a line of them to each shown line."""
+    import zlib
+
+    streams = []
+    for match in re.finditer(rb"<<(.*?)>>\s*stream\r?\n(.*?)\r?\nendstream", data, re.S):
+        body = match.group(2)
+        if b"/FlateDecode" in match.group(1):
+            try:
+                body = zlib.decompress(body)
+            except zlib.error:
+                continue
+        streams.append(body)
+    shown: list[str] = []
+    for body in streams:
+        for line in re.findall(rb"\(((?:\\.|[^\\)])*)\)\s*Tj", body, re.S):
+            text = re.sub(rb"\\([0-7]{1,3})", lambda m: bytes([int(m.group(1), 8) & 0xFF]), line)
+            text = re.sub(rb"\\(.)", rb"\1", text)
+            shown.append(text.decode("cp1252", "replace"))
+    return " ".join(shown)
+
+
 def _what_a_file_says(data: bytes) -> str:
-    """The text a saved file holds, as a person opening it would read it: a zipped document (.docx, .odt) by its own words."""
+    """The text a saved file holds, as a person opening it would read it: a zipped document (.docx, .odt) by its own words, a PDF by what it shows."""
     import io
     import zipfile
+
+    if data[:5] == b"%PDF-":
+        return " ".join(_pdf_text(data).split())[:400_000]
 
     if data[:4] == b"PK\x03\x04":
         try:
@@ -567,6 +592,9 @@ def a_file_of_its_kind(name: str, text: str) -> tuple[str, bytes]:
     import zipfile
 
     lowered = name.lower()
+    if re.search(r"\.(png|jpe?g|gif|webp)$", lowered):
+        # A picture is a picture: a small one, drawn, whatever its name says it shows.
+        return "image/png", _a_picture()
     if lowered.endswith(".docx"):
         try:
             import docx
@@ -599,3 +627,13 @@ def a_file_of_its_kind(name: str, text: str) -> tuple[str, bytes]:
 
 def _xml(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _a_picture(wide: int = 48, high: int = 32) -> bytes:
+    """A small PNG of a blue sky over green ground."""
+    import struct
+    import zlib
+
+    rows = b"".join(b"\x00" + (b"\x4f\x8f\xd8" if y < high * 2 // 3 else b"\x5a\xa0\x4a") * wide for y in range(high))
+    chunk = lambda kind, body: struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)  # noqa: E731
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", wide, high, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
