@@ -119,6 +119,18 @@ def _ordinal(n: int) -> str:
     return {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}.get(n, f"number {n}")
 
 
+def _closed(browser: Any) -> bool:
+    page = getattr(browser, "page", None)
+    try:
+        return page is not None and bool(page.is_closed())
+    except Exception:  # noqa: BLE001 - a page that cannot say is taken as open; the next act finds out
+        return False
+
+
+def _count(n: int) -> str:
+    return {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six"}.get(n, str(n))
+
+
 async def pursued(skill: Any, browser: Any, url: str | None, goal: str, max_steps: int, *, action_context: Mapping[str, Any] | None = None,
                   said_before: str = "") -> dict[str, Any]:
     """The goal pursued from ``url``: each item its rule picks from the page's list in turn, where it states one; else as one pursuit."""
@@ -149,31 +161,50 @@ async def picked_by_the_rule(skill: Any, browser: Any, url: str, goal: str, max_
     skill._say_out_loud(f"There are {len(items)} {called} on the list. By your rule: " + ". Then ".join(
         f"{p.working}: number {p.index + rule.counted_from}, “{p.item}”" for p in picks) + ".")
     task = the_task_for_each(goal)
+    names = [i["text"] for i in items]
     results: list[dict[str, Any]] = []
-    for n, pick in enumerate(picks, start=1):
+    done: dict[str, Any] = {}
+    queue, tried = list(picks), list(picks)
+    while queue:
+        if _closed(browser):
+            # Somebody closed the window she was working in: that is an answer, not a fault to try past.
+            skill._say_out_loud(f"The window I was working in has been closed, so I stop here, with {_count(len(queue))} of the picks not done.")
+            break
+        pick = queue.pop(0)
+        n = sum(1 for r in results if r["had"]) + 1
         item = items[pick.index]
         skill._say_out_loud(f"The {_ordinal(n)} of {len(picks)}: “{pick.item}”.")
         logger.info("picked by the rule: %s -> %s (%s)", pick.working, pick.item, item["href"])
         here = await _the_item_itself(skill, browser, item["href"], pick.item, task)
         if not here:
-            skill._say_out_loud(f"“{pick.item}” cannot be had where the list points, nor anywhere I can find it kept, so I go on to the next.")
-            results.append({"number": pick.number, "item": pick.item, "url": item["href"], "ok": False, "completed": False,
+            results.append({"number": pick.number, "item": pick.item, "url": item["href"], "had": False, "ok": False, "completed": False,
                             "concluded": "it could not be had anywhere"})
+            # Asked for so many, a person keeps to so many: the rule goes on the way it goes, past the ones already picked.
+            more = rule.going_on(names, tried) if len(tried) < 2 * len(picks) else None
+            if more is None:
+                skill._say_out_loud(f"“{pick.item}” cannot be had where the list points, nor anywhere I can find it kept, so I go on to the next.")
+                continue
+            tried.append(more)
+            queue.append(more)
+            logger.info("in place of %s the rule goes on: %s -> %s", pick.item, more.working, more.item)
+            skill._say_out_loud(f"“{pick.item}” cannot be had where the list points, nor anywhere I can find it kept. To keep to {_count(len(picks))}, "
+                                f"the rule goes on: {more.working}: number {more.index + rule.counted_from}, “{more.item}”"
+                                + (", which I come to after the others." if queue[:-1] else ", which I go to now."))
             continue
         done = await skill._handle_pursue(browser, None, f"{task} (It is “{pick.item}”, the {_ordinal(n)} of the {len(picks)} picked.)",
                                           max_steps, action_context=action_context, said_before=said_before)
         done = done if isinstance(done, dict) else {}
-        results.append({"number": pick.number, "item": pick.item, "url": item["href"], "ok": bool(done.get("ok")),
+        results.append({"number": pick.number, "item": pick.item, "url": item["href"], "had": True, "ok": bool(done.get("ok")),
                         "completed": bool(done.get("completed")), "concluded": str(done.get("concluded") or "")})
-        if n < len(picks):
+        if queue:
             skill._say_out_loud(f"That was “{pick.item}”. On to the next one the rule picks.")
-    last = done if results else {}
+    played = [r for r in results if r["had"]]
     return {
-        **last,
+        **done,
         "ok": any(r["ok"] for r in results),
-        "completed": all(r["completed"] for r in results),
+        "completed": len(played) >= len(picks) and all(r["completed"] for r in played),
         "goal": goal,
         "picked": results,
-        "concluded": " ".join(f"{_ordinal(n).capitalize()}, “{r['item']}”: {r['concluded'] or ('done' if r['ok'] else 'not done')}"
-                              for n, r in enumerate(results, start=1)),
+        "concluded": " ".join(f"{_ordinal(played.index(r) + 1).capitalize()}, “{r['item']}”: {r['concluded'] or ('done' if r['ok'] else 'not done')}"
+                              if r["had"] else f"“{r['item']}” could not be had anywhere." for r in results),
     }

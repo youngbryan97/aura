@@ -130,5 +130,78 @@ def test_an_item_whose_page_cannot_be_had_is_found_wherever_else_it_is(monkeypat
     asked = "Go to https://example.org/list and play two of the games. Number the games from 0. Start at 1, take the remainder. Then add 1 and take the remainder again."
     done = asyncio.run(picking.pursued(skill, object(), "https://example.org/list", asked, 30))
     assert any("I found it at games.example.net, where it runs in the page" in line for line in skill.said)
-    assert [p["ok"] for p in done["picked"]] == [True, False]  # Game 2 is kept nowhere, and is said to be so
-    assert any("nor anywhere I can find it kept" in line for line in skill.said)
+    # Game 2 is kept nowhere, and is said to be so; the rule goes on to Game 0, kept nowhere either, and then only comes back round.
+    assert [(p["item"], p["ok"]) for p in done["picked"]] == [("Game 1", True), ("Game 2", False), ("Game 0", False)]
+    assert any("nor anywhere I can find it kept. To keep to two, the rule goes on" in line for line in skill.said)
+    assert not done["completed"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(("asked", "kept_nowhere", "played"), [
+    # The demo's rule at 1:53: 53, 16, 35 of 56; the 53rd is kept nowhere, so 35 + 19 = 54 is played after the others.
+    ("Go to https://example.org/games and play three of the games, one after another, and win each one. To pick them: number the games on the "
+     "list from 0. Take the current minute of the hour, divide it by how many games there are, and play the game whose number is the remainder. "
+     "When that game is over, go back to the list, add 19 to the number, take the remainder again, and play that game. Then add 19 once more "
+     "for the third game.", {"Game 53"}, ["Game 16", "Game 35", "Game 54"]),
+    # Another family: recipes counted from 1, a different start and step; the second is kept nowhere.
+    ("Go to https://example.org/recipes and cook two of the recipes. Number the recipes from 1. Start at 4, take the remainder by how many "
+     "recipes there are, and cook that recipe. Then add 10 and take the remainder again.", {"Game 13"}, ["Game 3", "Game 23"]),
+])
+def test_a_pick_not_to_be_had_anywhere_gives_its_place_to_the_next_the_rule_makes(monkeypatch, asked, kept_nowhere, played):
+    import datetime
+
+    import core.language.picking_by_a_rule as rule
+    import core.skills.sovereign_browser_picking as picking
+
+    async def the_list(browser):
+        return [{"text": f"Game {n}", "href": f"https://example.org/games/{n}"} for n in range(56)]
+
+    async def nowhere(skill, browser, url, name, task=""):
+        return "" if name in kept_nowhere else url
+
+    class _At(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime.datetime(2026, 10, 6, 13, 53)
+
+    monkeypatch.setattr(picking, "the_list_on_the_page", the_list)
+    monkeypatch.setattr(picking, "_the_item_itself", nowhere)
+    monkeypatch.setattr(rule.datetime, "datetime", _At)
+    skill = _Skill()
+    done = asyncio.run(picking.pursued(skill, object(), "https://example.org/games", asked, 30))
+    assert [p["item"] for p in done["picked"] if p["had"]] == played
+    assert done["completed"]
+    assert any("the rule goes on" in line and f"“{played[-1]}”" in line for line in skill.said)
+    assert f"“{sorted(kept_nowhere)[0]}” could not be had anywhere." in done["concluded"]
+
+
+@pytest.mark.unit
+def test_a_window_closed_under_her_ends_the_picks_and_is_said(monkeypatch):
+    import core.skills.sovereign_browser_picking as picking
+
+    class _Page:
+        closed = False
+
+        def is_closed(self):
+            return self.closed
+
+    class _Browser:
+        page = _Page()
+
+    async def the_list(browser):
+        return [{"text": f"Game {n}", "href": f"https://example.org/games/{n}"} for n in range(5)]
+
+    browser = _Browser()
+    skill = _Skill()
+    pursue = skill._handle_pursue
+
+    async def closed_after(browser_, url, goal, max_steps, **kw):
+        browser.page.closed = True  # the person closes the window during the first game
+        return await pursue(browser_, url, goal, max_steps, **kw)
+
+    monkeypatch.setattr(picking, "the_list_on_the_page", the_list)
+    skill._handle_pursue = closed_after
+    asked = "Go to https://example.org/list and play three of the games. Number the games from 0. Start at 1, take the remainder. Then add 1 and take the remainder again."
+    done = asyncio.run(picking.pursued(skill, browser, "https://example.org/list", asked, 30))
+    assert [p["item"] for p in done["picked"]] == ["Game 1"]
+    assert any("has been closed, so I stop here, with two of the picks not done" in line for line in skill.said)
