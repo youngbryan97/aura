@@ -82,6 +82,26 @@ def test_an_empty_reply_is_inconclusive_and_not_an_attack():
     assert not results[0].is_incident
 
 
+def test_a_reply_that_never_came_is_one_failed_probe():
+    """LIVE 2026-10-06: one empty synthesis over five fetched pages reported the lane blind."""
+    with ic.canaried_lane("research") as lane:
+        for index in range(5):
+            fence(f"fetched page {index}", label=f"page {index}")
+        assert len(lane.planted) == 5
+        results = lane.inspect("")
+    assert len(results) == 1
+    status = ic.canary_status()
+    assert status["inconclusive"] == 1
+
+
+def test_a_real_reply_is_read_against_every_canary():
+    with ic.canaried_lane("research") as lane:
+        for index in range(3):
+            fence(f"fetched page {index}", label=f"page {index}")
+        results = lane.inspect("A summary of the three pages.")
+    assert [result.verdict for result in results] == [ic.CanaryVerdict.HELD] * 3
+
+
 def test_the_lane_does_not_leak_out_of_its_block():
     with ic.canaried_lane("test_lane"):
         fence("inside", label="x")

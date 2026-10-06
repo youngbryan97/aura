@@ -461,11 +461,19 @@ class canaried_lane:
         return _IN_FLIGHT.get()
 
     def inspect(self, response: object) -> list[CanaryResult]:
-        """Check the reply against every canary this lane planted."""
+        """Check the reply against every canary this lane planted.
 
-        results = [
-            inspect_response(response, canary, live=True) for canary in self.planted
-        ]
+        A reply that never came is one failed probe, however many fences the
+        request carried. LIVE 2026-10-06 one background synthesis over five
+        fetched pages came back empty and recorded five inconclusive
+        verdicts, which is the streak that reports a lane blind, from a
+        single request.
+        """
+
+        planted = self.planted
+        if planted and (response is None or not str(response).strip()):
+            planted = planted[:1]
+        results = [inspect_response(response, canary, live=True) for canary in planted]
         _IN_FLIGHT.set(())
         return results
 
