@@ -149,3 +149,19 @@ def test_a_document_exported_as_pdf_says_what_was_written(tmp_path):
     assert data.startswith(b"%PDF-1.4") and b"%%EOF" in data[-10:]
     for words in ("Café “Plan”", "Dear Ms. Rivera,", "thank you", "€12.", "1.", "Second", "Task", "Owner"):
         assert words in said, (words, said)
+
+
+@pytest.mark.unit
+def test_a_build_on_a_page_her_model_wrote_is_not_taken_up_where_she_knows_the_page(tmp_path):
+    """LIVE 2026-10-06 taking one up, the given parts did not fit its page and her model spent minutes rewriting them."""
+    import json
+
+    from core.rebuilding.rebuilding_a_program import _on_a_page_of_its_own
+
+    genome = Genome(name="Quill", what_it_is="a word processor", work="A white page to write letters on.", features=[])
+    for name, serves, own in (("old", ["the work area"], True), ("known", ["the work area", "document page"], False)):
+        folder = tmp_path / name
+        folder.mkdir()
+        (folder / "what_it_does.json").write_text(genome.model_dump_json(), "utf-8")
+        (folder / "program.json").write_text(json.dumps({"title": "Quill", "parts": [{"name": "work area", "code": "", "serves": serves}]}), "utf-8")
+        assert _on_a_page_of_its_own(folder) is own

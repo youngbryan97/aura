@@ -129,6 +129,12 @@ async def rebuild(
     sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
     named = [f"{s.title} ({s.where})" for s in sources]
     taken_up = await asyncio.to_thread(an_unfinished_build_of, program, asked, Path(where))
+    if taken_up is not None and await asyncio.to_thread(_on_a_page_of_its_own, taken_up):
+        # Built on a page her model wrote, where she now knows how to make the page: its parts were made for
+        # that page, and given parts do not fit it (LIVE 2026-10-06, four minutes rewriting Save as for it).
+        await _say(tell, f"An earlier build of {program or 'it'} I had not finished was made on a page of its own; "
+                         f"starting afresh on the page I know how to make, and leaving that one as it was, in {taken_up}.")
+        taken_up = None
     try:
         if taken_up is not None:
             await _say(tell, f"Taking up the build of {program or 'it'} I had not finished, from what I kept in {taken_up}.")
@@ -205,6 +211,19 @@ def _a_new_folder(where: Path, name: str) -> Path:
 def _the_build_is(folder: Path, program: str, asked: str, *, finished: bool) -> None:
     """What the build in ``folder`` is of, and whether it was finished: how a build cut short is found again."""
     (folder / "build.json").write_text(json.dumps({"program": program, "asked": asked, "finished": finished}, indent=1), "utf-8")
+
+
+def _on_a_page_of_its_own(folder: Path) -> bool:
+    """Whether an unfinished build's work area is one her model wrote, for a program whose work is a page she knows how to make."""
+    from core.rebuilding.parts_a_maker_knows import the_page_for
+
+    try:
+        genome = Genome.model_validate_json((folder / "what_it_does.json").read_text("utf-8"))
+        parts = json.loads((folder / "program.json").read_text("utf-8")).get("parts", []) if (folder / "program.json").exists() else []
+    except (OSError, ValueError):
+        return False
+    area = next((part for part in parts if part.get("name") == "work area"), None)
+    return area is not None and "document page" not in (area.get("serves") or []) and the_page_for(genome) is not None
 
 
 def an_unfinished_build_of(program: str, asked: str, where: Path) -> Path | None:
