@@ -35,6 +35,17 @@ import time
 from core.runtime.errors import describe_error, record_degradation
 
 
+def _in_words(error: str) -> str:
+    """An error as words: "pursuit_interrupted:TargetClosedError" is "pursuit interrupted: target closed"."""
+    parts = []
+    for part in re.split(r":(?!//)", str(error or "")):
+        part = re.sub(r"(?:Error|Exception)$", "", part.strip())
+        part = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", part).replace("_", " ")
+        if part.strip():
+            parts.append(" ".join(part.split()).lower() if re.fullmatch(r"[\w ]+", part) else part.strip())
+    return ": ".join(parts) or "it failed"
+
+
 def _what_she_got_through(completed: int, requested: int, *, since: float = 0.0) -> str:
     """What she actually did, from her own record when no receipt arrived.
 
@@ -466,12 +477,18 @@ async def _execute_desktop_objective_from_chat(
                     f"{step_note}"
                 )
     else:
-        error = str(result.get("error") or result.get("status") or "desktop task failed").strip()
+        error = _in_words(str(result.get("error") or result.get("status") or "it failed").strip())
+        # Her own account of what came of it leads, where she gave one; the
+        # machinery's name for the lane it went through is nobody's business.
+        # LIVE 2026-10-06 three games played by a rule ended "I routed this
+        # through CognitiveEngine and the governed desktop task lane, but it
+        # did not complete: pursuit_interrupted:TargetClosedError."
+        told = str(result.get("concluded") or "").strip()
         response = (
-            "I routed this through CognitiveEngine and the governed desktop task lane, "
-            f"but it did not complete: {error}. "
-            f"{_what_she_got_through(completed, requested, since=turn_began_at)} "
-            "I am not claiming the desktop action finished."
+            f"{told} The rest did not complete: {error}."
+            if told
+            else f"This did not complete: {error}. {_what_she_got_through(completed, requested, since=turn_began_at)} "
+            "I am not claiming it was done."
         )
         # A partial task can still hold the answer, and withholding it is its
         # own failure.

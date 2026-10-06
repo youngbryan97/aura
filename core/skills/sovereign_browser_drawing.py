@@ -147,13 +147,14 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
 
     from core.perception.what_her_page_shows import the_page_size
 
-    for _ in range(PRESSES_TO_START):
+    for press in range(PRESSES_TO_START):
         wide, tall = await the_page_size(page)
         x, y = (band[0] + band[2]) / 2 * wide, (band[1] + band[3]) / 2 * tall
         over = str(await page.evaluate(_PUT_OVER_IT % (x, y)) or "")
         if not over:
             break
-        _tell("The game has a button over it to start it; pressing that first.")
+        if press == 0:  # said once: pressing it again is the same act, not news
+            _tell("The game has a button over it to start it; pressing that first.")
         await page.mouse.click(x, y)
         began = time.monotonic()
         while time.monotonic() - began < STARTS_WITHIN_S:

@@ -68,7 +68,11 @@ class WhyNothingAnswers:
         if self.because == IN_FRONT:
             return f"{self.what} is over the part I am using. Trying to move it."
         if self.because == ENDED:
-            return "This is finished — what I was working on is not there any more."
+            # What she knows is that it has gone, not that it is over: a game's
+            # next screen takes it away as surely as its last one. LIVE
+            # 2026-10-06 she said "This is finished" on a game's difficulty
+            # screen and played on for ten minutes.
+            return "What I was working on has gone from the screen; seeing what is there now."
         return (
             "It is in front of me, nothing is over it, and nothing I do changes "
             "anything. I do not know why."

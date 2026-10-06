@@ -135,7 +135,11 @@ class Strategy:
         a narration that appends all three unconditionally reads it back to
         the listener three times over.
         """
-        line = self.approach.rstrip(" .")
+        # The line as a watcher hears it: its first sentence. Her model can
+        # give a paragraph ("Press up: If the difficulty options are arranged
+        # vertically (Easy on top, ...), up might..."), which is her working,
+        # not the plan.
+        line = re.split(r"(?<=[.!?])\s+", self.approach.strip(), maxsplit=1)[0].rstrip(" .")
         said = f"Plan: {line}"
         if self.because and not _already_said(self.because, said):
             said = f"{said} — {self.because.rstrip(' .')}"
