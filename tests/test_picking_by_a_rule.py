@@ -60,3 +60,31 @@ def test_other_lists_by_other_rules(words, items, picked):
 ])
 def test_words_with_no_rule_give_none(words):
     assert a_picking_rule(words) is None
+
+
+def test_the_rule_goes_on_past_its_picks_the_way_it_goes():
+    rule = a_picking_rule(_THREE)
+    picks = rule.worked_out(_GAMES, _AT_7_23.replace(minute=53))
+    assert [p.index for p in picks] == [53, 16, 35]
+    more = rule.going_on(_GAMES, picks)
+    assert more is not None and more.index == 54 and more.working == "from 35; 35 + 19 = 54; 54 divided by 56 leaves 54"
+    assert rule.going_on(_GAMES, [*picks, more]).index == 17  # 73 leaves 17
+
+
+@pytest.mark.parametrize(("words", "items", "picks_made"), [
+    (_THREE, [f"game {n}" for n in range(57)], 3),  # 19 steps round 57 in three: it only comes back round
+    ("Number the songs from 1. Take today's date, divide it by how many songs there are, and play the song whose number is the remainder.",
+     list("abcdefg"), 1),  # a rule with no step after the first does not move
+])
+def test_a_rule_that_only_comes_back_round_goes_on_to_nothing(words, items, picks_made):
+    rule = a_picking_rule(words)
+    picks = rule.worked_out(items, _AT_7_23)
+    assert len(picks) == picks_made and rule.going_on(items, picks) is None
+
+
+def test_other_rules_go_on_the_same_way():
+    rule = a_picking_rule("Start at 4, multiply it by 3, take the remainder by how many recipes there are, and cook that recipe. "
+                          "Then add 2 and cook two more the same way.")
+    items = [f"r{n}" for n in range(10)]
+    picks = rule.worked_out(items, _AT_7_23)
+    assert rule.going_on(items, picks).item == "r7"  # 6 + 2 = 8, the 8th counted from 1

@@ -786,10 +786,18 @@ def _say_intent(
     _publish_decision(said, because, _expected_of(chosen), chosen)
     line = f"{said} — {because}" if because else said
     paced = MOVES_SAID.get()
-    if out_loud and (paced is None or _the_last_move_could_be_read(paced)):
+    # A line said a moment ago tells a watcher nothing the second time: LIVE
+    # 2026-10-06 the chat filled with "Going right — to see what it does".
+    lately: list[str] = paced.setdefault("lately", []) if paced is not None else []
+    if out_loud and line not in lately and (paced is None or _the_last_move_could_be_read(paced)):
         if paced is not None:
             paced.update(at=time.monotonic(), line=line)
+            lately[:] = [*lately, line][-SAID_LATELY:]
         _tell(line)
+
+
+#: How many of the move lines said last are not said again.
+SAID_LATELY = 6
 
 
 #: The last move a run said out loud and when, set when a run begins; None

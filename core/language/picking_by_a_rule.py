@@ -77,29 +77,53 @@ class PickingRule:
         if not items:
             return []
         now = now or datetime.datetime.now()
-        count = len(items)
         number, said = _starting(self.start, now)
         out: list[Pick] = []
         for n in range(self.picks):
             steps = self.first if n == 0 else (self.then[min(n - 1, len(self.then) - 1)] if self.then else self.first)
-            working = [said] if n == 0 else [f"from {number}"]
-            for op, by in steps:
-                before = number
-                if op == "add":
-                    number += by
-                    working.append(f"{before} + {by} = {number}")
-                elif op == "sub":
-                    number -= by
-                    working.append(f"{before} - {by} = {number}")
-                elif op == "mul":
-                    number *= by
-                    working.append(f"{before} × {by} = {number}")
-                elif op == "mod":
-                    number %= count
-                    working.append(f"{before} divided by {count} leaves {number}")
-            index = (number - self.counted_from) % count
-            out.append(Pick(number, index, items[index], "; ".join(working)))
+            out.append(self._stepped(items, number, steps, said if n == 0 else f"from {number}"))
+            number = out[-1].number
         return out
+
+    def going_on(self, items: list[str], picks: list[Pick]) -> Pick | None:
+        """The next pick the rule makes after ``picks``, by its last step, passing over items already picked; None once it only comes back round.
+
+        Where a pick cannot be had at all, a person asked for three keeps to three by
+        going on the way the rule goes: "add 19 once more".
+        """
+        if not items or not picks:
+            return None
+        steps = self.then[-1] if self.then else self.first
+        taken = {p.index for p in picks}
+        number = picks[-1].number
+        for _ in range(len(items)):
+            pick = self._stepped(items, number, steps, f"from {number}")
+            if pick.number == number and pick.index in taken:
+                return None  # the step does not move it: there is no going on
+            if pick.index not in taken:
+                return pick
+            number = pick.number
+        return None
+
+    def _stepped(self, items: list[str], number: int, steps: list[tuple[str, int]], said: str) -> Pick:
+        count = len(items)
+        working = [said]
+        for op, by in steps:
+            before = number
+            if op == "add":
+                number += by
+                working.append(f"{before} + {by} = {number}")
+            elif op == "sub":
+                number -= by
+                working.append(f"{before} - {by} = {number}")
+            elif op == "mul":
+                number *= by
+                working.append(f"{before} × {by} = {number}")
+            elif op == "mod":
+                number %= count
+                working.append(f"{before} divided by {count} leaves {number}")
+        index = (number - self.counted_from) % count
+        return Pick(number, index, items[index], "; ".join(working))
 
     def says(self) -> str:
         return (f"start from the {self.start}, counting the list from {self.counted_from}; "

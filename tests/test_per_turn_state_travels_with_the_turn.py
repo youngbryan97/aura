@@ -90,3 +90,18 @@ def test_the_conversation_keeps_its_order() -> None:
     out = system_first(_transcript())
     said = [str(m["content"]) for m in out if m["role"] in {"user", "assistant"}]
     assert said == ["hi", "hello", "what is 2+2?"]
+
+
+def test_nothing_follows_her_open_answer() -> None:
+    """A continuation ends on her unfinished reply; the turn state goes before the person.
+
+    LIVE 2026-10-06: the block went after the open answer, the template closed
+    the answer, and the continuation fell back to a plain "System:" prompt.
+    """
+    transcript = [*_transcript(), {"role": "assistant", "content": "Two plus two is"}]
+    out = system_first(transcript)
+    roles = [str(m["role"]) for m in out]
+    assert roles[-1] == "assistant" and out[-1]["content"] == "Two plus two is"
+    assert roles[-2] == "user"
+    assert roles[-3] == RUNTIME_EVIDENCE_ROLE
+

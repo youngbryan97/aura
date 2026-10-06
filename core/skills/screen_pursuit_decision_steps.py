@@ -463,14 +463,21 @@ def _narrate_a_fresh_plan(
         # And whether anything she read bears it out. Her voice
         # is one witness; what she read is another, and a line
         # only her own voice vouches for is held knowing that.
+        #
+        # Which witnesses bear it out, and why the last line ended, are kept
+        # for whoever answers for the run, not read out in brackets after the
+        # plan: LIVE 2026-10-06 a watcher was shown "Plan: Select the Easy
+        # difficulty option (only my own voice says so) (it has run 18 moves
+        # without a fresh look)".
         read = knowledge["held"].findings if knowledge["held"] is not None else []
         if read:
             from core.agency.what_agrees import borne_out
 
             borne = borne_out(fresh.approach, read)
-            said = f"{said} ({borne.says_so()})"
             logger.info("the line she took, against what she read: %s", borne.says_so())
-        _tell(f"{said} ({ended})" if changing and ended else said)
+        if changing and ended:
+            logger.info("the line before it ended: %s", ended)
+        _tell(said)
     elif going is not None:
         going.expecting(fresh.approach, len(moves))
 

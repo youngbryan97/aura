@@ -138,12 +138,20 @@ from .screen_pursuit_surface import (
 
 def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, float]:
     """A menu is read before it is pressed: a click on a label that goes on (Play, Next) before one on a
-    label to read (Score), and keys as they were; and on a screen she has been on before, what led on from it then."""
+    label to read (Score), and keys as they were; and on a screen she has been on before, what led on from it then.
+
+    And a thing done here to find out tells less each time it is done again and leads nowhere: what it
+    does on this screen was found out the first times. LIVE 2026-10-06, a game's difficulty screen whose
+    picture moved by itself: every press of right "moved" it, so right stayed as worth finding out as at
+    first, and she pressed it thirty times without trying anything else.
+    """
     from core.agency.what_i_can_do_here import what_is_clicked
     from core.language.a_way_on import how_much_it_leads_on
 
-    leads = getattr(getattr(can_do, "leads", None), "how_it_led", lambda _act: 1.0)
-    return {name: value * leads(name) * (how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
+    held = getattr(can_do, "leads", None)
+    leads = getattr(held, "how_it_led", lambda _act: 1.0)
+    again = getattr(held, "taken_here_to_no_end", lambda _act: 0)
+    return {name: value * leads(name) * (how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0) / (1 + again(name))
             for name, value in (telling or {}).items()}
 
 

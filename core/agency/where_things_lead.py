@@ -131,6 +131,13 @@ class WhereThingsLead:
             return 0.5
         return 1.0
 
+    def taken_here_to_no_end(self, act: str) -> int:
+        """How many times ``act`` has been taken on this screen and led nowhere: nothing answered, or the screen stayed itself."""
+        if self._here is None:
+            return 0
+        counts = self.went.get(f"{self._here}|{act}") or {}
+        return 0 if counts.get("on", 0) > counts.get("back", 0) else counts.get("nothing", 0) + counts.get("moved", 0)
+
     def in_order(self, acts: Sequence[str]) -> tuple[str, ...]:
         """``acts``, what led on from this screen first and what did nothing here last, otherwise as they were."""
         return tuple(sorted(acts, key=lambda act: -self.how_it_led(act)))

@@ -118,7 +118,8 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
         text = " ".join(str(region.get("text") or "").split())
         # Writing that keeps changing by itself is a scene talking, not a control.
         if text and not region.get("of_its_own") and not _set_as_a_paragraph(region, regions):
-            found.setdefault(a_click_on(text), None)
+            for choice in _choices_apart(region):
+                found.setdefault(a_click_on(str(choice["text"])), None)
     # And the drawn buttons with no words on them, named by where they are.
     for region in observation.get("shapes") or []:
         if isinstance(region, dict) and region.get("text"):
@@ -216,10 +217,41 @@ def _words(region: dict[str, Any]) -> int:
     return len(str(region.get("text") or "").split())
 
 
+#: What stands between choices set side by side on one line: "Easy / Hard", "1 Player | 2 Players".
+_BETWEEN_CHOICES = re.compile(r"\s*[/|•·]\s*")
+
+
+def _choices_apart(region: dict[str, Any]) -> list[dict[str, Any]]:
+    """A line of choices as each choice, where it stands on the line; any other writing as it is.
+
+    Text recognition reads choices set side by side as one piece of writing,
+    and the middle of it is the stroke between them. LIVE 2026-10-06, Toonami
+    Tunnel Rush's "Easy / Hard": she clicked the stroke, nothing happened, and
+    she never clicked either word. Each choice is as wide as its letters are
+    of the line's. Only words are choices: "10 / 20" is a count.
+    """
+    text = " ".join(str(region.get("text") or "").split())
+    parts = [part for part in _BETWEEN_CHOICES.split(text) if part]
+    if not 2 <= len(parts) <= 4 or not all(re.search(r"[^\W\d_]{2}", part) and len(part.split()) <= SHORT_LINE for part in parts):
+        return [region]
+    try:
+        x, width = float(region["x"]), float(region["width"])
+    except (KeyError, TypeError, ValueError):
+        return [region]
+    apart, at = [], 0
+    for part in parts:
+        start = text.index(part, at)
+        at = start + len(part)
+        left, wide = x + width * start / len(text), width * len(part) / len(text)
+        apart.append({**region, "text": part, "x": left, "width": wide, "center_x": left + wide / 2})
+    return apart
+
+
 def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
     """The middle of the writing a click move names, in the reading's own frame."""
     wanted = " ".join(str(label or "").split()).lower()
-    for region in [*(observation.get("layout") or []), *(observation.get("shapes") or [])]:
+    layout = [region for region in observation.get("layout") or [] if isinstance(region, dict)]
+    for region in [*(choice for line in layout for choice in _choices_apart(line)), *(observation.get("shapes") or [])]:
         text = " ".join(str((region or {}).get("text") or "").split()).lower()
         if text != wanted:
             continue
