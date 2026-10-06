@@ -944,6 +944,14 @@ class PhantomBrowser(_ActsOnThePage):
         self._last_navigation = arrival
         if not arrival["ok"]:
             logger.warning("🌐 Navigation did not arrive: %s", arrival["reason"])
+            # The archive's copy refused is the page itself to go to, as a page refused is its copy
+            # (core/skills/sovereign_browser_going.py). LIVE 2026-10-06 a link followed from an archived
+            # page to a game in the Internet Archive came wrapped in the archive's address, and the
+            # archive does not serve copies of itself.
+            original = re.match(r"^https?://web\.archive\.org/web/[0-9a-z_*]+/(https?://.+)$", url)
+            if original:
+                logger.info("🌐 The archive's copy was refused; going to the page itself: %s", original.group(1))
+                return await self.browse(original.group(1), principal=principal)
         return bool(arrival["ok"])
 
 

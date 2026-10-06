@@ -61,3 +61,15 @@ async def test_a_link_that_opens_a_new_tab_is_followed_in_hers(browser, click_le
     assert browser.page.url == "https://example.org/aura-the-game"
     assert "The game itself" in await browser.page.inner_text("body")
     assert len(browser.context.pages) == 1  # the tab it opened was closed: she goes on in one
+
+
+@pytest.mark.asyncio
+async def test_the_archives_copy_refused_is_the_page_itself_to_go_to(browser):
+    """A link followed from an archived page comes wrapped in the archive's address; the archive does not copy itself."""
+
+    async def refused(route) -> None:
+        await route.fulfill(status=403, content_type="text/html", body="<html><body>Forbidden</body></html>")
+
+    await browser.context.route("https://web.archive.org/**", refused)
+    assert await browser.browse("https://web.archive.org/web/20260510110516/https://example.org/aura-the-game", principal="owner")
+    assert browser.page.url == "https://example.org/aura-the-game"
