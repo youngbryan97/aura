@@ -101,6 +101,15 @@ Type in her chat:
 The museum refuses its game files to an automated browser. Each game page
 links the same game in the Internet Archive, and she plays it there.
 
+The picking is done by code, not left to her decisions
+(core/language/picking_by_a_rule.py, core/skills/sovereign_browser_picking.py).
+She reads the list off the page (all 56 games, in order), works the rule out
+from the clock as it is when she starts, and says the working before she
+plays: "There are 56 games on the list. By your rule: it is 7:14 am, so the
+minute is 14; 14 divided by 56 leaves 14: number 14, "Scooby-Doo: Scooby
+Trap". Then ..." Each game picked is then played for the task said of one:
+"Play this game and win it." Over an hour, every game is someone's first.
+
 ## Demo 3: a clean-room reconstruction of Microsoft Word
 
 Type in her chat:
@@ -111,22 +120,45 @@ Type in her chat:
 > it to my Desktop.
 
 What happens (core/rebuilding): she reads what is written about the program
-and its kind (her own Wikipedia corpus, else Wikipedia online), her model says
-what it does as features a person uses, and writes for each the checks a
-person would make, before any code exists. A check that already holds on an
-empty program is dropped. Then her model writes the program part by part
-inside a general application frame (menus, toolbar, work area, status bar,
-dialogs, files): the work area first, then each feature. A part is kept only
+and its kind (her own Wikipedia corpus, else Wikipedia online), and her model
+says what it does as features a person uses.
+
+Features she already knows how to make are given by code, each with the checks
+a person would make of it (core/rebuilding/parts_a_maker_knows.py and .js).
+For a document program that covers the page (paper, margins, pages counted,
+zoom), character styles, fonts, colours, alignment, lists, indent, spacing,
+headings, undo, the clipboard, find and replace, tables, pictures, links,
+insertions, proofing, printing and print preview, a new document, Save as
+(PDF among the kinds), page setup and a tabbed toolbar. They work on the
+page's editing (document_editing.js) and its files (document_formats.js,
+which writes .docx, .odt, .rtf, .html, .md, .txt and PDF). She says how many
+of its features these are.
+
+For every other feature her model writes the checks a person would make,
+before any code, and a check that already holds on an empty program is
+dropped. Then her model writes the part inside the general application frame
+(menus, toolbar, work area, status bar, dialogs, files). A part is kept only
 when its own checks hold when done in a browser and nothing that worked before
 stops working; otherwise she is shown what went wrong and tries again, three
-times, and the feature is left out rather than kept broken. The result opens in
-a window, and she says which features work and which do not.
+times, and the feature is left out rather than kept broken. She says which
+features work and which do not.
+
+Offline, with her model away, Word's own feature list builds 18 of 18
+features in about 90 seconds. A notes app and an email composer get every
+feature from the same parts; a spreadsheet, a drawing program and a task
+board get none (tests/test_parts_a_maker_knows.py).
 
 When it is done the program is installed as a Mac application in
 /Applications (a native window with the Edit menu, Open and Save dialogs and
 printing; core/rebuilding/as_a_mac_app.py) and opened. Then she does what the
-request asks with it, with its own controls, and what it exports is saved in
-the folder named (here the Desktop).
+request asks with it, with its own controls, in a window you can watch: her
+model writes the letter, and she types it a paragraph at a time and presses
+the program's own export command. What it exports is saved in the folder
+named (here the Desktop), read back to check that it says what was written,
+and opened so you see it.
+
+An unfinished build of the same program made on a page her model wrote is not
+taken up: she says so, leaves it as it was, and starts afresh.
 
 The same engine builds to a specification ("build me a ...", build_app),
 changes a build ("add a dark theme to the word processor you built",
