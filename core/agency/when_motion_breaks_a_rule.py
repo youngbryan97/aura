@@ -74,7 +74,7 @@ class MotionChecks:
                          and name in self.required_edges), "")
             if not edge:
                 predicted = departure_edge(event, moves.shape)
-                if predicted in self.required_edges and len(self.unconfirmed) < 16:
+                if event.get("what") == "gone" and predicted in self.required_edges and len(self.unconfirmed) < 16:
                     self.unconfirmed.append({"at": at, "edge": predicted, "thing": event.get("thing"),
                                              "last_visible": visible, "reason": "missing track; crossing was only extrapolated"})
                 continue

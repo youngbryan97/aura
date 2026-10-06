@@ -81,6 +81,8 @@ def test_runtime_boundary_check_uses_observed_paint_instead_of_a_missing_tracks_
         happened = moves.see(described(image, scene), at)
         checks.see(moves, happened, at, None)
     assert bool(checks.violations) is not reflects
+    if reflects:
+        assert not checks.unconfirmed
 
 
 @pytest.mark.asyncio

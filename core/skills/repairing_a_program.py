@@ -58,6 +58,10 @@ class RepairAProgramSkill(BaseSkill):
     requires_approval = False
 
     async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        if isinstance(params, BaseModel):
+            # A live reload may leave the caller holding the previous schema
+            # class. Validate its data against the current input contract.
+            params = params.model_dump()
         if isinstance(params, dict):
             params = RepairAProgramInput(**{k: v for k, v in params.items() if k in ("path", "checks")})
         elif not isinstance(params, RepairAProgramInput):

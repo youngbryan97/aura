@@ -114,3 +114,22 @@ def test_an_earlier_win_cannot_hide_other_attempt_outcomes(runs):
     report = _how_the_play_went({"runs": runs, "requested_attempts": 3, "won": "won" in runs})
     assert "3 attempts" in report
     assert ", ".join(runs) in report
+
+
+@pytest.mark.asyncio
+async def test_an_input_held_across_a_schema_reload_is_revalidated_as_data(tmp_path, monkeypatch):
+    from pydantic import BaseModel
+    from core.self_modification import repairing_by_behaviour as repairer
+    from core.skills.repairing_a_program import RepairAProgramSkill
+
+    class PreviousInput(BaseModel):
+        path: str
+        checks: list | None = None
+
+    path = tmp_path / "index.html"
+    path.write_text("<canvas></canvas>")
+    async def repair_it(*args, **kwargs):
+        return repairer.Repair(path=str(path), checked=["controls"])
+    monkeypatch.setattr(repairer, "repair_by_behaviour", repair_it)
+    result = await RepairAProgramSkill().execute(PreviousInput(path=str(path)), {"message": "Fix this file."})
+    assert result["ok"] and result["path"] == str(path)
