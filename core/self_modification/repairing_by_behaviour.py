@@ -447,7 +447,7 @@ async def _kept_from_reading(browser: Any, current: str, words: str, keys: list[
             "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why, "shown": ["from reading the code"],
         })
         tell(f"In {suspicion.function or 'the code'} (line {suspicion.line}): {suspicion.why}, so I "
-             f"{', '.join(e.says(current) for e in edit)}. Watched twice, it breaks nothing.")
+             f"{' and '.join(e.says(current) for e in edit)}. Watched twice, it breaks nothing.")
         current = after
         done.add((suspicion.pattern, suspicion.line))
     return current, last
@@ -661,7 +661,7 @@ def _what_this_change_did(suspicion: Suspicion, edit: list[Edit], current: str, 
     lines = sorted({current.count("\n", 0, e.start) + 1 for e in edit})
     where = ", ".join(str(n) for n in lines) or str(suspicion.line)
     said = (f"In {suspicion.function or 'the code'} (line {where}): {suspicion.why}, "
-            f"so I {', '.join(e.says(current) for e in edit)}.")
+            f"so I {' and '.join(e.says(current) for e in edit)}.")
     seen = [f"I can see {_RIGHT_SAID.get(name, name)}" for name in shown if not name.startswith("no longer: ")]
     gone = [f"I no longer see {_WRONG_SAID.get(name[11:], name[11:])}" for name in shown if name.startswith("no longer: ")]
     if seen or gone:
