@@ -864,7 +864,15 @@ class PhantomBrowser(_ActsOnThePage):
         if not self.page:
             return False
         
-        content = (await self.page.content()).lower()
+        # What the page shows, as a person reads it, not its source: a page with a
+        # CAPTCHA widget somewhere in its code for a comment form is not a block.
+        # LIVE 2026-10-06 the Internet Archive's page for a game was refused as
+        # "captcha" for a script it carries for reviews.
+        try:
+            content = str(await self.page.evaluate("document.body ? document.body.innerText.slice(0, 4000) : ''")).lower()
+        except (PlaywrightError, RuntimeError, AttributeError) as exc:
+            logger.debug("Could not read what the page shows: %s", exc)
+            content = ""
         title = (await self.page.title()).lower()
         
         block_signals = [
@@ -872,11 +880,19 @@ class PhantomBrowser(_ActsOnThePage):
             "not a robot",
             "captcha",
             "verify you are a human",
+            "verifying you are human",
             "access to this page has been denied",
             "security check",
             "bot detection",
-            "automated requests"
+            "automated requests",
+            "bots use duckduckgo too",
+            "complete the following challenge",
+            "you have been blocked",
+            "you've been blocked",
         ]
+        if title.strip() in ("just a moment...", "attention required! | cloudflare"):
+            logger.warning("🚨 Browser Blocked Detected: %s", title)
+            return True
         
         for signal in block_signals:
             if signal in content or signal in title:
