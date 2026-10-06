@@ -151,5 +151,5 @@ def test_the_pursuit_says_which_act_it_was():
     from core.skills import screen_pursuit
 
     source = pursuit_loop_source()
-    at = source.index("worked=attempt.verdict.observed_change,")
+    at = source.index("worked=it_was_answered(attempt.verdict.observed_change, observation),")
     assert "acting=previous.chosen.name" in source[at : at + 400]
