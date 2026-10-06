@@ -190,6 +190,9 @@ HOLD_S = 0.5
 #: The most times through the keys before watching without knowing which is hers.
 TRY_KEYS_PASSES = 4
 
+#: The least time between one trial of her keys to find her again and the next.
+FIND_AGAIN_EVERY_S = 3.0
+
 
 _KEY = {"up": "ArrowUp", "down": "ArrowDown", "left": "ArrowLeft", "right": "ArrowRight", "space": "Space"}
 
@@ -241,7 +244,7 @@ async def _play(page: Any, clip: dict[str, float], watch: _Watch, keys: list[str
     meeting = WhatMeetingDoes()
     held = ""
     began = time.monotonic()
-    counted = 0.0
+    counted = found_again_at = 0.0
     while time.monotonic() - began < seconds:
         happened = await _see(page, clip, watch, held, trying=False)
         at = time.monotonic()
@@ -260,6 +263,16 @@ async def _play(page: Any, clip: dict[str, float], watch: _Watch, keys: list[str
             if asks and at - watch.last_others_moving > 1.5:
                 await page.keyboard.press({"space": "Space", "return": "Enter"}.get(asks[0], asks[0]))
                 watch.restarts += 1
+        if watch.hers.lost() and at - watch.last_others_moving < 0.5 and at - found_again_at >= FIND_AGAIN_EVERY_S:
+            # Hidden and drawn afresh (an end screen, a game begun again), her
+            # thing is found as it was at the start: by trying her keys. Every
+            # check but one needs to know which thing is hers.
+            if held:
+                await page.keyboard.up(_KEY.get(held, held))
+                held = ""
+            await _try_keys(page, clip, watch, keys)
+            found_again_at = time.monotonic()
+            continue
         if still:
             continue
         choosing = _Choosing(watch.moves, watch.hers, meeting, keys)

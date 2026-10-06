@@ -513,6 +513,24 @@ class WhichIsHers:
             kept.clear()
         self._since_believed, self._answered, self._answered_by = [], {}, None
 
+    def _lost_sight(self, at: float) -> None:
+        """Her thing is gone with nothing continuing it: which one is hers is unknown until a new trial of her keys.
+
+        What she is (her kind, her shape) and what her keys do stay: an end
+        screen or a game begun again hides her and draws her afresh, and the
+        game's controls did not change with it. Which thing is hers does not
+        stay; nothing of her kind far from where she was takes her place
+        without the new trial. Offline 2026-10-06, every control she had
+        measured was forgotten at a game's end screen, the watch never tried
+        her keys again, and three of five faults went unseen.
+        """
+        self.number, self._sighted, self.lost_at = None, None, at
+        self._since_believed, self._answered, self._answered_by, self._expecting = [], {}, None, {}
+
+    def lost(self) -> bool:
+        """Whether she knows what she is but not which thing on the screen she is now."""
+        return self.number is None and self.kind is not None and not self.follows_pointer
+
     def saw(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
         if any(h.get("what") == "new screen" for h in happened):
             self._new_screen_at = at
@@ -525,8 +543,7 @@ class WhichIsHers:
             self._by_thing.clear()
             self._by_kind.clear()
             if nearby is None:
-                self.recheck_controls()
-                self.lost_at = at
+                self._lost_sight(at)
             else:
                 self.number = nearby
         # A renderer may answer immediately. Delaying the control label can

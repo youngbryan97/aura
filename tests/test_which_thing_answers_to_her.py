@@ -163,8 +163,38 @@ def test_a_missing_identity_cannot_transfer_control_to_a_distant_lookalike():
         for _ in range(10):
             hers._by_thing[3].add(key, 0.0, -120.0 if key == "up" else 120.0, press=float(press))
     hers.saw(_Moves([rival]), [], 1.03)
-    assert hers.number is None and hers.kind is None
+    assert hers.number is None and hers.lost()
     assert not hers._by_thing and hers.lost_at == 1.03
+    # Looking like her, and seen for a while, is still not answering to her keys.
+    for step in range(60):
+        rival.seen = at = 1.06 + step * 0.03
+        hers.saw(_Moves([rival]), [], at)
+    assert hers.number is None
+
+
+def test_lost_from_sight_she_is_found_again_by_trying_her_keys():
+    """Offline 2026-10-06 a game's end screen hid her paddle; what her keys do was forgotten and never tried again."""
+    hers = _run(trying=True, ball_follows_keys=False)
+    assert hers.number == 1
+    up = hers.way_of("up")
+    # The end screen: every thing gone, and a new game draws them afresh, far from where she was.
+    hers.saw(_Moves([]), [], 10.0)
+    assert hers.lost() and hers.way_of("up") == up
+    mine, ball, rival = _Thing(7, 0), _Thing(8, 1), _Thing(9, 0)
+    mine.y, rival.x = 90.0, 400.0
+    moves = _Moves([mine, ball, rival])
+    at = 12.0
+    for step in range(90):
+        key = ("up", "down", "")[(step // 10) % 3]
+        hers.holding(key, at, trying=True)
+        at += 0.03
+        mine.vy = {"up": -120.0, "down": 120.0, "": 0.0}[key]
+        rival.vy = 60.0 if (step // 13) % 2 else -60.0
+        ball.vx, ball.vy = 150.0, (80.0 if (step // 7) % 2 else -80.0)
+        for thing in (mine, ball, rival):
+            thing.seen = at
+        hers.saw(moves, [], at)
+    assert hers.number == 7 and not hers.lost()
 
 
 def test_a_nearby_continuing_track_keeps_its_measured_controls():
