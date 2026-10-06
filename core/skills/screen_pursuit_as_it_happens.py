@@ -282,8 +282,24 @@ def _lines_of(regions: list[dict[str, Any]]) -> list[str]:
 
 
 def _this_game(page: Any) -> str:
-    """The name her memory keeps this game under: its page, and only its page."""
-    return f"played as it happens at {str(getattr(page, 'url', '') or '')}"
+    """The name her memory keeps this game under: its page, and for a file, that file as it now is.
+
+    A file changed is another game. LIVE 2026-10-06 a Pong she had just
+    mended was played from what she had kept of it broken ("the white bars
+    cost me"), because both were kept under one address.
+    """
+    url = str(getattr(page, "url", "") or "")
+    if url.startswith("file://"):
+        import hashlib
+        from pathlib import Path
+        from urllib.parse import unquote, urlparse
+
+        try:
+            held = Path(unquote(urlparse(url).path)).read_bytes()
+            return f"played as it happens at {url} ({hashlib.sha256(held).hexdigest()[:12]})"
+        except OSError:
+            pass
+    return f"played as it happens at {url}"
 
 
 def _what_she_kept_of(page: Any) -> dict[str, Any]:

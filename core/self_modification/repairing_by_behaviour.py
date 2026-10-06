@@ -394,6 +394,52 @@ async def _kept_together(browser: Any, current: str, words: str, keys: list[str]
     return {"kept": kept, "current": after, "last": believed.after(again)}
 
 
+async def _kept_from_reading(browser: Any, current: str, words: str, keys: list[str], folder: Path, last: _Believed,
+                             refused: set[str], repair: Repair, tell: Callable[[str], None]) -> tuple[str, _Believed]:
+    """Fixes the code is plainly wrong without, kept when watching could not show them either way and they harm nothing.
+
+    A wall missing from the top of a court is seen only when the ball goes
+    there, and in some watches it never does: LIVE 2026-10-06 the top wall's
+    fix was tried four times, never made a difference that could be seen, and
+    was left out of a repair that had read it right. A person who reads code
+    wrong by its shape mends it, and then checks the change breaks nothing.
+    One edit for each place still suspected, each watched twice beside the
+    game without it; kept if neither watch shows harm, and said to be from
+    reading, not from seeing.
+    """
+    left = [c for c in _candidates(what_looks_wrong(current, ".html")) if _name_of(c[1]) not in refused and len(c[1]) == 1]
+    done: set[tuple[str, int]] = set()
+    for suspicion, edit in left:
+        if (suspicion.pattern, suspicion.line) in done:
+            continue
+        tell(f"Line {suspicion.line} is wrong as it is written ({suspicion.why}), though the game never showed it while I watched. "
+             "Changing it, and checking the change breaks nothing.")
+        after = applied(current, edit)
+        harmed = False
+        for _pair in range(2):
+            without, again = await asyncio.gather(
+                _watched(browser, current, words, keys, folder, WATCH_S * 2.5),
+                _watched(browser, after, words, keys, folder, WATCH_S * 2.5),
+            )
+            if again.wrong - without.wrong:
+                harmed = True
+                break
+            last = last.after(again)
+        if harmed:
+            tell(f"Changed, the game did something wrong it did not do before, so line {suspicion.line} stays as it was.")
+            refused.add(_name_of(edit))
+            continue
+        repair.kept.append({
+            "where": suspicion.function, "line": suspicion.line, "pattern": suspicion.pattern,
+            "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why, "shown": ["from reading the code"],
+        })
+        tell(f"In {suspicion.function or 'the code'} (line {suspicion.line}): {suspicion.why}, so I changed "
+             f"{', '.join(e.says(current) for e in edit)}. Watched twice, it breaks nothing.")
+        current = after
+        done.add((suspicion.pattern, suspicion.line))
+    return current, last
+
+
 async def _what_else_could_do_it(browser: Any, current: str, words: str, keys: list[str], folder: Path,
                                  last: _Believed, refused: set[str], tell: Callable[[str], None]) -> Any:
     """Past the shapes she knows: ask her own model what else in the code could do what is seen, and try each.
@@ -518,6 +564,7 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 })
                 tell(_what_this_change_did(suspicion, edit, current, shown))
                 current, last = applied(current, edit), last.after(behaviour).after(again)
+            current, last = await _kept_from_reading(browser, current, words, keys, path.parent, last, refused, repair, tell)
             tell(f"{len(repair.kept)} fix(es) kept. Watching the mended game as a whole once more before I write it back.")
             final = await _watched(browser, current, words, keys, path.parent)
             if final.wrong:

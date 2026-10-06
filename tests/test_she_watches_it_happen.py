@@ -134,3 +134,17 @@ def test_a_world_in_motion_is_played_not_waited_for():
     frames = [(now - 3.0 + n / 8, _picture(_BUTTON, (0.05 * (n % 18), 0.5, 0.05 * (n % 18) + 0.04, 0.55))) for n in range(24)]
     watching = _stream(frames)
     assert watching.in_motion(now) and not watching.playing_on_its_own(now)
+
+
+def test_a_file_changed_is_another_game_to_her_memory(tmp_path):
+    """LIVE 2026-10-06 a mended game was played from what she had kept of it broken."""
+    from types import SimpleNamespace
+
+    from core.skills.screen_pursuit_as_it_happens import _this_game
+
+    game = tmp_path / "pong.html"
+    game.write_text("<canvas></canvas><script>broken()</script>")
+    broken = _this_game(SimpleNamespace(url=game.as_uri()))
+    game.write_text("<canvas></canvas><script>mended()</script>")
+    assert _this_game(SimpleNamespace(url=game.as_uri())) != broken
+    assert _this_game(SimpleNamespace(url="https://example.org/game")) == "played as it happens at https://example.org/game"
