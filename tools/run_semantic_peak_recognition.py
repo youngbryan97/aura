@@ -300,6 +300,11 @@ def main() -> int:
         help="where the stacked labeler reads the words: the span's mean, the tagger's peak, or its word",
     )
     parser.add_argument(
+        "--words-name-only",
+        action="store_true",
+        help="the stacked labeler's words choose which operation a span names; the context alone says how sure it is",
+    )
+    parser.add_argument(
         "--arguments-within-sentence",
         action="store_true",
         help="no argument option starts before its operation's sentence (needs --antecedent-stretches sentence)",
@@ -367,7 +372,7 @@ def main() -> int:
 
         continuations = word_continuation_token_ids(Tokenizer.from_file(str(args.tokenizer.expanduser())))
         print(f"word-continuing tokens: {len(continuations)}", flush=True)
-    recognizer = fit_peak_operation_recognizer(training, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations)
+    recognizer = fit_peak_operation_recognizer(training, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
         replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
@@ -417,7 +422,7 @@ def main() -> int:
             )
             fold_candidate = PeakRecognitionTransducer(
                 incumbent,
-                fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations),
+                fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
                 replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,

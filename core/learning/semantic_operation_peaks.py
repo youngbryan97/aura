@@ -241,6 +241,12 @@ class PeakOperationRecognizer:
     lexical_at: str = "span"
     #: Tokens that carry on the word before them, bound from the tokenizer.
     word_continuations: frozenset[int] = frozenset()
+    #: The words choose which operation a span names and leave how sure the
+    #: span is of naming one to the context. A reader takes "integer" in "Use
+    #: integer arithmetic" for an adjective from the sentence, whatever the
+    #: word alone suggests. Held out on 6 October, the words read it as
+    #: integer division and lost "the product of 25 and the sum of 72 and 2".
+    words_name_only: bool = False
 
     def __post_init__(self) -> None:
         if (
@@ -295,7 +301,13 @@ class PeakOperationRecognizer:
             1
         ] * np.log(np.clip(lexical, 1e-12, 1.0))
         logits -= logits.max()
-        return np.exp(logits) / np.exp(logits).sum()
+        pooled = np.exp(logits) / np.exp(logits).sum()
+        if not self.words_name_only:
+            return pooled
+        # The words say which operation; the context alone says how sure it
+        # is that the span names one. The best name keeps the contextual
+        # readout's confidence and the rest are ranked by the pooled reading.
+        return float(contextual.max()) * pooled / float(pooled.max())
 
     def operation_candidates(
         self,
@@ -393,6 +405,7 @@ class PeakOperationRecognizer:
                         if self.lexical_at == "word"
                         else {}
                     ),
+                    **({"words_name_only": True} if self.words_name_only else {}),
                 }
                 if self.lexical_labeler is not None
                 else {}
@@ -427,6 +440,7 @@ def peak_operation_recognizer_from_dict(value: Mapping[str, Any]) -> PeakOperati
         word_continuations=(
             _from_bitmap(value["word_continuations"]) if "word_continuations" in value else frozenset()
         ),
+        words_name_only=bool(value.get("words_name_only", False)),
     )
 
 
@@ -523,6 +537,7 @@ def fit_peak_operation_recognizer(
     construction_groups: Mapping[str, Any] | None = None,
     lexical_at: str = "span",
     word_continuations: Sequence[int] = (),
+    words_name_only: bool = False,
 ) -> PeakOperationRecognizer:
     """Fit every readout on training rows; any other split is refused.
 
@@ -600,6 +615,7 @@ def fit_peak_operation_recognizer(
         "splits_used": ["train"],
         **({"label_weights": list(label_weights)} if lexical_labeler is not None else {}),
         **({"lexical_at": lexical_at} if lexical_labeler is not None and lexical_at != "span" else {}),
+        **({"words_name_only": True} if lexical_labeler is not None and words_name_only else {}),
     }
     return PeakOperationRecognizer(
         tagger=tagger,
@@ -614,6 +630,7 @@ def fit_peak_operation_recognizer(
         label_weights=label_weights,
         lexical_at=lexical_at,
         word_continuations=continuations if lexical_at == "word" else frozenset(),
+        words_name_only=words_name_only and lexical_labeler is not None,
     )
 
 

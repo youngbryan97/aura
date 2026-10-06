@@ -367,3 +367,24 @@ def test_the_word_readout_needs_the_tokenizer_and_the_request() -> None:
     replay = peak_operation_recognizer_from_dict(reader.to_dict())
     assert replay.word_continuations == frozenset({99})
     assert replay.identity_sha256 == reader.identity_sha256
+
+
+def test_the_words_name_the_operation_and_leave_whether_to_the_context() -> None:
+    """In "Use integer arithmetic" the word alone reads integer division and the
+    sentence reads an adjective. The words may change which name a span gets,
+    never how sure the span is of naming an operation at all."""
+    contextual = [BACKGROUND, (0.0, 1.0, 0.1), BACKGROUND]
+    hidden = _hidden(contextual, [BACKGROUND, (0.0, 1.0, -1.0), BACKGROUND])
+    plain = _recognizer(lexical_labeler=_head(("add", "sub"), [[0, 0, 4], [0, 0, -4]]), label_weights=(1.0, 2.0))
+    named = replace(plain, words_name_only=True)
+    context_only = _recognizer()
+
+    def first(recognizer):
+        return next(node for node in _nodes(recognizer, hidden) if node.span == TokenSpan(1, 2))
+
+    assert first(context_only).operation == "add"
+    assert first(plain).operation == first(named).operation == "sub"
+    assert first(plain).confidence > first(context_only).confidence
+    assert first(named).confidence == pytest.approx(first(context_only).confidence)
+    replay = peak_operation_recognizer_from_dict(named.to_dict())
+    assert replay.words_name_only and replay.identity_sha256 != plain.identity_sha256
