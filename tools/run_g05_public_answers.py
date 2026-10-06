@@ -181,8 +181,13 @@ def main() -> int:
     sham: dict[str, str] = {}
     by_stratum: dict[str, list[str]] = {}
     for item in tasks:
-        by_stratum.setdefault(item.construction_id.split(":")[0], []).append(item.ir.source_text_sha256)
+        # G04's construction ids name their stratum before a colon; a bundle
+        # with no strata is one pool.
+        stratum = item.construction_id.split(":")[0] if ":" in item.construction_id else "all"
+        by_stratum.setdefault(stratum, []).append(item.ir.source_text_sha256)
     for shas in by_stratum.values():
+        if len(shas) < 2:
+            raise SystemExit("a sham needs another request's reading in the same stratum")
         for index, sha in enumerate(shas):
             sham[sha] = evidence[shas[(index + 1) % len(shas)]]["text"]
 
