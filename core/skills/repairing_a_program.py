@@ -151,10 +151,12 @@ def _how_the_play_went(played: dict[str, Any]) -> str:
     if played.get("error"):
         return f"I could not play it afterwards: {played['error']}."
     runs = list(played.get("runs") or [])
+    if len(runs) > 1:
+        return f"Then I played {len(runs)} attempts: " + ", ".join(runs) + "."
     if played.get("won"):
-        return f"Then I played it and won, on game {runs.index('won') + 1}." if "won" in runs else "Then I played it and won."
+        return "Then I played it and won."
     if runs:
-        return f"Then I played {len(runs)} game(s): " + ", ".join(runs) + "."
+        return "Then I played one attempt: " + runs[0] + "."
     return "Then I could not get a game going."
 
 

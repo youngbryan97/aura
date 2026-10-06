@@ -105,3 +105,12 @@ async def test_no_measured_behaviour_is_not_a_successful_repair(tmp_path, monkey
     monkeypatch.setattr(repairer, "repair_by_behaviour", repair_it)
     result = await RepairAProgramSkill().execute({"path": str(path)}, {"message": "Fix this file."})
     assert not result["ok"] and not result["checked"]
+
+
+@pytest.mark.parametrize("runs", [["won", "lost", "won"], ["lost", "lost", "lost"]])
+def test_an_earlier_win_cannot_hide_other_attempt_outcomes(runs):
+    from core.skills.repairing_a_program import _how_the_play_went
+
+    report = _how_the_play_went({"runs": runs, "requested_attempts": 3, "won": "won" in runs})
+    assert "3 attempts" in report
+    assert ", ".join(runs) in report
