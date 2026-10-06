@@ -855,7 +855,16 @@ class MemoryRetrievalPhase(BasePhase):
                     retriever = ServiceContainer.get("intentional_retriever", default=None)
                 if retriever is None or not hasattr(retriever, "retrieve"):
                     return None
-                intent = RetrievalIntent(task=query, query=query, limit=retrieval_limit)
+                from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S
+
+                # A turn's recall, not research: the reference corpus gets the
+                # conversation lane's ceiling. Its 5 s backstop made every
+                # background tick's recall take 5.0 s when the any-term
+                # fallback found nothing (live, 2026-10-06).
+                intent = RetrievalIntent(
+                    task=query, query=query, limit=retrieval_limit,
+                    reference_deadline_s=CONVERSATION_SEARCH_DEADLINE_S,
+                )
                 async with asyncio.timeout(15.0):
                     result = await asyncio.to_thread(retriever.retrieve, intent)
                 return list(getattr(result, "hits", None) or [])

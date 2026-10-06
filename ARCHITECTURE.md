@@ -209,6 +209,16 @@ There are 29 phases (`core/runtime/pipeline_blueprint.py`). User actions only us
 
 Background ticks run all 29 phases. User ticks can interrupt background tasks for faster responses.
 
+A healthy foreground turn is eleven phases; the other eighteen wait for a background tick.
+
+Suppressed on a user-facing tick (18 phases, in pipeline order):
+NativeMultimodalBridge, EternalMemoryPhase, PerfectEmotionPhase,
+PhiConsciousnessPhase, CognitiveIntegrationPhase, ShadowExecutionPhase,
+EternalGrowthEngine, TrueEvolutionPhase, InferencePhase, BondingPhase,
+GodModeToolPhase, RepairPhase, MemoryConsolidationPhase,
+IdentityReflectionPhase, InitiativeGenerationPhase, ConsciousnessPhase,
+SelfReviewPhase, LearningPhase.
+
 ---
 
 ## 3. Integrated information (IIT 4.0)

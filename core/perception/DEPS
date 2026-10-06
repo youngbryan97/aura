@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 18 outbound edges when this was generated.
+# 19 outbound edges when this was generated.
 
 description = "core.perception: may import only what it already imports; every new edge is an edit here."
 
@@ -31,9 +31,8 @@ include_rules = [
     "+core.security",
     "+core.senses",
     "+core.utils",
-    "+core.voice",
-    # Perception registers its matching-frame invariant at its boundary.
     "+core.verify",
+    "+core.voice",
 
     # Everything else.
     "-core",

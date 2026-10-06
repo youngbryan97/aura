@@ -142,3 +142,34 @@ def test_wire_default_stores_is_best_effort(retriever):
 
 def test_singleton_is_stable():
     assert get_intentional_retriever() is get_intentional_retriever()
+
+
+def test_the_reference_corpus_searches_within_the_callers_deadline(monkeypatch):
+    """LIVE 2026-10-06: every background recall took 5.0 s.
+
+    The reference store searched the 7M-page corpus with its 5 s backstop, and
+    the any-term fallback on a phrase like "Running a self-integrity scan"
+    ran to it and found nothing. The ceiling belongs to the caller's lane.
+    """
+    from core.knowledge import local_corpus
+    from core.memory.intentional_retrieval import IntentionalRetriever, RetrievalIntent
+
+    asked = []
+
+    class _Corpus:
+        def has_documents(self):
+            return True
+
+        def search(self, query, limit=5, **kwargs):
+            asked.append(kwargs.get("deadline_s"))
+            return []
+
+    monkeypatch.setattr(local_corpus, "get_local_corpus_store", lambda: _Corpus())
+    retriever = IntentionalRetriever()
+    retriever.wire_default_stores()
+    retriever.retrieve(
+        RetrievalIntent(task="what the paper says", kind="recall_fact", reference_deadline_s=0.25)
+    )
+    retriever.retrieve(RetrievalIntent(task="what the paper says", kind="recall_fact"))
+    assert asked[:1] == [0.25]
+    assert asked[1:] == [None]

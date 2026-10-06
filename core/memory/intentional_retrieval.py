@@ -24,6 +24,7 @@ intentional surface.
 """
 from __future__ import annotations
 
+import contextvars
 import logging
 import math
 from collections.abc import Callable, Iterable
@@ -95,6 +96,10 @@ class RetrievalIntent:
     need_failures: bool = False      # explicitly want prior failures
     need_tools: bool = False         # explicitly want tools/procedures
     limit: int = 8
+    #: How long the reference corpus may search for this retrieval. The
+    #: ceiling is the caller's lane, not the index's: None leaves the
+    #: corpus's own backstop (core/knowledge/local_corpus.py).
+    reference_deadline_s: float | None = None
 
     def effective_query(self) -> str:
         return self.query or self.task
@@ -255,6 +260,13 @@ class IntentionalRetriever:
 
     def retrieve(self, intent: RetrievalIntent) -> RetrievalResult:
         """Execute a plan across registered stores; merge + rank; fault-isolated per store."""
+        token = _REFERENCE_DEADLINE_S.set(intent.reference_deadline_s)
+        try:
+            return self._retrieve(intent)
+        finally:
+            _REFERENCE_DEADLINE_S.reset(token)
+
+    def _retrieve(self, intent: RetrievalIntent) -> RetrievalResult:
         plan = self.plan(intent)
         breadth_episode = self._choose_breadth(intent, plan)
         query = intent.effective_query()
@@ -557,7 +569,7 @@ class IntentionalRetriever:
             if corpus.has_documents():
                 self.register_store(
                     _T.REFERENCE,
-                    lambda q, n: [h.to_memory_dict() for h in corpus.search(q, limit=n)],
+                    lambda q, n: [h.to_memory_dict() for h in corpus.search(q, limit=n, **_reference_deadline())],
                 )
                 wired.append(_T.REFERENCE.value)
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
@@ -565,6 +577,17 @@ class IntentionalRetriever:
                                action="reference store not wired")
 
         return wired
+
+
+#: The deadline the retrieval in progress gave the reference corpus.
+_REFERENCE_DEADLINE_S: contextvars.ContextVar[float | None] = contextvars.ContextVar(
+    "intentional_retrieval_reference_deadline_s", default=None
+)
+
+
+def _reference_deadline() -> dict[str, float]:
+    deadline = _REFERENCE_DEADLINE_S.get()
+    return {} if deadline is None else {"deadline_s": float(deadline)}
 
 
 _instance: IntentionalRetriever | None = None
