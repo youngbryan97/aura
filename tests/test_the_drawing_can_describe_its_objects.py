@@ -63,6 +63,26 @@ def test_geometry_tracks_fractional_motion_without_turning_text_into_a_body():
     assert body.vx == pytest.approx(0.37 / 0.03, rel=0.01)
 
 
+@pytest.mark.parametrize("reflects", [True, False])
+def test_runtime_boundary_check_uses_observed_paint_instead_of_a_missing_tracks_prediction(reflects):
+    from core.agency.when_motion_breaks_a_rule import MotionChecks
+    from core.perception.what_moves_in_the_picture import WhatMoves
+
+    moves = WhatMoves()
+    checks = MotionChecks(frozenset({"top"}), "test drawing contract")
+    for n in range(40):
+        y = abs(80 - 3 * n) if reflects else 80 - 3 * n
+        image = np.zeros((120, 200, 3), dtype=np.uint8)
+        if y + 8 > 0:
+            image[max(0, y):y + 8, 90:98] = 255
+        scene = {"source": "canvas-paint-v1", "complete": True, "width": 200, "height": 120,
+                 "objects": [{"x": 90, "y": y, "width": 8, "height": 8, "colour": "#ffffff"}], "texts": []}
+        at = n * 0.03
+        happened = moves.see(described(image, scene), at)
+        checks.see(moves, happened, at, None)
+    assert bool(checks.violations) is not reflects
+
+
 @pytest.mark.asyncio
 async def test_renderer_text_reaches_the_counters_without_ocr():
     from core.agency.playing_as_it_happens import _keep_reading, _Run

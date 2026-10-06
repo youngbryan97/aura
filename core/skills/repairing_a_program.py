@@ -200,5 +200,13 @@ def _how_the_play_went(played: dict[str, Any]) -> str:
 def _said(line: str) -> None:
     """Each step said where the person can see it, as she works."""
     from core.skills.screen_pursuit import _tell
+    from core.runtime.still_getting_somewhere import it_got_somewhere
+    from core.runtime.chat_delivery_progress import current_chat_delivery_identity, report_chat_delivery_progress
 
     _tell(line)
+    it_got_somewhere(line)
+    if current_chat_delivery_identity() is not None:
+        from core.utils.task_tracker import get_task_tracker
+
+        get_task_tracker().create_task(report_chat_delivery_progress(phase="executing", message=line[:1000]),
+                                       name="RepairExecutionProgress")

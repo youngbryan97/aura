@@ -1,8 +1,8 @@
 """Observed departures through a boundary the task requires to hold.
 
 The contract names edges and its provenance. Open edges have no implied wall.
-Only visible motion and tracked disappearances supply evidence; application
-variables and terminal win messages do not establish physical correctness.
+Only visible motion supplies evidence; an extrapolated missing track is a
+hypothesis. Application variables and terminal messages cannot prove motion.
 """
 from __future__ import annotations
 
@@ -41,25 +41,48 @@ class MotionChecks:
     required_edges: frozenset[str] = frozenset()
     provenance: str = ""
     violations: list[dict[str, Any]] = field(default_factory=list)
+    unconfirmed: list[dict[str, Any]] = field(default_factory=list)
 
     def see(self, moves: Any, happened: list[dict[str, Any]], at: float, controlled: int | None) -> list[dict[str, Any]]:
-        """A tracked moving body disappearing at a required edge is a witnessed breach."""
+        """Require a visibly outside centre; a lost track alone cannot prove an escape."""
         if not self.provenance or any(e.get("what") == "new screen" for e in happened):
             return []
-        tall, wide = moves.shape
         found = []
-        for event in happened:
-            if event.get("what") != "gone" or event.get("thing") == controlled:
+        events = [e for e in happened if e.get("what") == "gone"]
+        # Exact drawing bounds can show a partially clipped object before it
+        # vanishes. Use the measured path, never the predicted control position.
+        for thing in getattr(moves, "things", {}).values():
+            if thing.seen == at and thing.path:
+                events.append({"thing": thing.number, "x": thing.path[-1][1], "y": thing.path[-1][2],
+                               "vx": thing.vx, "vy": thing.vy, "at": at,
+                               "last_visible": list(thing.path[-1][1:]), "last_seen_at": thing.seen})
+        for event in events:
+            if event.get("thing") == controlled:
                 continue
             x, y = event.get("x"), event.get("y")
             vx, vy = event.get("vx", 0), event.get("vy", 0)
             if not all(isinstance(n, (int, float)) for n in (x, y, vx, vy)):
                 continue
-            edge = departure_edge(event, moves.shape)
+            visible = event.get("last_visible", [x, y])
+            if not isinstance(visible, list) or len(visible) != 2 or not all(isinstance(v, (int, float)) for v in visible):
+                continue
+            x0, y0 = visible
+            tall, wide = moves.shape
+            crossed = [("left", -x0, -vx), ("right", x0-wide, vx),
+                       ("top", -y0, -vy), ("bottom", y0-tall, vy)]
+            edge = next((name for name, beyond, speed in crossed if beyond > 0.5 and speed >= 8
+                         and name in self.required_edges), "")
+            if not edge:
+                predicted = departure_edge(event, moves.shape)
+                if predicted in self.required_edges and len(self.unconfirmed) < 16:
+                    self.unconfirmed.append({"at": at, "edge": predicted, "thing": event.get("thing"),
+                                             "last_visible": visible, "reason": "missing track; crossing was only extrapolated"})
+                continue
             if edge not in self.required_edges:
                 continue
             receipt = {"at": at, "edge": edge, "thing": event.get("thing"),
-                       "position": [x, y], "velocity": [vx, vy], "provenance": self.provenance,
+                       "position": visible, "velocity": [vx, vy], "provenance": self.provenance,
+                       "last_seen_at": event.get("last_seen_at", at), "evidence": "visible centre outside required boundary",
                        "finding": f"a moving object left through the {edge}, which should turn it back"}
             self.violations.append(receipt)
             found.append(receipt)

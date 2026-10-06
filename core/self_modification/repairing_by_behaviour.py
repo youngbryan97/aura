@@ -498,8 +498,8 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             repair.before = dict(first.findings)
             tell(_what_is_wrong(first))
             repair.knowledge = what_she_knows_about(_title(source), first.findings, words)
-            if repair.knowledge:
-                tell(f"Reference background about {_title(source)} (this program may use different rules): {repair.knowledge[0]}")
+            # Reference context remains in the receipt. Work narration reports
+            # experiments and their results, rather than arbitrary article text.
             suspicions = what_looks_wrong(source, ".html")
             tell(_what_looks_wrong(suspicions))
             current, last = source, _Believed.from_watch(first)

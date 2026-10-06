@@ -56,6 +56,59 @@ def test_a_corner_departure_is_attributed_to_the_first_edge_crossed():
     assert departure_edge(event, (100, 160)) == "left"
 
 
+def test_a_missing_track_predicted_through_a_wall_is_not_a_witnessed_escape():
+    from core.agency.when_motion_breaks_a_rule import MotionChecks
+    from types import SimpleNamespace
+
+    moves = SimpleNamespace(shape=(100, 160))
+    event = {"what": "gone", "thing": 45, "x": 144, "y": -8, "vx": 77, "vy": -69,
+             "width": 3, "height": 3, "last_visible": [124, 10], "last_seen_at": 1, "at": 1.26}
+    checks = MotionChecks(frozenset({"top", "bottom"}), "source reflection contract")
+    assert not checks.see(moves, [event], 1.26, 1)
+    assert checks.unconfirmed[0]["edge"] == "top"
+    assert checks.see(moves, [{**event, "last_visible": [124, -1]}], 1.26, 1)[0]["position"] == [124, -1]
+
+
+def test_visible_clipped_motion_can_reveal_a_breach_before_the_track_is_lost():
+    from core.agency.when_motion_breaks_a_rule import MotionChecks
+    from types import SimpleNamespace
+
+    body = SimpleNamespace(number=3, seen=1, path=[(1, 60, -2)], vx=20, vy=-50)
+    moves = SimpleNamespace(shape=(100, 160), things={3: body})
+    checks = MotionChecks(frozenset({"top"}), "source reflection contract")
+    assert checks.see(moves, [], 1, 1)[0]["evidence"] == "visible centre outside required boundary"
+    assert not MotionChecks().see(moves, [], 1, 1)
+    assert not checks.see(moves, [{"what": "new screen"}], 1, 1)
+
+
+def test_a_runtime_interruption_cannot_be_labelled_a_game_loss():
+    from core.skills.sovereign_browser_drawing import _how_the_run_went
+    from types import SimpleNamespace
+
+    reflexes = SimpleNamespace(ending_words="You lost", ending_parts=[],
+               stretches=[{"pictures": 10, "runtime_checks": {"violations": [{"edge": "top"}]}}],
+               what_it_came_to=lambda: "runtime contract violated")
+    assert _how_the_run_went(reflexes, {})["ended"] == "interrupted"
+
+
+@pytest.mark.asyncio
+async def test_visible_repair_progress_reaches_the_current_durable_delivery(monkeypatch):
+    import asyncio
+    import core.runtime.chat_delivery_progress as progress
+    import core.skills.screen_pursuit as pursuit
+    from core.skills.repairing_a_program import _said
+
+    published = []
+    async def report(**event):
+        published.append(event)
+    monkeypatch.setattr(pursuit, "_tell", lambda line: None)
+    monkeypatch.setattr(progress, "current_chat_delivery_identity", lambda: {"turn_id": "owned"})
+    monkeypatch.setattr(progress, "report_chat_delivery_progress", report)
+    _said("Saved the verified repair.")
+    await asyncio.sleep(0)
+    assert published == [{"phase": "executing", "message": "Saved the verified repair."}]
+
+
 @pytest.mark.asyncio
 async def test_boolean_integer_alias_is_not_a_passing_function_result():
     from core.self_modification.checking_python import FunctionExample, check_python, examples_in

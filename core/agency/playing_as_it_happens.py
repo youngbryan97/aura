@@ -912,7 +912,8 @@ async def play_as_it_happens(
                  "contest": run.contest})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
-                                "provenance": motion_checks.provenance, "violations": motion_checks.violations}
+                                "provenance": motion_checks.provenance, "violations": motion_checks.violations,
+                                "unconfirmed": motion_checks.unconfirmed}
     return result
 
 
