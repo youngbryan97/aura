@@ -2539,6 +2539,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  2026-10-06: [preregistered](evidence/G04_TRANSFER_PREREGISTRATION_2026-10-06.md)
+  for G03's frozen v12 against its incumbent, plan `4989717df596`: four
+  strata of 62 fresh requests (vocabulary, construction, depth six and
+  seven, a sequence operation with a computed argument), each checked
+  against all 1,860 consumed requests; power 0.90 per stratum from the
+  composition evidence's lower bounds; graded by meaning without reading
+  either model; every decode with program execution unavailable. Not yet
+  run.
   [V7 relation mechanism protocol](evidence/G04_V7_RELATION_MECHANISM_MICRO_PROTOCOL_2026-09-28.md)
   adds nine fixed paraphrase, role, and dependency controls to the three
   reference requests. No v7 generated outcome is available yet; this is a
@@ -2703,7 +2711,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   replays 30 uncensored decodes: ordinary native reasoning 6/6, treatment 6/6,
   controls 0/6. No accuracy gain; decode latency differs. The negative result
   is retained, with no admission or serving authority.
-- [ ] G07 Preregister powered fresh-task/seed replication and stopping rules.
+- [x] G07 Preregister powered fresh-task/seed replication and stopping rules.
+  CLOSED 2026-10-06 by publication: the selected candidate (G03's v12) and a
+  fresh cohort were frozen and published through the paired-replication path
+  ([G04 transfer plan](evidence/G04_TRANSFER_PREREGISTRATION_2026-10-06.md),
+  plan `4989717df596aa0dc0259f2e36080029ec0ab828b965dca4f102d4dd5a3125a5`).
+  Fixed task count (62 per stratum, four strata), exact one-sided McNemar
+  with Bonferroni, power 0.9035 per stratum from the lower 95% bounds of
+  observed discordance, seeded counterbalanced arm order, failures counted,
+  no replacement, every artifact identity frozen and rechecked by the runner;
+  the commit carrying the plan is its external timestamp. Scope: the
+  population is these frames, depths and shapes; generalising across frames
+  the generator does not have is not claimed. The run itself belongs to G04.
   [Prospective task power](evidence/G07_PROSPECTIVE_TASK_POWER_2026-09-15.md)
   adds exact task-count sizing, frozen task/arm order and immutable publication
   through the existing plan store. 92 focused tests pass. No candidate-specific

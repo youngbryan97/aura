@@ -264,7 +264,7 @@ def main() -> int:
         "tasks_per_stratum": tasks,
         "planned_discordance": discordance,
         "planned_win_share": win_share,
-        "power": plan.parameters["power"],
+        "power": [dict(row) for row in plan.parameters["power"]],
         "artifacts": artifacts,
     }
     (output / "plan_summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True),

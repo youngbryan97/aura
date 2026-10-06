@@ -1,0 +1,58 @@
+{
+ "artifacts": {
+  "candidate": "548867f8f8f1ef5d15ea1b475fd1249d7444033b132e072ad5a40a1eb39bb0a6",
+  "incumbent": "7dde597d4aff424bb078d2f6441d45b8e81cfeadf65ae86ae9c2f1b1f4391fce",
+  "resident_model": "cc57b2f550f21733a9fc01e4dbd73a2e9775c4fd2804641c437bd052f7dbee46",
+  "runtime": "84d1be2c6ad29fc2b91aae797d658300749c09e7e27820daddebca97954fe6a8",
+  "scorer": "41fee3437dbd4cf1de9a6e02b96cb5c09dbd077248c1147f2cff3c223c2101c2",
+  "task_generator": "e840285e91a58239627a805351e986795e89192683e111093da534a39a49f162"
+ },
+ "created": {},
+ "per_comparison_alpha": 0.0125,
+ "plan_hash": "4989717df596aa0dc0259f2e36080029ec0ab828b965dca4f102d4dd5a3125a5",
+ "plan_path": "/Users/bryan/.aura/rlc-evidence/preregistrations/4989717df596aa0dc0259f2e36080029ec0ab828b965dca4f102d4dd5a3125a5.json",
+ "planned_discordance": 0.25921237350212545,
+ "planned_win_share": 0.9156603566493746,
+ "power": [
+  {
+   "assumed_absolute_gain": 0.21548861523564874,
+   "control": "incumbent",
+   "domain": "construction",
+   "power": 0.9035465619922798,
+   "tasks": 62,
+   "treatment": "candidate"
+  },
+  {
+   "assumed_absolute_gain": 0.21548861523564874,
+   "control": "incumbent",
+   "domain": "vocabulary",
+   "power": 0.9035465619922798,
+   "tasks": 62,
+   "treatment": "candidate"
+  },
+  {
+   "assumed_absolute_gain": 0.21548861523564874,
+   "control": "incumbent",
+   "domain": "depth",
+   "power": 0.9035465619922798,
+   "tasks": 62,
+   "treatment": "candidate"
+  },
+  {
+   "assumed_absolute_gain": 0.21548861523564874,
+   "control": "incumbent",
+   "domain": "family",
+   "power": 0.9035465619922798,
+   "tasks": 62,
+   "treatment": "candidate"
+  }
+ ],
+ "source_commit": "76351d7bf9ad924607db81e5d92f40550c3b9701",
+ "task_commitment_sha256": "063b1a8b41d8df528ee96e477acf2d90caec5c9ac220a15c156bbba6abc9d5ed",
+ "tasks_per_stratum": {
+  "construction": 62,
+  "depth": 62,
+  "family": 62,
+  "vocabulary": 62
+ }
+}
