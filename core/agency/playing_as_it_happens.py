@@ -32,6 +32,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.agency.how_the_contest_stands import ContestStands
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_the_rules_said import WhatTheRulesSaid
 from core.agency.which_one_answers_to_her import WhichIsHers
@@ -124,6 +125,9 @@ class _Run:
     pictures: int = 0
     gains: int = 0
     losses: int = 0
+    #: How the contest stands (core/agency/how_the_contest_stands.py), and the last of it she said.
+    contest: ContestStands = field(default_factory=ContestStands)
+    contest_said: str = ""
 
 
 # -- what she was told ---------------------------------------------------------
@@ -500,6 +504,8 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
                 run.gains += 1
             else:
                 run.losses += 1
+        run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
+        run.contest.counted(meeting.readouts.values, meeting.readouts.where, her_x, when)
         meeting.writing = _what_is_writing(moves, regions)
     if run.reading is None and at - run.read_at >= READ_EVERY_S:
         run.read_at = at
@@ -712,6 +718,12 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         }.get(stance)
         if line:
             _say(run, say, line, at, once=f"{kind} {stance}")
+    # How it stands, said when it changes: the score, what is left to win, what is left to lose.
+    standing = run.contest.says()
+    if standing and standing != run.contest_said:
+        run.contest_said = standing
+        _say(run, say, standing[:1].upper() + standing[1:], at)
+        return
     counters = {name: value for name, value in meeting.readouts.values.items() if not name.startswith("number")}
     if counters and counters != run.counted and at - run.said_at > 25.0:
         run.counted = dict(counters)
@@ -747,7 +759,9 @@ async def play_as_it_happens(
     meeting: WhatMeetingDoes = keep.get("meeting") or WhatMeetingDoes()
     for kept in (physics, hers, meeting):
         kept.numbered_afresh()
-    run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first)
+    run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first,
+               contest=keep.get("contest") or ContestStands())
+    run.contest.heard(told)
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -783,7 +797,8 @@ async def play_as_it_happens(
                 logger.debug("letting go of %s failed: %s", run.held, why)
         if run.reading is not None:
             run.reading.cancel()
-    keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with})
+    keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
+                 "contest": run.contest})
     return _what_it_came_to(run, moves, hers, meeting, ended, began)
 
 
@@ -977,6 +992,10 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "gains": run.gains,
         "losses": run.losses,
         "counters": dict(meeting.readouts.values),
+        # How the contest stood when the stretch ended, and what its counters alone settle.
+        "standing": run.contest.says(),
+        "settled": run.contest.settled(),
+        "stalled": run.contest.stalled(time.monotonic()),
         "said": list(run.lines),
         "words_seen": sorted(_the_words_of_play(run, ended)),
     }

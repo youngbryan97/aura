@@ -244,7 +244,9 @@ class PlayingAsItHappens:
         if learned:
             parts.append("; ".join(f"{colour}: {stance}" for colour, stance in learned.items()))
         counters = last.get("counters") or {}
-        if counters:
+        if last.get("standing"):
+            parts.append(str(last["standing"]).rstrip("."))
+        elif counters:
             parts.append(", ".join(f"{name} {value}" for name, value in counters.items() if not name.startswith("number")))
         if self.over_because:
             parts.append(f"the run is over: {self.over_because}")

@@ -313,6 +313,11 @@ def _how_the_run_went(reflexes: Any, result: Mapping[str, Any]) -> dict[str, str
     words = reflexes.ending_words or str(result.get("last_seen") or "")
     parts = list(getattr(reflexes, "ending_parts", None) or [])
     ended = how_it_ended_in(parts) if parts else how_it_ended(words)
+    # Where the end screen's words do not say, the counters may: her score at
+    # what wins, theirs at it, nothing left to lose (core/agency/how_the_contest_stands.py).
+    played = [s for s in getattr(reflexes, "stretches", []) if s.get("pictures")]
+    if not ended and played:
+        ended = str(played[-1].get("settled") or "")
     return {"ended": ended, "words": " ".join(words.split()), "said": reflexes.what_it_came_to()}
 
 
