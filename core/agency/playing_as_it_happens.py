@@ -77,6 +77,9 @@ POINTER_SPEED = 2000.0
 #: How far the pointer goes in one picture while she sweeps it, as a share of the picture.
 POINTER_STEP = 0.04
 
+#: Revisit inconclusive control experiments while the world keeps moving.
+RECHECK_CONTROLS_S = 5.0
+
 #: Where the pointer is taken while she finds out whether anything follows it.
 _POINTER_TRIAL = ((0.2, 0.5), (0.8, 0.5), (0.5, 0.2), (0.5, 0.8), (0.3, 0.3), (0.7, 0.7))
 
@@ -128,6 +131,9 @@ class _Run:
     touching: set[int] = field(default_factory=set)
     pictures: int = 0
     observation_sources: Counter[str] = field(default_factory=Counter)
+    input_key_downs: Counter[str] = field(default_factory=Counter)
+    responsive_pictures: int = 0
+    control_probe_retries: int = 0
     picture_at: float | None = None
     intervals: deque[float] = field(default_factory=lambda: deque(maxlen=12))
     responses: deque[float] = field(default_factory=lambda: deque(maxlen=12))
@@ -545,6 +551,7 @@ async def _hold(hands: Any, run: _Run, hers: WhichIsHers, key: str, at: float, *
             await hands.up(run.held)
         if key:
             await hands.down(key)
+            run.input_key_downs[key] += 1
         run.responses.append(max(0.0, time.monotonic() - at))
     delivered = time.monotonic()
     if key and key != run.held:
@@ -718,7 +725,10 @@ NOTHING_ANSWERS_S = 10.0
 
 
 def _nothing_answers(run: _Run, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> str:
-    if at - run.began < NOTHING_ANSWERS_S or hers.kind is not None or meeting.verdicts:
+    # Allow two complete experiments and their intervening wait before
+    # declaring that no control answers. The run's own deadline still bounds it.
+    experiment_time = 8 * len(run.keys) * TRY_A_KEY_S + RECHECK_CONTROLS_S if run.keys else 0.0
+    if at - run.began < NOTHING_ANSWERS_S + experiment_time or hers.kind is not None or meeting.verdicts:
         return ""
     if any(kept.touched for kept in meeting.evidence.values()):
         return ""
@@ -886,6 +896,8 @@ async def play_as_it_happens(
                                  next_picture_s=statistics.median(run.intervals) if run.intervals else 1 / 30,
                                  response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
                                              else statistics.median(run.responses) if run.responses else 0.0))
+            if choosing.mine is not None and (choosing.ways or choosing.pointing):
+                run.responsive_pictures += 1
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
@@ -895,7 +907,7 @@ async def play_as_it_happens(
                 ended = "runtime contract violated"
                 _say(run, say, "This still behaves incorrectly: " + violations[0]["finding"] + ". I need to check the repair.", at, once="runtime_fault")
                 break
-            await _act(hands, run, moves, hers, meeting, choosing, at)
+            await _act(hands, run, moves, hers, meeting, choosing, at, say=say)
             _what_she_says(run, say, moves, hers, meeting, at)
             _what_kind_of_game(run, say, moves, hers, meeting, physics, at)
             _report(run, getting_somewhere, at)
@@ -918,7 +930,7 @@ async def play_as_it_happens(
 
 
 async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
-               choosing: _Choosing, at: float) -> None:
+               choosing: _Choosing, at: float, *, say: Any = None) -> None:
     # A thing taken for hers that did not answer her keys: try them again.
     if hers.lost_at > run.lost_at:
         run.lost_at, run.trying = hers.lost_at, 0
@@ -937,6 +949,14 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         await _point_at(hands, run, hers, moves, choosing, at)
         return
     if choosing.mine is None or not choosing.ways:
+        if run.keys and run.trying >= 4 * len(run.keys) and at - run.tried_at >= RECHECK_CONTROLS_S:
+            run.trying = 0
+            run.control_probe_retries += 1
+            hers.recheck_controls()
+            if run.pointer_first:
+                run.pointed = 0
+            _say(run, say, "I haven't confirmed what answers to these keys yet. Trying them again while watching what responds.",
+                 at, once="recheck_controls")
         pointer_trial = run.pointed < 2 * len(_POINTER_TRIAL) and hasattr(hands, "point")
         if pointer_trial and run.pointer_first:
             await _try_the_pointer(hands, run, hers, moves, at)
@@ -1119,6 +1139,9 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "losses": run.losses,
         "counters": dict(meeting.readouts.values),
         "observations": dict(run.observation_sources),
+        "input_key_downs": dict(run.input_key_downs),
+        "responsive_pictures": run.responsive_pictures,
+        "control_probe_retries": run.control_probe_retries,
         # How the contest stood when the stretch ended, and what its counters alone settle.
         "standing": run.contest.says(),
         "settled": run.contest.settled(),

@@ -110,6 +110,62 @@ async def test_visible_repair_progress_reaches_the_current_durable_delivery(monk
 
 
 @pytest.mark.asyncio
+async def test_inconclusive_control_probes_are_retried_while_the_world_moves(monkeypatch):
+    from types import SimpleNamespace
+    from core.agency import playing_as_it_happens as playing
+    from core.agency.which_one_answers_to_her import WhichIsHers
+
+    calls = []
+    async def down(key):
+        calls.append(key)
+    hands = SimpleNamespace(down=down)
+    run = playing._Run(keys=["a", "b"], began=0, trying=8, tried_at=10, pointed=100)
+    choosing = SimpleNamespace(mine=None, ways={})
+    hers = WhichIsHers()
+    hers.not_mine.add(3)
+    hers.kind = 0
+    monkeypatch.setattr(playing.time, "monotonic", lambda: 16)
+    await playing._act(hands, run, SimpleNamespace(), hers, None, choosing, 14)
+    assert not calls and run.control_probe_retries == 0
+    await playing._act(hands, run, SimpleNamespace(), hers, None, choosing, 16)
+    assert calls == ["a"] and run.input_key_downs == {"a": 1}
+    assert run.control_probe_retries == 1 and run.trying == 1
+    assert not hers.not_mine and hers.kind is None
+
+
+@pytest.mark.asyncio
+async def test_failed_key_delivery_is_not_counted_as_an_input_receipt():
+    from types import SimpleNamespace
+    from core.agency.playing_as_it_happens import _Run, _hold
+    from core.agency.which_one_answers_to_her import WhichIsHers
+
+    async def down(key):
+        raise RuntimeError("delivery failed")
+    run = _Run(keys=["a"], began=0)
+    with pytest.raises(RuntimeError, match="delivery failed"):
+        await _hold(SimpleNamespace(down=down), run, WhichIsHers(), "a", 1)
+    assert not run.input_key_downs
+
+
+def test_control_reacquisition_has_a_measured_claim_and_time_to_run():
+    from types import SimpleNamespace
+    from core.agency.playing_as_it_happens import _Run, _nothing_answers
+    from core.agency.which_one_answers_to_her import WhichIsHers, _control_recheck_invariant
+    from core.organism.claims_realtime_control import install_realtime_control_claims
+    from core.organism.model_validation import ValidationSuite
+
+    assert _control_recheck_invariant() == ()
+    suite = ValidationSuite()
+    install_realtime_control_claims(suite)
+    check = next(t for t in suite.tests() if t.name == "fresh_control_experiment_releases_old_evidence")
+    assert check.predict(None) is True and any(c.test == check.name for c in suite.claims())
+    run = _Run(keys=["a", "b"], began=0)
+    meeting = SimpleNamespace(verdicts={}, evidence={})
+    assert not _nothing_answers(run, WhichIsHers(), meeting, 10)
+    assert _nothing_answers(run, WhichIsHers(), meeting, 60)
+
+
+@pytest.mark.asyncio
 async def test_boolean_integer_alias_is_not_a_passing_function_result():
     from core.self_modification.checking_python import FunctionExample, check_python, examples_in
 

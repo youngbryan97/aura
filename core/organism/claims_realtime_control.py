@@ -4,7 +4,10 @@ from typing import Any
 
 def install_realtime_control_claims(suite: Any) -> None:
     from core.agency.what_meeting_things_does import _absent_counters_are_not_current
-    from core.agency.which_one_answers_to_her import _ambiguous_controls_remain_unknown
+    from core.agency.which_one_answers_to_her import (
+        _ambiguous_controls_remain_unknown,
+        _fresh_control_experiment_forgets_old_rejections,
+    )
     from core.organism.model_validation import (
         Claim,
         Evidence,
@@ -45,6 +48,21 @@ def install_realtime_control_claims(suite: Any) -> None:
         statement="Blocked and unsettled motion cannot establish a key's control response.",
         test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
         evidence_note="Measured ambiguous and free samples; actual task completion requires separate live evidence.",
+    ))
+    name = "fresh_control_experiment_releases_old_evidence"
+    owner = "core/agency/which_one_answers_to_her.py"
+    suite.add_test(ValidationTest(
+        name=name, description="a fresh experiment discards previous rejections and response calibration",
+        required_capability="", observation=Observation("control_evidence_released", True,
+                "tests/test_exact_executor_connections.py"),
+        predict=lambda _model: _fresh_control_experiment_forgets_old_rejections(),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="A fresh control experiment releases prior object rejections and response calibration.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Evidence reset measured; actual reacquisition requires separate live runs.",
     ))
     name = "drawing_scene_requires_matching_frame"
     owner = "core/perception/the_drawing_as_objects.py"

@@ -26,7 +26,13 @@ End-state grading and repeat trials distinguish reliable execution from a lucky 
 
 Reference material, the resident model, imagination and reasoning systems remain sources of hypotheses and context. They do not approve a repair or override a counterexample. Invoking every module on every task would add latency without establishing correctness; deterministic checks run first where an appropriate executor exists. No task-specific prompt changes are part of this work.
 
+A missing visual track can be extrapolated beyond a wall even after the real object reflected. That prediction cannot establish a runtime defect. The motion monitor now requires an observed centre beyond a required edge with outward motion; missing-track predictions remain bounded, unconfirmed evidence. A complete renderer observation can expose a partially clipped body before it disappears. Pixel-only observations may leave that breach unmeasured, so isolated function checks and the visible run provide separate evidence. The boundary's meaning still comes from an explicit or source-inferred contract, with its provenance retained.
+
+Repair narration also publishes factual progress to the fenced chat delivery owner. Reference excerpts stay in the repair receipt rather than interrupting work narration. A live skill registry can retain an old method after module reload; the presentation replay therefore uses a controlled full runtime restart at the tested revision. Revalidating a previously held input model as data protects schema compatibility when the current method is actually installed.
+
 ## Qualification beyond the presentation
+
+An inconclusive control experiment no longer exhausts keyboard discovery for the rest of a run. After a bounded wait, the controller starts a fresh experiment and releases previous object exclusions and response calibration. The absence check allows enough time for those experiments; the task deadline still bounds execution. Per-attempt receipts distinguish successfully delivered key presses from pictures with an established controlled object. These measure input and attribution separately; neither alone proves a win.
 
 To compare Aura with a current coding agent, run the same held-out repository tasks with unchanged model weights, clean initial state, a fixed time/token budget and independent fail-to-pass plus pass-to-pass tests. Report first-attempt success, all-trial consistency, unknown outcomes, p50/p95 latency, candidate count and executor cost. Pair an ablation of the added executors with the same task set and hardware. Separate regression fixtures from held-out capability measurements; renamed fixture tests establish interface transfer, not unseen repository reasoning.
 

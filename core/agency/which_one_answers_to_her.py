@@ -464,6 +464,23 @@ class WhichIsHers:
 
     # -- what she saw ------------------------------------------------------
 
+    def recheck_controls(self) -> None:
+        """Start an independent experiment after inconclusive or contradicted control trials.
+
+        A rejection belongs to the experiment that measured it. New trials
+        can establish a response even when an earlier reset or occlusion
+        made that same object's response appear absent.
+        """
+        self.number, self.kind, self._sighted = None, None, None
+        for kept in (self._by_thing, self._by_kind, self._followed, self.not_mine):
+            kept.clear()
+        self._hers = _Speeds()
+        self._since_believed, self._answered, self._answered_by = [], {}, None
+        self._expecting = {}
+        self._pointer = []
+        self.follows_pointer, self.follows_along = False, (False, False)
+        self.lowest, self.highest = [math.inf, math.inf], [-math.inf, -math.inf]
+
     def numbered_afresh(self) -> None:
         """The picture's things are numbered from one again: forget what was kept of each by its number.
 
@@ -635,3 +652,22 @@ class WhichIsHers:
             any(abs(vx) > REALLY_MOVES for vx, _vy in ways),
             any(abs(vy) > REALLY_MOVES for _vx, vy in ways),
         )
+
+
+def _fresh_control_experiment_forgets_old_rejections() -> bool:
+    hers = WhichIsHers()
+    hers.number, hers.kind = 3, 0
+    hers.not_mine.add(3)
+    for _ in range(ENOUGH):
+        hers._hers.add("a", 90.0, 0.0)
+        hers._by_thing[3].add("a", 90.0, 0.0)
+    hers.recheck_controls()
+    return (hers.number is None and hers.kind is None and not hers.not_mine
+            and not hers._by_thing and hers._hers.typical("a") is None)
+
+
+@invariant("agency.fresh_control_experiment_releases_old_evidence", scope="agency",
+           owner="core/agency/which_one_answers_to_her.py", observational=False)
+def _control_recheck_invariant() -> tuple:
+    assert _fresh_control_experiment_forgets_old_rejections(), "a fresh trial retained a prior control rejection"
+    return ()
