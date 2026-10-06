@@ -1,0 +1,49 @@
+{
+  "request": "Fix the broken game at /Users/bryan/aura-demos/pong/pong.html, then play it for three attempts to show the repair works.",
+  "submitted_local": "2026-10-05T20:34:36.768723",
+  "source_revision": "6ec1ff44a688322add1ade0da07d3c967d45cacf",
+  "resident_pid": 9353,
+  "idempotency_key": "aura-chat-00860dea-45ad-44de-9fd3-1014b53f026c",
+  "turn_id": "db9df2dde5754b339ab749677f200287",
+  "manual_game_inputs": 0,
+  "manual_game_repairs": 0,
+  "prior_world_memory_archived": true,
+  "proof_status": "completed_and_independently_graded",
+  "replays_failed_request_exactly": true,
+  "completed_local": "2026-10-05T20:49:49.304754",
+  "total_seconds": 912.536,
+  "repair_seconds": 380.5,
+  "runs": [
+    "won",
+    "lost",
+    "won"
+  ],
+  "scores": [
+    [
+      5,
+      3
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      5,
+      2
+    ]
+  ],
+  "observations": 19271,
+  "drawing_observations": 19271,
+  "independent_checks": {
+    "controls": true,
+    "opponent": true,
+    "collision": true,
+    "top wall": true,
+    "scoring": true,
+    "starts": true,
+    "serves again": true,
+    "ends at five": true,
+    "paddle stays on court": true,
+    "no errors": true
+  }
+}

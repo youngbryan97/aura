@@ -1,0 +1,294 @@
+{
+  "production_additions_match": {
+    "\\bpong\\b": false,
+    "\\bball\\.y\\b": false,
+    "window\\.__world": false,
+    "\\bPADDLE_H\\b": false,
+    "\\bAI_SPEED\\b": false
+  },
+  "weights_changed": false,
+  "prompt_templates_changed": false,
+  "transfer": [
+    {
+      "mode": "structured",
+      "world": "paddle",
+      "tally": {
+        "state": "play",
+        "score": 0,
+        "lives": 3,
+        "losses": 0,
+        "games": 0,
+        "ended": [],
+        "mine": 0,
+        "theirs": 1,
+        "returns": 5,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 1,
+        "canvas-paint-v1": 2737
+      },
+      "pictures": 2738
+    },
+    {
+      "mode": "structured",
+      "world": "catch",
+      "tally": {
+        "state": "play",
+        "score": 0,
+        "lives": 3,
+        "losses": 3,
+        "games": 1,
+        "ended": [
+          {
+            "score": 8,
+            "why": "no lives left",
+            "seconds": 16.748399999976158
+          }
+        ],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": 0
+      },
+      "observations": {
+        "pixels": 1325
+      },
+      "pictures": 1325
+    },
+    {
+      "mode": "structured",
+      "world": "dodge",
+      "tally": {
+        "state": "play",
+        "score": 7,
+        "lives": 2,
+        "losses": 4,
+        "games": 1,
+        "ended": [
+          {
+            "score": 10,
+            "why": "no lives left",
+            "seconds": 10.26480000001192
+          }
+        ],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 3050,
+        "canvas-paint-v1": 160
+      },
+      "pictures": 3210
+    },
+    {
+      "mode": "structured",
+      "world": "shooter",
+      "tally": {
+        "state": "play",
+        "score": 0,
+        "lives": 2,
+        "losses": 4,
+        "games": 1,
+        "ended": [
+          {
+            "score": 10,
+            "why": "no lives left",
+            "seconds": 10.571
+          }
+        ],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 570,
+        "canvas-paint-v1": 3128
+      },
+      "pictures": 3698
+    },
+    {
+      "mode": "structured",
+      "world": "collect",
+      "tally": {
+        "state": "play",
+        "score": 30,
+        "lives": 2,
+        "losses": 1,
+        "games": 0,
+        "ended": [],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 2,
+        "canvas-paint-v1": 3673
+      },
+      "pictures": 3675
+    },
+    {
+      "mode": "structured",
+      "world": "gallery",
+      "tally": {
+        "state": "play",
+        "score": 16,
+        "lives": 2,
+        "losses": 1,
+        "games": 0,
+        "ended": [],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 1,
+        "canvas-paint-v1": 4492
+      },
+      "pictures": 4493
+    },
+    {
+      "mode": "pixel",
+      "world": "paddle",
+      "tally": {
+        "state": "play",
+        "score": 0,
+        "lives": 3,
+        "losses": 0,
+        "games": 0,
+        "ended": [],
+        "mine": 0,
+        "theirs": 3,
+        "returns": 3,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 803
+      },
+      "pictures": 803
+    },
+    {
+      "mode": "pixel",
+      "world": "catch",
+      "tally": {
+        "state": "play",
+        "score": 0,
+        "lives": 3,
+        "losses": 3,
+        "games": 1,
+        "ended": [
+          {
+            "score": 8,
+            "why": "no lives left",
+            "seconds": 15.77480000001192
+          }
+        ],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": 0
+      },
+      "observations": {
+        "pixels": 1057
+      },
+      "pictures": 1057
+    },
+    {
+      "mode": "pixel",
+      "world": "dodge",
+      "tally": {
+        "state": "play",
+        "score": 0,
+        "lives": 3,
+        "losses": 3,
+        "games": 1,
+        "ended": [
+          {
+            "score": 18,
+            "why": "no lives left",
+            "seconds": 18.01580000001192
+          }
+        ],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 952
+      },
+      "pictures": 952
+    },
+    {
+      "mode": "pixel",
+      "world": "shooter",
+      "tally": {
+        "state": "play",
+        "score": 20,
+        "lives": 3,
+        "losses": 3,
+        "games": 1,
+        "ended": [
+          {
+            "score": 0,
+            "why": "no lives left",
+            "seconds": 10.138099999964238
+          }
+        ],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 812
+      },
+      "pictures": 812
+    },
+    {
+      "mode": "pixel",
+      "world": "collect",
+      "tally": {
+        "state": "play",
+        "score": 5,
+        "lives": 1,
+        "losses": 2,
+        "games": 0,
+        "ended": [],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 817
+      },
+      "pictures": 817
+    },
+    {
+      "mode": "pixel",
+      "world": "gallery",
+      "tally": {
+        "state": "play",
+        "score": 17,
+        "lives": 2,
+        "losses": 1,
+        "games": 0,
+        "ended": [],
+        "mine": null,
+        "theirs": null,
+        "returns": null,
+        "caught": null
+      },
+      "observations": {
+        "pixels": 868
+      },
+      "pictures": 868
+    }
+  ]
+}

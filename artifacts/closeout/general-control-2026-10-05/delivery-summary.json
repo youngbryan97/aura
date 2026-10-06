@@ -1,0 +1,20 @@
+{
+  "delivery_status": "terminal",
+  "state": "completed",
+  "terminal": true,
+  "http_status": 200,
+  "idempotency_key": "aura-chat-00860dea-45ad-44de-9fd3-1014b53f026c",
+  "turn_id": "db9df2dde5754b339ab749677f200287",
+  "created_at": 1791257676.768723,
+  "updated_at": 1791258589.304754,
+  "effect_audit_id": 14008,
+  "separate_cognitive_certification": {
+    "full_mind_path": false,
+    "certification_complete": false,
+    "semantic_completion_satisfied": false,
+    "full_mind_missing_proofs": [
+      "authored_answer_incomplete:nobody_checked",
+      "live_mind_controls_unbound:not_applied"
+    ]
+  }
+}

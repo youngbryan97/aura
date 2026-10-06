@@ -24,8 +24,9 @@ way a person would ask. Nothing is started from a script.
    authorization under `AGENTS.md`; the supported replacement command adds
    `--reboot`. Check that no training or soak owns the model, preserve logs,
    and verify one replacement process and its source revision.
-4. Wait for `status: ok` on `curl -s localhost:8000/api/health` (about six
-   minutes from launch).
+4. Wait for `healthy: true` and `conversation_ready: true` on
+   `curl -s localhost:8000/api/health`. Boot time depends on the resident model
+   and host state; use the readiness result.
 
 ## Demo 2: mend a broken game and play three attempts
 
@@ -65,6 +66,20 @@ way a person would ask. Nothing is started from a script.
    A spare broken copy is kept at `~/aura-demos/pong-spare/pong.html` (all
    five flaws, untouched); `tools/reset_pong_demo.py` also writes a fresh one
    to `~/aura-demos/pong/pong.html` at any time.
+   The exact three-attempt request above completed through normal chat on
+   5 October 2026 at revision `6ec1ff44a`: all five faults repaired, then a
+   5–3 win, a 1–5 loss and a 5–2 win. Independent grading passed all ten
+   checks. The complete request took 15 minutes 12.5 seconds; repair took
+   6 minutes 20.5 seconds. Codex supplied no repair edits or game inputs.
+   The final reply now lists every attempt (`ab9a5b054`). The broken file was
+   restored and independently graded after the run, and a permanent copy is
+   kept in `/Users/bryan/.aura/control-proof-2026-10-05/`.
+
+   See [the measured replay](../evidence/GENERAL_CONTROL_DEMO_2026-10-05.md)
+   for receipts, observation coverage and the limits of the result. That
+   result proves this demo in this environment; it does not certify arbitrary
+   games, every application or the fastest possible execution.
+
 4. Check the repair independently:
 
    ```bash

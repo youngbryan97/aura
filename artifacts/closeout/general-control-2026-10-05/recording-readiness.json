@@ -1,0 +1,61 @@
+{
+  "recorded_local": "2026-10-05T20:57:20.627242",
+  "demo_file": "/Users/bryan/aura-demos/pong/pong.html",
+  "sha256": "fecbf4563569972db4a4949c75ba04849a7c4c7ea86f19ea90be465c5c509a5d",
+  "original_faults": [
+    "controls",
+    "opponent",
+    "collision",
+    "top wall",
+    "scoring"
+  ],
+  "preserved_checks": {
+    "starts": true,
+    "serves again": true,
+    "ends at five": true,
+    "paddle stays on court": true,
+    "no errors": true
+  },
+  "resident_pid": 9353,
+  "healthy": true,
+  "conversation_ready": true,
+  "proven_run": "aura-chat-00860dea-45ad-44de-9fd3-1014b53f026c",
+  "normal_chat_request": "Fix the broken game at /Users/bryan/aura-demos/pong/pong.html, then play it for three attempts to show the repair works.",
+  "completed_scores": [
+    [
+      5,
+      3
+    ],
+    [
+      1,
+      5
+    ],
+    [
+      5,
+      2
+    ]
+  ],
+  "completed_runs": [
+    "won",
+    "lost",
+    "won"
+  ],
+  "manual_game_inputs": 0,
+  "manual_game_repairs": 0,
+  "recording_game_memory_archived": true,
+  "reporting_module_reloaded": {
+    "ok": true,
+    "scope": "file:repairing_a_program.py",
+    "reloaded_count": 1,
+    "skipped_count": 0,
+    "failed_count": 0,
+    "reloaded": [
+      "core.skills.repairing_a_program"
+    ],
+    "skipped": [],
+    "failed": [],
+    "unmatched_prefixes": [],
+    "orphan_risks": [],
+    "duration_ms": 3.6
+  }
+}
