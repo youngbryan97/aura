@@ -85,3 +85,15 @@ def test_short_lines_one_over_another_are_items_not_prose():
     rules = {"layout": [line("Bump into the cars and make them spin", 0.3), line("until they reach the parking spot", 0.38)]}
     assert things_to_click(rules, drawn_where=(0, 0, 1, 1)) == ()
     assert what_it_says(rules, drawn_where=(0, 0, 1, 1)).startswith("Bump into")
+
+
+def test_a_line_is_read_left_to_right_whatever_its_pieces_heights():
+    """LIVE 2026-10-06 "First to 5 points wins." was said "points wins. First to 5"."""
+    from core.skills.screen_pursuit_bearings import what_it_says
+
+    def piece(text, x, y, h, w=0.3):
+        return {"text": text, "x": x, "y": y, "width": w, "height": h}
+
+    rules = {"layout": [piece("Keep the ball from getting past you.", 0.1, 0.40, 0.04, 0.8),
+                        piece("First to 5", 0.1, 0.452, 0.05), piece("points wins.", 0.42, 0.45, 0.04)]}
+    assert what_it_says(rules, drawn_where=(0, 0, 1, 1)).endswith("First to 5 points wins.")

@@ -139,8 +139,30 @@ def what_it_says(observation: dict[str, Any], drawn_where: Any) -> str:
         region for region in regions
         if " ".join(str(region.get("text") or "").split()) and (region.get("of_its_own") or _set_as_a_paragraph(region, regions))
     ]
-    lines.sort(key=lambda region: (float(region.get("y", 0.0)), float(region.get("x", 0.0))))
-    return " ".join(" ".join(str(region.get("text") or "").split()) for region in lines)
+    return " ".join(" ".join(str(region.get("text") or "").split()) for region in _in_reading_order(lines))
+
+
+def _in_reading_order(regions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pieces of writing as they are read: line by line from the top, each line left to right.
+
+    Pieces of one line can sit at slightly different heights (a large digit
+    beside small words), and ordered by height alone they come out of order:
+    LIVE 2026-10-06 "First to 5 points wins." was said "points wins. First to
+    5". A piece whose middle is within half its height of a line's middle is on
+    that line.
+    """
+    def middle(region: dict[str, Any]) -> float:
+        return float(region.get("y", 0.0)) + float(region.get("height", 0.0)) / 2
+
+    lines: list[list[dict[str, Any]]] = []
+    for region in sorted(regions, key=middle):
+        here = middle(region)
+        tall = max(0.005, float(region.get("height", 0.0)))
+        if lines and abs(here - middle(lines[-1][0])) <= tall / 2:
+            lines[-1].append(region)
+        else:
+            lines.append([region])
+    return [region for line in lines for region in sorted(line, key=lambda r: float(r.get("x", 0.0)))]
 
 
 def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -> bool:

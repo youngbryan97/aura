@@ -3300,6 +3300,33 @@ def _reply_topic_forms(reply_text: Any) -> set[str]:
     return forms
 
 
+#: The endings of file names, which follow a full stop with no space and are not a sentence run on.
+_FILE_ENDINGS = frozenset(
+    "html htm js mjs ts tsx jsx py txt md json css scss docx doc pdf odt rtf xlsx csv png jpg jpeg gif svg swf "
+    "zip tar gz sh yml yaml toml log mp3 mp4 wav mov app dmg exe swift kt java c cpp h rb go rs php sql xml ini cfg".split()
+)
+
+
+def _a_name_not_a_join(raw: str, start: int, end: int) -> bool:
+    """Whether a full stop with no space after it is inside a name (a file, a path, a dotted name), not two sentences run together.
+
+    LIVE 2026-10-06 a repair's true account, "the original is beside it as
+    pong.html.before-repair", was marked as words run together and the
+    reply was served as partial.
+    """
+    left = start
+    while left > 0 and not raw[left - 1].isspace():
+        left -= 1
+    right = end
+    while right < len(raw) and not raw[right].isspace():
+        right += 1
+    token = raw[left:right].rstrip(".,;:!?)'\"")
+    if "/" in token or "\\" in token or "~" in token or token.count(".") >= 2 or re.search(r"[_\-\d]", token):
+        return True
+    ending = token.rsplit(".", 1)[-1].lower() if "." in token else ""
+    return ending in _FILE_ENDINGS
+
+
 def _has_punctuation_join_artifact(reply_text: Any) -> bool:
     raw = str(reply_text or "")
     raw = _FENCED_CODE_BLOCK_RE.sub("", raw)
@@ -3308,6 +3335,8 @@ def _has_punctuation_join_artifact(reply_text: Any) -> bool:
         before = raw[max(0, match.start() - 16) : match.start()]
         after = raw[match.end() : match.end() + 24]
         if "://" in before or "/" in after:
+            continue
+        if _a_name_not_a_join(raw, match.start(), match.end()):
             continue
         if match.group("mark") == "." and match.group("right").lower() in _COMMON_DOMAIN_SUFFIXES:
             continue
