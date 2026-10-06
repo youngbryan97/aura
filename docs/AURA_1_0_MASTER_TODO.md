@@ -1473,7 +1473,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Exact-contract activation validates; composition remains shadow-only.
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
-- [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+- [x] G03 Close learned semantic binding/composition failures on development cohorts.
+  CLOSED 2026-10-06 at 500 of 500
+  ([which and whether](evidence/G03_WHICH_AND_WHETHER_2026-10-06.md)). Candidate
+  v12 (`~/.aura/rlc-evidence/semantic-peak-antecedent-v12-20261006`, from
+  `01701a935`): train 764 of 764, validation 500 of 500, both composition
+  bundles 48 of 48 against the incumbent's 31 and 31, held-out construction
+  folds 742 of 764 (v9 734). Against v9 it loses no row anywhere. "After
+  removing", a wording no training row has, is now named from the word at
+  the tagger's peak, stacked with the context at the context's own scale; the
+  words choose which operation a span names and the context alone says
+  whether it names one, so "integer" in "Use integer arithmetic" stays an
+  adjective. The 22 held-out rows still wrong are G04's.
   REOPENED 2026-10-05: closed earlier the same day at 498 of 500 on a
   boundary of my own choosing; the target is 500 of 500. Candidate v9
   (`~/.aura/rlc-evidence/semantic-peak-antecedent-v9-20261005`, from
