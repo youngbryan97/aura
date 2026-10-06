@@ -124,6 +124,49 @@ def test_restart_round_trip_and_wrong_key_locks_without_overwrite(tmp_path):
     assert (tmp_path / "relational.json").read_bytes() == before
 
 
+def test_a_store_under_another_key_is_named_by_both_fingerprints(tmp_path):
+    import hashlib
+
+    authority = _authority(tmp_path)
+    authority.grant_consent(
+        "bryan", kinds=["milestone"], operations=["persist"], receipt_id="user-consent-1"
+    )
+    authority.record("bryan", kind="milestone", content="shipped the verified parser")
+
+    locked = RelationalMemoryAuthority(
+        tmp_path / "relational.json", encryption_key=b"x" * 32, legacy_paths=(), auto_provision_key=False
+    )
+    stored = hashlib.sha256(b"k" * 32).hexdigest()[:16]
+    current = hashlib.sha256(b"x" * 32).hexdigest()[:16]
+    assert locked._locked_reason == f"encrypted_store_key_mismatch:{stored}!={current}"
+
+
+def test_no_key_is_minted_over_a_store_on_disk(tmp_path, monkeypatch):
+    """LIVE 2026-10-06: the July store met a different keychain key and stayed locked.
+
+    A lookup that misses with a store on disk must not replace the key the
+    store was written under.
+    """
+    from core.security import zenith_secrets
+
+    authority = _authority(tmp_path)
+    authority.grant_consent(
+        "bryan", kinds=["milestone"], operations=["persist"], receipt_id="user-consent-1"
+    )
+    authority.record("bryan", kind="milestone", content="shipped the verified parser")
+    minted = []
+    monkeypatch.setattr(zenith_secrets, "get_secret", lambda *_a, **_k: None)
+    monkeypatch.setattr(zenith_secrets, "set_secret", lambda *a, **_k: minted.append(a) or True)
+
+    reopened = RelationalMemoryAuthority(tmp_path / "relational.json", legacy_paths=())
+    assert minted == []
+    assert reopened.persistence_available is False
+
+    fresh = RelationalMemoryAuthority(tmp_path / "elsewhere" / "relational.json", legacy_paths=())
+    assert len(minted) == 1
+    assert fresh.persistence_available is True
+
+
 def test_revoke_blocks_prompt_and_optional_delete_is_durable(tmp_path):
     authority = _authority(tmp_path)
     authority.grant_consent(

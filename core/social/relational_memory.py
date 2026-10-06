@@ -228,7 +228,14 @@ class RelationalMemoryAuthority:
         self._last_persistence_error = ""
         self._key = _decode_key(encryption_key)
         if self._key is None:
-            self._key = self._resolve_or_provision_key(auto_provision=auto_provision_key)
+            # A new key is never minted over an existing store. LIVE 2026-10-06:
+            # the store last written on 2026-07-14, under key 77f67b36, met key
+            # 00c9eb48 in the keychain and was locked on every boot in the log.
+            # A lookup that misses once, with a store on disk, is a key
+            # unavailable for this session, not a key to replace.
+            self._key = self._resolve_or_provision_key(
+                auto_provision=auto_provision_key and not self.storage_path.exists()
+            )
         self._load()
         if legacy_paths is None:
             legacy_paths = (
@@ -1345,6 +1352,25 @@ class RelationalMemoryAuthority:
             return
         try:
             envelope = json.loads(self.storage_path.read_text(encoding="utf-8"))
+            stored_key_id = str(envelope.get("key_id") or "")
+            current_key_id = hashlib.sha256(self._key).hexdigest()[:16]
+            if stored_key_id and stored_key_id != current_key_id:
+                self._locked_reason = (
+                    f"encrypted_store_key_mismatch:{stored_key_id}!={current_key_id}"
+                )
+                record_degradation(
+                    "relational_memory.load",
+                    RuntimeError(
+                        f"relational memory at {self.storage_path} was written under key "
+                        f"{stored_key_id}; the keychain holds {current_key_id}"
+                    ),
+                    severity="error",
+                    action=(
+                        "locked relational memory; restore the key it was written under, "
+                        "or move the store aside to begin a new one"
+                    ),
+                )
+                return
             payload = self._decrypt_envelope(envelope)
             self._revision = max(0, int(payload.get("revision") or 0))
             self._grants = {
