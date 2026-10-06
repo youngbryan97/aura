@@ -60,6 +60,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import Any
 
+from core.brain.llm.mlx_worker_surface_markers import _reply_starts_at
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.TokenSentinel")
@@ -184,6 +185,7 @@ class TokenSentinel:
         generation_purpose: str | None = None,
         user_surface: bool = False,
         affect_expected: bool = True,
+        native_thinking: bool = False,
     ):
         """
         Args:
@@ -196,6 +198,7 @@ class TokenSentinel:
             generation_purpose: Declared worker purpose for diagnostics
             user_surface: Whether this generation may reach the user
             affect_expected: Whether this generation requested affect steering
+            native_thinking: Whether the generation opens in her private channel
         """
         # These are used as modulo divisors on EVERY generated token. A zero
         # raised ZeroDivisionError straight out of the token loop — taking down
@@ -212,6 +215,13 @@ class TokenSentinel:
         self._generation_purpose = str(generation_purpose or "unspecified")
         self._user_surface = bool(user_surface)
         self._affect_expected = bool(affect_expected)
+        # Capitulation, drift and embodiment are claims made TO the person,
+        # so they are read in the reply alone. LIVE 2026-10-06 a correct
+        # answer logged "Persona drift ... 'as an AI'" from her reasoning; the
+        # same reading of a capitulation pattern would have replaced the
+        # whole answer with a canned refusal. A loop is a loop in either
+        # channel and is still read across everything.
+        self._native_thinking = native_thinking is True
 
         #: True when either interval had to be corrected, so status() can report
         #: that the sentinel is not running on the cadence it was asked for.
@@ -381,16 +391,22 @@ class TokenSentinel:
                 )
         return InterventionSignal(type=InterventionType.NONE)
 
+    def _reply(self) -> str:
+        """What the person will read: with native thinking, what follows the channel's close."""
+        start = _reply_starts_at(self._text, native_thinking=self._native_thinking)
+        return "" if start is None else self._text[start:]
+
     def _check_boundaries(self) -> InterventionSignal:
-        """Check accumulated text for capitulation/boundary violations."""
+        """Check the reply for capitulation/boundary violations."""
         if self._boundary_fired:
             return InterventionSignal(type=InterventionType.NONE)
 
-        match = _CAPITULATION_RE.search(self._text)
+        reply = self._reply()
+        match = _CAPITULATION_RE.search(reply)
         if match:
             self._boundary_fired = True
             violation_start = match.start()
-            clean_prefix = self._text[:violation_start].rstrip()
+            clean_prefix = reply[:violation_start].rstrip()
             matched_text = match.group()
 
             logger.warning(
@@ -413,8 +429,9 @@ class TokenSentinel:
         # Check a bounded tail, but convert match offsets back to the full
         # generated text so the same phrase is only reported once.
         scan_chars = self._check_interval * 20  # Approx last N tokens
-        recent_start = max(0, len(self._text) - scan_chars)
-        recent = self._text[recent_start:]
+        reply = self._reply()
+        recent_start = max(0, len(reply) - scan_chars)
+        recent = reply[recent_start:]
 
         match = None
         absolute_end = self._last_drift_match_end
@@ -538,7 +555,7 @@ class TokenSentinel:
             )
 
             grounding = detect_unsupported_embodiment_claim(
-                self._text,
+                self._reply(),
                 prompt=self._prompt,
                 complete=complete,
             )

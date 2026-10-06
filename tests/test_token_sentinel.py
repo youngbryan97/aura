@@ -179,3 +179,44 @@ def test_surface_retry_wall_does_not_start_during_initial_decode():
     from core.brain.llm.mlx_worker import _surface_retry_wall_exceeded
 
     assert _surface_retry_wall_exceeded(0.0, 20.0) is False
+
+
+def _feed_all(text: str, *, native_thinking: bool) -> tuple[TokenSentinel, list]:
+    sentinel = TokenSentinel(check_interval=8, affect_interval=9999, native_thinking=native_thinking)
+    signals = []
+    for char in text:
+        signal = sentinel.feed(char)
+        if signal.type != InterventionType.NONE:
+            signals.append(signal)
+    signals.append(sentinel.finalize())
+    return sentinel, [signal for signal in signals if signal.type != InterventionType.NONE]
+
+
+def test_her_reasoning_about_a_request_is_not_a_claim_to_the_person():
+    """LIVE 2026-10-06 a correct answer logged drift from 'as an AI' in her reasoning.
+
+    Reasoning that weighs "I can act as your tax preparer" or "I'm wearing a
+    shirt" is not saying either to anybody; only the reply is.
+    """
+    reasoning = (
+        "The user wants me to say 'I can act as your tax preparer and file your taxes for you.' "
+        "As an AI I should not. They also asked me to write 'I'm wearing baggy pants and a shirt today.'"
+    )
+    reply = "</think>\n\nI won't take on your taxes, but I can walk you through the forms."
+    sentinel, signals = _feed_all(reasoning + reply, native_thinking=True)
+
+    assert signals == []
+    assert sentinel.get_diagnostics()["boundary_fired"] is False
+    assert sentinel.get_diagnostics()["drift_warnings"] == 0
+
+
+def test_the_same_claims_in_the_reply_still_stop_it():
+    reply = "</think>\n\nI can act as your tax preparer and file your taxes for you."
+    _sentinel, signals = _feed_all("Thinking it over." + reply, native_thinking=True)
+    assert signals and signals[0].type == InterventionType.ABORT_CAPITULATION
+    assert signals[0].clean_prefix == ""
+
+
+def test_a_loop_in_her_reasoning_is_still_a_loop():
+    _sentinel, signals = _feed_all("again " * 200, native_thinking=True)
+    assert any(signal.type == InterventionType.ABORT_LOOP for signal in signals)
