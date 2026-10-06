@@ -246,7 +246,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         run = _how_the_run_went(reflexes, result)
         run["observations"] = [
             {key: stretch.get(key) for key in ("pictures", "pictures_a_second", "observations", "standing", "settled", "runtime_checks",
-                                               "input_key_downs", "responsive_pictures", "control_probe_retries")}
+                                               "input_key_downs", "responsive_pictures", "control_probe_retries",
+                                               "control_attribution", "attribution_changes", "identification_evidence")}
             for stretch in reflexes.stretches if stretch.get("pictures")
         ]
         runs.append(run)

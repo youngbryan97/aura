@@ -127,6 +127,74 @@ def test_a_thing_that_does_not_go_where_her_key_sends_it_is_not_hers_after_all()
     assert hers.number is None and 1 in hers.not_mine
 
 
+def test_a_disproven_identity_cannot_promote_an_old_rivals_correlation():
+    mine, rival = _Thing(1, 0), _Thing(3, 0)
+    rival.x = 400.0
+    moves = _Moves([mine, rival])
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 0
+    for _ in range(10):
+        hers._hers.add("up", 0.0, -120.0)
+    for press in range(8):
+        key, speed = ("up", -120.0) if press % 2 else ("down", 120.0)
+        for _ in range(10):
+            hers._by_thing[3].add(key, 0.0, speed, press=float(press))
+    assert hers._by_thing[3].ratio()[0] > 5
+    hers.holding("up", 0)
+    for step in range(60):
+        at = (step + 1) * 0.03
+        mine.seen, mine.vy = at, 0.0
+        rival.seen = at
+        hers.saw(moves, [], at)
+        assert hers.number != rival.number
+    assert hers.number is None and hers.kind is None
+    assert hers.way_of("up") is None and not hers._by_thing
+
+
+def test_a_missing_identity_cannot_transfer_control_to_a_distant_lookalike():
+    mine, rival = _Thing(1, 0), _Thing(3, 0)
+    rival.x = 400.0
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 0
+    mine.seen = 1.0
+    hers.saw(_Moves([mine]), [], 1.0)
+    for press in range(8):
+        key = "up" if press % 2 else "down"
+        for _ in range(10):
+            hers._by_thing[3].add(key, 0.0, -120.0 if key == "up" else 120.0, press=float(press))
+    hers.saw(_Moves([rival]), [], 1.03)
+    assert hers.number is None and hers.kind is None
+    assert not hers._by_thing and hers.lost_at == 1.03
+
+
+def test_a_nearby_continuing_track_keeps_its_measured_controls():
+    mine, continuing, rival = _Thing(1, 0), _Thing(4, 0), _Thing(3, 0)
+    continuing.x, continuing.seen = 53.0, 1.03
+    rival.x = 400.0
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 0
+    mine.seen = 1.0
+    for _ in range(10):
+        hers._hers.add("up", 0.0, -120.0)
+    hers.saw(_Moves([mine]), [], 1.0)
+    hers.saw(_Moves([continuing, rival]), [], 1.03)
+    assert hers.number == 4 and hers.way_of("up") == (0.0, -120.0)
+
+
+def test_one_contradicted_key_cannot_disown_another_measured_control():
+    mine = _Thing(1, 0)
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 0
+    for _ in range(10):
+        hers._hers.add("up", 0.0, -120.0)
+        hers._hers.add("down", 0.0, 120.0)
+    hers.holding("up", 0.0)
+    for step in range(70):
+        mine.seen = at = (step + 1) * 0.03
+        hers.saw(_Moves([mine]), [], at)
+    assert hers.number == 1
+
+
 def test_a_thing_that_keeps_pace_with_the_pointer_far_from_it_does_not_follow_it():
     """A target sliding to and fro can keep pace with a sweep; one the mouse moves is under the mouse."""
     thing = _Thing(1, 0)

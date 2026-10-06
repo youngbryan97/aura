@@ -4,6 +4,7 @@ from typing import Any
 
 def install_realtime_control_claims(suite: Any) -> None:
     from core.agency.what_meeting_things_does import _absent_counters_are_not_current
+    from core.agency.causal_identification import _stale_and_ambiguous_identity_witnesses_remain_unknown
     from core.agency.which_one_answers_to_her import (
         _ambiguous_controls_remain_unknown,
         _fresh_control_experiment_forgets_old_rejections,
@@ -18,6 +19,22 @@ def install_realtime_control_claims(suite: Any) -> None:
     from core.perception.the_drawing_as_objects import _scene_requires_a_matching_complete_frame
 
     from core.runtime.executors import _interactive_and_receipt_workers_are_separate
+
+    name = "identity_requires_current_distinguishing_evidence"
+    owner = "core/agency/causal_identification.py"
+    suite.add_test(ValidationTest(
+        name=name, description="stale experiments and equal responder evidence leave identity unknown",
+        required_capability="", observation=Observation("causal_identity_unknown", True,
+                "tests/test_causal_identification.py"),
+        predict=lambda _model: _stale_and_ambiguous_identity_witnesses_remain_unknown(),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="Stale or indistinguishable causal witnesses cannot establish a control identity.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Measured evidence epochs and ambiguity; broader semantic identification requires separate evaluation.",
+    ))
 
     name = "interactive_and_receipt_workers_are_separate"
     owner = "core/runtime/executors.py"

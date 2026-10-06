@@ -134,6 +134,9 @@ class _Run:
     input_key_downs: Counter[str] = field(default_factory=Counter)
     responsive_pictures: int = 0
     control_probe_retries: int = 0
+    control_attribution: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=128))
+    attribution_changes: int = 0
+    last_attribution: tuple[Any, ...] | None = None
     picture_at: float | None = None
     intervals: deque[float] = field(default_factory=lambda: deque(maxlen=12))
     responses: deque[float] = field(default_factory=lambda: deque(maxlen=12))
@@ -147,6 +150,22 @@ class _Run:
 
 
 # -- what she was told ---------------------------------------------------------
+
+def _record_control_attribution(run: _Run, moves: Any, hers: WhichIsHers, at: float) -> None:
+    """Retain bounded ownership changes from visible geometry and measured controls."""
+    mine = hers.thing(moves)
+    keys = tuple(sorted(hers.keys_that_move_her(run.keys))) if mine is not None else ()
+    source = "pointer" if mine is not None and hers.follows_pointer else "keys" if keys else "unknown"
+    state = (mine.number if mine is not None else None, source, keys)
+    if state == run.last_attribution:
+        return
+    run.last_attribution = state
+    run.attribution_changes += 1
+    shape = getattr(moves, "shape", None)
+    position = ([round(mine.x / shape[1], 4), round(mine.y / shape[0], 4)]
+                if mine is not None and shape and shape[0] > 0 and shape[1] > 0 else None)
+    run.control_attribution.append({"seconds": round(at - run.began, 3), "thing": state[0],
+                                    "source": source, "keys": list(keys), "position": position})
 
 #: Words that say a game is played with the pointer.
 _POINTER_WORDS = ("mouse", "cursor", "pointer", "click", "drag", "aim", "trackpad")
@@ -889,6 +908,7 @@ async def play_as_it_happens(
             run.pictures += 1
             happened = moves.see(picture, at)
             hers.saw(moves, happened, at)
+            _record_control_attribution(run, moves, hers, at)
             _measure_response(run, hers.thing(moves), at)
             physics.saw(moves, hers, happened, at)
             _what_the_rules_said_of(rules, moves, meeting, run, say, at)
@@ -1142,6 +1162,9 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "input_key_downs": dict(run.input_key_downs),
         "responsive_pictures": run.responsive_pictures,
         "control_probe_retries": run.control_probe_retries,
+        "control_attribution": list(run.control_attribution),
+        "attribution_changes": run.attribution_changes,
+        "identification_evidence": list(hers.identification.receipts),
         # How the contest stood when the stretch ended, and what its counters alone settle.
         "standing": run.contest.says(),
         "settled": run.contest.settled(),

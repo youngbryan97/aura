@@ -275,6 +275,7 @@ def test_a_summary_keeps_the_observed_control_description_after_it_disappears():
 
     began = time.monotonic()
     run = _Run(keys=["q"], began=began, hers_description="blue bar")
-    hers = SimpleNamespace(kind=0, makes={}, keys_that_move_her=lambda keys: {"q": (0, 80)})
+    hers = SimpleNamespace(kind=0, makes={}, keys_that_move_her=lambda keys: {"q": (0, 80)},
+                           identification=SimpleNamespace(receipts=[]))
     result = _what_it_came_to(run, SimpleNamespace(kinds=[]), hers, WhatMeetingDoes(), "new screen", began)
     assert result["hers"] == "blue bar"

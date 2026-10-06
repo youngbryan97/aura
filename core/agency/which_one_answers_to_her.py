@@ -32,6 +32,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.agency.causal_identification import CausalIdentification, CausalWitness, within_observed_reach
 from core.verify import invariant
 
 logger = logging.getLogger(__name__)
@@ -241,6 +242,7 @@ class WhichIsHers:
     """Keeps, for each thing and each kind of thing, how it moved under each key."""
 
     def __init__(self) -> None:
+        self.identification = CausalIdentification(statistic_over=ANSWERS, effect_over=REALLY_MOVES)
         self._held: deque = deque(maxlen=400)
         self._by_thing: dict[int, _Speeds] = defaultdict(_Speeds)
         self._by_kind: dict[int, _Speeds] = defaultdict(_Speeds)
@@ -250,6 +252,8 @@ class WhichIsHers:
         self.number: int | None = None
         self.kind: int | None = None
         self.last_seen: tuple[float, float] | None = None
+        self.last_seen_at = -math.inf
+        self.last_velocity = (0.0, 0.0)
         self.last_size = 0.0
         self.lowest: list[float] = [math.inf, math.inf]
         self.highest: list[float] = [-math.inf, -math.inf]
@@ -437,11 +441,24 @@ class WhichIsHers:
         # key taken wrongly for hers is not every key. LIVE 2026-10-05 "left"
         # was believed to move her paddle; holding it moved nothing, and she
         # disowned her own paddle and played the computer's.
-        judged = [statistics.median(v) for v in self._answered.values() if len(v) >= 3]
-        if sum(map(len, self._answered.values())) >= ANSWERING_OVER and judged and all(m < 0.2 for m in judged):
+        moving_keys = {k for k in self._hers.free
+                       if (v := self._expecting.get(k) or self._hers.typical(k)) is not None
+                       and math.hypot(*v) > REALLY_MOVES}
+        judged = [statistics.median(self._answered[k]) for k in moving_keys
+                  if len(self._answered.get(k, [])) >= 3]
+        if (sum(map(len, self._answered.values())) >= ANSWERING_OVER and moving_keys
+                and len(judged) == len(moving_keys) and all(m < 0.2 for m in judged)):
+            logger.info("control identity %s contradicted by keys %s", thing.number, sorted(moving_keys))
+            self.identification.reset("observed control contradiction")
             self.not_mine.add(thing.number)
-            self.number, self.lost_at = None, at
+            self.number, self.kind, self.lost_at = None, None, at
+            # Contradiction invalidates the experiment's attribution. An old
+            # rival's correlation cannot inherit her controls or identify it.
+            self._by_thing.clear()
+            self._by_kind.clear()
+            self._hers = _Speeds()
             self._answered = {}
+            self._answered_by, self._expecting = None, {}
             self.lowest, self.highest = [math.inf, math.inf], [-math.inf, -math.inf]
 
     def _pinned_toward(self, thing: Any, way: tuple[float, float]) -> bool:
@@ -471,6 +488,7 @@ class WhichIsHers:
         can establish a response even when an earlier reset or occlusion
         made that same object's response appear absent.
         """
+        self.identification.reset("new independent control experiment")
         self.number, self.kind, self._sighted = None, None, None
         for kept in (self._by_thing, self._by_kind, self._followed, self.not_mine):
             kept.clear()
@@ -489,6 +507,7 @@ class WhichIsHers:
         beginning again, her paddle's number belonged to the ball in the new
         game, and she steered the ball for a game.
         """
+        self.identification.reset("observation identities renumbered")
         self.number, self._sighted = None, None
         for kept in (self._by_thing, self._followed, self.not_mine):
             kept.clear()
@@ -497,6 +516,19 @@ class WhichIsHers:
     def saw(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
         if any(h.get("what") == "new screen" for h in happened):
             self._new_screen_at = at
+        if self.number is not None and self.number not in moves.things and not self.follows_pointer:
+            # A missing track cannot hand its old trial scores to a rival.
+            # Nearby visual continuity may retain the measured controls;
+            # otherwise a new independent experiment must establish them.
+            nearby = self._one_of_her_kind(moves, at)
+            self.identification.reset("established track absent")
+            self._by_thing.clear()
+            self._by_kind.clear()
+            if nearby is None:
+                self.recheck_controls()
+                self.lost_at = at
+            else:
+                self.number = nearby
         # A renderer may answer immediately. Delaying the control label can
         # assign the first movement after a change to the previous key.
         # Use the delivered control and exclude its unsettled motion window.
@@ -519,27 +551,27 @@ class WhichIsHers:
                     self._answering(thing, key, at - began, at)
         self._what_follows_the_pointer(moves, at)
         if not self.follows_pointer:
-            self._decide(moves)
+            self._decide(moves, at)
         elif self.number not in moves.things:
             self.number = self._under_the_pointer(moves, at)
         self._what_keys_make(moves, happened, at)
 
-    def _decide(self, moves: Any) -> None:
-        best, best_f = None, ANSWERS
+    def _decide(self, moves: Any, at: float | None = None) -> None:
+        witnesses = []
         for number, speeds in self._by_thing.items():
             if number not in moves.things or not moves.things[number].moved or number in self.not_mine:
                 continue
             f, widest = speeds.ratio()
-            if f > best_f and widest > REALLY_MOVES:
-                best, best_f = number, f
+            trials: dict[str, int] = defaultdict(int)
+            for (key, _press), values in speeds.by_press.items():
+                if len(values) >= 2:
+                    trials[key] += 1
+            witnesses.append(CausalWitness(number, self.identification.epoch, tuple(sorted(trials.items())), f, widest))
         # Keep an established control identity until its own response disproves
         # it. A competing object's old trial score cannot revoke a response
         # she is still measuring on her own object.
-        current = self._by_thing.get(self.number) if self.number in moves.things else None
-        if best is not None and current is not None and best != self.number:
-            held_f = current.ratio()[0]
-            if held_f > ANSWERS and self.number not in self.not_mine:
-                best = self.number
+        best = self.identification.choose(witnesses, visible=set(moves.things),
+                                          established=self.number, excluded=self.not_mine)
         if best is not None:
             if best != self.number:
                 for key, values in self._by_thing[best].by_key.items():
@@ -549,10 +581,13 @@ class WhichIsHers:
             self.number = best
             self.kind = moves.things[best].kind
         elif self.number not in moves.things and self.kind is not None:
-            self.number = self._one_of_her_kind(moves)
+            self.number = self._one_of_her_kind(moves, at)
         mine = moves.things.get(self.number) if self.number is not None else None
         if mine is not None:
             self.last_seen = (mine.x, mine.y)
+            if at is not None:
+                self.last_seen_at = mine.seen
+            self.last_velocity = (mine.vx, mine.vy)
             self.last_size = mine.size
             self.last_shape = (mine.w, mine.h)
             self.kind = mine.kind
@@ -560,18 +595,19 @@ class WhichIsHers:
                 self.lowest[axis] = min(self.lowest[axis], value)
                 self.highest[axis] = max(self.highest[axis], value)
 
-    def _one_of_her_kind(self, moves: Any) -> int | None:
+    def _one_of_her_kind(self, moves: Any, at: float | None = None) -> int | None:
         """After she was lost, the thing of her kind nearest where she was.
 
         Or, where nothing of her kind is left, a thing her size close to where
         she was last seen: a kind can be looked at again and changed under her.
         """
-        candidates = [t for t in moves.things.values() if t.kind == self.kind and t.number not in self.not_mine and self._her_shape(t)]
+        candidates = [t for t in moves.things.values() if t.kind == self.kind and t.number not in self.not_mine
+                      and self._her_shape(t) and self.last_seen is not None
+                      and self._within_reach(t, at)]
         if not candidates and self.last_seen is not None and self.last_size:
-            x, y = self.last_seen
             candidates = [
                 t for t in moves.things.values()
-                if math.hypot(t.x - x, t.y - y) < 30.0 and 0.5 < t.size / self.last_size < 2.0
+                if self._within_reach(t, at) and 0.5 < t.size / self.last_size < 2.0
                 and t.number not in self.not_mine and self._her_shape(t)
             ]
         if not candidates:
@@ -580,6 +616,13 @@ class WhichIsHers:
             return candidates[-1].number
         x, y = self.last_seen
         return min(candidates, key=lambda t: math.hypot(t.x - x, t.y - y)).number
+
+    def _within_reach(self, thing: Any, at: float | None) -> bool:
+        if self.last_seen is None or self.last_shape is None:
+            return False
+        gap = max(0.0, at - self.last_seen_at) if at is not None else math.inf
+        return within_observed_reach(self.last_seen, (thing.x, thing.y), extent=self.last_shape,
+                                     velocity=self.last_velocity, gap=gap)
 
     def _her_shape(self, thing: Any) -> bool:
         """Whether a thing has her shape: a kind is a colour and a size, and a digit can have a paddle's."""
