@@ -26,6 +26,7 @@ from typing import Any
 
 from core.rebuilding.checks_a_person_makes import Check, run_checks
 from core.rebuilding.her_model import HerModelIsAwayError, patiently
+from core.rebuilding.parts_a_maker_knows import what_she_knows_how_to_make
 from core.rebuilding.the_program_as_built import ProgramAsBuilt
 from core.rebuilding.what_a_program_does import (
     FEATURES_AT_ONCE,
@@ -35,7 +36,7 @@ from core.rebuilding.what_a_program_does import (
     genome_of,
     what_is_written_about,
 )
-from core.rebuilding.what_the_frame_gives import what_the_frame_gives
+from core.rebuilding.what_the_frame_gives import Given, what_the_frame_gives
 from core.rebuilding.writing_it_part_by_part import Built, Teller, _say, so_far_in, write_it
 
 logger = logging.getLogger("Rebuilding")
@@ -128,6 +129,12 @@ async def rebuild(
     sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
     named = [f"{s.title} ({s.where})" for s in sources]
     taken_up = await asyncio.to_thread(an_unfinished_build_of, program, asked, Path(where))
+    if taken_up is not None and await asyncio.to_thread(_on_a_page_of_its_own, taken_up):
+        # Built on a page her model wrote, where she now knows how to make the page: its parts were made for
+        # that page, and given parts do not fit it (LIVE 2026-10-06, four minutes rewriting Save as for it).
+        await _say(tell, f"An earlier build of {program or 'it'} I had not finished was made on a page of its own; "
+                         f"starting afresh on the page I know how to make, and leaving that one as it was, in {taken_up}.")
+        taken_up = None
     try:
         if taken_up is not None:
             await _say(tell, f"Taking up the build of {program or 'it'} I had not finished, from what I kept in {taken_up}.")
@@ -156,11 +163,23 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         await asyncio.to_thread(keep_the_record, folder, built)
         _the_build_is(folder, program, asked, finished=True)
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
-    # What the frame already does is given by code, its parts and checks with it (core/rebuilding/what_the_frame_gives.py).
-    genome.features, given = what_the_frame_gives(genome.features, sources, asked)
+    # Parts she already knows how to make, and what the frame already does, are given by code with their checks
+    # (core/rebuilding/parts_a_maker_knows.py, core/rebuilding/what_the_frame_gives.py); her model writes the rest.
+    knows = what_she_knows_how_to_make(genome)
+    genome.features = [*genome.features, *knows.added]
+    genome.features, given = what_the_frame_gives(genome.features, sources, asked, already=set(knows.given),
+                                                  saving_as=any(part.name == "save as" for part, _checks in knows.given.values()),
+                                                  usual="docx" if knows.page is not None else "")
+    for feature in genome.features:
+        if feature.name in knows.given:
+            part, checks = knows.given[feature.name]
+            given[feature.name] = Given(feature, part, checks)
+    if knows.said():
+        await _say(tell, knows.said())
     if (folder / "checks.json").exists():
+        # A feature given a part is checked by that part's checks, in place of any written for it before.
         checks = [Check.model_validate(c) for c in json.loads((folder / "checks.json").read_text("utf-8"))]
-        checks += [c for gift in given.values() for c in gift.checks if not any(k.feature == c.feature for k in checks)]
+        checks = [c for c in checks if c.feature not in given] + [c for gift in given.values() for c in gift.checks]
     else:
         written: list[Check] = [check for gift in given.values() for check in gift.checks]
         asked_of_her = [f for f in genome.features if f.name not in given]
@@ -171,7 +190,8 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")
     left = max(60.0, deadline_s - (time.monotonic() - began))
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left,
-                           given={name: gift.part for name, gift in given.items()}, so_far=await asyncio.to_thread(so_far_in, folder, genome))
+                           given={name: gift.part for name, gift in given.items()}, so_far=await asyncio.to_thread(so_far_in, folder, genome),
+                           page=knows.page)
     await asyncio.to_thread(keep_the_record, folder, built)
     _the_build_is(folder, program, asked, finished=True)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
@@ -191,6 +211,19 @@ def _a_new_folder(where: Path, name: str) -> Path:
 def _the_build_is(folder: Path, program: str, asked: str, *, finished: bool) -> None:
     """What the build in ``folder`` is of, and whether it was finished: how a build cut short is found again."""
     (folder / "build.json").write_text(json.dumps({"program": program, "asked": asked, "finished": finished}, indent=1), "utf-8")
+
+
+def _on_a_page_of_its_own(folder: Path) -> bool:
+    """Whether an unfinished build's work area is one her model wrote, for a program whose work is a page she knows how to make."""
+    from core.rebuilding.parts_a_maker_knows import the_page_for
+
+    try:
+        genome = Genome.model_validate_json((folder / "what_it_does.json").read_text("utf-8"))
+        parts = json.loads((folder / "program.json").read_text("utf-8")).get("parts", []) if (folder / "program.json").exists() else []
+    except (OSError, ValueError):
+        return False
+    area = next((part for part in parts if part.get("name") == "work area"), None)
+    return area is not None and "document page" not in (area.get("serves") or []) and the_page_for(genome) is not None
 
 
 def an_unfinished_build_of(program: str, asked: str, where: Path) -> Path | None:

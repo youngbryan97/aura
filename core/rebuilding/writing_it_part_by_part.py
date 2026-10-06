@@ -247,7 +247,10 @@ class _Trying:
 
 async def _reused(program: ProgramAsBuilt, feature: Feature, own: list[Check], found: Any, tried: _Trying) -> tuple[ProgramAsBuilt, list[CheckRun]] | None:
     """This program with an earlier build's part for a feature like this one, when every check of this one holds with it and nothing breaks."""
-    candidate = program.with_part(Part(feature.name, found.code, [feature.name]))
+    # A part given by code keeps its own name, so two features one part serves share it rather than add it twice.
+    name = found.name if isinstance(found, Part) else feature.name
+    already = next((p.serves for p in program.parts if p.name == name), [])
+    candidate = program.with_part(Part(name, found.code, [*already, feature.name]))
     candidate.style = program.style
     mine, broke, _errors = await tried(candidate, own)
     held = [r for r in mine if r.held]
@@ -395,6 +398,7 @@ async def write_it(
     deadline_s: float = 3 * 3600.0,
     given: dict[str, Part] | None = None,
     so_far: SoFar | None = None,
+    page: Part | None = None,
 ) -> Built:
     """The program, written part by part: the work area, then each feature that can be made to hold; from ``so_far`` when a build is taken up again."""
     began = time.monotonic()
@@ -403,6 +407,16 @@ async def write_it(
     outcomes: list[FeatureOutcome] = list(so_far.outcomes) if so_far is not None else []
     out = Path(out)
     tried = _Trying(out.with_name(out.stem + ".trying.html"), holding, browser)
+    if not any(p.name == "work area" for p in program.parts) and page is not None:
+        # A document page she knows how to make, kept when it loads without an error and takes what is typed.
+        candidate = program.with_part(page)
+        typed = Check.model_validate({"feature": "work area", "rule": "the page takes what is typed",
+                                      "steps": [{"do": "type", "value": "The page takes typing"}], "expect": [{"see": "text", "target": "The page takes typing"}]})
+        mine, _broke, errors = await tried(candidate, [typed])
+        if not errors and all(r.held for r in mine):
+            program = candidate
+            await _say(tell, f"The work area of {genome.name} is a document page I know how to make: {genome.work}")
+            await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes, holding)
     if not any(p.name == "work area" for p in program.parts):
         await _say(tell, f"Writing the work area of {genome.name}: {genome.work}")
         program = await _the_work_area(genome, checks, ask, out, program, tried)
@@ -422,7 +436,7 @@ async def write_it(
         if reused is not None:
             program, kept = reused
             outcome, held = FeatureOutcome(feature, held=len(kept), of=len(own), kept=True), [r.check for r in kept]
-            logger.info("rebuilding: %s works, from the frame (%d of %d checks hold)", feature.name, len(kept), len(own))
+            logger.info("rebuilding: %s works, given by code (%d of %d checks hold)", feature.name, len(kept), len(own))
         else:
             program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried)
         outcomes.append(outcome)

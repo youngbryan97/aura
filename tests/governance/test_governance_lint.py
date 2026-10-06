@@ -28,6 +28,14 @@ def test_lifted_subprocess_reaper_keeps_exact_primitive_ownership():
     assert not _canonical_owner("raw_network", "core/runtime/subprocess_gateway_reaping.py")
 
 
+def test_the_fixed_drawing_observer_owns_only_its_browser_primitives():
+    path = "core/perception/the_drawing_as_objects.py"
+    assert _canonical_owner("raw_browser", path)
+    assert not _canonical_owner("raw_browser", "core/perception/frames_as_they_are_drawn.py")
+    assert not _canonical_owner("raw_desktop", path)
+    assert not _canonical_owner("raw_network", path)
+
+
 def _run_lint() -> int:
     env = os.environ.copy()
     cmd = [sys.executable, str(REPO / "tools" / "lint_governance.py")]

@@ -36,12 +36,22 @@ _KEY = {"up": "ArrowUp", "down": "ArrowDown", "left": "ArrowLeft", "right": "Arr
 class _Page:
     """Eyes and hands on one canvas in a page."""
 
-    def __init__(self, page, box):
+    def __init__(self, page, box, *, observations="pixels"):
         self.page, self.box = page, box
         self.clip = {"x": box[0], "y": box[1], "width": box[2], "height": box[3]}
+        self.frames = None
+        if observations == "drawing":
+            from core.perception.frames_as_they_are_drawn import CanvasFrames
+
+            self.frames = CanvasFrames(page)
 
     async def look(self):
         from core.perception.picture_arithmetic import decode
+
+        if self.frames is not None:
+            observed = await self.frames.look(self.clip)
+            if observed is not None:
+                return observed
 
         try:
             data = await self.page.screenshot(clip=self.clip, type="jpeg", quality=80)
@@ -84,7 +94,7 @@ async def _random_player(eyes, seconds):
     return {"ended": "out of time"}
 
 
-async def _one(browser, world, seed, seconds, player):
+async def _one(browser, world, seed, seconds, player, observations="pixels"):
     from core.agency.playing_as_it_happens import play_as_it_happens
     from core.perception.what_the_pixels_show import recognize_text
 
@@ -95,7 +105,7 @@ async def _one(browser, world, seed, seconds, player):
         "(() => { const r = document.querySelector('canvas').getBoundingClientRect();"
         " return [r.left, r.top, r.width, r.height]; })()"
     )
-    eyes = _Page(page, box)
+    eyes = _Page(page, box, observations=observations)
     # What a player reads on the title screen before playing: the game's rules.
     from core.agency.playing_as_it_happens import controls_named_in
 
@@ -115,14 +125,20 @@ async def _one(browser, world, seed, seconds, player):
         stretches.append(stretch)
         state = await page.evaluate("__world.state")
         if state != "play":
+            from core.skills.screen_pursuit_as_it_happens import begin_run
+
+            begin_run(keep)
             await page.evaluate("__world.begin()")
     tally = await page.evaluate(
         "(() => { const w = __world; return {state: w.state, score: w.score, lives: w.lives,"
         " losses: w.losses || 0, games: w.games, ended: w.ended, mine: w.mine, theirs: w.theirs,"
         " returns: w.returns, caught: w.caught}; })()"
     )
+    if eyes.frames is not None:
+        await eyes.frames.close()
     await page.close()
-    return {"world": world, "seed": seed, "player": player, "tally": tally, "stretches": stretches}
+    return {"world": world, "seed": seed, "player": player, "observations": observations,
+            "tally": tally, "stretches": stretches}
 
 
 async def main(argv):
@@ -135,15 +151,18 @@ async def main(argv):
     parser.add_argument("--seconds", type=float, default=60.0)
     parser.add_argument("--players", nargs="*", default=["her", "random"])
     parser.add_argument("--out", default="")
+    parser.add_argument("--observations", choices=["pixels", "drawing"], default="pixels")
     args = parser.parse_args(argv)
     worlds = args.worlds or (HELD_OUT if args.held_out else WORKED_ON)
     results = []
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
+        from core.capabilities.phantom_browser import _chromium_graphics_arguments
+
+        browser = await playwright.chromium.launch(headless=True, args=_chromium_graphics_arguments())
         for world in worlds:
             for seed in args.seeds:
                 for player in args.players:
-                    result = await _one(browser, world, seed, args.seconds, player)
+                    result = await _one(browser, world, seed, args.seconds, player, args.observations)
                     results.append(result)
                     last = result["stretches"][-1] if result["stretches"] else {}
                     print(json.dumps({
@@ -151,6 +170,7 @@ async def main(argv):
                         "stretches": len(result["stretches"]),
                         "learned": last.get("learned"), "hers": last.get("hers"),
                         "fires": last.get("fires"), "fps": last.get("pictures_a_second"),
+                        "observations": last.get("observations"),
                         "said": [line for s in result["stretches"] for line in s.get("said", [])][:8],
                     }), flush=True)
         await browser.close()

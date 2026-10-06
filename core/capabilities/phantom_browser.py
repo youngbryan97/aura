@@ -99,6 +99,15 @@ _KEEPS_RUNNING = [
 ]
 
 
+def _chromium_graphics_arguments() -> list[str]:
+    """Use the host renderer on macOS instead of Chromium's software default.
+
+    Other hosts retain Chromium's backend selection. A failed launch retries
+    that selection; graphics readiness is reported from CDP.
+    """
+    return ["--enable-gpu", "--use-angle=metal"] if sys.platform == "darwin" else []
+
+
 def _hides_automation() -> bool:
     return str(_BROWSER_STEALTH.value()).strip().lower() not in {"0", "false", "no", "off"}
 
@@ -263,6 +272,7 @@ class PhantomBrowser(_ActsOnThePage):
         self._last_launch_attempts: list[str] = []
         self._last_executable_attempts: list[str] = []
         self._launched_executable = ""
+        self._graphics: dict[str, Any] | None = None
         self._stealth_applied = False
         self._stealth_error = _STEALTH_IMPORT_ERROR
         self._driver_pid: int | None = None
@@ -399,6 +409,7 @@ class PhantomBrowser(_ActsOnThePage):
             # healthy one (CP126 ``97a07e2a``).
             "engine_launched": self._launched_engine or "none",
             "executable_launched": self._launched_executable or "none",
+            "graphics": self._graphics,
             "browser_connected": bool(getattr(self.browser, "is_connected", lambda: False)())
             if self.browser is not None
             else False,
@@ -550,6 +561,9 @@ class PhantomBrowser(_ActsOnThePage):
 
             try:
                 self.context = await self.browser.new_context(**self._page_size(), user_agent=user_agent)
+                from core.perception.the_drawing_as_objects import BOOTSTRAP
+
+                await self.context.add_init_script(BOOTSTRAP)
                 keep_downloads(self.context)  # core/capabilities/where_downloads_go.py
                 await self._apply_stealth(self.context)
                 self.page = await self.context.new_page()
@@ -657,19 +671,38 @@ class PhantomBrowser(_ActsOnThePage):
             )
 
         failures: list[str] = []
-        for source, executable in candidates:
+        graphics = _chromium_graphics_arguments()
+        launches = [(source, executable, graphics) for source, executable in candidates]
+        if graphics:
+            launches += [(source, executable, []) for source, executable in candidates]
+        for source, executable, renderer_args in launches:
             label = executable or source
             self._last_executable_attempts.append(label)
             kwargs: dict[str, Any] = {
                 "headless": not self.visible,
                 "args": (["--disable-blink-features=AutomationControlled"] if _hides_automation() else []) + _KEEPS_RUNNING
-                + (["--window-size=1280,880"] if self.visible else []),
+                + renderer_args + (["--window-size=1280,880"] if self.visible else []),
                 "timeout": self.LAUNCH_TIMEOUT_S * 1000.0,
             }
             if executable:
                 kwargs["executable_path"] = executable
             try:
                 browser = await self.playwright.chromium.launch(**kwargs)
+                self._graphics = None
+                cdp = None
+                try:
+                    cdp = await browser.new_browser_cdp_session()
+                    gpu = (await asyncio.wait_for(cdp.send("SystemInfo.getInfo"), timeout=3.0))["gpu"]
+                    self._graphics = {"renderer": gpu.get("auxAttributes", {}).get("glRenderer"),
+                                      "features": gpu.get("featureStatus", {})}
+                except (PlaywrightError, RuntimeError, AttributeError, TypeError, KeyError, ValueError, TimeoutError) as why:
+                    logger.debug("browser graphics could not be measured: %s", why)
+                finally:
+                    if cdp is not None:
+                        try:
+                            await asyncio.wait_for(cdp.detach(), timeout=1.0)
+                        except (PlaywrightError, RuntimeError, AttributeError, TimeoutError) as why:
+                            logger.debug("graphics measurement session ended without confirmation: %s", why)
                 self._executable = executable or str(getattr(getattr(self.playwright, "chromium", None), "executable_path", "") or "")
                 return browser, label
             except (
@@ -1933,4 +1966,3 @@ def _the_words_to_carry(
     whole = (whole + text[prev:]).strip()
     start = max(0, min(start, len(whole) - room))
     return {"text": whole[start:start + room], "text_chars": len(whole), "text_from": start}
-

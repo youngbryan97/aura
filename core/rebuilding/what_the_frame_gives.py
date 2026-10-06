@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -66,8 +66,9 @@ def _for_kind(feature: Feature, kind: str) -> bool:
     return any(re.search(way, words) for way in _NAMED_BY[kind]) and bool(re.search(r"\b(sav|export|download|convert)", words))
 
 
-def _part(label: str, kind: str) -> Part:
-    code = f"app.command({{label: {json.dumps(label)}, menu: \"File\", run: () => app.formats.save({json.dumps(kind)})}});"
+def _part(label: str, kind: str, keys: str = "") -> Part:
+    code = (f"app.command({{label: {json.dumps(label)}, menu: \"File\", keys: {json.dumps(keys)}, "
+            f"run: () => app.formats.save({json.dumps(kind)})}});")
     return Part(label, code, [label])
 
 
@@ -104,24 +105,34 @@ def _opening(label: str, kind: str) -> tuple[Part, Check]:
     return Part(label, code, [label]), check
 
 
-def what_the_frame_gives(features: list[Feature], sources: Sequence[Any], asked: str) -> tuple[list[Feature], dict[str, Given]]:
+def what_the_frame_gives(features: list[Feature], sources: Sequence[Any], asked: str, *, already: Collection[str] = (),
+                         saving_as: bool = False, usual: str = "") -> tuple[list[Feature], dict[str, Given]]:
     """The features with one for saving each format named, and what the frame gives each such feature, by its name.
 
     Opening a document, and saving it as the program keeps it (its own kind,
     the first named), are the frame's too, under the names her model gave them.
+    Features ``already`` given a part are left as they are; where a Save as
+    dialog of the program saves every kind (``saving_as``), no feature is added
+    for saving each kind on its own. Where nothing names a kind, a program
+    whose work is a document keeps it as the ``usual`` kind, the one other
+    programs open: a word processor that cannot save is not one.
     """
-    kinds = formats_named([asked, *(getattr(s, "text", "") for s in sources)])
+    kinds = formats_named([asked, *(getattr(s, "text", "") for s in sources)]) or ([usual] if usual else [])
     given: dict[str, Given] = {}
     features = list(features)
     own = kinds[0] if kinds else ""
     for feature in features:
+        if feature.name in already:
+            continue
         if own and _opens(feature):
             part, check = _opening(feature.name, "docx" if "docx" in kinds else own)
             given[feature.name] = Given(feature, part, [check])
         elif own and _saves_its_own(feature):
-            given[feature.name] = Given(feature, _part(feature.name, own), [_check(feature.name, own)])
+            given[feature.name] = Given(feature, _part(feature.name, own, "Mod+S"), [_check(feature.name, own)])
     for kind in kinds:
-        mine = next((f for f in features if _for_kind(f, kind) and f.name not in given), None)
+        mine = next((f for f in features if _for_kind(f, kind) and f.name not in given and f.name not in already), None)
+        if mine is None and saving_as:
+            continue
         if mine is None:
             mine = Feature(name=f"Save as {_SHOWN[kind]}", how=f"File menu, Save as {_SHOWN[kind]}",
                            shows=f"a .{kind} file of the document is saved", place="File", weight=2)

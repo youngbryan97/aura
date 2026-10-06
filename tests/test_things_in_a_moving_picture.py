@@ -91,3 +91,13 @@ def test_a_kind_kept_from_another_way_of_looking_does_not_stop_play():
     for index in range(20):
         moves.see(_picture([(10 + 3 * index, 50, 6, 6, (250, 250, 250))]), index * 0.03)
     assert moves.kinds[0].look.shape == (64,)
+
+
+def test_an_equal_area_object_with_another_shape_does_not_inherit_a_controls_identity():
+    moves, _ = _watch([_picture([(10, 20 + n, 4, 24, (230, 230, 230))]) for n in range(35)])
+    [control] = [t for t in moves.things.values() if t.moved]
+    # Replace it in place with the same colour and area, turned sideways.
+    replacement = _picture([(0, 58, 24, 4, (230, 230, 230))])
+    for n in range(20):
+        moves.see(replacement, (35 + n) * 0.03)
+    assert control.number not in moves.things

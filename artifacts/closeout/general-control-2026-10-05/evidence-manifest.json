@@ -1,0 +1,129 @@
+{
+  "evidence_root": "/Users/bryan/.aura/control-proof-2026-10-05",
+  "files": {
+    "routing-replay-request.json": {
+      "sha256": "205696873bfcfbfb251f2e080bf0dc2ab28a56d1e9b16809ac614fec00265cd4",
+      "bytes": 1183
+    },
+    "routing-replay-skill-audit.json": {
+      "sha256": "258fbbe7aa3eee20fdd8b9dd8a97b02ba10d9e498cb702f0fc6205ac348c6987",
+      "bytes": 6546
+    },
+    "routing-replay-delivery.json": {
+      "sha256": "54d212f66706da93f284e66361bf206916d16687eda33c122e4a97624c311d5e",
+      "bytes": 9254
+    },
+    "routing-independent-repair-grade.json": {
+      "sha256": "7de4ef7d5216e9257870e5e87ce7c40771fcf133b9084c2b2da3d0c412b37d80",
+      "bytes": 478
+    },
+    "recording-ready-broken-grade.json": {
+      "sha256": "304c2b660e79a2ade3396291748e10439772ce263d388c18b67e0b6183e00c61",
+      "bytes": 444
+    },
+    "recording-readiness.json": {
+      "sha256": "449edd2f9f1b81b9a5ff39bfa476b7b0866b822f5db218629ed603378f3989c7",
+      "bytes": 1366
+    },
+    "recording-learning-reset.json": {
+      "sha256": "3168b47a51e25ec7ba4de8c32fe6f14dec4430be45cbbc0a25b46d5940418820",
+      "bytes": 1022
+    },
+    "routing-controlled-restart-receipt.json": {
+      "sha256": "6e405479d47873c9476de1a479fd3dda2a726458dbe67d222eefa7693ea25a04",
+      "bytes": 1750
+    },
+    "reporting-live-hot-reload.json": {
+      "sha256": "31efe7d57200efc07bec6f239d6fae88888b515f12af4a0ec1bb6da7f9eefce9",
+      "bytes": 235
+    },
+    "structured-focused-tests.stdout": {
+      "sha256": "7a38afb0a35864df2f43c94d7fbca2c7a539d133bbf5e7d8610b1374ad3d6069",
+      "bytes": 181
+    },
+    "structured-owner-tests.stdout": {
+      "sha256": "bb38d4f4051a1b05ea03544a94cdaf0c9f14d2f03f789e4d17902410d062e449",
+      "bytes": 114
+    },
+    "structured-gates.stdout": {
+      "sha256": "14f8e6e9398d1d614a3518e7d9025233f4d6ce85b379cb97dfa3b458bac93d70",
+      "bytes": 1931
+    },
+    "routing-registration-tests.stdout": {
+      "sha256": "2c30925e0cfc21fcead4b06ecc14e7ab1afb3fe0b3d42f021bd436b1c5cfd37e",
+      "bytes": 115
+    },
+    "routing-smoke.stdout": {
+      "sha256": "182b42960280d6fa9f5013287eedd200b61fd5feab2470b5964514a2359908ef",
+      "bytes": 334
+    },
+    "routing-final-gates.stdout": {
+      "sha256": "6ef93b11cac343e48535c7f99f2e2f41555cdb360e4afc43d15386242f2909f9",
+      "bytes": 502
+    },
+    "reporting-tests.stdout": {
+      "sha256": "1a69e6508a643d69a681a555291ea086cefc5f71e528e27718030bb01b86da3a",
+      "bytes": 99
+    },
+    "reporting-smoke.stdout": {
+      "sha256": "d617e8599b6c88db1660f3af6b42ef2eb19090e3ba21d2b078f146ee5176205c",
+      "bytes": 334
+    },
+    "reporting-gates.stdout": {
+      "sha256": "6ef93b11cac343e48535c7f99f2e2f41555cdb360e4afc43d15386242f2909f9",
+      "bytes": 502
+    },
+    "structured-transfer.json": {
+      "sha256": "6e2e245d51caace9d62662a3e4a334304ec4884ba809a641ee1f313c719dc971",
+      "bytes": 10182
+    },
+    "pixel-transfer.json": {
+      "sha256": "436da63c80aeac6e08d2a7b79097b45dd077db652bf970884cb951a15e0b147f",
+      "bytes": 10506
+    },
+    "routing-replay-play-start.png": {
+      "sha256": "ca3cf6fe3575513c97bed8d85bcb5afa077048c68267a66cf284ea7db3135b8d",
+      "bytes": 131547
+    },
+    "routing-replay-attempt-1-leading.png": {
+      "sha256": "32fc2da4b0f78d0164710f26461df4caee519844342ade2b549e78f2499860c1",
+      "bytes": 118626
+    },
+    "routing-replay-attempt-2-progress.png": {
+      "sha256": "1b2a0ae0c530e2c9a924de15d00efaf890606e1c9fb420fe410d5fe985e03a70",
+      "bytes": 118310
+    },
+    "routing-replay-attempt-3-progress.png": {
+      "sha256": "b1345e7ec6f6cbc17674d8e830c1e78918364897da1e6e1dcd9fc2de100f8a04",
+      "bytes": 118106
+    },
+    "routing-replay-completed-chat.png": {
+      "sha256": "a834601af5d89cb61d9cbab8a58da4aab9e925a177ef527690263602f88ed791",
+      "bytes": 75999
+    },
+    "routing-live-gpu-process.txt": {
+      "sha256": "bedf8d9c4b2d53668e14def4f381478eedf5ed49282bfbd282d0a48d72f35b47",
+      "bytes": 1336
+    },
+    "routing-live-gpu-sample.txt": {
+      "sha256": "3f7dc6a06dfa29985856dc830cf560a3bca93c7177867fd8cae8dad6c5772591",
+      "bytes": 348237
+    },
+    "reusable-broken-pong.html": {
+      "sha256": "fecbf4563569972db4a4949c75ba04849a7c4c7ea86f19ea90be465c5c509a5d",
+      "bytes": 4962
+    },
+    "routing-repaired-result/pong.html": {
+      "sha256": "af4c7949d8154013a342279ceab505067d5c03bd9af630570ca49fcc2caf89ea",
+      "bytes": 5033
+    },
+    "routing-repaired-result/pong.html.before-repair": {
+      "sha256": "fecbf4563569972db4a4949c75ba04849a7c4c7ea86f19ea90be465c5c509a5d",
+      "bytes": 4962
+    },
+    "routing-replay-completed-visible.png": {
+      "sha256": "4bfa1906bee8cd4b707d2608f3db7c2a1290819274c1e49a8f9d532c8a6d09ee",
+      "bytes": 62436
+    }
+  }
+}

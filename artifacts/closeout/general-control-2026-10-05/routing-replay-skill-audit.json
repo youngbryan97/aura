@@ -1,0 +1,157 @@
+{
+  "id": 14008,
+  "timestamp": "2026-10-06 03:49:48.559892",
+  "status": "READY",
+  "duration_ms": 833224.4395840098,
+  "result": {
+    "ok": true,
+    "skill": "repair_a_program",
+    "path": "/Users/bryan/aura-demos/pong/pong.html",
+    "before": {
+      "controls": "the up key moves what I control the other way",
+      "went through": "of 3 things I got in front of, 3 went straight through me",
+      "credited": "when something got past me, the score on my side went up",
+      "idle": "the other one shaped like mine never moved"
+    },
+    "after": {},
+    "checked": [
+      "controls",
+      "credited",
+      "escaped",
+      "idle",
+      "went through"
+    ],
+    "unseen": [],
+    "changes": [
+      {
+        "where": "movePlayer",
+        "line": 63,
+        "pattern": "direction against its name",
+        "change": "'+=' -> '-=', '-=' -> '+='",
+        "why": "the up key moves `player.y` the other way",
+        "shown": [
+          "each key move what I control the way it says"
+        ]
+      },
+      {
+        "where": "moveComputer",
+        "line": 72,
+        "pattern": "always zero",
+        "change": "'Math.max(-step, Math.min(step, target - computer.y)) * 0' -> 'Math.max(-step, Math.min(step, target - computer.y))'",
+        "why": "`Math.max(-step, Math.min(step, target - computer.y)) * 0` is always zero",
+        "shown": []
+      },
+      {
+        "where": "moveBall",
+        "line": 102,
+        "pattern": "same in both branches",
+        "change": "'playerScore' -> 'computerScore'",
+        "why": "two branches that mirror each other do the same thing here: `playerScore += 1;`",
+        "shown": []
+      },
+      {
+        "where": "hitsPaddle",
+        "line": 79,
+        "pattern": "crossed dimension",
+        "change": "'PADDLE_W' -> 'PADDLE_H'",
+        "why": "`PADDLE_W` is a width, used here along y beside `ball.y < paddle.y + PADDLE_W`",
+        "shown": [
+          "no longer things go straight through what I control"
+        ]
+      },
+      {
+        "where": "moveBall",
+        "line": 93,
+        "pattern": "one-sided boundary",
+        "change": "'' -> 'if (ball.y < 0) {\\n    ball.y = 0;\\n    ball.vy = Math.abs(ball.vy);\\n  }\\n  '",
+        "why": "`ball.y` is turned back at the far edge and nothing turns it back at the near one",
+        "shown": [
+          "things turn back at the top and bottom edges"
+        ]
+      }
+    ],
+    "knowledge": [
+      "The goal is for each player to reach eleven points before the opponent; points are earned when one fails to return the ball to the other.",
+      "Eventually, Atari's competitors released new types of video games that deviated from Pongs original format to varying degrees; this, in turn, led Atari to encourage its staff to move beyond Pong and produce more innovative games themselves.",
+      "Drawing inspiration from Spacewar!, the duo created Computer Space."
+    ],
+    "backup": "/Users/bryan/aura-demos/pong/pong.html.before-repair",
+    "seconds": 380.5,
+    "address": "file:///Users/bryan/aura-demos/pong/pong.html",
+    "played": {
+      "chose": [
+        "what the page draws"
+      ],
+      "url": "file:///Users/bryan/aura-demos/pong/pong.html",
+      "landed": 6,
+      "moved": true,
+      "played": "goal_reached",
+      "completed": true,
+      "last_seen": "You win! You 5 Computer 2 Press SPACE to play again",
+      "runs": [
+        "won",
+        "lost",
+        "won"
+      ],
+      "run_details": [
+        {
+          "ended": "won",
+          "words": "You You 5 win! Computer 3 Press SPACE to play again",
+          "said": "played it as it happened for 180 s; I was the white bar; white: meet; 4\u20133, I'm ahead by 1; 1 more to win, they need 2; the run is over: a way to start again appeared (to play again)",
+          "observations": [
+            {
+              "pictures": 8715,
+              "pictures_a_second": 48.4,
+              "observations": {
+                "canvas-paint-v1": 8715
+              },
+              "standing": "4\u20133, I'm ahead by 1; 1 more to win, they need 2.",
+              "settled": ""
+            }
+          ]
+        },
+        {
+          "ended": "lost",
+          "words": "The computer wins. You 1 Computer 5 Press SPACE to play again",
+          "said": "played it as it happened for 91 s; I was the white bar; white: meet; 1\u20135, I'm behind by 4; 4 more to win; the run is over: a way to start again appeared (to play again)",
+          "observations": [
+            {
+              "pictures": 3837,
+              "pictures_a_second": 42.3,
+              "observations": {
+                "canvas-paint-v1": 3837
+              },
+              "standing": "1\u20135, I'm behind by 4; 4 more to win.",
+              "settled": "lost"
+            }
+          ]
+        },
+        {
+          "ended": "won",
+          "words": "You win! You 5 Computer 2 Press SPACE to play again",
+          "said": "played it as it happened for 161 s; I was the white bar; white: meet; 4\u20132, I'm ahead by 2; 1 more to win, they need 3; the run is over: a way to start again appeared (to play again)",
+          "observations": [
+            {
+              "pictures": 6719,
+              "pictures_a_second": 41.8,
+              "observations": {
+                "canvas-paint-v1": 6719
+              },
+              "standing": "4\u20132, I'm ahead by 2; 1 more to win, they need 3.",
+              "settled": ""
+            }
+          ]
+        }
+      ],
+      "requested_attempts": 3,
+      "won": true,
+      "finished": true,
+      "did": "played what the page draws (6 move(s), ended: goal_reached); played it as it happened for 180 s; I was the white bar; white: meet; 4\u20133, I'm ahead by 1; 1 more to win, they need 2; the run is over: a way to start again appeared (to play again); played it as it happened for 91 s; I was the white bar; white: meet; 1\u20135, I'm behind by 4; 4 more to win; the run is over: a way to start again appeared (to play again); played it as it happened for 161 s; I was the white bar; white: meet; 4\u20132, I'm ahead by 2; 1 more to win, they need 3; the run is over: a way to start again appeared (to play again); the last thing it showed: You win! You 5 Computer 2 Press SPACE to play again",
+      "ok": true
+    },
+    "summary": "I made 5 change(s) and saved the file; the original is beside it as pong.html.before-repair. Run again and played, everything I check came right. Then I played it and won, on game 1.",
+    "duration_ms": 831550.5,
+    "retries": 0
+  },
+  "error": null
+}

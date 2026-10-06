@@ -1,0 +1,25 @@
+{
+ "file": "file:///Users/bryan/aura-demos/pong/pong.html",
+ "fixed": [],
+ "still broken": [
+  "controls",
+  "opponent",
+  "collision",
+  "top wall",
+  "scoring"
+ ],
+ "newly broken": [],
+ "checks": {
+  "controls": false,
+  "opponent": false,
+  "collision": false,
+  "top wall": false,
+  "scoring": false,
+  "starts": true,
+  "serves again": true,
+  "ends at five": true,
+  "paddle stays on court": true,
+  "no errors": true
+ },
+ "errors": []
+}

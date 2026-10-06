@@ -97,3 +97,27 @@ def test_how_a_thing_leaves_her_follows_where_it_met_her():
     out = physics.after_meeting(0, 0.8, (-200.0, 0.0), across=True)
     assert out[0] > 0 and math.isclose(math.atan2(out[1], out[0]), 0.72, abs_tol=0.05)
     assert math.isclose(math.hypot(*out), 210.0, rel_tol=0.01)
+
+
+def test_repeated_crossings_reuse_one_prediction_until_a_new_picture(monkeypatch):
+    physics = HowThingsMoveHere()
+    physics.shape = (150, 240)
+    ball = _ball(x=100.0, y=80.0, vx=-100.0)
+    calls = []
+    imagine = physics.imagine
+
+    def counted(*args, **kwargs):
+        calls.append(1)
+        return imagine(*args, **kwargs)
+
+    monkeypatch.setattr(physics, "imagine", counted)
+    first = physics.when_it_reaches(ball, 0, 20.0)
+    assert first == physics.when_it_reaches(ball, 0, 20.0)
+    assert len(calls) == 1
+    assert physics.when_it_reaches(ball, 0, 200.0) is None
+    assert physics.when_it_reaches(ball, 0, 200.0) is None
+    assert len(calls) == 2
+    ball.x = 90.0
+    physics.saw(_Moves([ball]), _Nobody(), [], 1.0)
+    assert physics.when_it_reaches(ball, 0, 20.0)[0] < first[0]
+    assert len(calls) == 3

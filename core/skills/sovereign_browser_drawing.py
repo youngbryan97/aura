@@ -212,7 +212,7 @@ async def played_on_the_drawing(
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="start the drawing and hold its page still")
     try:
-        return await _played(page, band, goal, url, step)
+        return await _played(page, band, goal, url, {**step, "runtime_contract": observation.get("runtime_contract") or {}})
     finally:
         try:
             await page.evaluate(_LET_IT_GO)
@@ -225,43 +225,69 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     """The runs of one game, until it is won, the time is up, or it cannot be gone on with."""
     import time
 
-    from core.language.how_a_game_ended import asks_to_win
+    from core.language.how_a_game_ended import asks_to_win, requested_attempts
+    from core.skills.screen_pursuit_as_it_happens import begin_run
 
     until_won = asks_to_win(goal)
-    deadline = time.monotonic() + (PLAY_UNTIL_WON_S if until_won else _one_run_s())
-    keep: dict[str, Any] = {}
+    attempts = requested_attempts(goal)
+    limit = min(attempts, MOST_RUNS) if attempts is not None else MOST_RUNS if until_won else 1
+    deadline = time.monotonic() + (PLAY_UNTIL_WON_S if until_won or limit > 1 else _one_run_s())
+    contract = step.get("runtime_contract") or {}
+    keep: dict[str, Any] = {"required_edges": contract.get("required_edges") or [],
+                            "edge_provenance": contract.get("provenance") or ""}
     runs: list[dict[str, Any]] = []
     moves: list[Any] = []
     result: dict[str, Any] = {}
-    while time.monotonic() < deadline and len(runs) < MOST_RUNS:
+    while time.monotonic() < deadline and len(runs) < limit:
         result, reflexes = await _one_run(page, band, goal, url, deadline, keep)
         keep = reflexes.keep
         moves += list(result.get("moves") or [])
         moves += [{"key": "played as it happened"} for stretch in reflexes.stretches if stretch.get("pictures")]
         run = _how_the_run_went(reflexes, result)
+        run["observations"] = [
+            {key: stretch.get(key) for key in ("pictures", "pictures_a_second", "observations", "standing", "settled", "runtime_checks",
+                                               "input_key_downs", "responsive_pictures", "control_probe_retries",
+                                               "control_attribution", "attribution_changes", "identification_evidence")}
+            for stretch in reflexes.stretches if stretch.get("pictures")
+        ]
         runs.append(run)
-        if not until_won or run["ended"] == "won" or not reflexes.over_because:
+        violations = [v for s in reflexes.stretches for v in (s.get("runtime_checks") or {}).get("violations", [])]
+        if violations:
+            result["runtime_violations"] = violations
+            break
+        if (until_won and run["ended"] == "won") or len(runs) >= limit or not reflexes.over_because:
+            # The run that ends it is told as it ends too: a win heard of
+            # only in the reply afterwards was not seen by anyone watching.
+            if run["ended"]:
+                _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
             break
         if _for_points_only(reflexes, goal):
             # Nobody wins a game that only counts points: a finished run is the end of it.
             run["ended"] = "finished"
             _tell(f"This game has no winner, only a score, and the run is done: {run['words'][:80]!r}.")
             break
-        _tell(f"That one ended {run['words'][:80]!r}: I lost it. Again, with what I learned.")
+        _tell(f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned.")
+        begin_run(keep)
     result["as_it_happened"] = "; ".join(r["said"] for r in runs if r["said"])
     last_seen = str(result.get("last_seen") or "")
+    won = any(r["ended"] == "won" for r in runs)
+    counted = (until_won and won) or attempts is None or (len(runs) >= attempts and all(r["ended"] in ("won", "lost", "finished") for r in runs))
+    complete = (won if until_won else bool(result.get("completed")) or bool(runs and runs[-1]["ended"])) and counted and not result.get("runtime_violations")
     return {
         **step,
         "landed": len(moves),
         "moved": bool(moves),
         "played": str(result.get("outcome") or ""),
-        "completed": bool(result.get("completed")),
+        "completed": complete,
         "last_seen": last_seen,
         "runs": [r["ended"] or "unread" for r in runs],
-        "won": any(r["ended"] == "won" for r in runs),
+        "run_details": runs,
+        "requested_attempts": attempts,
+        "won": won,
         "finished": any(r["ended"] in ("won", "finished") for r in runs),
         "did": what_the_play_came_to(len(moves), result),
-        "ok": bool(moves),
+        "ok": bool(moves) and complete,
+        "runtime_violations": result.get("runtime_violations") or [],
     }
 
 
@@ -313,6 +339,13 @@ def _how_the_run_went(reflexes: Any, result: Mapping[str, Any]) -> dict[str, str
     words = reflexes.ending_words or str(result.get("last_seen") or "")
     parts = list(getattr(reflexes, "ending_parts", None) or [])
     ended = how_it_ended_in(parts) if parts else how_it_ended(words)
+    # Where the end screen's words do not say, the counters may: her score at
+    # what wins, theirs at it, nothing left to lose (core/agency/how_the_contest_stands.py).
+    played = [s for s in getattr(reflexes, "stretches", []) if s.get("pictures")]
+    if any((s.get("runtime_checks") or {}).get("violations") for s in played):
+        ended = "interrupted"
+    if not ended and played:
+        ended = str(played[-1].get("settled") or "")
     return {"ended": ended, "words": " ".join(words.split()), "said": reflexes.what_it_came_to()}
 
 

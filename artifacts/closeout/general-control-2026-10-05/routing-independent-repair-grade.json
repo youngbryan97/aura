@@ -1,0 +1,25 @@
+{
+ "file": "file:///Users/bryan/.aura/control-proof-2026-10-05/routing-repaired-result/pong.html",
+ "fixed": [
+  "controls",
+  "opponent",
+  "collision",
+  "top wall",
+  "scoring"
+ ],
+ "still broken": [],
+ "newly broken": [],
+ "checks": {
+  "controls": true,
+  "opponent": true,
+  "collision": true,
+  "top wall": true,
+  "scoring": true,
+  "starts": true,
+  "serves again": true,
+  "ends at five": true,
+  "paddle stays on court": true,
+  "no errors": true
+ },
+ "errors": []
+}

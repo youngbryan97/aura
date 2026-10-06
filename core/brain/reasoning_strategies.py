@@ -392,6 +392,9 @@ class ReasoningStrategies:
         """Return the task_type to amplify, or None to use legacy strategies."""
         if not self._v2_enabled() or kwargs.get("bypass_amplifier") or kwargs.get("bypass_critique"):
             return None
+        checks = kwargs.get("verification_context", {}).get("function_examples") if isinstance(kwargs.get("verification_context"), dict) else None
+        if kwargs.get("purpose") == "coding" and isinstance(checks, list) and checks:
+            return "code"
         q = str(query or "")
         if len(q) < 6 or self._looks_like_instructional_prompt(q.lower()):
             return None
@@ -421,20 +424,26 @@ class ReasoningStrategies:
             )
 
             async def _gen(prompt: str, temperature: float) -> str:
-                return await self._generate_text(prompt, temperature=temperature)
+                routed = {k: v for k, v in kwargs.items() if k not in ("verification_context", "temperature")}
+                return await self._generate_text(prompt, temperature=temperature, **routed)
 
             amplifier = ReasoningAmplifierV2(_gen)
             context = kwargs.get("context", [])
             evidence = [str(c) for c in context] if isinstance(context, list) else []
             risk = "high" if kwargs.get("high_stakes") else "normal"
             time_budget = min(45.0, max(8.0, self._timeout_from_kwargs(kwargs) * 1.5))
+            verification_context = kwargs.get("verification_context")
+            checked_context = {"evidence": evidence[:6]}
+            if isinstance(verification_context, dict) and "function_examples" in verification_context:
+                checked_context["function_examples"] = verification_context["function_examples"]
+                checked_context["skip_cache"] = True
             request = AmplificationRequest(
                 objective=query,
                 task_type=task_type,
                 risk_level=risk,
                 time_budget_s=time_budget,
                 required_evidence=evidence[:6],
-                context={"evidence": evidence[:6]},
+                context=checked_context,
             )
             result = await amplifier.amplify(request)
         except _REASONING_RECOVERABLE_ERRORS as exc:

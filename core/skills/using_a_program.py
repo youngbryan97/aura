@@ -81,11 +81,13 @@ async def use_what_she_built(page: Path, task: str, asked: str, context: dict[st
     # (core/rebuilding/using_it_by_its_controls.py); her browser pursuit is for the rest.
     from core.rebuilding.her_model import ask_her_model, patiently
     from core.rebuilding.using_it_by_its_controls import write_it_in
+    from core.skills.screen_pursuit import _tell
 
-    used = await write_it_in(page, task, folder or downloads_go_to_default(), patiently(ask_her_model))
+    used = await write_it_in(page, task, folder or downloads_go_to_default(), patiently(ask_her_model), visible=True, tell=_tell)
     if used is not None:
+        shown = await _shown(used.files[0]) if used.ok and used.files else False
         return {"ok": used.ok, "files": [str(f) for f in used.files], "report": {"summary": used.summary(), "error": used.why_not},
-                "folder": str(folder or "")}
+                "folder": str(folder or ""), "shown": shown}
     since = len(kept_downloads())
     child = {k: v for k, v in dict(context or {}).items() if k not in _THE_TURN_S_OWN}
     goal = f"{task}. Do it in the program open on this page, with its own controls, as a person using it would."
@@ -100,10 +102,25 @@ async def use_what_she_built(page: Path, task: str, asked: str, context: dict[st
     return {"ok": bool(files) or bool(report.get("ok")), "files": [str(f) for f in files], "report": report, "folder": str(folder or "")}
 
 
+async def _shown(file: str | Path) -> bool:
+    """The file it saved, opened where the person can see it, in whatever their system opens that kind of file with."""
+    import platform
+    import subprocess
+
+    if platform.system() != "Darwin":
+        return False
+    try:
+        done = await asyncio.to_thread(subprocess.run, ["open", str(file)], check=False, timeout=30, capture_output=True)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return done.returncode == 0
+
+
 def how_the_use_went(used: dict[str, Any]) -> str:
     files = list(used.get("files") or [])
     if files:
-        return "Then I used it as asked, and it saved " + ", ".join(files) + "."
+        return ("Then I used it as asked, and it saved " + ", ".join(files)
+                + (", which I opened so you can see it." if used.get("shown") else "."))
     report = used.get("report") or {}
     why = str(used.get("error") or report.get("error") or report.get("summary") or "").strip()
     return "Then I tried to use it as asked, and nothing was saved" + (f": {why[:240]}" if why else ".")

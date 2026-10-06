@@ -15,8 +15,8 @@ the paddle.
 
 What the program should do comes from its own words, and from what she
 already knows about the thing it is a version of. That knowledge is looked up
-in her own reference corpus and shown beside each finding, as evidence. Nothing
-here asks a model what the fix is.
+in her own reference corpus and shown as background. Model-suggested edits
+remain hypotheses until execution checks them.
 """
 from __future__ import annotations
 
@@ -58,6 +58,10 @@ class Repair:
     backup: str = ""
     #: Checks never seen either way, so nothing is claimed about them.
     unseen: list[str] = field(default_factory=list)
+    #: Behaviour checks actually seen to hold, after the retained edits.
+    checked: list[str] = field(default_factory=list)
+    code_checks: list[dict[str, Any]] = field(default_factory=list)
+    required_edges: list[str] = field(default_factory=list)
 
 
 def the_programs_own_words(source: str) -> str:
@@ -286,18 +290,57 @@ async def _confirmed(browser: Any, before: str, after: str, words: str, keys: li
 CONFIRM_PAIRS = 3
 
 
+def _alongside(best: tuple[Suspicion, list[Edit], Any], improving: list[Any], now: _Believed) -> list[Any]:
+    """The other trials of the same round that each mend something the best does not, in other places of the code.
+
+    One fix a round meant five rounds for five faults, a minute and a half
+    each, with the person waiting. Trials that mend different things, by
+    edits in different places, are faults of their own: watched together,
+    they are kept together.
+    """
+    def gains(behaviour: Any) -> set[str]:
+        return (now.wrong & behaviour.right) | (behaviour.right - now.right - now.wrong)
+
+    def where(edits: list[Edit]) -> list[tuple[int, int]]:
+        return [(e.start, e.end) for e in edits]
+
+    taken, covered, places = [], set(gains(best[2])), where(best[1])
+    seen = {(best[0].pattern, best[0].line)}
+    for suspicion, edit, behaviour in sorted(improving, key=lambda t: _worth(t[2], now), reverse=True):
+        mine = gains(behaviour)
+        if (suspicion.pattern, suspicion.line) in seen or not mine - covered:
+            continue
+        if any(a < d and c < b for a, b in where(edit) for c, d in places):
+            continue  # edits in the same place are two ways of doing one fix
+        taken.append((suspicion, edit, behaviour))
+        covered |= mine
+        places += where(edit)
+        seen.add((suspicion.pattern, suspicion.line))
+    return taken
+
+
 async def _try_edits(browser: Any, current: str, words: str, keys: list[str], folder: Path,
                      now: _Believed, seconds: float = WATCH_S, refused: set[str] | None = None,
-                     in_pairs: bool = False, proposed: list[Suspicion] | None = None) -> tuple[Suspicion, list[Edit], Any] | None:
+                     in_pairs: bool = False, proposed: list[Suspicion] | None = None,
+                     tell: Callable[[str], None] | None = None, also: list[Any] | None = None) -> tuple[Suspicion, list[Edit], Any] | None:
     """Every edit the code suggests, watched in parallel; the one that mends the most and breaks nothing.
 
     ``proposed`` replaces the code's own suggestions with edits from elsewhere
-    (edits_her_model_proposes.py), tried the same way.
+    (edits_her_model_proposes.py), tried the same way. Where she is in it is
+    said as she goes, so a person watching knows what the minutes are for.
     """
     suggested = proposed if proposed is not None else what_looks_wrong(current, ".html")
     candidates = [c for c in _candidates(suggested) if _name_of(c[1]) not in (refused or set())]
     if in_pairs:
         candidates = _pairs(candidates)
+    if tell is not None and candidates:
+        rounds = -(-len(candidates) // AT_ONCE)
+        many = len(candidates) != 1
+        what = ("pairs of fixes" if many else "pair of fixes") if in_pairs else ("fixes" if many else "fix")
+        took = rounds * seconds
+        tell(f"Trying {len(candidates)} possible {what} on copies of the game{f', {AT_ONCE} at a time' if len(candidates) > AT_ONCE else ''}, "
+             f"watching each copy play for about {seconds:.0f} seconds"
+             f"{f' (about {took / 60:.0f} minutes)' if took >= 90 else ''}.")
     best = None
     for start in range(0, len(candidates), AT_ONCE):
         batch = candidates[start : start + AT_ONCE]
@@ -313,9 +356,101 @@ async def _try_edits(browser: Any, current: str, words: str, keys: list[str], fo
                 "tried %s at line %s (%d edit(s)): wrong %s, right %s",
                 suspicion.pattern, suspicion.line, len(edit), sorted(behaviour.wrong), sorted(behaviour.right),
             )
+            if _improves(behaviour, now) and also is not None:
+                also.append((suspicion, edit, behaviour))
             if _improves(behaviour, now) and (best is None or _worth(behaviour, now) > _worth(best[2], now)):
                 best = (suspicion, edit, behaviour)
+        if tell is not None and start + AT_ONCE < len(candidates):
+            tell(f"{start + len(batch)} of {len(candidates)} tried.")
+    if tell is not None and candidates:
+        tell(f"The one that helps most: line {best[0].line}, {best[0].why}." if best is not None
+             else "None of those made it play better on its own.")
     return best
+
+
+async def _kept_together(browser: Any, current: str, words: str, keys: list[str], folder: Path, last: _Believed,
+                         fixes: list[Any], tell: Callable[[str], None]) -> dict[str, Any] | None:
+    """Fixes that each mend something different, confirmed together as one is: kept, each said; or None, and the best is tried alone."""
+    from types import SimpleNamespace
+
+    tell(f"{len(fixes)} of those fixes each mend something different, in different places. Watching them together, "
+         "beside the game without them, to be sure they help and break nothing.")
+    edits = [e for _s, edit, _b in fixes for e in edit]
+    trial = SimpleNamespace(right=set().union(*(b.right for _s, _e, b in fixes)),
+                            wrong=set.intersection(*(set(b.wrong) for _s, _e, b in fixes)))
+    after = applied(current, edits)
+    confirmed = await _confirmed(browser, current, after, words, keys, folder, last, trial)
+    if confirmed is None:
+        tell("Together they did not hold up, so I am checking the best of them alone.")
+        return None
+    again, shown = confirmed
+
+    def mended_by(fault: str) -> list[Any]:
+        # A fault gone when the fixes are watched together is said of the fix
+        # whose own trial mended it, not of every fix in the group: LIVE
+        # 2026-10-06 the scoring fix was said to have mended the keys.
+        return ([b for _s, _e, b in fixes if fault in b.right] or [b for _s, _e, b in fixes if fault not in b.wrong]
+                or [b for _s, _e, b in fixes])
+
+    kept = []
+    for suspicion, edit, behaviour in fixes:
+        mine = [name for name in shown
+                if (any(b is behaviour for b in mended_by(name[11:])) if name.startswith("no longer: ") else name in behaviour.right)]
+        kept.append(({
+            "where": suspicion.function, "line": suspicion.line, "pattern": suspicion.pattern,
+            "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why,
+            "shown": [f"no longer {_WRONG_SAID.get(n[11:], n[11:])}" if n.startswith("no longer: ") else _RIGHT_SAID.get(n, n) for n in mine],
+        }, _what_this_change_did(suspicion, edit, current, mine)))
+    believed = last
+    for _s, _e, behaviour in fixes:
+        believed = believed.after(behaviour)
+    return {"kept": kept, "current": after, "last": believed.after(again)}
+
+
+async def _kept_from_reading(browser: Any, current: str, words: str, keys: list[str], folder: Path, last: _Believed,
+                             refused: set[str], repair: Repair, tell: Callable[[str], None]) -> tuple[str, _Believed]:
+    """Fixes the code is plainly wrong without, kept when watching could not show them either way and they harm nothing.
+
+    A wall missing from the top of a court is seen only when the ball goes
+    there, and in some watches it never does: LIVE 2026-10-06 the top wall's
+    fix was tried four times, never made a difference that could be seen, and
+    was left out of a repair that had read it right. A person who reads code
+    wrong by its shape mends it, and then checks the change breaks nothing.
+    One edit for each place still suspected, each watched twice beside the
+    game without it; kept if neither watch shows harm, and said to be from
+    reading, not from seeing.
+    """
+    left = [c for c in _candidates(what_looks_wrong(current, ".html")) if _name_of(c[1]) not in refused and len(c[1]) == 1]
+    done: set[tuple[str, int]] = set()
+    for suspicion, edit in left:
+        if (suspicion.pattern, suspicion.line) in done:
+            continue
+        tell(f"Line {suspicion.line} is wrong as it is written ({suspicion.why}), though the game never showed it while I watched. "
+             "Changing it, and checking the change breaks nothing.")
+        after = applied(current, edit)
+        harmed = False
+        for _pair in range(2):
+            without, again = await asyncio.gather(
+                _watched(browser, current, words, keys, folder, WATCH_S * 2.5),
+                _watched(browser, after, words, keys, folder, WATCH_S * 2.5),
+            )
+            if again.wrong - without.wrong:
+                harmed = True
+                break
+            last = last.after(again)
+        if harmed:
+            tell(f"Changed, the game did something wrong it did not do before, so line {suspicion.line} stays as it was.")
+            refused.add(_name_of(edit))
+            continue
+        repair.kept.append({
+            "where": suspicion.function, "line": suspicion.line, "pattern": suspicion.pattern,
+            "change": ", ".join(e.says(current) for e in edit), "why": suspicion.why, "shown": ["from reading the code"],
+        })
+        tell(f"In {suspicion.function or 'the code'} (line {suspicion.line}): {suspicion.why}, so I "
+             f"{' and '.join(e.says(current) for e in edit)}. Watched twice, it breaks nothing.")
+        current = after
+        done.add((suspicion.pattern, suspicion.line))
+    return current, last
 
 
 async def _what_else_could_do_it(browser: Any, current: str, words: str, keys: list[str], folder: Path,
@@ -334,7 +469,7 @@ async def _what_else_could_do_it(browser: Any, current: str, words: str, keys: l
     tell(f"None of the shapes I know in code settles it, so I thought about what else could do this, "
          f"and I am trying {len(proposed)} idea(s) on copies.")
     return await _try_edits(browser, current, words, keys, folder, last, seconds=WATCH_S * 2.5,
-                            refused=refused, proposed=proposed)
+                            refused=refused, proposed=proposed, tell=tell)
 
 
 async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = None) -> Repair:
@@ -343,8 +478,12 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
 
     from core.agency.playing_as_it_happens import controls_named_in
     from core.runtime.file_write_gateway import get_file_write_gateway
+    from core.self_modification.checking_code_paths import boundary_checks, check_code_paths
 
     began = time.monotonic()
+    # Copies an earlier repair was trying when it was cut short (a restart) are hers to clear.
+    for stale in await asyncio.to_thread(lambda: list(path.parent.glob(".trying-*.html"))):
+        get_file_write_gateway().delete_file(stale, source="repairing_by_behaviour")
     source = await asyncio.to_thread(path.read_text)
     words = the_programs_own_words(source)
     keys = [key for key in controls_named_in(words)[0] if key in ("up", "down", "left", "right")]
@@ -368,11 +507,38 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             repair.before = dict(first.findings)
             tell(_what_is_wrong(first))
             repair.knowledge = what_she_knows_about(_title(source), first.findings, words)
-            if repair.knowledge:
-                tell(f"What I know about {_title(source)}: {repair.knowledge[0]}")
+            # Reference context remains in the receipt. Work narration reports
+            # experiments and their results, rather than arbitrary article text.
             suspicions = what_looks_wrong(source, ".html")
             tell(_what_looks_wrong(suspicions))
             current, last = source, _Believed.from_watch(first)
+            contracts = boundary_checks(source, path.suffix)
+            repair.required_edges = sorted({edge for c in contracts for edge in
+                                            (("top", "bottom") if c.axis == "y" else ("left", "right"))})
+            if contracts:
+                initial_paths = await check_code_paths(browser, current, suffix=path.suffix, checks=contracts)
+                repair.code_checks.append({"stage": "before", "results": initial_paths})
+                for suspicion in suspicions:
+                    if suspicion.pattern != "one-sided boundary":
+                        continue
+                    after = applied(current, suspicion.edits)
+                    tested = await check_code_paths(browser, after, suffix=path.suffix, checks=contracts)
+                    right_before = {(r["check"]["position"], r["case"]) for r in initial_paths if r["verdict"] == "right"}
+                    now_right = { (r["check"]["position"], r["case"]) for r in tested if r["verdict"] == "right" }
+                    if not right_before <= now_right or len(now_right) <= len(right_before):
+                        continue
+                    tell(f"Line {suspicion.line}: testing each boundary directly on a copy confirmed {suspicion.why}. "
+                         "The changed function keeps the object inside, turns it back, and changes no counters.")
+                    repair.kept.append({"where": suspicion.function, "line": suspicion.line,
+                                        "pattern": suspicion.pattern, "change": ", ".join(e.says(current) for e in suspicion.edits),
+                                        "why": suspicion.why, "shown": ["directed function checks: both boundaries and interior"]})
+                    repair.code_checks.append({"stage": "candidate", "results": tested})
+                    current = after
+                    last = last.after(await _watched(browser, current, words, keys, path.parent))
+                    from types import SimpleNamespace
+
+                    last = last.after(SimpleNamespace(right={"escaped"}, wrong=set(), findings={}))
+                    initial_paths = tested
             refused: set[str] = set()
             asked = 0
             # On while anything helps, not only while something is known to be
@@ -382,30 +548,50 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
             # 2026-10-04, the top wall was never seen missing, the loop
             # stopped when nothing was known wrong, and it was left missing).
             for _round in range(MOST_ROUNDS):
-                chosen = await _try_edits(browser, current, words, keys, path.parent, last, refused=refused)
-                if chosen is None:
+                improving: list[Any] = []
+                chosen = await _try_edits(browser, current, words, keys, path.parent, last, refused=refused, tell=tell, also=improving)
+                left_to_try = [c for c in _candidates(what_looks_wrong(current, ".html")) if _name_of(c[1]) not in refused]
+                if chosen is None and left_to_try:
                     # Nothing settled it in a short watch. A fault that shows
                     # only now and then needs a longer one before an edit can
                     # be said to have mended it.
                     if last.wrong:
                         tell("Nothing I tried settled it in a short watch, so I am watching each try for longer.")
                     chosen = await _try_edits(browser, current, words, keys, path.parent, last,
-                                              seconds=WATCH_S * 2.5, refused=refused)
-                if chosen is None and last.wrong:
+                                              seconds=WATCH_S * 2.5, refused=refused, tell=tell)
+                if chosen is None and last.wrong and len(left_to_try) > 1:
                     # Two faults can each hide what mending the other would
                     # show: a ball that goes through the paddle never tests the
                     # scoring. Mended together, both come right at once.
                     tell("No one change settles it alone, so I am trying them two at a time.")
                     chosen = await _try_edits(browser, current, words, keys, path.parent, last,
-                                              seconds=WATCH_S * 2.5, refused=refused, in_pairs=True)
+                                              seconds=WATCH_S * 2.5, refused=refused, in_pairs=True, tell=tell)
                 if chosen is None and last.wrong and asked < MOST_ASKS:
+                    # What is still believed wrong may only be unseen since: a
+                    # look at the game as it now is comes before thinking up
+                    # changes the code's own shapes did not suggest.
+                    looked = await _watched(browser, current, words, keys, path.parent, WATCH_S * 2.5)
+                    last = last.after(looked)
+                    if not last.wrong:
+                        break
                     asked += 1
                     chosen = await _what_else_could_do_it(browser, current, words, keys, path.parent, last, refused, tell)
                 if chosen is None:
                     break
+                together = _alongside(chosen, improving, last)
+                if together:
+                    kept_together = await _kept_together(browser, current, words, keys, path.parent, last, [chosen, *together], tell)
+                    if kept_together is not None:
+                        for entry, said in kept_together["kept"]:
+                            repair.kept.append(entry)
+                            tell(said)
+                        current, last = kept_together["current"], kept_together["last"]
+                        continue
                 suspicion, edit, behaviour = chosen
+                tell("Watching the game with that fix again, beside the game without it, to be sure it helps and breaks nothing.")
                 confirmed = await _confirmed(browser, current, applied(current, edit), words, keys, path.parent, last, behaviour)
                 if confirmed is None:
+                    tell("Watched again, that fix did not hold up, so I left it out and went on.")
                     refused.add(_name_of(edit))
                     continue
                 again, shown = confirmed
@@ -419,6 +605,8 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 })
                 tell(_what_this_change_did(suspicion, edit, current, shown))
                 current, last = applied(current, edit), last.after(behaviour).after(again)
+            current, last = await _kept_from_reading(browser, current, words, keys, path.parent, last, refused, repair, tell)
+            tell(f"{len(repair.kept)} fix(es) kept. Watching the mended game as a whole once more before I write it back.")
             final = await _watched(browser, current, words, keys, path.parent)
             if final.wrong:
                 # A fault said to remain is said to the person: seen twice, or not said.
@@ -428,16 +616,27 @@ async def repair_by_behaviour(path: Path, *, say: Callable[[str], Any] | None = 
                 final.right |= second.right - final.wrong
             believed = last.after(final)
             repair.after = dict(believed.findings) if believed.wrong else {}
+            repair.checked = sorted(believed.right)
             repair.unseen = sorted((final.checks or set(_RIGHT_SAID)) - believed.right - believed.wrong)
+            if contracts:
+                tested = await check_code_paths(browser, current, suffix=path.suffix, checks=contracts)
+                repair.code_checks.append({"stage": "final", "results": tested})
+                if all(r["verdict"] == "right" for r in tested):
+                    if "escaped" not in repair.checked:
+                        repair.checked.append("escaped")
+                    repair.unseen = [name for name in repair.unseen if name != "escaped"]
+                    repair.after.pop("escaped", None)
+                elif any(r["verdict"] == "wrong" for r in tested):
+                    repair.after["escaped"] = "a directed boundary check still fails"
+                    repair.checked = [name for name in repair.checked if name != "escaped"]
         finally:
             await browser.close()
     repair.left = [f"{s.function}: {s.why}" for s in what_looks_wrong(current, ".html")]
     if current != source:
-        gateway = get_file_write_gateway()
-        backup = path.with_name(path.name + ".before-repair")
-        await gateway.write_text_async(backup, source, source="repairing_by_behaviour")
-        await gateway.write_text_async(path, current, source="repairing_by_behaviour")
-        repair.written_to, repair.backup = str(path), str(backup)
+        from core.self_modification.saving_a_verified_repair import save_repair
+
+        repair.backup = await save_repair(path, source, current)
+        repair.written_to = str(path)
     tell(_how_it_ends(repair))
     repair.seconds = round(time.monotonic() - began, 1)
     return repair
@@ -462,7 +661,7 @@ def _what_this_change_did(suspicion: Suspicion, edit: list[Edit], current: str, 
     lines = sorted({current.count("\n", 0, e.start) + 1 for e in edit})
     where = ", ".join(str(n) for n in lines) or str(suspicion.line)
     said = (f"In {suspicion.function or 'the code'} (line {where}): {suspicion.why}, "
-            f"so I changed {', '.join(e.says(current) for e in edit)}.")
+            f"so I {' and '.join(e.says(current) for e in edit)}.")
     seen = [f"I can see {_RIGHT_SAID.get(name, name)}" for name in shown if not name.startswith("no longer: ")]
     gone = [f"I no longer see {_WRONG_SAID.get(name[11:], name[11:])}" for name in shown if name.startswith("no longer: ")]
     if seen or gone:

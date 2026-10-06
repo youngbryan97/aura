@@ -27,11 +27,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import re
+import statistics
 import time
+from collections import Counter, deque
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.agency.how_the_contest_stands import ContestStands
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_the_rules_said import WhatTheRulesSaid
 from core.agency.which_one_answers_to_her import WhichIsHers
@@ -73,6 +77,9 @@ POINTER_SPEED = 2000.0
 
 #: How far the pointer goes in one picture while she sweeps it, as a share of the picture.
 POINTER_STEP = 0.04
+
+#: Revisit inconclusive control experiments while the world keeps moving.
+RECHECK_CONTROLS_S = 5.0
 
 #: Where the pointer is taken while she finds out whether anything follows it.
 _POINTER_TRIAL = ((0.2, 0.5), (0.8, 0.5), (0.5, 0.2), (0.5, 0.8), (0.3, 0.3), (0.7, 0.7))
@@ -117,16 +124,51 @@ class _Run:
     #: Every reading's words, with when its picture was taken.
     words_read: list[tuple[float, str]] = field(default_factory=list)
     situation: str = ""
+    #: What she has said of the game, each part without where things stood.
+    situation_known: set[str] = field(default_factory=set)
+    hers_description: str = ""
+    hers_descriptions: Counter[str] = field(default_factory=Counter)
     situation_at: float = -math.inf
     met: list[tuple[float, float]] = field(default_factory=list)
     credited_up_to: int = 0
     touching: set[int] = field(default_factory=set)
     pictures: int = 0
+    observation_sources: Counter[str] = field(default_factory=Counter)
+    input_key_downs: Counter[str] = field(default_factory=Counter)
+    responsive_pictures: int = 0
+    control_probe_retries: int = 0
+    control_attribution: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=128))
+    attribution_changes: int = 0
+    last_attribution: tuple[Any, ...] | None = None
+    picture_at: float | None = None
+    intervals: deque[float] = field(default_factory=lambda: deque(maxlen=12))
+    responses: deque[float] = field(default_factory=lambda: deque(maxlen=12))
+    motion_responses: deque[float] = field(default_factory=lambda: deque(maxlen=12))
+    previous_control: tuple[Any, ...] | None = None
     gains: int = 0
     losses: int = 0
+    #: How the contest stands (core/agency/how_the_contest_stands.py), and the last of it she said.
+    contest: ContestStands = field(default_factory=ContestStands)
+    contest_said: str = ""
 
 
 # -- what she was told ---------------------------------------------------------
+
+def _record_control_attribution(run: _Run, moves: Any, hers: WhichIsHers, at: float) -> None:
+    """Retain bounded ownership changes from visible geometry and measured controls."""
+    mine = hers.thing(moves)
+    keys = tuple(sorted(hers.keys_that_move_her(run.keys))) if mine is not None else ()
+    source = "pointer" if mine is not None and hers.follows_pointer else "keys" if keys else "unknown"
+    state = (mine.number if mine is not None else None, source, keys)
+    if state == run.last_attribution:
+        return
+    run.last_attribution = state
+    run.attribution_changes += 1
+    shape = getattr(moves, "shape", None)
+    position = ([round(mine.x / shape[1], 4), round(mine.y / shape[0], 4)]
+                if mine is not None and shape and shape[0] > 0 and shape[1] > 0 else None)
+    run.control_attribution.append({"seconds": round(at - run.began, 3), "thing": state[0],
+                                    "source": source, "keys": list(keys), "position": position})
 
 #: Words that say a game is played with the pointer.
 _POINTER_WORDS = ("mouse", "cursor", "pointer", "click", "drag", "aim", "trackpad")
@@ -144,7 +186,8 @@ _NAMED_KEYS = (
 )
 
 
-def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space")) -> tuple[list[str], bool]:
+def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space"),
+                      during_play: bool = False) -> tuple[list[str], bool]:
     """The keys a game's own words name, and whether they name the pointer.
 
     "Use the arrow keys to move and space to jump" names five keys; "Move the
@@ -156,9 +199,21 @@ def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "
     from core.runtime.watched_goal import keys_named_in
 
     lowered = " ".join(str(text or "").lower().split())
+    if during_play:
+        # A lifecycle command belongs to the menu, rather than to the active
+        # controls. Keep other uses of the same key, such as space to jump.
+        lowered = re.sub(r"\b(?:press|tap|hit)\s+[^.!?]{0,40}?\b(?:to\s+)?"
+                         r"(?:start|begin|restart|play\s+again)\b", "", lowered)
     words = set(re.findall(r"[a-z]+", lowered))
+    # Restrict generic arrow instructions only when directions qualify the
+    # arrows themselves. "Pick up coins" says nothing about which arrows work.
+    arrow_directions = re.findall(
+        r"\b((?:(?:up|down|left|right)\s*(?:[,/&+-]|\band\b|\bor\b)?\s*)+)"
+        r"(?:arrows?\b|arrow\s+keys?\b|cursor\s+keys?\b)", lowered)
     keys: list[str] = []
     for names, meant in _NAMED_KEYS:
+        if meant == ("up", "down", "left", "right") and arrow_directions:
+            continue
         if any((name in words) if " " not in name else (name in lowered) for name in names):
             keys.extend(key for key in meant if key not in keys)
     keys.extend(key for key in keys_named_in(lowered) if key not in keys)
@@ -217,13 +272,21 @@ def _ahead(thing: Any, after: float, low: float, high: float, axis: int) -> floa
     return low + (folded if folded <= span else 2 * span - folded)
 
 
-def _range_of(moves: WhatMoves, kind: int, axis: int) -> tuple[float, float]:
-    """The span things of one kind have been seen over along an axis: where they bounce."""
+def _range_of(moves: WhatMoves, kind: int, axis: int, physics: HowThingsMoveHere | None = None) -> tuple[float, float]:
+    """The picture's bounds, replaced by walls whose rebounds have been measured.
+
+    A short path's minimum and maximum are places already visited, and give
+    no evidence that the next step will turn there.
+    """
     tall, wide = moves.shape
     low, high = 0.0, float((wide, tall)[axis])
-    seen = [p[1 + axis] for t in moves.things.values() if t.kind == kind for p in t.path]
-    if len(seen) >= 20:
-        low, high = max(low, min(seen) - 1.0), min(high, max(seen) + 1.0)
+    if physics is not None:
+        names = ("left", "right") if axis == 0 else ("top", "bottom")
+        lower, upper = (physics.edge(kind, name) for name in names)
+        if lower[0] == "bounce" and lower[1] is not None:
+            low = lower[1]
+        if upper[0] == "bounce" and upper[1] is not None:
+            high = upper[1]
     return low, high
 
 
@@ -235,13 +298,44 @@ def _moved_box(box: tuple[float, float, float, float], dx: float, dy: float, gro
     return (box[0] + dx - grow, box[1] + dy - grow, box[2] + dx + grow, box[3] + dy + grow)
 
 
+def _contact_line(mine: Any, coming: Any, axis: int) -> float:
+    """The incoming thing's centre when the two visible bodies first touch."""
+    here, there = (mine.x, mine.y)[axis], (coming.x, coming.y)[axis]
+    reach = ((mine.w, mine.h)[axis] + (coming.w, coming.h)[axis]) / 2
+    return here + math.copysign(reach, there - here)
+
+
+def _measure_response(run: _Run, mine: Any, at: float) -> None:
+    """Fit the old command's remaining motion at a visible command transition."""
+    previous, run.previous_control = run.previous_control, None
+    if previous is None or mine is None:
+        return
+    number, x, y, then, before, after = previous
+    dt = at - then
+    if mine.number != number or not 0.0 < dt <= 0.25:
+        return
+    change = (before[0] - after[0], before[1] - after[1])
+    norm = change[0] ** 2 + change[1] ** 2
+    if norm < 20.0 ** 2:
+        return
+    error = (mine.x - x - after[0] * dt, mine.y - y - after[1] * dt)
+    delay = (error[0] * change[0] + error[1] * change[1]) / norm
+    # A result outside this interval does not identify this transition: a
+    # boundary, a collision or another motion changed what the key could do.
+    if -0.1 * dt <= delay <= 1.1 * dt:
+        run.motion_responses.append(min(dt, max(0.0, delay)))
+
+
 class _Choosing:
     """The arithmetic of one decision, from what she has measured so far."""
 
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
-                 physics: HowThingsMoveHere | None = None) -> None:
+                 physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
+                 response_s: float = 0.0) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
         self.physics = physics
+        self.next_picture_s = next_picture_s
+        self.response_s = response_s
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
         self.across, self.updown = hers.follows_along if hers.follows_pointer else hers.axes(keys)
@@ -296,16 +390,18 @@ class _Choosing:
             closing = (thing.vx, thing.vy)[line]
             if gap * closing <= 0 or abs(closing) < 5.0:
                 continue
-            when = gap / closing
-            low, high = _range_of(self.moves, thing.kind, free)
+            contact = _contact_line(mine, thing, line)
+            when = max(0.0, (contact - (thing.x, thing.y)[line]) / closing)
+            low, high = _range_of(self.moves, thing.kind, free, self.physics)
             there = _ahead(thing, when, low, high, free)
             # Her own physics of this world, once she has some: gravity, where
             # the walls really are, how much a bounce keeps.
-            imagined = self.physics.when_it_reaches(thing, line, her_line) if self.physics is not None else None
+            imagined = self.physics.when_it_reaches(thing, line, contact) if self.physics is not None else None
             if imagined is not None:
                 when, there = imagined
-            reachable = abs(there - her_free) <= self.speed(free) * when + (mine.w, mine.h)[free] / 2
-            rank = (0 if reachable else 1, when)
+            # The next arrival is urgent even when she cannot get there in
+            # time. A distant, reachable arrival must not pull her away from it.
+            rank = when
             if best is None or rank < best[0]:
                 best = (rank, there, thing)
         if best is not None:
@@ -335,7 +431,7 @@ class _Choosing:
             if ahead <= 0:
                 continue
             when = abs((thing.x, thing.y)[along] - (mine.x, mine.y)[along]) / max(1.0, flight)
-            low, high = _range_of(self.moves, thing.kind, across)
+            low, high = _range_of(self.moves, thing.kind, across, self.physics)
             there = _ahead(thing, when, low, high, across)
             if best is None or when < best[0]:
                 best = (when, there, thing)
@@ -399,16 +495,20 @@ class _Choosing:
             gy = gy - offset[1] if gy is not None else None
         mine = self.mine
         choices = {"": (0.0, 0.0), **self.ways}
+        moving = choices.get(held, (0.0, 0.0))
+        # The old command keeps moving her while the next one is delivered.
+        # Its measured delay belongs in the prediction before the new command.
+        here_x, here_y = mine.x + moving[0] * self.response_s, mine.y + moving[1] * self.response_s
         best_key, best_cost = held if held in choices else "", math.inf
         for key, way in choices.items():
-            x, y = mine.x + way[0] * 0.12, mine.y + way[1] * 0.12
+            x, y = here_x + way[0] * self.next_picture_s, here_y + way[1] * self.next_picture_s
             cost = 0.0
             if gx is not None:
                 cost += abs(gx - x) / self.speed(0)
             if gy is not None:
                 cost += abs(gy - y) / self.speed(1)
             cost += 3.0 * self.danger(way)
-            cost += 0.0 if key == held else 0.01
+            cost += 0.0 if key == held else self.next_picture_s * 0.1
             if cost < best_cost:
                 best_key, best_cost = key, cost
         return best_key, why, aim
@@ -421,7 +521,7 @@ class _Choosing:
         across = 1 - along
         flight = abs((self.shot.vx, self.shot.vy)[along])
         when = abs((aim.x, aim.y)[along] - (self.mine.x, self.mine.y)[along]) / max(1.0, flight)
-        low, high = _range_of(self.moves, aim.kind, across)
+        low, high = _range_of(self.moves, aim.kind, across, self.physics)
         there = _ahead(aim, when, low, high, across)
         if abs(there - (self.mine.x, self.mine.y)[across]) <= (aim.w, aim.h)[across] / 2 + 2:
             return self.shot.key
@@ -473,34 +573,34 @@ async def _hold(hands: Any, run: _Run, hers: WhichIsHers, key: str, at: float, *
             await hands.up(run.held)
         if key:
             await hands.down(key)
-            hers.tapped(key, at)
-    run.held, run.held_since, run.held_trying = key, at, trying
-    hers.holding(key, at, trying=trying)
+            run.input_key_downs[key] += 1
+        run.responses.append(max(0.0, time.monotonic() - at))
+    delivered = time.monotonic()
+    if key and key != run.held:
+        hers.tapped(key, delivered)
+    run.held, run.held_since, run.held_trying = key, delivered, trying
+    hers.holding(key, delivered, trying=trying)
 
 
 async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves: WhatMoves,
                         picture: Any, at: float, read_words: Callable[[Any], list[dict[str, Any]]] | None) -> None:
     """Read the counters off to one side; take in the last reading when it is done."""
+    from core.perception.the_drawing_as_objects import words_in
+
+    rendered = words_in(picture)
+    if rendered is not None:
+        if run.reading is not None:
+            run.reading.cancel()
+            run.reading = None
+        run.read_at = at
+        _read_the_words(run, meeting, hers, moves, rendered, at)
+        return
     if read_words is None:
         return
     if run.reading is not None and run.reading.done():
         regions, when = run.reading.result()
         run.reading = None
-        # Words on screen while it was moving are the game's furniture; the
-        # still screen at the end is not. Which readings came from that end
-        # is settled when the stretch ends (see _the_words_of_play).
-        for region in regions:
-            said = " ".join(str(region.get("text") or "").lower().split())
-            if said and len(run.words_read) < 400:
-                run.words_read.append((when, said))
-        mine = hers.thing(moves)
-        her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
-        for verdict in meeting.read(regions, when, her_x):
-            if verdict["what"] == "gain":
-                run.gains += 1
-            else:
-                run.losses += 1
-        meeting.writing = _what_is_writing(moves, regions)
+        _read_the_words(run, meeting, hers, moves, regions, when)
     if run.reading is None and at - run.read_at >= READ_EVERY_S:
         run.read_at = at
         bgr = picture[:, :, ::-1].copy()
@@ -509,6 +609,25 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
             return await asyncio.to_thread(read_words, bgr), at
 
         run.reading = asyncio.ensure_future(_read())
+
+
+def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
+                    moves: WhatMoves, regions: list[dict[str, Any]], when: float) -> None:
+    """The same counter semantics for renderer text and text read from pixels."""
+    for region in regions:
+        said = " ".join(str(region.get("text") or "").lower().split())
+        if said and len(run.words_read) < 400:
+            run.words_read.append((when, said))
+    mine = hers.thing(moves)
+    her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
+    for verdict in meeting.read(regions, when, her_x):
+        if verdict["what"] == "gain":
+            run.gains += 1
+        else:
+            run.losses += 1
+    run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
+    run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when)
+    meeting.writing = _what_is_writing(moves, regions)
 
 
 def _what_is_writing(moves: WhatMoves, regions: list[dict[str, Any]]) -> set[int]:
@@ -525,14 +644,15 @@ async def _try_the_keys(hands: Any, run: _Run, hers: WhichIsHers, at: float) -> 
     """Hold each key in turn, with a rest between, to see what answers."""
     if at - run.tried_at < TRY_A_KEY_S:
         return
-    run.tried_at = at
     turn = run.trying % (2 * len(run.keys))
     run.trying += 1
     key = run.keys[turn // 2] if turn % 2 == 0 else ""
     await _hold(hands, run, hers, key, at, trying=True)
+    run.tried_at = run.held_since
 
 
-async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMeetingDoes, at: float) -> None:
+async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMeetingDoes, at: float,
+                        *, only_named: bool = False) -> None:
     """With no thing of her own, a click is how she meets things.
 
     She clicks the thing that is about to leave first, among the kinds she
@@ -543,7 +663,9 @@ async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMe
     tall, wide = moves.shape
     candidates = [
         t for t in moves.things.values()
-        if t.moved and t.number not in meeting.writing and meeting.stance(t.kind) in (MEET, CLICK)
+        if (t.moved or meeting.stance(t.kind) == CLICK)
+        and t.number not in meeting.writing and meeting.stance(t.kind) in (MEET, CLICK)
+        and (not only_named or meeting.stance(t.kind) == CLICK)
         and not meeting.clicked_lately(t.number, at)
     ]
     if not candidates:
@@ -625,7 +747,10 @@ NOTHING_ANSWERS_S = 10.0
 
 
 def _nothing_answers(run: _Run, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> str:
-    if at - run.began < NOTHING_ANSWERS_S or hers.kind is not None or meeting.verdicts:
+    # Allow two complete experiments and their intervening wait before
+    # declaring that no control answers. The run's own deadline still bounds it.
+    experiment_time = 8 * len(run.keys) * TRY_A_KEY_S + RECHECK_CONTROLS_S if run.keys else 0.0
+    if at - run.began < NOTHING_ANSWERS_S + experiment_time or hers.kind is not None or meeting.verdicts:
         return ""
     if any(kept.touched for kept in meeting.evidence.values()):
         return ""
@@ -674,6 +799,9 @@ def _counters_without_reading(run: _Run, moves: WhatMoves, hers: WhichIsHers, me
 #: How long between two accounts of what kind of game this is.
 SITUATION_EVERY_S = 30.0
 
+#: Where a thing stands, as where_on_screen names it, inside an account of the game.
+_WHERE_IT_STANDS = re.compile(r" at the (?:(?:top|bottom) )?(?:left|right)\b| at the (?:top|bottom|middle)\b")
+
 
 def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
                        physics: HowThingsMoveHere, at: float) -> None:
@@ -683,8 +811,15 @@ def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers,
     if "me" not in run.said or at - run.situation_at < SITUATION_EVERY_S:
         return
     sentence = in_a_sentence(moves, hers, meeting, physics, run.keys)
-    if not sentence or ";" not in sentence or sentence == run.situation:
+    if not sentence or ";" not in sentence:
         return
+    # Said again only for something learned: her paddle having moved to the
+    # top, or the other side being still a moment, is not news. LIVE
+    # 2026-10-06 the same account came every thirty seconds of a game.
+    parts = {_WHERE_IT_STANDS.sub("", part).strip(" .") for part in sentence.split(";")}
+    if parts <= run.situation_known:
+        return
+    run.situation_known |= parts
     run.situation, run.situation_at = sentence, at
     _say(run, say, sentence[0].upper() + sentence[1:], at, once=f"situation {len(run.lines)}")
 
@@ -692,6 +827,11 @@ def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers,
 def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> None:
     mine = hers.thing(moves)
     keys = sorted(hers.keys_that_move_her(run.keys))
+    if mine is not None and hers.kind is not None and (keys or hers.follows_pointer):
+        run.hers_descriptions[describe(moves, hers.kind, mine)] += 1
+        # A brief overlap changes a connected region's outline. Describe the
+        # control by its usual observed shape rather than that one picture.
+        run.hers_description = run.hers_descriptions.most_common(1)[0][0]
     settled = all(hers.tried(k) >= 4 for k in run.keys) or at - run.began > 8.0
     if mine is not None and hers.kind is not None and hers.follows_pointer:
         _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")
@@ -712,8 +852,19 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         }.get(stance)
         if line:
             _say(run, say, line, at, once=f"{kind} {stance}")
+    # How it stands, said when it changes: the score, what is left to win, what is left to lose.
+    standing = run.contest.says()
+    if standing and standing != run.contest_said:
+        if at - run.said_at < SAY_EVERY_S:
+            return
+        run.contest_said = standing
+        _say(run, say, standing[:1].upper() + standing[1:], at)
+        return
+    # The counters as read are said only where no standing could be made of
+    # them: LIVE 2026-10-06 an end screen's "You 5 Computer 4" was read as one
+    # counter, and "You computer 4." followed "4-4, level".
     counters = {name: value for name, value in meeting.readouts.values.items() if not name.startswith("number")}
-    if counters and counters != run.counted and at - run.said_at > 25.0:
+    if counters and not run.contest_said and counters != run.counted and at - run.said_at > 25.0:
         run.counted = dict(counters)
         _say(run, say, ", ".join(f"{name} {value}" for name, value in list(counters.items())[:3]).capitalize() + ".", at)
 
@@ -740,6 +891,9 @@ async def play_as_it_happens(
     """
     began = time.monotonic()
     keep = keep if keep is not None else {}
+    from core.agency.when_motion_breaks_a_rule import MotionChecks
+
+    motion_checks = MotionChecks(frozenset(keep.get("required_edges") or []), str(keep.get("edge_provenance") or ""))
     moves = WhatMoves(kinds=keep.get("kinds"))
     physics: HowThingsMoveHere = keep.get("physics") or HowThingsMoveHere()
     rules = WhatTheRulesSaid.read(told) if told else None
@@ -747,7 +901,10 @@ async def play_as_it_happens(
     meeting: WhatMeetingDoes = keep.get("meeting") or WhatMeetingDoes()
     for kept in (physics, hers, meeting):
         kept.numbered_afresh()
-    run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first)
+    run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first,
+               contest=keep.get("contest") or ContestStands())
+    run.contest.heard(told)
+    run.situation_known = set(keep.get("situation_known") or ())
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -761,16 +918,33 @@ async def play_as_it_happens(
                 ended = "the picture could not be taken"
                 break
             picture, at = seen
+            run.observation_sources["canvas-paint-v1" if getattr(picture, "drawing_scene", None) is not None else "pixels"] += 1
+            if run.picture_at is not None and 0.0 < at - run.picture_at <= 0.5:
+                run.intervals.append(at - run.picture_at)
+            run.picture_at = at
             run.pictures += 1
             happened = moves.see(picture, at)
             hers.saw(moves, happened, at)
+            _record_control_attribution(run, moves, hers, at)
+            _measure_response(run, hers.thing(moves), at)
             physics.saw(moves, hers, happened, at)
             _what_the_rules_said_of(rules, moves, meeting, run, say, at)
-            choosing = _Choosing(moves, hers, meeting, run.keys, physics)
+            choosing = _Choosing(moves, hers, meeting, run.keys, physics,
+                                 next_picture_s=statistics.median(run.intervals) if run.intervals else 1 / 30,
+                                 response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
+                                             else statistics.median(run.responses) if run.responses else 0.0))
+            if choosing.mine is not None and (choosing.ways or choosing.pointing):
+                run.responsive_pictures += 1
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
-            _counters_without_reading(run, moves, hers, meeting, at)
+            if getattr(picture, "drawing_scene", None) is None:
+                _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
-            await _act(hands, run, moves, hers, meeting, choosing, at)
+            violations = motion_checks.see(moves, happened, at, hers.number)
+            if violations:
+                ended = "runtime contract violated"
+                _say(run, say, "This still behaves incorrectly: " + violations[0]["finding"] + ". I need to check the repair.", at, once="runtime_fault")
+                break
+            await _act(hands, run, moves, hers, meeting, choosing, at, say=say)
             _what_she_says(run, say, moves, hers, meeting, at)
             _what_kind_of_game(run, say, moves, hers, meeting, physics, at)
             _report(run, getting_somewhere, at)
@@ -783,15 +957,25 @@ async def play_as_it_happens(
                 logger.debug("letting go of %s failed: %s", run.held, why)
         if run.reading is not None:
             run.reading.cancel()
-    keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with})
-    return _what_it_came_to(run, moves, hers, meeting, ended, began)
+    keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
+                 "contest": run.contest, "situation_known": run.situation_known})
+    result = _what_it_came_to(run, moves, hers, meeting, ended, began)
+    result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
+                                "provenance": motion_checks.provenance, "violations": motion_checks.violations,
+                                "unconfirmed": motion_checks.unconfirmed}
+    return result
 
 
 async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
-               choosing: _Choosing, at: float) -> None:
+               choosing: _Choosing, at: float, *, say: Any = None) -> None:
     # A thing taken for hers that did not answer her keys: try them again.
     if hers.lost_at > run.lost_at:
         run.lost_at, run.trying = hers.lost_at, 0
+    # An instruction to click a visible target already names the interaction.
+    # It does not require discovering an avatar that follows the pointer.
+    if run.pointer_first and any(meeting.stance(t.kind) == CLICK for t in moves.things.values()):
+        await _click_things(hands, run, moves, meeting, at, only_named=True)
+        return
     # Every key is tried once before any is chosen: a plan that knows one key
     # can only go one way.
     trying_the_pointer = run.pointer_first and run.pointed < 2 * len(_POINTER_TRIAL) and not hers.follows_pointer
@@ -802,6 +986,14 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         await _point_at(hands, run, hers, moves, choosing, at)
         return
     if choosing.mine is None or not choosing.ways:
+        if run.keys and run.trying >= 4 * len(run.keys) and at - run.tried_at >= RECHECK_CONTROLS_S:
+            run.trying = 0
+            run.control_probe_retries += 1
+            hers.recheck_controls()
+            if run.pointer_first:
+                run.pointed = 0
+            _say(run, say, "I haven't confirmed what answers to these keys yet. Trying them again while watching what responds.",
+                 at, once="recheck_controls")
         pointer_trial = run.pointed < 2 * len(_POINTER_TRIAL) and hasattr(hands, "point")
         if pointer_trial and run.pointer_first:
             await _try_the_pointer(hands, run, hers, moves, at)
@@ -829,11 +1021,16 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
     shift = part * ((choosing.mine.h if choosing.line() == 0 else choosing.mine.w) / 2 if choosing.mine is not None else 0.0)
     offset = (0.0, shift) if choosing.line() == 0 else (shift, 0.0) if choosing.line() == 1 else (0.0, 0.0)
     key, why, aim = choosing.key(run.held, offset=offset)
+    before = choosing.ways.get(run.held, (0.0, 0.0))
+    after = choosing.ways.get(key, (0.0, 0.0))
+    if key != run.held:
+        mine = choosing.mine
+        run.previous_control = (mine.number, mine.x, mine.y, at, before, after)
     await _hold(hands, run, hers, key, at)
     fire = choosing.fire(aim, why)
     if fire and fire != run.held:
         await hands.tap(fire)
-        hers.tapped(fire, at)
+        hers.tapped(fire, time.monotonic())
         run.taps += 1
 
 
@@ -859,7 +1056,8 @@ def _the_return_they_cannot_reach(choosing: _Choosing) -> float | None:
     if why != "meet" or coming is None:
         return None
     free = 1 - line
-    arrival = physics.when_it_reaches(coming, line, (mine.x, mine.y)[line])
+    contact = _contact_line(mine, coming, line)
+    arrival = physics.when_it_reaches(coming, line, contact)
     if arrival is None:
         return None
     them = _the_other_side(choosing)
@@ -872,10 +1070,10 @@ def _the_return_they_cannot_reach(choosing: _Choosing) -> float | None:
         if leaving is None:
             return None
         start = [0.0, 0.0]
-        start[line] = (mine.x, mine.y)[line]
+        start[line] = contact
         start[free] = arrival[1]
         crossing = physics.when_it_reaches(
-            coming, line, (them.x, them.y)[line], start=(start[0], start[1], leaving[0], leaving[1])
+            coming, line, _contact_line(them, coming, line), start=(start[0], start[1], leaving[0], leaving[1])
         )
         if crossing is None:
             continue
@@ -970,13 +1168,24 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "pictures": run.pictures,
         "pictures_a_second": round(run.pictures / took, 1),
         "ended": ended,
-        "hers": describe(moves, hers.kind, hers.thing(moves)) if hers.kind is not None else "",
+        "hers": run.hers_description or (describe(moves, hers.kind, hers.thing(moves)) if hers.kind is not None else ""),
         "keys_that_move_her": sorted(hers.keys_that_move_her(run.keys)),
         "fires": sorted(hers.makes),
         "learned": learned,
         "gains": run.gains,
         "losses": run.losses,
         "counters": dict(meeting.readouts.values),
+        "observations": dict(run.observation_sources),
+        "input_key_downs": dict(run.input_key_downs),
+        "responsive_pictures": run.responsive_pictures,
+        "control_probe_retries": run.control_probe_retries,
+        "control_attribution": list(run.control_attribution),
+        "attribution_changes": run.attribution_changes,
+        "identification_evidence": list(hers.identification.receipts),
+        # How the contest stood when the stretch ended, and what its counters alone settle.
+        "standing": run.contest.says(),
+        "settled": run.contest.settled(),
+        "stalled": run.contest.stalled(time.monotonic()),
         "said": list(run.lines),
         "words_seen": sorted(_the_words_of_play(run, ended)),
     }

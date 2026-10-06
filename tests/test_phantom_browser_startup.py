@@ -3,7 +3,11 @@ from types import SimpleNamespace
 import pytest
 
 from core.capabilities import phantom_browser as phantom_module
-from core.capabilities.phantom_browser import _KEEPS_RUNNING, PhantomBrowser
+from core.capabilities.phantom_browser import (
+    _KEEPS_RUNNING,
+    PhantomBrowser,
+    _chromium_graphics_arguments,
+)
 from core.runtime.errors import get_degradation_tracker
 
 
@@ -18,6 +22,15 @@ class _FakeContext:
     async def new_page(self):
         self.page_created = True
         return _FakePage()
+
+    def on(self, event, callback):
+        pass
+
+    async def add_init_script(self, script):
+        self.init_script = script
+
+    async def close(self):
+        pass
 
 
 class _FakeBrowser:
@@ -147,7 +160,7 @@ async def test_browser_uses_installed_chrome_when_playwright_cache_is_stale(
     assert fake_playwright.chromium.launch_kwargs == [
         {
             "headless": True,
-            "args": ["--disable-blink-features=AutomationControlled", *_KEEPS_RUNNING],
+            "args": ["--disable-blink-features=AutomationControlled", *_KEEPS_RUNNING, *_chromium_graphics_arguments()],
             "timeout": PhantomBrowser.LAUNCH_TIMEOUT_S * 1000.0,
             "executable_path": str(system_chrome),
         }
@@ -155,6 +168,28 @@ async def test_browser_uses_installed_chrome_when_playwright_cache_is_stale(
     status = browser.get_status()
     assert status["executable_launched"] == str(system_chrome)
     assert status["last_executable_attempts"] == [str(system_chrome)]
+
+
+@pytest.mark.asyncio
+async def test_an_unavailable_native_renderer_retries_chromiums_default(monkeypatch):
+    fake = _FakePlaywright()
+    original = fake.chromium.launch
+
+    async def launch(**kwargs):
+        if "--use-angle=metal" in kwargs["args"]:
+            fake.chromium.launch_kwargs.append(dict(kwargs))
+            raise RuntimeError("native graphics unavailable")
+        return await original(**kwargs)
+
+    fake.chromium.launch = launch
+    monkeypatch.setattr(phantom_module.sys, "platform", "darwin")
+    monkeypatch.setattr(phantom_module, "_SYSTEM_CHROMIUM_EXECUTABLES", ())
+    browser = PhantomBrowser()
+    browser.playwright = fake
+    loaded, _ = await browser._launch_chromium()
+    assert loaded is not None and len(fake.chromium.launch_kwargs) == 2
+    assert "--use-angle=metal" not in fake.chromium.launch_kwargs[-1]["args"]
+    assert browser.get_status()["graphics"] is None
 
 
 @pytest.mark.asyncio

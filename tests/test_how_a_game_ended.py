@@ -58,3 +58,21 @@ def test_who_won_outweighs_a_screen_that_only_says_it_is_over():
 
     assert how_it_ended_in(["The computer wins.", "Press SPACE to play again"]) == "lost"
     assert how_it_ended_in(["Press SPACE to play again", "You 5 Computer 2"]) == "won"
+
+
+def test_nothing_left_to_lose_is_a_loss_and_a_level_cleared_is_a_win():
+    from core.language.how_a_game_ended import how_it_ended
+
+    assert how_it_ended("Score: 120  Lives: 0") == "lost" and how_it_ended("You have 0 lives left") == "lost"
+    assert how_it_ended("Lives: 3 Score 40") == ""
+    assert how_it_ended("Level 10 cleared") == "won" and how_it_ended("STAGE 2 COMPLETE") == "won"
+    assert how_it_ended("You You 5 win! Computer o Press SPACE to play again") == "won"
+
+
+def test_a_file_name_is_not_words_run_together():
+    """LIVE 2026-10-06 a repair's true account naming pong.html.before-repair was served as partial."""
+    from core.conversation.response_reliability import _has_punctuation_join_artifact
+
+    assert not _has_punctuation_join_artifact("the original is beside it as pong.html.before-repair. Nothing was lost")
+    assert not _has_punctuation_join_artifact("I saved the letter as report.docx on your Desktop")
+    assert _has_punctuation_join_artifact("it works.great job here")

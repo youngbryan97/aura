@@ -6202,10 +6202,9 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     # up as an audit row.
                     audit_params = canonical_authority_arguments(skill_name, params)
                     safe_params, params_report = redact_mapping(audit_params)
-                    safe_result: Any = None
-                    result_report = None
-                    if result.get("ok"):
-                        safe_result, result_report = redact_structure(result)
+                    # A failed task may still have verified partial effects.
+                    # Preserve its bounded, redacted receipt too.
+                    safe_result, result_report = redact_structure(result)
                     safe_error = None
                     if not result.get("ok"):
                         safe_error, _ = redact_text(str(result.get("error") or ""))

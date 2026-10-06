@@ -30,6 +30,19 @@ logger = logging.getLogger("Aura.ScreenPursuit.AsItHappens")
 
 __all__ = ["AS_IT_HAPPENS", "PlayingAsItHappens", "a_handed_over_run_is_over", "looked_at_as_it_happens"]
 
+
+def begin_run(keep: dict[str, Any]) -> None:
+    """A new attempt keeps world knowledge and measures its own state."""
+    from core.agency.how_the_contest_stands import ContestStands
+    from core.agency.which_one_answers_to_her import WhichIsHers
+
+    contest = keep.get("contest")
+    keep["contest"] = ContestStands(wins=contest.wins) if contest is not None else ContestStands()
+    keep["hers"] = WhichIsHers()
+    meeting = keep.get("meeting")
+    if meeting is not None:
+        meeting.begin_run()
+
 #: How long the reflexes leave a moving screen alone after finding nothing on
 #: it that answers to her: a title screen that animates is not a game yet.
 LEAVE_A_MOVING_MENU_S = 20.0
@@ -110,6 +123,9 @@ class PlayingAsItHappens:
 
     async def close(self) -> None:
         """Stop streaming frames, when the run is over."""
+        if self._canvas is not None:
+            await self._canvas.close()
+            self._canvas = None
         if self._frames is not None:
             await self._frames.close()
             self._frames = None
@@ -206,15 +222,18 @@ class PlayingAsItHappens:
             return
         if not await the_world_moves_on_its_own(self.look):
             return
-        if not self.keep and not self.recalled:
+        if not self.keep.get("hers") and not self.recalled:
             self.recalled = True
             self.keep.update(_what_she_kept_of(self.page))
-        named, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]))
+        named, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]),
+                                                keys_without_words=(), during_play=True)
         # The game's controls are every key any of its screens has named, not
         # only this screen's: LIVE 2026-10-04 a run begun from the end screen
         # ("Press SPACE to play again") was played with space alone, and the
         # arrows the title screen had named were never pressed.
         keys = list(dict.fromkeys([*(self.keep.get("named_keys") or []), *named]))
+        if not keys:
+            keys = controls_named_in("")[0]
         pointer_first = pointer_first or bool(self.keep.get("pointer_named"))
         self.keep["named_keys"], self.keep["pointer_named"] = keys, pointer_first
         logger.info("it moves on its own: playing it as it happens with %s%s", keys, " and the pointer" if pointer_first else "")
@@ -225,6 +244,8 @@ class PlayingAsItHappens:
             told=" ".join([self.goal, *self.words[-6:]]),
         )
         self.stretches.append(stretch)
+        if (stretch.get("runtime_checks") or {}).get("violations"):
+            self.over_because = "runtime contract violated"
         _keep_what_she_learned(self.page, self.keep)
         logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "keys_that_move_her", "pictures_a_second", "learned", "gains", "losses")})
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
@@ -244,7 +265,9 @@ class PlayingAsItHappens:
         if learned:
             parts.append("; ".join(f"{colour}: {stance}" for colour, stance in learned.items()))
         counters = last.get("counters") or {}
-        if counters:
+        if last.get("standing"):
+            parts.append(str(last["standing"]).rstrip("."))
+        elif counters:
             parts.append(", ".join(f"{name} {value}" for name, value in counters.items() if not name.startswith("number")))
         if self.over_because:
             parts.append(f"the run is over: {self.over_because}")
@@ -280,8 +303,24 @@ def _lines_of(regions: list[dict[str, Any]]) -> list[str]:
 
 
 def _this_game(page: Any) -> str:
-    """The name her memory keeps this game under: its page, and only its page."""
-    return f"played as it happens at {str(getattr(page, 'url', '') or '')}"
+    """The name her memory keeps this game under: its page, and for a file, that file as it now is.
+
+    A file changed is another game. LIVE 2026-10-06 a Pong she had just
+    mended was played from what she had kept of it broken ("the white bars
+    cost me"), because both were kept under one address.
+    """
+    url = str(getattr(page, "url", "") or "")
+    if url.startswith("file://"):
+        import hashlib
+        from pathlib import Path
+        from urllib.parse import unquote, urlparse
+
+        try:
+            held = Path(unquote(urlparse(url).path)).read_bytes()
+            return f"played as it happens at {url} ({hashlib.sha256(held).hexdigest()[:12]})"
+        except OSError:
+            pass
+    return f"played as it happens at {url}"
 
 
 def _what_she_kept_of(page: Any) -> dict[str, Any]:

@@ -28,6 +28,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.verify.invariants import invariant
+
 __all__ = ["AVOID", "CLICK", "IGNORE", "MEET", "SHOOT", "STANCES", "Readouts", "WhatMeetingDoes"]
 
 MEET, AVOID, SHOOT, IGNORE, CLICK = "meet", "avoid", "shoot", "ignore", "click"
@@ -115,6 +117,12 @@ class Readouts:
     waiting: dict[str, tuple[int, float, float]] = field(default_factory=dict)
     where: dict[str, tuple[float, float]] = field(default_factory=dict)
     read_at: dict[str, float] = field(default_factory=dict)
+    present: set[str] = field(default_factory=set)
+
+    @property
+    def current(self) -> dict[str, int]:
+        """Confirmed values of counters visible in the latest reading."""
+        return {key: self.values[key] for key in self.present if key in self.values}
 
     @staticmethod
     def _key(readout: Readout) -> str:
@@ -126,6 +134,7 @@ class Readouts:
         """Take one reading in. Returns the verdicts it confirms: gains and losses."""
         verdicts = []
         readouts = readouts_in(regions)
+        self.present = {self._key(readout) for readout in readouts}
         unlabelled = [r for r in readouts if not r.label]
         for readout in readouts:
             key = self._key(readout)
@@ -166,6 +175,20 @@ class Readouts:
         self.values[key] = value
         self.read_at[key] = at
         return value - before, pending[1], pending[2]
+
+
+def _absent_counters_are_not_current() -> bool:
+    counters = Readouts()
+    counters.read([{"text": "Score 12", "center_x": 0.2, "center_y": 0.1}], 1.0, 0.2)
+    counters.read([{"text": "Lives 3", "center_x": 0.8, "center_y": 0.1}], 2.0, 0.2)
+    return counters.current == {"lives": 3} and counters.values == {"score": 12, "lives": 3}
+
+
+@invariant("agency.current_counters_exclude_absent_history", scope="agency",
+           owner="core/agency/what_meeting_things_does.py", observational=False)
+def _current_counter_invariant() -> tuple:
+    assert _absent_counters_are_not_current(), "an absent counter was presented as current"
+    return ()
 
 
 @dataclass
@@ -330,6 +353,18 @@ class WhatMeetingDoes:
         """The picture's things are numbered from one again: forget what was kept of each by its number."""
         for kept in (self._touching, self._met, self._beside, self._side, self.writing, self._clicks):
             kept.clear()
+
+    def begin_run(self) -> None:
+        """Keep learned effects; start counters and pending events afresh."""
+        self.numbered_afresh()
+        self.readouts = Readouts()
+        self.verdicts.clear()
+        self._open.clear()
+        self.since = None
+        self._last_lost = -math.inf
+        self.new_screen_at = -math.inf
+        self._places.clear()
+        self._settled_places.clear()
 
     def saw(self, moves: Any, hers: Any, happened: list[dict[str, Any]], at: float, line: int | None) -> None:
         """One picture's worth: touches, passes, shots, and her own loss."""

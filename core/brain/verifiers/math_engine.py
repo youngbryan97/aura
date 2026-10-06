@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import math
 import re
+from fractions import Fraction
 from typing import Any
 
 from core.runtime.errors import record_degradation
 
 from .base import VerificationResult
 
-_NUM = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+_NUM = re.compile(r"[-+]?\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?(?:/[-+]?\d+)?")
 _ANSWER_TAG_RE = re.compile(r"<answer\b[^>]*>(.*?)</answer>", re.I | re.S)
 _FINAL_MARKER_RE = re.compile(
     r"(?:^|\n)\s*(?:FINAL_ANSWER|final\s+answer|answer)\s*(?::|=|\bis\b)\s*(.+)",
@@ -27,6 +28,8 @@ _MAX_FACT_N = 50
 
 
 def _i(s: str) -> int:
+    if not re.fullmatch(r"[-+]?(?:\d+|\d{1,3}(?:,\d{3})+)", s):
+        raise ValueError("invalid integer grouping")
     return int(s.replace(",", ""))
 
 
@@ -38,27 +41,30 @@ def _derive_exact_answer(question: str) -> tuple[str, str] | None:
     isn't one of these. This is what makes the verifier *sound* for these classes: a
     wrong final number becomes a hard fail the amplifier can filter out.
     """
-    q = str(question or "").lower()
+    q = str(question or "").lower().strip().rstrip("?.").strip()
+    q = re.sub(r"^(?:what is|calculate|compute|evaluate|find)\s+", "", q)
     try:
-        m = re.search(r"(\d[\d,]*)\s*(?:mod(?:ulo)?|%)\s*(\d[\d,]*)", q)
-        if m and _i(m.group(2)) != 0:
-            return f"{_i(m.group(1))} mod {_i(m.group(2))}", str(_i(m.group(1)) % _i(m.group(2)))
-
-        m = re.search(r"(\d[\d,]*)\s*(?:\^|\*\*|to the power of|raised to(?: the power of)?)\s*(\d+)", q)
-        if m and _i(m.group(2)) <= _MAX_POW_EXP:
-            return f"{_i(m.group(1))}^{_i(m.group(2))}", str(_i(m.group(1)) ** _i(m.group(2)))
-
-        m = re.search(r"(?:gcd|greatest common divisor)\D*(\d[\d,]*)\D+(\d[\d,]*)", q)
+        m = re.fullmatch(r"(?:gcd|greatest common divisor)\s*(?:of\s*)?\(?\s*([-+]?\d[\d,]*)\s*(?:and|,)\s*([-+]?\d[\d,]*)\s*\)?", q)
         if m:
             return f"gcd({_i(m.group(1))},{_i(m.group(2))})", str(math.gcd(_i(m.group(1)), _i(m.group(2))))
 
-        m = re.search(r"(\d+)\s*(?:!|factorial)", q)
+        m = re.fullmatch(r"(\d+)\s*(?:!|factorial)", q)
         if m and _i(m.group(1)) <= _MAX_FACT_N and "trailing" not in q and "zero" not in q:
             return f"{_i(m.group(1))}!", str(math.factorial(_i(m.group(1))))
 
-        m = re.search(r"(\d[\d,]*)\s*(?:times|multiplied by|\*)\s*(\d[\d,]*)", q)
-        if m:
-            return f"{_i(m.group(1))}*{_i(m.group(2))}", str(_i(m.group(1)) * _i(m.group(2)))
+        from core.reasoning.arithmetic_on_the_floor import integer_expression
+
+        for token in re.findall(r"\d[\d,]*", q):
+            if "," in token:
+                _i(token)
+        expression = q.replace(",", "").replace("^", "**")
+        for phrase, operator in (("raised to the power of", "**"), ("to the power of", "**"),
+                                 ("raised to", "**"), ("multiplied by", "*"), ("times", "*"),
+                                 ("modulo", "%"), ("mod", "%")):
+            expression = re.sub(rf"\b{phrase}\b", operator, expression)
+        value = integer_expression(expression.strip())
+        if value is not None:
+            return q, str(value)
     # not a failure: a number this cannot read is not one this engine answers.
     except (ValueError, OverflowError):
         return None
@@ -86,18 +92,31 @@ def _final_answer_matches(text: str, exact: str) -> bool:
 
     surface = _final_answer_surface(text)
     try:
-        target = float(exact)
-    except ValueError:
+        target = _exact_number(exact)
+    except (ValueError, ZeroDivisionError):
         return exact.strip().casefold() == surface.strip().casefold()
     numbers = _NUM.findall(surface)
-    if not numbers:
+    if len(numbers) != 1:
         return False
     try:
-        final_value = float(numbers[-1].replace(",", ""))
+        final_value = _exact_number(numbers[-1])
     # not a failure: a value that is not a number is not one this can read.
-    except ValueError:
+    except (ValueError, ZeroDivisionError):
         return False
-    return math.isclose(final_value, target, rel_tol=0.0, abs_tol=1e-6)
+    return final_value == target
+
+
+def _exact_number(text: str) -> Fraction:
+    for token in re.findall(r"\d[\d,]*", text):
+        if "," in token:
+            _i(token)
+    cleaned = text.replace(",", "").strip()
+    if len(cleaned) > 4096:
+        raise ValueError("numeric comparison exceeds its budget")
+    exponent = re.search(r"[eE]([-+]?\d+)", cleaned)
+    if exponent and (len(exponent[1]) > 5 or abs(int(exponent[1])) > 4096):
+        raise ValueError("numeric exponent exceeds its budget")
+    return Fraction(cleaned)
 
 
 class MathTruthEngine:

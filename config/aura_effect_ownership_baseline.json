@@ -6449,6 +6449,14 @@
       "scope": "<module>._write_production_source_sync"
     },
     {
+      "callee": "<file_write_gateway>.write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 2,
+      "path": "core/self_modification/saving_a_verified_repair.py",
+      "scope": "<module>.save_repair"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -7657,12 +7665,44 @@
       "scope": "<module>._ActsOnThePage.type"
     },
     {
+      "callee": "page.evaluate",
+      "canonical_owner": true,
+      "category": "raw_browser",
+      "count": 1,
+      "path": "core/perception/the_drawing_as_objects.py",
+      "scope": "<module>.acquire"
+    },
+    {
+      "callee": "page.evaluate",
+      "canonical_owner": true,
+      "category": "raw_browser",
+      "count": 1,
+      "path": "core/perception/the_drawing_as_objects.py",
+      "scope": "<module>.release"
+    },
+    {
       "callee": "webbrowser.open",
       "canonical_owner": false,
       "category": "raw_browser",
       "count": 1,
       "path": "core/security/permission_setup.py",
       "scope": "<module>.open_settings_pane"
+    },
+    {
+      "callee": "browser.new_page",
+      "canonical_owner": false,
+      "category": "raw_browser",
+      "count": 1,
+      "path": "core/self_modification/checking_code_paths.py",
+      "scope": "<module>.check_code_paths"
+    },
+    {
+      "callee": "page.evaluate",
+      "canonical_owner": false,
+      "category": "raw_browser",
+      "count": 1,
+      "path": "core/self_modification/checking_code_paths.py",
+      "scope": "<module>.check_code_paths"
     },
     {
       "callee": "webbrowser.open",
@@ -16634,6 +16674,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "ea86ad4538b64e276bd4a4c3987fd8f96a924fa53512fb577207feee82cdfafb",
+  "inventory_sha256": "c70286873e5523895f76b45890240bc69e392de2999f6a17af6dabd553046d8e",
   "schema_version": 1
 }

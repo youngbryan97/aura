@@ -77,6 +77,7 @@ class OnAPage:
     #: The page watched as one stream while she uses it (core/perception/watching_it_happen.py).
     watching: Any = field(default=None, init=False)
     _watching_over: Any = field(default=None, init=False)
+    _pictures: Any = field(default=None, init=False)
 
     async def read(self, over: tuple[float, float, float, float] | None = None) -> dict[str, Any]:
         from core.perception.what_her_page_shows import look_at_a_page
@@ -94,9 +95,9 @@ class OnAPage:
         from core.perception.watching_it_happen import Watching
 
         if self.watching is None or over != self._watching_over:
-            if self.watching is not None:
-                await self.watching.stop()
-            self.watching, self._watching_over = Watching(take=await _pictures_of(self.page, over)), over
+            await self.stop_watching()
+            self._pictures = await _pictures_of(self.page, over)
+            self.watching, self._watching_over = Watching(take=self._pictures), over
             self.watching.start()
             return
         from .screen_pursuit import _tell
@@ -107,6 +108,9 @@ class OnAPage:
         if self.watching is not None:
             await self.watching.stop()
             self.watching = None
+        pictures, self._pictures = self._pictures, None
+        if pictures is not None:
+            await pictures.close()
 
     async def _focus(self) -> None:
         if self._focused:
@@ -170,23 +174,47 @@ class OnAPage:
 
 async def _pictures_of(page: Any, over: tuple[float, float, float, float] | None) -> Any:
     """Where the stream's pictures come from: the page's own frames as it draws them, else screenshots of the part."""
-    from core.perception.frames_as_they_are_drawn import PageFrames
-    from core.perception.what_her_page_shows import _decoded, the_page_size
+    from core.perception.frames_as_they_are_drawn import CanvasFrames, PageFrames
+    from core.perception.what_her_page_shows import the_page_size
 
     wide, tall = await the_page_size(page)
     left, top, right, bottom = over if over is not None else (0.0, 0.0, 1.0, 1.0)
     clip = {"x": left * wide, "y": top * tall, "width": max(1.0, (right - left) * wide), "height": max(1.0, (bottom - top) * tall)}
-    frames = PageFrames(page)
+    frames = PageFrames(page, every_nth_frame=4)
 
-    async def take() -> Any:
-        if not frames.unavailable:
-            streamed = await frames.look(clip)
+    # Reading a drawing directly avoids streaming an entire window at the
+    # display's refresh rate just to sample its changes eight times a second.
+    canvas = CanvasFrames(page) if over is not None else None
+    return _PagePictures(page, clip, frames, canvas)
+
+
+@dataclass
+class _PagePictures:
+    """The pictures and the stream that produces them have the same owner."""
+
+    page: Any
+    clip: dict[str, float]
+    frames: Any
+    canvas: Any = None
+
+    async def __call__(self) -> Any:
+        from core.perception.what_her_page_shows import _decoded
+
+        if self.canvas is not None and not self.canvas.unavailable:
+            drawn = await self.canvas.look(self.clip)
+            if drawn is not None:
+                return drawn
+        if not self.frames.unavailable:
+            streamed = await self.frames.look(self.clip)
             if streamed is not None:
                 return streamed
-        png = await page.screenshot(clip=clip, type="png")
+        png = await self.page.screenshot(clip=self.clip, type="png")
         return _decoded(png) if png else None
 
-    return take
+    async def close(self) -> None:
+        if self.canvas is not None:
+            await self.canvas.close()
+        await self.frames.close()
 
 
 def _what_the_stream_shows(seen: dict[str, Any], watching: Any) -> None:

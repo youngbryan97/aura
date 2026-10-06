@@ -3,8 +3,8 @@
 The journal is deliberately independent of the chat implementation.  It owns
 only admission, lease fencing, terminal response replay, and bounded retention;
 the route remains responsible for authentication, governance, and cognition.
-Every SQLite operation runs through an async ``to_thread`` facade so a busy or
-damaged journal cannot block Aura's event loop. A process loss after effects
+Every SQLite operation uses the reserved durable receipt worker, preserving
+execution leases when background work occupies the shared executor. A process loss after effects
 begin but before the terminal receipt is committed is recorded as ambiguous;
 the journal never pretends it can safely replay an unreceipted external effect.
 """
@@ -12,6 +12,7 @@ the journal never pretends it can safely replay an unreceipted external effect.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import hashlib
 import json
 import math
@@ -64,6 +65,16 @@ class ChatDeliveryJournalCorruption(ChatDeliveryJournalError):  # noqa: N818 - p
 
 class ChatDeliveryFenceLost(ChatDeliveryJournalError):  # noqa: N818 - public API
     """A superseded execution attempted to publish a result."""
+
+
+async def _journal_io(fn: Any, *args: Any, **kwargs: Any) -> Any:
+    from core.runtime.executors import run_durable_receipt_io
+
+    context = contextvars.copy_context()
+    try:
+        return await run_durable_receipt_io(context.run, fn, *args, **kwargs)
+    except TimeoutError as exc:
+        raise ChatDeliveryJournalUnavailable("durable journal operation exceeded its budget") from exc
 
 
 class AdmissionKind(StrEnum):
@@ -1048,7 +1059,7 @@ class ChatDeliveryJournal:
     ) -> DeliveryAdmission:
         """Reserve execution, wait for the owner, replay, or reject mismatch."""
         deadline = time.monotonic() + max(0.0, float(wait_timeout_s))
-        admission = await asyncio.to_thread(
+        admission = await _journal_io(
             self._reserve_sync,
             identity,
             request_hash,
@@ -1060,7 +1071,7 @@ class ChatDeliveryJournal:
             if remaining <= 0:
                 return admission
             await asyncio.sleep(min(self.poll_interval_s, remaining))
-            admission = await asyncio.to_thread(
+            admission = await _journal_io(
                 self._reserve_sync,
                 identity,
                 request_hash,
@@ -1105,7 +1116,7 @@ class ChatDeliveryJournal:
     async def renew(self, admission: DeliveryAdmission) -> bool:
         if not admission.may_execute:
             return False
-        return await asyncio.to_thread(self._renew_sync, admission, time.time())
+        return await _journal_io(self._renew_sync, admission, time.time())
 
     def _publish_progress_sync(
         self,
@@ -1198,7 +1209,7 @@ class ChatDeliveryJournal:
     ) -> DeliveryRecord:
         """Publish owner-fenced, durable progress and renew the execution lease."""
 
-        return await asyncio.to_thread(
+        return await _journal_io(
             self._publish_progress_sync,
             admission,
             phase,
@@ -1300,7 +1311,7 @@ class ChatDeliveryJournal:
         response: dict[str, Any],
         history_capture: dict[str, Any] | None = None,
     ) -> DeliveryRecord:
-        return await asyncio.to_thread(
+        return await _journal_io(
             self._finalize_sync,
             admission,
             state,
@@ -1343,7 +1354,7 @@ class ChatDeliveryJournal:
 
     async def pending_history(self, *, limit: int = 20) -> list[tuple[DeliveryRecord, dict[str, Any]]]:
         """Read private transcript obligations without changing public receipts."""
-        return await asyncio.to_thread(self._pending_history_sync, limit)
+        return await _journal_io(self._pending_history_sync, limit)
 
     def _acknowledge_history_sync(self, record: DeliveryRecord) -> None:
         try:
@@ -1365,7 +1376,7 @@ class ChatDeliveryJournal:
 
     async def acknowledge_history(self, record: DeliveryRecord) -> None:
         """Retire an obligation only after its transcript commit succeeds."""
-        await asyncio.to_thread(self._acknowledge_history_sync, record)
+        await _journal_io(self._acknowledge_history_sync, record)
 
     def _get_sync(self, identity: DeliveryIdentity) -> DeliveryRecord | None:
         try:
@@ -1417,7 +1428,7 @@ class ChatDeliveryJournal:
             self._raise_sqlite(exc)
 
     async def get(self, identity: DeliveryIdentity) -> DeliveryRecord | None:
-        return await asyncio.to_thread(self._get_sync, identity)
+        return await _journal_io(self._get_sync, identity)
 
     def _compact_sync(self, now: float) -> dict[str, int]:
         try:
@@ -1450,7 +1461,7 @@ class ChatDeliveryJournal:
             self._raise_sqlite(exc)
 
     async def compact(self) -> dict[str, int]:
-        return await asyncio.to_thread(self._compact_sync, time.time())
+        return await _journal_io(self._compact_sync, time.time())
 
 
 _JOURNAL_CACHE: dict[Path, ChatDeliveryJournal] = {}

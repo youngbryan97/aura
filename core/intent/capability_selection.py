@@ -31,6 +31,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from core.verify import invariant
+
 __all__ = [
     "DEFAULT_CAPABILITY_SET",
     "points_at_something_real",
@@ -127,6 +129,30 @@ def _decisive(ranked: list[tuple[str, float]]) -> str | None:
         return None
     runner_up = ranked[1][1] if len(ranked) > 1 else 0.0
     return ranked[0][0] if ranked[0][1] >= DECISIVE_LEAD * runner_up else None
+
+
+def artifact_capability_precedes_desktop(objective: str, skills: Mapping[str, Any]) -> bool:
+    """Defer desktop shortcuts when the strongest declaration owns an artifact.
+
+    This decides which lane must reason about the request, not which tool
+    must run. Dispatch still resolves ambiguity and checks its authority.
+    A generic desktop plan cannot replace a registered artifact operation.
+    """
+    from core.intent.declared_capability import (
+        declared_vocabulary,
+        distinctive_objects,
+        rank_declaration_matches,
+    )
+
+    catalogue = {name: declared_vocabulary(name, str(getattr(meta, "description", "") or ""))
+                 for name, meta in skills.items() if getattr(meta, "enabled", True)}
+    ranked = rank_declaration_matches(objective, catalogue, distinctive_objects(catalogue))
+    if not ranked or ranked[0][1] < DECISIVE_LEAST:
+        return False
+    name, score = ranked[0]
+    if len(ranked) > 1 and ranked[1][1] == score:
+        return False
+    return getattr(skills.get(name), "effect_scope", "") == "read_write_artifacts"
 
 
 def the_one_asked_for(objective: str, offered: Mapping[str, Any]) -> str | None:
@@ -307,3 +333,23 @@ def select_capabilities(
         if len(chosen) >= max(1, int(limit)):
             break
     return chosen
+
+
+def _artifact_lane_is_owned_by_the_declaration() -> bool:
+    from types import SimpleNamespace
+
+    metadata = SimpleNamespace(description="Fix a broken program, game, page or script in a file. "
+                               "Run it, watch its behaviour, repair its bugs, and play the result.",
+                               enabled=True, effect_scope="read_write_artifacts")
+    request = "Fix the broken game at /tmp/example.html, then play it for three attempts to show the repair works."
+    if not artifact_capability_precedes_desktop(request, {"an_external_operation": metadata}):
+        return False
+    metadata.effect_scope = "foreground_desktop_control"
+    return not artifact_capability_precedes_desktop(request, {"an_external_operation": metadata})
+
+
+@invariant("intent.artifact_lane_follows_declared_effect", scope="intent",
+           owner="core/intent/capability_selection.py", observational=False)
+def _artifact_lane_invariant() -> tuple:
+    assert _artifact_lane_is_owned_by_the_declaration(), "desktop shortcut discarded the artifact owner"
+    return ()

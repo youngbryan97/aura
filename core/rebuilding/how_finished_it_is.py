@@ -91,18 +91,24 @@ async () => {
   for (const id of ids) {
     const c = app.commands.get(id);
     if (!c || !c.run) continue;
+    if (app.side) app.side(null);
     const place = document.querySelector('#app-work [contenteditable=true], #app-work textarea, #app-work input');
     if (place) { place.focus(); if (place.isContentEditable && !place.innerText.trim()) document.execCommand('insertText', false, 'Some words to try it on'); document.execCommand('selectAll'); }
+    // A command greyed out as not applying here, as the page now stands (a table's rows with no table,
+    // Select all with all selected), is not one that does nothing.
+    if (app.applies && !app.applies(c)) continue;
     const before = state();
     let downloaded = false;
     const real = URL.createObjectURL; URL.createObjectURL = (b) => { downloaded = true; return real(b); };
     try { await Promise.race([app.run(id), new Promise((r) => setTimeout(r, 600))]); } catch (e) { /* an error is counted elsewhere */ }
     URL.createObjectURL = real;
     await new Promise((r) => setTimeout(r, 150));
+    // Asking for a file to open is doing something, though the page shows nothing until one is given.
+    const askedForAFile = !!document.querySelector('input[type=file]');
     const after = state();
     document.querySelectorAll('.app-dialog-back').forEach((d) => d.remove());
     document.querySelectorAll('input[type=file]').forEach((d) => d.remove());
-    if (before === after && !downloaded) dead.push(c.label);
+    if (before === after && !downloaded && !askedForAFile) dead.push(c.label);
   }
   return dead;
 }

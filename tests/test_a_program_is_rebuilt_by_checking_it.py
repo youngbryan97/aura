@@ -47,7 +47,10 @@ class _Script:
     async def __call__(self, prompt, schema, max_tokens):
         self.asked.append(prompt)
         if schema is Genome:
-            return Genome.model_validate({"name": "Writer", "what_it_is": "a word processor", "work": "a page of text", "features": [
+            # Its work is not a document on a page: parts she already knows how to make
+            # (core/rebuilding/parts_a_maker_knows.py) are given to those, and these tests
+            # are of the parts her model writes.
+            return Genome.model_validate({"name": "Writer", "what_it_is": "a banner maker", "work": "a banner of large lettering on a coloured strip", "features": [
                 {"name": "Bold", "how": "select text, press Bold", "shows": "bold text", "weight": 3},
                 {"name": "Italic", "how": "select text, press Italic", "shows": "italic text", "weight": 2},
                 {"name": "Word count", "how": "type", "shows": "the count of words", "weight": 1},
@@ -281,11 +284,11 @@ def test_checks_are_written_from_what_is_written_about_each_feature():
 
 
 class _SecondProgram(_Script):
-    """Another word processor, whose Bold part is asked for after Writer was built."""
+    """Another banner maker, whose Bold part is asked for after Writer was built."""
 
     async def __call__(self, prompt, schema, max_tokens):
         if schema is Genome:
-            return Genome.model_validate({"name": "Scribe", "what_it_is": "a word processor", "work": "a page of text", "features": [
+            return Genome.model_validate({"name": "Scribe", "what_it_is": "a banner maker", "work": "a banner of large lettering on a coloured strip", "features": [
                 {"name": "Bold", "how": "select text, press Bold", "shows": "bold text", "weight": 3}]})
         if schema.__name__ == "_Checks":
             return schema.model_validate({"checks": [_BOLD_CHECK.model_dump()]})
