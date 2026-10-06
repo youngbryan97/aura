@@ -28,6 +28,7 @@ from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
 from core.skills.sovereign_browser_going import the_archived_copy
+from core.skills.sovereign_browser_picking import pursued
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
 
@@ -1105,9 +1106,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     # Every line she says in this run stays up for the wait the
                     # person asked for, if they named one.
                     with paced_as_asked(params.goal):
-                        return await self._handle_pursue(
-                            browser,
-                            params.url,
+                        return await pursued(  # items picked by a rule, each pursued; else one pursuit
+                            self, browser, params.url,
                             params.goal or "",
                             params.max_steps,
                             action_context=action_context,
