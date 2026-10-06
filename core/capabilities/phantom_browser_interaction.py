@@ -114,6 +114,15 @@ class _ActsOnThePage:
                 # Where a link points is read while it is on the page: after the
                 # click the locator looks for it in whatever page came next.
                 points_to = await self._where_the_link_points(element)
+                # A tab the click opens is watched for: a person looks at it.
+                opened: list[Any] = []
+
+                def a_tab_opened(tab: Any) -> None:
+                    opened.append(tab)
+
+                context = getattr(self, "context", None)
+                if context is not None:
+                    context.on("page", a_tab_opened)
                 # Scroll into view if needed
                 await element.scroll_into_view_if_needed()
                 await self._human_delay(0.2, 0.5)
@@ -165,7 +174,12 @@ class _ActsOnThePage:
                     await element.dispatch_event("click")
                 logger.info("🖱️ Clicked: %s", selector or text_match)
                 await self._human_delay(0.5, 1.5)
-                await self._go_where_the_link_points(points_to, before_url, principal)
+                if context is not None:
+                    context.remove_listener("page", a_tab_opened)
+                if opened:
+                    await self._follow_the_new_tab(opened[-1], principal)
+                else:
+                    await self._go_where_the_link_points(points_to, before_url, principal)
                 await self._record_interaction(
                     "click", before_url, target=str(selector or text_match or "")
                 )
@@ -193,6 +207,28 @@ class _ActsOnThePage:
         except (PlaywrightError, RuntimeError, AttributeError, TypeError) as exc:
             logger.debug("Could not read where the link points: %s", exc)
             return ""
+
+    async def _follow_the_new_tab(self, tab: Any, principal: str) -> None:
+        """A link that opened a new tab, followed here: what it opened is what the click was for.
+
+        LIVE 2026-10-06 a museum's game page linked the game itself in another
+        site, in a new tab. The click left her own page as it was, the link was
+        retired as one that went nowhere, and the game was never reached. Its
+        address is taken from the new tab and opened in hers, and the new tab
+        closed, so she goes on in the one tab she watches.
+        """
+        try:
+            await tab.wait_for_load_state("domcontentloaded", timeout=10000)
+        except (PlaywrightError, RuntimeError, AttributeError) as exc:
+            logger.debug("The new tab did not finish loading: %s", exc)
+        url = str(getattr(tab, "url", "") or "")
+        try:
+            await tab.close()
+        except (PlaywrightError, RuntimeError, AttributeError) as exc:
+            logger.debug("The new tab could not be closed: %s", exc)
+        if url.startswith(("http://", "https://")):
+            logger.info("🖱️ The link opened a new tab; following it here to %s", url)
+            await self.browse(url, principal=principal)
 
     async def _go_where_the_link_points(self, href: str, before_url: str, principal: str) -> None:
         """Follow a link whose click left the page where it was.
