@@ -92,31 +92,26 @@ def the_task_for_each(words: str) -> str:
     return (asked[:1].upper() + asked[1:] + ".") if asked else "Do with it what was asked."
 
 
-#: Tasks done with the thing itself, run: for these a copy that runs comes before a copy of a page about it.
-_RUN_IT = re.compile(r"\b(play|run|launch|watch|listen|hear)\b", re.I)
-
-
 async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: str = "") -> str:
-    """The item opened in ``browser``: where the list points; else, where the task is to run it, a copy the archive runs;
-    else the archive's copy of that page; else whatever the archive keeps by its name."""
+    """The item opened in ``browser``: where the list points; else, where the task is to run it, wherever on the web it runs;
+    else the archived copy of the page the list points to; else wherever else the web has it."""
     from core.skills import sovereign_browser_going as going
 
     if await skill._safe_browse(browser, url):
         return url
-    runs = bool(_RUN_IT.search(task))
-    tries = [lambda: going.the_same_thing_elsewhere(browser, name, runnable=True)] if runs else []
-    tries += [lambda: going.the_archived_copy(skill, browser, url), lambda: going.the_same_thing_elsewhere(browser, name)]
-    for n, attempt in enumerate(tries):
+    runs = bool(going.RUNS.search(task))
+    tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task)] if runs else []
+    tries += [lambda: going.the_archived_copy(skill, browser, url)]
+    if not runs:
+        tries += [lambda: going.the_same_thing_elsewhere(skill, browser, name)]
+    for attempt in tries:
         found = await attempt()
-        if not found:
-            continue
-        if found.startswith("https://archive.org/details/"):
-            if not await skill._safe_browse(browser, found):
-                continue
-            skill._say_out_loud(f"“{name}” is not to be had where the list points; the Internet Archive keeps it"
-                                + (", and runs it in its page, so I play it there." if runs and n == 0 else ", so I go there."),
-                                {"label": "Going to", "said": found})
-        return found
+        if found:
+            if not found.startswith("https://web.archive.org/"):
+                where = re.sub(r"^https?://(www\.)?", "", found).split("/")[0]
+                skill._say_out_loud(f"“{name}” is not to be had where the list points; I found it at {where}"
+                                    + (", where it runs in the page." if runs else "."), {"label": "Going to", "said": found})
+            return found
     return ""
 
 

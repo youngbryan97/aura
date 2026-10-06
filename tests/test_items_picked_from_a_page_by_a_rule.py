@@ -110,7 +110,7 @@ def test_each_item_the_rule_picks_is_pursued_in_turn(monkeypatch):
 
 
 @pytest.mark.unit
-def test_an_item_whose_page_cannot_be_had_is_found_where_the_archive_keeps_it(monkeypatch):
+def test_an_item_whose_page_cannot_be_had_is_found_wherever_else_it_is(monkeypatch):
     import core.skills.sovereign_browser_going as going
     import core.skills.sovereign_browser_picking as picking
 
@@ -120,8 +120,8 @@ def test_an_item_whose_page_cannot_be_had_is_found_where_the_archive_keeps_it(mo
     async def no_copy(skill, browser, url):
         return ""
 
-    async def kept(browser, name, runnable=False):
-        return f"https://archive.org/details/{name.lower().replace(' ', '-')}" if name == "Game 1" else ""
+    async def kept(skill, browser, name, task=""):
+        return f"https://games.example.net/{name.lower().replace(' ', '-')}" if name == "Game 1" else ""
 
     monkeypatch.setattr(picking, "the_list_on_the_page", the_list)
     monkeypatch.setattr(going, "the_archived_copy", no_copy)
@@ -129,6 +129,6 @@ def test_an_item_whose_page_cannot_be_had_is_found_where_the_archive_keeps_it(mo
     skill = _Skill(refusing=("example.org/games/",))
     asked = "Go to https://example.org/list and play two of the games. Number the games from 0. Start at 1, take the remainder. Then add 1 and take the remainder again."
     done = asyncio.run(picking.pursued(skill, object(), "https://example.org/list", asked, 30))
-    assert "https://archive.org/details/game-1" in skill.opened
+    assert any("I found it at games.example.net, where it runs in the page" in line for line in skill.said)
     assert [p["ok"] for p in done["picked"]] == [True, False]  # Game 2 is kept nowhere, and is said to be so
     assert any("nor anywhere I can find it kept" in line for line in skill.said)

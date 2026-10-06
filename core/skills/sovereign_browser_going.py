@@ -67,7 +67,10 @@ _PLAIN = frozenset("the a an of and in to for on at by with".split())
 
 
 def _words(text: str) -> list[str]:
-    return [w for w in re.findall(r"[a-z0-9]+", str(text or "").lower().replace("\u2019", "").replace("'", "")) if w not in _PLAIN and len(w) > 1]
+    said = str(text or "").lower().replace("\u2019", "").replace("'", "")
+    # A word and its plural, or its possessive, are one word: "Network's" is "Network".
+    return [w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
+            for w in re.findall(r"[a-z0-9]+", said) if w not in _PLAIN and len(w) > 1]
 
 
 def _alike(name: str, title: str) -> float:
@@ -75,41 +78,71 @@ def _alike(name: str, title: str) -> float:
     return len(wanted & set(_words(title))) / max(1, len(wanted))
 
 
+def _names_it(name: str, title: str) -> bool:
+    """Whether ``title`` names the thing: most of the name's words, and every word of its own part (after a series name and a colon)."""
+    own = set(_words(str(name).split(":")[-1]))
+    return _alike(name, title) >= SAME_THING and own <= set(_words(title))
+
+
 #: How much of a name another title must share to be the same thing.
-SAME_THING = 0.6
+SAME_THING = 0.75
+
+#: Tasks done with the thing itself, running: for these only a page where it runs will do.
+RUNS = re.compile(r"\b(play|run|launch|watch|listen|hear)\b", re.I)
+
+#: Whether a page has something in it that runs: an embedded program, an emulator, a game's canvas, a player.
+_SOMETHING_RUNS = r"""
+() => {
+  const big = (el) => { const r = el.getBoundingClientRect(); return r.width >= 240 && r.height >= 160; };
+  const found = [];
+  const look = (root) => {
+    for (const el of root.querySelectorAll("canvas, embed, object, iframe, video, audio, ruffle-player, ruffle-object, ruffle-embed")) {
+      const tag = el.tagName.toLowerCase();
+      if (tag === "audio" || big(el)) found.push(tag);
+    }
+    for (const el of root.querySelectorAll("*")) if (el.shadowRoot) look(el.shadowRoot);
+  };
+  look(document);
+  return found;
+}
+"""
 
 
-async def the_same_thing_elsewhere(browser: object, name: str, *, runnable: bool = False) -> str:
-    """Where the Internet Archive keeps the thing ``name`` names, or '' where it keeps nothing by that name.
+async def the_same_thing_elsewhere(skill: object, browser: object, name: str, *, task: str = "") -> str:
+    """Where else ``name`` is to be had, found as a person finds it: looked for, and each likely page opened and judged; or ''.
 
-    LIVE 2026-10-06 a game picked from a museum's list could be had neither
-    from the museum, which refuses automated browsers, nor from the archive's
-    copy of the museum's page, which it never made. The game itself was in the
-    archive's collection all along, under nearly the same title. It is looked up
-    by the whole name, then by its last part (a series name before a colon is
-    often left off), through her own browser; the title that shares most of the
-    name's words is taken, one the archive can run in its page first.
+    LIVE 2026-10-06 games picked from a museum's list could be had neither
+    from the museum, which refuses automated browsers, nor from an archived
+    copy of its pages, which was never made. They were elsewhere all along.
+    The web is searched and the catalogues that keep its kind of thing are
+    asked (core/skills/where_things_are_kept.py). The candidates that name it
+    are opened in turn, and the first is kept that is not a refusal, that names
+    it in its title or heading, and, where the task is to run it, has something
+    in it that runs. No site is known here: a page is kept for what it is.
     """
+    from core.skills.where_things_are_kept import where_it_might_be
+
     page = getattr(browser, "page", None)
     if page is None or not _words(name):
         return ""
-    found: list[dict] = []
-    for words in (_words(name), _words(str(name).split(":")[-1])):
-        if not words:
+    runs = bool(RUNS.search(task or ""))
+    candidates = await where_it_might_be(skill, browser, name, task=task)
+    seen: set[str] = set()
+    likely = []
+    for found in sorted(candidates, key=lambda c: (-_alike(name, c.title), c.runs_there is not True)):
+        # A place that says it does not run the thing is not where it is played; one that says nothing is opened and looked at.
+        if found.url not in seen and _names_it(name, found.title) and not (runs and found.runs_there is False):
+            seen.add(found.url)
+            likely.append(found)
+    for found in likely[:6]:
+        if not await skill._safe_browse(browser, found.url):  # type: ignore[attr-defined]
             continue
-        query = "title:(" + " AND ".join(words) + ")"
-        address = "https://archive.org/advancedsearch.php?" + urllib.parse.urlencode(
-            {"q": query, "fl[]": ["identifier", "title", "emulator"], "rows": 12, "output": "json"}, doseq=True)
-        try:
-            answer = await page.request.get(address, timeout=20000)
-            found = (await answer.json()).get("response", {}).get("docs", []) if answer.ok else []
-        except Exception:  # noqa: BLE001 - an archive that does not answer has nothing to say here
-            found = []
-        if found:
-            break
-    if runnable:
-        found = [d for d in found if d.get("emulator")]  # only a copy the archive runs in its page
-    best = max(found, key=lambda d: (_alike(name, str(d.get("title") or "")), bool(d.get("emulator"))), default=None)
-    if best is None or _alike(name, str(best.get("title") or "")) < SAME_THING:
-        return ""
-    return f"https://archive.org/details/{best['identifier']}"
+        title = await page.title()
+        text = await page.evaluate("document.body ? document.body.innerText.slice(0, 1500) : ''")
+        heading = await page.evaluate("(() => { const h = document.querySelector('h1'); return h ? h.innerText : ''; })()")
+        if refused(title, text) or not _names_it(name, f"{title} {heading}"):
+            continue
+        if runs and not await page.evaluate(_SOMETHING_RUNS):
+            continue
+        return str(page.url)
+    return ""
