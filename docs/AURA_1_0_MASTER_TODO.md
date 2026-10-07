@@ -2699,6 +2699,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   answer is measurably wrong is found. The long-list pilot also found the
   reader refusing lists past its fitted mention bound (21 of 24; fixed in
   `9cc8cd592`, 24 of 24).
+  2026-10-07: both pilots decoded with her private channel open, which is not
+  how a settled answer reaches a person; her runtime renders one with the
+  channel closed. [Closed-channel pilot](evidence/G05_CLOSED_CHANNEL_PILOT_2026-10-07.md)
+  on consumed requests: compositions exact 61 of 96 alone and 96 of 96 with
+  the reading (35 only with it, none only without); lists 21 and 24 of 24, and
+  a wrong list reading copied 15 times in 24. [Plan](evidence/G05_PUBLIC_ANSWERS_PREREGISTRATION_2026-10-07.md)
+  `9bbc11dc58b2`, published before its requests existed: 48 fresh
+  compositions, assisted against ordinary with the channel closed, power
+  0.928; every right reading translated; 120 fresh lists for the sham test;
+  an open-channel ordinary arm as the more-compute alternative.
 
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.

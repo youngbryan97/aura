@@ -1,0 +1,41 @@
+{
+ "artifacts": {
+  "candidate": "1e6a0019df3c47a75b9e112c9f34d24a94463e1ff1e50a593c3d63564faa1ab2",
+  "resident_model": "cc57b2f550f21733a9fc01e4dbd73a2e9775c4fd2804641c437bd052f7dbee46",
+  "runtime": "bacdf4dc8720e05efbaf62ab8ea3eed8827f0f8ee8bd67c4bcaa290030856785",
+  "scorer": "6f4d36da674712c91bf97b8ab2433d899b41ea1157de4ee21d1cf335485c9d9c",
+  "task_generator": "c9b72c260180e61a10d35b9be8c19effb9d58b6c546c59a456acf1ea009ec6e1"
+ },
+ "effects": {
+  "composition": {
+   "assisted_only": 35,
+   "discordance": 0.26870179411143746,
+   "ordinary_only": 0,
+   "pilot_pairs": 96,
+   "win_share": 0.9179683641433295
+  },
+  "lists": {
+   "discordance": 0.29124177983621197,
+   "ordinary_only": 12,
+   "pilot_pairs": 24,
+   "sham_only": 0,
+   "win_share": 0.7790778080544442
+  }
+ },
+ "plan_hash": "9bbc11dc58b2ae1e9bc6ac6d3d5c933db602ce3a414661f0029434486b1c7ec1",
+ "plan_path": "/Users/bryan/.aura/rlc-evidence/preregistrations/9bbc11dc58b2ae1e9bc6ac6d3d5c933db602ce3a414661f0029434486b1c7ec1.json",
+ "power": [
+  {
+   "assumed_absolute_gain": 0.22461769865427048,
+   "control": "ordinary",
+   "domain": "composition",
+   "power": 0.9283186023861345,
+   "tasks": 48,
+   "treatment": "assisted"
+  }
+ ],
+ "tasks": {
+  "composition": 48,
+  "lists": 120
+ }
+}
