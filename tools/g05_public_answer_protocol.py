@@ -18,22 +18,25 @@ Arms, each one greedy decode through her own template:
 * ``sham``: another request's reading in the same form, channel closed;
 * ``ordinary_open``: the request alone, channel open at her serving effort.
 
-Primary: ``assisted`` is exact more often than ``ordinary``, exact one-sided
-McNemar in each stratum (composition: five-step requests with large numbers;
-lists: a count or lookup over 40 to 64 entries), Bonferroni over the two.
-Translation: wherever the reader's answer is right, the assisted public
-answer is exact. G05 closes only if both hold.
+Primary: ``assisted`` is exact more often than ``ordinary`` on fresh
+five-step composition requests with large numbers, exact one-sided McNemar.
+Translation: wherever the reader's answer is right, in either stratum, the
+assisted public answer is exact. G05 closes only if both hold.
 
-Secondary, for G06, its own family at alpha 0.05 over two tests: ``assisted``
-against ``ordinary_open`` (exact two-sided McNemar: does the cheap path lose
-anything to the expensive one), and ``sham`` against ``ordinary`` (exact
-two-sided McNemar: what wrong evidence costs). Tokens and seconds per arm are
-reported for every arm.
+Secondary, for G06, its own family at alpha 0.05 over two tests: on
+composition, ``assisted`` against ``ordinary_open`` (exact two-sided McNemar:
+does the cheap path lose anything to the expensive one); on lists of 40 to
+64 entries, ``ordinary`` against ``sham`` (exact one-sided McNemar: what
+wrong evidence costs; in the pilot she copied a wrong list reading 15 times
+in 24). Tokens and seconds per arm are reported for every arm.
 
-The planned effect is not chosen: it is the conservative bound of the
-closed-channel pilot in each stratum, the lower 95% Clopper-Pearson bound on
-how often the two arms disagree and the one-sided lower bound on the
-assisted arm's share of those disagreements.
+The planned effects are not chosen. Each is the conservative bound of the
+closed-channel pilot on consumed requests: the lower 95% Clopper-Pearson
+bound on how often the two arms disagree and the one-sided lower bound on
+the expected arm's share of those disagreements. The pilot's lists stratum
+cannot carry the primary test (three disagreements bound the assisted share
+below one half), so the primary claim is made on composition and lists
+serve the sham comparison, for which their pilot is decisive.
 
 Usage:
     g05_public_answer_protocol.py --pilot DIR --inventory FILE --store DIR --output DIR
@@ -56,11 +59,12 @@ from tools.g04_transfer_protocol import MODEL, _files_sha256, tasks_needed  # no
 
 EVIDENCE = Path("~/.aura/rlc-evidence").expanduser()
 READER = EVIDENCE / "semantic-peak-direction-v14-20261006/candidate.json"
-STRATA = ("composition", "lists")
+PRIMARY = "composition"
+SHAM_STRATUM = "lists"
 ARMS = ("ordinary", "assisted", "sham", "ordinary_open")
 SECONDARY = (
-    {"first": "assisted", "second": "ordinary_open", "alternative": "two-sided"},
-    {"first": "sham", "second": "ordinary", "alternative": "two-sided"},
+    {"first": "assisted", "second": "ordinary_open", "stratum": "composition", "alternative": "two-sided"},
+    {"first": "ordinary", "second": "sham", "stratum": "lists", "alternative": "greater"},
 )
 SECONDARY_ALPHA = 0.05
 GENERATOR_FILES = (
@@ -83,27 +87,39 @@ RUNTIME_FILES = (
 )
 
 
-def pilot_effect(pilot: Path, stratum: str) -> dict:
-    """Discordance and win share bounds from the closed-channel pilot's paired rows."""
+def paired_bounds(wins: int, losses: int, pairs: int) -> tuple[float, float]:
+    """Lower 95% bounds on the discordance (Clopper-Pearson) and the expected arm's share (one-sided)."""
     from scipy.stats import beta
 
+    k = wins + losses
+    discordance = float(beta.ppf(0.025, k, pairs - k + 1))
+    share = float(beta.ppf(0.05, wins, k - wins + 1)) if wins < k else float(0.05 ** (1 / k))
+    return discordance, share
+
+
+def pilot_effect(pilot: Path, stratum: str, first: str = "assisted", second: str = "ordinary") -> dict:
+    """Bounds from the closed-channel pilot's paired rows in every directory named for ``stratum``.
+
+    ``first`` is the arm expected to be exact more often.
+    """
     rows: dict[str, dict[str, bool]] = {}
-    for arm in ("ordinary", "assisted"):
-        for path in (pilot / stratum / "rows" / arm).glob("*.json"):
-            row = json.loads(path.read_text(encoding="utf-8"))
-            if row.get("thinking") != "closed":
-                raise SystemExit(f"{path} was not decoded with the channel closed")
-            rows.setdefault(row["task_id"], {})[arm] = bool(row["answer_exact"])
+    for directory in sorted(pilot.glob(f"{stratum}*")):
+        for arm in (first, second):
+            for path in (directory / "rows" / arm).glob("*.json"):
+                row = json.loads(path.read_text(encoding="utf-8"))
+                if row.get("thinking") != "closed":
+                    raise SystemExit(f"{path} was not decoded with the channel closed")
+                rows.setdefault(row["task_id"], {})[arm] = bool(row["answer_exact"])
     paired = [row for row in rows.values() if len(row) == 2]
-    wins = sum(row["assisted"] and not row["ordinary"] for row in paired)
-    losses = sum(row["ordinary"] and not row["assisted"] for row in paired)
-    k, n = wins + losses, len(paired)
-    if k == 0 or wins <= losses:
+    wins = sum(row[first] and not row[second] for row in paired)
+    losses = sum(row[second] and not row[first] for row in paired)
+    if wins + losses == 0 or wins <= losses:
         raise SystemExit(f"the {stratum} pilot shows no paired gain to plan for")
-    discordance = float(beta.ppf(0.025, k, n - k + 1))
-    win_share = float(beta.ppf(0.05, wins, k - wins + 1)) if wins < k else float(0.05 ** (1 / k))
-    return {"pilot_pairs": n, "assisted_only": wins, "ordinary_only": losses,
-            "discordance": discordance, "win_share": win_share}
+    discordance, share = paired_bounds(wins, losses, len(paired))
+    if share <= 0.5:
+        raise SystemExit(f"the {stratum} pilot's bound on {first}'s share is {share:.3f}: too few disagreements to plan for")
+    return {"pilot_pairs": len(paired), f"{first}_only": wins, f"{second}_only": losses,
+            "discordance": discordance, "win_share": share}
 
 
 def build_strata(seed: int, tasks: dict[str, int]) -> tuple[dict[str, tuple], int]:
@@ -142,11 +158,14 @@ def main() -> int:
     if {args.seed, args.seed + 1} & consumed_seeds:
         raise SystemExit("a corpus seed was already consumed")
     pilot = args.pilot.expanduser()
-    effects = {stratum: pilot_effect(pilot, stratum) for stratum in STRATA}
-    alpha = args.familywise_alpha / len(STRATA)
-    tasks = {stratum: tasks_needed(alpha=alpha, target=args.target_power,
-                                   discordance=effects[stratum]["discordance"],
-                                   win_share=effects[stratum]["win_share"]) for stratum in STRATA}
+    primary = pilot_effect(pilot, PRIMARY)
+    sham = pilot_effect(pilot, SHAM_STRATUM, first="ordinary", second="sham")
+    tasks = {
+        PRIMARY: tasks_needed(alpha=args.familywise_alpha, target=args.target_power,
+                              discordance=primary["discordance"], win_share=primary["win_share"]),
+        SHAM_STRATUM: tasks_needed(alpha=SECONDARY_ALPHA / len(SECONDARY), target=args.target_power,
+                                   discordance=sham["discordance"], win_share=sham["win_share"]),
+    }
     strata, per_cell = build_strata(args.seed, tasks)
     consumed_sha = {row["source_sha256"] for row in inventory["examples"]}
     committed: dict[str, list] = {}
@@ -191,18 +210,22 @@ def main() -> int:
         "order_seed": args.order_seed,
         "comparisons": [{
             "treatment": "assisted", "control": "ordinary",
-            "assumptions": {stratum: {"discordance": effects[stratum]["discordance"],
-                                      "win_share": effects[stratum]["win_share"]} for stratum in STRATA},
+            "assumptions": {PRIMARY: {"discordance": primary["discordance"], "win_share": primary["win_share"]}},
         }],
         "effect_evidence": {"source": "closed-channel pilot on consumed requests, 6 October",
                             "bound": "lower 95%: Clopper-Pearson (two-sided) for discordance, "
-                                     "one-sided for the assisted share", **{s: effects[s] for s in STRATA}},
-        "domains": committed,
-        "translation_claim": "wherever the reader's answer equals the reference, the assisted public answer is exact",
+                                     "one-sided for the expected arm's share",
+                            PRIMARY: primary, SHAM_STRATUM: sham},
+        "domains": {PRIMARY: committed[PRIMARY]},
+        "secondary_domains": {SHAM_STRATUM: committed[SHAM_STRATUM]},
+        "arms_by_stratum": {PRIMARY: list(ARMS), SHAM_STRATUM: ["ordinary", "assisted", "sham"]},
+        "translation_claim": "wherever the reader's answer equals the reference, in either stratum, "
+                             "the assisted public answer is exact",
         "secondary": {"family_alpha": SECONDARY_ALPHA, "per_test_alpha": SECONDARY_ALPHA / len(SECONDARY),
                       "test": "exact_mcnemar", "comparisons": list(SECONDARY),
-                      "descriptive": "generated tokens and seconds per arm; terminations; reader accuracy"},
-        "closure_rule": "G05 closes only if both primary comparisons reject and the translation claim holds",
+                      "descriptive": "generated tokens and seconds per arm; terminations; reader accuracy; "
+                                     "sham on composition; assisted against ordinary on lists"},
+        "closure_rule": "G05 closes only if the primary comparison rejects and the translation claim holds",
         "answer_rule": "the last exact integer in the public reply (parse_integral_numeric_claim); "
                        "the private channel is never read; a budget stop counts as not exact",
         "familywise_alpha": args.familywise_alpha,
@@ -227,8 +250,10 @@ def main() -> int:
     (output / "spec.json").write_text(json.dumps(spec, indent=1, sort_keys=True), encoding="utf-8")
     with local_internal_governed_scope("evaluation.paired_replication", domain="file_write"):
         path = plan.write(args.store.expanduser())
-    summary = {"plan_hash": plan.plan_hash, "plan_path": str(path), "tasks": {s: len(committed[s]) for s in STRATA},
-               "effects": effects, "power": [dict(row) for row in plan.parameters["power"]],
+    summary = {"plan_hash": plan.plan_hash, "plan_path": str(path),
+               "tasks": {name: len(rows) for name, rows in committed.items()},
+               "effects": {PRIMARY: primary, SHAM_STRATUM: sham},
+               "power": [dict(row) for row in plan.parameters["power"]],
                "artifacts": artifacts}
     (output / "plan_summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True, default=str),
                                               encoding="utf-8")

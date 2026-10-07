@@ -154,6 +154,7 @@ def main() -> int:
     parser.add_argument("--open-ordinary", action="store_true",
                         help=f"also decode the {OPEN_ORDINARY} arm: the request alone, channel open")
     parser.add_argument("--reader", type=Path, help="the frozen reader's candidate (default: G04's first plan's)")
+    parser.add_argument("--arms", help="a comma-separated subset of the arms to decode (a pilot)")
     args = parser.parse_args()
 
     import mlx.core as mx
@@ -178,6 +179,11 @@ def main() -> int:
     reader = peak_recognition_transducer_from_dict(
         json.loads(reader_path.read_text(encoding="utf-8")), restore_base=restore)
     arms = (*ARMS, OPEN_ORDINARY) if args.open_ordinary else ARMS
+    if args.arms:
+        chosen = tuple(arm.strip() for arm in args.arms.split(","))
+        if not chosen or any(arm not in (*ARMS, OPEN_ORDINARY) for arm in chosen):
+            raise SystemExit(f"--arms names arms outside {(*ARMS, OPEN_ORDINARY)}")
+        arms = chosen
     features = args.features.expanduser()
     bundle = load_standard_semantic_feature_bundle(features)
     from dataclasses import replace
