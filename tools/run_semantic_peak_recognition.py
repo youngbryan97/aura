@@ -289,6 +289,11 @@ def main() -> int:
         help="what text an operation's register owns: from its word, or its whole sentence",
     )
     parser.add_argument(
+        "--antecedent-recency",
+        action="store_true",
+        help="the antecedent also reads how many operations begin between a register and the mention",
+    )
+    parser.add_argument(
         "--stacked-labeler",
         action="store_true",
         help="name operation spans from their words as well as their context, weighted on held-out constructions",
@@ -375,7 +380,7 @@ def main() -> int:
     recognizer = fit_peak_operation_recognizer(training, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only)
     ownership = fit_argument_ownership(training) if args.argument_ownership else None
     antecedent = (
-        replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
+        replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
                 own_result_is_not_an_input=args.own_result_is_not_an_input,
                 named_inputs_are_used_by_name=args.named_inputs_are_used_by_name,
                 arguments_within_sentence=args.arguments_within_sentence)
@@ -424,7 +429,7 @@ def main() -> int:
                 incumbent,
                 fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
-                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends), scoring=args.antecedent_scoring,
+                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,
                         named_inputs_are_used_by_name=args.named_inputs_are_used_by_name,
                 arguments_within_sentence=args.arguments_within_sentence)

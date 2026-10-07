@@ -263,3 +263,69 @@ def test_no_argument_option_starts_before_its_operations_sentence() -> None:
 
     assert bounded[0] == ((name, 0.5), (later, 0.2)), "what comes after the clause is kept"
     assert bounded[1] == ((TokenSpan(85, 87), 0.4),)
+
+
+def _chain(split: str, steps: int, seed: int):
+    """'v0 = 1 ; ... ; first add v0 and v1 . then sub v2 from it . then mul it by v3 ...': each "it" is the step before."""
+    ops = ("add", "sub", "mul")
+    words = []
+    for index in range(steps + 1):
+        words += [f"v{index}", "=", str(index + 1), ";"]
+    inputs = [TokenSpan(4 * index + 2, 4 * index + 3) for index in range(steps + 1)]
+    instructions = []
+    for step in range(steps):
+        op_at = len(words) + 1
+        if step == 0:
+            words += ["first", ops[0], "v0", "and", "v1", "."]
+            instructions.append(SimpleNamespace(operation_span=TokenSpan(op_at, op_at + 1), args=(0, 1),
+                argument_spans=(TokenSpan(op_at + 1, op_at + 2), TokenSpan(op_at + 3, op_at + 4))))
+        else:
+            words += ["then", ops[step % 3], "it", "with", f"v{step + 1}", "."]
+            instructions.append(SimpleNamespace(operation_span=TokenSpan(op_at, op_at + 1),
+                args=(steps + 1 + step - 1, step + 1),
+                argument_spans=(TokenSpan(op_at + 1, op_at + 2), TokenSpan(op_at + 3, op_at + 4))))
+    ir = SimpleNamespace(input_spans=tuple(inputs), instructions=tuple(instructions), n_inputs=steps + 1,
+                         source_text_sha256=f"{split}-chain-{steps}-{seed}")
+    return SimpleNamespace(split=split, ir=ir, hidden_states=_vectors(words, seed),
+                           hidden_channels=CHANNELS, hidden_channel_widths=(WIDTH, WIDTH))
+
+
+def test_recency_counts_the_operations_between_a_register_and_the_mention() -> None:
+    from core.learning.semantic_argument_antecedent import _item_stretches, _Similarities, antecedent_features
+
+    item = _chain("train", 4, 0)
+    stretches = _item_stretches(item, ())
+    last = item.ir.instructions[-1]
+    rows = antecedent_features(_Similarities(item.hidden_states, CHANNELS, (WIDTH, WIDTH)),
+                               last.argument_spans[0], stretches, item.ir.n_inputs, recency=True)
+    assert all(len(row) == len(FEATURES) + 2 for row in rows)
+    between = [row[-2] for row in rows[item.ir.n_inputs:]]
+    # Registers of steps 0..3 as seen from step 3's "it": the step before has only step 3 between.
+    assert between == [3.0, 2.0, 1.0, 0.0]
+    first = item.ir.instructions[1]
+    early = antecedent_features(_Similarities(item.hidden_states, CHANNELS, (WIDTH, WIDTH)),
+                                first.argument_spans[0], stretches, item.ir.n_inputs, recency=True)
+    assert [row[-1] for row in early[item.ir.n_inputs:]] == [0.0, 0.0, 1.0, 1.0]
+
+
+def test_a_recency_readout_fitted_on_short_chains_reads_long_ones_back_one_step() -> None:
+    """Chains of three to five steps, where the first clause to match and the step before differ."""
+    training = [_chain("train", steps, seed) for seed, steps in enumerate((3, 4, 5) * 4)]
+    readout = fit_argument_antecedent(training, objective="conditional", recency=True)
+    assert readout.weight[-2] < 0
+    assert readout.to_dict()["schema"].endswith(".v3")
+    assert argument_antecedent_from_dict(readout.to_dict()) == readout
+    long = _chain("train", 7, 99)
+    scorer = readout.scorer(long.hidden_states, CHANNELS, (WIDTH, WIDTH), long.ir.input_spans,
+                            tuple(ins.operation_span for ins in long.ir.instructions))
+    n = long.ir.n_inputs
+    for step, instruction in enumerate(long.ir.instructions[1:], 1):
+        values = scorer.log_probabilities(instruction.argument_spans[0])
+        others = [value for register, value in enumerate(values) if register != n + step]
+        assert values[n + step - 1] == max(others)
+
+
+def test_a_readout_without_recency_keeps_its_schema() -> None:
+    plain = fit_argument_antecedent(TRAINING, objective="conditional")
+    assert plain.to_dict()["schema"].endswith(".v2") and not plain.recency
+    assert argument_antecedent_from_dict(plain.to_dict()) == plain

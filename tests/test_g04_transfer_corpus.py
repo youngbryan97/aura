@@ -105,3 +105,40 @@ def test_the_materializer_builds_the_strata_from_a_feature_config() -> None:
     assert {row.construction_id.split(":")[0] for row in built} == {
         f"g04_{name}" for name in G04_STRATA
     }
+
+
+def test_the_second_table_shares_nothing_with_the_first_or_the_consumed_scaffold() -> None:
+    first = build_g04_transfer_corpus(seed=20261006, tasks_per_stratum=48)
+    second = build_g04_transfer_corpus(seed=20261006, tasks_per_stratum=48, version=2)
+    # Only the vocabulary stratum changes; the generator draws the same programs.
+    for name in ("construction", "depth", "family"):
+        assert [r.source_text for r in first[name]] == [r.source_text for r in second[name]]
+    old = novelty_signatures("vocabulary")
+    new = novelty_signatures("vocabulary", version=2)
+    assert not set(old) & set(new)
+    for row in second["vocabulary"]:
+        text = row.source_text.lower()
+        assert not any(signature in text for signature in old if signature.strip()), row.source_text
+        starts = [item.operation_span.start for item in row.instructions]
+        for index, start in enumerate(starts):
+            end = starts[index + 1] if index + 1 < len(starts) else len(row.source_text)
+            assert any(sig in row.source_text[start:end].lower() for sig in new), row.source_text
+        assert row.program.run(row.inputs) >= 1
+
+
+def test_the_materializer_builds_the_second_table() -> None:
+    from core.learning.semantic_program_feature_materialization import (
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
+    )
+
+    config = SemanticFeatureConfig(
+        seed=11, examples_per_operation_pair=4, max_examples=16,
+        corpus_kind="g04_transfer_v2", schema=FAMILY_FEATURE_CONFIG_SCHEMA,
+    )
+    built = build_semantic_program_corpus_for_config(config)
+    vocabulary = [row for row in built if row.construction_id.startswith("g04_vocabulary")]
+    assert len(built) == 16 and vocabulary
+    assert all(any(sig in row.source_text.lower() for sig in novelty_signatures("vocabulary", version=2))
+               for row in vocabulary)

@@ -48,6 +48,23 @@ nothing about which span to choose. Fitted with them, its margin for a
 named intermediate on the five-step requests had a median of 0.55 nats;
 without them, 1.2, with all 192 such mentions in each bundle ranked first.
 
+A description repeated in every clause ("the intermediate value") is a name
+given nowhere. Its words occur in each earlier clause, so the features above
+favour the first clause that has them, and a readout fitted on chains of five
+steps or fewer put that first result ahead of the one just made: on G04's six-
+and seven-step requests (6 October) it gave the previous step's result log P
+of -3 to -5 and the first operation's -0.1 to -0.9, and 54 of 62 programs came
+out reordered. A reader resolves such a description to the most recent thing
+it fits, and recency is counted in what came between, not in tokens: the same
+clause count means the same thing in a long request and a short one. With
+``recency``, two more features say how many operations begin between an
+operation's stretch and the mention, and whether a register's stretch begins
+after the mention at all; the fit decides what they are worth. It can only
+decide if training has chains long enough for the first clause to match and
+the most recent result to differ: in the 764 training requests no result is
+more than two operations back, and fitted on them the count came out with the
+wrong sign.
+
 Training rows only; validation and test rows are refused by the fitter.
 """
 
@@ -66,6 +83,8 @@ import numpy as np
 from core.learning.semantic_program_ir import TokenSpan
 
 ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v2"
+#: The schema of a readout that also reads recency (RECENCY_FEATURES).
+RECENCY_ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v3"
 
 #: The hidden-state channels a mention is compared in, as the bundles name them.
 CHANNELS: Final = ("input_token_embedding", "middle_causal_hidden")
@@ -81,6 +100,12 @@ FEATURES: Final = (
     "is_input",
     "no_earlier_window",
     "identical_share",
+)
+
+#: Read only by a readout fitted with ``recency``, after FEATURES.
+RECENCY_FEATURES: Final = (
+    "operations_between",
+    "defined_after",
 )
 
 
@@ -211,8 +236,10 @@ def antecedent_features(
     mention: TokenSpan,
     stretches: Sequence[tuple[int, int]],
     input_count: int,
+    *,
+    recency: bool = False,
 ) -> list[list[float]]:
-    """One feature row per register for ``mention``."""
+    """One feature row per register for ``mention``; with ``recency``, RECENCY_FEATURES after FEATURES."""
     length = mention.end - mention.start
     means = similarities.window_means(mention)
     matches: list[list[float | None]] = []
@@ -266,6 +293,13 @@ def antecedent_features(
                 here / everywhere if everywhere else 0.0,
             ]
         )
+        if recency:
+            # Recency orders results; an input is given, and named or written out.
+            between = 0 if register < input_count else sum(
+                1 for other in range(input_count, len(stretches))
+                if other != register and low < stretches[other][0] < mention.start
+            )
+            rows[-1].extend((float(between), float(low >= mention.end)))
     return rows
 
 
@@ -295,9 +329,15 @@ class ArgumentAntecedent:
     #: sentence (within_sentence, below). Needs
     #: sentence_end_token_ids.
     arguments_within_sentence: bool = False
+    #: Whether the readout also reads RECENCY_FEATURES.
+    recency: bool = False
+
+    @property
+    def features(self) -> tuple[str, ...]:
+        return (*FEATURES, *RECENCY_FEATURES) if self.recency else FEATURES
 
     def __post_init__(self) -> None:
-        if len(self.weight) != len(FEATURES) or not all(
+        if len(self.weight) != len(self.features) or not all(
             math.isfinite(value) for value in (*self.weight, self.bias)
         ):
             raise ValueError("argument antecedent parameters are invalid")
@@ -328,8 +368,8 @@ class ArgumentAntecedent:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": ANTECEDENT_SCHEMA,
-            "features": list(FEATURES),
+            "schema": RECENCY_ANTECEDENT_SCHEMA if self.recency else ANTECEDENT_SCHEMA,
+            "features": list(self.features),
             "channels": list(CHANNELS),
             "weight": list(self.weight),
             "bias": self.bias,
@@ -374,7 +414,8 @@ class _AntecedentScorer:
             return tuple(0.0 for _ in self.stretches)
         if mention not in self.cache:
             rows = np.asarray(
-                antecedent_features(self.similarities, mention, self.stretches, self.input_count)
+                antecedent_features(self.similarities, mention, self.stretches, self.input_count,
+                                    recency=self.readout.recency)
             )
             logits = rows @ np.asarray(self.readout.weight) + self.readout.bias
             top = float(np.max(logits))
@@ -421,9 +462,10 @@ class _AntecedentScorer:
 
 
 def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAntecedent:
+    recency = value.get("schema") == RECENCY_ANTECEDENT_SCHEMA
     if (
-        value.get("schema") != ANTECEDENT_SCHEMA
-        or list(value.get("features", ())) != list(FEATURES)
+        value.get("schema") not in (ANTECEDENT_SCHEMA, RECENCY_ANTECEDENT_SCHEMA)
+        or list(value.get("features", ())) != [*FEATURES, *(RECENCY_FEATURES if recency else ())]
         or list(value.get("channels", ())) != list(CHANNELS)
     ):
         raise ValueError("argument antecedent payload is not this schema")
@@ -436,6 +478,7 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
         bool(value.get("named_inputs_are_used_by_name", False)),
         tuple(int(token) for token in value.get("sentence_end_token_ids", ())),
         bool(value.get("arguments_within_sentence", False)),
+        recency,
     )
 
 
@@ -450,7 +493,7 @@ def _item_stretches(item: Any, sentence_end_token_ids: Sequence[int]) -> tuple[t
 
 
 def antecedent_training_groups(
-    item: Any, sentence_end_token_ids: Sequence[int] = ()
+    item: Any, sentence_end_token_ids: Sequence[int] = (), *, recency: bool = False
 ) -> list[tuple[list[list[float]], int]]:
     """Per annotated mention: the feature rows of the registers its operation could read, and the gold one's index."""
     ir = item.ir
@@ -464,7 +507,7 @@ def antecedent_training_groups(
         for register, mention in zip(instruction.args, instruction.argument_spans, strict=True):
             if _literal(mention, ir.input_spans):
                 continue
-            features = antecedent_features(similarities, mention, stretches, ir.n_inputs)
+            features = antecedent_features(similarities, mention, stretches, ir.n_inputs, recency=recency)
             candidates = [index for index in range(len(features)) if index != own]
             groups.append(([features[index] for index in candidates], candidates.index(register)))
     return groups
@@ -494,12 +537,12 @@ def _fit_conditional(groups: Sequence[tuple[list[list[float]], int]]) -> tuple[f
             gradient -= rows[gold] - (exp / norm) @ rows
         return total, gradient
 
-    result = minimize(loss, np.zeros(len(FEATURES)), jac=True, method="L-BFGS-B", options={"maxiter": 2000})
+    result = minimize(loss, np.zeros(blocks[0].shape[1]), jac=True, method="L-BFGS-B", options={"maxiter": 2000})
     return tuple(float(value) for value in result.x)
 
 
 def antecedent_training_rows(
-    item: Any, sentence_end_token_ids: Sequence[int] = ()
+    item: Any, sentence_end_token_ids: Sequence[int] = (), *, recency: bool = False
 ) -> tuple[list[list[float]], list[int]]:
     """Each annotated argument mention against every register its operation could read."""
     ir = item.ir
@@ -514,7 +557,7 @@ def antecedent_training_rows(
         for register, mention in zip(instruction.args, instruction.argument_spans, strict=True):
             if _literal(mention, ir.input_spans):
                 continue
-            features = antecedent_features(similarities, mention, stretches, ir.n_inputs)
+            features = antecedent_features(similarities, mention, stretches, ir.n_inputs, recency=recency)
             for candidate, row in enumerate(features):
                 if candidate == own:
                     continue
@@ -524,13 +567,17 @@ def antecedent_training_rows(
 
 
 def fit_argument_antecedent(
-    examples: Sequence[Any], *, objective: str = "pairwise", sentence_end_token_ids: Sequence[int] = ()
+    examples: Sequence[Any],
+    *,
+    objective: str = "pairwise",
+    sentence_end_token_ids: Sequence[int] = (),
+    recency: bool = False,
 ) -> ArgumentAntecedent:
     """Fit on each training argument mention against every other register of its request.
 
     ``objective`` "pairwise" fits each (mention, register) pair as a yes or no;
     "conditional" fits each mention's distribution over its registers, which is
-    how the readout is used.
+    how the readout is used. ``recency`` adds RECENCY_FEATURES.
     """
     from sklearn.linear_model import LogisticRegression
 
@@ -541,7 +588,7 @@ def fit_argument_antecedent(
         raise ValueError("argument antecedents are fitted pairwise or conditionally")
     if objective == "conditional":
         ends = tuple(int(token) for token in sentence_end_token_ids)
-        groups = [group for item in examples for group in antecedent_training_groups(item, ends)]
+        groups = [group for item in examples for group in antecedent_training_groups(item, ends, recency=recency)]
         if not groups:
             raise ValueError("argument antecedents need annotated mentions")
         receipt = {
@@ -551,15 +598,16 @@ def fit_argument_antecedent(
             "objective": "conditional",
             "splits_used": ["train"],
             **({"stretches": "sentence"} if ends else {}),
+            **({"recency": True} if recency else {}),
         }
         return ArgumentAntecedent(
             _fit_conditional(groups), 0.0, {**receipt, "receipt_sha256": _sha(receipt)},
-            sentence_end_token_ids=ends,
+            sentence_end_token_ids=ends, recency=recency,
         )
     rows: list[list[float]] = []
     labels: list[int] = []
     for item in examples:
-        item_rows, item_labels = antecedent_training_rows(item, tuple(sentence_end_token_ids))
+        item_rows, item_labels = antecedent_training_rows(item, tuple(sentence_end_token_ids), recency=recency)
         rows.extend(item_rows)
         labels.extend(item_labels)
     if len(set(labels)) < 2:
@@ -571,12 +619,14 @@ def fit_argument_antecedent(
         "pairs": len(labels),
         "named_pairs": int(sum(labels)),
         "splits_used": ["train"],
+        **({"recency": True} if recency else {}),
     }
     return ArgumentAntecedent(
         tuple(float(value) for value in fitted.coef_[0]),
         float(fitted.intercept_[0]),
         {**receipt, "receipt_sha256": _sha(receipt)},
         sentence_end_token_ids=tuple(int(token) for token in sentence_end_token_ids),
+        recency=recency,
     )
 
 
@@ -624,6 +674,8 @@ def within_sentence(
 
 __all__ = [
     "ANTECEDENT_SCHEMA",
+    "RECENCY_ANTECEDENT_SCHEMA",
+    "RECENCY_FEATURES",
     "ArgumentAntecedent",
     "argument_sentences",
     "antecedent_features",

@@ -98,7 +98,10 @@ COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND: Final = "counterfactual_fork_join_source_v
 COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND: Final = "counterfactual_fork_join_stop_source_v1"
 COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND: Final = "counterfactual_fork_join_stop_source_v2"
 #: G04's fresh transfer strata, named where they are built.
-from core.learning.semantic_g04_transfer_corpus import G04_TRANSFER_CORPUS_KIND  # noqa: E402
+from core.learning.semantic_g04_transfer_corpus import (  # noqa: E402
+    G04_TRANSFER_CORPUS_KIND,
+    G04_TRANSFER_V2_CORPUS_KIND,
+)
 from core.learning.semantic_g05_long_sequence_corpus import (  # noqa: E402
     G05_LONG_SEQUENCE_CORPUS_KIND,
 )
@@ -129,6 +132,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         SEQUENCE_ROLE_BINDING_ALIAS_CORPUS_KIND,
         SEQUENCE_CHAIN_CORPUS_KIND,
         G04_TRANSFER_CORPUS_KIND,
+        G04_TRANSFER_V2_CORPUS_KIND,
         G05_LONG_SEQUENCE_CORPUS_KIND,
     }
 )
@@ -279,12 +283,13 @@ def build_semantic_program_corpus_for_config(
         _require_complete_stop_contrasts(config.max_examples, len(corpus))
         return corpus
 
-    if config.corpus_kind == G04_TRANSFER_CORPUS_KIND:
+    if config.corpus_kind in (G04_TRANSFER_CORPUS_KIND, G04_TRANSFER_V2_CORPUS_KIND):
         from core.learning.semantic_g04_transfer_corpus import build_g04_transfer_corpus
 
         # examples_per_operation_pair is the number of tasks in each stratum.
         strata = build_g04_transfer_corpus(
-            seed=config.seed, tasks_per_stratum=config.examples_per_operation_pair
+            seed=config.seed, tasks_per_stratum=config.examples_per_operation_pair,
+            version=2 if config.corpus_kind == G04_TRANSFER_V2_CORPUS_KIND else 1,
         )
         return tuple(example for rows in strata.values() for example in rows)
 

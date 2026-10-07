@@ -23,6 +23,13 @@ of what the candidate has met:
   entry another lookup chose); in every consumed program a sequence operation
   takes the request's own inputs.
 
+``g04_transfer_v2`` is the same generator with a second vocabulary table.
+The first run (6 October) consumed the first: its failures were read row by
+row to find why they failed, so its phrasings can no longer measure transfer.
+The second table was written and committed before any training wording that
+a later candidate could be fitted on, and shares no lemma with the first, with
+any consumed request, or with those training wordings.
+
 Every request is split ``test``: it is for measuring, after the candidate is
 frozen, and is never fitted on. ``novelty_signatures`` names what a stratum
 claims is new so a protocol can check it against the consumed inventory
@@ -47,11 +54,13 @@ from core.learning.semantic_program_corpus import (
 __all__ = [
     "G04_STRATA",
     "G04_TRANSFER_CORPUS_KIND",
+    "G04_TRANSFER_V2_CORPUS_KIND",
     "build_g04_transfer_corpus",
     "novelty_signatures",
 ]
 
 G04_TRANSFER_CORPUS_KIND: Final = "g04_transfer_v1"
+G04_TRANSFER_V2_CORPUS_KIND: Final = "g04_transfer_v2"
 G04_STRATA: Final = ("construction", "vocabulary", "depth", "family")
 
 #: Fixed text, the operation's own words ("op"), the first ("a") and second
@@ -105,6 +114,29 @@ _HELD_OUT_PHRASES: Final[dict[str, tuple[_Template, ...]]] = {
     "count_of": (_t("{OP:find how many times}", " ", "{B}", " shows up in ", "{A}"),),
 }
 
+#: The second vocabulary table, for g04_transfer_v2. Committed on 6 October
+#: before any wording a later candidate is fitted on was written.
+_HELD_OUT_PHRASES_V2: Final[dict[str, tuple[_Template, ...]]] = {
+    "add": (
+        _t("{OP:pile}", " ", "{B}", " onto ", "{A}"),
+        _t("{OP:bump}", " ", "{A}", " up by ", "{B}"),
+    ),
+    "sub": (
+        _t("{OP:dock}", " ", "{B}", " from ", "{A}"),
+        _t("{OP:lower}", " ", "{A}", " by ", "{B}"),
+    ),
+    "mul": (
+        _t("{OP:grow}", " ", "{A}", " ", "{B}", " times over"),
+        _t("{OP:boost}", " ", "{A}", " to ", "{B}", " times its size"),
+    ),
+    "idiv": (
+        _t("{OP:work out how many full groups of}", " ", "{B}", " fit into ", "{A}"),
+        _t("{OP:portion}", " ", "{A}", " out ", "{B}", " ways, whole portions only"),
+    ),
+    "at": (_t("{OP:fetch}", " whatever sits under ", "{IF_LITERAL_B:selector }", "{B}", " in ", "{A}"),),
+    "count_of": (_t("{OP:see how frequently}", " ", "{B}", " appears in ", "{A}"),),
+}
+
 #: What each stratum claims no consumed request contains, lowercased.
 _SIGNATURES: Final[dict[str, tuple[str, ...]]] = {
     "vocabulary": (
@@ -119,11 +151,19 @@ _SIGNATURES: Final[dict[str, tuple[str, ...]]] = {
     ),
 }
 
+_VOCABULARY_V2_SIGNATURES: Final = (
+    "pile", "onto", "bump", "dock", "lower", "grow", "times over", "boost",
+    "times its size", "full groups", "fit into", "portion", "ways", "fetch",
+    "whatever sits", "frequently", "appears",
+)
+
 _SCALAR_OPS: Final = ("add", "sub", "mul", "idiv")
 
 
-def novelty_signatures(stratum: str) -> tuple[str, ...]:
+def novelty_signatures(stratum: str, *, version: int = 1) -> tuple[str, ...]:
     """Lowercased phrases a stratum claims no consumed request contains."""
+    if version == 2 and stratum == "vocabulary":
+        return _VOCABULARY_V2_SIGNATURES
     return _SIGNATURES.get(stratum, ())
 
 
@@ -442,15 +482,19 @@ _FAMILY_SHAPES: Final = ("computed_selector", "computed_wanted", "count_of_looku
 
 
 def build_g04_transfer_corpus(
-    *, seed: int, tasks_per_stratum: int
+    *, seed: int, tasks_per_stratum: int, version: int = 1
 ) -> dict[str, tuple[SemanticProgramExample, ...]]:
     """``tasks_per_stratum`` fresh requests in each of the four strata.
 
     Deterministic in ``seed``. Constructions within a stratum are taken in
-    turn, so each frame, depth or shape is represented equally.
+    turn, so each frame, depth or shape is represented equally. ``version`` 2
+    takes the vocabulary stratum's phrasings from the second table.
     """
     if tasks_per_stratum < 1:
         raise ValueError("each stratum needs at least one task")
+    if version not in (1, 2):
+        raise ValueError("the G04 corpus has versions 1 and 2")
+    held_out = _HELD_OUT_PHRASES if version == 1 else _HELD_OUT_PHRASES_V2
     rng = random.Random(seed)
     strata: dict[str, list[SemanticProgramExample]] = {name: [] for name in G04_STRATA}
     seen: set[str] = set()
@@ -468,7 +512,7 @@ def build_g04_transfer_corpus(
         if len(strata["vocabulary"]) < tasks_per_stratum:
             request = _Request(random.Random(rng.getrandbits(64)))
             _two_step(request)
-            _then_scaffold(request, _HELD_OUT_PHRASES)
+            _then_scaffold(request, held_out)
             keep("vocabulary", request.example("vocabulary", "held_out_phrasings", sample))
         if len(strata["construction"]) < tasks_per_stratum:
             frame = _CONSTRUCTION_FRAMES[len(strata["construction"]) % len(_CONSTRUCTION_FRAMES)]
