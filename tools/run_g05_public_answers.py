@@ -93,14 +93,27 @@ def messages(arm: str, request: str, evidence: str | None) -> list[dict[str, Any
     return [*turn, block]
 
 
-def decode_public(model: Any, tokenizer: Any, conversation: list, *, max_tokens: int) -> dict[str, Any]:
+def decode_public(
+    model: Any, tokenizer: Any, conversation: list, *, max_tokens: int, thinking: bool = True
+) -> dict[str, Any]:
+    """One greedy decode through her template; ``thinking`` False closes the private channel.
+
+    Closed is how her runtime renders an answer an upstream phase has already
+    settled (chat_format.thinking_enabled_for_generation): the reader's
+    evidence reaches a person through a render without private reasoning.
+    """
     import mlx.core as mx
     from mlx_lm import stream_generate
 
-    from core.brain.llm.chat_format import render_chat_template, split_native_thinking_generation
+    from core.brain.llm.chat_format import (
+        reasoning_effort_for_generation,
+        render_chat_template,
+        split_native_thinking_generation,
+    )
 
     prompt = render_chat_template(tokenizer, conversation, add_generation_prompt=True,
-                                  enable_thinking=True, reasoning_effort="medium")
+                                  enable_thinking=thinking,
+                                  reasoning_effort=reasoning_effort_for_generation(thinking=thinking))
     tokens = [int(t) for t in tokenizer.encode(prompt, add_special_tokens=False)]
     pieces, generated, finish = [], 0, "token_limit"
     began = time.monotonic()
@@ -112,7 +125,7 @@ def decode_public(model: Any, tokenizer: Any, conversation: list, *, max_tokens:
         if response.finish_reason:
             finish = str(response.finish_reason)
     raw = "".join(pieces)
-    channels = split_native_thinking_generation(raw, native_thinking=True)
+    channels = split_native_thinking_generation(raw, native_thinking=thinking)
     return {
         "public_text": channels.surface,
         "raw_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
@@ -133,6 +146,8 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="the first N tasks only (a pilot)")
     parser.add_argument("--order-seed", type=int, default=0)
     parser.add_argument("--arm-order", type=Path, help="a plan's arm order by task id")
+    parser.add_argument("--thinking", choices=("open", "closed"), default="open",
+                        help="closed renders as her runtime does once an upstream phase settled the answer")
     args = parser.parse_args()
 
     import mlx.core as mx
@@ -210,14 +225,15 @@ def main() -> int:
                         continue
                     shown = {"ordinary": None, "assisted": evidence[sha]["text"], "sham": sham[sha]}[arm]
                     decoded = decode_public(model, tokenizer, messages(arm, example.source_text, shown),
-                                            max_tokens=args.max_tokens)
+                                            max_tokens=args.max_tokens, thinking=args.thinking == "open")
                     parsed = parse_integral_numeric_claim(decoded["public_text"])
                     _write_once(path, {
                         "task_id": example.example_id, "source_sha256": sha, "arm": arm,
                         "construction_id": example.construction_id, "expected": expected,
                         "evidence_sha256": hashlib.sha256((shown or "").encode()).hexdigest(),
                         "reader_answer": evidence[sha]["answer"] if arm == "assisted" else None,
-                        "parsed_integer": parsed, "answer_exact": parsed == expected, **decoded,
+                        "parsed_integer": parsed, "answer_exact": parsed == expected,
+                        "thinking": args.thinking, **decoded,
                     })
                 print(json.dumps({"done": count, "of": len(tasks)}), flush=True)
         finally:
