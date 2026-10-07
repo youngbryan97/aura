@@ -34,3 +34,12 @@ def test_the_channel_setting_reaches_the_template_and_the_split(monkeypatch, thi
                             thinking=thinking)
     assert seen["enable_thinking"] is thinking and seen["reasoning_effort"] == effort
     assert decoded["public_text"] == public and decoded["termination"] == "stop"
+
+
+def test_the_open_ordinary_arm_shows_no_evidence() -> None:
+    from tools.run_g05_public_answers import OPEN_ORDINARY, messages
+
+    assert messages(OPEN_ORDINARY, "what is 2 and 3?", "Semantic program reader: ...") == [
+        {"role": "user", "content": "what is 2 and 3?"}]
+    assisted = messages("assisted", "what is 2 and 3?", "Semantic program reader: r1 = add(2, 3) = 5")
+    assert len(assisted) == 2 and "r1 = add" in assisted[1]["content"]

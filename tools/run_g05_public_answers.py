@@ -40,6 +40,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 ARMS = ("ordinary", "assisted", "sham")
+#: The request alone with the private channel open, whatever --thinking says:
+#: how her runtime answers when nothing upstream settled the answer.
+OPEN_ORDINARY = "ordinary_open"
 
 
 def _value(value: Any) -> str:
@@ -85,7 +88,7 @@ def messages(arm: str, request: str, evidence: str | None) -> list[dict[str, Any
     from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE, stamp_grounding
 
     turn = [{"role": "user", "content": request}]
-    if arm == "ordinary":
+    if arm in ("ordinary", OPEN_ORDINARY):
         return turn
     block = stamp_grounding({"role": "system", "content": evidence,
                              "metadata": {"type": "semantic_program_reading"}})
@@ -148,6 +151,9 @@ def main() -> int:
     parser.add_argument("--arm-order", type=Path, help="a plan's arm order by task id")
     parser.add_argument("--thinking", choices=("open", "closed"), default="open",
                         help="closed renders as her runtime does once an upstream phase settled the answer")
+    parser.add_argument("--open-ordinary", action="store_true",
+                        help=f"also decode the {OPEN_ORDINARY} arm: the request alone, channel open")
+    parser.add_argument("--reader", type=Path, help="the frozen reader's candidate (default: G04's first plan's)")
     args = parser.parse_args()
 
     import mlx.core as mx
@@ -168,8 +174,10 @@ def main() -> int:
     from tools.run_semantic_peak_recognition import _write_once
 
     incumbent = restore(json.loads(protocol.INCUMBENT.read_text(encoding="utf-8")))
+    reader_path = args.reader.expanduser() if args.reader else protocol.CANDIDATE
     reader = peak_recognition_transducer_from_dict(
-        json.loads(protocol.CANDIDATE.read_text(encoding="utf-8")), restore_base=restore)
+        json.loads(reader_path.read_text(encoding="utf-8")), restore_base=restore)
+    arms = (*ARMS, OPEN_ORDINARY) if args.open_ordinary else ARMS
     features = args.features.expanduser()
     bundle = load_standard_semantic_feature_bundle(features)
     from dataclasses import replace
@@ -218,14 +226,16 @@ def main() -> int:
                 sha = item.ir.source_text_sha256
                 example = by_sha[sha]
                 expected = example.program.run(example.inputs)
-                order = planned.get(example.example_id) or rng.sample(ARMS, len(ARMS))
+                order = planned.get(example.example_id) or rng.sample(arms, len(arms))
                 for arm in order:
                     path = output / "rows" / arm / f"{sha}.json"
                     if path.exists():
                         continue
-                    shown = {"ordinary": None, "assisted": evidence[sha]["text"], "sham": sham[sha]}[arm]
+                    shown = {"ordinary": None, OPEN_ORDINARY: None, "assisted": evidence[sha]["text"],
+                             "sham": sham[sha]}[arm]
+                    thinking = arm == OPEN_ORDINARY or args.thinking == "open"
                     decoded = decode_public(model, tokenizer, messages(arm, example.source_text, shown),
-                                            max_tokens=args.max_tokens, thinking=args.thinking == "open")
+                                            max_tokens=args.max_tokens, thinking=thinking)
                     parsed = parse_integral_numeric_claim(decoded["public_text"])
                     _write_once(path, {
                         "task_id": example.example_id, "source_sha256": sha, "arm": arm,
@@ -233,7 +243,7 @@ def main() -> int:
                         "evidence_sha256": hashlib.sha256((shown or "").encode()).hexdigest(),
                         "reader_answer": evidence[sha]["answer"] if arm == "assisted" else None,
                         "parsed_integer": parsed, "answer_exact": parsed == expected,
-                        "thinking": args.thinking, **decoded,
+                        "thinking": "open" if thinking else "closed", **decoded,
                     })
                 print(json.dumps({"done": count, "of": len(tasks)}), flush=True)
         finally:
@@ -242,7 +252,7 @@ def main() -> int:
             mx.clear_cache()
 
     summary: dict[str, Any] = {"tasks": len(tasks), "arms": {}}
-    for arm in ARMS:
+    for arm in arms:
         rows = [json.loads(p.read_text()) for p in sorted((output / "rows" / arm).glob("*.json"))]
         summary["arms"][arm] = {
             "decodes": len(rows),

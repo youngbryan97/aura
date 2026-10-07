@@ -3,16 +3,19 @@
 
 The first run (6 October, plan `4989717df596`) rejected on family only. Its
 vocabulary and depth failures were read row by row, which consumed them, and
-led to candidate v13: G03's v12 with a recognizer that also reads where an
-operation's phrase closes, an antecedent that counts recency, and both fitted
-with 600 breadth requests (wordings settled late in the phrase; chains of
-three to five steps). This protocol commits v13 against the same incumbent on
-fresh requests from ``g04_transfer_v2``, whose vocabulary table was committed
-before the breadth wordings were written (``f1d2ba1f0``).
+led to candidate v14: G03's v12 with a recognizer that also reads where an
+operation's phrase closes, and an antecedent that counts recency gated by
+which way a mention points, with construction families weighed alike; both
+fitted with 600 breadth requests (wordings settled late in the phrase; chains
+of three to five steps). v13, the same without direction or balancing, lost
+five development requests v12 had right and was not frozen. This protocol
+commits v14 against the same incumbent on fresh requests from
+``g04_transfer_v2``, whose vocabulary table was committed before the breadth
+wordings were written (``f1d2ba1f0``).
 
 Claims, fixed here:
 
-* primary: v13 produces a program with the reference meaning more often than
+* primary: v14 produces a program with the reference meaning more often than
   the incumbent, exact one-sided McNemar per stratum, Bonferroni over the
   three strata where the first run showed the incumbent failing (vocabulary,
   depth, family);
@@ -22,7 +25,7 @@ Claims, fixed here:
   to be all of it;
 * G04 is closed only if both hold.
 
-Secondary, for G06, a separate family at alpha 0.05 over two tests: v13 against
+Secondary, for G06, a separate family at alpha 0.05 over two tests: v14 against
 itself with the phrase readouts removed, on vocabulary; and with the recency
 features zeroed, on depth. v12 is decoded on every task and reported.
 
@@ -60,7 +63,7 @@ from tools.g04_transfer_protocol import (  # noqa: E402
 )
 
 EVIDENCE = Path("~/.aura/rlc-evidence").expanduser()
-CANDIDATE = EVIDENCE / "semantic-peak-phrase-v13-20261006/candidate.json"
+CANDIDATE = EVIDENCE / "semantic-peak-direction-v14-20261006/candidate.json"
 PREVIOUS = EVIDENCE / "semantic-peak-antecedent-v12-20261006/candidate.json"
 CORPUS_KIND = "g04_transfer_v2"
 PAIRED_STRATA = ("vocabulary", "depth", "family")
@@ -234,8 +237,8 @@ def main() -> int:
     spec = {
         "campaign": "g04-transfer-v2",
         "hypothesis": (
-            "On fresh requests that differ from everything candidate v13 was fitted on or tuned "
-            "against in vocabulary, depth or family, v13 produces a program with the reference "
+            "On fresh requests that differ from everything candidate v14 was fitted on or tuned "
+            "against in vocabulary, depth or family, v14 produces a program with the reference "
             "program's meaning more often than the incumbent it was built on; and on fresh "
             "requests in scaffolds it never met, it produces the reference meaning every time."
         ),
@@ -294,7 +297,7 @@ def main() -> int:
         "first_run_disclosure": (
             "The first run's 248 requests are consumed and none is repeated. Its vocabulary and "
             "depth failures were read row by row; the depth diagnosis led to the recency features, "
-            "and v13's decodes of those consumed rows are in the development record. Its vocabulary "
+            "and v14's decodes of those consumed rows are in the development record. Its vocabulary "
             "table is replaced, not reused; its construction scaffolds and family shapes are reused "
             "with fresh requests, and were not diagnosed."
         ),
