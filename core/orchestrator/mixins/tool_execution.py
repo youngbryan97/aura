@@ -13,6 +13,7 @@ from typing import Any
 from core.collective.delegator import swarm_debate_failure_reason
 from core.container import ServiceContainer
 from core.executive.execution_policy import (
+    canonical_authority_arguments,
     classify_execution_risk,
     resolve_execution_effect_scope,
 )
@@ -386,12 +387,12 @@ class ToolExecutionMixin:
             else ServiceContainer.get("edi", default=None)
         )
         if edi:
+            # EDI reads governance from the scope or a signed capability; a live runtime
+            # is neither, and claiming it was logged as false (swarm_debate, 2026-10-06).
             allowed, reason = edi.can_do(
-                tool_name,
-                risk_level,
-                effect_scope=effect_scope,
-                governed=_constitutional_runtime_live,
-                user_authorized=user_authorized,
+                tool_name, risk_level, effect_scope=effect_scope, user_authorized=user_authorized,
+                governance_context=governance_context,
+                governance_payload=canonical_authority_arguments(tool_name, args),
             )
             if not allowed:
                 logger.warning("🔓 EDI blocked tool '%s' (risk: %s): %s", tool_name, risk_level, reason)
