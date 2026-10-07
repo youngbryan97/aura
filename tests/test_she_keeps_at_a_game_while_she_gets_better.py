@@ -25,3 +25,19 @@ def _r(gains, took, ended="lost"):
 ])
 def test_whether_she_is_still_getting_better(runs, leave):
     assert not_getting_better(runs) is leave
+
+
+@pytest.mark.parametrize(("goal", "many"), [
+    ("Play this game and win it. (It is “Tunnel Rush”, the first of the 3 picked.)", 3),
+    ("Play this game and win it.", 1),
+    ("Cook this recipe. (It is “Soup”, the second of the 2 picked.)", 2),
+])
+def test_one_of_several_things_asked_for_has_its_share_of_the_time(goal, many):
+    from core.skills.sovereign_browser_drawing import (
+        LEAST_SHARE_S,
+        PLAY_UNTIL_WON_S,
+        _how_many_asked,
+    )
+
+    assert _how_many_asked(goal) == many
+    assert max(LEAST_SHARE_S, PLAY_UNTIL_WON_S / many) <= PLAY_UNTIL_WON_S

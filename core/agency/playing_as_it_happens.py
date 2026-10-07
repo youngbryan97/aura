@@ -38,7 +38,7 @@ from typing import Any
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_the_rules_said import WhatTheRulesSaid
-from core.agency.which_one_answers_to_her import WhichIsHers
+from core.agency.which_one_answers_to_her import WAYS, WhichIsHers
 from core.perception.how_things_move_here import HowThingsMoveHere
 from core.perception.what_changed_and_stayed import WhatChangedAndStayed
 from core.perception.what_moves_in_the_picture import WhatMoves
@@ -998,6 +998,8 @@ async def play_as_it_happens(
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
     run.lately = dict(keep.get("said_lately") or {})
+    # What is said once ("That's me", what a kind of thing is worth) is said once a game, not once a stretch.
+    run.said = set(keep.get("said_once") or ())
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -1018,6 +1020,11 @@ async def play_as_it_happens(
             run.pictures += 1
             happened = moves.see(picture, at)
             hers.saw(moves, happened, at)
+            # A key named for a way moves her; it is taken to fire only where the game's words say it does: LIVE
+            # 2026-10-07 in a shooter whose words said "SPACE press to fire", left, up and right were each said to fire,
+            # shots turning up beside her whatever she pressed.
+            for key in [k for k in hers.makes if k in WAYS and not (rules is not None and k in rules.fire_keys)]:
+                del hers.makes[key]
             _record_control_attribution(run, moves, hers, at)
             _measure_response(run, hers.thing(moves), at)
             physics.saw(moves, hers, happened, at)
@@ -1056,7 +1063,8 @@ async def play_as_it_happens(
         if run.reading is not None:
             run.reading.cancel()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
-                 "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately})
+                 "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
+                 "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
                                 "provenance": motion_checks.provenance, "violations": motion_checks.violations,

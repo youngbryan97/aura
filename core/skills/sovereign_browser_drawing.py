@@ -250,7 +250,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     until_won = asks_to_win(goal)
     attempts = requested_attempts(goal)
     limit = min(attempts, MOST_RUNS) if attempts is not None else MOST_RUNS if until_won else 1
-    deadline = time.monotonic() + (PLAY_UNTIL_WON_S if until_won or limit > 1 else _one_run_s())
+    # One of several things asked for ("the first of the 3 picked") has its share of the time, not all of it.
+    deadline = time.monotonic() + (max(LEAST_SHARE_S, PLAY_UNTIL_WON_S / _how_many_asked(goal)) if until_won or limit > 1 else _one_run_s())
     contract = step.get("runtime_contract") or {}
     keep: dict[str, Any] = {"required_edges": contract.get("required_edges") or [],
                             "edge_provenance": contract.get("provenance") or ""}
@@ -305,6 +306,9 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             break
         _tell(f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned.")
         begin_run(keep)
+    if time.monotonic() >= deadline and not any(r["ended"] == "won" for r in runs) and not result.get("stopped_because"):
+        _tell("I've given this one its share of the time, and I leave it here.")
+        result["stopped_because"] = "its share of the time is up"
     result["as_it_happened"] = "; ".join(r["said"] for r in runs if r["said"])
     last_seen = str(result.get("last_seen") or "")
     won = any(r["ended"] == "won" for r in runs)
@@ -384,6 +388,18 @@ def _how_the_run_went(reflexes: Any, result: Mapping[str, Any]) -> dict[str, str
     if not ended and played:
         ended = str(played[-1].get("settled") or "")
     return {"ended": ended, "words": " ".join(words.split()), "said": reflexes.what_it_came_to()}
+
+
+#: The least time one of several games asked for is given, in seconds.
+LEAST_SHARE_S = 360.0
+
+
+def _how_many_asked(goal: str) -> int:
+    """How many things the goal is one of, where it says ("the first of the 3 picked"); else 1."""
+    import re
+
+    said = re.search(r"\bof the (\d+) (?:picked|asked|chosen)\b", goal or "", re.I)
+    return max(1, int(said.group(1))) if said else 1
 
 
 #: How long a round played to be won goes before she looks at whether it is getting anywhere, in seconds.

@@ -53,3 +53,17 @@ def test_a_line_said_a_moment_ago_is_not_said_again_in_the_same_game():
         _say(run, heard.append, line, at, once="")
         run.said_at = -100.0  # pacing between lines is another rule; here only repetition is measured
     assert heard == ["Space fires.", "The black things are worth shooting.", "Space fires."]
+
+
+def test_what_is_said_once_is_said_once_a_game_not_once_a_stretch():
+    """LIVE 2026-10-07 "That's me" was said again each stretch, about a different thing each time."""
+    from core.agency.playing_as_it_happens import _Run, _say
+
+    heard: list[str] = []
+    keep: dict = {}
+    for stretch, line in enumerate(("That's me: the white thing at the top left.", "That's me: the orange bar at the top left.")):
+        run = _Run(keys=["up"], began=0.0)
+        run.said = set(keep.get("said_once") or ())
+        _say(run, heard.append, line, 200.0 * stretch, once="me")
+        keep["said_once"] = run.said
+    assert heard == ["That's me: the white thing at the top left."]
