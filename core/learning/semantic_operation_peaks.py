@@ -713,6 +713,7 @@ def fit_peak_operation_recognizer(
     sentence_end_token_ids: Sequence[int] = (),
     punctuation_token_ids: Sequence[int] = (),
     chart_weighting: str = "fitted",
+    phrase_examples: Sequence[Any] = (),
 ) -> PeakOperationRecognizer:
     """Fit every readout on training rows; any other split is refused.
 
@@ -738,17 +739,29 @@ def fit_peak_operation_recognizer(
     """
     if chart_weighting not in ("fitted", "equal"):
         raise ValueError("chart weighting is fitted or equal")
+    # ``phrase_examples`` teach where operations are and where their phrases
+    # settle (tagger, phrase readouts), not what a verb or its word names:
+    # wordings built with misleading verbs ("take ... lots of", "share ...
+    # among") taught the candidate labelers that verbs mislead, and "apply
+    # multiplicity calculation", a count, was read as a multiplication
+    # (candidate v16, two validation requests, 7 October).
+    phrase_examples = tuple(phrase_examples)
+    if phrase_examples and not phrase_reading:
+        raise ValueError("phrase examples only join a fit with phrase reading")
     continuations = frozenset(int(token_id) for token_id in word_continuations)
     ends = frozenset(int(token_id) for token_id in sentence_end_token_ids)
     punctuation = frozenset(int(token_id) for token_id in punctuation_token_ids)
     if phrase_reading and (construction_groups is None or not ends or not punctuation):
         raise ValueError("phrase reading needs held-out groups, sentence ends and punctuation")
     examples = tuple(examples)
-    if not examples or any(item.split != "train" for item in examples):
+    if not examples or any(item.split != "train" for item in (*examples, *phrase_examples)):
         raise ValueError("peak operation recognition is fitted on training rows only")
     token_rows, token_tags, first_rows = [], [], []
     label_rows, label_firsts, label_names, label_spans, label_groups = [], [], [], [], []
-    for item in examples:
+    naming: list[bool] = []
+    naming_set = {id(item) for item in examples}
+    for item in (*examples, *phrase_examples):
+        names_operations = id(item) in naming_set
         hidden = np.asarray(item.hidden_states)
         channels, widths = item.hidden_channels, item.hidden_channel_widths
         inside = np.zeros(hidden.shape[0], dtype=bool)
@@ -768,9 +781,12 @@ def fit_peak_operation_recognizer(
                 )[0]
             )
             label_names.append(instruction.op)
+            naming.append(names_operations)
             if construction_groups is not None:
                 label_spans.append((item, instruction.operation_span))
                 label_groups.append(construction_groups[item.ir.source_text_sha256])
+    naming_rows = np.asarray(naming)
+    named = [name for name, keep in zip(label_names, naming, strict=True) if keep]
     operations = tuple(sorted(set(label_names)))
     if len(operations) < 2:
         raise ValueError("peak operation recognition needs at least two operations")
@@ -781,8 +797,8 @@ def fit_peak_operation_recognizer(
     first_tagger = _centred_head(tags, first_matrix, token_tags, balanced=True)
     first_labeler = _centred_head(
         operations,
-        np.stack(label_firsts),
-        label_names,
+        np.stack(label_firsts)[naming_rows],
+        named,
         balanced=False,
         mean=first_matrix.mean(axis=0),
     )
@@ -795,9 +811,10 @@ def fit_peak_operation_recognizer(
             _training_words(item, span, tagger, first_tagger, lexical_at, continuations)
             for item, span in label_spans
         ])
-        lexical_labeler = _centred_head(operations, lexical_matrix, label_names, balanced=False)
+        lexical_labeler = _centred_head(operations, lexical_matrix[naming_rows], named, balanced=False)
         label_weights = _stacked_label_weights(
-            np.stack(label_rows), lexical_matrix, label_names, label_groups, operations
+            np.stack(label_rows)[naming_rows], lexical_matrix[naming_rows], named,
+            [group for group, keep in zip(label_groups, naming, strict=True) if keep], operations,
         )
         if phrase_reading:
             close_matrix, phrase_matrix = _training_phrases(
@@ -813,6 +830,8 @@ def fit_peak_operation_recognizer(
     receipt = {
         "training_sources": sorted(item.ir.source_text_sha256 for item in examples),
         "training_rows": len(examples),
+        **({"phrase_sources": sorted(item.ir.source_text_sha256 for item in phrase_examples)}
+           if phrase_examples else {}),
         "operation_tokens": int(sum(tag == OPERATION_TAG for tag in token_tags)),
         "operations": list(operations),
         "splits_used": ["train"],
@@ -824,7 +843,7 @@ def fit_peak_operation_recognizer(
     }
     return PeakOperationRecognizer(
         tagger=tagger,
-        labeler=_centred_head(operations, np.stack(label_rows), label_names, balanced=False),
+        labeler=_centred_head(operations, np.stack(label_rows)[naming_rows], named, balanced=False),
         first_tagger=first_tagger,
         first_labeler=first_labeler,
         peak_limit=peak_limit,

@@ -444,7 +444,10 @@ def main() -> int:
         phrase = {"phrase_reading": True, "sentence_end_token_ids": sentence_end_token_ids(tokenizer),
                   "punctuation_token_ids": punctuation_token_ids(tokenizer), "chart_weighting": args.chart_weighting}
         print(f"punctuation tokens: {len(phrase['punctuation_token_ids'])}", flush=True)
-    recognizer = fit_peak_operation_recognizer((*training, *breadth), construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, **phrase)
+    # Breadth teaches where operations are and where phrases settle; with phrase
+    # reading it stays out of the candidate labelers (fit_peak_operation_recognizer).
+    naming, settling = (training, breadth) if args.phrase_reading else ((*training, *breadth), ())
+    recognizer = fit_peak_operation_recognizer(naming, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, phrase_examples=settling, **phrase)
     ownership = fit_argument_ownership((*training, *breadth)) if args.argument_ownership else None
     antecedent = (
         replace(fit_argument_antecedent((*training, *breadth), objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency, direction=not args.antecedent_ungated, balance_families=args.antecedent_balance_families), scoring=args.antecedent_scoring,
@@ -486,15 +489,16 @@ def main() -> int:
         if any(item.ir.source_text_sha256 not in assignments for item in training):
             raise ValueError("the frozen folds do not assign every training source")
         for fold in sorted({assignments[item.ir.source_text_sha256] for item in training}):
-            kept = tuple(
+            kept_training = tuple(
                 item for item in training if assignments[item.ir.source_text_sha256] != fold
-            ) + breadth
+            )
+            kept = kept_training + breadth
             held = tuple(
                 item for item in training if assignments[item.ir.source_text_sha256] == fold
             )
             fold_candidate = PeakRecognitionTransducer(
                 incumbent,
-                fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, **phrase),
+                fit_peak_operation_recognizer(kept_training if args.phrase_reading else kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, phrase_examples=breadth if args.phrase_reading else (), **phrase),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
                 replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency, direction=not args.antecedent_ungated, balance_families=args.antecedent_balance_families), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,

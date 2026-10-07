@@ -473,3 +473,21 @@ def test_equal_chart_weighting_gives_each_readout_one_vote() -> None:
     assert recognizer.fit_receipt["chart_weighting"] == "equal"
     with pytest.raises(ValueError, match="fitted or equal"):
         fit_peak_operation_recognizer(train, construction_groups=groups, chart_weighting="loud")
+
+
+def test_phrase_examples_teach_spans_and_phrases_but_not_what_a_verb_names() -> None:
+    examples = _fixture_examples()
+    train = tuple(item for item in examples if item.split == "train")
+    naming, settling = train[: len(train) // 2], train[len(train) // 2 :]
+    groups = {item.ir.source_text_sha256: index % 2 for index, item in enumerate(train)}
+    every_token = sorted({int(t) for item in train for t in item.ir.source_token_ids})
+    phrase = dict(phrase_reading=True, sentence_end_token_ids=every_token[-1:], punctuation_token_ids=every_token[-1:])
+    alone = fit_peak_operation_recognizer(naming, construction_groups=groups, **phrase)
+    joined = fit_peak_operation_recognizer(naming, construction_groups=groups, phrase_examples=settling, **phrase)
+    assert np.array_equal(alone.labeler.weight, joined.labeler.weight)
+    assert np.array_equal(alone.lexical_labeler.weight, joined.lexical_labeler.weight)
+    assert alone.label_weights == joined.label_weights
+    assert not np.array_equal(alone.tagger.weight, joined.tagger.weight)
+    assert joined.fit_receipt["phrase_sources"] == sorted(item.ir.source_text_sha256 for item in settling)
+    with pytest.raises(ValueError, match="only join a fit with phrase reading"):
+        fit_peak_operation_recognizer(naming, construction_groups=groups, phrase_examples=settling)
