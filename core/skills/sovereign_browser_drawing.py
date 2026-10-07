@@ -171,6 +171,14 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
     return band
 
 
+#: Pages whose game was played to an end she said (won, its share of time up, not getting better), and that end.
+_PLAY_OVER: dict[str, str] = {}
+
+
+def _address(url: str) -> str:
+    return str(url or "").split("#", 1)[0].rstrip("/")
+
+
 def played_first(observation: Mapping[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
     """The first move where the page in front was seen to run what the goal is to run: play what it draws, unasked.
 
@@ -182,6 +190,12 @@ def played_first(observation: Mapping[str, Any], goal: str, *, take: bool = True
     from core.skills.whether_a_page_serves import seen_running, what_the_task_needs
 
     url = str(observation.get("url") or "")
+    # Its game played to an end she said: that is the end of what she was doing here, not a page to read afresh.
+    # LIVE 2026-10-07 after "I've given this one its share of the time" her model read the page again and played on.
+    ended = _PLAY_OVER.pop(_address(url), "") if take else _PLAY_OVER.get(_address(url), "")
+    if ended:
+        why = "Played, and won." if ended == "won" else f"Played, and not won: {ended}."
+        return {"done": True, "actions": [], "why": why}
     if what_the_task_needs(goal) != "run" or not seen_running(url):
         return None
     seen = seen_running(url, take=take)
@@ -231,7 +245,11 @@ async def played_on_the_drawing(
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="start the drawing and hold its page still")
     try:
-        return await _played(page, band, goal, url, {**step, "runtime_contract": observation.get("runtime_contract") or {}})
+        played = await _played(page, band, goal, url, {**step, "runtime_contract": observation.get("runtime_contract") or {}})
+        # Play that ended for a reason she said, or won, ends what she was doing on this page too.
+        if played.get("won") or played.get("stopped_because"):
+            _PLAY_OVER[_address(url)] = "won" if played.get("won") else str(played["stopped_because"])
+        return played
     finally:
         try:
             await page.evaluate(_LET_IT_GO)
@@ -304,7 +322,9 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             run["ended"] = "finished"
             _tell(f"This game has no winner, only a score, and the run is done: {run['words'][:80]!r}.")
             break
-        _tell(f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned.")
+        # The screen's own words the first time; after that, the round counted: six of the same line read as one.
+        _tell(f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned." if len(runs) == 1
+              else f"Round {len(runs)}: {run['ended'] or 'over'}. Again.")
         begin_run(keep)
     if time.monotonic() >= deadline and not any(r["ended"] == "won" for r in runs) and not result.get("stopped_because"):
         _tell("I've given this one its share of the time, and I leave it here.")
@@ -329,6 +349,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         "did": what_the_play_came_to(len(moves), result),
         "ok": bool(moves) and complete,
         "runtime_violations": result.get("runtime_violations") or [],
+        "stopped_because": str(result.get("stopped_because") or ""),
     }
 
 

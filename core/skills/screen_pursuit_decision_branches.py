@@ -425,7 +425,10 @@ def _what_she_says_as_she_moves(
             # on. That is the reason, and it was going unsaid — live, a line
             # of the game read "Left." and nothing else (2026-09-23).
             mine = (ahead or {}).get(key, (None, ""))[0]
-            if mine is not None and _value is not None:
+            from .screen_pursuit_on_a_page import on_her_page
+
+            # A look ahead a few moves is a reason in a world she reasons out, not over a game drawn on her page.
+            if mine is not None and _value is not None and on_her_page() is None:
                 if float(mine) > float(_value) + 1e-9:
                     because = f"played a few moves on, it ends better placed than {runner_up} would"
                 elif abs(float(mine) - float(_value)) <= 1e-9:

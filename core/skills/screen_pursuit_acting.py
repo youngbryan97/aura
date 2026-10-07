@@ -178,7 +178,9 @@ async def carry_out_the_move(
     here = where_am_i(laid_out, lattice=lattice, asked_for=goal)
     if not here.the_thing_is_here:
         if narrate:
-            _tell(here.said())
+            from .screen_pursuit_bearings import _said_unless_playing
+
+            _said_unless_playing(here.said())
         logger.info("not pressing anything: %s", here.said())
         # And not being able to see it is evidence about the frame.
         #

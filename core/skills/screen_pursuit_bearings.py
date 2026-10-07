@@ -602,9 +602,6 @@ def _say_what_kind_of_problem(
     # Imported here rather than at module level: the module these
     # came from imports this one. A call-time import also still
     # sees a test's patch of the original.
-    from .screen_pursuit import (
-        _tell,
-    )
 
     if said_already.get("shape"):
         return
@@ -625,7 +622,7 @@ def _say_what_kind_of_problem(
     if not suits.shape.transition_known:
         return
     said_already["shape"] = True
-    _tell(f"I know what kind of thing this is now: {suits.shape.named()}.")
+    _said_unless_playing(f"I know what kind of thing this is now: {suits.shape.named()}.")
 
 
 #: How many screenfuls down she will look for the thing before deciding the
@@ -1406,9 +1403,6 @@ def _what_she_is_not_reading(rules: Any) -> str:
 
 def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
     """Say it the once, when she first works out how a thing moves."""
-    from .screen_pursuit import (
-        _tell,
-    )
 
     rules = getattr(knows, "rules", None)
     if rules is None or said_already.get("said"):
@@ -1417,7 +1411,24 @@ def _say_what_she_worked_out(knows: Any, said_already: dict[str, bool]) -> None:
         return
     said_already["said"] = True
     logger.info("she can see ahead now: %s", rules.says())
-    _tell(f"I can see what my moves do here now — {rules.says()}.")
+    _said_unless_playing(f"I can see what my moves do here now — {rules.says()}.")
+
+
+def _said_unless_playing(line: str) -> None:
+    """A line of her working on a world she is reasoning out, said; where she plays a game drawn on her own page, logged.
+
+    Said over a game, it was a model's arithmetic read aloud in front of a
+    watcher: LIVE 2026-10-07 "I know what kind of thing this is now: a small
+    discrete world, 4 act(s), deterministic transition, no measurable
+    objective." over a food fight.
+    """
+    from .screen_pursuit import _tell
+    from .screen_pursuit_on_a_page import on_her_page
+
+    if on_her_page() is None:
+        _tell(line)
+    else:
+        logger.info("her working, kept from the chat while she plays: %s", line)
 
 
 def am_i_there(wanted: str, reading: str, page: str, window: str) -> bool:

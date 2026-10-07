@@ -108,3 +108,18 @@ def test_a_page_judged_running_is_remembered_as_seen_running():
 
     verdict = _judge(_ANIMATES, "play this game")
     assert verdict.ok and seen_running("http://test.example/") == "its canvas draws, and moves"
+
+
+@pytest.mark.unit
+def test_a_game_played_to_an_end_she_said_ends_what_she_was_doing_on_its_page():
+    """LIVE 2026-10-07 after "I've given this one its share of the time" her model read the page again and played on."""
+    from core.skills import sovereign_browser_drawing as drawing
+
+    here = {"url": "https://games.example.net/food-bash/"}
+    drawing._PLAY_OVER["https://games.example.net/food-bash"] = "its share of the time is up"
+    looked = drawing.played_first(here, "Play this game and win it.", take=False)
+    assert looked == {"done": True, "actions": [], "why": "Played, and not won: its share of the time is up."}
+    assert drawing.played_first(here, "Play this game and win it.")["done"] is True
+    assert drawing.played_first(here, "Play this game and win it.") is None  # said once: a new visit is a new game
+    drawing._PLAY_OVER["https://games.example.net/food-bash"] = "won"
+    assert drawing.played_first(here, "Play this game.")["why"] == "Played, and won."
