@@ -18,9 +18,9 @@ from core.learning.compositional_semantic_qualification import (
     COMPOSITIONAL_SEMANTIC_SOURCE_CONTRACTS,
     compositional_semantic_activation_errors,
 )
+from core.learning.semantic_operation_peaks import semantic_reader_from_dict
 from core.learning.semantic_program_compositional_transducer import (
     CompositionalSemanticProgramTransducer,
-    compositional_semantic_program_transducer_from_dict,
 )
 from core.learning.semantic_program_feature_materialization import (
     offset_tokenizer_for_worker,
@@ -247,7 +247,7 @@ def compositional_semantic_shadow_status(model_path: str | Path) -> dict[str, An
 @lru_cache(maxsize=2)
 def _load_transducer(path: str, expected_receipt: str) -> CompositionalSemanticProgramTransducer:
     payload, _raw = _read_json(Path(path), max_bytes=32 * 1024 * 1024)
-    model = compositional_semantic_program_transducer_from_dict(payload)
+    model = semantic_reader_from_dict(payload)
     if model.receipt_sha256 != expected_receipt:
         raise RuntimeError("compositional semantic transducer receipt differs")
     return model

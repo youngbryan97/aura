@@ -250,7 +250,9 @@ def _encode_hidden_sequence_response(
     if encoder_cache.get("encoder") is None:
         encoder_cache["encoder"] = MLXEncoder(model, tokenizer)
     encoder = encoder_cache["encoder"]
-    with metal_semaphore:
+    from core.runtime.observation_pass import observation_pass
+
+    with metal_semaphore, observation_pass():
         if representation == LEXICAL_CONTEXTUAL_V1:
             hidden = encoder.encode_lexical_contextual_sequence_ids(token_ids)
         elif representation == LEXICAL_MID_FINAL_V1:
@@ -284,7 +286,7 @@ def _encode_hidden_sequence_response(
     hidden_state_bytes = hidden_array.tobytes(order="C")
     hidden_state_sha256 = hashlib.sha256(hidden_state_bytes).hexdigest()
 
-    from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
+    from core.brain.llm.latent_cortex.runtime_identity import observation_model_basis
 
     return {
         "id": request_id,
@@ -309,7 +311,7 @@ def _encode_hidden_sequence_response(
                 "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
                 "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
             },
-            "model_basis": worker_model_basis(worker_identity),
+            "model_basis": observation_model_basis(worker_identity),
             "representation": representation,
             "channels": list(hidden_sequence_channels(representation)),
             "forward_passes": 1,

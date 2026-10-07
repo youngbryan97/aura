@@ -946,6 +946,22 @@ def worker_model_basis(identity: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def observation_model_basis(identity: Mapping[str, Any]) -> dict[str, Any]:
+    """The model basis of a forward run inside ``observation_pass()``.
+
+    Steering stands down in that pass (core/runtime/observation_pass.py), so
+    the function that produced its hidden states is the worker's with
+    steering inactive, whatever her affect was doing at the time.
+    """
+
+    basis = worker_model_basis(identity)
+    if "worker_affective_steering_active" in basis:
+        basis["worker_affective_steering_active"] = False
+    if "worker_affective_steering_alpha" in basis:
+        basis["worker_affective_steering_alpha"] = 0.0
+    return basis
+
+
 def worker_representation_basis(identity: Mapping[str, Any]) -> dict[str, Any]:
     """Project worker identity onto the function that produced hidden states.
 
@@ -1111,6 +1127,7 @@ __all__ = [
     "latent_request_payload_sha256",
     "inactive_worker_recurrent_adapter_activation",
     "logical_model_parameter_count",
+    "observation_model_basis",
     "model_parameter_count",
     "serving_stack_identity",
     "serving_stack_identity_errors",

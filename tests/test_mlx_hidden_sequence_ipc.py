@@ -93,7 +93,7 @@ def _valid_worker_response(client, request, *, hidden_states=None):
         hidden_sequence_channels,
         hidden_sequence_schema,
     )
-    from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
+    from core.brain.llm.latent_cortex.runtime_identity import observation_model_basis
     from core.brain.llm.mlx_worker import (
         _HIDDEN_SEQUENCE_MAX_INPUT_CHARS,
         _HIDDEN_SEQUENCE_MAX_TOKENS,
@@ -131,7 +131,7 @@ def _valid_worker_response(client, request, *, hidden_states=None):
                 "max_tokens": _HIDDEN_SEQUENCE_MAX_TOKENS,
                 "max_hidden_size": _HIDDEN_SEQUENCE_MAX_WIDTH,
             },
-            "model_basis": worker_model_basis(client.get_worker_identity_snapshot()),
+            "model_basis": observation_model_basis(client.get_worker_identity_snapshot()),
             "representation": representation,
             "channels": list(hidden_sequence_channels(representation)),
             "forward_passes": 1,

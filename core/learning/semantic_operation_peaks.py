@@ -1013,3 +1013,18 @@ def peak_recognition_transducer_from_dict(
         argument_ownership_from_dict(value["ownership"]) if "ownership" in value else None,
         argument_antecedent_from_dict(value["antecedent"]) if "antecedent" in value else None,
     )
+
+
+def semantic_reader_from_dict(value: Mapping[str, Any]) -> Any:
+    """Restore a frozen program reader in either saved form.
+
+    A peak-recognition candidate wraps a compositional transducer and passes
+    its interface through, so the runtime's observation path can run either.
+    """
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict as restore,
+    )
+
+    if value.get("schema") == PEAK_TRANSDUCER_SCHEMA:
+        return peak_recognition_transducer_from_dict(value, restore_base=restore)
+    return restore(value)

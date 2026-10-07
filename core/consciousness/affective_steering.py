@@ -124,6 +124,7 @@ from core.consciousness.steering_channel import activation_state, governor_input
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.lockdep import checked_lock
 from core.runtime.model_layers import resolve_model_layers
+from core.runtime.observation_pass import in_observation_pass
 from core.runtime.state_ownership import state_root
 
 from .steering_geometry import _FindsTheModelsGeometry
@@ -1040,6 +1041,8 @@ class AffectiveSteeringHook:
     _STALE_SAFE_ALPHA = 0.1
 
     def _effective_alpha(self) -> float:
+        if in_observation_pass():
+            return 0.0
         try:
             alpha = float(self._alpha)
         # not a failure: an alpha that is not a number is no steering, which 0.0 says.

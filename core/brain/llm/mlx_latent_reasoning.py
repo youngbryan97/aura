@@ -1772,9 +1772,9 @@ class _ReasonsInLatentSpace:
             hidden_sequence_channels,
             hidden_sequence_schema,
         )
-        from core.brain.llm.latent_cortex.runtime_identity import worker_model_basis
+        from core.brain.llm.latent_cortex.runtime_identity import observation_model_basis
 
-        expected_identity = worker_model_basis(self.get_worker_identity_snapshot())
+        expected_identity = observation_model_basis(self.get_worker_identity_snapshot())
         expected_receipt = {
             "schema": hidden_sequence_schema(representation),
             "request_id": response.get("id"),

@@ -50,6 +50,7 @@ import numpy as np
 
 from core.runtime.errors import record_degradation
 from core.runtime.model_layers import resolve_model_layers
+from core.runtime.observation_pass import in_observation_pass
 
 logger = logging.getLogger("Aura.LatentBridge")
 
@@ -134,7 +135,7 @@ class LatentReadoutHook:
         def readout_wrapper(self_block, *args, **kwargs):
             result = current_method(self_block, *args, **kwargs)
 
-            if not hook._active:
+            if not hook._active or in_observation_pass():
                 return result
 
             try:

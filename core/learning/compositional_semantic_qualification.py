@@ -8,9 +8,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Final
 
-from core.learning.semantic_program_compositional_transducer import (
-    compositional_semantic_program_transducer_from_dict,
-)
+from core.learning.semantic_operation_peaks import semantic_reader_from_dict
 from core.learning.semantic_program_frozen_path_replication import (
     FROZEN_PATH_PREREGISTRATION_SCHEMA,
     FROZEN_PATH_RESULT_SCHEMA,
@@ -34,10 +32,32 @@ COMPOSITIONAL_SEMANTIC_ACTIVATION_SCHEMA: Final = (
 COMPOSITIONAL_SEMANTIC_PACKAGE_ID: Final = (
     "semantic-program-27b-natural-weave-a79674be5460"
 )
+#: A frozen program reader qualified on the current model (G10): its fresh
+#: transfer (G04), its public answers (G05) and the measurement that the
+#: resident worker gives it the states it was evaluated on.
+SEMANTIC_READER_ACTIVATION_SCHEMA: Final = "aura.compositional_semantic_activation.v2"
+SEMANTIC_READER_QUALIFICATION_SCHEMA: Final = "aura.semantic_reader_qualification.v1"
+SEMANTIC_READER_PREDICATES: Final = (
+    "conversion_reproduces_stored_states",
+    "geometry_matches",
+    "steering_does_not_reach_the_reading",
+    "lesion_shows_the_check_can_fail",
+    "rollback_restores_generation",
+    "rollback_restores_states",
+    "readings_match_offline_evaluation",
+)
 COMPOSITIONAL_SEMANTIC_SOURCE_CONTRACTS: Final = {
     "core/brain/llm/compositional_semantic_shadow.py": (
         "symbol:execute_compositional_semantic_shadow",
         "symbol:compositional_semantic_shadow_status",
+    ),
+    "core/learning/semantic_operation_peaks.py": (
+        "symbol:semantic_reader_from_dict",
+        "symbol:PeakRecognitionTransducer.decode",
+    ),
+    "core/runtime/observation_pass.py": (
+        "symbol:observation_pass",
+        "symbol:in_observation_pass",
     ),
     "core/learning/semantic_program_compositional_transducer.py": (
         "symbol:CompositionalSemanticProgramTransducer.decode",
@@ -183,7 +203,7 @@ def build_compositional_semantic_activation(
     parsed_ensemble = semantic_program_path_ensemble_from_dict(ensemble)
     transducer = parsed_ensemble.challenger
     transducer_document = transducer.to_dict()
-    reloaded = compositional_semantic_program_transducer_from_dict(transducer_document)
+    reloaded = semantic_reader_from_dict(transducer_document)
     if (
         reloaded.receipt_sha256 != transducer.receipt_sha256
         or transducer.receipt_sha256 != frozen.get("receipt_sha256")
@@ -312,6 +332,122 @@ def build_compositional_semantic_activation(
     return transducer_document, {**body, "activation_sha256": canonical_sha256(body)}
 
 
+def semantic_reader_package_id(receipt_sha256: str) -> str:
+    return f"semantic-reader-27b-{receipt_sha256[:12]}"
+
+
+def semantic_reader_qualification_errors(qualification: Mapping[str, Any]) -> list[str]:
+    """What keeps one G10 measurement from qualifying its reader, if anything."""
+
+    errors = []
+    if qualification.get("schema") != SEMANTIC_READER_QUALIFICATION_SCHEMA:
+        errors.append("schema")
+    predicates = qualification.get("predicates")
+    if not isinstance(predicates, Mapping) or set(predicates) != set(SEMANTIC_READER_PREDICATES):
+        errors.append("predicates")
+    else:
+        errors.extend(f"failed:{name}" for name in SEMANTIC_READER_PREDICATES if predicates[name] is not True)
+    if not qualification.get("requests"):
+        errors.append("no_requests")
+    return errors
+
+
+def build_semantic_reader_activation(
+    *,
+    repo_root: Path,
+    reader_path: Path,
+    qualification_path: Path,
+    transfer_report_path: Path,
+    transfer_verification_path: Path,
+    public_report_path: Path,
+    public_verification_path: Path,
+    claim_boundary: str,
+) -> dict[str, Any]:
+    """A shadow activation for a reader whose G04, G05 and G10 results all hold.
+
+    Every path is a copy inside the repository, so the runtime can reopen what
+    the package rests on. Each verdict is read again here rather than trusted
+    from a summary: the transfer and public-answer closure rules from their
+    own reports and from the independent verifiers, and every G10 predicate.
+    """
+
+    root = repo_root.expanduser().resolve(strict=True)
+    reader_raw = reader_path.read_bytes()
+    reader = semantic_reader_from_dict(json.loads(reader_raw))
+    reader_file_sha256 = hashlib.sha256(reader_raw).hexdigest()
+    transfer = json.loads(transfer_report_path.read_text(encoding="utf-8"))
+    transfer_check = json.loads(transfer_verification_path.read_text(encoding="utf-8"))
+    public = json.loads(public_report_path.read_text(encoding="utf-8"))
+    public_check = json.loads(public_verification_path.read_text(encoding="utf-8"))
+    qualification = json.loads(qualification_path.read_text(encoding="utf-8"))
+    failures = []
+    if not (transfer.get("g04_closure_rule_holds") is True and transfer_check.get("g04_closure_rule_holds") is True
+            and transfer_check.get("checks_pass") is True):
+        failures.append("transfer")
+    if not (public.get("g05_closure_rule_holds") is True and public_check.get("g05_closure_rule_holds") is True
+            and public_check.get("checks_pass") is True):
+        failures.append("public_answers")
+    failures.extend(f"qualification:{error}" for error in semantic_reader_qualification_errors(qualification))
+    if qualification.get("reader", {}).get("receipt_sha256") != reader.receipt_sha256:
+        failures.append("qualification_reader")
+    if qualification.get("reader", {}).get("file_sha256") != reader_file_sha256:
+        failures.append("qualification_reader_file")
+    for name, document in (("transfer", transfer), ("public_answers", public)):
+        if document.get("candidate_file_sha256", reader_file_sha256) != reader_file_sha256:
+            failures.append(f"{name}_reader_file")
+    if failures:
+        raise ValueError("semantic reader is not qualified: " + ",".join(failures))
+    model = qualification["model"]
+    evidence = {
+        name: {"path": _relative(root, path), "file_sha256": _file_sha(path)}
+        for name, path in (
+            ("qualification", qualification_path),
+            ("transfer_report", transfer_report_path),
+            ("transfer_verification", transfer_verification_path),
+            ("public_report", public_report_path),
+            ("public_verification", public_verification_path),
+        )
+    }
+    body = {
+        "schema": SEMANTIC_READER_ACTIVATION_SCHEMA,
+        "package_id": semantic_reader_package_id(reader.receipt_sha256),
+        "mode": "shadow",
+        "active_by_default": True,
+        "serving_authority": False,
+        "transducer": {
+            "path": _relative(root, reader_path),
+            "file_sha256": reader_file_sha256,
+            "receipt_sha256": reader.receipt_sha256,
+            "coefficient_sha256": reader.training_receipt["coefficient_sha256"],
+            "model_basis_sha256": reader.model_basis_sha256,
+            "training_max_inputs": reader.max_inputs,
+            "training_max_steps": reader.max_steps,
+        },
+        "model": {
+            "path": str(model["path"]),
+            "descriptor_sha256": str(model["descriptor_sha256"]),
+            "tokenizer_identity_sha256": str(model["tokenizer_identity_sha256"]),
+            "representation_basis_sha256": str(model["representation_basis_sha256"]),
+        },
+        "evidence": evidence,
+        "measured": {
+            "transfer": {name: {key: value[key] for key in ("candidate_only", "incumbent_only", "rejects")}
+                         for name, value in transfer["primary"].items()},
+            "public_answers": {key: public["primary"][key] for key in
+                               ("assisted_exact", "ordinary_exact", "assisted_only", "ordinary_only", "rejects")},
+            "qualification": {"requests": qualification["requests"], **qualification["predicates"]},
+        },
+        "source_contract_sha256s": source_contract_sha256s(root, COMPOSITIONAL_SEMANTIC_SOURCE_CONTRACTS),
+        "composition_policy": {
+            "ordinary_response_is_immutable_incumbent": True,
+            "shadow_result_is_observation_only": True,
+            "replacement_requires_independent_objective_verification": True,
+        },
+        "claim_boundary": claim_boundary,
+    }
+    return {**body, "activation_sha256": canonical_sha256(body)}
+
+
 def compositional_semantic_activation_errors(
     activation: Mapping[str, Any],
     *,
@@ -324,11 +460,19 @@ def compositional_semantic_activation_errors(
     root = repo_root.expanduser().resolve(strict=True)
     body = dict(activation)
     observed_sha = body.pop("activation_sha256", None)
-    if activation.get("schema") != COMPOSITIONAL_SEMANTIC_ACTIVATION_SCHEMA:
+    schema = activation.get("schema")
+    if schema not in {COMPOSITIONAL_SEMANTIC_ACTIVATION_SCHEMA, SEMANTIC_READER_ACTIVATION_SCHEMA}:
         errors.append("schema")
     if observed_sha != canonical_sha256(body):
         errors.append("activation_sha256")
-    if activation.get("package_id") != COMPOSITIONAL_SEMANTIC_PACKAGE_ID:
+    receipt = (activation.get("transducer") or {}).get("receipt_sha256") if isinstance(
+        activation.get("transducer"), Mapping) else None
+    expected_package = (
+        semantic_reader_package_id(str(receipt))
+        if schema == SEMANTIC_READER_ACTIVATION_SCHEMA
+        else COMPOSITIONAL_SEMANTIC_PACKAGE_ID
+    )
+    if activation.get("package_id") != expected_package:
         errors.append("package_id")
     if (
         activation.get("mode") != "shadow"
@@ -375,7 +519,7 @@ def compositional_semantic_activation_errors(
         transducer_path.relative_to(root)
         if _file_sha(transducer_path) != transducer.get("file_sha256"):
             errors.append("transducer_drift")
-        loaded = compositional_semantic_program_transducer_from_dict(
+        loaded = semantic_reader_from_dict(
             json.loads(transducer_path.read_text(encoding="ascii"))
         )
         if (
@@ -411,7 +555,13 @@ __all__ = [
     "COMPOSITIONAL_SEMANTIC_ACTIVATION_SCHEMA",
     "COMPOSITIONAL_SEMANTIC_PACKAGE_ID",
     "COMPOSITIONAL_SEMANTIC_SOURCE_CONTRACTS",
+    "SEMANTIC_READER_ACTIVATION_SCHEMA",
+    "SEMANTIC_READER_PREDICATES",
+    "SEMANTIC_READER_QUALIFICATION_SCHEMA",
     "build_compositional_semantic_activation",
+    "build_semantic_reader_activation",
     "canonical_document_bytes",
     "compositional_semantic_activation_errors",
+    "semantic_reader_package_id",
+    "semantic_reader_qualification_errors",
 ]
