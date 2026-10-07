@@ -171,7 +171,7 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
     return band
 
 
-def the_way_is_the_drawing(observation: Mapping[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
+def played_first(observation: Mapping[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
     """The first move where the page in front was seen to run what the goal is to run: play what it draws, unasked.
 
     A person who has just watched a game draw its start screen does not read the

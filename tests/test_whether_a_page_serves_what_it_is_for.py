@@ -91,16 +91,16 @@ def test_a_page_seen_doing_what_it_is_for_serves(body, task, seen):
 def test_a_page_seen_running_is_played_first_and_only_once_unasked():
     """LIVE 2026-10-06 her model read each game's page for a minute or more before choosing to play what it draws."""
     from core.skills import whether_a_page_serves as serving
-    from core.skills.sovereign_browser_drawing import DRAWING, the_way_is_the_drawing
+    from core.skills.sovereign_browser_drawing import DRAWING, played_first
 
     serving._SEEN_RUNNING["https://games.example.net/tunnel-rush"] = "its canvas draws, and moves"
     here = {"url": "https://games.example.net/tunnel-rush/"}
-    assert the_way_is_the_drawing(here, "Read about this game.") is None  # only a task that runs it
-    assert the_way_is_the_drawing(here, "Play this game and win it.", take=False) is not None  # looked at, not taken
-    decision = the_way_is_the_drawing(here, "Play this game and win it.")
+    assert played_first(here, "Read about this game.") is None  # only a task that runs it
+    assert played_first(here, "Play this game and win it.", take=False) is not None  # looked at, not taken
+    decision = played_first(here, "Play this game and win it.")
     assert decision["resolved_actions"][0]["selector"] == DRAWING and "its canvas draws, and moves" in decision["why"]
-    assert the_way_is_the_drawing(here, "Play this game and win it.") is None  # once: what follows the play is hers to decide
-    assert the_way_is_the_drawing({"url": "https://elsewhere.example/"}, "Play this game.") is None
+    assert played_first(here, "Play this game and win it.") is None  # once: what follows the play is hers to decide
+    assert played_first({"url": "https://elsewhere.example/"}, "Play this game.") is None
 
 
 def test_a_page_judged_running_is_remembered_as_seen_running():
