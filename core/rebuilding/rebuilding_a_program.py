@@ -61,7 +61,7 @@ class Rebuilt:
         working = self.built.working()
         missing = [o for o in self.built.outcomes if not o.kept]
         line = (
-            f"I rebuilt {self.program} clean-room as {self.genome.name}, from {', '.join(self.sources) or 'what I know'}: "
+            f"I rebuilt {self.program} clean-room as {self.genome.name}, from {_and(self.sources) or 'what I know'}: "
             f"{len(working)} of {len(self.built.outcomes)} features work, each one seen working by doing it "
             f"({sum(o.held for o in working)} checks hold). It is at {self.built.path}."
         )

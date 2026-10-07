@@ -25,7 +25,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.language.the_form_of_a_kind import fitted, the_form_for
+from core.language.the_form_of_a_kind import fitted, the_form_for, with_the_part
 
 logger = logging.getLogger("Rebuilding.UsingIt")
 
@@ -141,8 +141,18 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
             # Set as its kind is set (core/language/the_form_of_a_kind.py): a letter's greeting and sign-off on lines of their own.
             form = the_form_for(task)
             fit = fitted(writing.paragraphs, form)
-            if form is not None and fit.missing:
-                await _said(tell, f"A {form.kind} usually has its {_and(fit.missing)}; this one does not, and I have not made one up.")
+            # A part its form expects that is not there is asked of the writer, and taken only if it is that part.
+            for part in [p for p in form.parts if p.name in fit.missing] if form is not None else []:
+                way = "end" if part.where == "last" else "begin"
+                given = await ask(f"You wrote this {form.kind}:\n\n" + "\n\n".join(fit.paragraphs)
+                                  + f"\n\nIt has no {part.name}. Write only its {part.name}, as you would {way} it.", _Part, 120)
+                completed = with_the_part(fit.paragraphs, form, part.name, given.text if isinstance(given, _Part) else "")
+                name = part.name
+                if completed is not None:
+                    fit = completed
+                    await _said(tell, f"The {form.kind} had no {name}; I added the one I would {way} it with.")
+                else:
+                    await _said(tell, f"A {form.kind} usually has its {name}; this one does not, and I have not made one up.")
             for step in (*_typed(fit.paragraphs), Step(do="click", target=command)):
                 wrong = await doing.step(step)
                 if wrong:
@@ -181,8 +191,8 @@ _AT_THE_END = """() => {
 }"""
 
 
-def _and(items: list[str]) -> str:
-    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1] if items else ""
+class _Part(BaseModel):
+    text: str = Field(default="", max_length=200, description="only the part asked for, as it is written")
 
 
 def _typed(paragraphs: list[str]) -> list[Any]:

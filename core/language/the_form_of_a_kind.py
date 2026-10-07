@@ -22,7 +22,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-__all__ = ["FORMS", "Fitted", "Form", "FormPart", "fitted", "the_form_for"]
+__all__ = ["FORMS", "Fitted", "Form", "FormPart", "fitted", "the_form_for", "with_the_part"]
 
 
 @dataclass(frozen=True)
@@ -108,3 +108,24 @@ def fitted(paragraphs: Sequence[str], form: Form | None) -> Fitted:
                 found.append(part.name)
     missing = [part.name for part in form.parts if part.expected and part.name not in found]
     return Fitted(out, found, missing)
+
+
+def with_the_part(paragraphs: Sequence[str], form: Form, name: str, said: str) -> Fitted | None:
+    """``paragraphs`` with the part ``name`` the writer gave (``said``) where its form puts it, if what was given has that part's shape.
+
+    A form's missing part is not made up: it is asked of whoever wrote the rest,
+    and taken only when what comes back is that part (a sign-off is a closing
+    and a name; a greeting addresses someone).
+    """
+    part = next((p for p in form.parts if p.name == name), None)
+    words = " ".join(str(said or "").split())
+    if part is None or not words:
+        return None
+    if part.where == "last":
+        placed = [*paragraphs, words]
+    elif part.where in ("first", "head"):
+        placed = [words, *paragraphs]
+    else:
+        return None
+    fit = fitted(placed, form)
+    return fit if name in fit.found else None

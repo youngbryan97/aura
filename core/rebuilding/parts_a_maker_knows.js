@@ -7,9 +7,9 @@
 // knows which program it is in.
 
 //== document page ==
-// The page a document is written on: paper of its size on a desk, with its margins, counted in pages
-// as it grows, zoomed, its words counted. The paper is the size the program is said to use, else the
-// one usual where the person is.
+// The page a document is written on: text you type, edit and select on it, on paper of its size on a
+// desk, with its margins, counted in pages as it grows, zoomed, its words counted. The paper is the
+// size the program is said to use, else the one usual where the person is.
 const PAPER = { Letter: [8.5, 11], A4: [8.27, 11.69], Legal: [8.5, 14] };
 const said = "__PAPER__";
 const usual = PAPER[said] ? said : (/^(en-US|en-CA|es-MX|es-US|fr-CA|en-PH)$/i.test(navigator.language || "") ? "Letter" : "A4");
