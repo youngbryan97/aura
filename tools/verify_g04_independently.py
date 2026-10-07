@@ -126,13 +126,20 @@ def redecode_and_regrade(args, spec: dict, rebuilt: dict) -> dict:
     from core.learning.semantic_program_feature_materialization import (
         load_standard_semantic_feature_bundle,
     )
-    from tools import g04_transfer_protocol as protocol
     from tools.run_g04_transfer import decode
 
+    if spec["campaign"] == "g04-transfer-v2":
+        from tools import g04_transfer_protocol_v2 as protocol
+    else:
+        from tools import g04_transfer_protocol as protocol
     incumbent = restore(_json.loads(protocol.INCUMBENT.read_text(encoding="utf-8")))
     candidate = peak_recognition_transducer_from_dict(
         _json.loads(protocol.CANDIDATE.read_text(encoding="utf-8")), restore_base=restore)
     arms = {"incumbent": incumbent, "candidate": candidate}
+    if spec["campaign"] == "g04-transfer-v2":
+        arms["v12"] = peak_recognition_transducer_from_dict(
+            _json.loads(protocol.PREVIOUS.read_text(encoding="utf-8")), restore_base=restore)
+        arms.update(protocol.lesions(candidate))
     bundle = load_standard_semantic_feature_bundle(args.features.expanduser())
     items = training_examples_from_feature_bundle(bundle, required_splits=frozenset({"test"}))
     items = {i.ir.source_text_sha256: replace(i, ir=replace(
@@ -140,7 +147,7 @@ def redecode_and_regrade(args, spec: dict, rebuilt: dict) -> dict:
     references = {hashlib.sha256(row.source_text.encode()).hexdigest(): row
                   for rows in rebuilt.values() for row in rows.values()}
     result: dict = {}
-    for name, tasks in spec["domains"].items():
+    for name, tasks in _all_domains(spec).items():
         for arm, model in arms.items():
             tally = {"reproduced": 0, "not_reproduced": 0, "independent_same": 0,
                      "agrees_with_runner": 0, "disagreements": []}
@@ -168,6 +175,27 @@ def redecode_and_regrade(args, spec: dict, rebuilt: dict) -> dict:
                                                    "independent": verdict})
             result[f"{name}/{arm}"] = tally
     return result
+
+
+def _all_domains(spec: dict) -> dict:
+    """Paired domains, and in a second-run plan the construction tasks held as an absolute claim."""
+    domains = dict(spec["domains"])
+    for name, entry in spec.get("absolute_domains", {}).items():
+        domains[name] = entry["tasks"]
+    return domains
+
+
+def _discordant(rows_dir: Path, tasks: list, treatment: str, control: str) -> tuple[int, int, int]:
+    wins = losses = missing = 0
+    for task in tasks:
+        paths = [rows_dir / arm / f"{task['source_sha256']}.json" for arm in (treatment, control)]
+        if not all(path.exists() for path in paths):
+            missing += 1
+            continue
+        t, c = (json.loads(path.read_text())["equivalent"] for path in paths)
+        wins += t and not c
+        losses += c and not t
+    return wins, losses, missing
 
 
 def main() -> int:
@@ -202,20 +230,21 @@ def main() -> int:
 
     features = spec["features"]
     strata = build_g04_transfer_corpus(seed=features["seed"],
-                                       tasks_per_stratum=features["examples_per_operation_pair"])
+                                       tasks_per_stratum=features["examples_per_operation_pair"],
+                                       version=2 if features["corpus_kind"] == "g04_transfer_v2" else 1)
     rebuilt = {name: {row.example_id: row for row in rows} for name, rows in strata.items()}
     regenerated = all(
         {task["id"] for task in tasks} == set(rebuilt[name])
         and all(hashlib.sha256(rebuilt[name][task["id"]].source_text.encode()).hexdigest()
                 == task["source_sha256"] for task in tasks)
-        for name, tasks in spec["domains"].items()
+        for name, tasks in _all_domains(spec).items()
     )
     findings["checks"]["tasks_regenerate_from_seed"] = regenerated
 
     # 3. No committed task repeats a consumed text.
     consumed = {row["source_sha256"] for row in inventory["examples"]}
     findings["checks"]["no_task_text_was_consumed"] = not any(
-        task["source_sha256"] in consumed for tasks in spec["domains"].values() for task in tasks
+        task["source_sha256"] in consumed for tasks in _all_domains(spec).values() for task in tasks
     )
 
     # 4. Every reference answer, by this interpreter.
@@ -264,6 +293,28 @@ def main() -> int:
             "exact_one_sided_p": p_value, "rejects_at_plan_alpha": rejects,
         }
     findings["all_declared_comparisons_reject"] = all_reject
+    if "absolute_domains" in spec:
+        construction = spec["absolute_domains"]["construction"]["tasks"]
+        right = sum(
+            json.loads((args.run / "rows" / "construction" / "candidate" / f"{task['source_sha256']}.json")
+                       .read_text())["equivalent"]
+            for task in construction
+            if (args.run / "rows" / "construction" / "candidate" / f"{task['source_sha256']}.json").exists()
+        )
+        findings["construction"] = {"tasks": len(construction), "candidate_equivalent": right,
+                                    "holds": right == len(construction)}
+        findings["g04_closure_rule_holds"] = all_reject and right == len(construction)
+        findings["secondary"] = {}
+        for comparison in spec["secondary"]["comparisons"]:
+            wins, losses, missing = _discordant(
+                args.run / "rows" / comparison["stratum"], spec["domains"][comparison["stratum"]],
+                comparison["treatment"], comparison["control"])
+            p_value = binomial_tail_at_least(wins, wins + losses)
+            findings["secondary"][f"{comparison['treatment']}_vs_{comparison['control']}:{comparison['stratum']}"] = {
+                "treatment_only": wins, "control_only": losses, "missing": missing,
+                "exact_one_sided_p": p_value,
+                "rejects": missing == 0 and p_value <= spec["secondary"]["per_test_alpha"],
+            }
     if args.redecode:
         findings["redecode"] = redecode_and_regrade(args, spec, rebuilt)
     findings["checks_pass"] = all(value is True or (isinstance(value, str) and value.split("/")[0] == value.split("/")[1])
