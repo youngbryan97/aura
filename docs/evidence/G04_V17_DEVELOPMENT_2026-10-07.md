@@ -103,3 +103,12 @@ Decoded with execution unavailable and graded as the first run graded:
   surer kept the two "after removing" requests but blocked most renames that
   carry unseen wordings (45 of 121 against 94 on the first held-out quarter),
   so it is not used. These are open work under G04, not hidden.
+
+## Appended 2026-10-07: v17's held-out folds, complete
+
+Fold 2 ended after the plan was published: 242 of 254 (v12 248). Across the
+three folds v17 reads 733 of 764 held-out training constructions against
+v12's 742: two fewer in fold 0, one in fold 1, six in fold 2. Folds hold out
+constructions of the training families, not wordings or depth, so this is the
+cost the second plan's construction claim can see on fresh requests: every
+construction request there has to be right for G04 to close.
