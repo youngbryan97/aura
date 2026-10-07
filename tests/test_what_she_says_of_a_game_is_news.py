@@ -19,7 +19,7 @@ def test_the_account_of_a_game_is_given_again_only_for_something_learned(monkeyp
         "I'm the white bar at the bottom left, moved by down and up.",
         "I'm the white bar at the left, moved by down and up; the white thing bounces off the walls.",
     ])
-    monkeypatch.setattr(kind, "in_a_sentence", lambda *_a: next(accounts))
+    monkeypatch.setattr(kind, "in_a_sentence", lambda *_a, **_k: next(accounts))
     run = playing._Run(keys=["up", "down"], began=0.0)
     run.said.add("me")
     said: list[str] = []

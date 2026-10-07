@@ -70,6 +70,8 @@ class PlayingAsItHappens:
     ending_words: str = ""
     #: The same screen's pieces of writing, each as it was read.
     ending_parts: list[str] = field(default_factory=list)
+    #: Something went on going while she held a key: a world that waits for her and moves under her hand.
+    under_her_hand: bool = False
     _clip: dict[str, float] | None = None
     _focused: bool = False
     _frames: Any = None
@@ -159,6 +161,14 @@ class PlayingAsItHappens:
         await self._focus()
         await self.page.keyboard.press(self._key(key))
 
+    async def pressed(self, key: str) -> None:
+        """A key pressed for the pursuit the way a person presses one to see what it does: held a moment, watched."""
+        from core.agency.playing_as_it_happens import it_goes_while_held
+
+        if await it_goes_while_held(self.look, self, key) and not self.under_her_hand:
+            self.under_her_hand = True
+            logger.info("something went on going while %s was held: the world waits for her and moves under her hand", key)
+
     async def _at(self, x: float, y: float) -> tuple[float, float]:
         clip = await self._where()
         return clip["x"] + min(1.0, max(0.0, x)) * clip["width"], clip["y"] + min(1.0, max(0.0, y)) * clip["height"]
@@ -220,7 +230,8 @@ class PlayingAsItHappens:
         now = time.monotonic()
         if now < self.quiet_until or now >= self.ends_at:
             return
-        if not await the_world_moves_on_its_own(self.look):
+        # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
+        if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
             return
         if not self.keep.get("hers") and not self.recalled:
             self.recalled = True
@@ -247,6 +258,7 @@ class PlayingAsItHappens:
             say=_said_while_playing, read_words=recognize_text, keep=self.keep,
             pointer_first=pointer_first, getting_somewhere=_getting_somewhere,
             told=" ".join([self.goal, *self.words[-6:]]),
+            waits_for_her=self.under_her_hand,
         )
         self.stretches.append(stretch)
         if (stretch.get("runtime_checks") or {}).get("violations"):
@@ -255,6 +267,7 @@ class PlayingAsItHappens:
         logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "keys_that_move_her", "pictures_a_second", "learned", "gains", "losses")})
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
+            self.under_her_hand = False
 
     def what_it_came_to(self) -> str:
         """One line on the play, for whoever handed the game over."""

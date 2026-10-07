@@ -30,11 +30,24 @@ def _kind(number: int) -> str:
     return f"kind {number}"
 
 
+def _of_its_own(thing: Any, mine: Any) -> bool:
+    """Whether a thing has been seen to move while hers stood still: it is not moved by her."""
+    hers = {at: (x, y) for at, x, y in mine.path}
+    seen = [(at, x, y) for at, x, y in thing.path if at in hers]
+    alone = sum(
+        1 for (a, x0, y0), (b, x1, y1) in zip(seen, seen[1:], strict=False)
+        if math.dist((x0, y0), (x1, y1)) > 1.0 and math.dist(hers[a], hers[b]) < 0.5
+    )
+    return alone >= 3
+
+
 def _the_other_side(moves: Any, mine: Any) -> list[Any]:
     tall, wide = moves.shape
     found = []
     for thing in moves.things.values():
-        if thing.number == mine.number or not thing.moved:
+        # Another player moves of its own accord: seen going while hers stood still. What goes wherever she goes is
+        # hers (its shadow, what it holds), and LIVE 2026-10-07 was said to be "the other side" in a game played alone.
+        if thing.number == mine.number or not thing.moved or not _of_its_own(thing, mine):
             continue
         alike = abs(math.log(max(1.0, thing.w) / max(1.0, mine.w))) < 0.4 and abs(math.log(max(1.0, thing.h) / max(1.0, mine.h))) < 0.4
         across = (thing.x < wide / 2) != (mine.x < wide / 2) or (thing.y < tall / 2) != (mine.y < tall / 2)
@@ -81,14 +94,18 @@ def shape_of_a_moving_world(moves: Any, hers: Any, meeting: Any, physics: Any, k
     return Graph(name="a moving world", relations=tuple(relations))
 
 
-def in_a_sentence(moves: Any, hers: Any, meeting: Any, physics: Any, keys: list[str]) -> str:
-    """What kind of game this is, said plainly, from the same measurements."""
+def in_a_sentence(moves: Any, hers: Any, meeting: Any, physics: Any, keys: list[str], *, me: str = "") -> str:
+    """What kind of game this is, said plainly, from the same measurements.
+
+    ``me`` is how her thing has looked most often, where that is known: a
+    walking figure changes its outline step by step, and is one thing.
+    """
     from core.agency.playing_as_it_happens import describe, where_on_screen
 
     mine = hers.thing(moves)
     if mine is None:
         return ""
-    parts = [f"I'm the {describe(moves, mine.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}"]
+    parts = [f"I'm the {me or describe(moves, mine.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}"]
     if hers.follows_pointer:
         parts[0] += ", and I go where the mouse goes"
     else:

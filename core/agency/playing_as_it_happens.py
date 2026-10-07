@@ -45,7 +45,7 @@ from core.perception.what_moves_in_the_picture import WhatMoves
 
 logger = logging.getLogger("Aura.PlayingAsItHappens")
 
-__all__ = ["controls_named_in", "play_as_it_happens", "the_world_moves_on_its_own"]
+__all__ = ["controls_named_in", "it_goes_while_held", "play_as_it_happens", "the_world_moves_on_its_own"]
 
 #: How long each key is held while she finds out what it does.
 TRY_A_KEY_S = 0.45
@@ -62,6 +62,9 @@ STILL_FOR_S = 3.0
 
 #: After a new screen, nothing moving for this long ends it sooner.
 NEW_SCREEN_STILL_S = 1.5
+
+#: Where the world waits for her, nothing moving for this long ends a stretch: she has tried her ways, and none goes.
+WAITING_STILL_FOR_S = 8.0
 
 #: Spoken lines are at least this far apart, so each can be read.
 SAY_EVERY_S = 5.0
@@ -141,6 +144,14 @@ class _Run:
     #: Where the rules ask for a place to be gone over: the cells her thing has been over, and their size (set once).
     covered: set = field(default_factory=set)
     cell: float = 0.0
+    #: Cells she held a way toward and did not go: out of her reach, as far as she knows.
+    barred: set = field(default_factory=set)
+    #: Whether the world stood still until she moved in it: then stillness is hers to break.
+    waits_for_her: bool = False
+    #: The way held, where her thing was, and since when, while it stays put under it.
+    stuck: tuple[str, float, float, float] | None = None
+    #: The place she is making for, the nearest she has got to it, and since when.
+    making_for: tuple[tuple[int, int], float, float] | None = None
     control_probe_retries: int = 0
     control_attribution: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=128))
     attribution_changes: int = 0
@@ -295,6 +306,26 @@ def _range_of(moves: WhatMoves, kind: int, axis: int, physics: HowThingsMoveHere
     return low, high
 
 
+def goes_with(thing: Any, mine: Any) -> bool:
+    """Whether a thing beside hers has gone where hers went, picture for picture: its shadow, what it carries.
+
+    LIVE 2026-10-07 a hero's shadow, a thing of its own to her eyes, was
+    always just below it; she made for it, and held the arrow down against the
+    bottom wall. Over their last pictures together the two keep one distance
+    apart while hers goes somewhere.
+    """
+    size = max(float(mine.w), float(mine.h), 1.0)
+    if math.dist((thing.x, thing.y), (mine.x, mine.y)) > 2.0 * size:
+        return False
+    theirs = {at: (x, y) for at, x, y in list(thing.path)[-8:]}
+    together = [(at, x, y) for at, x, y in list(mine.path)[-8:] if at in theirs]
+    if len(together) < 4:
+        return False
+    apart = [(x - theirs[at][0], y - theirs[at][1]) for at, x, y in together]
+    went = math.dist(together[0][1:], together[-1][1:])
+    return went > 0.5 * size and max(math.dist(gap, apart[0]) for gap in apart) < 0.25 * went + 2.0
+
+
 def _boxes_meet(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
     return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
 
@@ -336,10 +367,13 @@ class _Choosing:
 
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
                  physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
-                 response_s: float = 0.0, covered: tuple[set[tuple[int, int]], float] | None = None) -> None:
+                 response_s: float = 0.0, covered: tuple[set[tuple[int, int]], float] | None = None,
+                 barred: tuple[set[tuple[int, int]], float] | None = None) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
         #: Where the rules ask for a place to be gone over, the cells of it her thing has been over; else None.
         self.covered = covered
+        #: The cells she has found out of her reach, and their size.
+        self.barred = barred
         self.physics = physics
         self.next_picture_s = next_picture_s
         self.response_s = response_s
@@ -361,12 +395,14 @@ class _Choosing:
     def others(self) -> list[Any]:
         shot_kinds = {made.kind for made in self.hers.makes.values()}
         # Only her own thing is left out, and still copies of it (a row of
-        # lives). Another thing that looks like hers may be the other player.
+        # lives), and what goes wherever it goes (its shadow, what it holds).
+        # Another thing that looks like hers may be the other player.
         return [
             t for t in self.moves.things.values()
             if self.mine is not None and t.number != self.mine.number
             and not (t.kind == self.hers.kind and not t.moved)
             and t.kind not in shot_kinds and t.number not in self.meeting.writing
+            and not goes_with(t, self.mine)
         ]
 
     def stance(self, thing: Any) -> str:
@@ -454,7 +490,8 @@ class _Choosing:
         best = None
         for thing in self.others():
             stance = self.stance(thing)
-            if stance not in (MEET, CLICK):
+            # A still thing she is on already is not somewhere to go: what being on it does, it is doing.
+            if stance not in (MEET, CLICK) or self._out_of_reach(thing) or not thing.moved and _boxes_meet(mine.box(), thing.box()):
                 continue
             when = math.hypot(thing.x - mine.x, thing.y - mine.y) / speed
             for _ in range(3):
@@ -473,6 +510,13 @@ class _Choosing:
         if ground is not None:
             return ground, "cover", None
         return (None, None), "wait", None
+
+    def _out_of_reach(self, thing: Any) -> bool:
+        """A thing standing where she has found she cannot go: behind a wall, up on the scenery."""
+        if self.barred is None or thing.moved:
+            return False
+        cells, cell = self.barred
+        return (int(thing.x // cell), int(thing.y // cell)) in cells
 
     def _ground_not_yet_covered(self) -> tuple[float, float] | None:
         """Where the rules ask for a place to be gone over, the middle of the nearest part of it her thing has not been over.
@@ -597,6 +641,117 @@ async def the_world_moves_on_its_own(look: Callable[[], Awaitable[Any]], *, seco
             return True
         if at - began >= (longest if moving else seconds) + 0.6:
             return False
+
+
+#: How long she holds a key down to see what it does, and how long after it goes down the jump at the press is over.
+HELD_TO_SEE_S = 0.45
+THE_PRESS_S = 0.1
+
+
+async def it_goes_while_held(look: Callable[[], Awaitable[Any]], hands: Any, key: str, *, held: float = HELD_TO_SEE_S) -> bool:
+    """``key`` pressed the way a person presses one to see what it does, held a moment while she watches: whether something goes on going while it is down.
+
+    A world that stands still until she moves in it is played as it happens all
+    the same: LIVE 2026-10-07 a top-down shooter's room held still, it was
+    taken for a screen to be stepped through, and each tap of an arrow moved
+    its hero a few pixels, which she took for nothing; for three hours she
+    clicked the words on its scoreboard. A menu's highlight jumps once as the
+    key goes down and is still for the rest of the hold; a thing she steers
+    keeps going for as long as the key is down. So what moved in the first
+    tenth of a second is not counted, and a thing goes on going when it is seen
+    in three pictures after that and has travelled half its own size between
+    them. She looks before she presses, so what is there already is known.
+    Measured on the pictures' own clock. The key goes down once, so to whatever
+    counts presses it is one press.
+    """
+    moves = WhatMoves()
+    began: float | None = None
+    while not moves.has_looked:
+        seen = await look()
+        if seen is None:
+            return False
+        began = seen[1] if began is None else began
+        moves.see(*seen)
+        if seen[1] - began > 3 * held:
+            break
+    await hands.down(key)
+    first: float | None = None
+    try:
+        while True:
+            seen = await look()
+            if seen is None:
+                return False
+            picture, at = seen
+            moves.see(picture, at)
+            first = at if first is None else first
+            if at - first >= held:
+                break
+    finally:
+        await hands.up(key)
+    since = first + THE_PRESS_S
+    return any(_went_on(thing, since) for thing in moves.things.values())
+
+
+def _went_on(thing: Any, since: float) -> bool:
+    points = [(at, x, y) for at, x, y in thing.path if at >= since]
+    if len(points) < 3:
+        return False
+    size = max(float(thing.w), float(thing.h), 1.0)
+    return math.dist(points[0][1:], points[-1][1:]) > 0.5 * size
+
+
+#: How long her thing stays put under a way held before what lies that way is taken to be out of her reach.
+OUT_OF_REACH_S = 0.6
+
+#: How long she makes for a place and gets no nearer before it is taken to be out of her reach.
+NO_NEARER_S = 1.5
+
+
+def _out_of_her_reach(run: _Run, choosing: _Choosing, at: float) -> None:
+    """What she has found she cannot get to: the cells beyond what stops her, and places she gets no nearer to.
+
+    A room has walls, and the ground she means to go over is only the ground
+    she can get to: a person walking into a wall learns there is a wall that way
+    and looks elsewhere. Where she holds a way and her thing does not go, the
+    cells that way to the edge of the picture, across the band of her thing's
+    own size. Where she makes for a place, by whatever ways, and for a while
+    gets no nearer to it, that place: LIVE 2026-10-07 her hero went left and
+    right under a spot on the wall above it a hundred and forty times.
+    """
+    mine, cell = choosing.mine, run.cell
+    if mine is None or not cell:
+        run.stuck = run.making_for = None
+        return
+    (gx, gy), why, _aim = choosing.target()
+    if why in ("meet", "cover") and gx is not None and gy is not None:
+        place, far = (int(gx // cell), int(gy // cell)), math.hypot(gx - mine.x, gy - mine.y)
+        if run.making_for is None or run.making_for[0] != place or far < run.making_for[1] - 0.25 * cell:
+            run.making_for = (place, far, at)
+        elif at - run.making_for[2] >= NO_NEARER_S:
+            run.barred.add(place)
+            run.making_for = None
+    else:
+        run.making_for = None
+    way = choosing.ways.get(run.held) if run.held else None
+    if way is None:
+        run.stuck = None
+        return
+    if run.stuck is None or run.stuck[0] != run.held or math.dist(run.stuck[1:3], (mine.x, mine.y)) > 0.25 * cell:
+        run.stuck = (run.held, mine.x, mine.y, at)
+        return
+    if at - run.stuck[3] < OUT_OF_REACH_S:
+        return
+    tall, wide = choosing.moves.shape
+    along = 0 if abs(way[0]) >= abs(way[1]) else 1
+    step = 1 if way[along] > 0 else -1
+    middle, half = (mine.y, mine.h / 2) if along == 0 else (mine.x, mine.w / 2)
+    band = range(int((middle - half) // cell), int((middle + half) // cell) + 1)
+    ahead = int((mine.x, mine.y)[along] // cell) + step
+    while 0 <= ahead <= int((wide, tall)[along] // cell):
+        for across in band:
+            run.barred.add((ahead, across) if along == 0 else (across, ahead))
+        ahead += step
+    run.stuck = None
 
 
 def _goes_somewhere(thing: Any) -> bool:
@@ -809,9 +964,11 @@ def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float
         run.last_moving = at
         run.first_moving = min(run.first_moving, at)
     still = at - run.last_moving
-    if at - run.new_screen_at < STILL_FOR_S and still >= NEW_SCREEN_STILL_S and at - run.began > 2.0:
+    # A world that waits for her is still until she moves: its stillness ends a stretch only once her ways have had time.
+    still_for = WAITING_STILL_FOR_S if run.waits_for_her else STILL_FOR_S
+    if at - run.new_screen_at < still_for and still >= max(NEW_SCREEN_STILL_S, still_for - STILL_FOR_S) and at - run.began > 2.0:
         return "the screen changed and nothing on it moves"
-    if still >= STILL_FOR_S and at - run.began > STILL_FOR_S:
+    if still >= still_for and at - run.began > still_for:
         return "nothing on the screen has moved for a while"
     return ""
 
@@ -895,7 +1052,7 @@ def _what_kind_of_game(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers,
 
     if "me" not in run.said or at - run.situation_at < SITUATION_EVERY_S:
         return
-    sentence = in_a_sentence(moves, hers, meeting, physics, run.keys)
+    sentence = in_a_sentence(moves, hers, meeting, physics, run.keys, me=run.hers_description)
     if not sentence or ";" not in sentence:
         return
     # Said again only for something learned: her paddle having moved to the
@@ -973,6 +1130,7 @@ async def play_as_it_happens(
     pointer_first: bool = False,
     getting_somewhere: Callable[[str], Any] | None = None,
     told: str = "",
+    waits_for_her: bool = False,
 ) -> dict[str, Any]:
     """Play what ``look`` shows through ``hands`` until it stops moving or ``seconds`` pass.
 
@@ -980,6 +1138,8 @@ async def play_as_it_happens(
     has ``down(key)``, ``up(key)``, ``tap(key)``, ``click(x, y)`` and
     ``point(x, y)``, positions as shares of the picture. ``keep`` carries what
     she learned from one stretch of play into the next one in the same game.
+    ``waits_for_her`` says the world stood still until she moved in it
+    (``it_goes_while_held``): with nothing to go to, she goes where she has not been.
     """
     began = time.monotonic()
     keep = keep if keep is not None else {}
@@ -994,7 +1154,7 @@ async def play_as_it_happens(
     for kept in (physics, hers, meeting):
         kept.numbered_afresh()
     run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first,
-               contest=keep.get("contest") or ContestStands())
+               contest=keep.get("contest") or ContestStands(), waits_for_her=waits_for_her)
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
     run.lately = dict(keep.get("said_lately") or {})
@@ -1029,7 +1189,13 @@ async def play_as_it_happens(
             _measure_response(run, hers.thing(moves), at)
             physics.saw(moves, hers, happened, at)
             _what_the_rules_said_of(rules, moves, meeting, run, say, at)
-            if rules is not None and rules.covers and hers.thing(moves) is not None:
+            # The ground is the point where the rules say so, and where the world waits for her: with nothing coming and
+            # nothing to go to, a person looks round the place for what is there (a way on, a thing to take).
+            goes_over = (rules is not None and rules.covers) or waits_for_her
+            if any(h.get("what") == "new screen" for h in happened):
+                run.covered.clear()
+                run.barred.clear()
+            if hers.thing(moves) is not None:
                 mine = hers.thing(moves)
                 run.cell = run.cell or max(4.0, mine.w, mine.h)
                 run.covered.add((int(mine.x // run.cell), int(mine.y // run.cell)))
@@ -1037,7 +1203,8 @@ async def play_as_it_happens(
                                  next_picture_s=statistics.median(run.intervals) if run.intervals else 1 / 30,
                                  response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
                                              else statistics.median(run.responses) if run.responses else 0.0),
-                                 covered=(run.covered, run.cell) if rules is not None and rules.covers and run.cell else None)
+                                 covered=(run.covered | run.barred, run.cell) if goes_over and run.cell else None,
+                                 barred=(run.barred, run.cell) if run.cell else None)
             if choosing.mine is not None and (choosing.ways or choosing.pointing):
                 run.responsive_pictures += 1
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
@@ -1050,6 +1217,10 @@ async def play_as_it_happens(
                 _say(run, say, "This still behaves incorrectly: " + violations[0]["finding"] + ". I need to check the repair.", at, once="runtime_fault")
                 break
             await _act(hands, run, moves, hers, meeting, choosing, at, say=say)
+            _out_of_her_reach(run, choosing, at)
+            if goes_over:
+                if waits_for_her and choosing.mine is not None and choosing.ways and choosing.target()[1] == "cover":
+                    _say(run, say, "Nothing's coming at me, so I'm looking around the place.", at, once="looking around")
             _what_she_says(run, say, moves, hers, meeting, at)
             _what_kind_of_game(run, say, moves, hers, meeting, physics, at)
             _report(run, getting_somewhere, at)
@@ -1115,7 +1286,10 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
             await _click_things(hands, run, moves, meeting, at)
         return
     untried = [k for k in run.keys if hers.tried(k) < 4 and k not in choosing.ways]
-    if untried and at - run.tried_at > 3.0 and choosing.danger((0.0, 0.0)) == 0.0:
+    # Where she means to go and no way she knows takes her nearer, a way she has not learned yet is tried now: LIVE
+    # 2026-10-07 her hero stood still beside the thing it meant to go to, left being the one arrow not yet learned.
+    if untried and choosing.danger((0.0, 0.0)) == 0.0 and (
+            at - run.tried_at > 3.0 or choosing.key(run.held)[:2] in {("", "meet"), ("", "cover")}):
         run.tried_at = at
         await _hold(hands, run, hers, untried[0], at, trying=True)
         return

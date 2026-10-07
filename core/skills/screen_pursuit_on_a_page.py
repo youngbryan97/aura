@@ -127,8 +127,15 @@ class OnAPage:
         if name not in PRESSABLE_KEYS:
             return False
         await self._focus()
+        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+
+        reflexes = AS_IT_HAPPENS.get()
         try:
-            await self.page.keyboard.press(_KEY_NAMES.get(name, name))
+            if reflexes is not None:
+                # In a game, a key is held a moment and watched, the way a person tries one.
+                await reflexes.pressed(name)
+            else:
+                await self.page.keyboard.press(_KEY_NAMES.get(name, name))
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False
         if self.watching is not None:

@@ -52,6 +52,9 @@ ANSWERS = 20.0
 #: slowest key must differ by this many working pixels a second.
 REALLY_MOVES = 20.0
 
+#: How lately one of her keys must have moved her thing for its standing still under another to be taken for a wall.
+BLOCKED_WHILE_S = 3.0
+
 #: Samples a key needs before it says anything about a thing.
 ENOUGH = 4
 
@@ -98,9 +101,11 @@ class _Speeds:
     free: dict[str, list[tuple[float, float]]] = field(default_factory=lambda: defaultdict(list))
     lowest: list[float] = field(default_factory=lambda: [math.inf, math.inf])
     highest: list[float] = field(default_factory=lambda: [-math.inf, -math.inf])
+    #: When a key was last seen to move it.
+    moved_at: float = -math.inf
 
     def add(self, key: str, vx: float, vy: float, *, press: float | None = None, pinned: bool = False,
-            settled: bool = True, position: tuple[float, float] | None = None) -> None:
+            settled: bool = True, position: tuple[float, float] | None = None, at: float | None = None) -> None:
         if position is not None:
             for axis, (place, speed) in enumerate(zip(position, (vx, vy), strict=True)):
                 self.lowest[axis] = min(self.lowest[axis], place)
@@ -109,6 +114,15 @@ class _Speeds:
                         and min(place - self.lowest[axis], self.highest[axis] - place) < 1.5
                         and abs(speed) < REALLY_MOVES):
                     pinned = True
+        if at is not None and math.hypot(vx, vy) >= REALLY_MOVES:
+            self.moved_at = at
+        if not pinned and settled and at is not None and math.hypot(vx, vy) < REALLY_MOVES:
+            # Under a key that has moved it, a thing that does not go, while its other keys still move it, is up
+            # against something (a wall, a ledge), wherever in its range it is: LIVE 2026-10-07 a hero walked into a
+            # room's walls until the arrows it had gone by were taken to do nothing, and it stood in the middle of the
+            # room. Where no key has moved it for a while, it is not taken to be blocked: it may not be hers at all.
+            known = self.typical(key)
+            pinned = known is not None and math.hypot(*known) > REALLY_MOVES and at - self.moved_at <= BLOCKED_WHILE_S
         for kept in (self.by_key[key], *(() if pinned or not settled else (self.free[key],))):
             kept.append((vx, vy))
             if len(kept) > 200:
@@ -449,14 +463,17 @@ class WhichIsHers:
         # Judged key by key: a thing none of her keys moves is not hers, but one
         # key taken wrongly for hers is not every key. LIVE 2026-10-05 "left"
         # was believed to move her paddle; holding it moved nothing, and she
-        # disowned her own paddle and played the computer's.
+        # disowned her own paddle and played the computer's. Two keys that have
+        # moved her and do not move it are enough: LIVE 2026-10-07 her hero's
+        # track was handed to a vent on the wall, she held up and down at it for
+        # a minute, and left and right, never pressed, were never judged.
         moving_keys = {k for k in self._hers.free
                        if (v := self._expecting.get(k) or self._hers.typical(k)) is not None
                        and math.hypot(*v) > REALLY_MOVES}
         judged = [statistics.median(self._answered[k]) for k in moving_keys
                   if len(self._answered.get(k, [])) >= 3]
         if (sum(map(len, self._answered.values())) >= ANSWERING_OVER and moving_keys
-                and len(judged) == len(moving_keys) and all(m < 0.2 for m in judged)):
+                and len(judged) >= min(2, len(moving_keys)) and all(m < 0.2 for m in judged)):
             logger.info("control identity %s contradicted by keys %s", thing.number, sorted(moving_keys))
             self.identification.reset("observed control contradiction")
             self.not_mine.add(thing.number)
@@ -614,7 +631,7 @@ class WhichIsHers:
                                                  settled=press is not None)
                 if thing.number == self.number:
                     self._hers.add(key, thing.vx, thing.vy, pinned=self._pinned(thing),
-                                   settled=press is not None, position=(thing.x, thing.y))
+                                   settled=press is not None, position=(thing.x, thing.y), at=at)
                     self._answering(thing, key, at - began, at)
         self._what_follows_the_pointer(moves, at)
         if not self.follows_pointer:

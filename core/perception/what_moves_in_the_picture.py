@@ -268,6 +268,11 @@ class WhatMoves:
         self.scale = self.width / wide
         return shrink(picture, self.width, max(1, round(tall * self.scale)))
 
+    @property
+    def has_looked(self) -> bool:
+        """Whether the first look at this screen is over, and what differs from it is followed."""
+        return self._backdrop is not None
+
     def _first_look(self, small: np.ndarray, at: float) -> bool:
         """Whether the first look at this screen is still going on."""
         if self._backdrop is not None:
