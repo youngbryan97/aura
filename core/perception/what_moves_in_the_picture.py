@@ -61,6 +61,12 @@ FIRST_LOOK_S = 0.5
 #: second.
 BACKDROP_DRIFT = 2.5
 
+#: How much bigger than its own size a followed thing has grown when part of it is something it left behind.
+LEFT_BEHIND_GROWTH = 1.6
+
+#: How long a pixel inside such a thing stays unchanged before it is taken for what it left behind, in seconds.
+LEFT_BEHIND_S = 0.25
+
 #: A thing missing this long, and not found by its look, has gone.
 GONE_AFTER_S = 0.25
 
@@ -116,6 +122,8 @@ class Thing:
     still: bool = False
     path: deque = field(default_factory=lambda: deque(maxlen=40))
     sizes: deque = field(default_factory=lambda: deque(maxlen=15))
+    #: Its own size: the least it has measured, over a few pictures at a time, while followed.
+    least: float = math.inf
 
     @property
     def size(self) -> float:
@@ -242,6 +250,7 @@ class WhatMoves:
         self._backdrop: np.ndarray | None = None
         self._last: np.ndarray | None = None
         self._last_at = 0.0
+        self._still: np.ndarray | None = None
         self.pictures = 0
         self.screens = 0
         #: Where each thing that went was last seen, for whoever asks what it went beside.
@@ -279,18 +288,36 @@ class WhatMoves:
         self.screens += 1
 
     def _drift(self, small: np.ndarray, dt: float) -> None:
-        """Let the backdrop take the picture in, except under the things she is following."""
+        """Let the backdrop take the picture in, except under the things she is following, and what they leave behind.
+
+        Under a thing she follows the backdrop is held, so a thing at rest does
+        not fade into the scene. But a thing that leaves marks (paint, a pen's
+        line, footprints) is one patch with them, and held whole the patch only
+        grows: LIVE 2026-10-07 a painter in a game was a blob 31 pixels wide at
+        rest and 143 by 126 after a few seconds of painting, whose middle barely
+        moved under the keys, and no key was ever found to move it. Where a
+        thing has grown well past its own size, what in it has stood still is
+        what it left behind, and is scene at once.
+        """
         if self._backdrop is None:
             return
         held = np.zeros(small.shape[:2], dtype=bool)
+        left_behind = np.zeros(small.shape[:2], dtype=bool)
         tall, wide = small.shape[:2]
+        still = self._still if self._still is not None and self._still.shape == held.shape else None
         for thing in self.things.values():
             left, top, right, bottom = thing.box()
-            held[max(0, int(top) - 2) : min(tall, int(bottom) + 3), max(0, int(left) - 2) : min(wide, int(right) + 3)] = True
+            area = (slice(max(0, int(top) - 2), min(tall, int(bottom) + 3)), slice(max(0, int(left) - 2), min(wide, int(right) + 3)))
+            if still is not None and thing.size > LEFT_BEHIND_GROWTH * thing.least:
+                stood = still[area] >= LEFT_BEHIND_S
+                held[area] |= ~stood
+                left_behind[area] |= stood
+            else:
+                held[area] = True
         rate = min(1.0, BACKDROP_DRIFT * max(0.0, dt))
         # A weight a pixel, nought under what she follows: the same blend as
         # picking the free pixels out, without copying them out and back.
-        weight = np.where(held, np.float32(0.0), np.float32(rate))[..., None]
+        weight = np.where(held, np.float32(0.0), np.where(left_behind, np.float32(1.0), np.float32(rate)))[..., None]
         self._backdrop += weight * (small.astype(np.float32) - self._backdrop)
 
     def _what_differs(self, small: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
@@ -421,6 +448,8 @@ class WhatMoves:
         thing.path.append((at, thing.x, thing.y))
         thing.vx, thing.vy = _speed_from_its_path(thing.path, at, (vx, vy), (thing.vx, thing.vy))
         thing.sizes.append(thing.size)
+        if len(thing.sizes) >= 5:
+            thing.least = min(thing.least, float(np.median(list(thing.sizes)[-5:])))
         if len(thing.sizes) % 5 == 0:
             self._kind_again(thing)
         if not thing.moved:
@@ -488,6 +517,7 @@ class WhatMoves:
         )
         thing.kind = self._kind_for(thing.look, thing.size, thing.colour)
         thing.path.append((at, thing.x, thing.y))
+        thing.least = thing.size  # as it first stands out, before it has left anything behind
         self.things[thing.number] = thing
         return thing
 
@@ -505,6 +535,13 @@ class WhatMoves:
             self.last_box.update({number: thing.box() for number, thing in self.things.items()})
             self.things.clear()
         dt = at - self._last_at if self._last is not None else 0.0
+        # How long each pixel has stood unchanged, picture to picture.
+        if self._last is not None and self._last.shape == small.shape:
+            changed = np.abs(small.astype(np.int16) - self._last.astype(np.int16)).max(axis=2) > DIFFERENT_ENOUGH // 2
+            before = self._still if self._still is not None and self._still.shape == changed.shape else np.zeros(changed.shape, np.float32)
+            self._still = np.where(changed, np.float32(0.0), before + np.float32(dt))
+        else:
+            self._still = np.zeros(small.shape[:2], np.float32)
         self._last, self._last_at = small, at
         self.pictures += 1
         if self._first_look(small, at):

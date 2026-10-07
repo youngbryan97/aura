@@ -79,6 +79,15 @@ class Makes:
 #: shows the key before.
 SETTLE_S = 0.15 + RESPONSE_S
 
+#: Keys named for a way, and the way, in the picture's own axes (down is down the picture).
+WAYS = {"up": (0.0, -1.0), "down": (0.0, 1.0), "left": (-1.0, 0.0), "right": (1.0, 0.0)}
+
+#: How many keys named for ways a thing must go the way of, each pressed, and none against, to be hers by that.
+WAYS_AGREEING = 3
+
+#: How nearly along a key's way a thing must go to have gone its way: within about 45 degrees.
+ALONG = 0.7
+
 
 @dataclass
 class _Speeds:
@@ -630,6 +639,8 @@ class WhichIsHers:
         # she is still measuring on her own object.
         best = self.identification.choose(witnesses, visible=set(moves.things),
                                           established=self.number, excluded=self.not_mine)
+        if best is None:
+            best = gone_the_ways_of_the_keys(self, moves)
         if best is None and self.lost():
             best = self._found_by_her_controls(moves)
         if best is not None:
@@ -777,3 +788,46 @@ def _fresh_control_experiment_forgets_old_rejections() -> bool:
 def _control_recheck_invariant() -> tuple:
     assert _fresh_control_experiment_forgets_old_rejections(), "a fresh trial retained a prior control rejection"
     return ()
+
+
+def gone_the_ways_of_the_keys(hers: WhichIsHers, moves: Any) -> int | None:
+    """The one thing that went the way of every key named for a way she tried, three or more of them and none against.
+
+    An arrow points: what is hers goes the way of the arrow pressed. The
+    test of how much better the keys explain a thing than its moving alone
+    needs two presses of each of two keys and more, and where many things
+    move by themselves it says little for long: LIVE 2026-10-07 a painter
+    went right under right, down under down and left under left, and in
+    thirty seconds no key was found to move anything, the experiment
+    begun again each time the round ended. Three keys' ways agreeing, none
+    disagreeing, is what a person needs, and a thing moving by itself
+    agrees by chance about once in sixty; two that both agree decide
+    nothing.
+    """
+    agreeing: list[tuple[int, int]] = []
+    for number, speeds in hers._by_thing.items():
+        if number not in moves.things or number in hers.not_mine:
+            continue
+        went, against = set(), set()
+        for (key, _began), values in speeds.by_press.items():
+            way = WAYS.get(key)
+            if way is None or len(values) < 2:
+                continue
+            vx, vy = _mean(values)
+            speed = math.hypot(vx, vy)
+            if speed < REALLY_MOVES:
+                continue  # held against the end of its way, or not moving: says nothing either way
+            along = (vx * way[0] + vy * way[1]) / speed
+            if along >= ALONG:
+                went.add(key)
+            elif along < 0.0:
+                against.add(key)
+        if len(went) >= WAYS_AGREEING and not against:
+            agreeing.append((len(went), number))
+    agreeing.sort(reverse=True)
+    if not agreeing or (len(agreeing) > 1 and agreeing[0][0] == agreeing[1][0]):
+        return None
+    ways, best = agreeing[0]
+    hers.identification.receipts.append({"epoch": hers.identification.epoch, "reason": "went the way of each key named for a way",
+                                         "selected": best, "ways": ways, "eligible_candidates": len(agreeing)})
+    return best
