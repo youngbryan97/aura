@@ -111,7 +111,7 @@ def test_the_pursuit_offers_what_works_rather_than_what_it_was_told():
 
     source = pursuit_source()
     assert "screen_options(can_do.available() or move_keys)" in source
-    assert "can_do.tried(previous.chosen.name, attempt.verdict.observed_change)" in source
+    assert "can_do.tried(previous.chosen.name, it_was_answered(attempt.verdict.observed_change, observation))" in source
 
 
 # ── what she was told is judged on itself ────────────────────────────────
@@ -133,3 +133,15 @@ def test_one_named_key_shown_dead_keeps_the_other_and_widens():
     assert offered[0] == "tab"
     assert "return" not in offered
     assert set(COMMITS_TO_NOTHING) <= set(offered)
+
+
+def test_where_her_keys_do_nothing_what_is_there_to_be_read_is_not_clicked():
+    # LIVE 2026-10-07 she clicked "score" and "Meter:" off a game's scoreboard to see what they did.
+    here = WhatWorksHere(told=("up", "down", "left"))
+    for _ in range(2):
+        here.looked_at(('click "score"', 'click "Meter:"', 'click "Strike Em Out"'))
+    for key in ("up", "down", "left"):
+        here.tried(key, False)
+    offered = here.available()
+    assert 'click "Strike Em Out"' in offered
+    assert 'click "score"' not in offered and 'click "Meter:"' not in offered

@@ -59,7 +59,13 @@ def _plain(label: str) -> str:
 
 
 def how_much_it_leads_on(label: str) -> float:
-    """How much more worth trying first a click on ``label`` is than a key: above 1 a way on, below 1 a thing to read."""
+    """How much more worth trying first a click on ``label`` is than a key: above 1 a way on, below 1 a thing to read.
+
+    A label that ends in a colon names the value beside it ("Meter:", "Lives:",
+    "Time left:"): it is read, whatever its word.
+    """
+    if str(label or "").rstrip().endswith(":"):
+        return 0.5
     plain = _plain(label)
     if not plain:
         return 1.0

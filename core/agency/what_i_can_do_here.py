@@ -77,6 +77,14 @@ def _goes_on(move: str) -> bool:
     return bool(label) and how_much_it_leads_on(label) > 1.0
 
 
+def _not_read_only(move: str) -> bool:
+    """Whether a click may do something: not writing that is there to be read (a score, a caption, a measure)."""
+    from core.language.a_way_on import how_much_it_leads_on
+
+    label = what_is_clicked(move)
+    return label is None or how_much_it_leads_on(label) > 0.7
+
+
 def what_is_clicked(move: str) -> str | None:
     """What a click move clicks, or None when the move is not a click."""
     name = str(move or "").strip()
@@ -249,8 +257,10 @@ class WhatWorksHere:
         # are doing: on a menu that moves on its own, keys look as if they work
         # and the labels never joined. LIVE-like 2026-10-05 she pressed left
         # forty times on a game's "Easy / Hard" screen.
+        # Where her keys do nothing, the other labels are tried too, but not what is there to be read: LIVE
+        # 2026-10-07 she clicked "score" and "Meter:" off a game's scoreboard to see what they did.
         goes_on = tuple(click for click in self.on_screen if click not in dead
-                        and (_goes_on(click) or self.keys_do_nothing_here()))
+                        and (_goes_on(click) or self.keys_do_nothing_here() and _not_read_only(click)))
         if asked:
             return asked + told + goes_on
         # Only what she was told can be shown wrong about what she was told.
@@ -262,7 +272,7 @@ class WhatWorksHere:
         wider = list(told) + [
             key for key in worth_trying(self.told) if key not in dead and key not in told
         ]
-        wider += [click for click in self.on_screen if click not in dead and click not in wider]
+        wider += [click for click in self.on_screen if click not in dead and click not in wider and _not_read_only(click)]
         if wider and set(wider) != set(self.told) and not self.said_it_differs:
             self.said_it_differs = True
             logger.info(
