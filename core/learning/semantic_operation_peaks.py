@@ -31,6 +31,18 @@ assign is selected: operations decide and the existing argument machinery
 follows. The joint score let argument evidence overrule a better operation
 reading, which cost 22 tasks when this recognizer was first tried under it.
 
+A causal model's state at a verb cannot hold what the rest of its phrase says.
+"take 7 away from 46" reads as addition at "take", "share 31 evenly among 5"
+as addition at "share"; the operation is only settled at "away from" or
+"evenly among". With phrase reading, two more readouts name a span where its
+phrase has closed: the middle layer at the phrase's last word, and the mean
+over the phrase. The phrase runs from the span to the end of its sentence or
+to the next peak the tagger scores at least as high, whichever comes first,
+less literals and punctuation. Held out a wording at a time over 24 training
+wordings (6 October), the reading at the verb named 65.8% of unseen wordings
+and the three pooled 86.5%, while held-out constructions stayed at 0.995 and
+validation at 0.993.
+
 Every parameter is fitted on training rows only. Validation and test rows are
 refused by the fitter.
 """
@@ -180,6 +192,61 @@ def _first_feature(
     return _word_at(hidden, channels, widths, 0)
 
 
+def punctuation_token_ids(tokenizer: Any) -> tuple[int, ...]:
+    """The tokenizer's tokens with no letter or digit: a phrase does not close on one."""
+    return tuple(sorted(
+        int(token_id) for token_id in tokenizer.get_vocab().values()
+        if not any(char.isalnum() for char in (tokenizer.decode([token_id]) or ""))
+    ))
+
+
+def _sentence_starts(token_ids: Sequence[int], ends: frozenset[int], blocked: np.ndarray) -> list[int]:
+    """Where sentences begin: after a sentence-ending token outside a literal."""
+    return [0] + [
+        index + 1 for index, token in enumerate(token_ids)
+        if int(token) in ends and not blocked[index] and index + 1 < len(token_ids)
+    ]
+
+
+def _phrase_close(
+    scores: np.ndarray,
+    span: TokenSpan,
+    peak: int,
+    starts: Sequence[int],
+    blocked: np.ndarray,
+    token_ids: Sequence[int],
+    punctuation: frozenset[int],
+) -> int:
+    """The last token of the phrase ``span`` opens.
+
+    The phrase runs to the end of its sentence or to the next local maximum
+    of the tagger at least as high as the span's own peak, whichever comes
+    first; another operation's reading that strong starts another phrase.
+    Literals and punctuation do not close it.
+    """
+    stop = min([start for start in starts if start > span.start] + [len(scores)])
+    last = len(scores) - 1
+    for token in range(span.end, stop):
+        if blocked[token]:
+            continue
+        local = scores[token] >= scores[token - 1] and (token == last or scores[token] >= scores[token + 1])
+        if local and scores[token] >= scores[peak]:
+            stop = token
+            break
+    close = stop - 1
+    while close > span.end - 1 and (blocked[close] or int(token_ids[close]) in punctuation):
+        close -= 1
+    return close
+
+
+def _phrase_feature(
+    hidden: np.ndarray, channels: Sequence[str], widths: Sequence[int], start: int, close: int
+) -> np.ndarray:
+    """The phrase's mean in the middle layer, from its first token to its close."""
+    mean = _unit_rows(_channel(hidden[start : close + 1], channels, widths, LABELER_CHANNEL)).mean(axis=0)
+    return mean / (np.linalg.norm(mean) + 1e-9)
+
+
 def _probabilities(head: LinearClassifierHead, rows: np.ndarray) -> np.ndarray:
     logits = np.asarray(rows, dtype=np.float64) @ np.asarray(
         head.weight, dtype=np.float64
@@ -247,6 +314,15 @@ class PeakOperationRecognizer:
     #: word alone suggests. Held out on 6 October, the words read it as
     #: integer division and lost "the product of 25 and the sum of 72 and 2".
     words_name_only: bool = False
+    #: Readouts of a span where its phrase has closed (_phrase_close): the middle
+    #: layer at the phrase's last word, and its mean over the phrase.
+    close_labeler: LinearClassifierHead | None = None
+    phrase_labeler: LinearClassifierHead | None = None
+    #: Their weights, at the contextual readout's scale, fitted with label_weights.
+    phrase_weights: tuple[float, float] = (0.0, 0.0)
+    #: Sentence-ending and punctuation tokens, bound from the tokenizer.
+    sentence_ends: frozenset[int] = frozenset()
+    punctuation: frozenset[int] = frozenset()
 
     def __post_init__(self) -> None:
         if (
@@ -261,6 +337,14 @@ class PeakOperationRecognizer:
             or not 1 <= self.label_limit <= len(self.labeler.labels)
             or self.lexical_at not in LEXICAL_AT
             or (self.lexical_at == "word" and not self.word_continuations)
+            or (self.close_labeler is None) != (self.phrase_labeler is None)
+            or (self.close_labeler is not None and (
+                self.close_labeler.labels != self.labeler.labels
+                or self.phrase_labeler.labels != self.labeler.labels
+                or not self.sentence_ends or not self.punctuation
+                or len(self.phrase_weights) != 2
+                or not all(math.isfinite(w) and w >= 0.0 for w in self.phrase_weights)
+            ))
         ):
             raise ValueError("peak operation recognizer parameters are invalid")
 
@@ -278,6 +362,7 @@ class PeakOperationRecognizer:
         span: TokenSpan,
         peak: int,
         token_ids: Sequence[int] | None,
+        close: int | None = None,
     ) -> np.ndarray:
         if span.end == 1:
             return _probabilities(
@@ -286,20 +371,27 @@ class PeakOperationRecognizer:
         contextual = _probabilities(
             self.labeler, _labeler_feature(hidden, channels, widths, span.end)[None]
         )[0]
-        if self.lexical_labeler is None:
+        if self.lexical_labeler is None and self.close_labeler is None:
             return contextual
-        if self.lexical_at == "word":
-            if token_ids is None:
-                raise ValueError("the word readout needs the request's token ids")
-            words = _words_at(hidden, channels, widths, *_word_around(token_ids, peak, self.word_continuations))
-        elif self.lexical_at == "peak":
-            words = _word_at(hidden, channels, widths, peak)
-        else:
-            words = _lexical_feature(hidden, channels, widths, span)
-        lexical = _probabilities(self.lexical_labeler, words[None])[0]
-        logits = self.label_weights[0] * np.log(np.clip(contextual, 1e-12, 1.0)) + self.label_weights[
-            1
-        ] * np.log(np.clip(lexical, 1e-12, 1.0))
+        logits = self.label_weights[0] * np.log(np.clip(contextual, 1e-12, 1.0))
+        if self.lexical_labeler is not None:
+            if self.lexical_at == "word":
+                if token_ids is None:
+                    raise ValueError("the word readout needs the request's token ids")
+                words = _words_at(hidden, channels, widths, *_word_around(token_ids, peak, self.word_continuations))
+            elif self.lexical_at == "peak":
+                words = _word_at(hidden, channels, widths, peak)
+            else:
+                words = _lexical_feature(hidden, channels, widths, span)
+            lexical = _probabilities(self.lexical_labeler, words[None])[0]
+            logits = logits + self.label_weights[1] * np.log(np.clip(lexical, 1e-12, 1.0))
+        if self.close_labeler is not None:
+            if close is None:
+                raise ValueError("phrase reading needs the phrase's close")
+            closing = _probabilities(self.close_labeler, _labeler_feature(hidden, channels, widths, close + 1)[None])[0]
+            phrase = _probabilities(self.phrase_labeler, _phrase_feature(hidden, channels, widths, span.start, close)[None])[0]
+            logits = (logits + self.phrase_weights[0] * np.log(np.clip(closing, 1e-12, 1.0))
+                      + self.phrase_weights[1] * np.log(np.clip(phrase, 1e-12, 1.0)))
         logits -= logits.max()
         pooled = np.exp(logits) / np.exp(logits).sum()
         if not self.words_name_only:
@@ -326,6 +418,12 @@ class PeakOperationRecognizer:
         for span in input_spans:
             blocked[span.start : span.end] = True
         scores = np.where(blocked, 0.0, scores)
+        starts = (
+            _sentence_starts(token_ids, self.sentence_ends, blocked)
+            if self.close_labeler is not None and token_ids is not None else None
+        )
+        if self.close_labeler is not None and token_ids is None:
+            raise ValueError("phrase reading needs the request's token ids")
         last = len(scores) - 1
         peaks = [
             t
@@ -364,8 +462,12 @@ class PeakOperationRecognizer:
                 ):
                     continue
                 seen.add(span)
+                close = (
+                    _phrase_close(scores, span, peak, starts, blocked, token_ids, self.punctuation)
+                    if starts is not None else None
+                )
                 probabilities = self._labels(
-                    hidden, hidden_channels, hidden_channel_widths, span, peak, token_ids
+                    hidden, hidden_channels, hidden_channel_widths, span, peak, token_ids, close
                 )
                 evidence = math.log(max(float(scores[peak]), 1e-12))
                 for index in np.argsort(-probabilities, kind="stable")[: self.label_limit]:
@@ -410,6 +512,17 @@ class PeakOperationRecognizer:
                 if self.lexical_labeler is not None
                 else {}
             ),
+            **(
+                {
+                    "close_labeler": _head_dict(self.close_labeler),
+                    "phrase_labeler": _head_dict(self.phrase_labeler),
+                    "phrase_weights": [float(weight) for weight in self.phrase_weights],
+                    "sentence_ends": _bitmap(self.sentence_ends),
+                    "punctuation": _bitmap(self.punctuation),
+                }
+                if self.close_labeler is not None
+                else {}
+            ),
         }
 
     @property
@@ -441,6 +554,11 @@ def peak_operation_recognizer_from_dict(value: Mapping[str, Any]) -> PeakOperati
             _from_bitmap(value["word_continuations"]) if "word_continuations" in value else frozenset()
         ),
         words_name_only=bool(value.get("words_name_only", False)),
+        close_labeler=_head_from_dict(value["close_labeler"]) if "close_labeler" in value else None,
+        phrase_labeler=_head_from_dict(value["phrase_labeler"]) if "phrase_labeler" in value else None,
+        phrase_weights=tuple(float(weight) for weight in value.get("phrase_weights", (0.0, 0.0))),
+        sentence_ends=_from_bitmap(value["sentence_ends"]) if "sentence_ends" in value else frozenset(),
+        punctuation=_from_bitmap(value["punctuation"]) if "punctuation" in value else frozenset(),
     )
 
 
@@ -472,6 +590,61 @@ def _centred_head(
     )
 
 
+def _stacked_weights(
+    readouts: Sequence[np.ndarray],
+    names: Sequence[str],
+    groups: Sequence[Any],
+    operations: tuple[str, ...],
+) -> tuple[float, ...]:
+    """How much to trust each readout, from how each does on constructions it was not fitted on.
+
+    Every readout is refitted without each held-out group and scores that
+    group; the weights maximise the likelihood of those out-of-fold labels
+    under the readouts' pooled log-probabilities. Fitted on the same rows the
+    readouts saw, the contextual readout is near perfect and would take all
+    the weight; the question is how each does on a wording it has not seen,
+    which is what a held-out construction is.
+    """
+    from scipy.optimize import minimize
+
+    groups = np.asarray(list(groups))
+    target = np.asarray([operations.index(name) for name in names])
+    out = [np.zeros((len(target), len(operations))) for _ in readouts]
+    for group in sorted(set(groups.tolist())):
+        held = groups == group
+        kept_names = [name for name, keep in zip(names, ~held, strict=True) if keep]
+        if len(set(kept_names)) < len(operations):
+            continue
+        for index, rows in enumerate(readouts):
+            out[index][held] = _probabilities(
+                _centred_head(operations, rows[~held], kept_names, balanced=False), rows[held]
+            )
+    scored = out[0].sum(axis=1) > 0
+    if not scored.any():
+        return (1.0, *(0.0 for _ in readouts[1:]))  # no group could be held out: the contextual readout alone
+    logs = [np.log(np.clip(matrix[scored], 1e-12, 1.0)) for matrix in out]
+    rows = np.arange(int(scored.sum()))
+
+    def loss(weights: np.ndarray) -> float:
+        logits = sum(weight * log for weight, log in zip(weights, logs, strict=True))
+        logits = logits - logits.max(axis=1, keepdims=True)
+        return -float((logits[rows, target[scored]] - np.log(np.exp(logits).sum(axis=1))).mean())
+
+    start = np.zeros(len(readouts))
+    start[0] = 1.0
+    fitted = minimize(loss, x0=start, method="L-BFGS-B", bounds=[(0.0, None)] * len(readouts))
+    weights = [float(value) for value in fitted.x]
+    if weights[0] <= 0.0:
+        top = max(weights)
+        return tuple(weight / top for weight in weights) if top > 0 else (1.0, *(0.0 for _ in weights[1:]))
+    # The trust between readouts, at the contextual readout's own scale. The
+    # fit's overall size is a temperature for the held-out likelihood, and the
+    # chart adds a span's log-confidence to scores whose scale was set by the
+    # contextual readout alone. Fitted (16.29, 7.75) as given, LIVE validation
+    # 2026-10-05 lost five cataphoric rows; at (1, 0.48) it lost none.
+    return tuple(weight / weights[0] for weight in weights)
+
+
 def _stacked_label_weights(
     contextual: np.ndarray,
     lexical: np.ndarray,
@@ -479,53 +652,9 @@ def _stacked_label_weights(
     groups: Sequence[Any],
     operations: tuple[str, ...],
 ) -> tuple[float, float]:
-    """How much to trust each readout, from how each does on constructions it was not fitted on.
-
-    Both readouts are refitted without each held-out group and score that
-    group; the weights maximise the likelihood of those out-of-fold labels.
-    Fitted on the same rows the readouts saw, the contextual readout is near
-    perfect and would take all the weight; the question is how each does on a
-    wording it has not seen, which is what a held-out construction is.
-    """
-    from scipy.optimize import minimize
-
-    groups = np.asarray(list(groups))
-    target = np.asarray([operations.index(name) for name in names])
-    out_contextual = np.zeros((len(target), len(operations)))
-    out_lexical = np.zeros((len(target), len(operations)))
-    for group in sorted(set(groups.tolist())):
-        held = groups == group
-        kept_names = [name for name, keep in zip(names, ~held, strict=True) if keep]
-        if len(set(kept_names)) < len(operations):
-            continue
-        out_contextual[held] = _probabilities(
-            _centred_head(operations, contextual[~held], kept_names, balanced=False), contextual[held]
-        )
-        out_lexical[held] = _probabilities(
-            _centred_head(operations, lexical[~held], kept_names, balanced=False), lexical[held]
-        )
-    scored = out_contextual.sum(axis=1) > 0
-    if not scored.any():
-        return 1.0, 0.0  # no group could be held out: the contextual readout alone
-    log_contextual = np.log(np.clip(out_contextual[scored], 1e-12, 1.0))
-    log_lexical = np.log(np.clip(out_lexical[scored], 1e-12, 1.0))
-    rows = np.arange(int(scored.sum()))
-
-    def loss(weights: np.ndarray) -> float:
-        logits = weights[0] * log_contextual + weights[1] * log_lexical
-        logits = logits - logits.max(axis=1, keepdims=True)
-        return -float((logits[rows, target[scored]] - np.log(np.exp(logits).sum(axis=1))).mean())
-
-    fitted = minimize(loss, x0=np.array([1.0, 0.0]), method="L-BFGS-B", bounds=[(0.0, None), (0.0, None)])
-    context, words = float(fitted.x[0]), float(fitted.x[1])
-    if context <= 0.0:
-        return 0.0, 1.0
-    # The trust between the two, at the contextual readout's own scale. The
-    # fit's overall size is a temperature for the held-out likelihood, and the
-    # chart adds a span's log-confidence to scores whose scale was set by the
-    # contextual readout alone. Fitted (16.29, 7.75) as given, LIVE validation
-    # 2026-10-05 lost five cataphoric rows; at (1, 0.48) it lost none.
-    return 1.0, words / context
+    """The contextual and lexical readouts' weights (_stacked_weights)."""
+    first, second = _stacked_weights((contextual, lexical), names, groups, operations)
+    return first, second
 
 
 def fit_peak_operation_recognizer(
@@ -538,6 +667,9 @@ def fit_peak_operation_recognizer(
     lexical_at: str = "span",
     word_continuations: Sequence[int] = (),
     words_name_only: bool = False,
+    phrase_reading: bool = False,
+    sentence_end_token_ids: Sequence[int] = (),
+    punctuation_token_ids: Sequence[int] = (),
 ) -> PeakOperationRecognizer:
     """Fit every readout on training rows; any other split is refused.
 
@@ -551,8 +683,17 @@ def fit_peak_operation_recognizer(
     highest inside each operation span, which is where the decoder reads them;
     ``"word"`` reads the whole word holding that token, with
     ``word_continuations`` from ``word_continuation_token_ids``.
+
+    ``phrase_reading`` adds the readouts at each span's phrase close, read
+    where the decoder reads them (with the fitted tagger), and needs
+    ``construction_groups``, ``sentence_end_token_ids`` and
+    ``punctuation_token_ids`` (punctuation_token_ids).
     """
     continuations = frozenset(int(token_id) for token_id in word_continuations)
+    ends = frozenset(int(token_id) for token_id in sentence_end_token_ids)
+    punctuation = frozenset(int(token_id) for token_id in punctuation_token_ids)
+    if phrase_reading and (construction_groups is None or not ends or not punctuation):
+        raise ValueError("phrase reading needs held-out groups, sentence ends and punctuation")
     examples = tuple(examples)
     if not examples or any(item.split != "train" for item in examples):
         raise ValueError("peak operation recognition is fitted on training rows only")
@@ -598,15 +739,29 @@ def fit_peak_operation_recognizer(
     )
     tagger = _centred_head(tags, np.concatenate(token_rows), token_tags, balanced=True)
     lexical_labeler, label_weights = None, (1.0, 0.0)
+    close_labeler = phrase_labeler = None
+    phrase_weights = (0.0, 0.0)
     if construction_groups is not None:
         lexical_matrix = np.stack([
             _training_words(item, span, tagger, first_tagger, lexical_at, continuations)
             for item, span in label_spans
         ])
         lexical_labeler = _centred_head(operations, lexical_matrix, label_names, balanced=False)
-        label_weights = _stacked_label_weights(
-            np.stack(label_rows), lexical_matrix, label_names, label_groups, operations
-        )
+        if not phrase_reading:
+            label_weights = _stacked_label_weights(
+                np.stack(label_rows), lexical_matrix, label_names, label_groups, operations
+            )
+        else:
+            close_matrix, phrase_matrix = _training_phrases(
+                label_spans, tagger, first_tagger, ends, punctuation
+            )
+            close_labeler = _centred_head(operations, close_matrix, label_names, balanced=False)
+            phrase_labeler = _centred_head(operations, phrase_matrix, label_names, balanced=False)
+            weights = _stacked_weights(
+                (np.stack(label_rows), lexical_matrix, close_matrix, phrase_matrix),
+                label_names, label_groups, operations,
+            )
+            label_weights, phrase_weights = weights[:2], weights[2:]
     receipt = {
         "training_sources": sorted(item.ir.source_text_sha256 for item in examples),
         "training_rows": len(examples),
@@ -616,6 +771,7 @@ def fit_peak_operation_recognizer(
         **({"label_weights": list(label_weights)} if lexical_labeler is not None else {}),
         **({"lexical_at": lexical_at} if lexical_labeler is not None and lexical_at != "span" else {}),
         **({"words_name_only": True} if lexical_labeler is not None and words_name_only else {}),
+        **({"phrase_weights": list(phrase_weights)} if close_labeler is not None else {}),
     }
     return PeakOperationRecognizer(
         tagger=tagger,
@@ -631,7 +787,38 @@ def fit_peak_operation_recognizer(
         lexical_at=lexical_at,
         word_continuations=continuations if lexical_at == "word" else frozenset(),
         words_name_only=words_name_only and lexical_labeler is not None,
+        close_labeler=close_labeler,
+        phrase_labeler=phrase_labeler,
+        phrase_weights=phrase_weights,
+        sentence_ends=ends if close_labeler is not None else frozenset(),
+        punctuation=punctuation if close_labeler is not None else frozenset(),
     )
+
+
+def _training_phrases(
+    label_spans: Sequence[tuple[Any, TokenSpan]],
+    tagger: LinearClassifierHead,
+    first_tagger: LinearClassifierHead,
+    ends: frozenset[int],
+    punctuation: frozenset[int],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Each training operation's close and phrase rows, its close found as the decoder finds it."""
+    close_rows, phrase_rows = [], []
+    for item, span in label_spans:
+        hidden = np.asarray(item.hidden_states)
+        channels, widths = item.hidden_channels, item.hidden_channel_widths
+        blocked = np.zeros(hidden.shape[0], dtype=bool)
+        for literal in item.ir.input_spans:
+            blocked[literal.start : literal.end] = True
+        scores = np.where(blocked, 0.0, _operation_probabilities(tagger, first_tagger, hidden, channels, widths))
+        peak = span.start + int(np.argmax(scores[span.start : span.end]))
+        tokens = item.ir.source_token_ids
+        close = _phrase_close(
+            scores, span, peak, _sentence_starts(tokens, ends, blocked), blocked, tokens, punctuation
+        )
+        close_rows.append(_labeler_feature(hidden, channels, widths, close + 1))
+        phrase_rows.append(_phrase_feature(hidden, channels, widths, span.start, close))
+    return np.stack(close_rows), np.stack(phrase_rows)
 
 
 def _training_words(

@@ -333,6 +333,11 @@ def main() -> int:
         help="the stacked labeler's words choose which operation a span names; the context alone says how sure it is",
     )
     parser.add_argument(
+        "--phrase-reading",
+        action="store_true",
+        help="also name each span where its phrase closes (needs --stacked-labeler)",
+    )
+    parser.add_argument(
         "--arguments-within-sentence",
         action="store_true",
         help="no argument option starts before its operation's sentence (needs --antecedent-stretches sentence)",
@@ -412,7 +417,18 @@ def main() -> int:
 
         continuations = word_continuation_token_ids(Tokenizer.from_file(str(args.tokenizer.expanduser())))
         print(f"word-continuing tokens: {len(continuations)}", flush=True)
-    recognizer = fit_peak_operation_recognizer((*training, *breadth), construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only)
+    phrase: dict[str, Any] = {}
+    if args.phrase_reading:
+        from tokenizers import Tokenizer
+
+        from core.learning.semantic_argument_antecedent import sentence_end_token_ids
+        from core.learning.semantic_operation_peaks import punctuation_token_ids
+
+        tokenizer = Tokenizer.from_file(str(args.tokenizer.expanduser()))
+        phrase = {"phrase_reading": True, "sentence_end_token_ids": sentence_end_token_ids(tokenizer),
+                  "punctuation_token_ids": punctuation_token_ids(tokenizer)}
+        print(f"punctuation tokens: {len(phrase['punctuation_token_ids'])}", flush=True)
+    recognizer = fit_peak_operation_recognizer((*training, *breadth), construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, **phrase)
     ownership = fit_argument_ownership((*training, *breadth)) if args.argument_ownership else None
     antecedent = (
         replace(fit_argument_antecedent((*training, *breadth), objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
@@ -462,7 +478,7 @@ def main() -> int:
             )
             fold_candidate = PeakRecognitionTransducer(
                 incumbent,
-                fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only),
+                fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, **phrase),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
                 replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,

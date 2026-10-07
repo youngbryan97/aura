@@ -388,3 +388,72 @@ def test_the_words_name_the_operation_and_leave_whether_to_the_context() -> None
     assert first(named).confidence == pytest.approx(first(context_only).confidence)
     replay = peak_operation_recognizer_from_dict(named.to_dict())
     assert replay.words_name_only and replay.identity_sha256 != plain.identity_sha256
+
+
+def test_a_phrase_closes_at_its_sentence_or_a_stronger_reading_past_literals_and_punctuation() -> None:
+    from core.learning.semantic_operation_peaks import _phrase_close
+
+    # "take 7 away from 46 . then add" as token scores; 7 and 46 are literals.
+    scores = np.array([0.0, 0.8, 0.0, 0.4, 0.3, 0.0, 0.0, 0.1, 0.9])
+    blocked = np.array([False, False, True, False, False, True, False, False, False])
+    tokens = [0, 1, 2, 3, 4, 5, 99, 6, 7]
+    starts = [0, 7]
+    # The sentence ends at 99 ("."): the phrase closes on "from", past 46 and the full stop.
+    assert _phrase_close(scores, TokenSpan(1, 2), 1, starts, blocked, tokens, frozenset({99})) == 4
+    # Within one sentence, a reading at least as strong starts another phrase.
+    assert _phrase_close(scores, TokenSpan(1, 2), 1, [0], blocked, tokens, frozenset({99})) == 7
+
+
+def test_a_verb_is_named_by_how_its_phrase_settles() -> None:
+    """"take 7 away from 46" reads as add at "take" and as sub once "away from" has been read."""
+    names = ("add", "sub")
+    reading = _head(names, [[0, 0, 4], [0, 0, -4]])
+    settled = _recognizer(
+        lexical_labeler=_head(names, [[0, 0, 0], [0, 0, 0]]),
+        label_weights=(1.0, 0.0),
+        close_labeler=reading,
+        phrase_labeler=reading,
+        phrase_weights=(1.0, 1.0),
+        sentence_ends=frozenset({99}),
+        punctuation=frozenset({99}),
+    )
+    verb, particle = (0.0, 1.0, 1.0), (0.0, 0.6, -3.0)
+    hidden = _hidden([BACKGROUND, verb, BACKGROUND, particle, BACKGROUND],
+                     [BACKGROUND, BACKGROUND, BACKGROUND, BACKGROUND, BACKGROUND])
+    tokens = [10, 11, 12, 13, 99]
+
+    def first_names(recognizer: PeakOperationRecognizer) -> dict:
+        found = {}
+        for node in recognizer.operation_candidates(
+            hidden=hidden, input_spans=(), max_span_tokens=1, hidden_channels=CHANNELS,
+            hidden_channel_widths=WIDTHS, token_ids=tokens,
+        ):
+            found.setdefault(node.span, node.operation)
+        return found
+
+    assert first_names(replace(settled, close_labeler=None, phrase_labeler=None,
+                               phrase_weights=(0.0, 0.0)))[TokenSpan(1, 2)] == "add"
+    assert first_names(settled)[TokenSpan(1, 2)] == "sub"
+    restored = peak_operation_recognizer_from_dict(settled.to_dict())
+    assert restored.identity_sha256 == settled.identity_sha256 and restored.phrase_weights == (1.0, 1.0)
+    with pytest.raises(ValueError, match="token ids"):
+        _nodes(settled, hidden)
+
+
+def test_phrase_readouts_are_fitted_where_the_decoder_reads_them() -> None:
+    examples = _fixture_examples()
+    train = tuple(item for item in examples if item.split == "train")
+    groups = {item.ir.source_text_sha256: index % 2 for index, item in enumerate(train)}
+    every_token = sorted({int(t) for item in train for t in item.ir.source_token_ids})
+    with pytest.raises(ValueError, match="phrase reading needs"):
+        fit_peak_operation_recognizer(train, phrase_reading=True)
+    recognizer = fit_peak_operation_recognizer(
+        train, construction_groups=groups, phrase_reading=True,
+        sentence_end_token_ids=every_token[-1:], punctuation_token_ids=every_token[-1:],
+    )
+    assert recognizer.close_labeler is not None and recognizer.phrase_labeler is not None
+    assert all(weight >= 0.0 for weight in (*recognizer.label_weights, *recognizer.phrase_weights))
+    assert recognizer.label_weights[0] in (0.0, 1.0)
+    assert recognizer.fit_receipt["phrase_weights"] == list(recognizer.phrase_weights)
+    replay = peak_operation_recognizer_from_dict(recognizer.to_dict())
+    assert replay.identity_sha256 == recognizer.identity_sha256
