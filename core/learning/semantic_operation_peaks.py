@@ -316,8 +316,13 @@ class PeakOperationRecognizer:
     #: layer at the phrase's last word, and its mean over the phrase.
     close_labeler: LinearClassifierHead | None = None
     phrase_labeler: LinearClassifierHead | None = None
-    #: Their weights, at the contextual readout's scale, fitted with label_weights.
-    phrase_weights: tuple[float, float] = (0.0, 0.0)
+    #: The four readouts' weights when a chart is renamed (context, words, close,
+    #: phrase), fitted together at the contextual readout's scale. Candidates
+    #: keep label_weights, fitted for the two readouts they are named with:
+    #: named with the four-way weights less two terms, the words outweighed the
+    #: context and 35 of 37 sequence validation requests v14 had right were lost
+    #: (candidate v15, 7 October).
+    chart_weights: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
     #: Sentence-ending and punctuation tokens, bound from the tokenizer.
     sentence_ends: frozenset[int] = frozenset()
     punctuation: frozenset[int] = frozenset()
@@ -340,8 +345,9 @@ class PeakOperationRecognizer:
                 self.close_labeler.labels != self.labeler.labels
                 or self.phrase_labeler.labels != self.labeler.labels
                 or not self.sentence_ends or not self.punctuation
-                or len(self.phrase_weights) != 2
-                or not all(math.isfinite(w) and w >= 0.0 for w in self.phrase_weights)
+                or len(self.chart_weights) != 4
+                or not all(math.isfinite(w) and w >= 0.0 for w in self.chart_weights)
+                or self.lexical_labeler is None
             ))
         ):
             raise ValueError("peak operation recognizer parameters are invalid")
@@ -371,7 +377,9 @@ class PeakOperationRecognizer:
         )[0]
         if self.lexical_labeler is None and self.close_labeler is None:
             return contextual
-        logits = self.label_weights[0] * np.log(np.clip(contextual, 1e-12, 1.0))
+        renaming = self.close_labeler is not None and close is not None
+        weights = self.chart_weights if renaming else self.label_weights
+        logits = weights[0] * np.log(np.clip(contextual, 1e-12, 1.0))
         if self.lexical_labeler is not None:
             if self.lexical_at == "word":
                 if token_ids is None:
@@ -382,12 +390,12 @@ class PeakOperationRecognizer:
             else:
                 words = _lexical_feature(hidden, channels, widths, span)
             lexical = _probabilities(self.lexical_labeler, words[None])[0]
-            logits = logits + self.label_weights[1] * np.log(np.clip(lexical, 1e-12, 1.0))
-        if self.close_labeler is not None and close is not None:
+            logits = logits + weights[1] * np.log(np.clip(lexical, 1e-12, 1.0))
+        if renaming:
             closing = _probabilities(self.close_labeler, _labeler_feature(hidden, channels, widths, close + 1)[None])[0]
             phrase = _probabilities(self.phrase_labeler, _phrase_feature(hidden, channels, widths, span.start, close)[None])[0]
-            logits = (logits + self.phrase_weights[0] * np.log(np.clip(closing, 1e-12, 1.0))
-                      + self.phrase_weights[1] * np.log(np.clip(phrase, 1e-12, 1.0)))
+            logits = (logits + weights[2] * np.log(np.clip(closing, 1e-12, 1.0))
+                      + weights[3] * np.log(np.clip(phrase, 1e-12, 1.0)))
         logits -= logits.max()
         pooled = np.exp(logits) / np.exp(logits).sum()
         if not self.words_name_only:
@@ -545,7 +553,7 @@ class PeakOperationRecognizer:
                 {
                     "close_labeler": _head_dict(self.close_labeler),
                     "phrase_labeler": _head_dict(self.phrase_labeler),
-                    "phrase_weights": [float(weight) for weight in self.phrase_weights],
+                    "chart_weights": [float(weight) for weight in self.chart_weights],
                     "sentence_ends": _bitmap(self.sentence_ends),
                     "punctuation": _bitmap(self.punctuation),
                 }
@@ -560,6 +568,11 @@ class PeakOperationRecognizer:
 
 
 def peak_operation_recognizer_from_dict(value: Mapping[str, Any]) -> PeakOperationRecognizer:
+    if "phrase_weights" in value:
+        raise ValueError(
+            "this recognizer's phrase readouts name candidates at a guessed close (commits f87331dc0 to "
+            "bb315ef74, candidates v13 and v14); read it with that code"
+        )
     if (
         value.get("schema") != PEAK_RECOGNIZER_SCHEMA
         or list(value.get("tagger_channels", ())) != list(TAGGER_CHANNELS)
@@ -585,7 +598,7 @@ def peak_operation_recognizer_from_dict(value: Mapping[str, Any]) -> PeakOperati
         words_name_only=bool(value.get("words_name_only", False)),
         close_labeler=_head_from_dict(value["close_labeler"]) if "close_labeler" in value else None,
         phrase_labeler=_head_from_dict(value["phrase_labeler"]) if "phrase_labeler" in value else None,
-        phrase_weights=tuple(float(weight) for weight in value.get("phrase_weights", (0.0, 0.0))),
+        chart_weights=tuple(float(weight) for weight in value.get("chart_weights", (0.0, 0.0, 0.0, 0.0))),
         sentence_ends=_from_bitmap(value["sentence_ends"]) if "sentence_ends" in value else frozenset(),
         punctuation=_from_bitmap(value["punctuation"]) if "punctuation" in value else frozenset(),
     )
@@ -699,6 +712,7 @@ def fit_peak_operation_recognizer(
     phrase_reading: bool = False,
     sentence_end_token_ids: Sequence[int] = (),
     punctuation_token_ids: Sequence[int] = (),
+    chart_weighting: str = "fitted",
 ) -> PeakOperationRecognizer:
     """Fit every readout on training rows; any other split is refused.
 
@@ -713,11 +727,17 @@ def fit_peak_operation_recognizer(
     ``"word"`` reads the whole word holding that token, with
     ``word_continuations`` from ``word_continuation_token_ids``.
 
-    ``phrase_reading`` adds the readouts at each span's phrase close, read
-    where the decoder reads them (with the fitted tagger), and needs
+    ``phrase_reading`` adds the readouts at each operation's phrase close,
+    read at the close its gold operations give, and needs
     ``construction_groups``, ``sentence_end_token_ids`` and
-    ``punctuation_token_ids`` (punctuation_token_ids).
+    ``punctuation_token_ids`` (punctuation_token_ids). ``chart_weighting``
+    "fitted" weighs the four readouts by held-out likelihood; "equal" gives
+    each one vote. Fitted, the context's weight went to zero: nothing held out
+    in training shows the phrase wrong and the verb right, and on validation's
+    "counting copies of one value with selector 1" the phrase read a lookup.
     """
+    if chart_weighting not in ("fitted", "equal"):
+        raise ValueError("chart weighting is fitted or equal")
     continuations = frozenset(int(token_id) for token_id in word_continuations)
     ends = frozenset(int(token_id) for token_id in sentence_end_token_ids)
     punctuation = frozenset(int(token_id) for token_id in punctuation_token_ids)
@@ -769,18 +789,17 @@ def fit_peak_operation_recognizer(
     tagger = _centred_head(tags, np.concatenate(token_rows), token_tags, balanced=True)
     lexical_labeler, label_weights = None, (1.0, 0.0)
     close_labeler = phrase_labeler = None
-    phrase_weights = (0.0, 0.0)
+    chart_weights = (0.0, 0.0, 0.0, 0.0)
     if construction_groups is not None:
         lexical_matrix = np.stack([
             _training_words(item, span, tagger, first_tagger, lexical_at, continuations)
             for item, span in label_spans
         ])
         lexical_labeler = _centred_head(operations, lexical_matrix, label_names, balanced=False)
-        if not phrase_reading:
-            label_weights = _stacked_label_weights(
-                np.stack(label_rows), lexical_matrix, label_names, label_groups, operations
-            )
-        else:
+        label_weights = _stacked_label_weights(
+            np.stack(label_rows), lexical_matrix, label_names, label_groups, operations
+        )
+        if phrase_reading:
             close_matrix, phrase_matrix = _training_phrases(
                 label_spans, tagger, first_tagger, ends, punctuation
             )
@@ -790,7 +809,7 @@ def fit_peak_operation_recognizer(
                 (np.stack(label_rows), lexical_matrix, close_matrix, phrase_matrix),
                 label_names, label_groups, operations,
             )
-            label_weights, phrase_weights = weights[:2], weights[2:]
+            chart_weights = tuple(weights) if chart_weighting == "fitted" else (1.0, 1.0, 1.0, 1.0)
     receipt = {
         "training_sources": sorted(item.ir.source_text_sha256 for item in examples),
         "training_rows": len(examples),
@@ -800,7 +819,8 @@ def fit_peak_operation_recognizer(
         **({"label_weights": list(label_weights)} if lexical_labeler is not None else {}),
         **({"lexical_at": lexical_at} if lexical_labeler is not None and lexical_at != "span" else {}),
         **({"words_name_only": True} if lexical_labeler is not None and words_name_only else {}),
-        **({"phrase_weights": list(phrase_weights)} if close_labeler is not None else {}),
+        **({"chart_weights": list(chart_weights), "chart_weighting": chart_weighting}
+           if close_labeler is not None else {}),
     }
     return PeakOperationRecognizer(
         tagger=tagger,
@@ -818,7 +838,7 @@ def fit_peak_operation_recognizer(
         words_name_only=words_name_only and lexical_labeler is not None,
         close_labeler=close_labeler,
         phrase_labeler=phrase_labeler,
-        phrase_weights=phrase_weights,
+        chart_weights=chart_weights,
         sentence_ends=ends if close_labeler is not None else frozenset(),
         punctuation=punctuation if close_labeler is not None else frozenset(),
     )

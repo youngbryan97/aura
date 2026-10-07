@@ -348,6 +348,12 @@ def main() -> int:
         help="also name each span where its phrase closes (needs --stacked-labeler)",
     )
     parser.add_argument(
+        "--chart-weighting",
+        choices=("fitted", "equal"),
+        default="fitted",
+        help="how a renamed chart weighs its four readouts: by held-out likelihood, or one vote each",
+    )
+    parser.add_argument(
         "--arguments-within-sentence",
         action="store_true",
         help="no argument option starts before its operation's sentence (needs --antecedent-stretches sentence)",
@@ -436,7 +442,7 @@ def main() -> int:
 
         tokenizer = Tokenizer.from_file(str(args.tokenizer.expanduser()))
         phrase = {"phrase_reading": True, "sentence_end_token_ids": sentence_end_token_ids(tokenizer),
-                  "punctuation_token_ids": punctuation_token_ids(tokenizer)}
+                  "punctuation_token_ids": punctuation_token_ids(tokenizer), "chart_weighting": args.chart_weighting}
         print(f"punctuation tokens: {len(phrase['punctuation_token_ids'])}", flush=True)
     recognizer = fit_peak_operation_recognizer((*training, *breadth), construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, **phrase)
     ownership = fit_argument_ownership((*training, *breadth)) if args.argument_ownership else None

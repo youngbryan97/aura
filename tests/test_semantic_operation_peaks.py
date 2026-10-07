@@ -413,7 +413,7 @@ def test_a_chart_renames_each_operation_by_how_its_phrase_settles() -> None:
         label_weights=(1.0, 0.0),
         close_labeler=reading,
         phrase_labeler=reading,
-        phrase_weights=(1.0, 1.0),
+        chart_weights=(1.0, 0.0, 1.0, 1.0),
         sentence_ends=frozenset({99}),
         punctuation=frozenset({99}),
     )
@@ -435,10 +435,10 @@ def test_a_chart_renames_each_operation_by_how_its_phrase_settles() -> None:
     other = _OperationNode(TokenSpan(3, 4), "sub", 0.0, 0.0, 1.0)
     renamed = settled.relabel_chart((node, other), **kwargs)
     assert renamed[0].operation == "add"
-    without = replace(settled, close_labeler=None, phrase_labeler=None, phrase_weights=(0.0, 0.0))
+    without = replace(settled, close_labeler=None, phrase_labeler=None, chart_weights=(0.0, 0.0, 0.0, 0.0))
     assert without.relabel_chart((node,), **kwargs) == (node,)
     restored = peak_operation_recognizer_from_dict(settled.to_dict())
-    assert restored.identity_sha256 == settled.identity_sha256 and restored.phrase_weights == (1.0, 1.0)
+    assert restored.identity_sha256 == settled.identity_sha256 and restored.chart_weights == (1.0, 0.0, 1.0, 1.0)
 
 
 def test_phrase_readouts_are_fitted_where_the_decoder_reads_them() -> None:
@@ -453,8 +453,23 @@ def test_phrase_readouts_are_fitted_where_the_decoder_reads_them() -> None:
         sentence_end_token_ids=every_token[-1:], punctuation_token_ids=every_token[-1:],
     )
     assert recognizer.close_labeler is not None and recognizer.phrase_labeler is not None
-    assert all(weight >= 0.0 for weight in (*recognizer.label_weights, *recognizer.phrase_weights))
+    assert all(weight >= 0.0 for weight in (*recognizer.label_weights, *recognizer.chart_weights))
     assert recognizer.label_weights[0] in (0.0, 1.0)
-    assert recognizer.fit_receipt["phrase_weights"] == list(recognizer.phrase_weights)
+    assert recognizer.fit_receipt["chart_weights"] == list(recognizer.chart_weights)
     replay = peak_operation_recognizer_from_dict(recognizer.to_dict())
     assert replay.identity_sha256 == recognizer.identity_sha256
+
+
+def test_equal_chart_weighting_gives_each_readout_one_vote() -> None:
+    examples = _fixture_examples()
+    train = tuple(item for item in examples if item.split == "train")
+    groups = {item.ir.source_text_sha256: index % 2 for index, item in enumerate(train)}
+    every_token = sorted({int(t) for item in train for t in item.ir.source_token_ids})
+    recognizer = fit_peak_operation_recognizer(
+        train, construction_groups=groups, phrase_reading=True, chart_weighting="equal",
+        sentence_end_token_ids=every_token[-1:], punctuation_token_ids=every_token[-1:],
+    )
+    assert recognizer.chart_weights == (1.0, 1.0, 1.0, 1.0)
+    assert recognizer.fit_receipt["chart_weighting"] == "equal"
+    with pytest.raises(ValueError, match="fitted or equal"):
+        fit_peak_operation_recognizer(train, construction_groups=groups, chart_weighting="loud")

@@ -60,7 +60,7 @@ def test_a_stratum_without_enough_wins_does_not_reject() -> None:
 def test_each_lesion_takes_out_one_fitted_part_and_keeps_the_rest() -> None:
     names = ("add", "sub")
     reading = _head(names, [[0, 0, 4], [0, 0, -4]])
-    recognizer = _recognizer(close_labeler=reading, phrase_labeler=reading, phrase_weights=(0.5, 1.5),
+    recognizer = _recognizer(lexical_labeler=reading, close_labeler=reading, phrase_labeler=reading, chart_weights=(1.0, 0.0, 0.5, 1.5),
                              sentence_ends=frozenset({9}), punctuation=frozenset({9}))
     antecedent = ArgumentAntecedent(tuple(float(i + 1) for i in range(len(FEATURES) + len(RECENCY_FEATURES))),
                                     0.0, {}, recency=True, direction=MentionDirection((1.0, -1.0), 0.0))
@@ -68,7 +68,7 @@ def test_each_lesion_takes_out_one_fitted_part_and_keeps_the_rest() -> None:
     candidate = PeakRecognitionTransducer(base, recognizer, None, antecedent)
     arms = lesions(candidate)
     phrase, recency = arms["no_phrase_reading"], arms["no_recency"]
-    assert phrase.recognizer.close_labeler is None and phrase.recognizer.phrase_weights == (0.0, 0.0)
+    assert phrase.recognizer.close_labeler is None and phrase.recognizer.chart_weights == (0.0, 0.0, 0.0, 0.0)
     assert phrase.antecedent is antecedent and phrase.base is base
     assert recency.recognizer is recognizer
     assert recency.antecedent.weight[-3:] == (0.0, 0.0, 0.0)
