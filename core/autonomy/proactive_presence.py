@@ -922,8 +922,20 @@ class ProactivePresence:
         re.IGNORECASE | re.DOTALL
     )
 
+    #: A reading of her own instruments: a bare fraction with no unit, a norm, a phi. LIVE 2026-10-06, unprompted
+    #: after a demo: "My focus is stuck on chasing a qualia intensity that's hovering around 0.52".
+    _A_READING = re.compile(
+        r"(?<![\d$£€.])\b0\.\d{2,}\b(?!\s*(?:%|percent|seconds?|secs?|s\b|ms\b|minutes?|hours?|days?|mm|cm|m\b|km|kg|g\b|lbs?|miles?|inch\w*|"
+        r"litres?|liters?|dollars?|euros?|pounds?))|\|\|\s*\w+\s*\|\||[φΦ]\s*[=:≈]",
+        re.IGNORECASE,
+    )
+
     def _is_valid_spontaneous_output(self, content: str) -> bool:
         """Reject outputs that don't sound like Aura speaking naturally."""
+        # A person says how they feel, not what their instruments read.
+        if self._A_READING.search(content):
+            logger.debug("[ProactivePresence] Rejected: an instrument reading in what she would say")
+            return False
         # Too long — spontaneous speech should be punchy, not an essay
         if len(content) > 350:
             logger.debug("[ProactivePresence] Rejected: output too long (%d chars)", len(content))
