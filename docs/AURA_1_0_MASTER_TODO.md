@@ -2552,6 +2552,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Every program chosen with execution unavailable. The plan's claim needed
   all four to reject; three do not. Open: new operation vocabulary and six-
   and seven-step depth. The 248 requests are now consumed.
+  2026-10-07: the failures' diagnosis and five candidates are in the
+  [development record](evidence/G04_V17_DEVELOPMENT_2026-10-07.md):
+  depth failed because no training result was more than two operations back
+  (fixed by breadth chains of three to five steps and recency gated by a
+  mention's direction); vocabulary failed because a verb was read before its
+  phrase settled (fixed by renaming a chosen chart where its phrases close).
+  Candidate v17: train 764 of 764, validation 498 of 500 (v12: 500), no loss
+  against the incumbent; on the first run's consumed requests depth 58 and
+  family and construction 62 of 62. [Second plan](evidence/G04_TRANSFER_V2_PREREGISTRATION_2026-10-07.md)
+  `d35f8110bb12`, published before any of its requests existed: fresh
+  requests from a second vocabulary table committed before the breadth
+  wordings; v17 against the incumbent, superiority on vocabulary, depth and
+  family and every construction request right; lesion arms for G06. Open in
+  v17 and recorded: two "after removing" validation requests renamed through
+  the next operation's lead-in, and three held-out fold constructions.
   [V7 relation mechanism protocol](evidence/G04_V7_RELATION_MECHANISM_MICRO_PROTOCOL_2026-09-28.md)
   adds nine fixed paraphrase, role, and dependency controls to the three
   reference requests. No v7 generated outcome is available yet; this is a
