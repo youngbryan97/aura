@@ -67,6 +67,9 @@ def test_a_feature_no_part_does_all_of_is_left_to_be_written(feature):
     ("A grid of cells with lettered columns and numbered rows.", False),
     ("A canvas to draw on with brushes and shapes.", False),
     ("A board of tasks in columns: to do, doing, done.", False),
+    # LIVE 2026-10-06: a page on a backdrop is a page, whatever the backdrop is called.
+    ("A white page with a thin grey margin. The page sits on a light-grey canvas; a status bar shows the word count.", True),
+    ("A canvas to draw on, kept as a document.", False),
 ])
 def test_the_page_is_given_only_where_the_work_is_a_document(work, a_page):
     genome = Genome(name="It", what_it_is="", work=work, features=[Feature(name="Undo and Redo"), Feature(name="Bold")])

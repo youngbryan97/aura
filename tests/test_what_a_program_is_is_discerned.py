@@ -80,3 +80,27 @@ def test_the_paper_is_the_one_used_where_the_machine_is(monkeypatch):
     assert "A4 page" in discerned("Microsoft Word", [_WORD], "", None).genome.work
     monkeypatch.setenv("LC_PAPER", "en_US.UTF-8")
     assert "Letter page" in discerned("Microsoft Word", [_WORD], "", None).genome.work
+
+
+def test_what_the_code_of_what_is_in_already_does_is_in_by_that_code():
+    """What code begets what a person can do: the page's code zooms and counts pages, so zoom is not something she cannot make."""
+    from core.rebuilding.parts_a_maker_knows import _code
+    from core.rebuilding.what_it_is_discerned_to_be import what_the_code_does
+
+    assert {"Zoom in", "Zoom out", "Page", "Words"} <= set(what_the_code_does(_code()["document page"]))
+    heard = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[
+        Feature(name="Zoom"), Feature(name="Page count"), Feature(name="Insert table"), Feature(name="Track changes")])
+    article = Source("Word", "Word is a word processor with tables, and track changes for review.", "on Wikipedia")
+    seen = discerned("Word", [article], "", heard)
+    assert seen.by_the_code == {"zoom": "page", "page count": "page"}
+    assert "Tables" in [f.name for f in seen.genome.features] and "insert table" not in seen.not_yet
+    assert seen.not_yet == ["track changes"]
+    assert "Some of it comes with what I make already, because the code does it: zoom with the page and page count with the page." in seen.said("Word")
+
+
+def test_a_name_made_of_common_words_is_matched_whole_and_said_in_a_sentence():
+    heard = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[
+        Feature(name="Select All"), Feature(name="Headers and Footers"), Feature(name="Export to PDF")])
+    seen = discerned("Word", [Source("Word", "Word is a word processor; pages have headers and footers.", "on Wikipedia")], "", heard)
+    assert seen.by_the_code == {"select all": "clipboard"}
+    assert seen.not_yet == ["headers and footers"]

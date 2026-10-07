@@ -282,7 +282,10 @@ _PAPER = re.compile(r"\b(A4|Letter|Legal)\b")
 def the_page_for(genome: Genome) -> Part | None:
     """A document page as the program's work area, where what it works on is a document written on a page."""
     said = f"{genome.work} {genome.what_it_is}"
-    if genome.kind.strip().lower() != "application" or not _A_PAGE.search(said) or _NOT_A_PAGE.search(said):
+    page, other = _A_PAGE.search(said), _NOT_A_PAGE.search(said)
+    # The work is what its description names first: "a white page on a light-grey canvas" is a page (LIVE 2026-10-06,
+    # where "canvas" alone took the page and every part away), and "a canvas to draw on, saved as a document" is not.
+    if genome.kind.strip().lower() != "application" or page is None or (other is not None and other.start() < page.start()):
         return None
     paper = _PAPER.search(genome.work)
     return Part("work area", _code()["document page"].replace("__PAPER__", paper.group(1) if paper else ""), ["the work area", "document page"])
@@ -414,8 +417,8 @@ class Known:
             line = (f"I know how to make every one of them: {_and(mine)}" + (", and the frame's own opening and saving" if frame else "")
                     + ". Each is checked by using it, and none is left to my model.")
         else:
-            line = (f"I already know how to make {known} of these ({_and(mine)}" + ("; opening and saving are the frame's" if frame else "")
-                    + "), and I check each one by using it.")
+            how = [*([_and(mine)] if mine else []), *(["opening and saving, which are the frame's"] if frame else [])]
+            line = f"I already know how to make {known} of these ({'; '.join(how)}), and I check each one by using it."
         if written:
             line += (f" What I read says it also has {_and([n[:1].lower() + n[1:] for n in self.from_what_is_written])}, which I know how to make too, "
                      "so they are in it.")
