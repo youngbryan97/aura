@@ -304,7 +304,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             if run["ended"]:
                 _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
             break
-        if until_won and not reflexes.over_because and time.monotonic() >= round_ends - 1.0 and time.monotonic() < deadline:
+        # The round's own clock stops a little before the slice's end: a round that ran most of its slice ran out of it.
+        if until_won and not reflexes.over_because and time.monotonic() - started >= ROUND_S - 20.0 and time.monotonic() < deadline:
             if run["gains"] > 0:
                 runs.pop()  # the same round, still getting somewhere: played on, not counted as another
                 continue
@@ -329,6 +330,9 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     if time.monotonic() >= deadline and not any(r["ended"] == "won" for r in runs) and not result.get("stopped_because"):
         _tell("I've given this one its share of the time, and I leave it here.")
         result["stopped_because"] = "its share of the time is up"
+    elif until_won and not any(r["ended"] == "won" for r in runs) and not result.get("stopped_because"):
+        # Played to be won and stopped short of it, with no end said: an end is said, and the page is not begun again.
+        result["stopped_because"] = "I could not get further with it"
     result["as_it_happened"] = "; ".join(r["said"] for r in runs if r["said"])
     last_seen = str(result.get("last_seen") or "")
     won = any(r["ended"] == "won" for r in runs)
