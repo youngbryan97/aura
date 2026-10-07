@@ -93,24 +93,42 @@ def the_task_for_each(words: str) -> str:
 
 
 async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: str = "") -> str:
-    """The item opened in ``browser``: where the list points; else, where the task is to run it, wherever on the web it runs;
-    else the archived copy of the page the list points to; else wherever else the web has it."""
-    from core.skills import sovereign_browser_going as going
+    """The item opened in ``browser`` where it does what the task needs: where the list points, when it works there; else,
+    where the task is to run it, wherever on the web it works; else the archived copy of the page; else wherever else it is.
 
-    if await skill._safe_browse(browser, url):
-        return url
+    Arriving is not working: a page that opens and cannot do what it is for (its game file gone, a plugin no browser
+    runs) is told by its developer tools, its code and its words, and by looking (core/skills/whether_a_page_serves.py).
+    """
+    from core.skills import sovereign_browser_going as going
+    from core.skills.whether_a_page_serves import watching, what_the_task_needs, whether_it_serves
+
+    page = getattr(browser, "page", None)
+    if page is not None:
+        watching(page)
     runs = bool(going.RUNS.search(task))
-    tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task)] if runs else []
-    tries += [lambda: going.the_archived_copy(skill, browser, url)]
-    if not runs:
-        tries += [lambda: going.the_same_thing_elsewhere(skill, browser, name)]
+    there = ""
+    if await skill._safe_browse(browser, url):
+        verdict = await whether_it_serves(page, task) if page is not None and what_the_task_needs(task) else None
+        if verdict is None or verdict.ok is not False:
+            return url
+        there = url
+        skill._say_out_loud(f"“{name}” opens where the list points, but does not work there: {verdict.says()}. I look for it elsewhere.",
+                            {"label": "Not working", "said": verdict.says()})
+        tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task, not_at=there)]
+    else:
+        tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task)] if runs else []
+        tries += [lambda: going.the_archived_copy(skill, browser, url)]
+        if not runs:
+            tries += [lambda: going.the_same_thing_elsewhere(skill, browser, name)]
     for attempt in tries:
         found = await attempt()
         if found:
             if not found.startswith("https://web.archive.org/"):
                 where = re.sub(r"^https?://(www\.)?", "", found).split("/")[0]
-                skill._say_out_loud(f"“{name}” is not to be had where the list points; I found it at {where}"
-                                    + (", where it runs in the page." if runs else "."), {"label": "Going to", "said": found})
+                seen = getattr(getattr(found, "serves", None), "seen", "")
+                lead = f"“{name}” does not work where the list points" if there else f"“{name}” is not to be had where the list points"
+                skill._say_out_loud(f"{lead}; I found it at {where}" + (f", and there {seen}." if seen else ", where it runs in the page." if runs else "."),
+                                    {"label": "Going to", "said": found})
             return found
     return ""
 
@@ -138,7 +156,40 @@ async def pursued(skill: Any, browser: Any, url: str | None, goal: str, max_step
         picked = await picked_by_the_rule(skill, browser, url, goal, max_steps, action_context=action_context, said_before=said_before)
         if picked is not None:
             return picked
-    return await skill._handle_pursue(browser, url, goal, max_steps, action_context=action_context, said_before=said_before)
+    # Sent to a page for something it is to do (play it, watch it, read it), and the page arrives and cannot: the same
+    # thing is found where it can, by the page's own name for it, and the goal pursued there.
+    opened = await _where_it_serves(skill, browser, url, goal) if url else None
+    return await skill._handle_pursue(browser, None if opened else url, goal, max_steps, action_context=action_context, said_before=said_before)
+
+
+async def _where_it_serves(skill: Any, browser: Any, url: str, goal: str) -> str | None:
+    """The page the goal is pursued on, opened: ``url`` where it serves the goal or cannot yet be told to, else where the same thing
+    does; None where nothing was opened here (no task a page can be seen to serve, or the page did not arrive)."""
+    from core.skills import sovereign_browser_going as going
+    from core.skills.whether_a_page_serves import watching, what_the_task_needs, whether_it_serves
+
+    page = getattr(browser, "page", None)
+    if page is None or not what_the_task_needs(goal):
+        return None
+    watching(page)
+    if not await skill._safe_browse(browser, url):
+        return None  # not arriving is the pursuit's to say, and to go on from
+    verdict = await whether_it_serves(page, goal)
+    if verdict.ok is not False:
+        return url
+    name = await page.evaluate(r"""() => { const h = document.querySelector('h1'); const t = (h && h.innerText.trim()) || document.title || '';
+        return t.split(/\s+[|\u2013\u2014-]\s+/)[0].trim(); }""")
+    skill._say_out_loud(f"The page opens but does not work: {verdict.says()}. I look for “{name}” where it does." if name else
+                        f"The page opens but does not work: {verdict.says()}.", {"label": "Not working", "said": verdict.says()})
+    found = await going.the_same_thing_elsewhere(skill, browser, name, task=goal, not_at=url) if name else ""
+    if not found:
+        skill._say_out_loud(f"I could not find “{name}” anywhere it works, so I go on with the page I was sent to." if name else
+                            "I go on with the page I was sent to.")
+        return url if await skill._safe_browse(browser, url) else None
+    where = re.sub(r"^https?://(www\.)?", "", found).split("/")[0]
+    seen = getattr(getattr(found, "serves", None), "seen", "")
+    skill._say_out_loud(f"I found it at {where}" + (f", and there {seen}." if seen else "."), {"label": "Going to", "said": found})
+    return found
 
 
 async def picked_by_the_rule(skill: Any, browser: Any, url: str, goal: str, max_steps: int, *, action_context: Mapping[str, Any] | None = None,

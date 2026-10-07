@@ -205,3 +205,37 @@ def test_a_window_closed_under_her_ends_the_picks_and_is_said(monkeypatch):
     done = asyncio.run(picking.pursued(skill, browser, "https://example.org/list", asked, 30))
     assert [p["item"] for p in done["picked"]] == ["Game 1"]
     assert any("has been closed, so I stop here, with two of the picks not done" in line for line in skill.said)
+
+
+@pytest.mark.unit
+def test_a_page_that_arrives_and_does_not_work_is_left_for_where_the_same_thing_does(monkeypatch):
+    """Sent to a page to play something, she finds it does not work there, says why, and plays it where it does."""
+    import core.skills.sovereign_browser_going as going
+    import core.skills.sovereign_browser_picking as picking
+    import core.skills.whether_a_page_serves as serving
+
+    class _Page:
+        url = "https://example.org/broken-game"
+
+        async def evaluate(self, script, *args):
+            return "Tunnel Rush"
+
+    class _Browser:
+        page = _Page()
+
+    async def judged(page, task, **kw):
+        return serving.Serves(page.url != "https://games.example.net/tunnel-rush" and False, ["its game file could not be had (answered 404: game.swf)"])
+
+    async def elsewhere(skill, browser, name, task="", not_at=""):
+        found = going.Where("https://games.example.net/tunnel-rush")
+        found.serves = serving.Serves(True, seen="its canvas draws, and moves")
+        return found
+
+    monkeypatch.setattr(serving, "whether_it_serves", judged)
+    monkeypatch.setattr(serving, "watching", lambda page: None)
+    monkeypatch.setattr(going, "the_same_thing_elsewhere", elsewhere)
+    skill = _Skill()
+    asyncio.run(picking.pursued(skill, _Browser(), "https://example.org/broken-game", "Play Tunnel Rush and win it.", 30))
+    assert skill.pursued == [(None, "Play Tunnel Rush and win it.")]  # pursued where it was found, not where it was sent
+    assert any("does not work: its game file could not be had" in line for line in skill.said)
+    assert any("I found it at games.example.net, and there its canvas draws, and moves." in line for line in skill.said)

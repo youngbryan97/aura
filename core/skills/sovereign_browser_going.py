@@ -7,10 +7,12 @@ to an address it names, or to the web's answers to the words it gives.
 """
 from __future__ import annotations
 
+import logging
 import re
 import urllib.parse
+from typing import Any
 
-__all__ = ["the_same_thing_elsewhere", "where_to_go"]
+__all__ = ["Where", "the_same_thing_elsewhere", "where_to_go"]
 
 
 def where_to_go(value: str) -> str:
@@ -84,6 +86,8 @@ def _names_it(name: str, title: str) -> bool:
     return _alike(name, title) >= SAME_THING and own <= set(_words(title))
 
 
+logger = logging.getLogger("Skills.SovereignBrowser.Going")
+
 #: How much of a name another title must share to be the same thing.
 SAME_THING = 0.75
 
@@ -108,7 +112,13 @@ _SOMETHING_RUNS = r"""
 """
 
 
-async def the_same_thing_elsewhere(skill: object, browser: object, name: str, *, task: str = "") -> str:
+class Where(str):
+    """An address found for a thing, and what was seen of it there (core/skills/whether_a_page_serves.py)."""
+
+    serves: Any = None
+
+
+async def the_same_thing_elsewhere(skill: object, browser: object, name: str, *, task: str = "", not_at: str = "") -> str:
     """Where else ``name`` is to be had, found as a person finds it: looked for, and each likely page opened and judged; or ''.
 
     LIVE 2026-10-06 games picked from a museum's list could be had neither
@@ -134,7 +144,14 @@ async def the_same_thing_elsewhere(skill: object, browser: object, name: str, *,
         if found.url not in seen and _names_it(name, found.title) and not (runs and found.runs_there is False):
             seen.add(found.url)
             likely.append(found)
-    for found in likely[:6]:
+    from core.skills.whether_a_page_serves import watching, what_the_task_needs, whether_it_serves
+
+    # Each candidate is judged as the page the person was sent to would be: by its developer tools, its code and
+    # its words, and by seeing the thing do what the task needs. One seen working is taken; else the first that
+    # cannot yet be told; one that is seen not to work never is.
+    unsure: Where | None = None
+    watching(page)
+    for found in [f for f in likely if f.url.rstrip("/") != not_at.rstrip("/")][:6]:
         if not await skill._safe_browse(browser, found.url):  # type: ignore[attr-defined]
             continue
         title = await page.title()
@@ -144,5 +161,15 @@ async def the_same_thing_elsewhere(skill: object, browser: object, name: str, *,
             continue
         if runs and not await page.evaluate(_SOMETHING_RUNS):
             continue
-        return str(page.url)
+        verdict = await whether_it_serves(page, task) if what_the_task_needs(task) else None
+        where = Where(str(page.url))
+        where.serves = verdict
+        if verdict is not None and verdict.ok is False:
+            logger.info("the same thing at %s does not work: %s", page.url, verdict.says())
+            continue
+        if verdict is None or verdict.ok:
+            return where
+        unsure = unsure or where
+    if unsure is not None and await skill._safe_browse(browser, str(unsure)):  # type: ignore[attr-defined]
+        return unsure
     return ""
