@@ -102,6 +102,7 @@ from core.learning.semantic_g04_transfer_corpus import (  # noqa: E402
     G04_TRANSFER_CORPUS_KIND,
     G04_TRANSFER_V2_CORPUS_KIND,
 )
+from core.learning.semantic_training_breadth_corpus import TRAINING_BREADTH_CORPUS_KIND  # noqa: E402
 from core.learning.semantic_g05_long_sequence_corpus import (  # noqa: E402
     G05_LONG_SEQUENCE_CORPUS_KIND,
 )
@@ -134,6 +135,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         G04_TRANSFER_CORPUS_KIND,
         G04_TRANSFER_V2_CORPUS_KIND,
         G05_LONG_SEQUENCE_CORPUS_KIND,
+        TRAINING_BREADTH_CORPUS_KIND,
     }
 )
 
@@ -292,6 +294,14 @@ def build_semantic_program_corpus_for_config(
             version=2 if config.corpus_kind == G04_TRANSFER_V2_CORPUS_KIND else 1,
         )
         return tuple(example for rows in strata.values() for example in rows)
+
+    if config.corpus_kind == TRAINING_BREADTH_CORPUS_KIND:
+        from core.learning.semantic_training_breadth_corpus import build_training_breadth_corpus
+
+        # examples_per_operation_pair is the number of requests.
+        return build_training_breadth_corpus(
+            seed=config.seed, requests=config.examples_per_operation_pair
+        )
 
     if config.corpus_kind == G05_LONG_SEQUENCE_CORPUS_KIND:
         from core.learning.semantic_g05_long_sequence_corpus import build_g05_long_sequence_corpus

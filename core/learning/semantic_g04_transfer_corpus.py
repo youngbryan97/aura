@@ -283,7 +283,9 @@ class _Request:
                 else:
                     self.text.append(mention(ref), label=label)
 
-    def example(self, stratum: str, construction: str, sample: int) -> SemanticProgramExample:
+    def example(
+        self, stratum: str, construction: str, sample: int, *, split: str = "test", family: str = "g04"
+    ) -> SemanticProgramExample:
         n_inputs = len(self.inputs)
         if sorted(self.input_spans) != list(range(n_inputs)):
             raise ValueError("every input of a G04 request is said exactly once")
@@ -303,19 +305,19 @@ class _Request:
             for ordinal, (op, refs) in enumerate(self.steps)
         )
         source = self.text.text
-        construction_id = f"g04_{stratum}:{construction}"
+        construction_id = f"{family}_{stratum}:{construction}"
         identity = f"{construction_id}|{sample}|{source}"
         return SemanticProgramExample(
             example_id=hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24],
             construction_id=construction_id,
-            topology_id=f"g04_{stratum}_depth{len(self.steps)}",
-            split="test",
+            topology_id=f"{family}_{stratum}_depth{len(self.steps)}",
+            split=split,
             source_text=source,
             inputs=tuple(self.inputs),
             input_spans=tuple(self.input_spans[index] for index in range(n_inputs)),
             instructions=instructions,
             report_value=n_inputs + len(self.steps) - 1,
-            contrast_id=f"g04:{stratum}:{sample}",
+            contrast_id=f"{family}:{stratum}:{sample}",
         )
 
 
