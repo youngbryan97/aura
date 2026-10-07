@@ -184,6 +184,8 @@ class WhatWorksHere:
     asked_for: tuple[str, ...] = ()
     #: Labels on it that its words ask to be clicked ("click on the GENERATE button").
     clicks_asked_for: tuple[str, ...] = ()
+    #: Whether its words name the mouse and no key ("Click your mouse button to start"): it is played by clicking.
+    pointer_only: bool = False
     #: What the look before this one could click, to hold the next look to.
     seen_before: tuple[str, ...] = ()
     #: What she has done since the screen last answered anything, all of it to
@@ -194,8 +196,12 @@ class WhatWorksHere:
 
     def asked_for_by(self, words: str, clickable: Sequence[str] = ()) -> None:
         """Keys the screen's own words ask her to press, and labels on it they ask her to click, while it is asking."""
+        from core.agency.playing_as_it_happens import controls_named_in
+
         self.asked_for = keys_a_screen_asks_for(words)
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
+        keys, pointer = controls_named_in(words, keys_without_words=())
+        self.pointer_only = pointer and not keys
 
     def looked_at(self, clickable: Sequence[str], says: str = "") -> None:
         """What she can click now: the writing that was there at the last look too.
@@ -292,6 +298,11 @@ class WhatWorksHere:
                         and (_goes_on(click) or self.keys_do_nothing_here() and _not_read_only(click)))
         if asked:
             return tuple(dict.fromkeys(asked + told + goes_on))
+        clicks = tuple(click for click in self.on_screen if click not in dead and _not_read_only(click))
+        if self.pointer_only and clicks:
+            # A screen whose words name the mouse and no key is done by clicking: LIVE 2026-10-07 "Click your mouse
+            # button to start the hamster in motion" and she pressed each arrow to see what it did.
+            return clicks
         # Only what she was told can be shown wrong about what she was told.
         # A key nobody named that never did anything says nothing about the
         # ones they did: a remembered dead "down" took the caller's Tab and

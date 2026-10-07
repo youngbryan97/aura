@@ -81,9 +81,19 @@ def _alike(name: str, title: str) -> float:
 
 
 def _names_it(name: str, title: str) -> bool:
-    """Whether ``title`` names the thing: most of the name's words, and every word of its own part (after a series name and a colon)."""
-    own = set(_words(str(name).split(":")[-1]))
-    return _alike(name, title) >= SAME_THING and own <= set(_words(title))
+    """Whether ``title`` names the thing: every word of its own part (after a series name and a colon), and most of the rest.
+
+    The own part whole, with a word of the series beside it, names it: LIVE
+    2026-10-07 "Scooby-Doo: Scooby Snapshot" is kept as "Scooby Snapshot", and
+    two of three words shared was taken for another thing. Without any word of
+    the series, the same own name may be another thing ("Tunnel Rush" is not
+    "Toonami: Tunnel Rush").
+    """
+    own, there = set(_words(str(name).split(":")[-1])), set(_words(title))
+    if not own <= there:
+        return False
+    series = set(_words(":".join(str(name).split(":")[:-1])))
+    return _alike(name, title) >= SAME_THING or bool(series & there)
 
 
 logger = logging.getLogger("Skills.SovereignBrowser.Going")

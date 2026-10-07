@@ -202,6 +202,18 @@ _NAMED_KEYS = (
 )
 
 
+#: Words beside a way that say a key is meant by it.
+_KEY_CUES = frozenset({"key", "keys", "arrow", "arrows", "press", "pressing", "hold", "holding", "tap", "hit", "push"})
+
+
+def _a_key_is_meant(lowered: str, way: str) -> bool:
+    import re
+
+    words = re.findall(r"[a-z]+", lowered)
+    return any(word == way and _KEY_CUES & set(words[max(0, at - 2):at + 3])
+               for at, word in enumerate(words))
+
+
 def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space"),
                       during_play: bool = False) -> tuple[list[str], bool]:
     """The keys a game's own words name, and whether they name the pointer.
@@ -229,6 +241,13 @@ def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "
     keys: list[str] = []
     for names, meant in _NAMED_KEYS:
         if meant == ("up", "down", "left", "right") and arrow_directions:
+            continue
+        if meant[0] in WAYS and len(meant) == 1:
+            # A way said alone is a key only beside a word for keys or pressing: LIVE 2026-10-07 "when the hamster
+            # lines up with the pillow" was read as the up key, and "left-click fires" as the left one.
+            qualified = meant[0] in re.findall(r"up|down|left|right", " ".join(arrow_directions))
+            if qualified or re.search(rf"\b{meant[0]}\b(?!-?\s?click)", lowered) and _a_key_is_meant(lowered, meant[0]):
+                keys.extend(key for key in meant if key not in keys)
             continue
         if any((name in words) if " " not in name else (name in lowered) for name in names):
             keys.extend(key for key in meant if key not in keys)

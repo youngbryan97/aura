@@ -83,3 +83,13 @@ def test_the_kind_of_thing_is_read_from_the_task_and_chooses_the_catalogues():
     asked_of = lambda kind: [c.name for c in CATALOGUES if kind in c.keeps]  # noqa: E731
     assert asked_of("game") == ["the Internet Archive"] and asked_of("book") == ["the Internet Archive", "Open Library"]
     assert asked_of("photo") == ["Wikimedia Commons"]
+
+
+@pytest.mark.unit
+def test_its_own_name_with_a_word_of_its_series_names_it():
+    # LIVE 2026-10-07 "Scooby-Doo: Scooby Snapshot" is kept as "Scooby Snapshot", and was taken for another thing.
+    from core.skills.sovereign_browser_going import _names_it
+
+    assert _names_it("Scooby-Doo: Scooby Snapshot", "Scooby Snapshot")
+    assert not _names_it("Toonami: Tunnel Rush", PAGES["lookalike"][0])
+    assert not _names_it("Scooby-Doo: Scooby Snapshot", "Scooby-Doo Mystery")

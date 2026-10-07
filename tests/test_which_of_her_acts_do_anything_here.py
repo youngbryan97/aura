@@ -171,3 +171,17 @@ def test_a_measure_and_a_gauges_caption_are_read_and_a_buttons_exclamation_is_it
         assert how_much_it_leads_on(read) < 0.7, read
     for way_on in ("Play Now!", "Start!", "Next"):
         assert how_much_it_leads_on(way_on) > 1.0, way_on
+
+
+def test_a_screen_that_names_only_the_mouse_is_clicked_not_keyed():
+    # LIVE 2026-10-07 "Click your mouse button to start the hamster in motion" and she pressed each arrow to see.
+    says = "Click your mouse button to start the hamster in motion. When the hamster lines up with the pillow, click again."
+    labels = ('click "Play Now!"', 'click "LAUNCH METER"')
+    here = WhatWorksHere(told=("up", "down", "left", "right"))
+    for _ in range(2):
+        here.looked_at(labels, says)
+    here.asked_for_by(says, labels)
+    assert here.available() == ('click "Play Now!"',)
+    keyed = "Use the arrow keys to move. Click PLAY to start."
+    here.asked_for_by(keyed, labels)
+    assert "up" in here.available()
