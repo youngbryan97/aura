@@ -79,6 +79,15 @@ def matches(answer: str, target: str) -> bool:
     return False
 
 
+def ordinary_row(task: dict[str, Any], decoded: dict[str, Any], seconds: float) -> dict[str, Any]:
+    """One ordinary answer, graded; a reply stopped at its budget has no answer."""
+    public = decoded["public_text"] if decoded["termination"] == "stop" else ""
+    answer = extract_answer(public)
+    return {"id": task["id"], "task": task["task"], "arm": "ordinary", "target": task["target"],
+            "answer": answer, "correct": matches(answer, task["target"]),
+            "seconds": round(seconds, 3), "public_text": decoded["public_text"], "detail": decoded}
+
+
 def sample_tasks(bbh: Path, per_task: int, seed: int) -> list[dict[str, Any]]:
     tasks = []
     for path in sorted((bbh / "bbh").glob("*.json")):
@@ -107,7 +116,13 @@ def main() -> int:
     parser.add_argument("--model", type=Path,
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--max-tokens", type=int, default=4096,
+                        help="the ordinary arm's decode allowance; the amplifier's candidates keep 4096")
+    parser.add_argument("--batch", type=int, default=1,
+                        help="ordinary requests decoded together (tools/g12_batched.py); 1 decodes one at a time")
     args = parser.parse_args()
+    if args.batch < 1:
+        raise SystemExit("--batch is at least 1")
     arms = tuple(arm.strip() for arm in args.arms.split(","))
     if not arms or any(arm not in ARMS for arm in arms):
         raise SystemExit(f"--arms names arms outside {ARMS}")
@@ -168,8 +183,32 @@ def main() -> int:
         async def generate(prompt: str, temperature: float) -> str:
             return await asyncio.to_thread(sampled, prompt, temperature)
 
+        def write_row(path: Path, row: dict[str, Any]) -> None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(row, indent=1, default=str), encoding="utf-8")
+            temporary.replace(path)
+
+        def source_of(task: dict[str, Any]) -> str:
+            return hashlib.sha256(task["id"].encode()).hexdigest()[:24]
+
+        if "ordinary" in arms and args.batch > 1:
+            from tools.g12_batched import decode_batch
+
+            pending = [task for task in tasks
+                       if not (output / "rows" / "ordinary" / f"{source_of(task)}.json").exists()]
+            for start in range(0, len(pending), args.batch):
+                group = pending[start : start + args.batch]
+                conversations = [[{"role": "user", "content": request_text(task["input"])}] for task in group]
+                for task, decoded in zip(group, decode_batch(model, tokenizer, conversations,
+                                                             max_tokens=args.max_tokens), strict=True):
+                    write_row(output / "rows" / "ordinary" / f"{source_of(task)}.json",
+                              ordinary_row(task, decoded, decoded["seconds"]))
+                print(json.dumps({"ordinary_batched": min(start + args.batch, len(pending)),
+                                  "of": len(pending)}), flush=True)
+
         for done, task in enumerate(tasks, 1):
-            source = hashlib.sha256(task["id"].encode()).hexdigest()[:24]
+            source = source_of(task)
             text = request_text(task["input"])
             for arm in arms:
                 path = output / "rows" / arm / f"{source}.json"
@@ -179,8 +218,9 @@ def main() -> int:
                 if arm == "ordinary":
                     with model_lock:
                         decoded = decode_public(model, tokenizer, [{"role": "user", "content": text}],
-                                                max_tokens=4096)
-                    public, detail = decoded["public_text"], decoded
+                                                max_tokens=args.max_tokens)
+                    write_row(path, ordinary_row(task, decoded, time.monotonic() - began))
+                    continue
                 else:
                     generations.clear()
                     amplifier = ReasoningAmplifierV2(generate)
@@ -194,19 +234,15 @@ def main() -> int:
                         public = result.answer
                         detail = {"receipt": result.receipt.to_dict(), "verified": result.verified,
                                   "confidence": result.confidence, "generations": list(generations)}
-                    except (TimeoutError, asyncio.TimeoutError):
+                    except TimeoutError:
                         public, detail = "", {"timed_out": True, "generations": list(generations)}
                     with model_lock:  # any generation the timeout left running ends first
                         pass
                 answer = extract_answer(public)
-                row = {"id": task["id"], "task": task["task"], "arm": arm, "target": task["target"],
-                       "answer": answer, "correct": matches(answer, task["target"]),
-                       "seconds": round(time.monotonic() - began, 3), "public_text": public,
-                       "detail": detail}
-                path.parent.mkdir(parents=True, exist_ok=True)
-                temporary = path.with_suffix(".tmp")
-                temporary.write_text(json.dumps(row, indent=1, default=str), encoding="utf-8")
-                temporary.replace(path)
+                write_row(path, {"id": task["id"], "task": task["task"], "arm": arm, "target": task["target"],
+                                 "answer": answer, "correct": matches(answer, task["target"]),
+                                 "seconds": round(time.monotonic() - began, 3), "public_text": public,
+                                 "detail": detail})
             print(json.dumps({"done": done, "of": len(tasks)}), flush=True)
     return 0
 
