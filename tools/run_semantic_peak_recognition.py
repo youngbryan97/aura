@@ -208,6 +208,24 @@ def score_composition(
     return arms
 
 
+def breadth_groups(breadth: Iterable[Any]) -> dict[str, str]:
+    """Held-out groups for breadth rows: a wording request by its first wording, a chain by a fold.
+
+    The stacked labeler weighs its readouts by how each does on what it was not
+    fitted on, so a request in a new wording is held out with its wording.
+    Chains use the consumed phrasings and spread over the three frozen folds.
+    """
+    groups: dict[str, str] = {}
+    for item in breadth:
+        source = item.ir.source_text_sha256
+        kind, _, detail = item.construction_id.partition(":")
+        if kind == "breadth_wording":
+            groups[source] = "wording:" + detail.split("+")[0]
+        else:
+            groups[source] = str(int(source[:8], 16) % 3)
+    return groups
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -289,6 +307,11 @@ def main() -> int:
         help="what text an operation's register owns: from its word, or its whole sentence",
     )
     parser.add_argument(
+        "--breadth",
+        type=Path,
+        help="a training_breadth_v1 feature bundle whose rows join every fit (never the audit)",
+    )
+    parser.add_argument(
         "--antecedent-recency",
         action="store_true",
         help="the antecedent also reads how many operations begin between a register and the mention",
@@ -358,6 +381,16 @@ def main() -> int:
         f"development sources: {len(training)} train, {len(development) - len(training)} validation",
         flush=True,
     )
+    breadth: tuple[Any, ...] = ()
+    if args.breadth is not None:
+        breadth = tuple(
+            replace(item, ir=replace(item.ir, model_basis_receipt_sha256=incumbent.model_basis_sha256))
+            for item in training_examples_from_feature_bundle(
+                load_standard_semantic_feature_bundle(args.breadth.expanduser()),
+                required_splits=frozenset({"train"}),
+            )
+        )
+        print(f"breadth sources: {len(breadth)}", flush=True)
 
     sentence_ends: tuple[int, ...] = ()
     if args.antecedent_stretches == "sentence":
@@ -369,6 +402,8 @@ def main() -> int:
         print(f"sentence-ending tokens: {len(sentence_ends)}", flush=True)
 
     groups = json.loads(args.folds.read_text())["assignments"] if args.stacked_labeler else None
+    if groups is not None and breadth:
+        groups = {**groups, **breadth_groups(breadth)}
     continuations = ()
     if args.lexical_at == "word":
         from tokenizers import Tokenizer
@@ -377,10 +412,10 @@ def main() -> int:
 
         continuations = word_continuation_token_ids(Tokenizer.from_file(str(args.tokenizer.expanduser())))
         print(f"word-continuing tokens: {len(continuations)}", flush=True)
-    recognizer = fit_peak_operation_recognizer(training, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only)
-    ownership = fit_argument_ownership(training) if args.argument_ownership else None
+    recognizer = fit_peak_operation_recognizer((*training, *breadth), construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only)
+    ownership = fit_argument_ownership((*training, *breadth)) if args.argument_ownership else None
     antecedent = (
-        replace(fit_argument_antecedent(training, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
+        replace(fit_argument_antecedent((*training, *breadth), objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
                 own_result_is_not_an_input=args.own_result_is_not_an_input,
                 named_inputs_are_used_by_name=args.named_inputs_are_used_by_name,
                 arguments_within_sentence=args.arguments_within_sentence)
@@ -421,7 +456,7 @@ def main() -> int:
         for fold in sorted({assignments[item.ir.source_text_sha256] for item in training}):
             kept = tuple(
                 item for item in training if assignments[item.ir.source_text_sha256] != fold
-            )
+            ) + breadth
             held = tuple(
                 item for item in training if assignments[item.ir.source_text_sha256] == fold
             )
