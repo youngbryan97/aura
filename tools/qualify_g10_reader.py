@@ -73,6 +73,29 @@ def _sha(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def canonical_program(ir: Any) -> str:
+    """The computation with each input named by where it sits in the request.
+
+    Registers number the inputs in the order a path lists them: the offline
+    evaluation lists them as the corpus declared them, the runtime in the order
+    they appear in the text. Naming an input by its token span makes the two
+    the same program when they compute the same thing from the same words.
+    """
+
+    def ref(register: int) -> list[Any]:
+        if register < ir.n_inputs:
+            span = ir.input_spans[register]
+            return ["input", span.start, span.end]
+        return ["step", register - ir.n_inputs]
+
+    return _sha({"instructions": [[step.op, [ref(arg) for arg in step.args]] for step in ir.instructions],
+                 "report": ref(ir.report_value)})
+
+
+#: The runtime's word for a program it decoded and could not run on these values.
+_NOT_EXECUTABLE = "compositional semantic program was not executable"
+
+
 def runtime_reading(reader, text, token_ids, offsets, hidden, receipt, expected_basis) -> dict[str, Any]:
     from core.cognition.procedure import get_procedure_registry
     from core.learning.semantic_program_ir import semantic_value_to_json
@@ -88,8 +111,8 @@ def runtime_reading(reader, text, token_ids, offsets, hidden, receipt, expected_
             hidden_states=hidden, worker_model_basis=receipt["model_basis"],
             expected_representation_basis_sha256=expected_basis, procedure_registry=get_procedure_registry())
     except (SemanticProgramDecodeRejectedError, SemanticProgramObservationError) as exc:
-        return {"read": False, "reason": str(exc)}
-    return {"read": True, "program": outcome.receipt["semantic_ir_receipt"]["alpha_normalized_sha256"],
+        return {"outcome": "not_executable" if str(exc) == _NOT_EXECUTABLE else "refused", "reason": str(exc)}
+    return {"outcome": "answered", "program": canonical_program(outcome.ir),
             "answer": semantic_value_to_json(outcome.execution.result)}
 
 
@@ -104,22 +127,26 @@ def offline_reading(reader, item) -> dict[str, Any]:
 
     outcome, failure = decode(reader, item)
     if outcome is None or outcome.ir is None:
-        return {"read": False, "reason": failure or str(getattr(outcome, "refusal", ""))}
+        return {"outcome": "refused", "reason": failure or str(getattr(outcome, "refusal", ""))}
     try:
         execution = execute_semantic_floor_program(compile_semantic_program_to_floor(outcome.ir, item.public_inputs))
     except (RuntimeError, TypeError, ValueError) as exc:
-        return {"read": True, "program": outcome.ir.receipt()["alpha_normalized_sha256"], "answer": None,
-                "reason": f"not_executable:{exc}"}
-    return {"read": True, "program": outcome.ir.receipt()["alpha_normalized_sha256"],
+        return {"outcome": "not_executable", "program": canonical_program(outcome.ir), "reason": str(exc)}
+    return {"outcome": "answered", "program": canonical_program(outcome.ir),
             "answer": semantic_value_to_json(execution.result)}
 
 
 def same_reading(first: dict[str, Any], second: dict[str, Any]) -> bool:
-    if first["read"] != second["read"]:
+    """Same outcome; where both answered, the same program and the same answer.
+
+    The runtime does not return a program it could not run, so two
+    not-executable readings agree on the outcome alone.
+    """
+    if first["outcome"] != second["outcome"]:
         return False
-    if not first["read"]:
+    if first["outcome"] != "answered":
         return True
-    return first.get("program") == second.get("program") and first.get("answer") == second.get("answer")
+    return first["program"] == second["program"] and first["answer"] == second["answer"]
 
 
 def main() -> int:
