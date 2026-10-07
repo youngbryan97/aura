@@ -2632,7 +2632,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   From G03's v9 (2026-10-05): held-out folds at 734 of 764, the two rows
   given up in fold 2 being nominal_nested requests where the fold's
   recognizer places an operation on "integer" in "Use integer arithmetic."
-- [ ] G05 Translate internal gains into correct freely decoded public answers.
+- [x] G05 Translate internal gains into correct freely decoded public answers.
+  CLOSED 2026-10-07 ([result](evidence/G05_PUBLIC_ANSWERS_RESULT_2026-10-07.md)),
+  plan `9bbc11dc58b2` run as frozen with G04's v17 as the reader. 48 fresh
+  compositions with her channel closed: assisted 48, ordinary 29; 19 only
+  assisted, none only ordinary, p = 1.9e-6. Every right reading, 168 of 168
+  across compositions and lists, became an exact public answer. Independently
+  verified. Her open channel (42 of 48) loses 6 to 0 to the reading, p =
+  0.031, short of its 0.025; a wrong reading costs her 55 lists, p = 8.5e-13.
+  The runner misgraded four rows (a budget stop, three boxed answers); the
+  result uses the plan's rule and both defects are fixed.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies
   between two trains 300 km apart closing at 90 and 60 km/h, she named the

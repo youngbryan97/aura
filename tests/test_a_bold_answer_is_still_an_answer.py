@@ -29,6 +29,13 @@ _HER_TABLE = (
         ("Not 5; it is 7.", 7),
         ("Add 12 and 345.", 345),
         ("Step 3 gives 12, and the total is 1,204.", 1204),
+        # G05 2026-10-07: her open-channel answers, read as 20, 18 and 8.
+        ("25,758,139 ÷ 29 = 888,211 remainder 20\n\n$$\\boxed{888211}$$", 888211),
+        ("Consolidated measure + Kiln trim = −6993 + 18\n\n$$\\boxed{-6975}$$", -6975),
+        ("consolidated measure − lab trim = 56 570 − 8\n\n$$\\boxed{56562}$$", 56562),
+        ("The result is \\(\\boxed{56\\,562}\\).", 56562),
+        ("so $x = 1{,}204$", 1204),
+        ("\\[ \\fbox{42} \\]", 42),
     ],
 )
 def test_the_final_number_is_read_as_written(reply: str, expected: int) -> None:

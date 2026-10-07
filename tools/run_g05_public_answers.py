@@ -62,6 +62,11 @@ def reading(program: Any, inputs: tuple, values: list) -> str:
     return "\n".join(lines)
 
 
+def answer_exact(decoded: dict[str, Any], parsed: int | None, expected: int) -> bool:
+    """The plan's rule: the reply's final integer, and a budget stop counts as not exact."""
+    return decoded["termination"] == "stop" and parsed == expected
+
+
 def reader_evidence(reader: Any, item: Any) -> dict[str, Any]:
     """What the frozen reader makes of one request, chosen without execution."""
     from tools.run_g04_transfer import decode
@@ -248,7 +253,7 @@ def main() -> int:
                         "construction_id": example.construction_id, "expected": expected,
                         "evidence_sha256": hashlib.sha256((shown or "").encode()).hexdigest(),
                         "reader_answer": evidence[sha]["answer"] if arm == "assisted" else None,
-                        "parsed_integer": parsed, "answer_exact": parsed == expected,
+                        "parsed_integer": parsed, "answer_exact": answer_exact(decoded, parsed, expected),
                         "thinking": "open" if thinking else "closed", **decoded,
                     })
                 print(json.dumps({"done": count, "of": len(tasks)}), flush=True)

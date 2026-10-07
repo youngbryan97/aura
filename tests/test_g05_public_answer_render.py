@@ -43,3 +43,14 @@ def test_the_open_ordinary_arm_shows_no_evidence() -> None:
         {"role": "user", "content": "what is 2 and 3?"}]
     assisted = messages("assisted", "what is 2 and 3?", "Semantic program reader: r1 = add(2, 3) = 5")
     assert len(assisted) == 2 and "r1 = add" in assisted[1]["content"]
+
+
+
+def test_a_budget_stop_is_not_exact_even_when_an_answer_was_written_on_the_way() -> None:
+    """G05 2026-10-07: a reply stopped at 4,096 tokens after "Answer: 871." was graded exact."""
+    from tools.run_g05_public_answers import answer_exact
+
+    assert answer_exact({"termination": "stop"}, 871, 871)
+    assert not answer_exact({"termination": "length"}, 871, 871)
+    assert not answer_exact({"termination": "native_thinking_incomplete"}, 871, 871)
+    assert not answer_exact({"termination": "stop"}, 870, 871)

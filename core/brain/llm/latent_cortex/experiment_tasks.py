@@ -31,8 +31,12 @@ MAX_PER_CELL = 512
 #: Spacing a writer puts between thousands groups: "476 583", "476\u202f583".
 _GROUPED_DIGITS = re.compile(r"(?<![\d.,])\d{1,3}(?:[ \u00a0\u2009\u202f]\d{3})+(?!\d)")
 _GROUP_SPACES = re.compile(r"[ \u00a0\u2009\u202f]")
-#: Punctuation and emphasis around a number, never part of it.
-_ANSWER_EDGE = ".,:;!?()[]{}*_`|"
+#: LaTeX that wraps a final answer: a box around it, or a thin space or a
+#: braced comma between its thousands groups.
+_LATEX_BOX = re.compile(r"\\(?:boxed|fbox)\s*\{([^{}]*)\}")
+_LATEX_GROUP = re.compile(r"(?<=\d)(?:\\,|\{,\})(?=\d{3})")
+#: Punctuation, emphasis and math delimiters around a number, never part of it.
+_ANSWER_EDGE = ".,:;!?()[]{}*_`|$\\"
 
 
 def answer_tokens(text: str) -> list[str]:
@@ -43,9 +47,12 @@ def answer_tokens(text: str) -> list[str]:
     LIVE 2026-10-06 her correct answers "**2,104,802,751,450**." and
     "**476 583**" were read as 4 and 9: the bold kept the final number from
     looking like one, and the last plain number in her working table won.
+    G05 2026-10-07: "$$\\boxed{888211}$$" was read as 20, the remainder on the
+    line above it, for the same reason.
     """
+    unwrapped = _LATEX_GROUP.sub("", _LATEX_BOX.sub(r" \1 ", str(text or "")))
     rejoined = _GROUPED_DIGITS.sub(
-        lambda match: _GROUP_SPACES.sub("", match.group(0)), str(text or "").replace("\u2212", "-")
+        lambda match: _GROUP_SPACES.sub("", match.group(0)), unwrapped.replace("\u2212", "-")
     )
     return [token.strip(_ANSWER_EDGE) for token in rejoined.split()]
 
