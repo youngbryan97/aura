@@ -113,7 +113,8 @@ def test_what_the_code_of_what_is_in_already_does_is_in_by_that_code():
     from core.rebuilding.parts_a_maker_knows import _code
     from core.rebuilding.what_it_is_discerned_to_be import what_the_code_does
 
-    assert {"Zoom in", "Zoom out", "Page", "Words"} <= set(what_the_code_does(_code()["document page"]))
+    assert {"Zoom in", "Zoom out", "Page count shown in the status bar", "Words count shown in the status bar"} <= set(
+        what_the_code_does(_code()["document page"]))
     heard = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[
         Feature(name="Zoom"), Feature(name="Page count"), Feature(name="Insert table"), Feature(name="Track changes")])
     article = Source("Word", "Word is a word processor with tables, and track changes for review.", "on Wikipedia")
@@ -130,3 +131,11 @@ def test_a_name_made_of_common_words_is_matched_whole_and_said_in_a_sentence():
     seen = discerned("Word", [Source("Word", "Word is a word processor; pages have headers and footers.", "on Wikipedia")], "", heard)
     assert MODEL in seen.witnesses["Cut, copy and paste"] and "select all" not in seen.not_yet  # select all is the clipboard's
     assert list(seen.not_yet) == ["headers and footers"]
+
+
+def test_a_readout_is_what_it_counts_in_the_status_bar():
+    """What code begets: a part that puts a readout in the frame shows a count there, so "word count in status bar" is the page's."""
+    heard = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[Feature(name="Word count in status bar")])
+    seen = discerned("Word", [Source("Word", "Word is a word processor.", "on Wikipedia")], "", heard)
+    assert seen.by_the_code.get("word count in status bar") == "page" or MODEL in seen.witnesses.get("Spelling, grammar and word count", [])
+    assert not seen.not_yet

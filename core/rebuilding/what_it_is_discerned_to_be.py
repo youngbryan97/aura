@@ -218,7 +218,10 @@ def the_parts_for(name: str) -> list[str]:
 
 
 #: What a part's code gives a person: the commands, controls and readouts it puts in the frame, by their labels.
-_GIVES = re.compile(r"app\.(?:command|control|status)\(\s*\{\s*label:\s*\"([^\"]+)\"")
+_GIVES = re.compile(r"app\.(command|control|status)\(\s*\{\s*label:\s*\"([^\"]+)\"")
+
+#: What each way of plugging into the frame gives, beside its label: a readout is a count or measure shown in the status bar.
+_WHERE_IT_GIVES = {"command": "", "control": "", "status": " count shown in the status bar"}
 
 
 def what_the_code_does(code: str) -> list[str]:
@@ -229,7 +232,7 @@ def what_the_code_does(code: str) -> list[str]:
         if not line.startswith("//"):
             break
         said.append(line.lstrip("/ "))
-    return [*_GIVES.findall(code or ""), *([" ".join(said)] if said else [])]
+    return [*(label + _WHERE_IT_GIVES[how] for how, label in _GIVES.findall(code or "")), *([" ".join(said)] if said else [])]
 
 
 def _does(part: str, name: str) -> bool:
