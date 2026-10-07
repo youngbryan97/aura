@@ -107,7 +107,7 @@ def mcnemar(rows: Mapping[str, Mapping[str, Any]], treatment: str, control: str)
     wins = sum(row[treatment]["equivalent"] and not row[control]["equivalent"] for row in rows.values())
     losses = sum(row[control]["equivalent"] and not row[treatment]["equivalent"] for row in rows.values())
     discordant = wins + losses
-    p_value = binomtest(wins, discordant, 0.5, alternative="greater").pvalue if discordant else 1.0
+    p_value = float(binomtest(wins, discordant, 0.5, alternative="greater").pvalue) if discordant else 1.0
     return {"tasks": len(rows), "treatment_wins": wins, "control_wins": losses,
             "treatment_correct": sum(row[treatment]["equivalent"] for row in rows.values()),
             "control_correct": sum(row[control]["equivalent"] for row in rows.values()),
@@ -200,7 +200,9 @@ def main() -> int:
               "strata": {}}
     for stratum, rows in results.items():
         test = mcnemar(rows, "candidate", "incumbent")
-        test["rejects"] = test["exact_one_sided_p"] <= alpha
+        # A Python bool: numpy's would not serialise, which lost the report of
+        # the first G04 run after every row was written (2026-10-06).
+        test["rejects"] = bool(test["exact_one_sided_p"] <= alpha)
         test["answers_correct"] = {arm: sum(row[arm]["answer_correct"] for row in rows.values())
                                    for arm in arms}
         test["decoded_without_execution"] = {

@@ -2545,8 +2545,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   seven, a sequence operation with a computed argument), each checked
   against all 1,860 consumed requests; power 0.90 per stratum from the
   composition evidence's lower bounds; graded by meaning without reading
-  either model; every decode with program execution unavailable. Not yet
-  run.
+  either model; every decode with program execution unavailable. Run
+  2026-10-06 ([result](evidence/G04_TRANSFER_RESULT_2026-10-06.md)):
+  construction 62 of 62 (incumbent 61), family 59 of 62 (47; p 0.00024,
+  rejects), vocabulary 21 of 62 (10; p 0.031), depth 8 of 62 (3; p 0.031).
+  Every program chosen with execution unavailable. The plan's claim needed
+  all four to reject; three do not. Open: new operation vocabulary and six-
+  and seven-step depth. The 248 requests are now consumed.
   [V7 relation mechanism protocol](evidence/G04_V7_RELATION_MECHANISM_MICRO_PROTOCOL_2026-09-28.md)
   adds nine fixed paraphrase, role, and dependency controls to the three
   reference requests. No v7 generated outcome is available yet; this is a
@@ -2731,8 +2736,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repairs missing-setting confirmation, mutable plans, nonfinite measurements,
   and unchecked arm inventories. Fifty-six focused tests pass; this does not
   turn exposed development cases into fresh or powered replication.
-- [ ] G08 Independently verify artifacts, uncertainty, contamination controls,
+- [x] G08 Independently verify artifacts, uncertainty, contamination controls,
   and cross-domain outcomes. Negative/inconclusive results remain such.
+  CLOSED 2026-10-06 on the G04 campaign
+  ([result](evidence/G04_TRANSFER_RESULT_2026-10-06.md)),
+  `tools/verify_g04_independently.py`, sharing none of the grading path.
+  Artifacts: plan matches spec, task commitment recomputes, all 248 tasks
+  regenerate from the published seed. Contamination: none repeats any of the
+  1,860 consumed requests. Uncertainty: exact one-sided tests and 95%
+  intervals recomputed from raw rows. Outcomes across four strata: a separate
+  process re-decoded all 496 pairs and graded them with its own interpreter
+  and random probes, agreeing with the runner on 496 of 496; 491 of 496
+  program hashes reproduced (the five that did not are incumbent decodes that
+  ran to their time budget). The campaign's negative result is reported as
+  negative. Scope: the decoder has no second implementation; what is
+  independent is the process, the grading and the statistics.
   [Validation source identity](evidence/G08_VALIDATION_SOURCE_IDENTITY_2026-09-19.md)
   prevents decoder/scorer changes from reusing stale cached scores and rejects
   source drift during selection. Twenty-five focused tests pass; independent
