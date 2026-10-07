@@ -2674,6 +2674,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   `tests/test_a_verifier_names_what_happened.py` (13) and
   `tests/test_a_rewrite_faces_the_verifier.py` (2). The matched controls of
   CTX2-AMP-003 need the resident model and are not touched here.
+  2026-10-06, two pilots on consumed requests with G03's frozen reader as
+  runtime evidence ([five-step compositions](evidence/G05_PUBLIC_ANSWER_PILOT_2026-10-06.md),
+  [lists of 40 to 64 entries](evidence/G05_LONG_LIST_PILOT_2026-10-06.md)):
+  her free answers were exact in 16 of 16 ordinary, 16 of 16 assisted and
+  17 of 17 sham decodes. The reading saved 13% and 26% of her tokens, and a
+  wrong one never misled her. There is no correctness gap to translate in
+  this request family; G05 stays open until a population where her ordinary
+  answer is measurably wrong is found. The long-list pilot also found the
+  reader refusing lists past its fitted mention bound (21 of 24; fixed in
+  `9cc8cd592`, 24 of 24).
 
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
