@@ -118,10 +118,15 @@ async def _shown(file: str | Path) -> bool:
 
 def how_the_use_went(used: dict[str, Any]) -> str:
     files = list(used.get("files") or [])
+    report = used.get("report") or {}
+    if files and used.get("ok") is False:
+        # Saved, and not what was written: said so. LIVE 2026-10-06 a letter saved as "Der Future Self" was reported as done.
+        why = str(report.get("error") or "").strip()
+        return ("Then I used it as asked, and it saved " + ", ".join(files) + ", but what it saved is not what I wrote"
+                + (f": {why[:240]}." if why else "."))
     if files:
         return ("Then I used it as asked, and it saved " + ", ".join(files)
                 + (", which I opened so you can see it." if used.get("shown") else "."))
-    report = used.get("report") or {}
     why = str(used.get("error") or report.get("error") or report.get("summary") or "").strip()
     return "Then I tried to use it as asked, and nothing was saved" + (f": {why[:240]}" if why else ".")
 

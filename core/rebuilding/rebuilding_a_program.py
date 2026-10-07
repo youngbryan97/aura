@@ -145,15 +145,21 @@ async def rebuild(
             await _say(tell, f"Reading about {program}: {named[0]}." if named else f"I found nothing written about {program}, so I work from what I know of it.")
         # Her model's reading is one witness to what the program is; what is written, the person's words and what follows
         # from what it does are the others, and code weighs them (core/rebuilding/what_it_is_discerned_to_be.py).
-        if sources:
-            await _say(tell, "My model is reading the same articles too, as one more witness: I weigh what it says against what I read, "
-                             "what you asked for, and what follows from what the program does. Its reading takes a few minutes.")
+        # Where she can discern what it is, her model is asked what it knows of it from its own knowledge, without what
+        # she read: a witness of its own, not an echo of the articles. Elsewhere it reads them and its reading stands.
+        on_its_own = discerned(program, sources, asked) is not None
+        if on_its_own:
+            await _say(tell, f"Asking my model what it knows of {program or 'it'}, from its own knowledge: what it is and what a person does "
+                             "with it. I weigh that against what I read, what you asked for, what I built before and what follows from what "
+                             "the program does.")
         try:
-            heard = await genome_of(program, sources, ask, asked=asked)
+            heard = await genome_of(program, [] if on_its_own else sources, ask, asked=asked)
         except HerModelIsAwayError as why:
-            logger.info("rebuilding: her model is away (%s); discerning without its reading", why)
+            logger.info("rebuilding: her model is away (%s); discerning without what it knows", why)
             heard = None
-        seen = discerned(program, sources, asked, heard)
+        seen = discerned(program, sources, asked, heard, remembered=await asyncio.to_thread(_built_before, Path(where), program))
+        if seen is not None and heard is not None and any("my model" in by for by in seen.witnesses.values()):
+            named = [*named, "what my model knows of it"]
         genome = seen.genome if seen is not None else heard
         if genome is None:
             return Rebuilt(program or "it", None, None, named, time.monotonic() - began, "I could not say what it does")
@@ -286,6 +292,19 @@ async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None
     began = time.monotonic()
     program, outcomes, holding = await write_code(genome, calls, ask, folder / "program.py")
     return Built(program, folder / "program.py", outcomes, holding, time.monotonic() - began)
+
+
+def _built_before(where: Path, program: str) -> list[Genome]:
+    """What she built before, as she said then what each did: her memory of programs, a witness to what one does."""
+    known: list[Genome] = []
+    for kept in sorted(where.glob("*/what_it_does.json")) if where.is_dir() else []:
+        try:
+            build = json.loads((kept.parent / "build.json").read_text("utf-8")) if (kept.parent / "build.json").exists() else {}
+            if build.get("finished") and str(build.get("program") or "").lower() == str(program or "").lower():
+                known.append(Genome.model_validate_json(kept.read_text("utf-8")))
+        except (OSError, ValueError):
+            continue
+    return known
 
 
 def keep_the_record(folder: Path, built: Built) -> None:

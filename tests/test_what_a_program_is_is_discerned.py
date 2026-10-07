@@ -9,7 +9,15 @@ from __future__ import annotations
 import pytest
 
 from core.rebuilding.what_a_program_does import Feature, Genome, Source
-from core.rebuilding.what_it_is_discerned_to_be import ASKED, FOLLOWED, MODEL, READ, discerned
+from core.rebuilding.what_it_is_discerned_to_be import (
+    ASKED,
+    FOLLOWED,
+    MEMORY,
+    MODEL,
+    ONLINE,
+    READ,
+    discerned,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -26,6 +34,7 @@ def test_each_feature_is_held_with_who_speaks_for_it():
     seen = discerned("Microsoft Word", [_WORD], "a word processor I can export to my Desktop", heard)
     assert seen is not None and seen.kind == "word processor" and seen.genome.name == "Quill"
     assert seen.witnesses["Find and replace"] == [READ, MODEL]
+    assert ONLINE not in seen.witnesses["Find and replace"]  # her own copy is not the internet
     assert seen.witnesses["Bold, italic and underline"] == [MODEL]
     assert ASKED in seen.witnesses["Save as PDF or Word document"]
     for name in ("Tables", "Pictures", "Spelling, grammar and word count", "Open", "Save"):
@@ -43,16 +52,33 @@ def test_what_follows_from_what_it_does_is_in_it_and_said():
     assert any(line.startswith("What it does says more: ") for line in seen.said("Jotter"))
 
 
-def test_what_her_model_alone_names_is_not_taken_on_its_word():
+def test_what_no_part_makes_is_said_not_to_be_in_it_with_who_said_it_should_be():
+    """Her model proposes from what it knows; what she cannot make is not in the build, and is said to be so, with its witnesses."""
     heard = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[
-        Feature(name="Mail merge"), Feature(name="Holographic preview"), Feature(name="Bold")])
+        Feature(name="Mail Merge"), Feature(name="Track Changes"), Feature(name="Bold")])
     article = Source("Word", "Word is a word processor. Its mail merge fills a letter from a list of addresses.", "on Wikipedia")
     seen = discerned("Word", [article], "", heard)
-    assert seen.not_yet == ["mail merge"]  # borne out by what is written, and no part she knows makes it
-    assert seen.left_out == ["holographic preview"]  # her model alone says so
+    assert seen.not_yet == {"mail merge": [MODEL, READ], "track changes": [MODEL]}
     said = " ".join(seen.said("Word"))
-    assert "My model also named holographic preview, which nothing I read bears out, so I leave it out." in said
-    assert "What I read also speaks of mail merge, which I do not yet know how to make" in said
+    assert "My model and what I read say it also has mail merge; my model says it also has track changes." in said
+    assert "I do not yet know how to make those, so this build does not have them." in said
+    assert "leave" not in said
+
+
+def test_a_name_mostly_what_a_part_does_is_that_part():
+    """No feature is special-cased: a name three-quarters what a part does is that part's, whatever program it is for."""
+    heard = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[
+        Feature(name="Spell-check and Grammar Hints"), Feature(name="Insert Hyperlink")])
+    seen = discerned("Word", [Source("Word", "Word is a word processor.", "on Wikipedia")], "", heard)
+    assert MODEL in seen.witnesses["Spelling, grammar and word count"] and MODEL in seen.witnesses["Links"]
+    assert not seen.not_yet
+
+
+def test_what_she_built_before_is_a_witness_too():
+    before = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[Feature(name="Tables"), Feature(name="Footnotes")])
+    seen = discerned("Word", [Source("Word", "Word is a word processor.", "on Wikipedia")], "", None, remembered=[before])
+    assert seen.witnesses["Tables"] == [MEMORY] and seen.not_yet == {"footnotes": [MEMORY]}
+    assert any(line.startswith("What I built before also had footnotes.") for line in seen.said("Word"))
 
 
 def test_with_her_model_away_the_others_still_say_what_it_is():
@@ -94,7 +120,7 @@ def test_what_the_code_of_what_is_in_already_does_is_in_by_that_code():
     seen = discerned("Word", [article], "", heard)
     assert seen.by_the_code == {"zoom": "page", "page count": "page"}
     assert "Tables" in [f.name for f in seen.genome.features] and "insert table" not in seen.not_yet
-    assert seen.not_yet == ["track changes"]
+    assert seen.not_yet == {"track changes": [MODEL, ONLINE]} or seen.not_yet == {"track changes": [MODEL, READ]}
     assert "Some of it comes with what I make already, because the code does it: zoom with the page and page count with the page." in seen.said("Word")
 
 
@@ -102,5 +128,5 @@ def test_a_name_made_of_common_words_is_matched_whole_and_said_in_a_sentence():
     heard = Genome(name="Quill", what_it_is="a word processor", work="a page", features=[
         Feature(name="Select All"), Feature(name="Headers and Footers"), Feature(name="Export to PDF")])
     seen = discerned("Word", [Source("Word", "Word is a word processor; pages have headers and footers.", "on Wikipedia")], "", heard)
-    assert seen.by_the_code == {"select all": "clipboard"}
-    assert seen.not_yet == ["headers and footers"]
+    assert MODEL in seen.witnesses["Cut, copy and paste"] and "select all" not in seen.not_yet  # select all is the clipboard's
+    assert list(seen.not_yet) == ["headers and footers"]

@@ -25,6 +25,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from core.language.the_form_of_a_kind import fitted, the_form_for
+
 logger = logging.getLogger("Rebuilding.UsingIt")
 
 __all__ = ["Used", "a_writing_task", "the_command_that_saves", "write_it_in"]
@@ -130,9 +132,18 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
             if visible:
                 await page.bring_to_front()
                 await _said(tell, f"Writing it in {await page.title() or 'the program'}, in a window you can watch; then \"{command}\" saves it.")
+            # The caret where writing goes on, in the page's own surface, and the page settled, before the first key: LIVE
+            # 2026-10-06 the first keys typed in a window just brought to the front landed out of place ("Der Future Self").
+            await page.evaluate(_AT_THE_END)
+            await page.wait_for_timeout(600 if visible else 50)
             doing = _Doing(page, Check.model_validate({"feature": "use", "steps": [], "expect": [{"see": "text", "target": "x"}]}),
                            typing_ms=14 if visible else 4)
-            for step in (*_typed(writing.paragraphs), Step(do="click", target=command)):
+            # Set as its kind is set (core/language/the_form_of_a_kind.py): a letter's greeting and sign-off on lines of their own.
+            form = the_form_for(task)
+            fit = fitted(writing.paragraphs, form)
+            if form is not None and fit.missing:
+                await _said(tell, f"A {form.kind} usually has its {_and(fit.missing)}; this one does not, and I have not made one up.")
+            for step in (*_typed(fit.paragraphs), Step(do="click", target=command)):
                 wrong = await doing.step(step)
                 if wrong:
                     return Used(False, why_not=f"{step.do} {step.target or 'the text'}: {wrong}")
@@ -154,6 +165,24 @@ async def write_it_in(page_file: Path, task: str, folder: Path, ask: Any, *, bro
         return Used(False, kept, why_not=f"{kept[0]} does not hold what was written")
     logger.info("used %s: wrote %d characters and saved %s", page_file, len(text), kept)
     return Used(True, kept, said=" ".join(said.split()))
+
+
+#: Focus a program's writing surface and put the caret at the end of what it holds.
+_AT_THE_END = """() => {
+  const s = (window.app && app.editing && app.editing.surface && app.editing.surface())
+    || document.querySelector("[contenteditable=true], [contenteditable=''], textarea");
+  if (!s) return false;
+  s.focus();
+  if (s.isContentEditable) {
+    const r = document.createRange(); r.selectNodeContents(s); r.collapse(false);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  } else if (typeof s.setSelectionRange === "function") { s.setSelectionRange(s.value.length, s.value.length); }
+  return true;
+}"""
+
+
+def _and(items: list[str]) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1] if items else ""
 
 
 def _typed(paragraphs: list[str]) -> list[Any]:
