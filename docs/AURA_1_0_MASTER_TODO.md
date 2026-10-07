@@ -2729,8 +2729,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   0.928; every right reading translated; 120 fresh lists for the sham test;
   an open-channel ordinary arm as the more-compute alternative.
 
-- [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
+- [x] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  CLOSED 2026-10-07 ([comparisons](evidence/G06_COMPARISONS_RESULT_2026-10-07.md)),
+  every comparison declared in G04's second plan and G05's plan, run as
+  frozen. Lesions: phrase readouts out costs 27 vocabulary requests to 0
+  (p = 7.5e-9), recency zeroed costs 35 depth requests to 0 (p = 2.9e-11).
+  Ordinary model: the reading wins 19 to 0 at a twentieth of her seconds
+  (3.0 s an answer, the reader's own forward and reading counted); her
+  shortest closed answer, 507 tokens, could not be written in that time.
+  More compute: her open channel loses 6 to 0, p = 0.031, short of 0.025.
+  Matched control: a wrong reading costs her 55 lists (p = 8.5e-13). Nothing
+  selected after a plan was published, no retries, every regression listed.
   [Grounded matched lesions](evidence/G06_GROUNDED_MATCHED_LESIONS_2026-10-01.md)
   apply reversible adapter-off, relation-off and both-off conditions inside
   the same source-grounded chart path. They preserve public requests, search,
