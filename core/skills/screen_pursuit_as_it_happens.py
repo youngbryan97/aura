@@ -234,6 +234,11 @@ class PlayingAsItHappens:
         keys = list(dict.fromkeys([*(self.keep.get("named_keys") or []), *named]))
         if not keys:
             keys = controls_named_in("")[0]
+        # Keys named only for doing something ("space to jump") say nothing of moving, and a person takes the arrows to
+        # move: LIVE 2026-10-07 a platformer whose screen named space and up was played with those alone, its hero never
+        # walked. Where nothing named moves her (no arrows, no WASD, no pointer), the arrows are tried too.
+        if not pointer_first and not {"up", "down", "left", "right", "w", "a", "s", "d"} & set(keys):
+            keys = [*keys, "left", "right", "up", "down"]
         pointer_first = pointer_first or bool(self.keep.get("pointer_named"))
         self.keep["named_keys"], self.keep["pointer_named"] = keys, pointer_first
         logger.info("it moves on its own: playing it as it happens with %s%s", keys, " and the pointer" if pointer_first else "")

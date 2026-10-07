@@ -117,7 +117,7 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
     for region in regions:
         text = " ".join(str(region.get("text") or "").split())
         # Writing that keeps changing by itself is a scene talking, not a control.
-        if text and not region.get("of_its_own") and not _set_as_a_paragraph(region, regions):
+        if text and not region.get("of_its_own") and not _set_as_a_paragraph(region, regions) and not _a_readout(text):
             for choice in _choices_apart(region):
                 found.setdefault(a_click_on(str(choice["text"])), None)
     # And the drawn buttons with no words on them, named by where they are.
@@ -125,6 +125,19 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
         if isinstance(region, dict) and region.get("text"):
             found.setdefault(a_click_on(str(region["text"])), None)
     return tuple(found)
+
+
+def _a_readout(text: str) -> bool:
+    """Whether writing is a readout rather than a control: no word in it, and not a short number one would pick.
+
+    LIVE 2026-10-07 she clicked a game's score ("00003900") and its lives ("x4", "*3") as if they were buttons.
+    A label of a word is a control to try; so is a short number ("1", "12": a level, a choice); a long number, a
+    padded one, or a count ("x4") is something to read.
+    """
+    plain = text.strip()
+    if re.search(r"[A-Za-z]{2,}", plain):
+        return False
+    return not re.fullmatch(r"[1-9]\d?", plain)
 
 
 def what_it_says(observation: dict[str, Any], drawn_where: Any) -> str:

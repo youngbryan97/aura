@@ -772,7 +772,9 @@ def _say_intent(
     )
 
     clicked = what_is_clicked(str(key))
-    said = f'Clicking "{clicked}"' if clicked is not None else f"Going {str(key).strip().lower()}"
+    named = str(key).strip().lower()
+    # A key named for a way is gone in; any other key is pressed: "Going up", "Pressing space" (not "Going space").
+    said = f'Clicking "{clicked}"' if clicked is not None else f"Going {named}" if named in ("up", "down", "left", "right") else f"Pressing {named}"
     # A reason she did not give does not erase the one she has.
     #
     # This read the other way round and the assignment was unconditional, so

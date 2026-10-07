@@ -136,6 +136,8 @@ class _Run:
     observation_sources: Counter[str] = field(default_factory=Counter)
     input_key_downs: Counter[str] = field(default_factory=Counter)
     responsive_pictures: int = 0
+    #: Each line said in this game, and when: carried from one stretch to the next.
+    lately: dict = field(default_factory=dict)
     #: Where the rules ask for a place to be gone over: the cells her thing has been over, and their size (set once).
     covered: set = field(default_factory=set)
     cell: float = 0.0
@@ -610,16 +612,25 @@ def _goes_somewhere(thing: Any) -> bool:
     return extent > 0.5 * size and math.dist(points[0], points[-1]) > 0.5 * extent
 
 
+#: How long a line once said is not said again, word for word, in the same game: a watcher heard it.
+REPEAT_AFTER_S = 90.0
+
+
 def _say(run: _Run, say: Callable[[str], Any] | None, line: str, at: float, *, once: str = "") -> None:
     if not line.strip(" ."):
         return
     if once and once in run.said:
+        return
+    # The same words a moment ago, about another thing of the same look or in the stretch before: LIVE 2026-10-07
+    # "The black things are worth shooting." three times in two seconds, and "Space fires." over and over.
+    if at - run.lately.get(line, -REPEAT_AFTER_S) < REPEAT_AFTER_S:
         return
     if at - run.said_at < SAY_EVERY_S and not once:
         return
     if once:
         run.said.add(once)
     run.said_at = at
+    run.lately[line] = at
     run.lines.append(line)
     logger.info("saying while playing: %s", line)
     if say is not None:
@@ -939,7 +950,12 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
     # The counters as read are said only where no standing could be made of
     # them: LIVE 2026-10-06 an end screen's "You 5 Computer 4" was read as one
     # counter, and "You computer 4." followed "4-4, level".
-    counters = {name: value for name, value in meeting.readouts.values.items() if not name.startswith("number")}
+    # Said by the names a person reading the screen would say: words of the language, a misread letter mended
+    # ("Leuel" is level); a name that is not one ("Ini", "iin", "x") is not said (core/language/words_of_the_language.py).
+    from core.language.words_of_the_language import words_of
+
+    counters = {said: value for name, value in meeting.readouts.values.items()
+                if not name.startswith("number") and (said := words_of(name)) is not None}
     if counters and not run.contest_said and counters != run.counted and at - run.said_at > 25.0:
         run.counted = dict(counters)
         _say(run, say, ", ".join(f"{name} {value}" for name, value in list(counters.items())[:3]).capitalize() + ".", at)
@@ -981,6 +997,7 @@ async def play_as_it_happens(
                contest=keep.get("contest") or ContestStands())
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
+    run.lately = dict(keep.get("said_lately") or {})
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -1039,7 +1056,7 @@ async def play_as_it_happens(
         if run.reading is not None:
             run.reading.cancel()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
-                 "contest": run.contest, "situation_known": run.situation_known})
+                 "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
                                 "provenance": motion_checks.provenance, "violations": motion_checks.violations,

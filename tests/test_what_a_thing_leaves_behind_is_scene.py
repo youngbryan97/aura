@@ -94,3 +94,27 @@ def test_what_goes_the_way_each_arrow_points_is_hers(presses, chosen):
             n += 1
             _pressed(hers, number, key, vx, vy, n)
     assert gone_the_ways_of_the_keys(hers, _moves_with(presses)) == chosen
+
+
+def test_in_a_world_that_scrolls_what_holds_its_place_against_it_is_hers():
+    """LIVE 2026-10-07 a platformer's hero stood mid-picture while everything else went by against the key."""
+    hers = WhichIsHers()
+    n = 0
+    for key, world, hero in (("right", (-80, 0), (2, 0)), ("left", (85, 0), (-3, 0)), ("up", (0, 0), (0, -90))):
+        n += 1
+        for number in (2, 3, 4, 5):  # barrels, crates, trees: the view moving
+            _pressed(hers, number, key, world[0] + number, world[1], n)
+        _pressed(hers, 1, key, hero[0], hero[1], n)
+    assert gone_the_ways_of_the_keys(hers, _moves_with([1, 2, 3, 4, 5])) == 1
+
+
+def test_a_world_that_does_not_move_as_one_is_not_taken_for_the_view():
+    """Things going every which way are things, not the view: each is measured as it went."""
+    hers = WhichIsHers()
+    n = 0
+    for key, mine in (("right", (90, 0)), ("down", (0, 80)), ("left", (-95, 5))):
+        n += 1
+        for number, own in ((2, (60, 40)), (3, (-50, 30)), (4, (10, -70)), (5, (-30, -40))):
+            _pressed(hers, number, key, *own, n)
+        _pressed(hers, 1, key, *mine, n)
+    assert gone_the_ways_of_the_keys(hers, _moves_with([1, 2, 3, 4, 5])) == 1

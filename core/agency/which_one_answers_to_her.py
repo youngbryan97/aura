@@ -805,15 +805,19 @@ def gone_the_ways_of_the_keys(hers: WhichIsHers, moves: Any) -> int | None:
     nothing.
     """
     agreeing: list[tuple[int, int]] = []
+    world = _how_the_world_went(hers)
     for number, speeds in hers._by_thing.items():
         if number not in moves.things or number in hers.not_mine:
             continue
         went, against = set(), set()
-        for (key, _began), values in speeds.by_press.items():
+        for (key, began), values in speeds.by_press.items():
             way = WAYS.get(key)
             if way is None or len(values) < 2:
                 continue
-            vx, vy = _mean(values)
+            # Against the world, where the world moved as one under the key: in a scrolling world the view follows
+            # her, everything else slides against the key, and she holds her place in the picture.
+            (vx, vy), (wx, wy) = _mean(values), world.get((key, began), (0.0, 0.0))
+            vx, vy = vx - wx, vy - wy
             speed = math.hypot(vx, vy)
             if speed < REALLY_MOVES:
                 continue  # held against the end of its way, or not moving: says nothing either way
@@ -831,3 +835,34 @@ def gone_the_ways_of_the_keys(hers: WhichIsHers, moves: Any) -> int | None:
     hers.identification.receipts.append({"epoch": hers.identification.epoch, "reason": "went the way of each key named for a way",
                                          "selected": best, "ways": ways, "eligible_candidates": len(agreeing)})
     return best
+
+
+#: How many things must have moved during a press, and what share of them together, for the world to have moved as one.
+WORLD_OF = 4
+TOGETHER = 0.6
+
+
+def _how_the_world_went(hers: WhichIsHers) -> dict[tuple[str, float], tuple[float, float]]:
+    """For each press of a key, how the world moved as one during it: the middle speed of everything seen, where most went so.
+
+    LIVE 2026-10-07 a platformer's hero stood in the middle of the picture while
+    the barrels, crates and trees went by against the key held; nothing went the
+    key's way, and nothing was hers. Where the things seen during a press mostly
+    went together, that is the view moving, and each thing is measured against it.
+    """
+    during: dict[tuple[str, float], list[tuple[float, float]]] = defaultdict(list)
+    for speeds in hers._by_thing.values():
+        for press, values in speeds.by_press.items():
+            if len(values) >= 2:
+                during[press].append(_mean(values))
+    world: dict[tuple[str, float], tuple[float, float]] = {}
+    for press, seen in during.items():
+        if len(seen) < WORLD_OF:
+            continue
+        wx, wy = statistics.median(v[0] for v in seen), statistics.median(v[1] for v in seen)
+        if math.hypot(wx, wy) < REALLY_MOVES:
+            continue  # the world held still: a thing's own speed is its speed
+        together = sum(math.hypot(vx - wx, vy - wy) < 0.35 * math.hypot(wx, wy) for vx, vy in seen)
+        if together >= TOGETHER * len(seen):
+            world[press] = (wx, wy)
+    return world

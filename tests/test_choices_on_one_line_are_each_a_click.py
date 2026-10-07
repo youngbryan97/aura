@@ -36,10 +36,14 @@ def test_each_choice_on_a_line_is_its_own_click_where_it_stands(line, choices):
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("line", ["10 / 20", "Score: 120 / 500", "Speed", "TIME 01:50"])
+@pytest.mark.parametrize("line", ["Score: 120 / 500", "Speed", "TIME 01:50"])
 def test_a_count_or_a_single_label_is_left_as_it_is(line):
     seen = _screen((line, 0.3, 0.5, 0.4))
     assert things_to_click(seen, drawn_where=True) == (f'click "{line}"',)
+
+
+def test_a_count_with_no_word_in_it_is_read_not_clicked():
+    assert things_to_click(_screen(("10 / 20", 0.3, 0.5, 0.4)), drawn_where=True) == ()
 
 
 @pytest.mark.unit
