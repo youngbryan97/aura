@@ -74,8 +74,6 @@ def _decide_the_next_move_what_she_what(
         how_the_trial_is_going as _how_the_trial_is_going,
     )
 
-    from .screen_pursuit import _tell
-
     _worth_here = sum(laid_out.numbers() or (0.0,))
     if began_at["worth"] is None:
         began_at["worth"] = _worth_here
@@ -95,7 +93,9 @@ def _decide_the_next_move_what_she_what(
         verdict = _how_the_trial_is_going(trying["name"], _worth_here)
         if verdict:
             if narrate:
-                _tell(
+                from .screen_pursuit_bearings import _said_unless_playing
+
+                _said_unless_playing(
                     f"{trying['name']} {'earned its place' if verdict == 'kept' else 'did not earn its place'}."
                 )
             trying["name"] = ""

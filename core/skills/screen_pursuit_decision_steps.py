@@ -588,8 +588,10 @@ def _mark_down_what_she_keeps_doing(
         wears.noticed = True
         logger.info("%s", wears.says())
         if narrate:
+            from .screen_pursuit_bearings import _said_unless_playing
+
             said = wears.says()
-            _tell(f"{said[:1].upper()}{said[1:]}, so I will not lean on one move.")
+            _said_unless_playing(f"{said[:1].upper()}{said[1:]}, so I will not lean on one move.")
     if ahead:
         worths = [value for value, _why in ahead.values()]
         # In the units of what she sees ahead; where every act looks the same,

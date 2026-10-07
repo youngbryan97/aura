@@ -243,7 +243,6 @@ def _pursue_on_screen_part_5(
 ) -> None:
     from .screen_pursuit import (
         WORTH_TRYING_AT,
-        _tell,
         logger,
         which_way_to_win,
     )
@@ -278,7 +277,9 @@ def _pursue_on_screen_part_5(
                 what_it_was_like_before(name, how_it_went)
                 trying["name"] = name
                 if narrate:
-                    _tell(
+                    from .screen_pursuit_bearings import _said_unless_playing
+
+                    _said_unless_playing(
                         f"There is something my measure could not account for. "
                         f"I am going to try judging by {name!r} and see whether "
                         f"it does better."
