@@ -58,7 +58,7 @@ if str(ROOT) not in sys.path:
 from tools.g04_transfer_protocol import MODEL, _files_sha256, tasks_needed  # noqa: E402
 
 EVIDENCE = Path("~/.aura/rlc-evidence").expanduser()
-READER = EVIDENCE / "semantic-peak-chart-phrase-v15-20261007/candidate.json"
+READER = EVIDENCE / "semantic-peak-naming-v17-20261007/candidate.json"
 PRIMARY = "composition"
 SHAM_STRATUM = "lists"
 ARMS = ("ordinary", "assisted", "sham", "ordinary_open")
