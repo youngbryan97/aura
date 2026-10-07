@@ -57,13 +57,24 @@ of -3 to -5 and the first operation's -0.1 to -0.9, and 54 of 62 programs came
 out reordered. A reader resolves such a description to the most recent thing
 it fits, and recency is counted in what came between, not in tokens: the same
 clause count means the same thing in a long request and a short one. With
-``recency``, two more features say how many operations begin between an
+``recency``, the readout also counts how many operations begin between an
 operation's stretch and the mention, and whether a register's stretch begins
-after the mention at all; the fit decides what they are worth. It can only
-decide if training has chains long enough for the first clause to match and
-the most recent result to differ: in the 764 training requests no result is
-more than two operations back, and fitted on them the count came out with the
-wrong sign.
+after the mention at all. It can only learn what those are worth if training
+has chains long enough for the first clause to match and the most recent
+result to differ: in the 764 training requests no result is more than two
+operations back, and fitted on them the count came out with the wrong sign.
+
+Which way a mention points is in its own words. "the intermediate value"
+points back to the latest result; "the subsequently computed number" points
+forward, as "the following" does for a reader. Fitted with breadth chains and
+no notion of direction, recency took two cataphoric validation requests and
+two reserved-alias ones that v12 had right. So a recency readout carries a
+second, small readout: P(the mention names something given after it), from
+the mention's mean in the middle layer, fitted on training mentions. The
+recency features are gated by it: the count and the after-flag weighted by
+P(back), and the after-flag again weighted by P(forward). The antecedent is
+fitted on cross-fitted direction estimates, so it does not learn to trust
+the direction readout's confidence on rows that readout was fitted on.
 
 Training rows only; validation and test rows are refused by the fitter.
 """
@@ -83,8 +94,10 @@ import numpy as np
 from core.learning.semantic_program_ir import TokenSpan
 
 ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v2"
-#: The schema of a readout that also reads recency (RECENCY_FEATURES).
-RECENCY_ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v3"
+#: The schema of a readout that also reads recency, ungated (UNGATED_RECENCY_FEATURES;
+#: candidate v13, 6 October), and of one whose recency a mention direction gates.
+UNGATED_RECENCY_ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v3"
+RECENCY_ANTECEDENT_SCHEMA: Final = "aura.semantic_argument_antecedent.v4"
 
 #: The hidden-state channels a mention is compared in, as the bundles name them.
 CHANNELS: Final = ("input_token_embedding", "middle_causal_hidden")
@@ -102,11 +115,16 @@ FEATURES: Final = (
     "identical_share",
 )
 
-#: Read only by a readout fitted with ``recency``, after FEATURES.
+#: Read by a v3 readout after FEATURES.
+UNGATED_RECENCY_FEATURES: Final = ("operations_between", "defined_after")
+#: Read by a v4 readout after FEATURES.
 RECENCY_FEATURES: Final = (
-    "operations_between",
-    "defined_after",
+    "operations_between_if_back",
+    "defined_after_if_back",
+    "defined_after_if_forward",
 )
+#: The channel a mention's direction is read from.
+DIRECTION_CHANNEL: Final = "middle_causal_hidden"
 
 
 def _sha(value: Any) -> str:
@@ -199,7 +217,13 @@ class _Similarities:
         self.matrices = tuple(
             (block @ block.T) for block in (_channel(hidden, channels, widths, name) for name in CHANNELS)
         )
+        self.direction_rows = _channel(hidden, channels, widths, DIRECTION_CHANNEL)
         self.token_count = len(hidden)
+
+    def mention_vector(self, mention: TokenSpan) -> np.ndarray:
+        """The mention's mean in the direction channel, unit length."""
+        mean = self.direction_rows[mention.start : mention.end].mean(axis=0)
+        return mean / (np.linalg.norm(mean) + 1e-9)
 
     def window_means(self, mention: TokenSpan) -> tuple[np.ndarray, ...]:
         """Mean aligned similarity of the mention to each window that ends before it, by start."""
@@ -238,8 +262,15 @@ def antecedent_features(
     input_count: int,
     *,
     recency: bool = False,
+    forward: float | None = None,
 ) -> list[list[float]]:
-    """One feature row per register for ``mention``; with ``recency``, RECENCY_FEATURES after FEATURES."""
+    """One feature row per register for ``mention``, then the recency features ``recency`` asks for.
+
+    With ``forward``, P(the mention names something given after it), they are
+    RECENCY_FEATURES; without it, the ungated UNGATED_RECENCY_FEATURES of v3.
+    """
+    if recency and forward is not None and not 0.0 <= forward <= 1.0:
+        raise ValueError("a mention's direction is a probability")
     length = mention.end - mention.start
     means = similarities.window_means(mention)
     matches: list[list[float | None]] = []
@@ -299,8 +330,38 @@ def antecedent_features(
                 1 for other in range(input_count, len(stretches))
                 if other != register and low < stretches[other][0] < mention.start
             )
-            rows[-1].extend((float(between), float(low >= mention.end)))
+            after = float(low >= mention.end)
+            if forward is None:
+                rows[-1].extend((float(between), after))
+            else:
+                back = 1.0 - forward
+                rows[-1].extend((between * back, after * back, after * forward))
     return rows
+
+
+@dataclass(frozen=True)
+class MentionDirection:
+    """P(a mention names something given after it), from the mention's own words in context."""
+
+    weight: tuple[float, ...]
+    bias: float
+
+    def __post_init__(self) -> None:
+        if not self.weight or not all(math.isfinite(value) for value in (*self.weight, self.bias)):
+            raise ValueError("mention direction parameters are invalid")
+
+    def forward(self, vector: np.ndarray) -> float:
+        logit = float(np.asarray(vector, dtype=np.float64) @ np.asarray(self.weight) + self.bias)
+        return 1.0 / (1.0 + math.exp(-logit)) if logit > -700 else 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"channel": DIRECTION_CHANNEL, "weight": list(self.weight), "bias": self.bias}
+
+
+def mention_direction_from_dict(value: Mapping[str, Any]) -> MentionDirection:
+    if value.get("channel") != DIRECTION_CHANNEL:
+        raise ValueError("mention direction payload reads another channel")
+    return MentionDirection(tuple(float(item) for item in value["weight"]), float(value["bias"]))
 
 
 @dataclass(frozen=True)
@@ -329,12 +390,21 @@ class ArgumentAntecedent:
     #: sentence (within_sentence, below). Needs
     #: sentence_end_token_ids.
     arguments_within_sentence: bool = False
-    #: Whether the readout also reads RECENCY_FEATURES.
+    #: Whether the readout also reads RECENCY_FEATURES, gated by ``direction``.
     recency: bool = False
+    direction: MentionDirection | None = None
 
     @property
     def features(self) -> tuple[str, ...]:
-        return (*FEATURES, *RECENCY_FEATURES) if self.recency else FEATURES
+        if not self.recency:
+            return FEATURES
+        return (*FEATURES, *(RECENCY_FEATURES if self.direction is not None else UNGATED_RECENCY_FEATURES))
+
+    @property
+    def schema(self) -> str:
+        if not self.recency:
+            return ANTECEDENT_SCHEMA
+        return RECENCY_ANTECEDENT_SCHEMA if self.direction is not None else UNGATED_RECENCY_ANTECEDENT_SCHEMA
 
     def __post_init__(self) -> None:
         if len(self.weight) != len(self.features) or not all(
@@ -343,6 +413,8 @@ class ArgumentAntecedent:
             raise ValueError("argument antecedent parameters are invalid")
         if self.scoring not in ("absolute", "relative"):
             raise ValueError("argument antecedent scoring is absolute or relative")
+        if self.direction is not None and not self.recency:
+            raise ValueError("only a recency readout carries a mention direction")
 
     def scorer(
         self,
@@ -368,7 +440,7 @@ class ArgumentAntecedent:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "schema": RECENCY_ANTECEDENT_SCHEMA if self.recency else ANTECEDENT_SCHEMA,
+            "schema": self.schema,
             "features": list(self.features),
             "channels": list(CHANNELS),
             "weight": list(self.weight),
@@ -382,6 +454,7 @@ class ArgumentAntecedent:
                 if self.sentence_end_token_ids else {}
             ),
             **({"arguments_within_sentence": True} if self.arguments_within_sentence else {}),
+            **({"direction": self.direction.to_dict()} if self.direction is not None else {}),
         }
 
     @property
@@ -413,9 +486,13 @@ class _AntecedentScorer:
         if _literal(mention, self.input_spans):
             return tuple(0.0 for _ in self.stretches)
         if mention not in self.cache:
+            forward = (
+                self.readout.direction.forward(self.similarities.mention_vector(mention))
+                if self.readout.direction is not None else None
+            )
             rows = np.asarray(
                 antecedent_features(self.similarities, mention, self.stretches, self.input_count,
-                                    recency=self.readout.recency)
+                                    recency=self.readout.recency, forward=forward)
             )
             logits = rows @ np.asarray(self.readout.weight) + self.readout.bias
             top = float(np.max(logits))
@@ -462,11 +539,15 @@ class _AntecedentScorer:
 
 
 def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAntecedent:
-    recency = value.get("schema") == RECENCY_ANTECEDENT_SCHEMA
+    extra = {ANTECEDENT_SCHEMA: (), UNGATED_RECENCY_ANTECEDENT_SCHEMA: UNGATED_RECENCY_FEATURES,
+             RECENCY_ANTECEDENT_SCHEMA: RECENCY_FEATURES}
+    schema = value.get("schema")
+    recency = schema in (UNGATED_RECENCY_ANTECEDENT_SCHEMA, RECENCY_ANTECEDENT_SCHEMA)
     if (
-        value.get("schema") not in (ANTECEDENT_SCHEMA, RECENCY_ANTECEDENT_SCHEMA)
-        or list(value.get("features", ())) != [*FEATURES, *(RECENCY_FEATURES if recency else ())]
+        schema not in extra
+        or list(value.get("features", ())) != [*FEATURES, *extra[schema]]
         or list(value.get("channels", ())) != list(CHANNELS)
+        or (schema == RECENCY_ANTECEDENT_SCHEMA) != ("direction" in value)
     ):
         raise ValueError("argument antecedent payload is not this schema")
     return ArgumentAntecedent(
@@ -479,6 +560,7 @@ def argument_antecedent_from_dict(value: Mapping[str, Any]) -> ArgumentAnteceden
         tuple(int(token) for token in value.get("sentence_end_token_ids", ())),
         bool(value.get("arguments_within_sentence", False)),
         recency,
+        mention_direction_from_dict(value["direction"]) if "direction" in value else None,
     )
 
 
@@ -493,7 +575,8 @@ def _item_stretches(item: Any, sentence_end_token_ids: Sequence[int]) -> tuple[t
 
 
 def antecedent_training_groups(
-    item: Any, sentence_end_token_ids: Sequence[int] = (), *, recency: bool = False
+    item: Any, sentence_end_token_ids: Sequence[int] = (), *, direction: MentionDirection | None = None,
+    recency: bool | None = None,
 ) -> list[tuple[list[list[float]], int]]:
     """Per annotated mention: the feature rows of the registers its operation could read, and the gold one's index."""
     ir = item.ir
@@ -507,34 +590,42 @@ def antecedent_training_groups(
         for register, mention in zip(instruction.args, instruction.argument_spans, strict=True):
             if _literal(mention, ir.input_spans):
                 continue
-            features = antecedent_features(similarities, mention, stretches, ir.n_inputs, recency=recency)
+            features = antecedent_features(
+                similarities, mention, stretches, ir.n_inputs, recency=(direction is not None) if recency is None else recency,
+                forward=None if direction is None else direction.forward(similarities.mention_vector(mention)))
             candidates = [index for index in range(len(features)) if index != own]
             groups.append(([features[index] for index in candidates], candidates.index(register)))
     return groups
 
 
-def _fit_conditional(groups: Sequence[tuple[list[list[float]], int]]) -> tuple[float, ...]:
+def _fit_conditional(
+    groups: Sequence[tuple[list[list[float]], int]], weights: Sequence[float] | None = None
+) -> tuple[float, ...]:
     """Weights maximising each mention's log-probability of its own register among its candidates.
 
     The readout is used as a distribution over a mention's registers, so it is
     fitted as one (a conditional logit), with the same unit L2 penalty the
     pairwise fit carried. The bias cancels in the softmax and stays zero.
+    ``weights`` weighs each mention's term (family_weights).
     """
     from scipy.optimize import minimize
 
     blocks = [np.asarray(rows, dtype=np.float64) for rows, _gold in groups]
     golds = [gold for _rows, gold in groups]
+    scale = [1.0] * len(blocks) if weights is None else [float(value) for value in weights]
+    if len(scale) != len(blocks) or not all(math.isfinite(value) and value > 0 for value in scale):
+        raise ValueError("each mention needs a positive weight")
 
     def loss(weight: np.ndarray) -> tuple[float, np.ndarray]:
         total = 0.5 * float(weight @ weight)
         gradient = weight.copy()
-        for rows, gold in zip(blocks, golds, strict=True):
+        for rows, gold, factor in zip(blocks, golds, scale, strict=True):
             logits = rows @ weight
             top = float(np.max(logits))
             exp = np.exp(logits - top)
             norm = float(np.sum(exp))
-            total -= float(logits[gold] - top - math.log(norm))
-            gradient -= rows[gold] - (exp / norm) @ rows
+            total -= factor * float(logits[gold] - top - math.log(norm))
+            gradient -= factor * (rows[gold] - (exp / norm) @ rows)
         return total, gradient
 
     result = minimize(loss, np.zeros(blocks[0].shape[1]), jac=True, method="L-BFGS-B", options={"maxiter": 2000})
@@ -542,7 +633,8 @@ def _fit_conditional(groups: Sequence[tuple[list[list[float]], int]]) -> tuple[f
 
 
 def antecedent_training_rows(
-    item: Any, sentence_end_token_ids: Sequence[int] = (), *, recency: bool = False
+    item: Any, sentence_end_token_ids: Sequence[int] = (), *, direction: MentionDirection | None = None,
+    recency: bool | None = None,
 ) -> tuple[list[list[float]], list[int]]:
     """Each annotated argument mention against every register its operation could read."""
     ir = item.ir
@@ -557,7 +649,9 @@ def antecedent_training_rows(
         for register, mention in zip(instruction.args, instruction.argument_spans, strict=True):
             if _literal(mention, ir.input_spans):
                 continue
-            features = antecedent_features(similarities, mention, stretches, ir.n_inputs, recency=recency)
+            features = antecedent_features(
+                similarities, mention, stretches, ir.n_inputs, recency=(direction is not None) if recency is None else recency,
+                forward=None if direction is None else direction.forward(similarities.mention_vector(mention)))
             for candidate, row in enumerate(features):
                 if candidate == own:
                     continue
@@ -566,12 +660,80 @@ def antecedent_training_rows(
     return rows, labels
 
 
+def _direction_rows(examples: Sequence[Any], ends: Sequence[int]) -> tuple[list[np.ndarray], list[int]]:
+    """Each training argument mention's vector, and whether what it names is given after it."""
+    rows: list[np.ndarray] = []
+    labels: list[int] = []
+    for item in examples:
+        ir = item.ir
+        block = _channel(np.asarray(item.hidden_states), item.hidden_channels, item.hidden_channel_widths,
+                         DIRECTION_CHANNEL)
+        stretches = _item_stretches(item, ends)
+        for instruction in ir.instructions:
+            for register, mention in zip(instruction.args, instruction.argument_spans, strict=True):
+                if _literal(mention, ir.input_spans):
+                    continue
+                mean = block[mention.start : mention.end].mean(axis=0)
+                rows.append(mean / (np.linalg.norm(mean) + 1e-9))
+                labels.append(int(stretches[register][0] >= mention.end))
+    return rows, labels
+
+
+def fit_mention_direction(examples: Sequence[Any], sentence_end_token_ids: Sequence[int] = ()) -> MentionDirection:
+    """P(a mention names something given after it), fitted on training mentions only."""
+    from sklearn.linear_model import LogisticRegression
+
+    examples = tuple(examples)
+    if not examples or any(item.split != "train" for item in examples):
+        raise ValueError("mention direction is fitted on training rows only")
+    rows, labels = _direction_rows(examples, tuple(sentence_end_token_ids))
+    if not rows:
+        raise ValueError("mention direction needs annotated mentions")
+    if len(set(labels)) < 2:
+        # Every mention points one way: the rule of succession, with nothing to read from the words.
+        forward = (sum(labels) + 1) / (len(labels) + 2)
+        return MentionDirection(tuple(0.0 for _ in rows[0]), math.log(forward / (1.0 - forward)))
+    fitted = LogisticRegression(max_iter=3000, C=1.0).fit(np.stack(rows), np.asarray(labels))
+    return MentionDirection(tuple(float(value) for value in fitted.coef_[0]), float(fitted.intercept_[0]))
+
+
+def _cross_fitted_directions(
+    examples: Sequence[Any], ends: Sequence[int], folds: int = 3
+) -> dict[str, MentionDirection]:
+    """For each source, a direction readout fitted without it, so its estimates are out of sample."""
+    assignment = {
+        item.ir.source_text_sha256: int(hashlib.sha256(item.ir.source_text_sha256.encode()).hexdigest()[:8], 16) % folds
+        for item in examples
+    }
+    readouts = {
+        fold: fit_mention_direction([item for item in examples if assignment[item.ir.source_text_sha256] != fold], ends)
+        for fold in range(folds)
+    }
+    return {source: readouts[fold] for source, fold in assignment.items()}
+
+
+def family_weights(families: Sequence[str]) -> list[float]:
+    """Each construction family the same total weight, the mean weight one.
+
+    A family is a kind of sentence; how many requests a generator made of it
+    is not. Pooled, 300 breadth chains outweighed every cataphoric training
+    mention, and the fit gave up two cataphoric validation requests to read
+    the chains (candidate v13, 6 October).
+    """
+    counts: dict[str, int] = {}
+    for family in families:
+        counts[family] = counts.get(family, 0) + 1
+    return [len(families) / (len(counts) * counts[family]) for family in families]
+
+
 def fit_argument_antecedent(
     examples: Sequence[Any],
     *,
     objective: str = "pairwise",
     sentence_end_token_ids: Sequence[int] = (),
     recency: bool = False,
+    direction: bool = True,
+    balance_families: bool = False,
 ) -> ArgumentAntecedent:
     """Fit on each training argument mention against every other register of its request.
 
@@ -588,7 +750,14 @@ def fit_argument_antecedent(
         raise ValueError("argument antecedents are fitted pairwise or conditionally")
     if objective == "conditional":
         ends = tuple(int(token) for token in sentence_end_token_ids)
-        groups = [group for item in examples for group in antecedent_training_groups(item, ends, recency=recency)]
+        gated = recency and direction
+        held = _cross_fitted_directions(examples, ends) if gated else {}
+        groups, families = [], []
+        for item in examples:
+            item_groups = antecedent_training_groups(
+                item, ends, direction=held.get(item.ir.source_text_sha256), recency=recency)
+            groups.extend(item_groups)
+            families.extend(str(getattr(item, "construction_id", "")).split(":")[0] for _ in item_groups)
         if not groups:
             raise ValueError("argument antecedents need annotated mentions")
         receipt = {
@@ -598,16 +767,22 @@ def fit_argument_antecedent(
             "objective": "conditional",
             "splits_used": ["train"],
             **({"stretches": "sentence"} if ends else {}),
-            **({"recency": True} if recency else {}),
+            **({"recency": "gated" if gated else "ungated"} if recency else {}),
+            **({"balance": "construction_family"} if balance_families else {}),
         }
         return ArgumentAntecedent(
-            _fit_conditional(groups), 0.0, {**receipt, "receipt_sha256": _sha(receipt)},
+            _fit_conditional(groups, family_weights(families) if balance_families else None), 0.0,
+            {**receipt, "receipt_sha256": _sha(receipt)},
             sentence_end_token_ids=ends, recency=recency,
+            direction=fit_mention_direction(examples, ends) if gated else None,
         )
+    gated = recency and direction
+    held = _cross_fitted_directions(examples, tuple(sentence_end_token_ids)) if gated else {}
     rows: list[list[float]] = []
     labels: list[int] = []
     for item in examples:
-        item_rows, item_labels = antecedent_training_rows(item, tuple(sentence_end_token_ids), recency=recency)
+        item_rows, item_labels = antecedent_training_rows(
+            item, tuple(sentence_end_token_ids), direction=held.get(item.ir.source_text_sha256), recency=recency)
         rows.extend(item_rows)
         labels.extend(item_labels)
     if len(set(labels)) < 2:
@@ -619,7 +794,7 @@ def fit_argument_antecedent(
         "pairs": len(labels),
         "named_pairs": int(sum(labels)),
         "splits_used": ["train"],
-        **({"recency": True} if recency else {}),
+        **({"recency": "gated" if gated else "ungated"} if recency else {}),
     }
     return ArgumentAntecedent(
         tuple(float(value) for value in fitted.coef_[0]),
@@ -627,6 +802,7 @@ def fit_argument_antecedent(
         {**receipt, "receipt_sha256": _sha(receipt)},
         sentence_end_token_ids=tuple(int(token) for token in sentence_end_token_ids),
         recency=recency,
+        direction=fit_mention_direction(examples, sentence_end_token_ids) if gated else None,
     )
 
 
@@ -674,8 +850,12 @@ def within_sentence(
 
 __all__ = [
     "ANTECEDENT_SCHEMA",
+    "MentionDirection",
+    "fit_mention_direction",
     "RECENCY_ANTECEDENT_SCHEMA",
     "RECENCY_FEATURES",
+    "UNGATED_RECENCY_ANTECEDENT_SCHEMA",
+    "UNGATED_RECENCY_FEATURES",
     "ArgumentAntecedent",
     "argument_sentences",
     "antecedent_features",

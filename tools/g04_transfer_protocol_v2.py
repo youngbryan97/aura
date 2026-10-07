@@ -154,8 +154,12 @@ def lesions(candidate):
     recognizer = candidate.recognizer
     no_phrase = replace(recognizer, close_labeler=None, phrase_labeler=None, phrase_weights=(0.0, 0.0),
                         sentence_ends=frozenset(), punctuation=frozenset())
+    from core.learning.semantic_argument_antecedent import FEATURES
+
     antecedent = candidate.antecedent
-    no_recency = replace(antecedent, weight=(*antecedent.weight[:-2], 0.0, 0.0))
+    kept = len(FEATURES)
+    no_recency = replace(antecedent, weight=(*antecedent.weight[:kept],
+                                             *(0.0 for _ in antecedent.weight[kept:])))
     return {
         "no_phrase_reading": PeakRecognitionTransducer(candidate.base, no_phrase, candidate.ownership, antecedent),
         "no_recency": PeakRecognitionTransducer(candidate.base, recognizer, candidate.ownership, no_recency),

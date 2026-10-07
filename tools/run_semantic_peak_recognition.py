@@ -317,6 +317,16 @@ def main() -> int:
         help="the antecedent also reads how many operations begin between a register and the mention",
     )
     parser.add_argument(
+        "--antecedent-ungated",
+        action="store_true",
+        help="read recency without the mention's direction (candidate v13's v3 readout)",
+    )
+    parser.add_argument(
+        "--antecedent-balance-families",
+        action="store_true",
+        help="give each construction family the same total weight in the antecedent fit",
+    )
+    parser.add_argument(
         "--stacked-labeler",
         action="store_true",
         help="name operation spans from their words as well as their context, weighted on held-out constructions",
@@ -431,7 +441,7 @@ def main() -> int:
     recognizer = fit_peak_operation_recognizer((*training, *breadth), construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, **phrase)
     ownership = fit_argument_ownership((*training, *breadth)) if args.argument_ownership else None
     antecedent = (
-        replace(fit_argument_antecedent((*training, *breadth), objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
+        replace(fit_argument_antecedent((*training, *breadth), objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency, direction=not args.antecedent_ungated, balance_families=args.antecedent_balance_families), scoring=args.antecedent_scoring,
                 own_result_is_not_an_input=args.own_result_is_not_an_input,
                 named_inputs_are_used_by_name=args.named_inputs_are_used_by_name,
                 arguments_within_sentence=args.arguments_within_sentence)
@@ -480,7 +490,7 @@ def main() -> int:
                 incumbent,
                 fit_peak_operation_recognizer(kept, construction_groups=groups, lexical_at=args.lexical_at, word_continuations=continuations, words_name_only=args.words_name_only, **phrase),
                 fit_argument_ownership(kept) if args.argument_ownership else None,
-                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency), scoring=args.antecedent_scoring,
+                replace(fit_argument_antecedent(kept, objective=args.antecedent_fit, sentence_end_token_ids=sentence_ends, recency=args.antecedent_recency, direction=not args.antecedent_ungated, balance_families=args.antecedent_balance_families), scoring=args.antecedent_scoring,
                         own_result_is_not_an_input=args.own_result_is_not_an_input,
                         named_inputs_are_used_by_name=args.named_inputs_are_used_by_name,
                 arguments_within_sentence=args.arguments_within_sentence)

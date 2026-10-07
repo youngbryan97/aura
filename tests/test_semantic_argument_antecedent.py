@@ -296,24 +296,32 @@ def test_recency_counts_the_operations_between_a_register_and_the_mention() -> N
     item = _chain("train", 4, 0)
     stretches = _item_stretches(item, ())
     last = item.ir.instructions[-1]
-    rows = antecedent_features(_Similarities(item.hidden_states, CHANNELS, (WIDTH, WIDTH)),
-                               last.argument_spans[0], stretches, item.ir.n_inputs, recency=True)
-    assert all(len(row) == len(FEATURES) + 2 for row in rows)
-    between = [row[-2] for row in rows[item.ir.n_inputs:]]
-    # Registers of steps 0..3 as seen from step 3's "it": the step before has only step 3 between.
-    assert between == [3.0, 2.0, 1.0, 0.0]
+    similarities = _Similarities(item.hidden_states, CHANNELS, (WIDTH, WIDTH))
+    with pytest.raises(ValueError, match="probability"):
+        antecedent_features(similarities, last.argument_spans[0], stretches, item.ir.n_inputs,
+                            recency=True, forward=1.5)
+    rows = antecedent_features(similarities, last.argument_spans[0], stretches, item.ir.n_inputs,
+                               recency=True, forward=0.25)
+    assert all(len(row) == len(FEATURES) + 3 for row in rows)
+    between = [row[-3] for row in rows[item.ir.n_inputs:]]
+    # Registers of steps 0..3 as seen from step 3's "it": the step before has only step 3
+    # between; each count is weighted by P(the mention points back) = 0.75.
+    assert between == [2.25, 1.5, 0.75, 0.0]
     first = item.ir.instructions[1]
-    early = antecedent_features(_Similarities(item.hidden_states, CHANNELS, (WIDTH, WIDTH)),
-                                first.argument_spans[0], stretches, item.ir.n_inputs, recency=True)
-    assert [row[-1] for row in early[item.ir.n_inputs:]] == [0.0, 0.0, 1.0, 1.0]
+    early = antecedent_features(similarities, first.argument_spans[0], stretches, item.ir.n_inputs,
+                                recency=True, forward=0.25)
+    assert [row[-2] for row in early[item.ir.n_inputs:]] == [0.0, 0.0, 0.75, 0.75]
+    assert [row[-1] for row in early[item.ir.n_inputs:]] == [0.0, 0.0, 0.25, 0.25]
 
 
 def test_a_recency_readout_fitted_on_short_chains_reads_long_ones_back_one_step() -> None:
     """Chains of three to five steps, where the first clause to match and the step before differ."""
     training = [_chain("train", steps, seed) for seed, steps in enumerate((3, 4, 5) * 4)]
     readout = fit_argument_antecedent(training, objective="conditional", recency=True)
-    assert readout.weight[-2] < 0
-    assert readout.to_dict()["schema"].endswith(".v3")
+    # Every mention here points back: the direction is the rule of succession.
+    assert readout.direction is not None and not any(readout.direction.weight)
+    assert readout.weight[-3] < 0
+    assert readout.to_dict()["schema"].endswith(".v4")
     assert argument_antecedent_from_dict(readout.to_dict()) == readout
     long = _chain("train", 7, 99)
     scorer = readout.scorer(long.hidden_states, CHANNELS, (WIDTH, WIDTH), long.ir.input_spans,
@@ -329,3 +337,78 @@ def test_a_readout_without_recency_keeps_its_schema() -> None:
     plain = fit_argument_antecedent(TRAINING, objective="conditional")
     assert plain.to_dict()["schema"].endswith(".v2") and not plain.recency
     assert argument_antecedent_from_dict(plain.to_dict()) == plain
+
+
+def _word_vectors(words: list[str], seed: int) -> np.ndarray:
+    """Each word its own fixed direction whatever else the request says; the middle layer adds noise."""
+    import zlib
+
+    embedding = np.stack([np.random.default_rng(zlib.crc32(word.encode())).normal(size=WIDTH) for word in words])
+    noise = np.random.default_rng(seed).normal(scale=0.2, size=embedding.shape)
+    return np.concatenate([embedding, embedding + noise], axis=1)
+
+
+def _forward(split: str, seed: int):
+    """'v0 = 1 ; v1 = 2 ; v2 = 3 ; mul later by v2 . later is add v0 and v1 .': "later" names the next step."""
+    words = "v0 = 1 ; v1 = 2 ; v2 = 3 ; mul later by v2 . later is add v0 and v1 .".split()
+    inputs = (TokenSpan(2, 3), TokenSpan(6, 7), TokenSpan(10, 11))
+    mul, add = words.index("mul"), words.index("add")
+    instructions = (
+        SimpleNamespace(operation_span=TokenSpan(add, add + 1), args=(0, 1),
+                        argument_spans=(TokenSpan(add + 1, add + 2), TokenSpan(add + 3, add + 4))),
+        SimpleNamespace(operation_span=TokenSpan(mul, mul + 1), args=(3, 2),
+                        argument_spans=(TokenSpan(mul + 1, mul + 2), TokenSpan(mul + 3, mul + 4))),
+    )
+    ir = SimpleNamespace(input_spans=inputs, instructions=instructions, n_inputs=3,
+                         source_text_sha256=f"{split}-forward-{seed}")
+    return SimpleNamespace(split=split, ir=ir, hidden_states=_word_vectors(words, seed),
+                           hidden_channels=CHANNELS, hidden_channel_widths=(WIDTH, WIDTH))
+
+
+def test_the_direction_readout_reads_which_way_a_mention_points() -> None:
+    from core.learning.semantic_argument_antecedent import _Similarities, fit_mention_direction
+
+    def chain(seed: int):
+        item = _chain("train", 3, seed)
+        words = [w for w in " ".join(["v0 = 1 ; v1 = 2 ; v2 = 3 ; v3 = 4 ;",
+                 "first add v0 and v1 . then sub it with v2 . then mul it with v3 ."]).split()]
+        return SimpleNamespace(**{**vars(item), "hidden_states": _word_vectors(words, seed)})
+
+    training = [chain(seed) for seed in range(12)] + [_forward("train", seed) for seed in range(12)]
+    direction = fit_mention_direction(training)
+    ahead, behind = _forward("train", 50), chain(50)
+    later = ahead.ir.instructions[1].argument_spans[0]
+    it = behind.ir.instructions[2].argument_spans[0]
+    p_later = direction.forward(_Similarities(ahead.hidden_states, CHANNELS, (WIDTH, WIDTH)).mention_vector(later))
+    p_it = direction.forward(_Similarities(behind.hidden_states, CHANNELS, (WIDTH, WIDTH)).mention_vector(it))
+    assert p_later > 0.5 > p_it
+    with pytest.raises(ValueError, match="training rows only"):
+        fit_mention_direction([_forward("validation", 1)])
+
+
+def test_a_v3_readout_still_reads_its_two_ungated_features() -> None:
+    """Candidate v13 was saved with the ungated pair; its schema keeps that meaning."""
+    from core.learning.semantic_argument_antecedent import (
+        UNGATED_RECENCY_FEATURES,
+        _item_stretches,
+        _Similarities,
+        antecedent_features,
+    )
+
+    weights = tuple(float(i) for i in range(len(FEATURES) + len(UNGATED_RECENCY_FEATURES)))
+    v3 = ArgumentAntecedent(weights, 0.0, {}, recency=True)
+    assert v3.to_dict()["schema"].endswith(".v3") and v3.features[-2:] == UNGATED_RECENCY_FEATURES
+    assert argument_antecedent_from_dict(v3.to_dict()).identity_sha256 == v3.identity_sha256
+    item = _chain("train", 4, 0)
+    rows = antecedent_features(_Similarities(item.hidden_states, CHANNELS, (WIDTH, WIDTH)),
+                               item.ir.instructions[-1].argument_spans[0], _item_stretches(item, ()),
+                               item.ir.n_inputs, recency=True)
+    assert [row[-2] for row in rows[item.ir.n_inputs:]] == [3.0, 2.0, 1.0, 0.0]
+
+
+def test_each_construction_family_weighs_the_same_in_total() -> None:
+    from core.learning.semantic_argument_antecedent import family_weights
+
+    weights = family_weights(["chain"] * 6 + ["cataphoric"] * 2)
+    assert sum(weights[:6]) == pytest.approx(sum(weights[6:]))
+    assert sum(weights) == pytest.approx(8.0)
