@@ -491,3 +491,31 @@ def test_phrase_examples_teach_spans_and_phrases_but_not_what_a_verb_names() -> 
     assert joined.fit_receipt["phrase_sources"] == sorted(item.ir.source_text_sha256 for item in settling)
     with pytest.raises(ValueError, match="only join a fit with phrase reading"):
         fit_peak_operation_recognizer(naming, construction_groups=groups, phrase_examples=settling)
+
+
+def test_renaming_when_surer_keeps_a_confident_first_reading() -> None:
+    from core.learning.semantic_program_transducer_fitting import _OperationNode
+
+    names = ("add", "sub")
+    reading = _head(names, [[0, 0, 4], [0, 0, -4]])
+    base = _recognizer(lexical_labeler=_head(names, [[0, 0, 0], [0, 0, 0]]), label_weights=(1.0, 0.0),
+                       close_labeler=reading, phrase_labeler=reading, chart_weights=(1.0, 0.0, 1.0, 1.0),
+                       sentence_ends=frozenset({99}), punctuation=frozenset({99}))
+    tokens = [10, 11, 12, 13, 99]
+    kwargs = dict(input_spans=(), hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS, token_ids=tokens)
+
+    def renamed(recognizer, verb, particle):
+        hidden = _hidden([BACKGROUND, verb, BACKGROUND, particle, BACKGROUND], [BACKGROUND] * 5)
+        first = next(node for node in recognizer.operation_candidates(hidden=hidden, max_span_tokens=1, **kwargs)
+                     if node.span == TokenSpan(1, 2))
+        node = _OperationNode(first.span, first.operation, first.score, first.pointer_score, first.confidence)
+        return recognizer.relabel_chart((node,), hidden=hidden, **kwargs)[0].operation
+
+    surer = replace(base, chart_revision="when_surer")
+    # A weak first reading is overturned by a surer phrase, either way.
+    assert renamed(base, (0.0, 1.0, 0.2), (0.0, 0.6, -3.0)) == "sub"
+    assert renamed(surer, (0.0, 1.0, 0.2), (0.0, 0.6, -3.0)) == "sub"
+    # A confident first reading: "always" lets the phrase overturn it, "when_surer" does not.
+    assert renamed(base, (0.0, 1.0, 1.0), (0.0, 0.6, -3.0)) == "sub"
+    assert renamed(surer, (0.0, 1.0, 1.0), (0.0, 0.6, -3.0)) == "add"
+    assert peak_operation_recognizer_from_dict(surer.to_dict()).chart_revision == "when_surer"

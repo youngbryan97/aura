@@ -323,6 +323,15 @@ class PeakOperationRecognizer:
     #: context and 35 of 37 sequence validation requests v14 had right were lost
     #: (candidate v15, 7 October).
     chart_weights: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
+    #: Whether renaming may only replace a candidate's name with a surer one:
+    #: "always" takes the renamed reading; "when_surer" takes it only if its
+    #: best name is more probable than the candidate reading's best. A phrase
+    #: closed at the chart's next operation can carry that operation's lead-in:
+    #: "after removing the subsequently computed number only after computing
+    #: the subsequently computed number with reading one indexed entry" renamed
+    #: a confident subtraction to an addition (candidate v17, two validation
+    #: requests G03 had right, 7 October).
+    chart_revision: str = "always"
     #: Sentence-ending and punctuation tokens, bound from the tokenizer.
     sentence_ends: frozenset[int] = frozenset()
     punctuation: frozenset[int] = frozenset()
@@ -340,6 +349,7 @@ class PeakOperationRecognizer:
             or not 1 <= self.label_limit <= len(self.labeler.labels)
             or self.lexical_at not in LEXICAL_AT
             or (self.lexical_at == "word" and not self.word_continuations)
+            or self.chart_revision not in ("always", "when_surer")
             or (self.close_labeler is None) != (self.phrase_labeler is None)
             or (self.close_labeler is not None and (
                 self.close_labeler.labels != self.labeler.labels
@@ -513,6 +523,11 @@ class PeakOperationRecognizer:
             )
             best = int(np.argmax(probabilities))
             confidence = float(probabilities[best])
+            if self.chart_revision == "when_surer":
+                first = self._labels(hidden, hidden_channels, hidden_channel_widths, span, peak, token_ids)
+                if float(np.max(first)) >= confidence:
+                    renamed.append(node)
+                    continue
             renamed.append(type(node)(
                 span=span, operation=self.labeler.labels[best],
                 score=node.pointer_score + math.log(max(confidence, 1e-12)),
@@ -554,6 +569,7 @@ class PeakOperationRecognizer:
                     "close_labeler": _head_dict(self.close_labeler),
                     "phrase_labeler": _head_dict(self.phrase_labeler),
                     "chart_weights": [float(weight) for weight in self.chart_weights],
+                    **({"chart_revision": self.chart_revision} if self.chart_revision != "always" else {}),
                     "sentence_ends": _bitmap(self.sentence_ends),
                     "punctuation": _bitmap(self.punctuation),
                 }
@@ -599,6 +615,7 @@ def peak_operation_recognizer_from_dict(value: Mapping[str, Any]) -> PeakOperati
         close_labeler=_head_from_dict(value["close_labeler"]) if "close_labeler" in value else None,
         phrase_labeler=_head_from_dict(value["phrase_labeler"]) if "phrase_labeler" in value else None,
         chart_weights=tuple(float(weight) for weight in value.get("chart_weights", (0.0, 0.0, 0.0, 0.0))),
+        chart_revision=str(value.get("chart_revision", "always")),
         sentence_ends=_from_bitmap(value["sentence_ends"]) if "sentence_ends" in value else frozenset(),
         punctuation=_from_bitmap(value["punctuation"]) if "punctuation" in value else frozenset(),
     )
@@ -714,6 +731,7 @@ def fit_peak_operation_recognizer(
     punctuation_token_ids: Sequence[int] = (),
     chart_weighting: str = "fitted",
     phrase_examples: Sequence[Any] = (),
+    chart_revision: str = "always",
 ) -> PeakOperationRecognizer:
     """Fit every readout on training rows; any other split is refused.
 
@@ -838,8 +856,8 @@ def fit_peak_operation_recognizer(
         **({"label_weights": list(label_weights)} if lexical_labeler is not None else {}),
         **({"lexical_at": lexical_at} if lexical_labeler is not None and lexical_at != "span" else {}),
         **({"words_name_only": True} if lexical_labeler is not None and words_name_only else {}),
-        **({"chart_weights": list(chart_weights), "chart_weighting": chart_weighting}
-           if close_labeler is not None else {}),
+        **({"chart_weights": list(chart_weights), "chart_weighting": chart_weighting,
+            "chart_revision": chart_revision} if close_labeler is not None else {}),
     }
     return PeakOperationRecognizer(
         tagger=tagger,
@@ -860,6 +878,7 @@ def fit_peak_operation_recognizer(
         chart_weights=chart_weights,
         sentence_ends=ends if close_labeler is not None else frozenset(),
         punctuation=punctuation if close_labeler is not None else frozenset(),
+        chart_revision=chart_revision,
     )
 
 

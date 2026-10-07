@@ -354,6 +354,12 @@ def main() -> int:
         help="how a renamed chart weighs its four readouts: by held-out likelihood, or one vote each",
     )
     parser.add_argument(
+        "--chart-revision",
+        choices=("always", "when_surer"),
+        default="always",
+        help="whether a renamed chart takes every renamed reading, or only one surer than the candidate's",
+    )
+    parser.add_argument(
         "--arguments-within-sentence",
         action="store_true",
         help="no argument option starts before its operation's sentence (needs --antecedent-stretches sentence)",
@@ -442,7 +448,8 @@ def main() -> int:
 
         tokenizer = Tokenizer.from_file(str(args.tokenizer.expanduser()))
         phrase = {"phrase_reading": True, "sentence_end_token_ids": sentence_end_token_ids(tokenizer),
-                  "punctuation_token_ids": punctuation_token_ids(tokenizer), "chart_weighting": args.chart_weighting}
+                  "punctuation_token_ids": punctuation_token_ids(tokenizer), "chart_weighting": args.chart_weighting,
+                  "chart_revision": args.chart_revision}
         print(f"punctuation tokens: {len(phrase['punctuation_token_ids'])}", flush=True)
     # Breadth teaches where operations are and where phrases settle; with phrase
     # reading it stays out of the candidate labelers (fit_peak_operation_recognizer).
