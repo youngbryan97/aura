@@ -2537,8 +2537,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   isolate and repair a float32 boundary-rejection defect. All 2,504 retained
   inequalities pass after one update, but validation falls from 52/60 to
   51/60. The candidate is not promoted; component attribution continues.
-- [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
+- [x] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  Closed 2026-10-07: [second run](evidence/G04_TRANSFER_V2_RESULT_2026-10-07.md),
+  plan `d35f8110bb12` published before its requests existed. Candidate v17
+  against the incumbent on 62 fresh requests per stratum, every program chosen
+  with execution unavailable: vocabulary 33 against 21 (p 0.0145, alpha
+  0.0167), depth 54 against 8 (p 1.4e-14), family 62 against 47 (p 3.1e-5),
+  construction 62 of 62. Lesions: without phrase readouts vocabulary falls to
+  6, without recency depth to 19 (both reject). Independently verified:
+  1,240 of 1,240 re-decoded verdicts agree. Not complete transfer: vocabulary
+  33 of 62, depth 54 of 62; v17 reads two G03 validation requests fewer than
+  v12, which keeps G03's closure.
   2026-10-06: [preregistered](evidence/G04_TRANSFER_PREREGISTRATION_2026-10-06.md)
   for G03's frozen v12 against its incumbent, plan `4989717df596`: four
   strata of 62 fresh requests (vocabulary, construction, depth six and
