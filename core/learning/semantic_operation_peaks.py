@@ -34,14 +34,21 @@ reading, which cost 22 tasks when this recognizer was first tried under it.
 A causal model's state at a verb cannot hold what the rest of its phrase says.
 "take 7 away from 46" reads as addition at "take", "share 31 evenly among 5"
 as addition at "share"; the operation is only settled at "away from" or
-"evenly among". With phrase reading, two more readouts name a span where its
-phrase has closed: the middle layer at the phrase's last word, and the mean
-over the phrase. The phrase runs from the span to the end of its sentence or
-to the next peak the tagger scores at least as high, whichever comes first,
-less literals and punctuation. Held out a wording at a time over 24 training
-wordings (6 October), the reading at the verb named 65.8% of unseen wordings
-and the three pooled 86.5%, while held-out constructions stayed at 0.995 and
-validation at 0.993.
+"evenly among". With phrase reading, two more readouts name an operation where
+its phrase has closed: the middle layer at the phrase's last word, and the
+mean over the phrase. Where a phrase closes depends on where the next
+operation begins, which is the chart's decision, so phrase reading renames a
+chart's operations after the chart is chosen (relabel_chart): each phrase runs
+to the next operation of that chart in its sentence, or to the sentence's
+end, less literals and punctuation; training reads at the close its gold
+operations give. Candidates are still named from the verb and its word. Held
+out a wording at a time over 24 training wordings (6 October), the reading at
+the verb named 65.8% of unseen wordings and the three pooled, closed this
+way, 86.5%; held-out constructions stayed at 0.995 and validation at 0.993.
+A close guessed per candidate (the next tagger peak at least as strong) ran
+an outer operation's phrase through a weaker inner one: on held-out nested
+nominals ("the quotient of 84 divided by the quotient of 47 divided by 3")
+it read 44 of 64 where the verb alone read 56.
 
 Every parameter is fitted on training rows only. Validation and test rows are
 refused by the fitter.
@@ -209,30 +216,21 @@ def _sentence_starts(token_ids: Sequence[int], ends: frozenset[int], blocked: np
 
 
 def _phrase_close(
-    scores: np.ndarray,
     span: TokenSpan,
-    peak: int,
+    others: Sequence[TokenSpan],
     starts: Sequence[int],
     blocked: np.ndarray,
     token_ids: Sequence[int],
     punctuation: frozenset[int],
 ) -> int:
-    """The last token of the phrase ``span`` opens.
+    """The last token of the phrase ``span`` opens, given the other operations ``others``.
 
-    The phrase runs to the end of its sentence or to the next local maximum
-    of the tagger at least as high as the span's own peak, whichever comes
-    first; another operation's reading that strong starts another phrase.
-    Literals and punctuation do not close it.
+    The phrase runs to the next of ``others`` in its sentence or to the
+    sentence's end, whichever comes first. Literals and punctuation do not
+    close it.
     """
-    stop = min([start for start in starts if start > span.start] + [len(scores)])
-    last = len(scores) - 1
-    for token in range(span.end, stop):
-        if blocked[token]:
-            continue
-        local = scores[token] >= scores[token - 1] and (token == last or scores[token] >= scores[token + 1])
-        if local and scores[token] >= scores[peak]:
-            stop = token
-            break
+    stop = min([start for start in starts if start > span.start] + [len(token_ids)])
+    stop = min([other.start for other in others if span.end <= other.start < stop] + [stop])
     close = stop - 1
     while close > span.end - 1 and (blocked[close] or int(token_ids[close]) in punctuation):
         close -= 1
@@ -385,9 +383,7 @@ class PeakOperationRecognizer:
                 words = _lexical_feature(hidden, channels, widths, span)
             lexical = _probabilities(self.lexical_labeler, words[None])[0]
             logits = logits + self.label_weights[1] * np.log(np.clip(lexical, 1e-12, 1.0))
-        if self.close_labeler is not None:
-            if close is None:
-                raise ValueError("phrase reading needs the phrase's close")
+        if self.close_labeler is not None and close is not None:
             closing = _probabilities(self.close_labeler, _labeler_feature(hidden, channels, widths, close + 1)[None])[0]
             phrase = _probabilities(self.phrase_labeler, _phrase_feature(hidden, channels, widths, span.start, close)[None])[0]
             logits = (logits + self.phrase_weights[0] * np.log(np.clip(closing, 1e-12, 1.0))
@@ -418,12 +414,6 @@ class PeakOperationRecognizer:
         for span in input_spans:
             blocked[span.start : span.end] = True
         scores = np.where(blocked, 0.0, scores)
-        starts = (
-            _sentence_starts(token_ids, self.sentence_ends, blocked)
-            if self.close_labeler is not None and token_ids is not None else None
-        )
-        if self.close_labeler is not None and token_ids is None:
-            raise ValueError("phrase reading needs the request's token ids")
         last = len(scores) - 1
         peaks = [
             t
@@ -462,12 +452,8 @@ class PeakOperationRecognizer:
                 ):
                     continue
                 seen.add(span)
-                close = (
-                    _phrase_close(scores, span, peak, starts, blocked, token_ids, self.punctuation)
-                    if starts is not None else None
-                )
                 probabilities = self._labels(
-                    hidden, hidden_channels, hidden_channel_widths, span, peak, token_ids, close
+                    hidden, hidden_channels, hidden_channel_widths, span, peak, token_ids
                 )
                 evidence = math.log(max(float(scores[peak]), 1e-12))
                 for index in np.argsort(-probabilities, kind="stable")[: self.label_limit]:
@@ -482,6 +468,49 @@ class PeakOperationRecognizer:
                         )
                     )
         return tuple(nodes)
+
+    def relabel_chart(
+        self,
+        nodes: Sequence[Any],
+        *,
+        hidden: np.ndarray,
+        input_spans: Sequence[TokenSpan],
+        hidden_channels: Sequence[str],
+        hidden_channel_widths: Sequence[int],
+        token_ids: Sequence[int],
+    ) -> tuple[Any, ...]:
+        """A chosen chart's operations named again, each where its phrase closes in that chart.
+
+        Without phrase readouts the chart is returned as it is. A node keeps its
+        span and pointer evidence; its name is the pooled reading's best and its
+        score the evidence plus that name's log-confidence, as candidates are scored.
+        """
+        if self.close_labeler is None:
+            return tuple(nodes)
+        hidden = np.asarray(hidden)
+        blocked = np.zeros(hidden.shape[0], dtype=bool)
+        for literal in input_spans:
+            blocked[literal.start : literal.end] = True
+        scores = np.where(blocked, 0.0, self.operation_probabilities(hidden, hidden_channels, hidden_channel_widths))
+        starts = _sentence_starts(token_ids, self.sentence_ends, blocked)
+        spans = [node.span for node in nodes]
+        renamed = []
+        for node in nodes:
+            span = node.span
+            peak = span.start + int(np.argmax(scores[span.start : span.end]))
+            close = _phrase_close(span, [other for other in spans if other != span], starts, blocked,
+                                  token_ids, self.punctuation)
+            probabilities = self._labels(
+                hidden, hidden_channels, hidden_channel_widths, span, peak, token_ids, close
+            )
+            best = int(np.argmax(probabilities))
+            confidence = float(probabilities[best])
+            renamed.append(type(node)(
+                span=span, operation=self.labeler.labels[best],
+                score=node.pointer_score + math.log(max(confidence, 1e-12)),
+                pointer_score=node.pointer_score, confidence=confidence,
+            ))
+        return tuple(renamed)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -802,7 +831,12 @@ def _training_phrases(
     ends: frozenset[int],
     punctuation: frozenset[int],
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Each training operation's close and phrase rows, its close found as the decoder finds it."""
+    """Each training operation's close and phrase rows, its close given by its request's gold operations.
+
+    The decoder closes a phrase at the next operation of the chart it chose;
+    a training request's chart is its gold one.
+    """
+    del tagger, first_tagger
     close_rows, phrase_rows = [], []
     for item, span in label_spans:
         hidden = np.asarray(item.hidden_states)
@@ -810,12 +844,9 @@ def _training_phrases(
         blocked = np.zeros(hidden.shape[0], dtype=bool)
         for literal in item.ir.input_spans:
             blocked[literal.start : literal.end] = True
-        scores = np.where(blocked, 0.0, _operation_probabilities(tagger, first_tagger, hidden, channels, widths))
-        peak = span.start + int(np.argmax(scores[span.start : span.end]))
         tokens = item.ir.source_token_ids
-        close = _phrase_close(
-            scores, span, peak, _sentence_starts(tokens, ends, blocked), blocked, tokens, punctuation
-        )
+        others = [ins.operation_span for ins in item.ir.instructions if ins.operation_span != span]
+        close = _phrase_close(span, others, _sentence_starts(tokens, ends, blocked), blocked, tokens, punctuation)
         close_rows.append(_labeler_feature(hidden, channels, widths, close + 1))
         phrase_rows.append(_phrase_feature(hidden, channels, widths, span.start, close))
     return np.stack(close_rows), np.stack(phrase_rows)

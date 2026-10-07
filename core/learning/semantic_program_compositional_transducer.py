@@ -1019,6 +1019,22 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
             preserve_arity_states=self.training_receipt.get("operation_chart_feasibility") == "arity_state_bounds_v3",
             preserve_type_states=typed_search,
         ))
+        if operation_recognizer is not None and getattr(operation_recognizer, "close_labeler", None) is not None:
+            # Phrase reading names each operation where its phrase closes, and
+            # that depends on the chart (semantic_operation_peaks.relabel_chart).
+            if not isinstance(charts, (tuple, list)):
+                raise ValueError("phrase reading needs the charts as a sequence")
+            renamed, seen = [], set()
+            for chart in charts:
+                named = operation_recognizer.relabel_chart(
+                    chart, hidden=hidden, input_spans=input_spans, hidden_channels=self.hidden_channels,
+                    hidden_channel_widths=self.hidden_channel_widths, token_ids=tokens)
+                chosen = named if feasible(named) else tuple(chart)
+                key = tuple((node.span, node.operation) for node in chosen)
+                if key not in seen:
+                    seen.add(key)
+                    renamed.append(chosen)
+            charts = tuple(renamed)
         if not charts:
             raise ValueError("operation_chart_empty")
         return input_spans, input_scores, argument_pointer_scores, charts

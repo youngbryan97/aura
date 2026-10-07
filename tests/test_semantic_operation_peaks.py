@@ -390,22 +390,22 @@ def test_the_words_name_the_operation_and_leave_whether_to_the_context() -> None
     assert replay.words_name_only and replay.identity_sha256 != plain.identity_sha256
 
 
-def test_a_phrase_closes_at_its_sentence_or_a_stronger_reading_past_literals_and_punctuation() -> None:
+def test_a_phrase_closes_at_the_next_operation_or_its_sentence_past_literals_and_punctuation() -> None:
     from core.learning.semantic_operation_peaks import _phrase_close
 
-    # "take 7 away from 46 . then add" as token scores; 7 and 46 are literals.
-    scores = np.array([0.0, 0.8, 0.0, 0.4, 0.3, 0.0, 0.0, 0.1, 0.9])
+    # "take 7 away from 46 . then add" as tokens; 7 and 46 are literals, 99 a full stop.
     blocked = np.array([False, False, True, False, False, True, False, False, False])
     tokens = [0, 1, 2, 3, 4, 5, 99, 6, 7]
-    starts = [0, 7]
-    # The sentence ends at 99 ("."): the phrase closes on "from", past 46 and the full stop.
-    assert _phrase_close(scores, TokenSpan(1, 2), 1, starts, blocked, tokens, frozenset({99})) == 4
-    # Within one sentence, a reading at least as strong starts another phrase.
-    assert _phrase_close(scores, TokenSpan(1, 2), 1, [0], blocked, tokens, frozenset({99})) == 7
+    # Alone in its sentence: the phrase closes on "from", past 46 and the full stop.
+    assert _phrase_close(TokenSpan(1, 2), [TokenSpan(8, 9)], [0, 7], blocked, tokens, frozenset({99})) == 4
+    # Another operation of the chart in the same sentence closes it before that operation.
+    assert _phrase_close(TokenSpan(1, 2), [TokenSpan(4, 5)], [0, 7], blocked, tokens, frozenset({99})) == 3
 
 
-def test_a_verb_is_named_by_how_its_phrase_settles() -> None:
+def test_a_chart_renames_each_operation_by_how_its_phrase_settles() -> None:
     """"take 7 away from 46" reads as add at "take" and as sub once "away from" has been read."""
+    from core.learning.semantic_program_transducer_fitting import _OperationNode
+
     names = ("add", "sub")
     reading = _head(names, [[0, 0, 4], [0, 0, -4]])
     settled = _recognizer(
@@ -421,23 +421,24 @@ def test_a_verb_is_named_by_how_its_phrase_settles() -> None:
     hidden = _hidden([BACKGROUND, verb, BACKGROUND, particle, BACKGROUND],
                      [BACKGROUND, BACKGROUND, BACKGROUND, BACKGROUND, BACKGROUND])
     tokens = [10, 11, 12, 13, 99]
-
-    def first_names(recognizer: PeakOperationRecognizer) -> dict:
-        found = {}
-        for node in recognizer.operation_candidates(
-            hidden=hidden, input_spans=(), max_span_tokens=1, hidden_channels=CHANNELS,
-            hidden_channel_widths=WIDTHS, token_ids=tokens,
-        ):
-            found.setdefault(node.span, node.operation)
-        return found
-
-    assert first_names(replace(settled, close_labeler=None, phrase_labeler=None,
-                               phrase_weights=(0.0, 0.0)))[TokenSpan(1, 2)] == "add"
-    assert first_names(settled)[TokenSpan(1, 2)] == "sub"
+    candidates = settled.operation_candidates(hidden=hidden, input_spans=(), max_span_tokens=1,
+                                              hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS,
+                                              token_ids=tokens)
+    first = next(node for node in candidates if node.span == TokenSpan(1, 2))
+    assert first.operation == "add"  # candidates are named from the verb
+    node = _OperationNode(first.span, first.operation, first.score, first.pointer_score, first.confidence)
+    kwargs = dict(hidden=hidden, input_spans=(), hidden_channels=CHANNELS, hidden_channel_widths=WIDTHS,
+                  token_ids=tokens)
+    (alone,) = settled.relabel_chart((node,), **kwargs)
+    assert alone.operation == "sub" and alone.pointer_score == node.pointer_score
+    # With another operation of the chart at the particle, the phrase stops before it.
+    other = _OperationNode(TokenSpan(3, 4), "sub", 0.0, 0.0, 1.0)
+    renamed = settled.relabel_chart((node, other), **kwargs)
+    assert renamed[0].operation == "add"
+    without = replace(settled, close_labeler=None, phrase_labeler=None, phrase_weights=(0.0, 0.0))
+    assert without.relabel_chart((node,), **kwargs) == (node,)
     restored = peak_operation_recognizer_from_dict(settled.to_dict())
     assert restored.identity_sha256 == settled.identity_sha256 and restored.phrase_weights == (1.0, 1.0)
-    with pytest.raises(ValueError, match="token ids"):
-        _nodes(settled, hidden)
 
 
 def test_phrase_readouts_are_fitted_where_the_decoder_reads_them() -> None:
