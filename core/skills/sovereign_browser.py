@@ -32,7 +32,7 @@ from core.skills.sovereign_browser_picking import pursued
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
 
-from .sovereign_browser_drawing import chose_the_drawing, played_on_the_drawing, played_first
+from .sovereign_browser_drawing import chose_the_drawing, played_first, played_on_the_drawing
 from .sovereign_browser_narration import _NarratesTheBrowsing
 from .sovereign_browser_understanding import (
     _BROWSER_DECISION_ERRORS,
