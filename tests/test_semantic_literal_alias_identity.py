@@ -139,3 +139,35 @@ def test_ordinary_decode_and_offline_score_share_the_token_contract(parent):
     result = _observe(parent.with_literal_grammar_identities(), item)
     assert result["accepted"] and result["source_grounding_aligned"]
     assert result["annotated_graph_feasible"]
+
+
+def test_a_literal_longer_than_any_mention_training_showed_is_still_an_argument(parent):
+    """The fitted span bound limits mentions; a literal's extent is its grammar's.
+
+    A 64-entry list written out runs past any mention in training. Below the
+    bound's reach it was never offered, and G05's long-list requests read
+    21 of 24 (2026-10-06).
+    """
+    from core.learning import semantic_program_transducer_fitting as fitting
+    from core.learning.semantic_program_campaign import _sha
+
+    item = next(item for item in _examples() if item.split == "train")
+    # This fixture writes every literal in one token; take the first as written
+    # in two, past a bound of one.
+    first = item.ir.input_spans[0]
+    assert first.start > 0
+    input_spans = (TokenSpan(first.start - 1, first.end), *item.ir.input_spans[1:])
+    bounds = dict.fromkeys(parent.max_argument_span_tokens_by_type, 1)
+    body = {key: value for key, value in parent.training_receipt.items() if key != "receipt_sha256"}
+    body["argument_span_bounds"] = bounds
+    narrow = replace(parent, max_argument_span_tokens_by_type=bounds,
+                     training_receipt={**body, "receipt_sha256": _sha(body)})
+    captured = []
+    fitting._assign_typed_arguments(model=narrow, hidden=item.hidden_states, inputs=item.public_inputs,
+        input_spans=input_spans, source_token_ids=item.ir.source_token_ids,
+        operation_nodes=tuple(fitting._OperationNode(ins.operation_span, ins.op, 0., 0., 1.) for ins in item.ir.instructions),
+        argument_pointer_scores=narrow.argument_pointer.score_sequence(item.hidden_states),
+        chart_observer=captured.append, build_only=True)
+    offered = {span for node in captured[0].options for slot in node for _, _, span in slot}
+    assert input_spans[0] in offered
+    assert all(span.end - span.start <= 1 or span in input_spans for span in offered)

@@ -1754,7 +1754,11 @@ def _assign_typed_arguments(
             factor_lookup = {} if retain_score_factors else None
             evidence_lookup = {} if retain_relation_evidence else None
             for span, pointer_score in proposals_by_operation[node_index]:
-                if span.end - span.start > model.max_argument_span_tokens_by_type[required_type]:
+                # The fitted bound is the longest mention training showed. A
+                # literal's extent is its grammar's: a 64-entry list written
+                # out is one argument however many tokens it takes.
+                if (span.end - span.start > model.max_argument_span_tokens_by_type[required_type]
+                        and span not in literal_bindings):
                     continue
                 if antecedents and (antecedents.names_own_result(span, len(inputs) + node_index)
                                     or antecedents.is_declaration_of(span, used_by_name)):
