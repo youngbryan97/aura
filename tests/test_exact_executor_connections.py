@@ -165,6 +165,21 @@ def test_control_reacquisition_has_a_measured_claim_and_time_to_run():
     assert _nothing_answers(run, WhichIsHers(), meeting, 60)
 
 
+def test_touching_things_that_gain_and_lose_nothing_keeps_a_stretch_going_only_a_while():
+    """LIVE 2026-10-06, a title screen whose figure moves: five minutes of clicking it, START! never pressed."""
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _nothing_answers, _Run
+    from core.agency.which_one_answers_to_her import WhichIsHers
+
+    run = _Run(keys=["up", "down", "left", "right", "space"], began=0)
+    touched = SimpleNamespace(verdicts=[], evidence={3: SimpleNamespace(touched=4)})
+    assert not _nothing_answers(run, WhichIsHers(), touched, 40)
+    assert _nothing_answers(run, WhichIsHers(), touched, 70) == "nothing I touch here gains or loses anything"
+    scoring = SimpleNamespace(verdicts=[{"what": "gain"}], evidence={3: SimpleNamespace(touched=4)})
+    assert not _nothing_answers(run, WhichIsHers(), scoring, 300)  # where touching scores, it is the game
+
+
 @pytest.mark.asyncio
 async def test_boolean_integer_alias_is_not_a_passing_function_result():
     from core.self_modification.checking_python import FunctionExample, check_python, examples_in

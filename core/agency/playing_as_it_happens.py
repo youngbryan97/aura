@@ -531,19 +531,46 @@ class _Choosing:
 # -- the loop -----------------------------------------------------------------
 
 
-async def the_world_moves_on_its_own(look: Callable[[], Awaitable[Any]], *, seconds: float = 0.8) -> bool:
-    """Whether things move in the picture while she does nothing."""
+async def the_world_moves_on_its_own(look: Callable[[], Awaitable[Any]], *, seconds: float = 0.8, longest: float = 3.0) -> bool:
+    """Whether things go somewhere in the picture while she does nothing.
+
+    Moving in place is not going anywhere. LIVE 2026-10-06 a checkers game's
+    figures swayed beside a board that waited for her move, and she played it
+    with the arrow keys for five minutes as if it were an action game. A thing
+    goes somewhere when it travels further than half its own size, mostly one
+    way, or faster than two of its sizes a second; where things move and none
+    has gone anywhere yet, she watches a while longer before saying the world
+    waits for her. Measured on the pictures' own clock.
+    """
     moves = WhatMoves()
-    began = time.monotonic()
-    while time.monotonic() - began < seconds + 0.6:
+    began: float | None = None
+    while True:
         seen = await look()
         if seen is None:
             return False
         picture, at = seen
+        began = at if began is None else began
         moves.see(picture, at)
-        if moves.moving(faster_than=8.0) and moves.pictures > 4:
+        if moves.pictures <= 4:
+            continue
+        moving = moves.moving(faster_than=8.0)
+        if any(_goes_somewhere(thing) for thing in moving):
             return True
-    return False
+        if at - began >= (longest if moving else seconds) + 0.6:
+            return False
+
+
+def _goes_somewhere(thing: Any) -> bool:
+    """Whether a moving thing travels rather than moving in place, by its path and its speed against its own size."""
+    size = max(float(thing.w), float(thing.h), 1.0)
+    if math.hypot(thing.vx, thing.vy) > 2.0 * size:
+        return True
+    points = [(x, y) for _at, x, y in thing.path]
+    if len(points) < 3:
+        return False
+    xs, ys = [x for x, _y in points], [y for _x, y in points]
+    extent = math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+    return extent > 0.5 * size and math.dist(points[0], points[-1]) > 0.5 * extent
 
 
 def _say(run: _Run, say: Callable[[str], Any] | None, line: str, at: float, *, once: str = "") -> None:
@@ -746,14 +773,24 @@ def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float
 NOTHING_ANSWERS_S = 10.0
 
 
+#: How long things she touches may go on gaining and losing nothing before the picture is handed back.
+TOUCHING_TO_NO_END_S = 20.0
+
+
 def _nothing_answers(run: _Run, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> str:
     # Allow two complete experiments and their intervening wait before
     # declaring that no control answers. The run's own deadline still bounds it.
     experiment_time = 8 * len(run.keys) * TRY_A_KEY_S + RECHECK_CONTROLS_S if run.keys else 0.0
     if at - run.began < NOTHING_ANSWERS_S + experiment_time or hers.kind is not None or meeting.verdicts:
         return ""
+    # Things she touched keep it going for a while, and only a while, where
+    # touching them has gained and lost nothing: LIVE 2026-10-06 a game's
+    # title screen, its picture moving, its START! drawn as words: she clicked
+    # the moving figure for the whole five minutes and never left it for START.
     if any(kept.touched for kept in meeting.evidence.values()):
-        return ""
+        if at - run.began < NOTHING_ANSWERS_S + experiment_time + TOUCHING_TO_NO_END_S:
+            return ""
+        return "nothing I touch here gains or loses anything"
     return "nothing here answers to me while it moves"
 
 
