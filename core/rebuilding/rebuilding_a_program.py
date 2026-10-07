@@ -145,6 +145,9 @@ async def rebuild(
             await _say(tell, f"Reading about {program}: {named[0]}." if named else f"I found nothing written about {program}, so I work from what I know of it.")
         # Her model's reading is one witness to what the program is; what is written, the person's words and what follows
         # from what it does are the others, and code weighs them (core/rebuilding/what_it_is_discerned_to_be.py).
+        if sources:
+            await _say(tell, "My model is reading the same articles too, as one more witness: I weigh what it says against what I read, "
+                             "what you asked for, and what follows from what the program does. Its reading takes a few minutes.")
         try:
             heard = await genome_of(program, sources, ask, asked=asked)
         except HerModelIsAwayError as why:
