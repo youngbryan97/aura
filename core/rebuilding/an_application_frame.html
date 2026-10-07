@@ -178,7 +178,16 @@ const app = (() => {
         // A menu's icon column is one glyph wide: a word used as a toolbar icon ("PDF") is not one, and pushed its label out of line.
         [make("span", { class: "icon", text: c.icon && [...c.icon].length <= 2 ? c.icon : "" }), make("span", { text: c.label }), make("span", { class: "keys", text: c.keys ? shownKeys(c.keys) : "" })]);
       keepSelection(item);
-      $(".app-menu-items", menu(c.menu)).append(item);
+      const list = $(".app-menu-items", menu(c.menu));
+      list.append(item);
+      // A File menu is read in the order every program keeps: new, open, close, save, save as, export, page setup, print.
+      // Parts register in the order they were built in; Open came above New.
+      if (String(c.menu).toLowerCase() === "file") {
+        const order = [/^new\b/i, /^open\b/i, /^close\b/i, /^save$/i, /^save\b/i, /^export\b/i, /^page setup\b/i, /^print preview\b/i, /^print\b/i];
+        const rank = (b) => { const label = b.getAttribute("aria-label") || ""; const at = order.findIndex((r) => r.test(label)); return at < 0 ? order.length : at; };
+        const items = [...list.children].filter((b) => b.getAttribute("role") === "menuitem");
+        items.map((b, i) => [b, rank(b), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).forEach(([b]) => list.append(b));
+      }
     }
     if (c.toolbar) {
       // An icon is a glyph, or the path of a 16-unit line drawing (svg), drawn in the ink colour.

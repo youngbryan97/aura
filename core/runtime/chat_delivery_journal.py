@@ -774,10 +774,11 @@ class ChatDeliveryJournal:
             return row
         ambiguous_payload, ambiguous_hash = _canonical_response(
             {
+                # Said to a person, so said as one: what happened, and why it is not done again unasked.
                 "response": (
-                    "The prior chat owner disappeared after execution began. "
-                    "Its external effects cannot be proven absent, so automatic "
-                    "re-execution is fenced."
+                    "I was restarted while I was working on that, so I cannot be sure how far "
+                    "it got or what it had already done. I have not started it again on my own; "
+                    "ask me again if you want it done."
                 ),
                 "status": "delivery_ambiguous",
                 "response_confidence": "failed",
