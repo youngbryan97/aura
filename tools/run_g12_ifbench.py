@@ -42,7 +42,11 @@ def main() -> int:
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--batch", type=int, default=1,
+                        help="prompts decoded together (tools/g12_batched.py); 1 decodes one at a time")
     args = parser.parse_args()
+    if args.batch < 1:
+        raise SystemExit("--batch is at least 1")
 
     raw = args.prompts.expanduser().read_bytes()
     if hashlib.sha256(raw).hexdigest() != IFBENCH_SHA256:
@@ -71,18 +75,27 @@ def main() -> int:
                                    purpose="evaluation", preemptible=False, require_exclusive=True,
                                    allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
             model, tokenizer = load(str(model_path))
-            for done, prompt in enumerate(pending, 1):
-                decoded = decode_public(model, tokenizer, [{"role": "user", "content": prompt["prompt"]}],
-                                        max_tokens=args.max_tokens)
-                row = {"key": prompt["key"], "prompt": prompt["prompt"],
-                       "response": decoded["public_text"] if decoded["termination"] == "stop" else "",
-                       **decoded}
-                path = row_path(prompt)
-                temporary = path.with_suffix(".tmp")
-                temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
-                temporary.replace(path)
-                print(json.dumps({"done": done, "of": len(pending), "tokens": decoded["generated_tokens"],
-                                  "termination": decoded["termination"]}), flush=True)
+            from tools.g12_batched import decode_batch
+
+            done = 0
+            for start in range(0, len(pending), args.batch):
+                group = pending[start : start + args.batch]
+                conversations = [[{"role": "user", "content": prompt["prompt"]}] for prompt in group]
+                if args.batch == 1:
+                    results = [decode_public(model, tokenizer, conversations[0], max_tokens=args.max_tokens)]
+                else:
+                    results = decode_batch(model, tokenizer, conversations, max_tokens=args.max_tokens)
+                for prompt, decoded in zip(group, results, strict=True):
+                    row = {"key": prompt["key"], "prompt": prompt["prompt"],
+                           "response": decoded["public_text"] if decoded["termination"] == "stop" else "",
+                           **decoded}
+                    path = row_path(prompt)
+                    temporary = path.with_suffix(".tmp")
+                    temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
+                    temporary.replace(path)
+                    done += 1
+                    print(json.dumps({"done": done, "of": len(pending), "tokens": decoded["generated_tokens"],
+                                      "termination": decoded["termination"]}), flush=True)
     rows = [json.loads(row_path(prompt).read_text(encoding="utf-8")) for prompt in prompts]
     with (output / "responses.jsonl").open("w", encoding="utf-8") as handle:
         for row in rows:

@@ -99,7 +99,11 @@ def main() -> int:
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--limit", type=int, default=0, help="the first N problems only")
+    parser.add_argument("--batch", type=int, default=1,
+                        help="problems decoded together (tools/g12_batched.py); 1 decodes one at a time")
     args = parser.parse_args()
+    if args.batch < 1:
+        raise SystemExit("--batch is at least 1")
 
     raw = args.problems.expanduser().read_bytes()
     if hashlib.sha256(raw).hexdigest() != MATH500_SHA256:
@@ -128,22 +132,31 @@ def main() -> int:
                                purpose="evaluation", preemptible=False, require_exclusive=True,
                                allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
         model, tokenizer = load(str(model_path))
-        for done, problem in enumerate(pending, 1):
-            path = rows_dir / f"{hashlib.sha256(problem['unique_id'].encode()).hexdigest()[:24]}.json"
-            conversation = [{"role": "user", "content": f"{problem['problem']}\n\n{INSTRUCTION}"}]
-            decoded = decode_public(model, tokenizer, conversation, max_tokens=args.max_tokens)
-            given = last_boxed(decoded["public_text"])
-            correct, grading_note = grade(grade_answer, given, problem["answer"], seconds=30)
-            row = {
-                "unique_id": problem["unique_id"], "subject": problem["subject"], "level": problem["level"],
-                "answer": problem["answer"], "given": given, "correct": correct and
-                decoded["termination"] == "stop", "grading_note": grading_note, **decoded,
-            }
-            temporary = path.with_suffix(".tmp")
-            temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
-            temporary.replace(path)
-            print(json.dumps({"done": done, "of": len(pending), "correct": row["correct"],
-                              "tokens": decoded["generated_tokens"]}), flush=True)
+        from tools.g12_batched import decode_batch
+
+        done = 0
+        for start in range(0, len(pending), args.batch):
+            group = pending[start : start + args.batch]
+            conversations = [[{"role": "user", "content": f"{p['problem']}\n\n{INSTRUCTION}"}] for p in group]
+            if args.batch == 1:
+                results = [decode_public(model, tokenizer, conversations[0], max_tokens=args.max_tokens)]
+            else:
+                results = decode_batch(model, tokenizer, conversations, max_tokens=args.max_tokens)
+            for problem, decoded in zip(group, results, strict=True):
+                path = rows_dir / f"{hashlib.sha256(problem['unique_id'].encode()).hexdigest()[:24]}.json"
+                given = last_boxed(decoded["public_text"])
+                correct, grading_note = grade(grade_answer, given, problem["answer"], seconds=30)
+                row = {
+                    "unique_id": problem["unique_id"], "subject": problem["subject"], "level": problem["level"],
+                    "answer": problem["answer"], "given": given, "correct": correct and
+                    decoded["termination"] == "stop", "grading_note": grading_note, **decoded,
+                }
+                temporary = path.with_suffix(".tmp")
+                temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
+                temporary.replace(path)
+                done += 1
+                print(json.dumps({"done": done, "of": len(pending), "correct": row["correct"],
+                                  "tokens": decoded["generated_tokens"]}), flush=True)
     return 0
 
 
