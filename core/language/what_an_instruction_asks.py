@@ -43,6 +43,11 @@ ACT_FAMILIES: Final[dict[str, frozenset[tuple[str, ...]]]] = {
     "click": frozenset({("click", "on"), ("click",), ("tap",), ("press", "on")}),
     "move": frozenset({("move",), ("steer",), ("walk",), ("drive",), ("fly",), ("guide",), ("control",)}),
     "jump": frozenset({("jump",), ("hop",), ("leap",)}),
+    # Going over all of a place: painting it, mowing it, filling it in, exploring it. The ground is the point.
+    "cover": frozenset({
+        ("cover",), ("paint",), ("coat",), ("fill", "in"), ("colour", "in"), ("color", "in"), ("mow",), ("clean", "up"),
+        ("explore",), ("visit", "every"), ("visit", "all"), ("spray",), ("sweep",),
+    }),
 }
 
 #: Words that name a control, and the control they name.
@@ -181,7 +186,9 @@ def what_the_words_ask(text: str) -> list[Instruction]:
                 family = "get"
             # "Space to fire", "click to throw": the control is what does it.
             does_it = control if (index >= 1 and words[index - 1] == "to") or not thing else _the_control(words[max(0, index - 6) : (ends or len(words))])
-            if not thing and not does_it:
+            # Going over a place names the place before the act as often as after it ("give the whole
+            # campground a coat of paint"), or not at all: it stands with no thing named.
+            if not thing and not does_it and family != "cover":
                 continue
             last = Instruction(family, thing, forbidden, does_it, clause)
             asked.append(last)

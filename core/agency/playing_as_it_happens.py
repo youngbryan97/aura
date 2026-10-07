@@ -136,6 +136,9 @@ class _Run:
     observation_sources: Counter[str] = field(default_factory=Counter)
     input_key_downs: Counter[str] = field(default_factory=Counter)
     responsive_pictures: int = 0
+    #: Where the rules ask for a place to be gone over: the cells her thing has been over, and their size (set once).
+    covered: set = field(default_factory=set)
+    cell: float = 0.0
     control_probe_retries: int = 0
     control_attribution: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=128))
     attribution_changes: int = 0
@@ -331,8 +334,10 @@ class _Choosing:
 
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
                  physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
-                 response_s: float = 0.0) -> None:
+                 response_s: float = 0.0, covered: tuple[set[tuple[int, int]], float] | None = None) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
+        #: Where the rules ask for a place to be gone over, the cells of it her thing has been over; else None.
+        self.covered = covered
         self.physics = physics
         self.next_picture_s = next_picture_s
         self.response_s = response_s
@@ -462,7 +467,39 @@ class _Choosing:
         aimed = self._aim_a_shot(None)
         if aimed is not None:
             return aimed
+        ground = self._ground_not_yet_covered()
+        if ground is not None:
+            return ground, "cover", None
         return (None, None), "wait", None
+
+    def _ground_not_yet_covered(self) -> tuple[float, float] | None:
+        """Where the rules ask for a place to be gone over, the middle of the nearest part of it her thing has not been over.
+
+        Waiting is right for a paddle and wrong where the ground is the point:
+        LIVE 2026-10-07 a painter told to give "the entire campground a fresh
+        coat of paint" stood waiting for something to go to, and its paint ran
+        out where it stood. Measured in cells of her own thing's size, over
+        the picture; ties go to the way she is already going, so she sweeps.
+        """
+        mine = self.mine
+        if self.covered is None or mine is None:
+            return None
+        covered, cell = self.covered
+        tall, wide = self.moves.shape
+        columns, rows = max(1, int(wide // cell)), max(1, int(tall // cell))
+        heading = (self.hers.last_velocity[0], self.hers.last_velocity[1])
+        best = None
+        for row in range(rows):
+            for column in range(columns):
+                if (column, row) in covered:
+                    continue
+                x, y = (column + 0.5) * cell, (row + 0.5) * cell
+                far = math.hypot(x - mine.x, y - mine.y)
+                ahead = (x - mine.x) * heading[0] + (y - mine.y) * heading[1]
+                rank = far - (0.25 * cell if ahead > 0 else 0.0)
+                if best is None or rank < best[0]:
+                    best = (rank, x, y)
+        return (best[1], best[2]) if best is not None else None
 
     def danger(self, way: tuple[float, float]) -> float:
         mine = self.mine
@@ -874,7 +911,9 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")
     elif mine is not None and hers.kind is not None and keys and settled:
         how = " and ".join(keys)
-        _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. {how.capitalize()} move it.", at, once="me")
+        verb = "moves" if len(keys) == 1 else "move"
+        _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. {how.capitalize()} {verb} it.",
+             at, once="me")
     for key in hers.makes:
         _say(run, say, f"{key.capitalize()} fires.", at, once=f"fires {key}")
     for kind in list(meeting.evidence):
@@ -966,10 +1005,15 @@ async def play_as_it_happens(
             _measure_response(run, hers.thing(moves), at)
             physics.saw(moves, hers, happened, at)
             _what_the_rules_said_of(rules, moves, meeting, run, say, at)
+            if rules is not None and rules.covers and hers.thing(moves) is not None:
+                mine = hers.thing(moves)
+                run.cell = run.cell or max(4.0, mine.w, mine.h)
+                run.covered.add((int(mine.x // run.cell), int(mine.y // run.cell)))
             choosing = _Choosing(moves, hers, meeting, run.keys, physics,
                                  next_picture_s=statistics.median(run.intervals) if run.intervals else 1 / 30,
                                  response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
-                                             else statistics.median(run.responses) if run.responses else 0.0))
+                                             else statistics.median(run.responses) if run.responses else 0.0),
+                                 covered=(run.covered, run.cell) if rules is not None and rules.covers and run.cell else None)
             if choosing.mine is not None and (choosing.ways or choosing.pointing):
                 run.responsive_pictures += 1
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)

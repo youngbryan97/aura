@@ -92,6 +92,11 @@ class WhatTheRulesSaid:
         return self.keys_for("hit")
 
     @property
+    def covers(self) -> bool:
+        """Whether the words ask for a place to be gone over, all of it: painted, mown, filled in, explored."""
+        return any(i.act == "cover" and not i.forbidden for i in self.instructions)
+
+    @property
     def a_click_is_a_shot(self) -> bool:
         return any(i.control == "mouse" and i.act in ("hit", "click") and not i.forbidden for i in self.instructions)
 
