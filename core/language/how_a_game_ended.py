@@ -147,19 +147,29 @@ _FOR_POINTS: Final = re.compile(
     r"get the most|score as (?:many|much|high)|before (?:the )?time runs out|in (?:one|two|three|\d+) minutes?)\b"
 )
 _TO_WIN: Final = re.compile(r"\b(first to|wins?\b|beat (?:the|him|her|them|your opponent)|defeat|win the|to win)\b")
+#: Words that set a player to make something, not to win: a maker, a dress-up, a paint box.
+_FOR_MAKING: Final = re.compile(
+    r"\b((?:create|make|design|build|draw|paint|invent) your own|dress (?:up|him|her|them)|decorate|customi[sz]e|"
+    r"mix and match|(?:choose|pick|select|selecting|choosing|picking) your (?:own |favou?rite )|your own (?:character|creation))"
+)
 
 
 def what_it_asks_of_a_player(words: str) -> str:
-    """What a game's own words set a player to do: "win" it, run up a "score", or "" where they do not say.
+    """What a game's own words set a player to do: "win" it, run up a "score", "make" something, or "" where they do not say.
 
     A game that counts points against a clock has no winner to be: Toonami:
     Tunnel Rush says "you have two minutes to collect as many points as
     possible". Asked to win one, the honest end is a finished run and its
     score, not a run of losses until a clock that never declares a winner.
+    And a thing for making has none either: LIVE 2026-10-07 "Create your own
+    KND by selecting your favorite body parts ... click on the GENERATE
+    button" was played four minutes and reported "not won".
     """
     text = _plain(words)
     if _TO_WIN.search(text):
         return "win"
     if _FOR_POINTS.search(text):
         return "score"
+    if _FOR_MAKING.search(text):
+        return "make"
     return ""

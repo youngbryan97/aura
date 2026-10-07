@@ -129,6 +129,31 @@ def keys_a_screen_asks_for(words: str) -> tuple[str, ...]:
     return tuple(asked)
 
 
+#: How a screen's words ask for a click: "click on the GENERATE button", "press PLAY to start", "select Easy".
+_ASKING_TO_CLICK = re.compile(r"\b(?:click|press|hit|tap|select|choose)\s+(?:on\s+)?(?:the\s+)?([a-z0-9]+)")
+
+
+def clicks_a_screen_asks_for(words: str, clickable: Sequence[str]) -> tuple[str, ...]:
+    """The labels on a screen that its own words ask to be clicked, in the order they are on it.
+
+    A person reads "click on the GENERATE button to see your character" and
+    clicks GENERATE. A label cut off at the edge of the picture, or read a
+    letter or two short, is the word it begins ("GENE" for GENERATE): four
+    letters at least, so "on" or "go" is never taken for another word.
+    """
+    said = " ".join(re.findall(r"[a-z0-9]+", str(words or "").lower()))
+    named = {found.group(1) for found in _ASKING_TO_CLICK.finditer(said)}
+    asked = []
+    for move in clickable:
+        first = re.findall(r"[a-z0-9]+", (what_is_clicked(move) or "").lower())[:1]
+        if not first or len(first[0]) < 3:
+            continue
+        word = first[0]
+        if any(word == name or (min(len(word), len(name)) >= 4 and (name.startswith(word) or word.startswith(name))) for name in named):
+            asked.append(move)
+    return tuple(asked)
+
+
 def worth_trying(told: Sequence[str] = ()) -> tuple[str, ...]:
     """Everything she could try here, hers first and the rest after.
 
@@ -157,6 +182,8 @@ class WhatWorksHere:
     #: Keys the screen in front of her asks for, in its own words ("Press
     #: SPACE to play"). Pressing one is doing what it says, not finding out.
     asked_for: tuple[str, ...] = ()
+    #: Labels on it that its words ask to be clicked ("click on the GENERATE button").
+    clicks_asked_for: tuple[str, ...] = ()
     #: What the look before this one could click, to hold the next look to.
     seen_before: tuple[str, ...] = ()
     #: What she has done since the screen last answered anything, all of it to
@@ -165,9 +192,10 @@ class WhatWorksHere:
     #: The screens of this place and where each act on them led, across sittings.
     leads: WhereThingsLead = field(default_factory=WhereThingsLead)
 
-    def asked_for_by(self, words: str) -> None:
-        """Keys the screen's own words ask her to press, while it is asking."""
+    def asked_for_by(self, words: str, clickable: Sequence[str] = ()) -> None:
+        """Keys the screen's own words ask her to press, and labels on it they ask her to click, while it is asking."""
         self.asked_for = keys_a_screen_asks_for(words)
+        self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
 
     def looked_at(self, clickable: Sequence[str], says: str = "") -> None:
         """What she can click now: the writing that was there at the last look too.
@@ -252,6 +280,7 @@ class WhatWorksHere:
         # 20:23, offline on a Pong whose title said "Press SPACE to play", she
         # made 199 moves with the arrow keys and never pressed space.
         asked = tuple(key for key in self.asked_for if key not in self.told)
+        asked += tuple(click for click in self.clicks_asked_for if click in self.on_screen and click not in dead)
         told = tuple(key for key in self.told if key not in dead)
         # A label that goes on (Play, Next, Easy) is offered whatever the keys
         # are doing: on a menu that moves on its own, keys look as if they work
@@ -262,7 +291,7 @@ class WhatWorksHere:
         goes_on = tuple(click for click in self.on_screen if click not in dead
                         and (_goes_on(click) or self.keys_do_nothing_here() and _not_read_only(click)))
         if asked:
-            return asked + told + goes_on
+            return tuple(dict.fromkeys(asked + told + goes_on))
         # Only what she was told can be shown wrong about what she was told.
         # A key nobody named that never did anything says nothing about the
         # ones they did: a remembered dead "down" took the caller's Tab and

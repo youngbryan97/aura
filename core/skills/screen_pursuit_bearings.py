@@ -1420,7 +1420,8 @@ def _said_unless_playing(line: str) -> None:
     Said over a game, it was a model's arithmetic read aloud in front of a
     watcher: LIVE 2026-10-07 "I know what kind of thing this is now: a small
     discrete world, 4 act(s), deterministic transition, no measurable
-    objective." over a food fight.
+    objective." over a food fight; and "this attempt is over" over a game she
+    went straight on playing.
     """
     from .screen_pursuit import _tell
     from .screen_pursuit_on_a_page import on_her_page

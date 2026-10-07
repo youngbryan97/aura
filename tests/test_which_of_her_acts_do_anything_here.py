@@ -145,3 +145,29 @@ def test_where_her_keys_do_nothing_what_is_there_to_be_read_is_not_clicked():
     offered = here.available()
     assert 'click "Strike Em Out"' in offered
     assert 'click "score"' not in offered and 'click "Meter:"' not in offered
+
+
+def test_a_button_the_screen_asks_to_be_clicked_is_offered_first():
+    # LIVE 2026-10-07 "Then click on the GENERATE button to see your character in action!", its button cut off at
+    # the edge of the picture and read "GENE"; she pressed the arrows to see what they did.
+    from core.agency.what_i_can_do_here import clicks_a_screen_asks_for
+
+    says = "Create your own KND by selecting your favorite body parts. Then click on the GENERATE button!"
+    labels = ('click "RANDOMIZE"', 'click "GENE"')
+    assert clicks_a_screen_asks_for(says, labels) == ('click "GENE"',)
+    assert clicks_a_screen_asks_for("Click on the next one to go on", ('click "on"',)) == ()
+    here = WhatWorksHere(told=("up", "down"))
+    for _ in range(2):
+        here.looked_at(labels, says)
+    here.asked_for_by(says, labels)
+    assert here.available()[0] == 'click "GENE"'
+
+
+def test_a_measure_and_a_gauges_caption_are_read_and_a_buttons_exclamation_is_its_tone():
+    # LIVE 2026-10-07 she clicked "= 0 ft." and "LAUNCH METER" off a game's screen to see what they did.
+    from core.language.a_way_on import how_much_it_leads_on
+
+    for read in ("= O ft.", "120 m", "3 sec", "LAUNCH METER", "Glide Meter", "Lives:"):
+        assert how_much_it_leads_on(read) < 0.7, read
+    for way_on in ("Play Now!", "Start!", "Next"):
+        assert how_much_it_leads_on(way_on) > 1.0, way_on

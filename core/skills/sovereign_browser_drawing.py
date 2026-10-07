@@ -194,7 +194,7 @@ def played_first(observation: Mapping[str, Any], goal: str, *, take: bool = True
     # LIVE 2026-10-07 after "I've given this one its share of the time" her model read the page again and played on.
     ended = _PLAY_OVER.pop(_address(url), "") if take else _PLAY_OVER.get(_address(url), "")
     if ended:
-        why = "Played, and won." if ended == "won" else f"Played, and not won: {ended}."
+        why = "Played, and won." if ended == "won" else f"Played; {ended}." if ended == NOTHING_TO_WIN else f"Played, and not won; {ended}."
         return {"done": True, "actions": [], "why": why}
     if what_the_task_needs(goal) != "run" or not seen_running(url):
         return None
@@ -244,6 +244,9 @@ async def played_on_the_drawing(
         await page.evaluate(_HOLD_IT_STILL)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="start the drawing and hold its page still")
+    context, closing = getattr(page, "context", None), _Closing(page)
+    if context is not None:
+        context.on("page", closing.opened)
     try:
         played = await _played(page, band, goal, url, {**step, "runtime_contract": observation.get("runtime_contract") or {}})
         # Play that ended for a reason she said, or won, ends what she was doing on this page too.
@@ -251,10 +254,39 @@ async def played_on_the_drawing(
             _PLAY_OVER[_address(url)] = "won" if played.get("won") else str(played["stopped_because"])
         return played
     finally:
+        if context is not None:
+            context.remove_listener("page", closing.opened)
         try:
             await page.evaluate(_LET_IT_GO)
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             pass  # a page gone is a page that no longer needs letting go
+
+
+class _Closing:
+    """Tabs the game opens on its own while she plays it, closed, and her game brought back in front.
+
+    A link out or an advert in a game opens a tab of its own over the game:
+    LIVE 2026-10-07 a blank tab stood in front of the game she was playing,
+    and whoever was watching saw nothing. A person closes it and goes back.
+    """
+
+    def __init__(self, page: Any) -> None:
+        self.page, self.said = page, False
+
+    def opened(self, tab: Any) -> None:
+        import asyncio
+
+        asyncio.ensure_future(self._close(tab))
+
+    async def _close(self, tab: Any) -> None:
+        try:
+            await tab.close()
+            await self.page.bring_to_front()
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+            return  # a tab already gone, or a page that is: nothing in front of the game to close
+        if not self.said:
+            self.said = True
+            _tell("The game opened another tab of its own; I closed it and went back to the game.")
 
 
 async def _played(page: Any, band: tuple[float, float, float, float], goal: str, url: str,
@@ -263,7 +295,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     import time
 
     from core.language.how_a_game_ended import asks_to_win, requested_attempts
-    from core.skills.screen_pursuit_as_it_happens import begin_run
+    from core.skills.screen_pursuit_as_it_happens import MADE_NOT_WON, begin_run
 
     until_won = asks_to_win(goal)
     attempts = requested_attempts(goal)
@@ -294,6 +326,13 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             for stretch in reflexes.stretches if stretch.get("pictures")
         ]
         runs.append(run)
+        if reflexes.over_because == MADE_NOT_WON:
+            # Asked to win a thing that has no winning, the honest end is to say so, in its own words.
+            _tell(f"There's nothing to win in this one; it's for making things: {_what_it_is_for(reflexes.words)!r}. "
+                  "I tried it out, and I leave it here.")
+            run["ended"] = "finished"
+            result["stopped_because"] = NOTHING_TO_WIN
+            break
         violations = [v for s in reflexes.stretches for v in (s.get("runtime_checks") or {}).get("violations", [])]
         if violations:
             result["runtime_violations"] = violations
@@ -455,6 +494,23 @@ def not_getting_better(runs: list[dict[str, Any]]) -> bool:
         if gains > best_gains or (gains == best_gains and took > LONGER * best_took):
             return False
     return True
+
+
+#: Why play to win stopped at a thing that has no winning.
+NOTHING_TO_WIN = "there is nothing to win in it, as it is for making things"
+
+
+def _what_it_is_for(words: list[str]) -> str:
+    """The sentence of a thing's own words that sets a player to make something."""
+    import re
+
+    from core.language.how_a_game_ended import what_it_asks_of_a_player
+
+    for screen in words:
+        for sentence in re.split(r"(?<=[.!?])\s+", screen):
+            if what_it_asks_of_a_player(sentence) == "make":
+                return sentence.strip()[:160]
+    return ""
 
 
 def _for_points_only(reflexes: Any, goal: str) -> bool:

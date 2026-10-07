@@ -50,6 +50,12 @@ LEAVE_A_MOVING_MENU_S = 20.0
 #: The longest one stretch of play runs before the pursuit gets a look.
 STRETCH_S = 300.0
 
+#: How long she tries out a thing whose own words set her to make something, not to win: it has no end of its own.
+TRYING_OUT_S = 90.0
+
+#: Why a run of a thing for making is over.
+MADE_NOT_WON = "it is for making things, and I have tried it out"
+
 
 @dataclass
 class PlayingAsItHappens:
@@ -72,6 +78,8 @@ class PlayingAsItHappens:
     ending_parts: list[str] = field(default_factory=list)
     #: Something went on going while she held a key: a world that waits for her and moves under her hand.
     under_her_hand: bool = False
+    #: Since when its words have been known to set her to make something, not to win.
+    for_making_since: float | None = None
     _clip: dict[str, float] | None = None
     _focused: bool = False
     _frames: Any = None
@@ -196,6 +204,14 @@ class PlayingAsItHappens:
     def run_is_over(self, observation: dict[str, Any]) -> bool:
         """Whether she has played, and the screen now offers a way to start again it did not offer at first."""
         if self.over_because:
+            return True
+        from core.language.how_a_game_ended import what_it_asks_of_a_player
+
+        # A thing for making has no end of its own: a person tries it out a while and is done with it.
+        if self.for_making_since is None and what_it_asks_of_a_player(" ".join(self.words)) == "make":
+            self.for_making_since = time.monotonic()
+        if self.for_making_since is not None and time.monotonic() - self.for_making_since >= TRYING_OUT_S:
+            self.over_because = MADE_NOT_WON
             return True
         if not any(stretch.get("pictures") for stretch in self.stretches):
             return False

@@ -118,7 +118,7 @@ def test_a_game_played_to_an_end_she_said_ends_what_she_was_doing_on_its_page():
     here = {"url": "https://games.example.net/food-bash/"}
     drawing._PLAY_OVER["https://games.example.net/food-bash"] = "its share of the time is up"
     looked = drawing.played_first(here, "Play this game and win it.", take=False)
-    assert looked == {"done": True, "actions": [], "why": "Played, and not won: its share of the time is up."}
+    assert looked == {"done": True, "actions": [], "why": "Played, and not won; its share of the time is up."}
     assert drawing.played_first(here, "Play this game and win it.")["done"] is True
     assert drawing.played_first(here, "Play this game and win it.") is None  # said once: a new visit is a new game
     drawing._PLAY_OVER["https://games.example.net/food-bash"] = "won"

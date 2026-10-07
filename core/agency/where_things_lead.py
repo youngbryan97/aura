@@ -127,6 +127,10 @@ class WhereThingsLead:
         on, back, nothing, moved = (counts.get(k, 0) for k in ("on", "back", "nothing", "moved"))
         if on > back:
             return 1.0 + 1.5 * on / (on + back + nothing + 1)
+        if back > on:
+            # What took her back the way she came is not the way on: LIVE 2026-10-07 a level select's corner
+            # icon took her to the title three times, and the level beside it was never clicked.
+            return 0.6 ** (back - on)
         if nothing >= 2 and not (on or moved):
             return 0.5
         return 1.0

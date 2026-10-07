@@ -239,3 +239,13 @@ def test_a_page_that_arrives_and_does_not_work_is_left_for_where_the_same_thing_
     assert skill.pursued == [(None, "Play Tunnel Rush and win it.")]  # pursued where it was found, not where it was sent
     assert any("does not work: its game file could not be had" in line for line in skill.said)
     assert any("I found it at games.example.net, and there its canvas draws, and moves." in line for line in skill.said)
+
+
+def test_each_picks_account_is_how_it_ended_not_done():
+    # LIVE 2026-10-07 three games each ended "Played, and not won", and the account of the three said each was "done".
+    from core.skills.sovereign_browser_picking import _how_it_ended
+
+    steps = [{"landed": 3}, {"why": "Played, and not won; I could not get further with it.", "done": True}]
+    assert _how_it_ended({"steps": steps}) == "played, and not won; I could not get further with it"
+    assert _how_it_ended({"concluded": "It was won.", "steps": steps}) == "it was won"
+    assert _how_it_ended({"steps": [{"landed": 1}]}) == ""

@@ -32,6 +32,12 @@ _GOES_ON = re.compile(
 #: Labels that are read, not pressed: numbers, scores, measures.
 _IS_READ = re.compile(r"^[\d\s.,:/%+-]+(?:pts?|points?)?$|^(?:score|time(?:\s+left)?|lives?|level|speed|health|energy|hi-?score)\b", re.IGNORECASE)
 
+#: A measure as a game draws it: a number and its unit ("= 0 ft.", "120 m", "3 sec"), its noughts read as letters
+#: as often as not; and the caption of a gauge ("Launch Meter", "Glide Meter").
+_A_MEASURE = re.compile(
+    r"^[=x×~]?\s*[\dOoDQ]+(?:[.,]\d+)?\s*(?:ft|feet|m|km|mi|miles?|mph|kph|sec|secs|s|min|pts?|%|x)\.?$|\b(?:meter|gauge)\b",
+    re.IGNORECASE)
+
 _A_WAY_ON = LearnedMatcher(
     name="a_way_on",
     positives=("Play", "Start Game", "Next", "Continue", "Click to play", "Skip", "OK", "Go!", "Easy", "Play Now", "Let's go", "Begin"),
@@ -62,14 +68,17 @@ def how_much_it_leads_on(label: str) -> float:
     """How much more worth trying first a click on ``label`` is than a key: above 1 a way on, below 1 a thing to read.
 
     A label that ends in a colon names the value beside it ("Meter:", "Lives:",
-    "Time left:"): it is read, whatever its word.
+    "Time left:"): it is read, whatever its word; and so is a measure with its
+    unit, and a gauge's caption: LIVE 2026-10-07 she clicked "= 0 ft." and
+    "LAUNCH METER" off a game's screen to see what they did.
     """
-    if str(label or "").rstrip().endswith(":"):
+    if str(label or "").rstrip().endswith(":") or _A_MEASURE.search(str(label or "").strip()):
         return 0.5
     plain = _plain(label)
     if not plain:
         return 1.0
-    if _GOES_ON.match(plain):
+    # "Play Now!" goes on as "Play Now" does: a button's exclamation mark is its tone, not its word.
+    if _GOES_ON.match(plain) or _GOES_ON.match(plain.rstrip("! ")):
         _A_WAY_ON.observe(plain, holds=True)
         return 1.6
     if " " not in plain and any(_one_letter_off(plain.lower(), word) for word in _ONE_WORD):

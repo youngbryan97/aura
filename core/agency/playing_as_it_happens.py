@@ -1269,8 +1269,12 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
             hers.recheck_controls()
             if run.pointer_first:
                 run.pointed = 0
-            _say(run, say, "I haven't confirmed what answers to these keys yet. Trying them again while watching what responds.",
-                 at, once="recheck_controls")
+            # Said only where she had found which one was hers and lost it: on a title screen there was nothing to lose,
+            # and LIVE 2026-10-07 the line was read out over one.
+            if "me" in run.said:
+                _say(run, say, "I've lost track of which one is me; trying the keys again to find out.", at, once="recheck_controls")
+            else:
+                logger.info("trying the keys again: nothing has answered to them yet")
         pointer_trial = run.pointed < 2 * len(_POINTER_TRIAL) and hasattr(hands, "point")
         if pointer_trial and run.pointer_first:
             await _try_the_pointer(hands, run, hers, moves, at)

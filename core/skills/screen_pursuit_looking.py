@@ -830,7 +830,7 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
         from core.agency.what_i_can_do_here import what_is_clicked
 
         labels = [what_is_clicked(move) or "" for move in clickable]
-        can_do.asked_for_by(" ".join([says or "", *labels]))
+        can_do.asked_for_by(" ".join([says or "", *labels]), clickable)
     if not says or not narrate or paced is None:
         return
     words = set(says.lower().split())

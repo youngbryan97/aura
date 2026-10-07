@@ -485,7 +485,7 @@ async def _execute_desktop_objective_from_chat(
         # did not complete: pursuit_interrupted:TargetClosedError."
         told = str(result.get("concluded") or "").strip()
         response = (
-            f"{told} The rest did not complete: {error}."
+            (told if "without a cause" in error else f"{told} The rest did not complete: {error}.")
             if told
             else f"This did not complete: {error}. {_what_she_got_through(completed, requested, since=turn_began_at)} "
             "I am not claiming it was done."
@@ -502,8 +502,13 @@ async def _execute_desktop_objective_from_chat(
         # failed and never told the answer it had found.
         partial = _desktop_deliverable_text(result)
         if partial:
+            # A failure with no cause carries nothing for the person: what she got through says what was not done.
+            # LIVE 2026-10-07 three games' outcomes were followed by "The rest did not complete: desktop task
+            # reported failure without a cause (status=failed) (0/1 steps)."
             response = (
-                f"{partial}\n\n"
+                f"{partial}\n\nThat much is verified, and I claim no more than it says."
+                if "without a cause" in error
+                else f"{partial}\n\n"
                 f"That much is verified. The rest did not complete: {error} "
                 f"({completed}/{requested} steps)."
             )

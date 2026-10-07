@@ -41,7 +41,8 @@ def test_the_next_sitting_goes_the_way_that_led_on():
     again.looked_at(_TITLE)
     assert again.leads.how_it_led(a_click_on("START")) > 1.0  # taken again after going back, still the way on
     again.looked_at(_LEVELS)
-    assert again.leads.how_it_led(a_click_on("Back")) == 1.0  # it led back, not on
+    assert again.leads.how_it_led(a_click_on("Back")) < 1.0  # it led back, not on: below what is untried here
+    assert again.leads.how_it_led(a_click_on("Back")) < again.leads.how_it_led(a_click_on("Road Rage"))
     assert again.leads.in_order([a_click_on("Back"), a_click_on("Road Rage"), a_click_on("Strike Em Out")])[0] == a_click_on("Strike Em Out")
 
 

@@ -70,6 +70,7 @@ from .screen_pursuit_bearings import (
     _left_her_better_off,
     _moves_she_will_not_make,
     _moves_that_leave_her_nothing,  # noqa: F401
+    _said_unless_playing,
     _say_what_kind_of_problem,
     _say_what_she_worked_out,
     _the_rest_of_the_run,
@@ -151,7 +152,10 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     held = getattr(can_do, "leads", None)
     leads = getattr(held, "how_it_led", lambda _act: 1.0)
     again = getattr(held, "taken_here_to_no_end", lambda _act: 0)
-    return {name: value * leads(name) * (how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0) / (1 + again(name))
+    # What the screen's own words ask to be clicked goes on as surely as a Play does: it is doing what it says.
+    asked = set(getattr(can_do, "clicks_asked_for", ()) or ())
+    return {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
+            / (1 + again(name))
             for name, value in (telling or {}).items()}
 
 
@@ -1074,7 +1078,7 @@ async def decide_the_next_move(
             if ended and not said_it_ended["value"]:
                 said_it_ended["value"] = True
                 if narrate:
-                    _tell(
+                    _said_unless_playing(
                         await _why_nothing_answers(
                             target_app or anchor["app"],
                             over=responds["state"].band(),
