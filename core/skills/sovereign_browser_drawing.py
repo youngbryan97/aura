@@ -258,11 +258,16 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     moves: list[Any] = []
     result: dict[str, Any] = {}
     while time.monotonic() < deadline and len(runs) < limit:
-        result, reflexes = await _one_run(page, band, goal, url, deadline, keep)
+        started = time.monotonic()
+        # Played to be won, a round is looked at every few minutes: still getting somewhere, it goes on.
+        round_ends = min(deadline, started + ROUND_S) if until_won else deadline
+        result, reflexes = await _one_run(page, band, goal, url, round_ends, keep)
         keep = reflexes.keep
         moves += list(result.get("moves") or [])
         moves += [{"key": "played as it happened"} for stretch in reflexes.stretches if stretch.get("pictures")]
         run = _how_the_run_went(reflexes, result)
+        run["took_s"] = time.monotonic() - started
+        run["gains"] = sum(int(stretch.get("gains") or 0) for stretch in reflexes.stretches)
         run["observations"] = [
             {key: stretch.get(key) for key in ("pictures", "pictures_a_second", "observations", "standing", "settled", "runtime_checks",
                                                "input_key_downs", "responsive_pictures", "control_probe_retries",
@@ -279,6 +284,19 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             # only in the reply afterwards was not seen by anyone watching.
             if run["ended"]:
                 _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
+            break
+        if until_won and not reflexes.over_because and time.monotonic() >= round_ends - 1.0 and time.monotonic() < deadline:
+            if run["gains"] > 0:
+                runs.pop()  # the same round, still getting somewhere: played on, not counted as another
+                continue
+            _tell(f"{round(ROUND_S / 60)} minutes in this round and nothing gained; I'll leave this one here.")
+            result["stopped_because"] = "getting nowhere in it"
+            break
+        if until_won and not_getting_better(runs):
+            # A person keeps at a game while they are getting better at it, and says so when they are not.
+            _tell(f"That's {len(runs)} rounds, and the last two went no better than my best; I'll leave this one here.")
+            run["ended"] = run["ended"] or "lost"
+            result["stopped_because"] = "not getting better at it"
             break
         if _for_points_only(reflexes, goal):
             # Nobody wins a game that only counts points: a finished run is the end of it.
@@ -366,6 +384,36 @@ def _how_the_run_went(reflexes: Any, result: Mapping[str, Any]) -> dict[str, str
     if not ended and played:
         ended = str(played[-1].get("settled") or "")
     return {"ended": ended, "words": " ".join(words.split()), "said": reflexes.what_it_came_to()}
+
+
+#: How long a round played to be won goes before she looks at whether it is getting anywhere, in seconds.
+ROUND_S = 240.0
+
+#: Rounds played before whether she is getting better is judged, and how much longer a round must last to be better.
+JUDGED_AFTER = 3
+LONGER = 1.15
+
+
+def not_getting_better(runs: list[dict[str, Any]]) -> bool:
+    """Whether the last two rounds went no better than the best before them: no more gained, and not lasting longer.
+
+    LIVE 2026-10-07 she played one game for twelve minutes and another for
+    thirteen, each round lost as fast as the last. Better is gaining more, or,
+    gaining the same, lasting longer by a sixth; a round won is better than
+    any. Judged from the third round on.
+    """
+    if len(runs) < JUDGED_AFTER:
+        return False
+    if any(r.get("ended") == "won" for r in runs[-2:]):
+        return False
+    before = runs[:-2]
+    best_gains = max(int(r.get("gains") or 0) for r in before)
+    best_took = max(float(r.get("took_s") or 0.0) for r in before if int(r.get("gains") or 0) == best_gains)
+    for r in runs[-2:]:
+        gains, took = int(r.get("gains") or 0), float(r.get("took_s") or 0.0)
+        if gains > best_gains or (gains == best_gains and took > LONGER * best_took):
+            return False
+    return True
 
 
 def _for_points_only(reflexes: Any, goal: str) -> bool:
