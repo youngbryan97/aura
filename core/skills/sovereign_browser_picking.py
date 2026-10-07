@@ -112,8 +112,8 @@ async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: 
         if verdict is None or verdict.ok is not False:
             return url
         there = url
-        skill._say_out_loud(f"“{name}” opens where the list points, but does not work there: {verdict.says()}. I look for it elsewhere.",
-                            {"label": "Not working", "said": verdict.says()})
+        line = f"“{name}” opens where the list points, but does not work there: {verdict.says()}. I look for it elsewhere."
+        skill._say_out_loud(line, {"label": "Not working", "said": line})
         tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task, not_at=there)]
     else:
         tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task)] if runs else []
@@ -127,8 +127,8 @@ async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: 
                 where = re.sub(r"^https?://(www\.)?", "", found).split("/")[0]
                 seen = getattr(getattr(found, "serves", None), "seen", "")
                 lead = f"“{name}” does not work where the list points" if there else f"“{name}” is not to be had where the list points"
-                skill._say_out_loud(f"{lead}; I found it at {where}" + (f", and there {seen}." if seen else ", where it runs in the page." if runs else "."),
-                                    {"label": "Going to", "said": found})
+                line = f"{lead}; I found it at {where}" + (f", and there {seen}." if seen else ", where it runs in the page." if runs else ".")
+                skill._say_out_loud(line, {"label": "Going to", "said": line})
             return found
     return ""
 
@@ -179,8 +179,9 @@ async def _where_it_serves(skill: Any, browser: Any, url: str, goal: str) -> str
         return url
     name = await page.evaluate(r"""() => { const h = document.querySelector('h1'); const t = (h && h.innerText.trim()) || document.title || '';
         return t.split(/\s+[|\u2013\u2014-]\s+/)[0].trim(); }""")
-    skill._say_out_loud(f"The page opens but does not work: {verdict.says()}. I look for “{name}” where it does." if name else
-                        f"The page opens but does not work: {verdict.says()}.", {"label": "Not working", "said": verdict.says()})
+    line = (f"The page opens but does not work: {verdict.says()}. I look for “{name}” where it does." if name else
+            f"The page opens but does not work: {verdict.says()}.")
+    skill._say_out_loud(line, {"label": "Not working", "said": line})
     found = await going.the_same_thing_elsewhere(skill, browser, name, task=goal, not_at=url) if name else ""
     if not found:
         skill._say_out_loud(f"I could not find “{name}” anywhere it works, so I go on with the page I was sent to." if name else
@@ -188,7 +189,8 @@ async def _where_it_serves(skill: Any, browser: Any, url: str, goal: str) -> str
         return url if await skill._safe_browse(browser, url) else None
     where = re.sub(r"^https?://(www\.)?", "", found).split("/")[0]
     seen = getattr(getattr(found, "serves", None), "seen", "")
-    skill._say_out_loud(f"I found it at {where}" + (f", and there {seen}." if seen else "."), {"label": "Going to", "said": found})
+    line = f"I found it at {where}" + (f", and there {seen}." if seen else ".")
+    skill._say_out_loud(line, {"label": "Going to", "said": line})
     return found
 
 
