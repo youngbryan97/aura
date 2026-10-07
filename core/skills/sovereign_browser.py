@@ -32,7 +32,7 @@ from core.skills.sovereign_browser_picking import pursued
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
 
-from .sovereign_browser_drawing import chose_the_drawing, played_on_the_drawing
+from .sovereign_browser_drawing import chose_the_drawing, played_on_the_drawing, the_way_is_the_drawing
 from .sovereign_browser_narration import _NarratesTheBrowsing
 from .sovereign_browser_understanding import (
     _BROWSER_DECISION_ERRORS,
@@ -386,7 +386,7 @@ async def _understand_the_page_again(
     writing. It reads 7 name(s) from the turn and hands back
     2.
     """
-    if understanding is None or surprised:
+    if (understanding is None or surprised) and the_way_is_the_drawing(observation, str(goal), take=False) is None:
         prior, url = understanding, str(observation.get("url") or "")
         understanding = await self._understand_page(
             goal, observation, prior, mind, self._recall_about(url, shape)
@@ -1733,7 +1733,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         goal, observation, steps, understanding, on_progress=still_going
                     )
                 if decision is None:
-                    decision = await self._decide_next_actions(
+                    decision = the_way_is_the_drawing(observation, goal) or await self._decide_next_actions(
                         goal, observation, steps, understanding, said_before=said_before,
                         noticed=noticed, settled=understanding != understood_before,
                     )

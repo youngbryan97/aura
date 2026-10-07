@@ -35,7 +35,7 @@ from typing import Any
 
 logger = logging.getLogger("Skills.WhetherAPageServes")
 
-__all__ = ["DevTools", "Serves", "watching", "whether_it_serves", "what_the_task_needs"]
+__all__ = ["DevTools", "Serves", "seen_running", "watching", "whether_it_serves", "what_the_task_needs"]
 
 #: What a task asks a page to do with the thing on it.
 _RUN = re.compile(r"\b(play|run|launch|start|watch|listen|hear|view)\w*\b", re.I)
@@ -148,6 +148,19 @@ def watching(page: Any) -> DevTools:
     return tools
 
 
+#: Pages seen to serve a task by running what they draw, by address: what was seen there.
+_SEEN_RUNNING: dict[str, str] = {}
+
+
+def _address(url: str) -> str:
+    return str(url or "").split("#", 1)[0].rstrip("/")
+
+
+def seen_running(url: str, *, take: bool = False) -> str:
+    """What was seen running at ``url`` when it was judged to serve a task, ''; taken once where ``take``."""
+    return _SEEN_RUNNING.pop(_address(url), "") if take else _SEEN_RUNNING.get(_address(url), "")
+
+
 @dataclass
 class Serves:
     """Whether a page serves the task: True seen doing it, False not (with why), None cannot yet be told."""
@@ -204,7 +217,11 @@ async def whether_it_serves(page: Any, task: str, *, look_for_s: float = 2.5) ->
             return Serves(False if tools.errors or content else None,
                           ["it draws nothing", *([f"the console says: {tools.errors[0][:160]}"] if tools.errors else [])])
         if drawn:
-            return Serves(True, seen=f"its {thing['tag']} {drawn}" + (" (its console has errors, none of them stopping it)" if tools.errors else ""))
+            seen_it = f"its {thing['tag']} {drawn}"
+            if len(_SEEN_RUNNING) > 64:
+                _SEEN_RUNNING.clear()
+            _SEEN_RUNNING[_address(getattr(page, "url", ""))] = seen_it
+            return Serves(True, seen=seen_it + (" (its console has errors, none of them stopping it)" if tools.errors else ""))
         return Serves(None, ["what it draws could not be seen"])
     words = seen["text"]
     if _FAILS.search(words) and seen["words"] < 400:

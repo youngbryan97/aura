@@ -171,6 +171,24 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
     return band
 
 
+def the_way_is_the_drawing(observation: Mapping[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
+    """The first move where the page in front was seen to run what the goal is to run: play what it draws, unasked.
+
+    A person who has just watched a game draw its start screen does not read the
+    page around it before playing. LIVE 2026-10-06 her model read each game's
+    page for sixty to ninety seconds and then chose to play what it draws. Once
+    a page, and only where it was seen running (core/skills/whether_a_page_serves.py).
+    """
+    from core.skills.whether_a_page_serves import seen_running, what_the_task_needs
+
+    url = str(observation.get("url") or "")
+    if what_the_task_needs(goal) != "run" or not seen_running(url):
+        return None
+    seen = seen_running(url, take=take)
+    said = f"What I came for is here and runs ({seen}); starting it."
+    return {"resolved_actions": [{"selector": DRAWING, "said": said}], "why": said, "done": False}
+
+
 def chose_the_drawing(moves: list[tuple[Any, Any]]) -> bool:
     """Whether any of this round's moves is the drawing."""
     return any(str(getattr(action, "selector", "") or "") == DRAWING for action, _said in moves)
