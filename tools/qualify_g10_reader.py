@@ -268,7 +268,10 @@ def main() -> int:
         hooks = engine.active_hooks()
         layers = len(model.model.layers) if hasattr(model, "model") else len(model.layers)
         widths = {vector["width"] for hook in hooks for vector in hook.fusion_basis()["vectors"]}
-        hidden_size = int(getattr(model.args, "hidden_size", 0) or 0)
+        # The checkpoint's own declaration; a multimodal config nests it under text_config.
+        declared = json.loads((model_path / "config.json").read_text(encoding="utf-8"))
+        declared = declared.get("text_config") or declared
+        hidden_size = int(declared["hidden_size"])
         bridge_hooks = list(getattr(bridge, "_readout_hooks", None) or [])
         from core.consciousness.fusion_certificate import steering_basis_sha256
 
@@ -286,7 +289,16 @@ def main() -> int:
                               "hooks": sorted(hook._layer_idx for hook in hooks), "basis_sha256": basis,
                               "descriptor_sha256": descriptor.get("descriptor_sha256"),
                               "latent_bridge_hooks": len(bridge_hooks)}
-        geometry = (all(0 <= hook._layer_idx < layers for hook in hooks) and widths == {hidden_size}
+        from core.brain.llm.hidden_sequence_contract import hidden_sequence_channels
+
+        channel_widths = {len(hidden_sequence_channels(request["representation"])) * hidden_size
+                          == request["hidden_size"] for request in requests}
+        result["geometry"] = {"declared_layers": int(declared["num_hidden_layers"]), "loaded_layers": layers,
+                              "declared_hidden_size": hidden_size, "steering_vector_widths": sorted(widths),
+                              "hook_layers_in_range": all(0 <= hook._layer_idx < layers for hook in hooks),
+                              "state_widths_are_channels_times_hidden_size": channel_widths == {True}}
+        geometry = (layers == int(declared["num_hidden_layers"]) and result["geometry"]["hook_layers_in_range"]
+                    and widths == {hidden_size} and channel_widths == {True}
                     and all(row["width_matches"] for row in rows))
 
         def settle(moods: dict[str, float]) -> None:
