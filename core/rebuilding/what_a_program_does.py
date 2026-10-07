@@ -97,6 +97,20 @@ async def what_is_written_about(program: str, *, corpus: Any = None, online: boo
     return found
 
 
+def what_was_read(sources: list[Source]) -> str:
+    """What was read, as a person says it: 'the articles “Microsoft Word” and “Word processor” in my own copy of Wikipedia'."""
+    by_where: dict[str, list[str]] = {}
+    for source in sources:
+        by_where.setdefault(source.where, []).append(f"“{source.title}”")
+    return _and([f"the article{'s' if len(titles) > 1 else ''} {_and(titles)} {where}" for where, titles in by_where.items()])
+
+
+def _and(items: list[str]) -> str:
+    """Items as a list is said: "a, b and c"; with semicolons where an item has commas of its own."""
+    between = "; " if any("," in item for item in items) else ", "
+    return items[0] if len(items) == 1 else between.join(items[:-1]) + (";" if between == "; " else "") + " and " + items[-1] if items else ""
+
+
 def _its_kind(text: str, program: str) -> str:
     """The kind of program an article opens by saying this one is: 'a word processing program' -> 'word processor'."""
     first = re.split(r"(?<=[.!?])\s", text.strip(), maxsplit=1)[0]
@@ -128,7 +142,8 @@ def _from_the_corpus(title: str, corpus: Any) -> Source | None:
             hit = min(hits, key=lambda h: len(h.title), default=None)
         if hit is None:
             return None
-        return Source(hit.title, corpus.body(hit.doc_id, max_chars=SOURCE_CHARS * 3), f"her corpus ({hit.source})")
+        kept = {"wikipedia": "Wikipedia"}.get(str(hit.source or "").lower(), str(hit.source or "").strip() or "what I keep")
+        return Source(hit.title, corpus.body(hit.doc_id, max_chars=SOURCE_CHARS * 3), f"in my own copy of {kept}")
     except Exception as why:  # noqa: BLE001 - no corpus here is no source, not a failure
         logger.info("her corpus could not be read for %r: %s", title, why)
         return None
@@ -147,7 +162,7 @@ async def _from_wikipedia(title: str) -> Source | None:
             for page in pages.values():
                 text = str(page.get("extract") or "")
                 if text:
-                    return Source(str(page.get("title") or title), text, "Wikipedia")
+                    return Source(str(page.get("title") or title), text, "on Wikipedia")
     except Exception as why:  # noqa: BLE001 - offline, or the page is not there: one source fewer
         logger.info("Wikipedia could not be read for %r: %s", title, why)
     return None
@@ -178,7 +193,7 @@ async def genome_of(program: str, sources: list[Source], ask: Asker, *, asked: s
     person's words come first either way: "rebuild it, with a dark theme" asks
     for the theme too.
     """
-    written = "\n\n".join(f"[{s.title}, from {s.where}]\n{_the_useful_part(s.text)}" for s in sources)
+    written = "\n\n".join(f"[{s.title}, {s.where}]\n{_the_useful_part(s.text)}" for s in sources)
     wanted = f"What the person asked for, in their words: {asked}\n" if asked else ""
     if program:
         opening = f"The program to rebuild, clean-room, as a web application: {program}.\n{wanted}"

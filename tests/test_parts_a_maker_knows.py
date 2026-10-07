@@ -119,6 +119,28 @@ def test_programs_of_other_kinds_work_with_the_same_parts(genome, tmp_path):
 
 
 @pytest.mark.slow
+def test_a_ribbon_is_seen_working_in_a_program_without_the_tools_of_others(tmp_path):
+    """LIVE 2026-10-06 the ribbon's check clicked "Insert table" in a program with no tables, and her model was asked to write it again."""
+    genome = Genome(name="Slate", what_it_is="A word processor", work="A white A4 page under a ribbon of tabs (Home, Insert, View).", features=[
+        Feature(name="Bold"), Feature(name="Bulleted list"), Feature(name="Save as"), Feature(name="Undo")])
+    works = _build(genome, tmp_path / "slate")
+    assert works.get("Tabbed toolbar") and all(works.get(f.name) for f in genome.features), works
+
+
+@pytest.mark.slow
+def test_each_kind_of_file_is_seen_written_as_that_kind(tmp_path):
+    """LIVE 2026-10-06 "Export to Plain Text" was not seen as Save as, and her model spent minutes writing it again."""
+    genome = Genome(name="Ledger", what_it_is="A letter writer", work="A white Letter page you write on.", features=[
+        Feature(name="Export to Plain Text"), Feature(name="Export to RTF"), Feature(name="Export as Web Page"),
+        Feature(name="Save as OpenDocument"), Feature(name="Save as Markdown"), Feature(name="Export to PDF")])
+    known = what_she_knows_how_to_make(genome)
+    assert set(known.given) == {f.name for f in genome.features}
+    assert [c.rule for c in known.given["Export to Plain Text"][1]] == ["saving as plain text writes a .txt file"]
+    works = _build(genome, tmp_path / "ledger")
+    assert all(works.get(f.name) for f in genome.features), works
+
+
+@pytest.mark.slow
 def test_a_document_exported_as_pdf_says_what_was_written(tmp_path):
     from playwright.async_api import async_playwright
 

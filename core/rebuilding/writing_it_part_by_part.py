@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -109,6 +110,13 @@ class Built:
 
 
 Teller = Callable[[str], Awaitable[None] | None]
+
+
+def _first_sentence(said: str) -> str:
+    """The first sentence of what her model said, as it reads after a colon: "A white page centred..." is "a white page centred"."""
+    first = re.split(r"(?<=[.!?])\s+", str(said or "").strip(), maxsplit=1)[0].rstrip(" .")
+    word = first.split(" ", 1)[0]
+    return first if len(word) > 1 and word.isupper() else first[:1].lower() + first[1:]
 
 
 async def _say(tell: Teller | None, line: str) -> None:
@@ -415,10 +423,10 @@ async def write_it(
         mine, _broke, errors = await tried(candidate, [typed])
         if not errors and all(r.held for r in mine):
             program = candidate
-            await _say(tell, f"The work area of {genome.name} is a document page I know how to make: {genome.work}")
+            await _say(tell, f"{genome.name}'s work area is a page I know how to make: {_first_sentence(genome.work)}.")
             await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes, holding)
     if not any(p.name == "work area" for p in program.parts):
-        await _say(tell, f"Writing the work area of {genome.name}: {genome.work}")
+        await _say(tell, f"Writing {genome.name}'s work area: {_first_sentence(genome.work)}.")
         program = await _the_work_area(genome, checks, ask, out, program, tried)
         await asyncio.to_thread(_kept_so_far, out.parent, program, outcomes, holding)
     # A feature left out before that the frame now gives is not done: it is tried with the frame's part.

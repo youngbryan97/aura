@@ -35,7 +35,9 @@ from core.rebuilding.what_a_program_does import (
     checks_for,
     genome_of,
     what_is_written_about,
+    what_was_read,
 )
+from core.rebuilding.what_it_is_discerned_to_be import _and, discerned
 from core.rebuilding.what_the_frame_gives import Given, what_the_frame_gives
 from core.rebuilding.writing_it_part_by_part import Built, Teller, _say, so_far_in, write_it
 
@@ -64,9 +66,9 @@ class Rebuilt:
             f"({sum(o.held for o in working)} checks hold). It is at {self.built.path}."
         )
         if working:
-            line += " Working: " + ", ".join(o.feature.name for o in working) + "."
+            line += " Working: " + _and([o.feature.name for o in working]) + "."
         if missing:
-            line += " Not working: " + ", ".join(o.feature.name for o in missing) + "."
+            line += " Not working: " + _and([o.feature.name for o in missing]) + "."
         if self.built.unfinished:
             line += f" Still unfinished, measured: {'; '.join(self.built.unfinished[:6])}."
         return line
@@ -127,7 +129,7 @@ async def rebuild(
     record: list[Path] = []
     ask = patiently(_recorded(ask, record), tell)
     sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
-    named = [f"{s.title} ({s.where})" for s in sources]
+    named = [what_was_read(sources)] if sources else []
     taken_up = await asyncio.to_thread(an_unfinished_build_of, program, asked, Path(where))
     if taken_up is not None and await asyncio.to_thread(_on_a_page_of_its_own, taken_up):
         # Built on a page her model wrote, where she now knows how to make the page: its parts were made for
@@ -140,11 +142,23 @@ async def rebuild(
             await _say(tell, f"Taking up the build of {program or 'it'} I had not finished, from what I kept in {taken_up}.")
             return await _building(program, ask, taken_up, record, sources, named, began, tell=tell, browser=browser, deadline_s=deadline_s, asked=asked)
         if program:
-            await _say(tell, f"Reading about {program}: " + ("; ".join(named) or "nothing written found, so from what I know") + ".")
-        genome = await genome_of(program, sources, ask, asked=asked)
+            await _say(tell, f"Reading about {program}: {named[0]}." if named else f"I found nothing written about {program}, so I work from what I know of it.")
+        # Her model's reading is one witness to what the program is; what is written, the person's words and what follows
+        # from what it does are the others, and code weighs them (core/rebuilding/what_it_is_discerned_to_be.py).
+        try:
+            heard = await genome_of(program, sources, ask, asked=asked)
+        except HerModelIsAwayError as why:
+            logger.info("rebuilding: her model is away (%s); discerning without its reading", why)
+            heard = None
+        seen = discerned(program, sources, asked, heard)
+        genome = seen.genome if seen is not None else heard
         if genome is None:
             return Rebuilt(program or "it", None, None, named, time.monotonic() - began, "I could not say what it does")
-        await _say(tell, f"{program or genome.name} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
+        if seen is not None:
+            for line in seen.said(program or "it"):
+                await _say(tell, line)
+        else:
+            await _say(tell, f"{program or genome.name} does {len(genome.features)} things a person uses: " + ", ".join(f.name for f in genome.features) + ".")
         folder = _a_new_folder(Path(where), genome.name)
         (folder / "what_it_does.json").write_text(json.dumps(genome.model_dump(), indent=1), "utf-8")
         _the_build_is(folder, program, asked, finished=False)
@@ -165,7 +179,7 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
     # Parts she already knows how to make, and what the frame already does, are given by code with their checks
     # (core/rebuilding/parts_a_maker_knows.py, core/rebuilding/what_the_frame_gives.py); her model writes the rest.
-    knows = what_she_knows_how_to_make(genome)
+    knows = what_she_knows_how_to_make(genome, sources)
     genome.features = [*genome.features, *knows.added]
     genome.features, given = what_the_frame_gives(genome.features, sources, asked, already=set(knows.given),
                                                   saving_as=any(part.name == "save as" for part, _checks in knows.given.values()),
@@ -174,8 +188,9 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         if feature.name in knows.given:
             part, checks = knows.given[feature.name]
             given[feature.name] = Given(feature, part, checks)
-    if knows.said():
-        await _say(tell, knows.said())
+    if knows.given or given:
+        await _say(tell, knows.said(frame=sum(1 for name in given if name not in knows.given),
+                                    left=[f.name for f in genome.features if f.name not in given]))
     if (folder / "checks.json").exists():
         # A feature given a part is checked by that part's checks, in place of any written for it before.
         checks = [Check.model_validate(c) for c in json.loads((folder / "checks.json").read_text("utf-8"))]
@@ -187,7 +202,9 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
             written.extend(await checks_for(genome, asked_of_her[at : at + FEATURES_AT_ONCE], ask, sources=sources, asked=asked))
         checks = await checks_that_mean_something(written, folder / "empty.html", browser=browser)
         (folder / "checks.json").write_text(json.dumps([c.model_dump() for c in checks], indent=1), "utf-8")
-        await _say(tell, f"Wrote {len(written)} checks a person would make, before any code; {len(checks)} of them fail on an empty program, so they test something.")
+        await _say(tell, f"Before any code, I wrote {len(written)} checks a person would make of it; "
+                         + ("all of them" if len(checks) == len(written) else f"{len(checks)} of them")
+                         + " fail on an empty program, so each tests something real.")
     left = max(60.0, deadline_s - (time.monotonic() - began))
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left,
                            given={name: gift.part for name, gift in given.items()}, so_far=await asyncio.to_thread(so_far_in, folder, genome),

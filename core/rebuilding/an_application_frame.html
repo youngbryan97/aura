@@ -35,7 +35,7 @@ body { font: 13px/1.4 var(--font); color: var(--ink); background: var(--bg); dis
 .app-menu-items button:hover { background: var(--hover); }
 .app-menu-items button:disabled, .app-tool:disabled { opacity: .42; cursor: default; background: none; }
 .app-menu-items .keys { margin-left: auto; color: var(--muted); font-size: 12px; }
-.app-menu-items .icon { width: 18px; text-align: center; }
+.app-menu-items .icon { width: 18px; flex: none; text-align: center; }
 #app-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 6px 8px; background: var(--panel); border-bottom: 1px solid var(--line); flex: none; }
 .app-group { display: flex; align-items: center; gap: 2px; padding: 0 6px; border-right: 1px solid var(--line); }
 .app-group:last-child { border-right: 0; }
@@ -175,7 +175,8 @@ const app = (() => {
     const title = c.keys ? `${c.label} (${shownKeys(c.keys)})` : c.label;
     if (c.menu) {
       const item = make("button", { type: "button", role: "menuitem", "data-command": c.id, "aria-label": c.label, onclick: () => run(c.id) },
-        [make("span", { class: "icon", text: c.icon || "" }), make("span", { text: c.label }), make("span", { class: "keys", text: c.keys ? shownKeys(c.keys) : "" })]);
+        // A menu's icon column is one glyph wide: a word used as a toolbar icon ("PDF") is not one, and pushed its label out of line.
+        [make("span", { class: "icon", text: c.icon && [...c.icon].length <= 2 ? c.icon : "" }), make("span", { text: c.label }), make("span", { class: "keys", text: c.keys ? shownKeys(c.keys) : "" })]);
       keepSelection(item);
       $(".app-menu-items", menu(c.menu)).append(item);
     }

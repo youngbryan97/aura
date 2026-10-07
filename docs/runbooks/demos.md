@@ -120,8 +120,18 @@ Type in her chat:
 > it to my Desktop.
 
 What happens (core/rebuilding): she reads what is written about the program
-and its kind (her own Wikipedia corpus, else Wikipedia online), and her model
-says what it does as features a person uses.
+and its kind (her own Wikipedia corpus, else Wikipedia online), and then
+discerns what the program is (core/rebuilding/what_it_is_discerned_to_be.py).
+Every feature is held with who speaks for it: what she read (the phrases that
+mean each part she knows how to make), the person's words, her model's reading
+of the same articles (one witness, the least sure), and what follows from what
+the program does ("what is printed is laid on paper, so its paper and margins
+can be set"). What only her model names, and nothing written bears out, is
+left out and said to be; what is written of that she has no part for is said
+not to be in this build. The kind comes from the article's first sentence, else
+the person's words; where its work is not a page, her model's reading stands
+as it was. She says how she came to the list, what followed, and the name she
+gives hers. The paper is the one used where the machine is (Letter in the US).
 
 Features she already knows how to make are given by code, each with the checks
 a person would make of it (core/rebuilding/parts_a_maker_knows.py and .js).
@@ -143,8 +153,9 @@ stops working; otherwise she is shown what went wrong and tries again, three
 times, and the feature is left out rather than kept broken. She says which
 features work and which do not.
 
-Offline, with her model away, Word's own feature list builds 18 of 18
-features in about 90 seconds. A notes app and an email composer get every
+Offline, with her model saying nothing, Microsoft Word is discerned from its
+two articles as 21 features and builds 22 of 22 (the ribbon besides) in about
+130 seconds, with no part written by her model. A notes app and an email composer get every
 feature from the same parts; a spreadsheet, a drawing program and a task
 board get none (tests/test_parts_a_maker_knows.py).
 

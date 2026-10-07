@@ -26,6 +26,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 from core.rebuilding.checks_a_person_makes import Check
 from core.rebuilding.the_program_as_built import Part
@@ -223,13 +224,19 @@ def _parts() -> tuple[KnownPart, ...]:
                       _check("close closing", "closing a document leaves an empty page, after asking about unsaved changes",
                              [("type", "", "Words to close"), ("click", "Close document", ""), ("click", "Don't save", "")],
                              [("no_text", "Words to close", "", "")])]),
-        _part("save as", ["save as", "export", "pdf", "download"], "save as export pdf desktop format formats download file type kind docx rtf txt odt html markdown word",
+        _part("save as", ["save as", "export", "pdf", "download"], "save as export pdf desktop format formats download file type kind docx rtf txt odt html markdown word plain rich web page opendocument",
               unless="auto autosave",
-              checks=[_check("save as format desktop", "saving as a PDF writes a PDF of the document",
+              checks=[_check("save format desktop", "saving as a PDF writes a PDF of the document",
                              [("type", "", "Saved as a file"), ("click", "Save as", ""), ("fill", "File name", "Letter"), ("choose", "Format", "PDF"), ("click", "Save", "")],
                              [("download", "Saved as a file", "", ".pdf")]),
-                      _check("pdf export", "exporting as PDF writes a PDF of the document", [("type", "", "Exported words"), ("click", "Export as PDF", "")],
+                      _check("pdf", "exporting as PDF writes a PDF of the document", [("type", "", "Exported words"), ("click", "Export as PDF", "")],
                              [("download", "Exported words", "", ".pdf")]),
+                      # Each kind of file it writes is checked by writing that kind: plain text is not seen working by a PDF.
+                      *(_check(words, f"saving as {kind} writes a {suffix} file", [("type", "", f"Kept as {kind}"), ("click", "Save as", ""),
+                               ("choose", "Format", label), ("click", "Save", "")], [("download", f"Kept as {kind}", "", suffix)])
+                        for words, kind, label, suffix in (("plain txt", "plain text", "Plain Text", ".txt"), ("rtf rich", "rich text", "Rich Text", ".rtf"),
+                                                           ("html web", "a web page", "Web Page", ".html"), ("odt opendocument", "OpenDocument", "OpenDocument Text", ".odt"),
+                                                           ("markdown md", "Markdown", "Markdown", ".md"))),
                       _check("docx word", "saving as a Word document writes one", [("type", "", "In Word form"), ("click", "Save as", ""),
                              ("choose", "Format", "Word Document"), ("click", "Save", "")], [("download", "In Word form", "", ".docx")])]),
         _part("page setup", ["page setup", "margin", "margins", "orientation", "paper", "page size", "page layout", "landscape"],
@@ -239,8 +246,10 @@ def _parts() -> tuple[KnownPart, ...]:
                       _check("orientation landscape", "the page can be turned on its side", [("click", "Page setup", ""), ("choose", "Orientation", "Landscape"),
                              ("click", "OK", "")], [("count", ".doc-page[data-orientation=landscape]", "", "1")])]),
         _part("tabbed toolbar", ["ribbon", "tabbed toolbar", "toolbar tab"], "ribbon tab tabs tabbed toolbar",
-              checks=[_check("ribbon tab tabbed", "the tools are kept in tabs", [("click", "Insert table", ""), ("click", "Cancel", "")],
-                             [("element", "[role=tablist] [role=tab]:nth-of-type(2)", "", "")])]),
+              # Checked on its own tabs and nothing else: LIVE 2026-10-06 this clicked "Insert table" in a program that had no
+              # tables, failed there, and her model was asked to write again a ribbon she knows how to make.
+              checks=[_check("ribbon tab tabbed", "the tools are kept in tabs, each tab showing its own", [("wait", "", "100")],
+                             [("element", "[role=tablist] [role=tab]:nth-of-type(2)", "", ""), ("element", "#app-toolbar .app-group[hidden]", "", "")])]),
     )
 
 
@@ -291,6 +300,100 @@ def _tabbed(genome: Genome) -> Part:
     return Part("tabbed toolbar", _code()["tabbed toolbar"].replace("__TABS__", tabs), ["tabbed toolbar"])
 
 
+#: How what is written about a program says it has what a part does, and the feature the part is then offered as.
+#: Phrases that mean the feature and nothing else: "tables" is one, "new" and "date" are in every article.
+_WRITTEN_AS: dict[str, tuple[str, Feature]] = {
+    "find and replace": (r"\b(?:find|search)(?: and |/| & )replace\b|\bfind[- ]and[- ]replace\b",
+                         Feature(name="Find and replace", how="Open Find, type a word, replace it everywhere",
+                                 shows="where the word is, then every one replaced", place="Edit", weight=2)),
+    "proofing": (r"\bspell(?:ing)?[ -]?check\w*|\bgrammar check\w*|\bword count\w*|\bproofread\w*",
+                 Feature(name="Spelling, grammar and word count", how="Check the document, or count its words",
+                         shows="each mistake with a fix, and how many words there are", place="Tools", weight=2)),
+    "tables": (r"\btables\b", Feature(name="Tables", how="Insert a table of so many rows and columns",
+                                     shows="a grid of cells on the page to type in", place="Insert", weight=2)),
+    "pictures": (r"\b(?:images|pictures|graphics|photographs)\b",
+                 Feature(name="Pictures", how="Insert a picture from a file", shows="the picture on the page", place="Insert", weight=2)),
+    "links": (r"\bhyperlinks?\b", Feature(name="Links", how="Select words and link them to an address",
+                                          shows="the words as a link", place="Insert", weight=1)),
+    "insertions": (r"\bpage breaks?\b", Feature(name="Page breaks, dates and symbols", how="Insert a page break, today's date or a symbol",
+                                               shows="it where the cursor is", place="Insert", weight=1)),
+    "page setup": (r"\bmargins?\b|\bpage (?:layout|setup|size)\b|\bpaper sizes?\b",
+                   Feature(name="Page setup", how="Choose the paper, its orientation and margins", shows="the page laid out that way",
+                           place="Layout", weight=2)),
+    "paragraph styles": (r"\bheadings?\b|\bparagraph styles?\b",
+                         Feature(name="Headings and paragraph styles", how="Give a paragraph a style: a heading, a quote",
+                                 shows="the paragraph in that style", place="Format", weight=2)),
+    "clipboard": (r"\b(?:cut|copy),? and paste\b|\bclipboard\b",
+                  Feature(name="Cut, copy and paste", how="Select words, cut or copy them, then paste", shows="the words where they were pasted",
+                          place="Edit", weight=2)),
+    "indent": (r"\bindent(?:s|ed|ing|ation)?\b", Feature(name="Indent", how="Move a paragraph further in, or back out",
+                                                       shows="the paragraph set in from the margin", place="Format", weight=1)),
+    "printing": (r"\bprint(?:ing|ed|s)?\b", Feature(name="Print and print preview", how="Preview the pages, then print them",
+                                                    shows="the document as pages, then sent to the printer", place="File", weight=2)),
+    "history": (r"\bundo\b", Feature(name="Undo and redo", how="Undo the last change, or redo it", shows="the document as it was", place="Edit", weight=2)),
+    "save as": (r"\bsave[sd]? (?:as|documents?|files?)\b|\bexport\w*|\bpdf\b",
+                Feature(name="Save as PDF or Word document", how="Save as, pick a name and a kind of file: PDF, Word, rich text, plain text",
+                        shows="the document saved as that kind",
+                        place="File", weight=3)),
+    "new document": (r"\b(?:new|blank) documents?\b|\bcreat\w* (?:and|or) edit\w*|\bdocuments\b",
+                     Feature(name="New and close", how="Start a new document, or close this one", shows="an empty page, after asking about unsaved changes",
+                             place="File", weight=3)),
+    "alignment": (r"\balign\w*|\bjustif\w*", Feature(name="Alignment", how="Set a paragraph left, centred, right or justified",
+                                                     shows="the paragraph set that way", place="Format", weight=2)),
+    "spacing": (r"\bline spacing\b|\bspacing\b|\bleading\b", Feature(name="Line and paragraph spacing", how="Set the space between lines and paragraphs",
+                                                                     shows="the lines set further apart or closer", place="Format", weight=2)),
+    "text colours": (r"\bcolou?r(?:ed|s)? (?:text|fonts?)\b|\b(?:text|font) colou?rs?\b|\bhighlight\w*",
+                     Feature(name="Text colour and highlight", how="Colour or highlight the selected words", shows="the words in that colour", place="Format", weight=1)),
+    "character styles": (r"\bbold\b|\bitalics?\b|\bunderlin\w*", Feature(name="Bold, italic and underline", how="Select words and make them bold, italic or underlined",
+                                                                           shows="the words in that style", place="Format", weight=3)),
+    "fonts": (r"\bfonts?\b|\btypefaces?\b", Feature(name="Fonts and sizes", how="Pick a font and a size for the selected words",
+                                                    shows="the words in that font and size", place="Format", weight=3)),
+    "lists": (r"\bbullet(?:ed|s)?\b|\bnumbered lists?\b", Feature(name="Bulleted and numbered lists", how="Make paragraphs into a list",
+                                                                    shows="each with a bullet or a number", place="Format", weight=2)),
+}
+
+
+def what_is_written_asks_for(sources: Iterable[Any], have: set[str]) -> list[tuple[KnownPart, Feature]]:
+    """The parts what is written about a program says it has, besides those in ``have``, each with the feature it is offered as.
+
+    Her model's list of a program's features is one reading of what is written;
+    what is written is the evidence. LIVE 2026-10-06 its list of Microsoft
+    Word's features had no find and replace, tables, pictures or spelling,
+    though the articles it read speak of all four, and each is a part she knows
+    how to make: a program built from that list would have lacked them.
+    """
+    text = " ".join(str(getattr(source, "text", "") or "") for source in sources).lower()
+    found = []
+    for part in PARTS:
+        said = _WRITTEN_AS.get(part.name)
+        if said is not None and part.name not in have and re.search(said[0], text):
+            found.append((part, said[1].model_copy()))
+    return found
+
+
+#: Names of its own for a program whose work is writing on a page, one chosen for each program rebuilt.
+_WRITING_NAMES = ("Quill", "Folio", "Vellum", "Inkwell", "Quire", "Foolscap", "Parchment", "Codex")
+
+#: Where paper is Letter rather than A4, by the country of the machine's language setting.
+_LETTER_PAPER = {"US", "CA", "MX", "PH", "CL", "CO", "VE", "GT", "CR", "PA", "DO", "PR"}
+
+
+def _the_paper_here() -> str:
+    """The paper of where this machine is: its language setting's country, as the system keeps it, else the environment's."""
+    import locale
+    import os
+    import plistlib
+
+    said = os.environ.get("LC_PAPER") or os.environ.get("LC_ALL") or os.environ.get("LANG") or ""
+    try:
+        said = said or str(plistlib.loads((Path.home() / "Library/Preferences/.GlobalPreferences.plist").read_bytes()).get("AppleLocale") or "")
+    except (OSError, ValueError, plistlib.InvalidFileException):
+        pass  # not a Mac, or no setting: the environment and the locale say
+    said = said or (locale.getlocale()[0] or "")
+    country = re.split(r"[_.@-]", said)[1].upper() if re.match(r"^[a-z]{2}[_-][A-Za-z]{2}", said) else ""
+    return "Letter" if country in _LETTER_PAPER else "A4"
+
+
 @dataclass
 class Known:
     """What she knows how to make of a program: parts for its features, their checks, a page to work on, and features it asks for besides."""
@@ -298,16 +401,36 @@ class Known:
     given: dict[str, tuple[Part, list[Check]]] = field(default_factory=dict)
     page: Part | None = None
     added: list[Feature] = field(default_factory=list)
+    #: Of what was added, the features what is written says it has.
+    from_what_is_written: list[str] = field(default_factory=list)
 
-    def said(self) -> str:
-        if not self.given:
-            return ""
-        parts = sorted({part.name for part, _ in self.given.values()})
-        return (f"{len(self.given)} of its features are parts I already know how to make ({', '.join(parts)}): given by code, each checked by use"
-                + ("; its pages are the document page I know." if self.page else "."))
+    def said(self, *, frame: int = 0, left: Iterable[str] = ()) -> str:
+        """What she knows how to make of it, with ``frame`` features the application frame gives and those ``left`` to her model."""
+        left = list(left)
+        written = set(self.from_what_is_written)
+        mine = sorted({part.name for name, (part, _) in self.given.items() if name not in written})
+        known = len(self.given) - len(written) + frame
+        if not left and not written:
+            line = (f"I know how to make every one of them: {_and(mine)}" + (", and the frame's own opening and saving" if frame else "")
+                    + ". Each is checked by using it, and none is left to my model.")
+        else:
+            line = (f"I already know how to make {known} of these ({_and(mine)}" + ("; opening and saving are the frame's" if frame else "")
+                    + "), and I check each one by using it.")
+        if written:
+            line += (f" What I read says it also has {_and([n[:1].lower() + n[1:] for n in self.from_what_is_written])}, which I know how to make too, "
+                     "so they are in it.")
+        if left:
+            line += f" My model writes the other {len(left)}, each kept only once it is seen working: {_and(left)}."
+        return line
 
 
-def what_she_knows_how_to_make(genome: Genome) -> Known:
+def _and(items: list[str]) -> str:
+    """Items as a list is said: "a, b and c"; with semicolons where an item has commas of its own."""
+    between = "; " if any("," in item for item in items) else ", "
+    return items[0] if len(items) == 1 else between.join(items[:-1]) + (";" if between == "; " else "") + " and " + items[-1] if items else ""
+
+
+def what_she_knows_how_to_make(genome: Genome, sources: Iterable[Any] = ()) -> Known:
     """For each feature a part she knows does, that part and its checks; a page, where the work is a document; tabs, where its tools are said to be in them.
 
     Every part here works on a document, so none is given to a program whose
@@ -324,6 +447,14 @@ def what_she_knows_how_to_make(genome: Genome) -> Known:
         name = parts[0].name if len(parts) == 1 else " and ".join(p.name for p in parts)
         part = Part(name, "\n".join(code[p.name] for p in parts), [feature.name])
         known.given[feature.name] = (part, [c for p in parts for c in p.checks_for(feature)])
+    have = {p.name for feature in genome.features for p in parts_for(feature)}
+    taken = {f.name.lower() for f in genome.features}
+    for part, feature in what_is_written_asks_for(sources, have):
+        if feature.name.lower() in taken:
+            continue
+        known.added.append(feature)
+        known.from_what_is_written.append(feature.name)
+        known.given[feature.name] = (Part(part.name, code[part.name], [feature.name]), part.checks_for(feature))
     if re.search(r"\b(ribbon|tabs|tabbed)\b", genome.work, re.I):
         feature = Feature(name="Tabbed toolbar", how="Click a tab above the toolbar", shows="the tools of that tab", place="View", weight=1)
         known.added.append(feature)
