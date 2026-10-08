@@ -26,3 +26,15 @@ def test_a_short_answer_is_matched_after_hotpotqas_normalisation() -> None:
     assert grade_knowledge("Both were born in the US.\n**Answer:** yes", "yes")[0]
     assert grade_knowledge("Answer: Dijon", "dijon")[0]
     assert not grade_knowledge("Answer: Paris", "Dijon")[0]
+
+
+def test_bbeh_answers_are_read_as_bbehs_own_evaluator_reads_them() -> None:
+    """The eight cases bbeh/evaluate.py checks itself with."""
+    from tools.run_g09_organ import grade_bbeh
+
+    cases = [("Ok The final answer is: \\boxed{4}.", "4", True), ("[Reasoning] The final answer is: \\boxed{4}.", "3", False),
+             ("Alright! The final answer is: 2, 3, 4", "2,3,4", True), ("blah The final answer is: 2, 3, 4", "2,3,5", False),
+             ("Ok The answer is: (A)", "a", True), ("Ok The answer is: (A)", "b", False),
+             ("Ok The answer is: **25**\nHere's why.", "25.0", True), ("Ok The answer is: **25**\nHere's why.", "26.0", False)]
+    for reply, reference, expected in cases:
+        assert grade_bbeh(reply, reference)[0] is expected, (reply, reference)

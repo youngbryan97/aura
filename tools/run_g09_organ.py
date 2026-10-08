@@ -52,11 +52,20 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DOMAINS = ("math", "code", "planning", "knowledge", "transfer")
+DOMAINS = ("math", "code", "planning", "knowledge", "transfer", "bbeh")
 BENCH = Path("~/.aura/benchmarks").expanduser()
 #: EvalPlus's own request for a chat model.
 CODE_REQUEST = ("Please provide a self-contained Python script that solves the following problem "
                 "in a markdown code block:\n```\n{prompt}\n```")
+#: BIG-Bench Extra Hard's evaluation instruction, appended to every question
+#: (Kazemi et al. 2025, arXiv:2502.19187).
+BBEH_SUFFIX = (
+    "Think step by step, and when you provide the final answer, please use the prefix \"The answer is:\" "
+    "without any modification, and provide the answer directly, with no formatting, no bolding, and no "
+    "markup. For instance: \"The answer is: 42\" or \"The answer is: yes\". If the question is multiple "
+    "choice with a single correct answer, the final answer must only be the letter corresponding to the "
+    "correct answer. For example, \"The answer is: (a)\""
+)
 KNOWLEDGE_REQUEST = ("Answer the question from the passages below. Give the answer as a short phrase.\n\n"
                      "{passages}\n\nQuestion: {question}")
 
@@ -125,8 +134,17 @@ def _transfer_tasks() -> list[dict[str, Any]]:
     return tasks
 
 
+def _bbeh_tasks() -> list[dict[str, Any]]:
+    tasks = []
+    for path in sorted((BENCH / "g09/bbeh").glob("bbeh_*/task.json")):
+        for index, example in enumerate(json.loads(path.read_text(encoding="utf-8"))["examples"]):
+            tasks.append({"id": f"{path.parent.name}:{index}", "request": f"{example['input']}\n\n{BBEH_SUFFIX}",
+                          "truth": example["target"], "group": path.parent.name})
+    return tasks
+
+
 LOADERS = {"math": _math_tasks, "code": _code_tasks, "planning": _planning_tasks,
-           "knowledge": _knowledge_tasks, "transfer": _transfer_tasks}
+           "knowledge": _knowledge_tasks, "transfer": _transfer_tasks, "bbeh": _bbeh_tasks}
 
 
 def sample(tasks: list[dict[str, Any]], count: int, seed: int, excluded: set[str]) -> list[dict[str, Any]]:
@@ -238,8 +256,51 @@ def grade_transfer(text: str, truth: str) -> tuple[bool, str]:
     return matches(answer, truth), answer
 
 
+def _bbeh_answer(sample: str) -> str:
+    """BBEH's own extraction and preprocessing (bbeh/evaluate.py), restated: the text after
+    the last answer prefix, LaTeX wrappers removed, lower-cased, first line, no bold."""
+    answer = sample.strip()
+    for prefix in ("The answer is:", "The final answer is ", "The final answer is: ", "The answer is "):
+        if prefix in answer:
+            answer = answer.split(prefix)[-1].strip()
+    if answer.endswith("."):
+        answer = answer[:-1]
+    if answer.startswith("$") and answer.endswith("$"):
+        answer = answer[1:-1]
+    for wrapper in ("boxed{", "text{", "texttt{"):
+        if wrapper in answer and answer.endswith("}"):
+            answer = answer[0:-1].split(wrapper)[1]
+    answer = answer.lower().replace(", ", ",").replace("**", "").split("\n")[0]
+    return answer[0:-1] if answer.endswith(".") else answer
+
+
+def _bbeh_match(prediction: str, reference: str) -> bool:
+    """BBEH's fuzzy_match, restated."""
+    if prediction == reference:
+        return True
+    if len(prediction) == 3 and prediction[0] == "(" and prediction[-1] == ")":
+        return prediction[1] == reference
+    if len(reference) == 3 and reference[0] == "(" and reference[-1] == ")":
+        return reference[1] == prediction
+    try:
+        if float(prediction) == float(reference):
+            return True
+    except ValueError:
+        pass
+    if prediction.replace("'", "") == reference.replace("'", ""):
+        return True
+    if f"[{reference}]" == prediction or f"[{prediction}]" == reference:
+        return True
+    return prediction.endswith("?") and prediction[:-1] == reference
+
+
+def grade_bbeh(text: str, truth: str) -> tuple[bool, str]:
+    answer = _bbeh_answer(text)
+    return _bbeh_match(answer, truth.strip().lower().replace(", ", ",")), answer[:120]
+
+
 GRADERS = {"math": grade_math, "code": grade_code, "planning": grade_planning,
-           "knowledge": grade_knowledge, "transfer": grade_transfer}
+           "knowledge": grade_knowledge, "transfer": grade_transfer, "bbeh": grade_bbeh}
 
 
 # ── The run ────────────────────────────────────────────────────────────────
