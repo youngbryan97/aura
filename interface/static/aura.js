@@ -7163,6 +7163,10 @@ function conversationLaneStateKey(lane) {
     if (laneHasForegroundGeneration(lane)) return 'thinking';
     if (failureClass === 'memory_guard') return 'memory_guard';
     if (failureClass === 'cognitive_engine') return 'route_blocked';
+    // While she is still at the person's own request, one of her own slower thoughts running out of time is not the
+    // conversation having failed: LIVE 2026-10-08 the header read "Took too long" for seconds at a time while she
+    // played the games she was asked to.
+    if (failureClass === 'timeout' && state.isSubmitting) return 'thinking';
     if (failureClass === 'timeout') return 'timeout';
     if (failureClass === 'runtime_unavailable') return 'unreachable';
     if (laneIsStandby(lane)) return 'preparing';
