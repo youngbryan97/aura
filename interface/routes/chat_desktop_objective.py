@@ -501,7 +501,12 @@ async def _execute_desktop_objective_from_chat(
         # verified receipt one function away. The person was told the task
         # failed and never told the answer it had found.
         partial = _desktop_deliverable_text(result)
-        if partial:
+        tally = _how_many_as_asked(result.get("picked"))
+        if told and tally:
+            # Her own account says how each part ended; the machinery's name for the part that fell short ("step 3
+            # not ok (2/3 steps)") adds nothing a person can use. LIVE 2026-10-08 it closed three games' account.
+            response = f"{told}\n\n{tally}"
+        elif partial:
             # A failure with no cause carries nothing for the person: what she got through says what was not done.
             # LIVE 2026-10-07 three games' outcomes were followed by "The rest did not complete: desktop task
             # reported failure without a cause (status=failed) (0/1 steps)."
@@ -740,6 +745,19 @@ def _pursuit_account(result: dict) -> list[str]:
         # it says anything, and what a page concludes with is what it is for.
         lines.append("The page ends with:\n" + ending[-600:].strip())
     return lines
+
+
+def _how_many_as_asked(picked: Any) -> str:
+    """How many of several picked items ended the way they were asked to, in a sentence; "" for fewer than two."""
+    if not isinstance(picked, list) or len(picked) < 2:
+        return ""
+    had = [p for p in picked if isinstance(p, dict) and p.get("had")]
+    done = sum(1 for p in had if p.get("completed"))
+    words = {0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
+    of = words.get(len(picked), str(len(picked)))
+    said = f"Of the {of}, {words.get(done, str(done))} ended the way you asked" if done != len(picked) else f"All {of} ended the way you asked"
+    missing = len(picked) - len(had)
+    return said + (f", and {words.get(missing, str(missing))} could not be had anywhere." if missing else ".")
 
 
 def _desktop_deliverable_text(result: Any) -> str:

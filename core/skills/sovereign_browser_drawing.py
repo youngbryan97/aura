@@ -417,10 +417,12 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
     """One run of the game: menus by the screen pursuit, play by its reflexes, until the run is over."""
     import time
 
+    from core.language.what_a_watcher_hears import the_watcher
     from core.skills.screen_pursuit import pursue_on_screen
     from core.skills.screen_pursuit_as_it_happens import AS_IT_HAPPENS, PlayingAsItHappens
     from core.skills.screen_pursuit_on_a_page import HER_OWN_PAGE, OnAPage
 
+    the_watcher().knows(goal)  # the names she was given are words when she reads them off the screen
     reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=deadline, keep=keep)
     held = HER_OWN_PAGE.set(on := OnAPage(page=page, name=HER_BROWSER))
     quick = AS_IT_HAPPENS.set(reflexes)

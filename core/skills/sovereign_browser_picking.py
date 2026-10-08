@@ -269,6 +269,7 @@ async def picked_by_the_rule(skill: Any, browser: Any, url: str, goal: str, max_
         "completed": len(played) >= len(picks) and all(r["completed"] for r in played),
         "goal": goal,
         "picked": results,
-        "concluded": " ".join(f"{_ordinal(played.index(r) + 1).capitalize()}, “{r['item']}”: {r['concluded'] or ('done' if r['ok'] else 'not done')}"
-                              if r["had"] else f"“{r['item']}” could not be had anywhere." for r in results),
+        # One sentence each: LIVE 2026-10-08 they ran together, "...getting nowhere in it Second, ...".
+        "concluded": " ".join((f"{_ordinal(played.index(r) + 1).capitalize()}, “{r['item']}”: {r['concluded'] or ('done' if r['ok'] else 'not done')}"
+                               if r["had"] else f"“{r['item']}” could not be had anywhere").rstrip(".") + "." for r in results),
     }

@@ -46,7 +46,7 @@ def screen_words(labels: Sequence[str], says: str = "") -> frozenset[str]:
     words: set[str] = set()
     for text in [*labels, says]:
         text = str(text or "")
-        if text.startswith('click "the shape at'):
+        if text.startswith(('click "the shape at', 'click "the one that stands out at')):
             continue  # named by where it is, which is not a word on the screen
         words.update(w for w in re.findall(r"[a-z]+", text.lower()) if len(w) >= 3 and w != "click")
     return frozenset(words)

@@ -207,7 +207,11 @@ def test_rate_limited_score_changes_are_said_when_the_window_opens():
     from core.perception.what_moves_in_the_picture import WhatMoves
 
     run = _Run(keys=[], began=0, said_at=2)
-    run.contest.mine, run.contest.theirs = 3, 1
+    # How it stood when she came in is not news (LIVE 2026-10-07 "I have 0."); a change is, once the window opens.
+    run.contest.mine, run.contest.theirs = 2, 1
+    _what_she_says(run, None, WhatMoves(), WhichIsHers(), WhatMeetingDoes(), 2.5)
+    assert not run.contest_said
+    run.contest.mine = 3
     _what_she_says(run, None, WhatMoves(), WhichIsHers(), WhatMeetingDoes(), 3)
     assert not run.contest_said
     _what_she_says(run, None, WhatMoves(), WhichIsHers(), WhatMeetingDoes(), 8)

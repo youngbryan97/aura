@@ -1891,7 +1891,10 @@ def _tell(line: str) -> None:
     and no thinking behind it. What she is trying, and the moment she stops
     trying it, is what a watcher came to hear.
     """
-    said = " ".join(str(line or "").split())
+    from core.language.what_a_watcher_hears import heard
+
+    # Once a shape, in words she could read (core/language/what_a_watcher_hears.py).
+    said = heard(" ".join(str(line or "").split()))
     if not said:
         return
     logger.info("saying out loud: %r", said[:160])

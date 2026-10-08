@@ -76,6 +76,12 @@ class TheLatticeSheHolds:
     #: Readings that would not go into it, in a row. Several is evidence the
     #: thing has changed rather than that one glance was poor.
     would_not_fit: int = 0
+    #: Looks in a row at which she judged the thing she was acting in not in
+    #: front of her (core/perception/where_am_i.py), counted apart from the
+    #: fitting above: a look can put something into a two-place frame and
+    #: still not be the thing. LIVE 2026-10-08 the two counts undid each other
+    #: and she refused to press anything in a game for four minutes.
+    not_here_for: int = 0
     #: Readings in a row with two things landing on one of its places. A thing
     #: with places does not put two things in one of them, so something is
     #: over it.
@@ -334,7 +340,7 @@ class TheLatticeSheHolds:
 
     def has_changed(self) -> bool:
         """Whether what she is looking at is no longer the thing she measured."""
-        return self.would_not_fit >= self.CHANGED_AFTER
+        return self.would_not_fit >= self.CHANGED_AFTER or self.not_here_for > self.CHANGED_AFTER
 
     def looks_covered(self) -> bool:
         """Whether something is sitting over the thing.

@@ -4836,6 +4836,8 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                 if step.get("chose")
             ],
             "result_text": report.get("result_text", ""),
+            # Each item a rule picked, and how it ended, where the pursuit was of several.
+            "picked": list(report.get("picked") or []),
             # What she made of the result, held against what she said before
             # she began, where she said anything; otherwise what she said when
             # she judged the goal met, with the finished page in front of her.

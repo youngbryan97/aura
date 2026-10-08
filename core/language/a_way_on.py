@@ -77,12 +77,20 @@ def how_much_it_leads_on(label: str) -> float:
     plain = _plain(label)
     if not plain:
         return 1.0
+    # The one of several alike controls that stands apart from the rest is the open one, the lit one, the chosen
+    # one (core/perception/shapes_that_look_pressable.py): likelier the way on than any other unnamed shape.
+    if plain.startswith("the one that stands out at"):
+        return 1.4
     # "Play Now!" goes on as "Play Now" does: a button's exclamation mark is its tone, not its word.
     if _GOES_ON.match(plain) or _GOES_ON.match(plain.rstrip("! ")):
         _A_WAY_ON.observe(plain, holds=True)
         return 1.6
     if " " not in plain and any(_one_letter_off(plain.lower(), word) for word in _ONE_WORD):
         return 1.4
+    # A short number alone is one to pick, as a level or a page is (core/skills/screen_pursuit_bearings.py
+    # `_a_readout`): LIVE 2026-10-08 the one open level of a game was "1", rated a thing to read, and never pressed.
+    if re.fullmatch(r"[1-9]\d?", plain):
+        return 0.9
     if _IS_READ.match(plain) or len(plain) > 40:
         if len(plain) <= 40:
             _A_WAY_ON.observe(plain, holds=False)

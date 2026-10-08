@@ -166,6 +166,9 @@ class _Run:
     #: How the contest stands (core/agency/how_the_contest_stands.py), and the last of it she said.
     contest: ContestStands = field(default_factory=ContestStands)
     contest_said: str = ""
+    #: How it stood, and the counters, when she came in: what they were then is not news (LIVE 2026-10-07 "I have 0.").
+    contest_first: str | None = None
+    counters_first: dict[str, Any] | None = None
 
 
 # -- what she was told ---------------------------------------------------------
@@ -1117,7 +1120,9 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
             _say(run, say, line, at, once=f"{kind} {stance}")
     # How it stands, said when it changes: the score, what is left to win, what is left to lose.
     standing = run.contest.says()
-    if standing and standing != run.contest_said:
+    if standing and run.contest_first is None:
+        run.contest_first = standing
+    if standing and standing != run.contest_said and standing != run.contest_first:
         if at - run.said_at < SAY_EVERY_S:
             return
         run.contest_said = standing
@@ -1132,7 +1137,9 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
 
     counters = {said: value for name, value in meeting.readouts.values.items()
                 if not name.startswith("number") and (said := words_of(name)) is not None}
-    if counters and not run.contest_said and counters != run.counted and at - run.said_at > 25.0:
+    if counters and run.counters_first is None:
+        run.counters_first = dict(counters)
+    if counters and not run.contest_said and counters != run.counted and counters != run.counters_first and at - run.said_at > 25.0:
         run.counted = dict(counters)
         _say(run, say, ", ".join(f"{name} {value}" for name, value in list(counters.items())[:3]).capitalize() + ".", at)
 

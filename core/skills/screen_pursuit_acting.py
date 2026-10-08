@@ -191,6 +191,7 @@ async def carry_out_the_move(
         # row is the thing having changed rather than one bad look,
         # which is the judgement the lattice already makes.
         lattice.would_not_fit += 1
+        lattice.not_here_for += 1
         if lattice.has_changed():
             logger.info("the frame I was holding was not the thing after all")
             responds["lattice"] = TheLatticeSheHolds()
@@ -202,6 +203,7 @@ async def carry_out_the_move(
         pending["deliberation"] = None
         _bind_delivered_forecast(expected, 0)
         return None
+    lattice.not_here_for = 0
     # Intent, then action. Said before the body moves, because that is
     # the order a person doing something narrates it in.
     #

@@ -4,12 +4,15 @@ Text read off a game's screen comes back with its letters half right: "Leuel"
 for Level, "Ini" for nothing at all. Said aloud as read, a readout of the
 score was "Ini 0, iin 0, x 5" (LIVE 2026-10-07). A person reading the same
 screen either knows the word or does not say it. The words are the system's
-own word list where there is one; a near miss of a longer word (one letter
-out) is that word; anything else is not a word.
+own word list where there is one, and the system's spelling checker, which
+knows the words and names of now that a 1934 dictionary does not ("box",
+"website", "Scooby"); a near miss of a longer word (one letter out, or two in
+a long word) is that word; anything else is not a word.
 """
 from __future__ import annotations
 
 import re
+import threading
 from functools import cache
 from pathlib import Path
 
@@ -47,6 +50,65 @@ def _is_known(word: str, known: frozenset[str]) -> bool:
     return False
 
 
+#: One question at a time to the spelling checker, which is not made to be asked from many threads at once.
+_ASKING = threading.Lock()
+
+
+@cache
+def _checker() -> object | None:
+    """The system's spelling checker, where the system has one she can ask."""
+    try:
+        from AppKit import NSSpellChecker  # noqa: PLC0415 - macOS only, and only when first asked
+
+        return NSSpellChecker.sharedSpellChecker()
+    except Exception:  # noqa: BLE001 - no checker is a narrower vocabulary, not a fault
+        return None
+
+
+#: Letters that look alike enough for reading text to take one for another. A guess that differs from what was read
+#: only by such letters is what was written; one that differs otherwise is another word ("trelalts" is not "trellis").
+_LOOK_ALIKE = tuple(frozenset(group) for group in ("aoecu", "ilj1tf", "uvy", "nmhr", "cge", "bh86", "s5", "z2", "qg9", "dcl"))
+
+
+def _misread_as(read: str, word: str) -> bool:
+    """Whether ``word`` could have been read as ``read``: the same length, apart only by letters that look alike,
+    by one letter (two in a word of seven or more)."""
+    if len(read) != len(word):
+        return False
+    apart = [(a, b) for a, b in zip(read, word, strict=True) if a != b]
+    return 0 < len(apart) <= (1 if len(read) < 7 else 2) and all(any(a in g and b in g for g in _LOOK_ALIKE) for a, b in apart)
+
+
+#: The language the spelling checker is asked in.
+_SPELLED_IN = "en_US"
+
+
+@cache
+def _spelled(read: str) -> str | None:
+    """The word the spelling checker takes ``read`` (four letters or more, as written) for: itself where it is spelled
+    right, its first guess where that could have been misread as it, else None."""
+    checker = _checker()
+    plain = read.lower()
+    if checker is None or not read.isalpha() or len(read) < 4:
+        return None
+    form = read.capitalize() if read.isupper() else read
+    try:
+        with _ASKING:
+            missed = checker.checkSpellingOfString_startingAt_language_wrap_inSpellDocumentWithTag_wordCount_(  # type: ignore[attr-defined]
+                form, 0, _SPELLED_IN, False, 0, None)[0]
+            if missed.length == 0:
+                return plain
+            guesses = checker.guessesForWordRange_inString_language_inSpellDocumentWithTag_(  # type: ignore[attr-defined]
+                (0, len(form)), form, _SPELLED_IN, 0) or []
+    except Exception:  # noqa: BLE001 - a checker that cannot answer has said nothing
+        return None
+    for guess in list(guesses)[:1]:
+        word = str(guess).lower()
+        if word.isalpha() and _misread_as(plain, word):
+            return word
+    return None
+
+
 def the_word(read: str) -> str | None:
     """The word ``read`` is, as the language spells it: itself, or the word one misread letter from it, or None."""
     raw = str(read or "").strip().lower()
@@ -70,7 +132,7 @@ def the_word(read: str) -> str | None:
             if fixed.isalpha() and len(fixed) >= 3 and _is_known(fixed, known):
                 return fixed
             start = plain.find(wrong, start + 1)
-    return None
+    return _spelled(re.sub(r"[^A-Za-z]", "", str(read or "").strip()) if plain.isalpha() else plain)
 
 
 def words_of(name: str, *, most: int = 2) -> str | None:

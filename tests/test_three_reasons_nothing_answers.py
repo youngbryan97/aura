@@ -95,7 +95,7 @@ def test_an_ending_needs_her_own_window_unobstructed(spoiled):
     [
         (ELSEWHERE, "not looking at it"),
         (IN_FRONT, "over the part I am using"),
-        (ENDED, "finished"),
+        (ENDED, "gone from the screen"),
         (UNKNOWN, "do not know why"),
     ],
 )
