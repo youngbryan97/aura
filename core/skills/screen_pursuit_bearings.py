@@ -262,7 +262,11 @@ def _choices_apart(region: dict[str, Any]) -> list[dict[str, Any]]:
 
 def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, float] | None:
     """The middle of the writing a click move names, in the reading's own frame."""
+    from core.agency.what_i_can_do_here import THE_PICTURE
+
     wanted = " ".join(str(label or "").split()).lower()
+    if wanted == THE_PICTURE:
+        return (0.5, 0.5)
     layout = [region for region in observation.get("layout") or [] if isinstance(region, dict)]
     for region in [*(choice for line in layout for choice in _choices_apart(line)), *(observation.get("shapes") or [])]:
         text = " ".join(str((region or {}).get("text") or "").split()).lower()

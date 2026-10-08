@@ -57,3 +57,10 @@ def test_a_place_given_as_shares_is_said_as_a_place():
     assert said == "Clicking the shape at the top right — to see what it does"
     assert where_it_is(0.5, 0.5) == "the middle"
     assert shape_of("Round 2: lost. Again.") == shape_of("Round 3: lost. Again.")
+
+
+@pytest.mark.unit
+def test_a_reason_that_names_the_move_again_says_it():
+    watcher = WhatAWatcherHears()
+    assert watcher.heard("Going up — up is the only thing available", 0.0) == "Going up — it is the only thing available"
+    assert watcher.heard('Clicking "PLAY" — click "PLAY" has worked here before', 1.0) == 'Clicking "PLAY" — it has worked here before'

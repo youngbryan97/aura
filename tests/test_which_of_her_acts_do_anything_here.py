@@ -181,7 +181,7 @@ def test_a_screen_that_names_only_the_mouse_is_clicked_not_keyed():
     for _ in range(2):
         here.looked_at(labels, says)
     here.asked_for_by(says, labels)
-    assert here.available() == ('click "Play Now!"',)
+    assert here.available() == ('click "Play Now!"', 'click "the middle of the picture"')
     keyed = "Use the arrow keys to move. Click PLAY to start."
     here.asked_for_by(keyed, labels)
     assert "up" in here.available()

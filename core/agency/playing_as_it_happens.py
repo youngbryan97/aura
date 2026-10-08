@@ -940,6 +940,24 @@ async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMe
         run.last_click = at
 
 
+#: How often the picture itself is clicked, where the game is played with the pointer and nothing in it is to be clicked.
+CLICK_THE_PICTURE_S = 1.5
+
+
+async def _click_the_picture(hands: Any, run: _Run, at: float) -> None:
+    """Where the game's words name the pointer and nothing she could click has come of it, a click on the picture itself.
+
+    "Click your mouse button to start the hamster in motion... click again to
+    launch": a click aimed at nothing is how such a game is played (LIVE
+    2026-10-07, four minutes in one with nothing clicked). Paced, so what one
+    did can be seen before the next.
+    """
+    if not run.pointer_first or at - run.last_click < CLICK_THE_PICTURE_S:
+        return
+    await hands.click(0.5, 0.5)
+    run.last_click = at
+
+
 async def _try_the_pointer(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves, at: float) -> None:
     """Sweep the pointer through a few places, to see whether anything follows it.
 
@@ -1305,6 +1323,12 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         if pointer_trial and run.pointer_first:
             await _try_the_pointer(hands, run, hers, moves, at)
             return
+        # Played with the pointer: a click, paced, before the keys are gone through again.
+        if run.pointer_first and hasattr(hands, "click") and at - run.last_click >= CLICK_THE_PICTURE_S:
+            await _click_things(hands, run, moves, meeting, at)
+            await _click_the_picture(hands, run, at)
+            if run.last_click == at:
+                return
         if run.trying < 4 * len(run.keys):
             await _try_the_keys(hands, run, hers, at)
             return
@@ -1314,6 +1338,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
             return
         if hasattr(hands, "click"):
             await _click_things(hands, run, moves, meeting, at)
+            await _click_the_picture(hands, run, at)
         return
     untried = [k for k in run.keys if hers.tried(k) < 4 and k not in choosing.ways]
     # Where she means to go and no way she knows takes her nearer, a way she has not learned yet is tried now: LIVE

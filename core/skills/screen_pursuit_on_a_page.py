@@ -79,6 +79,9 @@ class OnAPage:
     _watching_over: Any = field(default=None, init=False)
     _pictures: Any = field(default=None, init=False)
 
+    #: The longest she waits on what plays by itself inside one look, in seconds.
+    WATCH_IN_A_LOOK_S = 5.0
+
     async def read(self, over: tuple[float, float, float, float] | None = None) -> dict[str, Any]:
         from core.perception.what_her_page_shows import look_at_a_page
 
@@ -102,7 +105,8 @@ class OnAPage:
             return
         from .screen_pursuit import _tell
 
-        await self.watching.watch(tell=_tell)
+        # Inside one look, which has its own few seconds: a wait longer than the look is a look that never comes back.
+        await self.watching.watch(at_most_s=self.WATCH_IN_A_LOOK_S, tell=_tell)
 
     async def stop_watching(self) -> None:
         if self.watching is not None:

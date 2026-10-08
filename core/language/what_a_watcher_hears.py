@@ -23,6 +23,7 @@ a document or a page.
 """
 from __future__ import annotations
 
+import contextvars
 import logging
 import re
 import time
@@ -30,7 +31,8 @@ from dataclasses import dataclass, field
 
 from core.language.words_of_the_language import the_word
 
-__all__ = ["WhatAWatcherHears", "heard", "legible_share", "shape_of", "the_watcher"]
+__all__ = ["WhatAWatcherHears", "a_fresh_watcher", "done_watching", "forget_what_was_heard", "heard", "legible_share", "shape_of",
+           "the_watcher"]
 
 logger = logging.getLogger("Aura.WhatAWatcherHears")
 
@@ -81,6 +83,19 @@ def shape_of(line: str) -> str:
     return said
 
 
+def _the_move_once(said: str) -> str:
+    """A move line whose reason begins by naming the move again says "it": 'Going up — up is the only thing
+    available' is 'Going up — it is the only thing available'."""
+    move = re.match(r"^(?:going|pressing|clicking|holding)\s+(?P<what>.+?)\s+—\s+(?P<why>.+)$", said, re.I)
+    if not move:
+        return said
+    what, why = move.group("what"), move.group("why")
+    for named in (f"click {what}", what):
+        if why.lower().startswith(named.lower() + " "):
+            return said[: move.start("why")] + "it" + why[len(named):]
+    return said
+
+
 def _a_word(token: str, names: frozenset[str]) -> str | None:
     """The word ``token`` is: a name she was given, a short word of the language, or a word one misread letter away."""
     plain = _plain(token.replace("’", "'").split("'")[0])
@@ -127,6 +142,8 @@ def _mended(text: str, names: frozenset[str]) -> str:
         out.append(token)
     while out and out[-1] == "…":
         out.pop()
+    while out and out[0] == "…":
+        out.pop(0)
     return " ".join(out)
 
 
@@ -153,6 +170,7 @@ class WhatAWatcherHears:
         said = self._quoted_legibly(said, names)
         if said is None:
             return None
+        said = _the_move_once(said)
         shape = shape_of(said)
         if now - self.lines.get(said, -SAME_AGAIN_S) < SAME_AGAIN_S:
             logger.info("not said again: %r", said[:120])
@@ -172,10 +190,10 @@ class WhatAWatcherHears:
                 return None
             return reading.group("lead") + _mended(text, names)
         said = _A_PLACE.sub(lambda m: f"{m.group(1)} at " + where_it_is(int(m.group(2)) / 100, int(m.group(3)) / 100), said)
-        said = re.sub(r"\"((?:the shape|the one that stands out) at [^\"]+)\"", r"\1", said)
+        said = re.sub(r"\"((?:the shape|the one that stands out) at [^\"]+|the middle of the picture)\"", r"\1", said)
         for match in list(_QUOTED.finditer(said)):
             text = match.group(1) or match.group(2) or match.group(3) or ""
-            if text.startswith(("the shape at ", "the one that stands out at ")):
+            if text.startswith(("the shape at ", "the one that stands out at ", "the middle of the picture")):
                 continue
             if legible_share(text, names) < LEGIBLE:
                 logger.info("not said, what it quotes could not be read: %r", said[:120])
@@ -188,12 +206,34 @@ class WhatAWatcherHears:
 
 _THE_WATCHER = WhatAWatcherHears()
 
+#: The watcher of the piece of work in hand (one game, one form, one document), where one was begun for it.
+_WATCHING: contextvars.ContextVar[WhatAWatcherHears | None] = contextvars.ContextVar("aura_what_a_watcher_hears", default=None)
+
 
 def the_watcher() -> WhatAWatcherHears:
-    """The one person watching: lines said from anywhere she works are heard by the same watcher."""
-    return _THE_WATCHER
+    """Whoever is watching the work in hand: the one begun for it, else the one person watching her at all."""
+    return _WATCHING.get() or _THE_WATCHER
+
+
+def a_fresh_watcher(task: str = "") -> contextvars.Token[WhatAWatcherHears | None]:
+    """Begin a piece of work: what was said of the last one is not what this one has said. Reset with the token."""
+    watcher = WhatAWatcherHears()
+    watcher.knows(task)
+    return _WATCHING.set(watcher)
+
+
+def done_watching(token: contextvars.Token[WhatAWatcherHears | None]) -> None:
+    """The piece of work begun with ``token`` is over; whoever watched before it watches on."""
+    _WATCHING.reset(token)
 
 
 def heard(line: str) -> str | None:
     """``line`` as the watcher hears it, or None."""
-    return _THE_WATCHER.heard(line)
+    return the_watcher().heard(line)
+
+
+def forget_what_was_heard() -> None:
+    """Every line as if never said: for a new sitting, and for checks that must not hear each other."""
+    _THE_WATCHER.shapes.clear()
+    _THE_WATCHER.lines.clear()
+    _THE_WATCHER.names.clear()

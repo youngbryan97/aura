@@ -3067,3 +3067,18 @@ def _the_hosts_own_screen_is_not_the_subject(monkeypatch):
     ):
         if hasattr(policy, name):
             monkeypatch.setattr(policy, name, a_screen_she_may_read)
+
+
+@pytest.fixture(autouse=True)
+def _a_watcher_hears_each_test_afresh():
+    """No test is silenced by a line another test said.
+
+    ``core.language.what_a_watcher_hears`` keeps the lines a person watching her
+    has heard lately, process-wide, and a line of the same shape is not said
+    twice within a while; one test's "Going up" kept the next test's from being said.
+    """
+    from core.language.what_a_watcher_hears import forget_what_was_heard
+
+    forget_what_was_heard()
+    yield
+    forget_what_was_heard()

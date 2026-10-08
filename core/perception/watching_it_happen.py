@@ -209,9 +209,15 @@ class Watching:
         if tell is not None:
             tell("Something is playing out on its own; watching it before I do anything.")
         began = now
-        # What is waited on is read off the stream, which sets nothing to wait on.
-        while time.monotonic() - began < at_most_s and self.playing_on_its_own():  # noqa: ASYNC110
-            await asyncio.sleep(0.25)
+        try:
+            # What is waited on is read off the stream, which sets nothing to wait on.
+            while time.monotonic() - began < at_most_s and self.playing_on_its_own():  # noqa: ASYNC110
+                await asyncio.sleep(0.25)
+        except asyncio.CancelledError:
+            # Cut off by whoever was waiting on her is watched as far as she can: LIVE 2026-10-08 a title that never
+            # stops moving was waited on inside an eight-second look, three looks running, and the game was left.
+            self._watched_until = time.monotonic() + 60.0
+            raise
         watched = time.monotonic() - began
         if watched >= at_most_s:
             self._watched_until = time.monotonic() + 60.0

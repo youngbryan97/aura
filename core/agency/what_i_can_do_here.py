@@ -38,6 +38,7 @@ from core.agency.where_things_lead import WhereThingsLead
 
 __all__ = [
     "COMMITS_TO_NOTHING",
+    "THE_PICTURE",
     "ENOUGH_TO_JUDGE",
     "WhatWorksHere",
     "a_click_on",
@@ -129,6 +130,17 @@ def keys_a_screen_asks_for(words: str) -> tuple[str, ...]:
     return tuple(asked)
 
 
+#: A click on the picture itself, for a screen that asks for a click and names nothing to click.
+THE_PICTURE = "the middle of the picture"
+
+#: How a screen's words ask for a click on nothing in particular: "Click your mouse button to start the hamster in
+#: motion", "click anywhere to continue", "click to start". Clicked in the middle of what she is looking at.
+_CLICK_ANYWHERE = re.compile(
+    r"\b(?:click|tap)\s+(?:(?:your|the|a|any|left)\s+)*(?:mouse(?:\s+button)?|anywhere|screen)\b"
+    r"|\b(?:click|tap)\s+to\s+(?:start|begin|play|continue|launch|go|shoot|throw|jump|fire)\b",
+    re.IGNORECASE,
+)
+
 #: How a screen's words ask for a click: "click on the GENERATE button", "press PLAY to start", "select Easy".
 _ASKING_TO_CLICK = re.compile(r"\b(?:click|press|hit|tap|select|choose)\s+(?:on\s+)?(?:the\s+)?([a-z0-9]+)")
 
@@ -151,6 +163,8 @@ def clicks_a_screen_asks_for(words: str, clickable: Sequence[str]) -> tuple[str,
         word = first[0]
         if any(word == name or (min(len(word), len(name)) >= 4 and (name.startswith(word) or word.startswith(name))) for name in named):
             asked.append(move)
+    if not asked and _CLICK_ANYWHERE.search(said):
+        asked.append(a_click_on(THE_PICTURE))
     return tuple(asked)
 
 
@@ -286,7 +300,8 @@ class WhatWorksHere:
         # 20:23, offline on a Pong whose title said "Press SPACE to play", she
         # made 199 moves with the arrow keys and never pressed space.
         asked = tuple(key for key in self.asked_for if key not in self.told)
-        asked += tuple(click for click in self.clicks_asked_for if click in self.on_screen and click not in dead)
+        asked += tuple(click for click in self.clicks_asked_for
+                       if (click in self.on_screen or what_is_clicked(click) == THE_PICTURE) and click not in dead)
         told = tuple(key for key in self.told if key not in dead)
         # A label that goes on (Play, Next, Easy) is offered whatever the keys
         # are doing: on a menu that moves on its own, keys look as if they work
@@ -297,9 +312,14 @@ class WhatWorksHere:
         goes_on = tuple(click for click in self.on_screen if click not in dead
                         and (_goes_on(click) or self.keys_do_nothing_here() and _not_read_only(click)))
         if asked:
-            return tuple(dict.fromkeys(asked + told + goes_on))
+            # Named things before a click on nothing in particular, and no keys where the screen names only the mouse.
+            anywhere = tuple(a for a in asked if what_is_clicked(a) == THE_PICTURE)
+            named = tuple(a for a in asked if a not in anywhere)
+            return tuple(dict.fromkeys(named + (() if self.pointer_only else told) + goes_on + anywhere))
         clicks = tuple(click for click in self.on_screen if click not in dead and _not_read_only(click))
-        if self.pointer_only and clicks:
+        if self.pointer_only:
+            # The picture itself too: a game played with the mouse is mostly clicked where nothing is written.
+            clicks += tuple(c for c in (a_click_on(THE_PICTURE),) if c not in dead and c not in clicks)
             # A screen whose words name the mouse and no key is done by clicking: LIVE 2026-10-07 "Click your mouse
             # button to start the hamster in motion" and she pressed each arrow to see what it did.
             return clicks
