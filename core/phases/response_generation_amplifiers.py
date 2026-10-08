@@ -38,6 +38,7 @@ class _AmplifiesTheDraft:
         proof_or_benchmark: bool,
         seed_candidates: list[str] | None = None,
         evidence: list[str] | None = None,
+        token_cap: int = 768,
     ) -> str:
         """Re-derive a verifiable hard-turn answer through the reasoning amplifier.
 
@@ -101,28 +102,27 @@ class _AmplifiesTheDraft:
         if str(_FLAG_AMPLIFIER_TIER_ESCALATION.value()).strip().lower() in {"1", "true", "on", "yes"}:
             escalate_gen = _make_gen("deep")
 
-        # A resident-32B program-of-thought generation takes roughly 45-55s on
-        # this host. The old universal 30s ceiling made admitted executable
-        # tasks impossible by construction. Spend a larger but still bounded
-        # share of the foreground contract only when structured computation is
-        # actually applicable; evidence-only amplification keeps its 30s cap.
-        requires_full_program_budget = bool(
-            executable_reasoning and task_type != "math"
+        # The search is priced the way the draft was and admitted to the turn's
+        # own clock; see ResponseGenerationPhase._maybe_amplify_response. The
+        # shares and ceilings it replaces were sized for a faster model.
+        from core.brain.reasoning_amplifier_v2 import search_allowance
+        from core.runtime.completion_admission import admit_completion_work
+
+        sample_budget = 3 if executable_reasoning else None
+        candidate_seconds, search_seconds = search_allowance(
+            objective, task_type, token_cap=token_cap, sample_budget=sample_budget, system=None
         )
-        budget_floor = 60.0 if requires_full_program_budget else 8.0
-        budget_ceiling = 150.0 if executable_reasoning else 30.0
-        available_budget = max(1.0, float(request_timeout or 20.0) * 0.8)
-        budget = float(min(budget_ceiling, available_budget))
-        if requires_full_program_budget and budget < budget_floor:
+        admitted = search_seconds > 0.0 and admit_completion_work(search_seconds + 4.0)
+        budget = search_seconds if admitted else float(request_timeout or 20.0)
+        if budget < candidate_seconds:
             return draft
-        budget = max(min(budget_floor, available_budget), budget)
         result = await amplify_turn(
             objective,
             _gen,
             task_type=task_type,
             evidence=list(evidence or []),
             time_budget_s=budget,
-            sample_budget=3 if executable_reasoning else None,
+            sample_budget=sample_budget,
             extra_context={
                 "seed_candidates": list(seed_candidates or [draft]),
                 "enable_executable_reasoning": executable_reasoning,

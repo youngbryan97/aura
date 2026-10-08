@@ -5542,6 +5542,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         llm=llm,
                         state=new_state,
                         request_timeout=request_timeout,
+                        token_cap=int(llm_kwargs.get("max_tokens") or 768),
                         is_user_facing=is_user_facing,
                         is_background=is_background,
                         proof_or_benchmark=bool(proof_evaluation_turn or benchmark_turn or strict_proof_answer_request),

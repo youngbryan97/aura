@@ -102,7 +102,8 @@ async def test_structured_live_task_gets_executable_budget_and_draft_incumbent(m
     )
 
     assert out == draft
-    assert captured["time_budget_s"] == 144.0
+    # No rate measured here, so nothing is priced and the turn's own timeout bounds it.
+    assert captured["time_budget_s"] == 180.0
     assert captured["sample_budget"] == 3
     assert captured["extra_context"] == {
         "seed_candidates": [draft],
@@ -361,7 +362,7 @@ async def test_active_phase_funds_structured_execution_and_keeps_draft_incumbent
     )
 
     assert out == draft
-    assert captured["time_budget_s"] == 108.0
+    assert captured["time_budget_s"] == 180.0
     assert captured["sample_budget"] == 3
     assert captured["extra_context"]["seed_candidates"] == [draft]
     assert captured["extra_context"]["enable_executable_reasoning"] is True
@@ -427,8 +428,12 @@ async def test_active_phase_surfaces_consensus_bearing_answer(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase_kind", ["active", "unitary"])
 async def test_structured_execution_does_not_start_without_one_candidate_budget(
-    phase_kind,
+    phase_kind, monkeypatch,
 ):
+    # One candidate is measured at 45 s and the turn has 30 s.
+    monkeypatch.setattr("core.brain.llm.generation_allowance.resident_generation_seconds",
+                        lambda messages, tokens, **_: 45.0)
+    monkeypatch.setattr("core.runtime.completion_admission.admit_completion_work", lambda seconds: False)
     draft = "INCUMBENT"
     if phase_kind == "active":
         router = _StubRouter("must not run")
@@ -723,4 +728,72 @@ async def test_optional_amplifier_deadline_returns_the_exact_draft(monkeypatch):
 
     assert out is draft
     assert cancelled is True
-    assert time.monotonic() - started < 3.0
+    # Nothing priced, so the turn's own 3.5 s bounds it; it never outlives that.
+    assert time.monotonic() - started < 3.5 + 0.5
+
+
+def _captured_amplify(monkeypatch, captured: dict):
+    from core.brain.reasoning_amplifier_v2 import AmplifiedAnswer, ReasoningReceipt
+
+    async def fake_amplify_turn(objective, generate, **kwargs):
+        captured.update(kwargs)
+        return AmplifiedAnswer(
+            answer="", source_answer="", confidence=0.0, verified=False, calibrated=False,
+            receipt=ReasoningReceipt(
+                mode="normal", strategy_used="none", task_type="planning", num_candidates=0,
+                verifiers_run=[], valid_candidates=0, winning_candidate_id=None, confidence=0.0,
+                agreement=0.0, epistemic_status="unverified",
+            ),
+        )
+
+    monkeypatch.setattr("core.brain.reasoning_amplifier_v2.amplify_turn", fake_amplify_turn)
+
+
+_JOBS = "Schedule these jobs to minimize makespan: [{'name':'A','duration':2}, {'name':'B','duration':3}]"
+
+
+@pytest.mark.asyncio
+async def test_the_search_is_priced_from_the_measured_rate_and_admitted_to_the_turn(monkeypatch):
+    """Two planned candidates at 40 s each: the turn is asked for 84 s and the search gets 80."""
+    captured: dict = {}
+    admitted: list[float] = []
+    _captured_amplify(monkeypatch, captured)
+    monkeypatch.setattr("core.brain.llm.generation_allowance.resident_generation_seconds",
+                        lambda messages, tokens, **_: 40.0)
+    monkeypatch.setattr("core.runtime.completion_admission.admit_completion_work",
+                        lambda seconds: admitted.append(seconds) or True)
+    await _phase_stub()._maybe_amplify_response(
+        objective=_JOBS, draft="first pass", router=_StubRouter("unused"), state=AuraState.default(),
+        request_timeout=20.0, origin="desktop_ui", tier="primary",
+        runtime_context={"desktop_cognitive_engine_required": True},
+        is_user_facing=True, is_background=False, proof_or_benchmark=False,
+    )
+    assert admitted == [84.0]
+    assert captured["time_budget_s"] == 80.0
+
+
+@pytest.mark.asyncio
+async def test_the_amplifier_stands_down_when_one_candidate_cannot_fit(monkeypatch):
+    captured: dict = {}
+    _captured_amplify(monkeypatch, captured)
+    monkeypatch.setattr("core.brain.llm.generation_allowance.resident_generation_seconds",
+                        lambda messages, tokens, **_: 200.0)
+    monkeypatch.setattr("core.runtime.completion_admission.admit_completion_work", lambda seconds: False)
+    out = await _phase_stub()._maybe_amplify_response(
+        objective=_JOBS, draft="first pass", router=_StubRouter("unused"), state=AuraState.default(),
+        request_timeout=180.0, origin="desktop_ui", tier="primary",
+        runtime_context={"desktop_cognitive_engine_required": True,
+                         "cognitive_cycle_deadline_monotonic": time.monotonic() + 100.0},
+        is_user_facing=True, is_background=False, proof_or_benchmark=False,
+    )
+    assert out == "first pass"
+    assert captured == {}
+
+
+def test_the_planned_search_is_the_amplifiers_own():
+    from core.brain.reasoning_amplifier_v2 import planned_new_candidates
+
+    assert planned_new_candidates("math", seeds=1) == 8
+    assert planned_new_candidates("planning", seeds=1) == 2
+    assert planned_new_candidates("planning", sample_budget=3, seeds=1) == 2
+    assert planned_new_candidates("factual", seeds=0) == 3

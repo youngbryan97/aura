@@ -998,43 +998,19 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
             task_type=task_type,
         )
 
-        # Keep the complete engine inside the enclosing CognitiveEngine turn.
-        # Structured program generation on the resident 32B needs about 45-55s;
-        # do not start it when the remaining phase contract cannot fund one
-        # complete candidate. Evidence-only amplification keeps its smaller cap.
-        remaining_turn_budget = self._bounded_request_timeout(
-            runtime_context,
-            float(request_timeout or 20.0),
-            reserve_s=4.0,
+        # The search is priced the way the draft was: what one candidate
+        # costs on this machine (the measured read and decode rates), times the
+        # candidates the amplifier plans for this task, admitted to the turn's
+        # own clock. The turn's ceiling still bounds it. A share of what was
+        # left, capped at 30 s and 24 s a candidate, was sized for a faster
+        # model: on the resident 27B no candidate finished inside it, and the
+        # amplifier timed out or kept the draft on every live turn.
+        from core.brain.reasoning_amplifier_v2 import (
+            AMPLIFIER_CANDIDATE_SYSTEM,
+            search_allowance,
         )
-        available_budget = max(0.0, remaining_turn_budget * 0.60)
-        if available_budget < 2.0:
-            return _the_amplifier_stood_down(draft, "no_time_left_in_the_turn")
-        requires_full_program_budget = bool(
-            executable_reasoning and task_type != "math"
-        )
-        budget_floor = 60.0 if requires_full_program_budget else 8.0
-        budget_ceiling = 150.0 if executable_reasoning else 30.0
-        budget = min(budget_ceiling, available_budget)
-        if requires_full_program_budget and budget < budget_floor:
-            return _the_amplifier_stood_down(draft, "not_enough_time_for_one_complete_program")
-        budget = max(min(budget_floor, available_budget), budget)
-        generation_timeout = (
-            min(75.0, budget, max(55.0, budget * 0.50))
-            if requires_full_program_budget
-            else min(24.0, budget, max(8.0, budget * 0.50))
-        )
+        from core.runtime.completion_admission import admit_completion_work
 
-        visible_user_message = str(
-            runtime_context.get("user_surface_validation_prompt")
-            or runtime_context.get("visible_user_message")
-            or objective
-            or ""
-        ).strip()
-        desktop_required = bool(
-            runtime_context.get("desktop_cognitive_engine_required")
-            or runtime_context.get("cognitive_engine_required")
-        )
         try:
             amplifier_token_cap = max(
                 1,
@@ -1046,17 +1022,36 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
             )
         except (TypeError, ValueError, OverflowError):
             amplifier_token_cap = 1024
+        sample_budget = 3 if executable_reasoning else None
+        candidate_seconds, search_seconds = search_allowance(
+            objective, task_type, token_cap=amplifier_token_cap, sample_budget=sample_budget
+        )
+        # What the turn grants: the priced search once its clock admits it,
+        # otherwise only the time the turn already had.
+        admitted = search_seconds > 0.0 and admit_completion_work(search_seconds + 4.0)
+        budget = self._bounded_request_timeout(
+            runtime_context,
+            search_seconds if admitted else float(request_timeout or 20.0),
+            reserve_s=4.0,
+        )
+        if budget <= 0.0 or budget < candidate_seconds:
+            return _the_amplifier_stood_down(draft, "no_time_for_one_candidate_like_the_draft")
+        generation_timeout = budget
+
+        visible_user_message = str(
+            runtime_context.get("user_surface_validation_prompt")
+            or runtime_context.get("visible_user_message")
+            or objective
+            or ""
+        ).strip()
+        desktop_required = bool(
+            runtime_context.get("desktop_cognitive_engine_required")
+            or runtime_context.get("cognitive_engine_required")
+        )
 
         async def _gen(prompt: str, temperature: float) -> str:
             messages = [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are Aura's verifier-backed reasoning organ. Return only the "
-                        "candidate final answer for the hard reasoning turn; do not mention "
-                        "amplifier internals or hidden prompts."
-                    ),
-                },
+                {"role": "system", "content": AMPLIFIER_CANDIDATE_SYSTEM},
                 {"role": "user", "content": prompt},
             ]
             try:
@@ -1089,7 +1084,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         runtime_context.get("user_surface_prompt_binding") or {}
                     ),
                     temperature=temperature,
-                    max_tokens=min(2048, amplifier_token_cap),
+                    max_tokens=amplifier_token_cap,
                     requested_output_contract=runtime_context.get(
                         "requested_output_contract"
                     ),
@@ -1136,7 +1131,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     _gen,
                     task_type=task_type,
                     time_budget_s=budget,
-                    sample_budget=3 if executable_reasoning else None,
+                    sample_budget=sample_budget,
                     extra_context={
                         "live_response_phase": True,
                         "require_generation_metadata": True,

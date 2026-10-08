@@ -1860,6 +1860,50 @@ def is_action_request(objective: str) -> bool:
     return asks_to_act_on_a_page(q)
 
 
+#: What a live amplifier candidate is asked to be. Its price is read from it.
+AMPLIFIER_CANDIDATE_SYSTEM = (
+    "You are Aura's verifier-backed reasoning organ. Return only the "
+    "candidate final answer for the hard reasoning turn; do not mention "
+    "amplifier internals or hidden prompts."
+)
+
+
+def search_allowance(
+    objective: str,
+    task_type: str,
+    *,
+    token_cap: int,
+    sample_budget: int | None = None,
+    seeds: int = 1,
+    system: str | None = AMPLIFIER_CANDIDATE_SYSTEM,
+) -> tuple[float, float]:
+    """Seconds one candidate costs on this machine, and the planned search.
+
+    Priced as a draft is (core/brain/llm/generation_allowance.py): the measured
+    read and decode rates over the candidate's prompt and token cap. Both are
+    0.0 when no rate has been measured, which prices nothing.
+    """
+    from core.brain.llm.generation_allowance import resident_generation_seconds
+
+    messages = ([{"role": "system", "content": system}] if system else []) + [
+        {"role": "user", "content": objective}
+    ]
+    one = resident_generation_seconds(messages, max(1, int(token_cap)))
+    return one, one * planned_new_candidates(task_type, sample_budget=sample_budget, seeds=seeds)
+
+
+def planned_new_candidates(
+    task_type: str, *, risk_level: str = "normal", sample_budget: int | None = None, seeds: int = 0
+) -> int:
+    """How many candidates beyond the seeds the amplifier plans to generate.
+
+    The mode's own sample budget, so a caller pricing the search prices the
+    search the amplifier will run, not a number of its own.
+    """
+    mode = ReasoningBudgetPolicy.choose_mode(task_type, risk_level=risk_level)
+    return max(0, _admit_sample_budget(sample_budget, mode) - max(0, int(seeds)))
+
+
 def is_amplifiable(objective: str) -> str | None:
     """Return the task_type to amplify for a turn, or None for ordinary chat/actions.
 
