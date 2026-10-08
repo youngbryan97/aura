@@ -45,6 +45,7 @@ from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from fractions import Fraction
+from pathlib import Path
 from typing import Any
 
 SOLVED_EXAMPLE_PROCEDURES_SCHEMA = "aura.solved_example_procedures.v1"
@@ -169,17 +170,25 @@ def _example_text(index: int, example: SolvedExample) -> str:
     return f"Problem {index}:\n{example.problem.strip()}\n\nAnswer {index}: {example.answer.strip()}"
 
 
-def proposal_request(shown: Sequence[SolvedExample]) -> str:
+def _available(mechanisms: str | None) -> str:
+    if not mechanisms:
+        return "Only the Python standard library is available."
+    return ("The Python standard library is available, and `import mechanisms` gives these exact "
+            "mechanisms:\n\n" + mechanisms.strip() + "\n")
+
+
+def proposal_request(shown: Sequence[SolvedExample], mechanisms: str | None = None) -> str:
     examples = "\n\n".join(_example_text(i + 1, e) for i, e in enumerate(shown))
     return (
         "Each problem below is followed by its correct answer. Write a Python function "
         "`solve(problem: str) -> str` that computes the correct answer for any problem of this kind, "
-        "including new ones, returned in the same form as these answers. Only the Python standard "
-        "library is available. Reply with one Python code block.\n\n" + examples
+        "including new ones, returned in the same form as these answers. " + _available(mechanisms)
+        + " Reply with one Python code block.\n\n" + examples
     )
 
 
-def repair_request(code: str, shown: Sequence[SolvedExample], failures: Sequence[tuple[SolvedExample, Outcome]]) -> str:
+def repair_request(code: str, shown: Sequence[SolvedExample], failures: Sequence[tuple[SolvedExample, Outcome]],
+                   mechanisms: str | None = None) -> str:
     examples = "\n\n".join(_example_text(i + 1, e) for i, e in enumerate(shown))
     wrong = "\n\n".join(
         f"Problem:\n{example.problem.strip()}\n\nCorrect answer: {example.answer.strip()}\n"
@@ -190,18 +199,32 @@ def repair_request(code: str, shown: Sequence[SolvedExample], failures: Sequence
         "Each problem below is followed by its correct answer. This function was written to compute "
         "the answer for any problem of this kind:\n\n```python\n" + code.strip() + "\n```\n\n"
         "It is wrong on the problems that follow the examples. Write a corrected "
-        "`solve(problem: str) -> str` for every problem of this kind. Only the Python standard "
-        "library is available. Reply with one Python code block.\n\n" + examples
+        "`solve(problem: str) -> str` for every problem of this kind. " + _available(mechanisms)
+        + " Reply with one Python code block.\n\n" + examples
         + "\n\nWhere it was wrong:\n\n" + wrong
     )
 
 
+def _mechanisms_directory() -> str:
+    from core.reasoning import mechanisms
+
+    return str(Path(mechanisms.__file__).resolve().parent)
+
+
 def run_procedure(code: str, problem: str, *, timeout_s: float | None = None) -> tuple[str | None, str]:
-    """One call of ``solve`` in the OS sandbox: what it returned, or why it did not."""
+    """One call of ``solve`` in the OS sandbox: what it returned, or why it did not.
+
+    The child may read core/reasoning, so ``import mechanisms`` works there
+    (core/reasoning/mechanisms.py imports only the standard library and its
+    sibling constraint engine).
+    """
     from core.sandbox.untrusted_python import DEFAULT_TIMEOUT_S, call_untrusted_function
 
-    outcome = call_untrusted_function(code, "solve", calls=[[problem]],
-                                      timeout_s=timeout_s or DEFAULT_TIMEOUT_S, source="procedures_from_solved_examples")
+    directory = _mechanisms_directory()
+    prelude = f"import sys as _aura_sys\n_aura_sys.path.insert(0, {directory!r})\n"
+    outcome = call_untrusted_function(prelude + code, "solve", calls=[[problem]],
+                                      timeout_s=timeout_s or DEFAULT_TIMEOUT_S, extra_read_paths=(directory,),
+                                      source="procedures_from_solved_examples")
     if outcome.status != "ok":
         return None, f"{outcome.status}: {str(outcome.error or '')[:300]}"
     results = list(getattr(outcome, "results", None) or [])
@@ -262,6 +285,7 @@ def induce(
     rounds: int,
     agree: Agree = agrees_with_shown_answer,
     workers: int = 1,
+    mechanisms: str | None = None,
     on_candidate: Callable[[Candidate], None] | None = None,
 ) -> dict[str, Family]:
     """Write, check and revise procedures for every family, all families' requests batched per round.
@@ -271,6 +295,8 @@ def induce(
     request shows the function and up to ``shots`` of the pool problems it got
     wrong; after a failure confined to the sealed half (or no code at all) it
     starts again from a fresh draw. A line stops once a function is admitted.
+    ``mechanisms`` is the reference text of core/reasoning/mechanisms.py when
+    her model is told it may import them.
     """
     state: dict[str, Family] = {}
     for name, examples in families.items():
@@ -292,9 +318,9 @@ def induce(
             failures = [(e, o) for e, o in zip(family.pool, previous.pool, strict=True) if not o.agreed][:shots] \
                 if previous is not None else []
             if previous is not None and failures:
-                requests.append(repair_request(previous.code, shown, failures))
+                requests.append(repair_request(previous.code, shown, failures, mechanisms))
             else:
-                requests.append(proposal_request(shown))
+                requests.append(proposal_request(shown, mechanisms))
             shown_sets.append(shown)
         texts = propose(requests)
         for (name, line), shown, text in zip(active, shown_sets, texts, strict=True):

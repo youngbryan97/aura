@@ -16,7 +16,7 @@ first half is development.
 
 Usage:
     induce_g09_procedures.py --kinds bbeh_hyperbaton,calendar --output DIR
-        [--lines 2] [--rounds 3] [--shots 3] [--batch 8] [--fake-proposer FILE]
+        [--lines 2] [--rounds 3] [--shots 3] [--batch 8] [--mechanisms] [--fake-proposer FILE]
 """
 
 from __future__ import annotations
@@ -104,6 +104,8 @@ def main() -> int:
     parser.add_argument("--model", type=Path,
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--fake-proposer", type=Path, help="a JSON list of replies, for a dry run without the model")
+    parser.add_argument("--mechanisms", action="store_true",
+                        help="tell her model it may import core/reasoning/mechanisms.py, and what it offers")
     args = parser.parse_args()
 
     from core.learning.procedures_from_solved_examples import (
@@ -183,8 +185,11 @@ def main() -> int:
               flush=True)
 
     try:
+        from core.reasoning.mechanisms import reference
+
         state = induce(families, propose, shots=args.shots, lines=args.lines, rounds=args.rounds,
-                       agree=agree, workers=args.workers, on_candidate=on_candidate)
+                       agree=agree, workers=args.workers, mechanisms=reference() if args.mechanisms else None,
+                       on_candidate=on_candidate)
     finally:
         if context is not None:
             context.__exit__(None, None, None)

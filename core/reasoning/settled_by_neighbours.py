@@ -67,7 +67,7 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["Constraint", "Problem", "Settled", "a_problem", "narrowed", "settle"]
+__all__ = ["Constraint", "Problem", "Settled", "a_problem", "narrowed", "settle", "solutions_up_to"]
 
 
 @dataclass(frozen=True)
@@ -258,6 +258,11 @@ def _searched(problem: Problem, deadline: float, want: int = 2) -> tuple[list[di
     except _OutOfTimeError:
         return found, False
     return found, True
+
+
+def solutions_up_to(problem: Problem, limit: int, *, budget_s: float) -> tuple[list[dict[str, Hashable]], bool]:
+    """Every solution up to ``limit``, by search with ruling out at each step, and whether it finished."""
+    return _searched(problem, time.monotonic() + budget_s, want=limit)
 
 
 # ── many attempts ────────────────────────────────────────────────────────────

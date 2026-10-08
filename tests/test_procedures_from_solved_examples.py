@@ -190,3 +190,19 @@ async def test_both_live_phases_take_a_kept_answer_before_any_search(monkeypatch
     out = await UnitaryResponsePhase._maybe_amplify_response(
         holder, objective="hey how are you doing today", llm=None, state=types.SimpleNamespace(metadata={}), **common)
     assert out == "DRAFT"
+
+
+@needs_boundary
+def test_a_procedure_can_call_the_shared_mechanisms_in_the_sandbox() -> None:
+    from core.learning.procedures_from_solved_examples import proposal_request, run_procedure
+    from core.reasoning.mechanisms import reference
+
+    code = ("import mechanisms\n\ndef solve(problem):\n"
+            "    names = problem.split(':')[1].split()\n"
+            "    before = [(names[i], names[i + 1]) for i in range(len(names) - 1)]\n"
+            "    found = mechanisms.orders(sorted(names), before)\n"
+            "    return ' '.join(found[0]) + ' ' + str(mechanisms.exact('1/3 + 1/6'))\n")
+    returned, error = run_procedure(code, "order: c a b")
+    assert error == "" and returned == "c a b 1/2"
+    assert "mechanisms.orders" in proposal_request([reversal(1)], reference())
+    assert "Only the Python standard library" in proposal_request([reversal(1)])
