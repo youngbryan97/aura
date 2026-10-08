@@ -122,6 +122,10 @@ async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: 
             tries += [lambda: going.the_same_thing_elsewhere(skill, browser, name)]
     for attempt in tries:
         found = await attempt()
+        # An archived copy is a copy of the page, not the thing: where it is to be run, the page's own links to where it
+        # is kept come before the copy (core/skills/sovereign_browser_going.py `where_the_page_points`).
+        if found and runs and found.startswith("https://web.archive.org/"):
+            found = await _the_copy_or_where_it_points(skill, browser, found, name, task)
         if found:
             if not found.startswith("https://web.archive.org/"):
                 where = re.sub(r"^https?://(www\.)?", "", found).split("/")[0]
@@ -131,6 +135,25 @@ async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: 
                 skill._say_out_loud(line, {"label": "Going to", "said": line})
             return found
     return ""
+
+
+async def _the_copy_or_where_it_points(skill: Any, browser: Any, copy: str, name: str, task: str) -> str:
+    """Where the archived copy of an item's page says the item is kept, where that works; else the copy, where it works
+    itself; else ''. A copy that is seen not to work is said to, and the item is not to be had there."""
+    from core.skills import sovereign_browser_going as going
+    from core.skills.whether_a_page_serves import whether_it_serves
+
+    pointed = await going.where_the_page_points(skill, browser, name, task=task)
+    if pointed:
+        return pointed
+    if not await skill._safe_browse(browser, copy):
+        return ""
+    verdict = await whether_it_serves(browser.page, task)
+    if verdict.ok is False:
+        line = f"The archived copy of “{name}” does not work either: {verdict.says()}."
+        skill._say_out_loud(line, {"label": "Not working", "said": line})
+        return ""
+    return copy
 
 
 def _as_asked(done: Mapping[str, Any]) -> dict[str, bool]:

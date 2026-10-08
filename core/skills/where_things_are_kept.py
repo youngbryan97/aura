@@ -44,7 +44,9 @@ class Catalogue:
 
 
 def _words(text: str) -> list[str]:
-    return [w for w in re.findall(r"[a-z0-9]+", str(text or "").lower().replace("’", "").replace("'", "")) if len(w) > 1]
+    """The words of a name as a catalogue matches them: a possessive is its word ("Eddy’s" is eddy, not eddys)."""
+    plain = re.sub(r"(\w)['’]s\b", r"\1", str(text or "").lower()).replace("’", "").replace("'", "")
+    return [w for w in re.findall(r"[a-z0-9]+", plain) if len(w) > 1]
 
 
 async def _json(page: Any, address: str) -> Any:
@@ -59,7 +61,10 @@ async def _json(page: Any, address: str) -> Any:
 async def _software_library(page: Any, name: str) -> list[Candidate]:
     """The Internet Archive's catalogue, which keeps old software, games, films, recordings and books, many runnable in its pages."""
     out: list[Candidate] = []
-    for words in (_words(name), _words(str(name).split(":")[-1])):
+    # The whole name; its own part after the series; and, where neither is kept under those words, the words of it
+    # that tell it apart (four letters or more): LIVE 2026-10-08 "Ed, Edd n Eddy’s Candy Machine Deluxe" is kept as
+    # "Ed Edd n' Eddy: Candy Machine Deluxe".
+    for words in (_words(name), _words(str(name).split(":")[-1]), [w for w in _words(name) if len(w) >= 4]):
         if not words:
             continue
         query = "title:(" + " AND ".join(words) + ")"

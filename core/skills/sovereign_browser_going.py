@@ -12,7 +12,7 @@ import re
 import urllib.parse
 from typing import Any
 
-__all__ = ["Where", "the_same_thing_elsewhere", "where_to_go"]
+__all__ = ["Where", "the_same_thing_elsewhere", "where_the_page_points", "where_to_go"]
 
 
 def where_to_go(value: str) -> str:
@@ -145,8 +145,54 @@ async def the_same_thing_elsewhere(skill: object, browser: object, name: str, *,
     page = getattr(browser, "page", None)
     if page is None or not _words(name):
         return ""
-    runs = bool(RUNS.search(task or ""))
     candidates = await where_it_might_be(skill, browser, name, task=task)
+    return await _the_first_that_serves(skill, browser, name, task, candidates, not_at)
+
+
+#: The links of a page, as their words and where they go.
+_LINKS = "() => Array.from(document.querySelectorAll('a[href]')).map((a) => [a.innerText || a.title || '', a.href]).slice(0, 400)"
+
+
+_ARCHIVED = re.compile(r"^https?://web\.archive\.org/web/(\d+)[a-z_]*/(https?://.+)$")
+
+
+def _unwrapped(href: str, on: str = "") -> str:
+    """Where a link goes, out of the archive's copy ``on`` of the page it is on: the archive rewrites each link to its own
+    copy of the same moment. A link to another moment's copy is the page's author pointing there, and is kept: LIVE
+    2026-10-08 a museum's "in Internet Archive" link was to the 2020 copy of the game's own page."""
+    inner, page = _ARCHIVED.match(href), _ARCHIVED.match(on)
+    return inner.group(2) if inner and page and inner.group(1)[:14] == page.group(1)[:14] else href
+
+
+async def where_the_page_points(skill: object, browser: object, name: str, *, task: str = "", not_at: str = "") -> str:
+    """Where the page in front says ``name`` is kept, opened and judged; or ''.
+
+    A page about a thing that does not run it often says where it is: LIVE
+    2026-10-08 a museum page whose player could not load its own files had a
+    link under "Adventure Time: Jumping Finn in Internet Archive". The links of
+    the page whose words name the thing are its authors' answer, and are taken
+    as candidates like any other.
+    """
+    from core.skills.where_things_are_kept import Candidate
+
+    page = getattr(browser, "page", None)
+    if page is None:
+        return ""
+    try:
+        links = await page.evaluate(_LINKS)
+    except Exception:  # noqa: BLE001 - a page that cannot list its links points nowhere
+        return ""
+    here = str(page.url).rstrip("/")
+    candidates = [Candidate(" ".join(str(words).split()), _unwrapped(str(href), here), "the page itself")
+                  for words, href in links if _names_it(name, str(words)) and _unwrapped(str(href), here).rstrip("/") != here]
+    return await _the_first_that_serves(skill, browser, name, task, candidates, not_at or here) if candidates else ""
+
+
+async def _the_first_that_serves(skill: object, browser: object, name: str, task: str, candidates: list[Any], not_at: str) -> str:
+    """Of ``candidates`` that name the thing, the first opened and seen to serve the task; else the first that cannot yet be
+    told; else ''."""
+    page = getattr(browser, "page", None)
+    runs = bool(RUNS.search(task or ""))
     seen: set[str] = set()
     likely = []
     for found in sorted(candidates, key=lambda c: (-_alike(name, c.title), c.runs_there is not True)):

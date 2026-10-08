@@ -71,12 +71,16 @@ _EMBEDS = r"""
   const players = all.filter((el) => /^RUFFLE-|^CHEERPJ|^DOSBOX|^EMULATOR/.test(el.tagName)).length + (window.RufflePlayer ? 1 : 0)
     + (document.querySelector("#canvas, #emulator, .emulator, [id*=ruffle], [class*=ruffle]") ? 1 : 0);
   const big = (el) => { const r = el.getBoundingClientRect(); return r.width >= 200 && r.height >= 120 && r.bottom > 0 && r.right > 0; };
+  // The words a thing shows, not its stylesheet: a player's shadow root begins with its styles, and its error panel
+  // came after the first four hundred letters of them (LIVE 2026-10-08, "Something went wrong" unread).
+  const shown = (root) => Array.from(root.querySelectorAll("*")).filter((n) => !/^(STYLE|SCRIPT|TEMPLATE)$/.test(n.tagName)
+    && !n.children.length && n.getClientRects().length).map((n) => (n.textContent || "").trim()).filter(Boolean).join(" ");
   // What runs: a canvas, a player, an embed, a frame, or a component of the page's own (a custom element) it draws in.
   const runs = all.filter((el) => /^(CANVAS|VIDEO|AUDIO|EMBED|OBJECT|IFRAME)$/.test(el.tagName) || el.tagName.includes("-"))
     .filter((el) => el.tagName === "AUDIO" || big(el))
     .map((el) => { const r = el.getBoundingClientRect(); return { tag: el.tagName.toLowerCase(), x: r.x, y: r.y, w: r.width, h: r.height,
       media: el.tagName === "VIDEO" || el.tagName === "AUDIO" ? { error: el.error ? el.error.code : 0, ready: el.readyState, time: el.currentTime } : null,
-      said: (el.shadowRoot ? el.shadowRoot.textContent : el.textContent || "").trim().slice(0, 400) }; })
+      said: shown(el.shadowRoot || el).slice(0, 400) }; })
     .sort((a, b) => b.w * b.h - a.w * a.h);
   const text = document.body ? document.body.innerText : "";
   return { plugin, players, runs, words: (text.match(/\S+/g) || []).length, text: text.slice(0, 3000) };
@@ -184,8 +188,39 @@ def what_the_task_needs(task: str) -> str:
     return ""
 
 
+#: A control of the page's own that starts the thing it holds ("Play Game", "Click to play"), not a link away from it:
+#: the largest one seen, as a point to press.
+_WHAT_STARTS_IT = r"""
+() => {
+  const said = (el) => [el.innerText, el.getAttribute("aria-label"), el.getAttribute("title"), el.id, el.className && String(el.className)].join(" ");
+  const away = (el) => el.tagName === "A" && el.getAttribute("href") && !/^(#|javascript:)/i.test(el.getAttribute("href"));
+  let best = null, area = 0;
+  for (const el of document.querySelectorAll("button, [role=button], input[type=button], input[type=submit], a")) {
+    if (away(el) || !/\b(play|start|launch|load|run)\b/i.test(said(el))) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 20 || !el.getClientRects().length) continue;
+    if (r.width * r.height > area) { area = r.width * r.height; best = el; }
+  }
+  if (!best) return null;
+  best.scrollIntoView({block: "center"});
+  const r = best.getBoundingClientRect();
+  return [r.x + r.width / 2, r.y + r.height / 2, (best.innerText || best.getAttribute("aria-label") || "").trim().slice(0, 40)];
+}
+"""
+
+#: How long a thing is given to appear after its start control is pressed, in seconds.
+STARTS_WITHIN_S = 6.0
+
+
 async def whether_it_serves(page: Any, task: str, *, look_for_s: float = 2.5) -> Serves:
-    """Whether ``page`` serves ``task``, from its developer tools, its code and its words, and by looking at the thing it is for."""
+    """Whether ``page`` serves ``task``, from its developer tools, its code and its words, and by looking at the thing it is for.
+
+    Where the task is to run something and nothing on the page runs yet, its own start control ("Play Game") is
+    pressed once, as a person presses it to see: LIVE 2026-10-08 an archived page's player appeared only then, and
+    then said it could not load its own files.
+    """
+    import asyncio
+
     needs = what_the_task_needs(task)
     tools = watching(page)
     why: list[str] = []
@@ -193,6 +228,13 @@ async def whether_it_serves(page: Any, task: str, *, look_for_s: float = 2.5) ->
         return Serves(False, [f"the page itself answered {tools.status}"])
     try:
         seen = await page.evaluate(_EMBEDS)
+        if needs == "run" and not seen["runs"]:
+            start = await page.evaluate(_WHAT_STARTS_IT)
+            if start:
+                logger.info("nothing on the page runs yet; pressing its %r to see", start[2])
+                await page.mouse.click(float(start[0]), float(start[1]))
+                await asyncio.sleep(STARTS_WITHIN_S)
+                seen = await page.evaluate(_EMBEDS)
     except Exception as error:  # noqa: BLE001 - a page that cannot be read cannot be told to work
         return Serves(None, [f"the page could not be read ({str(error)[:120]})"])
     if seen["plugin"] and not seen["players"]:
