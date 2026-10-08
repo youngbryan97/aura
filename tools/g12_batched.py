@@ -14,8 +14,64 @@ from __future__ import annotations
 
 import hashlib
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import Any
+
+#: Bound lazy metadata chains without synchronizing every token's forward pass.
+CACHE_METADATA_EVERY = 64
+
+
+def _evaluate_cache_metadata(generator: Any) -> None:
+    """Materialize cache bookkeeping on the stream that advances it.
+
+    MLX-LM 0.31.3's ArraysCache.state omits length and left-padding arrays.
+    Unread per-step decrements retain live Metal buffers even when token
+    outputs are evaluated. Clearing the allocator cache cannot release them.
+    See https://github.com/ml-explore/mlx-lm/issues/1641.
+
+    BatchGenerator's two cache collections and stream are internal APIs here;
+    an incompatible dependency must fail rather than silently skip the repair.
+    """
+    import mlx.core as mx
+
+    try:
+        stream = generator.stream
+        batches = (generator._prompt_batch, generator._generation_batch)
+        members = [member for batch in batches for member in batch.prompt_cache]
+    except AttributeError as why:
+        raise RuntimeError("BatchGenerator no longer exposes its cache metadata and stream") from why
+    with mx.stream(stream):
+        arrays = []
+        seen_members: set[int] = set()
+        seen_arrays: set[int] = set()
+        while members:
+            member = members.pop()
+            if id(member) in seen_members:
+                continue
+            seen_members.add(id(member))
+            members.extend(getattr(member, "caches", ()))
+            for name in ("left_padding", "lengths", "offset"):
+                value = getattr(member, name, None)
+                if isinstance(value, mx.array) and id(value) not in seen_arrays:
+                    seen_arrays.add(id(value))
+                    arrays.append(value)
+        if arrays:
+            mx.eval(arrays)
+
+
+def _generation_steps(generator: Any) -> Iterator[list[Any]]:
+    """Keep lazy cache metadata bounded while preserving each generated response."""
+    _evaluate_cache_metadata(generator)
+    steps = 0
+    while True:
+        responses = generator.next_generated()
+        steps += 1
+        if (steps % CACHE_METADATA_EVERY == 0 or not responses
+                or any(response.finish_reason is not None for response in responses)):
+            _evaluate_cache_metadata(generator)
+        if not responses:
+            return
+        yield responses
 
 
 def render_tokens(tokenizer: Any, conversation: list, *, thinking: bool = True) -> list[int]:
@@ -59,7 +115,7 @@ def decode_stream(
     tokens: dict[int, list[int]] = {uid: [] for uid in uids}
     started: dict[int, float] = {}
     try:
-        while responses := generator.next_generated():
+        for responses in _generation_steps(generator):
             for response in responses:
                 uid = response.uid
                 started.setdefault(uid, time.monotonic())
@@ -104,7 +160,7 @@ def decode_batch(
     finish: dict[int, str] = {uid: "token_limit" for uid in uids}
     ended: dict[int, float] = {}
     try:
-        while responses := generator.next_generated():
+        for responses in _generation_steps(generator):
             for response in responses:
                 if response.finish_reason != "stop":
                     tokens[response.uid].append(int(response.token))
