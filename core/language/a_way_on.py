@@ -18,7 +18,7 @@ import re
 from core.language.learned_matcher import LearnedMatcher
 from core.language.model_features import model_hidden_features
 
-__all__ = ["how_much_it_leads_on"]
+__all__ = ["how_much_it_leads_on", "offers_a_way_on"]
 
 #: Labels that go on, whole: a label that merely contains "play" ("Display")
 #: is not one.
@@ -62,6 +62,18 @@ def _one_letter_off(word: str, other: str) -> bool:
 
 def _plain(label: str) -> str:
     return " ".join(re.sub(r"[^\w' !]+", " ", str(label or "")).split()).strip()
+
+
+def offers_a_way_on(said: str) -> bool:
+    """Whether writing on a screen includes a way on by its words alone ("START", "How to play", "Next"): a phrase of
+    up to three of its words that the floor is sure goes on. No learned guess is asked: this is read every look."""
+    words = _plain(said).split()
+    for size in (1, 2, 3):
+        for at in range(len(words) - size + 1):
+            phrase = " ".join(words[at:at + size])
+            if _GOES_ON.match(phrase) or _GOES_ON.match(phrase.rstrip("! ")):
+                return True
+    return False
 
 
 def how_much_it_leads_on(label: str) -> float:

@@ -80,6 +80,8 @@ class PlayingAsItHappens:
     under_her_hand: bool = False
     #: Screens this run reached that the game had not shown her before, told apart by their words.
     new_screens: int = 0
+    #: How often play as it happens was held back for the way on a screen offered, by the screen's words.
+    held_for_a_way_on: dict[str, int] = field(default_factory=dict)
     #: Since when its words have been known to set her to make something, not to win.
     for_making_since: float | None = None
     _clip: dict[str, float] | None = None
@@ -204,6 +206,24 @@ class PlayingAsItHappens:
         if self.first_ways_back is None and observation.get("ok", True):
             self.first_ways_back = restart_controls(observation)
 
+    def _a_menu_first(self) -> bool:
+        """Whether to read the screen, and go on from it, before playing what moves on it.
+
+        A screen not yet read is read first; a screen whose words offer a way on (Start, Play, Next) is a menu,
+        whatever moves on it, and is clicked through first: LIVE 2026-10-08 a title's fireflies were played for
+        fifty-three seconds with START under them. Twice at most for one screen, in case its way on does nothing.
+        """
+        from core.language.a_way_on import offers_a_way_on
+
+        if not self.words:
+            return True
+        said = self.words[-1]
+        if not offers_a_way_on(said):
+            return False
+        key = said[:80]
+        self.held_for_a_way_on[key] = self.held_for_a_way_on.get(key, 0) + 1
+        return self.held_for_a_way_on[key] <= 2
+
     def _a_screen_not_seen_before(self, said: str) -> None:
         """Count a screen the game has not shown her before: getting to one is getting somewhere, scored or not.
 
@@ -267,6 +287,8 @@ class PlayingAsItHappens:
 
         now = time.monotonic()
         if now < self.quiet_until or now >= self.ends_at:
+            return
+        if not self.under_her_hand and self._a_menu_first():
             return
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
         if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
