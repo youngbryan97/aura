@@ -132,3 +132,5 @@ open, stopped by hand after 10 of its 12 first proposals; and
 * No shared mechanisms module (untested in development).
 
 Code: `3d34c1109`, worktree `g09-frozen`. Held-out kinds as listed above.
+
+Correction, 10:24: seven of the 22 development proposals ran past 16,622 tokens (three in dev1, four in dev2), not eight.
