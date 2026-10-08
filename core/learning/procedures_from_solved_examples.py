@@ -380,6 +380,19 @@ class ProcedureBook:
                    procedures={name: [c.code for c in family.admitted] for name, family in kept.items()},
                    agreed={name: len(family.pool) + len(family.sealed) for name, family in kept.items()})
 
+    @classmethod
+    def merged(cls, books: Sequence[ProcedureBook]) -> ProcedureBook:
+        """One book from several, each kind from the one book that has it; a kind in two is refused."""
+        out = cls(signatures={}, procedures={}, agreed={})
+        for book in books:
+            twice = set(out.signatures) & set(book.signatures)
+            if twice:
+                raise ValueError(f"kinds in more than one book: {sorted(twice)}")
+            out.signatures.update(book.signatures)
+            out.procedures.update(book.procedures)
+            out.agreed.update(book.agreed)
+        return out
+
     def route(self, problem: str) -> tuple[str | None, float]:
         """The nearest kind, if the problem is at least as near as that kind's least typical sealed problem."""
         if not self.signatures:

@@ -218,3 +218,16 @@ def test_a_wrong_function_stops_being_run_once_it_has_given_the_counterexamples_
     assert 3 <= sum(not o.agreed for o in outcomes) and len(outcomes) < len(examples)
     assert [o.key for o in outcomes] == [e.key for e in examples[: len(outcomes)]]
     assert len(check_program(code, examples, workers=2)) == len(examples)
+
+
+def test_books_merge_by_kind_and_refuse_a_kind_twice() -> None:
+    from core.learning.procedures_from_solved_examples import Signature
+
+    first = ProcedureBook({"a": Signature({"x": 1.0}, 0.5)}, {"a": ["code a"]}, {"a": 10})
+    second = ProcedureBook({"b": Signature({"y": 1.0}, 0.5), "c": Signature({"z": 1.0}, 0.5)},
+                           {"b": ["code b"]}, {"b": 20})
+    book = ProcedureBook.merged([first, second])
+    assert set(book.signatures) == {"a", "b", "c"} and book.procedures == {"a": ["code a"], "b": ["code b"]}
+    assert book.agreed == {"a": 10, "b": 20}
+    with pytest.raises(ValueError, match="more than one book"):
+        ProcedureBook.merged([first, first])

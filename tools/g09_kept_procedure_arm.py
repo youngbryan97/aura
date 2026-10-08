@@ -13,7 +13,7 @@ from tools/run_g12_bbeh.py, whose request is the same text. Rows go to
 ``rows/kept`` beside the drafts, written once.
 
 Usage:
-    g09_kept_procedure_arm.py --domain DOMAIN --drafts DIR --book FILE [--g12-bbeh]
+    g09_kept_procedure_arm.py --domain DOMAIN --drafts DIR --book FILE [--book FILE ...] [--g12-bbeh]
 """
 
 from __future__ import annotations
@@ -64,7 +64,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--domain", required=True)
     parser.add_argument("--drafts", type=Path, required=True)
-    parser.add_argument("--book", type=Path, required=True)
+    parser.add_argument("--book", type=Path, action="append", required=True,
+                        help="a book from tools/induce_g09_procedures.py; several are merged by kind")
     parser.add_argument("--g12-bbeh", action="store_true", help="the drafts are tools/run_g12_bbeh.py rows")
     args = parser.parse_args()
 
@@ -73,12 +74,13 @@ def main() -> int:
     from tools.run_g09_organ import GRADERS
 
     grade = GRADERS[args.domain]
-    book = ProcedureBook.from_json(json.loads(args.book.expanduser().read_text(encoding="utf-8")))
+    book = ProcedureBook.merged([ProcedureBook.from_json(json.loads(path.expanduser().read_text(encoding="utf-8")))
+                                 for path in args.book])
     directory = args.drafts.expanduser()
     drafts = drafts_from_g12_bbeh(directory) if args.g12_bbeh else drafts_from_harness(directory, args.domain)
     out_dir = directory / "rows" / "kept"
     out_dir.mkdir(parents=True, exist_ok=True)
-    book_sha = hashlib.sha256(args.book.expanduser().read_bytes()).hexdigest()
+    book_sha = hashlib.sha256(json.dumps(book.to_json(), sort_keys=True).encode()).hexdigest()
     counts = {"rows": 0, "answered": 0, "kept_correct": 0, "draft_correct": 0}
     for draft in drafts:
         path = out_dir / draft["name"]
