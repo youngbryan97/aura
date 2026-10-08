@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """G12's numbers: her against her base model, request by request, on each benchmark.
 
-MATH-500 and BIG-Bench Hard rows are paired by request and compared with an
-exact two-sided McNemar test; IFBench is read from AllenAI's grader output as
+MATH-500, BIG-Bench Extra Hard Mini (and BIG-Bench Hard, when given) rows
+are paired by request and compared with an exact two-sided McNemar test; IFBench is read from AllenAI's grader output as
 the prompt-level loose accuracy its authors report, with strict beside it,
 and paired the same way on whether every instruction was followed.
 
 Usage:
-    g12_analysis.py --her-math DIR --base-math DIR --her-bbh DIR --base-bbh DIR
+    g12_analysis.py --her-math DIR --base-math DIR --her-bbeh DIR --base-bbeh DIR
         --her-ifbench DIR --base-ifbench DIR --output FILE
 """
 
@@ -86,14 +86,19 @@ def ifbench(directory: Path) -> dict[str, dict[str, Any]]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("her-math", "base-math", "her-bbh", "base-bbh", "her-ifbench", "base-ifbench"):
+    for name in ("her-math", "base-math", "her-ifbench", "base-ifbench"):
         parser.add_argument("--" + name, type=Path, required=True)
+    for name in ("her-bbeh", "base-bbeh", "her-bbh", "base-bbh"):
+        parser.add_argument("--" + name, type=Path)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
     report: dict[str, Any] = {}
     report["math500"] = paired(rows(args.her_math, "unique_id"), rows(args.base_math, "unique_id"), "correct", "level")
-    report["bbh"] = paired(rows(args.her_bbh, "id"), rows(args.base_bbh, "id"), "correct", "task")
+    if args.her_bbeh and args.base_bbeh:
+        report["bbeh_mini"] = paired(rows(args.her_bbeh, "id"), rows(args.base_bbeh, "id"), "correct", "task")
+    if args.her_bbh and args.base_bbh:
+        report["bbh"] = paired(rows(args.her_bbh, "id"), rows(args.base_bbh, "id"), "correct", "task")
     her_if, base_if = ifbench(args.her_ifbench), ifbench(args.base_ifbench)
     report["ifbench"] = {mode: paired({k: v for k, v in her_if.items()}, {k: v for k, v in base_if.items()}, mode)
                          for mode in ("loose", "strict")}

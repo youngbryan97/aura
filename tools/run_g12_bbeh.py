@@ -1,0 +1,110 @@
+#!/usr/bin/env python3
+"""Her answers to BIG-Bench Extra Hard Mini, asked and graded as its authors do.
+
+BBEH (Kazemi et al. 2025, arXiv:2502.19187) replaces each BIG-Bench Hard task
+with a harder one; its leaderboard reports named current systems on the 460
+questions of BBEH Mini under one protocol, which is what lets her number
+stand beside theirs. Each question is the example's input followed by the
+paper's instruction to answer after "The answer is:"; the answer is read and
+matched by the authors' evaluator (restated in tools/run_g09_organ.py, whose
+restatement reproduces the evaluator's own checks). One greedy decode through
+the model's chat template, private reasoning on at her serving effort, no
+tools, no retries; a reply stopped at its budget has no answer. Rows are
+written once and the run resumes. Each row is labelled with the task it was
+drawn from, recovered by matching the full task files.
+
+Usage:
+    run_g12_bbeh.py --mini FILE --tasks DIR --output DIR [--model DIR] [--batch N]
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+#: sha256 of bbeh/mini/data.json at google-deepmind/bbeh main, read 2026-10-07.
+BBEH_MINI_SHA256 = "14e77b3d6be68faa008d268abf53b1f8d2420ffdd762504a304dafc3f8d43026"
+
+
+def task_of(tasks_dir: Path) -> dict[str, str]:
+    """Each full-set input mapped to the task it belongs to."""
+    out = {}
+    for path in sorted(tasks_dir.glob("bbeh_*/task.json")):
+        for example in json.loads(path.read_text(encoding="utf-8"))["examples"]:
+            out[example["input"]] = path.parent.name
+    return out
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--mini", type=Path, required=True)
+    parser.add_argument("--tasks", type=Path, required=True, help="the bbeh/benchmark_tasks directory")
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--model", type=Path,
+                        default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
+    parser.add_argument("--max-tokens", type=int, default=32768)
+    parser.add_argument("--batch", type=int, default=1)
+    args = parser.parse_args()
+    if args.batch < 1:
+        raise SystemExit("--batch is at least 1")
+
+    raw = args.mini.expanduser().read_bytes()
+    if hashlib.sha256(raw).hexdigest() != BBEH_MINI_SHA256:
+        raise SystemExit("the file is not BBEH Mini as pinned")
+    examples = json.loads(raw)["examples"]
+    labels = task_of(args.tasks.expanduser())
+    from tools.run_g09_organ import BBEH_SUFFIX, grade_bbeh
+
+    output = args.output.expanduser()
+    rows_dir = output / "rows"
+    rows_dir.mkdir(parents=True, exist_ok=True)
+
+    def key(example: dict) -> str:
+        return hashlib.sha256(example["input"].encode()).hexdigest()[:24]
+
+    pending = [e for e in examples if not (rows_dir / f"{key(e)}.json").exists()]
+    print(json.dumps({"questions": len(examples), "pending": len(pending),
+                      "unlabelled": sum(e["input"] not in labels for e in examples)}), flush=True)
+    if not pending:
+        return 0
+
+    from mlx_lm import load
+
+    from core.runtime.model_lane_control import standalone_model_lane
+    from tools.g12_batched import decode_batch
+    from tools.run_g05_public_answers import decode_public
+
+    model_path = args.model.expanduser().resolve(strict=True)
+    with standalone_model_lane(owner_id=f"g12-bbeh:{output.name}", model_path=str(model_path),
+                               purpose="evaluation", preemptible=False, require_exclusive=True,
+                               allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
+        model, tokenizer = load(str(model_path))
+        done = 0
+        for start in range(0, len(pending), args.batch):
+            group = pending[start : start + args.batch]
+            conversations = [[{"role": "user", "content": f"{e['input']}\n\n{BBEH_SUFFIX}"}] for e in group]
+            results = ([decode_public(model, tokenizer, conversations[0], max_tokens=args.max_tokens)]
+                       if args.batch == 1 else decode_batch(model, tokenizer, conversations, max_tokens=args.max_tokens))
+            for example, decoded in zip(group, results, strict=True):
+                public = decoded["public_text"] if decoded["termination"] == "stop" else ""
+                correct, answer = grade_bbeh(public, example["target"])
+                row = {"id": key(example), "task": labels.get(example["input"], "unlabelled"),
+                       "target": example["target"], "answer": answer, "correct": correct, **decoded}
+                path = rows_dir / f"{key(example)}.json"
+                temporary = path.with_suffix(".tmp")
+                temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
+                temporary.replace(path)
+                done += 1
+                print(json.dumps({"done": done, "of": len(pending), "correct": correct}), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
