@@ -55,11 +55,19 @@ _CLAIM_ATOM = rf"(?:{_CLAIM_NUMBER}|\(\s*{_CLAIM_NUMBER}\s*\))"
 #:
 #: Deliberately narrow: one word, optionally over a second ("seconds/day"), no
 #: digits. Anything looser starts joining separate sentences into one equation.
-_CLAIM_UNIT = r"(?:\s*[A-Za-z\u00b5%]+(?:\s*/\s*[A-Za-z\u00b5]+)?)?"
-_CLAIM_TERM = rf"{_CLAIM_ATOM}{_CLAIM_UNIT}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM}{_CLAIM_UNIT})*"
+#:
+#: And a word, set apart from its number. A letter glued to a number is a
+#: variable: "2-8x+16=11" was read as 2 - 8 + 16 with an "x" unit, and "8x",
+#: "2i", "3n" and "56k" made fourteen of her correct MATH-500 answers look like
+#: arithmetic errors (G09, 2026-10-07).
+_CLAIM_UNIT = r"(?:\s+[A-Za-z\u00b5]+(?:\s*/\s*[A-Za-z\u00b5]+)?|\s*%)?"
+#: "x" is multiplication between two digits ("3x4") or set apart ("3 x 4");
+#: glued before a sign or a letter it is a variable ("3x-9").
+_CLAIM_OP = r"(?:\s*[-+*/×]\s*|\s+x\s+|(?<=\d)x(?=\d))"
+_CLAIM_TERM = rf"{_CLAIM_ATOM}{_CLAIM_UNIT}(?:{_CLAIM_OP}{_CLAIM_ATOM}{_CLAIM_UNIT})*"
 _CLAIM_FUNCTION = rf"(?:min|max)\(\s*{_CLAIM_TERM}(?:\s*,\s*{_CLAIM_TERM})+\s*\)"
 _ARITHMETIC_CLAIM_RE = re.compile(
-    rf"(?<![\w.])(?P<lhs>{_CLAIM_FUNCTION}|{_CLAIM_ATOM}{_CLAIM_UNIT}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM}{_CLAIM_UNIT})+)"
+    rf"(?<![\w.])(?P<lhs>{_CLAIM_FUNCTION}|{_CLAIM_ATOM}{_CLAIM_UNIT}(?:{_CLAIM_OP}{_CLAIM_ATOM}{_CLAIM_UNIT})+)"
     rf"\s*=\s*(?P<rhs>{_CLAIM_NUMBER})(?!\d)(?!\.\d)"
 )
 _CLAIM_REFUTATION_BEFORE_RE = re.compile(
@@ -72,6 +80,30 @@ _CLAIM_REFUTATION_AFTER_RE = re.compile(
     r"(?:false|incorrect|wrong|invalid|a\s+mistake|not\s+correct)\b",
     re.IGNORECASE,
 )
+
+
+#: What sits just before a claim when the claim is the tail of a longer
+#: expression: an operator, an exponent or subscript, an opening brace, or a
+#: LaTeX command such as \\cdot or \\frac.
+_CONTINUES_BEFORE_RE = re.compile(r"(?:[\^_{\\*/+\-×·=<>!]|\\[A-Za-z]+)\s*$")
+#: What follows a claim's right side when the claim is the head of a longer
+#: expression: a variable, an exponent, a brace or command, or an operator
+#: with something to apply to.
+_CONTINUES_AFTER_RE = re.compile(r"^(?:[A-Za-z^_{\\(]|\s*(?:[*/×·^!]|[+\-]\s*[\w(\\]))")
+
+
+def _claim_stands_alone(text: str, start: int, end: int) -> bool:
+    """Whether an ``a op b = c`` match is a whole claim rather than a piece of one.
+
+    "x^2 + 49 = 100" holds the fragment "2 + 49 = 100", and "8 \\cdot 5 + 2 =
+    42" the fragment "5 + 2 = 42"; neither fragment is something she claimed.
+    """
+
+    if start > 0 and text[start - 1] in "^_{\\":
+        return False
+    if _CONTINUES_BEFORE_RE.search(text[max(0, start - 24) : start]):
+        return False
+    return not _CONTINUES_AFTER_RE.match(text[end : end + 24])
 
 
 def _claim_is_refuted(text: str, start: int, end: int) -> bool:
@@ -235,6 +267,8 @@ class SymbolicBridge:
         observations: list[dict[str, Any]] = []
         source = str(text or "")
         for m in _ARITHMETIC_CLAIM_RE.finditer(source):
+            if not _claim_stands_alone(source, m.start(), m.end()):
+                continue
             if _claim_is_refuted(source, m.start(), m.end()):
                 continue
             lhs_raw, rhs_raw = m.group("lhs"), m.group("rhs")

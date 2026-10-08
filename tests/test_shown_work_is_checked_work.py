@@ -112,3 +112,25 @@ def test_the_whole_live_reply_yields_exactly_one_error(bridge):
     errors = bridge.check_arithmetic_claims(reply)
     assert len(errors) == 1, [e["claim"] for e in errors]
     assert errors[0]["correct"] == pytest.approx(113_788_800)
+
+
+#: From her MATH-500 answers, G09, 2026-10-07. Each was read as an arithmetic
+#: error in a correct answer, and fourteen of sixty-four correct answers were
+#: refuted that way: a variable glued to a number taken for a unit, a claim
+#: read from inside an exponent, a LaTeX product, or the imaginary unit.
+@pytest.mark.parametrize("fragment", [
+    "2-8x+16=11",
+    "$x^2 + 49 = 100$",
+    "$8 \\cdot 5 + 2 = 42$",
+    "1-2i+3=4",
+    "56k + 35 + 53 = 56",
+    "$3x-9=2$",
+    "= 2 + 3 = 5",
+])
+def test_a_piece_of_an_equation_is_not_a_claim(fragment) -> None:
+    assert SymbolicBridge().check_arithmetic_claims(fragment) == []
+
+
+@pytest.mark.parametrize("claim", ["So 2 + 3 = 6.", "(3 + 4 = 8)", "the sum is 7 + 5 = 13 apples"])
+def test_a_whole_claim_is_still_checked(claim) -> None:
+    assert len(SymbolicBridge().check_arithmetic_claims(claim)) == 1
