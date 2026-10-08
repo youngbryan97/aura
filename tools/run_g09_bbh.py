@@ -18,9 +18,9 @@ across the tasks with a seed and answered in two arms:
   and every sampled generation is seeded from its prompt and temperature so a
   rerun reproduces it.
 
-The user turn is the task's input followed by BBH's own answer form, "Let's
-think step by step." in the question-answer frame of its chain-of-thought
-protocol; the answer is the text after the last "the answer is" in her
+The user turn is BBH's chain-of-thought protocol as its authors run it: the
+task's three worked examples (cot-prompts/), then the input and "Let's think
+step by step." in the same question-answer frame; the answer is the text after the last "the answer is" in her
 public reply, normalised as BBH's targets are written. Rows are written once.
 
 Usage:
@@ -48,9 +48,22 @@ if str(ROOT) not in sys.path:
 ARMS = ("ordinary", "amplified")
 
 
-def request_text(example_input: str) -> str:
-    """BBH's zero-shot chain-of-thought frame."""
-    return f"Q: {example_input}\nA: Let's think step by step."
+def cot_examples(bbh: Path, task: str) -> str:
+    """BBH's own three worked examples for a task (cot-prompts/<task>.txt), without its canary header.
+
+    Suzgun et al.'s chain-of-thought protocol puts these before every
+    question; they are also what teaches the "So the answer is" the answer
+    is read from. Without them a reply ends "## Answer: **invalid**" and is
+    graded as no answer.
+    """
+    text = (bbh / "cot-prompts" / f"{task}.txt").read_text(encoding="utf-8")
+    return text.split("-----", 1)[1].strip() if "-----" in text else text.strip()
+
+
+def request_text(example_input: str, examples: str = "") -> str:
+    """BBH's chain-of-thought frame, after the task's worked examples when given."""
+    question = f"Q: {example_input}\nA: Let's think step by step."
+    return f"{examples}\n\n{question}" if examples else question
 
 
 def extract_answer(text: str) -> str:
@@ -92,9 +105,10 @@ def sample_tasks(bbh: Path, per_task: int, seed: int) -> list[dict[str, Any]]:
     tasks = []
     for path in sorted((bbh / "bbh").glob("*.json")):
         examples = json.loads(path.read_text(encoding="utf-8"))["examples"]
+        worked = cot_examples(bbh, path.stem)
         rng = random.Random(f"{seed}:{path.stem}")
         for index in sorted(rng.sample(range(len(examples)), min(per_task, len(examples)))):
-            tasks.append({"id": f"{path.stem}:{index}", "task": path.stem,
+            tasks.append({"id": f"{path.stem}:{index}", "task": path.stem, "examples": worked,
                           "input": examples[index]["input"], "target": examples[index]["target"]})
     return tasks
 
@@ -199,7 +213,7 @@ def main() -> int:
                        if not (output / "rows" / "ordinary" / f"{source_of(task)}.json").exists()]
             for start in range(0, len(pending), args.batch):
                 group = pending[start : start + args.batch]
-                conversations = [[{"role": "user", "content": request_text(task["input"])}] for task in group]
+                conversations = [[{"role": "user", "content": request_text(task["input"], task["examples"])}] for task in group]
                 for task, decoded in zip(group, decode_batch(model, tokenizer, conversations,
                                                              max_tokens=args.max_tokens), strict=True):
                     write_row(output / "rows" / "ordinary" / f"{source_of(task)}.json",
@@ -209,7 +223,7 @@ def main() -> int:
 
         for done, task in enumerate(tasks, 1):
             source = source_of(task)
-            text = request_text(task["input"])
+            text = request_text(task["input"], task["examples"])
             for arm in arms:
                 path = output / "rows" / arm / f"{source}.json"
                 if path.exists():

@@ -21,10 +21,11 @@ Two arms per task, paired:
 Domains, each with the grader its source publishes: math (MATH test problems
 outside MATH-500, graded by MATH-500's grader), code (HumanEval+, run against
 its hidden tests in her kernel-bounded sandbox), planning (Natural Plan
-calendar scheduling, its own parser against the golden plan), knowledge
-(HotpotQA distractor questions over their supplied passages, exact match
-after HotpotQA's normalisation), transfer (BIG-Bench Hard tasks, BBH's own
-answer form). Rows are written once and the run resumes.
+calendar scheduling from its 5-shot prompt, its own parser against the golden
+plan), knowledge (HotpotQA distractor questions over their supplied passages,
+exact match after HotpotQA's normalisation), transfer (BIG-Bench Hard tasks
+in its 3-shot chain-of-thought protocol, BBH's own answer form). Rows are
+written once and the run resumes.
 
 Usage:
     run_g09_organ.py --domain DOMAIN --tasks N --seed S --output DIR [--exclude FILE ...]
@@ -93,7 +94,9 @@ def _code_tasks() -> list[dict[str, Any]]:
 
 def _planning_tasks() -> list[dict[str, Any]]:
     data = json.loads((BENCH / "g09/natural-plan/calendar_scheduling.json").read_text(encoding="utf-8"))
-    return [{"id": f"calendar:{key}", "request": value["prompt_0shot"], "truth": value["golden_plan"],
+    # The benchmark's own 5-shot prompt: its solved examples are what show the
+    # "Day, HH:MM - HH:MM" form its parser reads.
+    return [{"id": f"calendar:{key}", "request": value["prompt_5shot"], "truth": value["golden_plan"],
              "group": f"people={value['num_people']}|days={value['num_days']}"} for key, value in data.items()]
 
 
@@ -111,12 +114,13 @@ def _knowledge_tasks() -> list[dict[str, Any]]:
 
 
 def _transfer_tasks() -> list[dict[str, Any]]:
-    from tools.run_g09_bbh import request_text
+    from tools.run_g09_bbh import cot_examples, request_text
 
     tasks = []
     for path in sorted((BENCH / "bbh-src/bbh").glob("*.json")):
+        worked = cot_examples(BENCH / "bbh-src", path.stem)
         for index, example in enumerate(json.loads(path.read_text(encoding="utf-8"))["examples"]):
-            tasks.append({"id": f"{path.stem}:{index}", "request": request_text(example["input"]),
+            tasks.append({"id": f"{path.stem}:{index}", "request": request_text(example["input"], worked),
                           "truth": example["target"], "group": path.stem})
     return tasks
 
