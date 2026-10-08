@@ -241,3 +241,20 @@ def test_a_raising_procedure_reports_the_line_of_its_own_code_that_failed() -> N
     returned, error = run_procedure(code, "abc")
     assert returned is None and "ValueError" in error
     assert error.endswith("(line 2, in helper: return int(x))")
+
+
+def test_a_book_kept_for_her_is_the_one_her_route_reads(tmp_path, monkeypatch) -> None:
+    from core.learning import procedures_from_solved_examples as module
+    from core.learning.procedures_from_solved_examples import (
+        Signature,
+        keep_for_her,
+        kept_procedure_book,
+    )
+
+    monkeypatch.setattr("core.utils.paths.aura_data_dir", lambda: tmp_path)
+    module._kept_cache.clear()
+    assert kept_procedure_book() is None
+    book = ProcedureBook({"a": Signature({"x": 1.0}, 0.5)}, {"a": ["def solve(p):\n    return p\n"]}, {"a": 7})
+    path = keep_for_her(book)
+    assert path == tmp_path / module.KEPT_BOOK_RELATIVE
+    assert kept_procedure_book().to_json() == book.to_json()

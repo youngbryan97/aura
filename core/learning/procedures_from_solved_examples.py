@@ -479,6 +479,21 @@ def kept_procedure_book() -> ProcedureBook | None:
     return _kept_cache["book"]
 
 
+def keep_for_her(book: ProcedureBook) -> Path:
+    """Write ``book`` where her live route reads it, through the governed file-write gateway."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+    from core.utils.paths import aura_data_dir
+
+    path = aura_data_dir() / KEPT_BOOK_RELATIVE
+    with local_internal_governed_scope("procedures_from_solved_examples.keep_for_her", domain="file_write"):
+        gateway = get_file_write_gateway()
+        gateway.ensure_directory(path.parent, source="procedures_from_solved_examples.keep_for_her")
+        gateway.write_text(path, dumps(book.to_json()), source="procedures_from_solved_examples.keep_for_her")
+    _kept_cache.clear()
+    return path
+
+
 def candidate_record(candidate: Candidate) -> dict[str, Any]:
     return {"family": candidate.family, "line": candidate.line, "round": candidate.round,
             "sha256": candidate.sha256, "shown_keys": candidate.shown_keys,
