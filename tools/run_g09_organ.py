@@ -11,8 +11,9 @@ Two arms per task, paired:
   phase hands it (ResponseGenerationPhase._maybe_amplify_response): admitted
   only where is_amplifiable admits the request, seeded with the draft, the
   draft verified first, a search of the amplifier's own planned size given
-  all the time a live turn can give it (the user-facing ceiling, less what
-  the draft spent and the phase's reserve) and stopped at that deadline,
+  each candidate the draft's own token allowance at the draft's measured rate
+  (or, with --budget turn, what a live turn's ceiling leaves after the draft)
+  and stopped at that deadline,
   candidates generated through the same system message and template at the
   amplifier's temperatures, and the draft replaced only by an answer with
   checked-verifier or independent-executable-consensus authority. Sealed
@@ -398,6 +399,9 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--batch", type=int, default=1,
                         help="drafts decoded together (tools/g12_batched.py); the organ always runs one at a time")
+    parser.add_argument("--budget", choices=("allowance", "turn"), default="allowance",
+                        help="allowance: each planned candidate may use the draft's token allowance at the "
+                             "draft's measured rate; turn: what a live turn's ceiling leaves after the draft")
     parser.add_argument("--arms", default="ordinary,organ",
                         help="ordinary decodes her drafts; organ runs on drafts already written")
     parser.add_argument("--model", type=Path,
@@ -521,17 +525,24 @@ def main() -> int:
             task_type = is_amplifiable(task["request"])
             organ: dict[str, Any] = {"id": task["id"], "admitted": task_type is not None, "task_type": task_type}
             delivered = draft_text
-            budget = USER_FACING_COMPLETION_DEADLINE_MAX_S - float(ordinary["seconds"]) - 4.0
+            executable = task_type is not None and should_use_executable_reasoning(task["request"], task_type=task_type)
+            sample_budget = 3 if executable else None
+            planned = planned_new_candidates(task_type, sample_budget=sample_budget, seeds=1) if task_type else 0
+            if args.budget == "turn":
+                # All a live turn can give the search: its ceiling, less what the
+                # draft spent and the reserve the response phase keeps.
+                budget = USER_FACING_COMPLETION_DEADLINE_MAX_S - float(ordinary["seconds"]) - 4.0
+            else:
+                # Each planned candidate may use what the draft was allowed, at
+                # the rate the draft was measured at.
+                per_token = float(ordinary["seconds"]) / max(1, int(ordinary["tokens"]))
+                budget = planned * args.max_tokens * per_token
+            organ["budget_rule"] = args.budget
             if task_type is not None and draft_text and budget <= 0.0:
                 organ["stood_down"] = "no_time_left_in_the_turn"
             elif task_type is not None and draft_text:
-                executable = should_use_executable_reasoning(task["request"], task_type=task_type)
-                sample_budget = 3 if executable else None
-                planned = planned_new_candidates(task_type, sample_budget=sample_budget, seeds=1)
                 generations.clear()
                 began = time.monotonic()
-                # All a live turn can give the search: its ceiling, less what the
-                # draft spent and the reserve the response phase keeps.
                 turn_deadline[0] = began + budget
                 try:
                     result = asyncio.run(amplify_turn(
