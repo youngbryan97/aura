@@ -38,12 +38,12 @@ _KEYS_OF = {"space": ("space",), "return": ("return",), "shift": ("shift",), "up
             "arrows": ("up", "down", "left", "right")}
 
 
-def _stance(instruction: Instruction) -> str | None:
+def _stance(instruction: Instruction, *, pointer_steers: bool = False) -> str | None:
     by_mouse = instruction.control == "mouse"
     asked = {
         "get": MEET,
         "keep clear": AVOID,
-        "hit": CLICK if by_mouse else SHOOT,
+        "hit": CLICK if by_mouse and not pointer_steers else SHOOT,
         "click": CLICK,
     }.get(instruction.act)
     if asked is None:
@@ -64,16 +64,21 @@ class WhatTheRulesSaid:
     def read(cls, words: str) -> WhatTheRulesSaid:
         return cls(words=words, instructions=what_the_words_ask(words))
 
-    def stance_for_colour(self, colour: str) -> str | None:
+    def stance_for_colour(self, colour: str, *, pointer_steers: bool = False) -> str | None:
         """What the words say to do about things of this colour, if they name it."""
         named = "grey" if colour == "gray" else colour
+        stances = []
         for instruction in self.instructions:
             words = {"grey" if w == "gray" else w for w in instruction.thing}
             if named in words:
-                stance = _stance(instruction)
+                stance = _stance(instruction, pointer_steers=self.pointer_steers or pointer_steers)
                 if stance is not None:
-                    return stance
-        return None
+                    stances.append(stance)
+        if AVOID in stances:
+            return AVOID
+        if SHOOT in stances:
+            return SHOOT
+        return next(iter(stances), None)
 
     def keys_for(self, *acts: str) -> tuple[str, ...]:
         """The keys the words give to any of these acts."""
@@ -98,7 +103,11 @@ class WhatTheRulesSaid:
 
     @property
     def a_click_is_a_shot(self) -> bool:
-        return any(i.control == "mouse" and i.act in ("hit", "click") and not i.forbidden for i in self.instructions)
+        return any(i.control == "mouse" and i.act == "hit" and not i.forbidden for i in self.instructions)
+
+    @property
+    def pointer_steers(self) -> bool:
+        return any(i.control == "mouse" and i.act == "move" and not i.forbidden for i in self.instructions)
 
     @property
     def warned_of_something_unnamed(self) -> bool:

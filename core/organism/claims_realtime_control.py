@@ -3,10 +3,14 @@ from typing import Any
 
 
 def install_realtime_control_claims(suite: Any) -> None:
+    from core.agency.causal_identification import (
+        _stale_and_ambiguous_identity_witnesses_remain_unknown,
+    )
     from core.agency.what_meeting_things_does import _absent_counters_are_not_current
-    from core.agency.causal_identification import _stale_and_ambiguous_identity_witnesses_remain_unknown
+    from core.agency.where_clicks_pay import _click_attribution_respects_stretch_boundaries
     from core.agency.which_one_answers_to_her import (
         _ambiguous_controls_remain_unknown,
+        _emissions_require_distinct_input_receipts,
         _fresh_control_experiment_forgets_old_rejections,
     )
     from core.organism.model_validation import (
@@ -17,8 +21,56 @@ def install_realtime_control_claims(suite: Any) -> None:
         boolean_score,
     )
     from core.perception.the_drawing_as_objects import _scene_requires_a_matching_complete_frame
-
     from core.runtime.executors import _interactive_and_receipt_workers_are_separate
+    from core.runtime.what_she_learned import _indexed_knowledge_invariant
+
+    name = "emissions_require_distinct_input_receipts"
+    owner = "core/agency/which_one_answers_to_her.py"
+    suite.add_test(ValidationTest(
+        name=name, description="emissions require distinct, unambiguous delivered input trials",
+        required_capability="", observation=Observation("distinct_input_effects", True,
+                "tests/test_steering_and_triggering_use_separate_inputs.py"),
+        predict=lambda _model: _emissions_require_distinct_input_receipts() == (),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="Emission learning accepts effects during input delivery and requires distinct unambiguous trials.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Delivery windows, repeated births, ambiguity and failed fresh trials measured; live gameplay requires separate evidence.",
+    ))
+
+    name = "indexed_knowledge_keeps_relationships"
+    owner = "core/runtime/what_she_learned.py"
+    suite.add_test(ValidationTest(
+        name=name, description="bounded retention preserves the subject and shape of referenced evidence",
+        required_capability="", observation=Observation("indexed_relationships_preserved", True,
+                "tests/test_indexed_knowledge_keeps_its_relationships.py"),
+        predict=lambda _model: _indexed_knowledge_invariant() == (),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="Bounded indexed-state retention remaps retained references together and protects structural vectors.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Compaction, roundtrip and invalid legacy references measured; broader schema coverage requires separate evidence.",
+    ))
+
+    name = "click_attribution_respects_stretch_boundaries"
+    owner = "core/agency/where_clicks_pay.py"
+    suite.add_test(ValidationTest(
+        name=name, description="counter resets release pending click credit while retaining learned places",
+        required_capability="", observation=Observation("click_credit_rebased", True,
+                "tests/test_where_clicks_pay.py"),
+        predict=lambda _model: _click_attribution_respects_stretch_boundaries(),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="A new stretch cannot credit a pending click with the preceding stretch's counter reset.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Counter reset and retained learning measured; useful live control requires separate evidence.",
+    ))
 
     name = "identity_requires_current_distinguishing_evidence"
     owner = "core/agency/causal_identification.py"

@@ -402,10 +402,10 @@ def _this_game(page: Any) -> str:
 
 
 def _what_she_kept_of(page: Any) -> dict[str, Any]:
-    from core.agency.what_she_keeps_of_a_game import kept_from
+    from core.agency.what_she_keeps_of_a_game import INDEXED_TABLES, kept_from
     from core.runtime.what_she_learned import recall
 
-    held = recall(_this_game(page))
+    held = recall(_this_game(page), indexed_tables=INDEXED_TABLES)
     if held:
         logger.info("she has played this game before: starting from what she kept of it")
     return kept_from(held)

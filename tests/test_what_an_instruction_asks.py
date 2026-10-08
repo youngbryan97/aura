@@ -49,3 +49,25 @@ def test_keys_get_their_roles():
     rules = WhatTheRulesSaid.read("Take aim with your mouse and click to throw. Dodge food by pressing the space bar.")
     assert rules.dodge_keys == ("space",)
     assert rules.a_click_is_a_shot
+
+
+@pytest.mark.parametrize("words", ["Click to start.", "Click to play again.", "Click for help."])
+def test_a_lifecycle_click_has_no_firing_role(words):
+    assert not WhatTheRulesSaid.read(words).a_click_is_a_shot
+
+
+@pytest.mark.parametrize("words", [
+    "Aim with your mouse; click to throw at red targets.",
+    "Click to fire at red targets.",
+])
+def test_observed_steering_resolves_a_mouse_trigger_into_shooting(words):
+    rules = WhatTheRulesSaid.read(words)
+    assert rules.stance_for_colour("red") == CLICK
+    assert rules.stance_for_colour("red", pointer_steers=True) == SHOOT
+    assert rules.a_click_is_a_shot
+
+
+def test_explicit_target_clicks_and_forbidden_colours_keep_their_roles():
+    rules = WhatTheRulesSaid.read("Move with the mouse. Click the orange targets. Do not hit the green ones.")
+    assert rules.stance_for_colour("orange", pointer_steers=True) == CLICK
+    assert rules.stance_for_colour("green", pointer_steers=True) == AVOID

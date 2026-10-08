@@ -17,6 +17,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
+from core.verify.invariants import invariant
+
 __all__ = ["WhereClicksPay"]
 
 #: The places across and down the picture is cut into.
@@ -40,6 +42,15 @@ class WhereClicksPay:
     places: dict[tuple[int, int], list[float]] = field(default_factory=dict)
     last: tuple[int, int] | None = None
     counted_at: tuple[int, int] = (0, 0)
+
+    def begin_stretch(self, gains: int = 0, losses: int = 0) -> None:
+        """Keep the places learned, and begin attribution from this stretch's counters.
+
+        A click still awaiting an outcome belongs to the stretch that made it.
+        When the counters start afresh, no outcome is assigned across that boundary.
+        """
+        self.last = None
+        self.counted_at = (gains, losses)
 
     def credit(self, gains: int, losses: int) -> None:
         """What was gained and lost since the last click, put down to it."""
@@ -66,3 +77,29 @@ class WhereClicksPay:
         self.places.setdefault(place, [0.0, 0.0])[0] += 1
         self.last = place
         return ((place[0] + 0.5) / PLACES, (place[1] + 0.5) / PLACES)
+
+
+def _click_attribution_respects_stretch_boundaries() -> bool:
+    for gains, losses in ((9, 2), (2, 9)):
+        pay = WhereClicksPay()
+        pay.where(0, 0)
+        pay.credit(4, 1)
+        pay.where(gains, losses)
+        learned = {place: list(values) for place, values in pay.places.items()}
+        pay.begin_stretch()
+        pay.credit(0, 0)
+        if pay.places != learned or pay.last is not None:
+            return False
+        pay.where(0, 0)
+        place = pay.last
+        pay.credit(2, 0)
+        if place is None or pay.places[place] != [1.0, 2.0]:
+            return False
+    return True
+
+
+@invariant("agency.click_attribution_respects_stretch_boundaries", scope="agency",
+           owner="core/agency/where_clicks_pay.py", observational=False)
+def _click_attribution_invariant() -> tuple:
+    assert _click_attribution_respects_stretch_boundaries(), "a counter reset changed a click's learned outcome"
+    return ()

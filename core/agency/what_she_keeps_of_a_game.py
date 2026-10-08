@@ -19,9 +19,23 @@ import numpy as np
 __all__ = ["kept_from", "to_keep"]
 
 
+# Indexed visual kinds and every record that refers to their positions.
+INDEXED_TABLES = ({
+    "table": ["kinds"],
+    "keyed_by": [["evidence"], ["told"], ["physics"]],
+    "references": [["hers", "kind"]],
+    "histories": [
+        ["physics", "*", "accelerations"], ["physics", "*", "speeds"],
+        ["physics", "*", "meetings"], ["physics", "*", "edges", "*", "3"],
+        ["physics", "*", "edges", "*", "4"],
+    ],
+},)
+
+
 def to_keep(keep: dict[str, Any]) -> dict[str, Any]:
     """The plain-data form of what one stretch of play left in ``keep``."""
     held: dict[str, Any] = {}
+    held["_indexed_tables"] = list(INDEXED_TABLES)
     kinds = keep.get("kinds") or []
     # Colour and size, which is what a kind is matched by. Its colour mix is
     # a fixed-length vector that a long record is cut down by halving its
@@ -70,8 +84,12 @@ def kept_from(held: dict[str, Any]) -> dict[str, Any]:
     from core.agency.what_meeting_things_does import WhatMeetingDoes, _Evidence
     from core.perception.how_things_move_here import HowThingsMoveHere, _Edge
     from core.perception.what_moves_in_the_picture import LOOK_BINS, Kind
+    from core.runtime.what_she_learned import validate_indexed_state
 
     keep: dict[str, Any] = {}
+    if not isinstance(held, dict):
+        return keep
+    held = validate_indexed_state(held, indexed_tables=INDEXED_TABLES)
     if not isinstance(held, dict) or not held.get("kinds"):
         return keep
     keep["kinds"] = [

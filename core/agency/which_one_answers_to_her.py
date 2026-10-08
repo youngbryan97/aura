@@ -32,7 +32,11 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.agency.causal_identification import CausalIdentification, CausalWitness, within_observed_reach
+from core.agency.causal_identification import (
+    CausalIdentification,
+    CausalWitness,
+    within_observed_reach,
+)
 from core.verify import invariant
 
 logger = logging.getLogger(__name__)
@@ -75,6 +79,14 @@ class Makes:
     vx: float
     vy: float
     times: int
+
+
+@dataclass(frozen=True)
+class _Tap:
+    key: str
+    began: float
+    completed: float
+    origin: tuple[float, float]
 
 
 #: The speed of a thing is a line through its last 0.15 s of places, so for
@@ -280,8 +292,10 @@ class WhichIsHers:
         self.last_size = 0.0
         self.lowest: list[float] = [math.inf, math.inf]
         self.highest: list[float] = [-math.inf, -math.inf]
-        self._taps: list[tuple[str, float, tuple[float, float]]] = []
+        self._taps: list[_Tap] = []
+        self._births_seen: deque[tuple[int, float]] = deque(maxlen=400)
         self._made: dict[tuple[str, int], list[tuple[float, float]]] = defaultdict(list)
+        self._emission_delays: dict[tuple[str, int], dict[float, float]] = defaultdict(dict)
         self._pressed: dict[str, int] = defaultdict(int)
         self.makes: dict[str, Makes] = {}
         self._pointer: list[tuple[float, float, float]] = []
@@ -308,9 +322,12 @@ class WhichIsHers:
         if not self._held or self._held[-1][1:] != (key, trying):
             self._held.append((at, key, trying))
 
-    def tapped(self, key: str, at: float) -> None:
+    def tapped(self, key: str, at: float, *, began: float | None = None) -> None:
+        began = at if began is None else began
+        if not math.isfinite(began) or not math.isfinite(at) or began > at:
+            raise ValueError("an input receipt must have a finite ordered delivery interval")
         if self.last_seen is not None:
-            self._taps.append((key, at, self.last_seen))
+            self._taps.append(_Tap(key, began, at, self.last_seen))
             self._pressed[key] += 1
 
     def pointed(self, x: float, y: float, at: float) -> None:
@@ -522,6 +539,11 @@ class WhichIsHers:
         self._since_believed, self._answered, self._answered_by = [], {}, None
         self._expecting = {}
         self._pointer = []
+        self._taps.clear()
+        self._made.clear()
+        self._emission_delays.clear()
+        self._pressed.clear()
+        self._births_seen.clear()
         self.follows_pointer, self.follows_along = False, (False, False)
         self.lowest, self.highest = [math.inf, math.inf], [-math.inf, -math.inf]
 
@@ -535,6 +557,11 @@ class WhichIsHers:
         """
         self.identification.reset("observation identities renumbered")
         self.number, self._sighted = None, None
+        self._taps.clear()
+        self._made.clear()
+        self._emission_delays.clear()
+        self._pressed.clear()
+        self._births_seen.clear()
         for kept in (self._by_thing, self._followed, self.not_mine):
             kept.clear()
         self._since_believed, self._answered, self._answered_by = [], {}, None
@@ -638,6 +665,7 @@ class WhichIsHers:
             self._decide(moves, at)
         elif self.number not in moves.things:
             self.number = self._under_the_pointer(moves, at)
+        self._remember_own_thing(moves, at)
         self._what_keys_make(moves, happened, at)
 
     def _decide(self, moves: Any, at: float | None = None) -> None:
@@ -673,6 +701,10 @@ class WhichIsHers:
             self.number = self._one_of_her_kind(moves, at)
             if self.number is not None:
                 logger.info("her thing goes on as %s, the one of her kind within reach", self.number)
+        self._remember_own_thing(moves, at)
+
+    def _remember_own_thing(self, moves: Any, at: float | None) -> None:
+        """Keep the observed pose for every established control, including the pointer."""
         mine = moves.things.get(self.number) if self.number is not None else None
         if mine is not None:
             self.last_seen = (mine.x, mine.y)
@@ -725,15 +757,29 @@ class WhichIsHers:
     def _what_keys_make(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
         """A thing that turns up beside her just after a key, and then flies off."""
         fresh = [h for h in happened if h.get("what") == "appeared"]
-        self._taps = [tap for tap in self._taps if at - tap[1] < 0.4]
-        for key, when, (x, y) in self._taps:
-            for event in fresh:
-                if event["at"] - when < 0.0 or math.hypot(event["x"] - x, event["y"] - y) > 30.0:
-                    continue
-                if event["kind"] == self.kind:
-                    continue
-                self._made[(key, event["kind"])].append((when, event["thing"]))
-        for (key, kind), births in self._made.items():
+        self._taps = [tap for tap in self._taps if at < max(tap.completed, self._tap_effect_until(tap)) + 0.4]
+        for event in fresh:
+            identity = (event["thing"], event["at"])
+            if identity in self._births_seen:
+                continue
+            self._births_seen.append(identity)
+            if event["kind"] == self.kind:
+                continue
+            candidates = [tap for tap in self._taps
+                          if tap.began <= event["at"] < self._emission_until(tap, event["kind"])
+                          and math.dist((event["x"], event["y"]), tap.origin) <= 30.0]
+            # Overlapping delivery windows give no distinguishing evidence.
+            # Repeated frames and bursts from one input are one trial.
+            if len(candidates) == 1:
+                tap = candidates[0]
+                self._made[(tap.key, event["kind"])].append((tap.completed, event["thing"]))
+                delays = self._emission_delays[(tap.key, event["kind"])]
+                delays[tap.completed] = max(delays.get(tap.completed, 0.0), event["at"] - tap.began)
+                if len(delays) > 80:
+                    del delays[next(iter(delays))]
+        subjects = set(self._made) | {(key, made.kind) for key, made in self.makes.items()}
+        for key, kind in subjects:
+            births = self._made.get((key, kind), [])
             speeds = [
                 (moves.things[number].vx, moves.things[number].vy)
                 for _when, number in births[-6:]
@@ -743,13 +789,31 @@ class WhichIsHers:
             # also turn up beside her by themselves now and then, and pressed
             # a hundred times while dodging, offline 2026-10-04, the arrow
             # keys each "made" a falling rock twice.
-            made_often = len(births) >= MADE_EVERY * self._pressed[key]
-            if len(births) >= 2 and speeds and made_often:
+            trials = len({when for when, _number in births})
+            unsettled = sum(tap.key == key and at < self._tap_effect_until(tap) for tap in self._taps)
+            settled = max(0, self._pressed[key] - unsettled)
+            made_often = trials >= MADE_EVERY * settled
+            if trials >= 2 and speeds and made_often:
                 vx, vy = _mean(speeds)
                 if math.hypot(vx, vy) > REALLY_MOVES:
-                    self.makes[key] = Makes(key, kind, vx, vy, len(births))
-            elif key in self.makes and self.makes[key].kind == kind and not made_often:
+                    self.makes[key] = Makes(key, kind, vx, vy, trials)
+            elif key in self.makes and self.makes[key].kind == kind and settled >= ENOUGH and not made_often:
                 del self.makes[key]
+
+    def emission_window(self, key: str, kind: int) -> float | None:
+        """The observed delay bound after two independent emissions in this epoch."""
+        delays = self._emission_delays.get((key, kind), {})
+        if len(delays) < 2 or key not in self.makes or self.makes[key].kind != kind:
+            return None
+        return max(delays.values()) + RESPONSE_S
+
+    def _emission_until(self, tap: _Tap, kind: int) -> float:
+        window = self.emission_window(tap.key, kind)
+        return max(tap.completed + RESPONSE_S, tap.began + window) if window is not None else tap.completed + 0.4
+
+    def _tap_effect_until(self, tap: _Tap) -> float:
+        made = self.makes.get(tap.key)
+        return self._emission_until(tap, made.kind) if made is not None else tap.completed + 0.4
 
     # -- what she knows ----------------------------------------------------
 
@@ -786,6 +850,34 @@ class WhichIsHers:
             any(abs(vx) > REALLY_MOVES for vx, _vy in ways),
             any(abs(vy) > REALLY_MOVES for _vx, vy in ways),
         )
+
+
+@invariant("agency.emissions_require_distinct_input_receipts", scope="agency",
+           owner="core/agency/which_one_answers_to_her.py", observational=False)
+def _emissions_require_distinct_input_receipts() -> tuple:
+    from types import SimpleNamespace
+
+    hers = WhichIsHers()
+    hers.last_seen, hers.kind = (40.0, 80.0), 0
+    things = {n: SimpleNamespace(vx=0.0, vy=-100.0, moved=True) for n in range(10, 14)}
+    moves = SimpleNamespace(things=things)
+    event = {"what": "appeared", "thing": 10, "kind": 1, "x": 40.0, "y": 80.0, "at": 1.1}
+    hers.tapped("mouse", 1.2, began=1.0)
+    hers._what_keys_make(moves, [event, event], 1.3)
+    assert not hers.makes, "one repeated birth qualified a trigger"
+    hers.tapped("mouse", 2.2, began=2.0)
+    hers._what_keys_make(moves, [{**event, "thing": 11, "at": 2.1}], 2.3)
+    assert hers.makes["mouse"].times == 2, "births during delivery did not qualify distinct trials"
+    hers.numbered_afresh()
+    hers.tapped("mouse", 3.0)
+    hers.tapped("mouse", 3.25)
+    hers._what_keys_make(moves, [{**event, "thing": 12, "at": 3.3}], 3.31)
+    assert not hers._made, "an ambiguous birth credited two inputs"
+    for trial in range(4):
+        hers.tapped("mouse", 4.0 + trial)
+        hers._what_keys_make(moves, [], 4.5 + trial)
+    assert not hers.makes, "retained trigger qualification survived failed fresh trials"
+    return ()
 
 
 def _fresh_control_experiment_forgets_old_rejections() -> bool:

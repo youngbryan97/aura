@@ -38,7 +38,7 @@ from typing import Any
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_the_rules_said import WhatTheRulesSaid
-from core.agency.which_one_answers_to_her import WAYS, WhichIsHers
+from core.agency.which_one_answers_to_her import RESPONSE_S, WAYS, WhichIsHers
 from core.perception.how_things_move_here import HowThingsMoveHere
 from core.perception.what_changed_and_stayed import WhatChangedAndStayed
 from core.perception.what_moves_in_the_picture import WhatMoves
@@ -103,11 +103,14 @@ class _Run:
     new_screen_at: float = -math.inf
     clicked: dict[int, float] = field(default_factory=dict)
     last_click: float = -math.inf
+    last_trigger_began: float = -math.inf
     #: Where in the picture a click at nothing in particular has paid (core/agency/where_clicks_pay.py).
     clicks_pay: Any = None
     pointer: tuple[float, float] = (0.5, 0.5)
     pointed: int = 0
     pointer_first: bool = False
+    #: Whether the visible instructions give the pointer a separate trigger.
+    pointer_trigger: bool = False
     taps: int = 0
     said_at: float = -math.inf
     said: set[str] = field(default_factory=set)
@@ -122,7 +125,7 @@ class _Run:
     #: gain for her.
     meeting_with: dict[float, list[int]] = field(default_factory=lambda: {-0.7: [0, 0], 0.0: [0, 0], 0.7: [0, 0]})
     meeting_now: float = 0.0
-    told_checked: set[int] = field(default_factory=set)
+    told_checked: dict[int, bool] = field(default_factory=dict)
     #: Every line of writing read on the screen during the stretch.
     #: When something was first seen moving in this stretch.
     first_moving: float = math.inf
@@ -825,13 +828,14 @@ async def _hold(hands: Any, run: _Run, hers: WhichIsHers, key: str, at: float, *
     if key != run.held:
         if run.held:
             await hands.up(run.held)
+        dispatched = time.monotonic()
         if key:
             await hands.down(key)
             run.input_key_downs[key] += 1
         run.responses.append(max(0.0, time.monotonic() - at))
     delivered = time.monotonic()
     if key and key != run.held:
-        hers.tapped(key, delivered)
+        hers.tapped(key, delivered, began=dispatched)
     run.held, run.held_since, run.held_trying = key, delivered, trying
     hers.holding(key, delivered, trying=trying)
 
@@ -952,8 +956,9 @@ async def _click_the_picture(hands: Any, run: _Run, moves: WhatMoves, at: float)
     "Click your mouse button to start the hamster in motion... click again to
     launch": a click aimed at nothing is how such a game is played (LIVE
     2026-10-07, four minutes in one with nothing clicked). Paced, so what one
-    did can be seen before the next. Only while nothing in the picture moves
-    to be aimed at. Where in it is learned as she goes: the places a click
+    did can be seen before the next. Motion holds back an unspecified click;
+    a trigger named by the visible instructions still works during motion.
+    Where in it is learned as she goes: the places a click
     paid are clicked more (core/agency/where_clicks_pay.py), and where such
     clicks have cost more than they paid, she stops making them.
     """
@@ -961,7 +966,7 @@ async def _click_the_picture(hands: Any, run: _Run, moves: WhatMoves, at: float)
 
     if not run.pointer_first or at - run.last_click < CLICK_THE_PICTURE_S:
         return
-    if any(thing.moved for thing in moves.things.values()):
+    if not run.pointer_trigger and any(thing.moved for thing in moves.things.values()):
         return
     run.clicks_pay = run.clicks_pay or WhereClicksPay()
     if run.clicks_pay.costing():
@@ -989,7 +994,7 @@ async def _try_the_pointer(hands: Any, run: _Run, hers: WhichIsHers, moves: What
     run.pointer = (x, y)
     await hands.point(x, y)
     tall, wide = moves.shape
-    hers.pointed(x * wide, y * tall, at)
+    hers.pointed(x * wide, y * tall, time.monotonic())
 
 
 async def _point_at(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves, choosing: _Choosing, at: float) -> None:
@@ -1005,7 +1010,7 @@ async def _point_at(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves, 
     if math.dist((sx, sy), run.pointer) > 0.02:
         run.pointer = (sx, sy)
         await hands.point(sx, sy)
-        hers.pointed(x, y, at)
+        hers.pointed(x, y, time.monotonic())
 
 
 def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float) -> str:
@@ -1064,15 +1069,15 @@ def _report(run: _Run, getting_somewhere: Callable[[str], Any] | None, at: float
 
 
 def _what_the_rules_said_of(rules: WhatTheRulesSaid | None, moves: WhatMoves, meeting: WhatMeetingDoes,
-                            run: _Run, say: Any, at: float) -> None:
+                            run: _Run, say: Any, at: float, *, pointer_steers: bool = False) -> None:
     """Tie the rules' words to the kinds on screen by colour, as each kind first appears."""
     if rules is None:
         return
     for kind in moves.kinds:
-        if kind.number in meeting.told or kind.number in run.told_checked:
+        if run.told_checked.get(kind.number) == pointer_steers:
             continue
-        run.told_checked.add(kind.number)
-        stance = rules.stance_for_colour(colour_name(kind.colour))
+        run.told_checked[kind.number] = pointer_steers
+        stance = rules.stance_for_colour(colour_name(kind.colour), pointer_steers=pointer_steers)
         if stance is not None:
             meeting.told[kind.number] = stance
             line = {
@@ -1080,7 +1085,7 @@ def _what_the_rules_said_of(rules: WhatTheRulesSaid | None, moves: WhatMoves, me
                 SHOOT: "the {c} ones are to be shot", CLICK: "the {c} ones are to be clicked",
             }.get(stance, "")
             if line:
-                _say(run, say, "The rules say " + line.format(c=colour_name(kind.colour)) + ".", at, once=f"told {kind.number}")
+                _say(run, say, "The rules say " + line.format(c=colour_name(kind.colour)) + ".", at, once=f"told {kind.number} {stance}")
 
 
 def _counters_without_reading(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> None:
@@ -1216,9 +1221,12 @@ async def play_as_it_happens(
         kept.numbered_afresh()
     run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first,
                contest=keep.get("contest") or ContestStands(), waits_for_her=waits_for_her)
+    run.pointer_trigger = rules is not None and rules.a_click_is_a_shot
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
     run.clicks_pay = keep.get("where_clicks_pay")
+    if run.clicks_pay is not None:
+        run.clicks_pay.begin_stretch(run.gains, run.losses)
     run.lately = dict(keep.get("said_lately") or {})
     # What is said once ("That's me", what a kind of thing is worth) is said once a game, not once a stretch.
     run.said = set(keep.get("said_once") or ())
@@ -1250,7 +1258,7 @@ async def play_as_it_happens(
             _record_control_attribution(run, moves, hers, at)
             _measure_response(run, hers.thing(moves), at)
             physics.saw(moves, hers, happened, at)
-            _what_the_rules_said_of(rules, moves, meeting, run, say, at)
+            _what_the_rules_said_of(rules, moves, meeting, run, say, at, pointer_steers=hers.follows_pointer)
             # The ground is the point where the rules say so, and where the world waits for her: with nothing coming and
             # nothing to go to, a person looks round the place for what is there (a way on, a thing to take).
             goes_over = (rules is not None and rules.covers) or waits_for_her
@@ -1278,7 +1286,7 @@ async def play_as_it_happens(
                 ended = "runtime contract violated"
                 _say(run, say, "This still behaves incorrectly: " + violations[0]["finding"] + ". I need to check the repair.", at, once="runtime_fault")
                 break
-            await _act(hands, run, moves, hers, meeting, choosing, at, say=say)
+            await _act(hands, run, moves, hers, meeting, choosing, at, say=say, rules=rules)
             _out_of_her_reach(run, choosing, at)
             if goes_over:
                 if waits_for_her and choosing.mine is not None and choosing.ways and choosing.target()[1] == "cover":
@@ -1307,13 +1315,15 @@ async def play_as_it_happens(
 
 
 async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
-               choosing: _Choosing, at: float, *, say: Any = None) -> None:
+               choosing: _Choosing, at: float, *, say: Any = None, rules: WhatTheRulesSaid | None = None) -> None:
     # A thing taken for hers that did not answer her keys: try them again.
     if hers.lost_at > run.lost_at:
         run.lost_at, run.trying = hers.lost_at, 0
     # An instruction to click a visible target already names the interaction.
     # It does not require discovering an avatar that follows the pointer.
-    if run.pointer_first and any(meeting.stance(t.kind) == CLICK for t in moves.things.values()):
+    aimed_trigger = (choosing.mine is not None and hers.follows_pointer
+                     and rules is not None and rules.a_click_is_a_shot)
+    if run.pointer_first and not aimed_trigger and any(meeting.stance(t.kind) == CLICK for t in moves.things.values()):
         await _click_things(hands, run, moves, meeting, at, only_named=True)
         return
     # Every key is tried once before any is chosen: a plan that knows one key
@@ -1330,6 +1340,9 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         await _try_the_keys(hands, run, hers, at)
         return
     if choosing.mine is not None and hers.follows_pointer:
+        await _hold(hands, run, hers, "", at)
+        _goal, why, aim = choosing.target()
+        await _trigger(hands, run, hers, choosing, aim, why, at, rules=rules)
         await _point_at(hands, run, hers, moves, choosing, at)
         return
     if choosing.mine is None or not choosing.ways:
@@ -1387,11 +1400,52 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         mine = choosing.mine
         run.previous_control = (mine.number, mine.x, mine.y, at, before, after)
     await _hold(hands, run, hers, key, at)
+    await _trigger(hands, run, hers, choosing, aim, why, at, rules=rules)
+
+
+async def _trigger(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing,
+                   aim: Any, why: str, at: float, *, rules: WhatTheRulesSaid | None = None) -> None:
+    """Deliver a trigger alongside steering, using its own physical input.
+
+    Steering and firing are compatible channels. A pointer-controlled object
+    used to return before its trigger could run. Named triggers are tried at
+    a measured pace until their projectiles can be aimed by learned motion.
+    """
     fire = choosing.fire(aim, why)
-    if fire and fire != run.held:
+    discovering = choosing.shot is None
+    if fire is None and discovering and choosing.pointing and choosing.mine is not None:
+        if rules is not None and rules.a_click_is_a_shot:
+            fire = "mouse"
+        elif rules is not None:
+            fire = next((key for key in rules.fire_keys if key not in WAYS), None)
+    window = None if discovering else hers.emission_window(choosing.shot.key, choosing.shot.kind)
+    if discovering:
+        next_trigger = run.last_click + CLICK_THE_PICTURE_S
+    elif window is None:
+        next_trigger = run.last_click + max(CLICK_EVERY_S, 0.4 + RESPONSE_S)
+    else:
+        next_trigger = max(run.last_click + CLICK_EVERY_S, run.last_trigger_began + window + RESPONSE_S)
+    if not fire or fire == run.held or at < next_trigger:
+        return
+    if fire == "mouse":
+        if not hasattr(hands, "click"):
+            return
+        if choosing.pointing:
+            tall, wide = choosing.moves.shape
+            run.pointer = (min(1.0, max(0.0, choosing.mine.x / max(1, wide))),
+                           min(1.0, max(0.0, choosing.mine.y / max(1, tall))))
+        dispatched = time.monotonic()
+        await hands.click(*run.pointer)
+    else:
+        dispatched = time.monotonic()
         await hands.tap(fire)
-        hers.tapped(fire, time.monotonic())
-        run.taps += 1
+    delivered = time.monotonic()
+    if fire == "mouse" and choosing.pointing:
+        hers.pointed(run.pointer[0] * wide, run.pointer[1] * tall, delivered)
+    hers.tapped(fire, delivered, began=dispatched)
+    run.last_trigger_began = dispatched
+    run.last_click = delivered
+    run.taps += 1
 
 
 #: The parts of her thing she imagines meeting a thing with, from one end
