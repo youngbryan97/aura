@@ -198,8 +198,15 @@ def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -
     alone with room around it. Measured in the line's own height, so the size
     of the writing does not matter.
     """
-    if _reads_as_a_sentence(str(region.get("text") or "")):
+    said = str(region.get("text") or "")
+    if _reads_as_a_sentence(said):
         return True
+    # A line that is wholly a way on is a button, however close it sits under the rules: LIVE 2026-10-08 "START"
+    # under a game's last line of instructions was read as part of them, and the game was never started.
+    from core.language.a_way_on import how_much_it_leads_on
+
+    if how_much_it_leads_on(said) > 1.0:
+        return False
     try:
         x, y = float(region["x"]), float(region["y"])
         width, height = float(region["width"]), float(region["height"])
