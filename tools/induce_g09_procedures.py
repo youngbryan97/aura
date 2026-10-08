@@ -130,14 +130,24 @@ def main() -> int:
     kinds = args.kinds.split(",")
     truths: dict[str, Any] = {}
     families: dict[str, list[SolvedExample]] = {}
+    graders = {kind: grader_for(kind) for kind in kinds}
+    unconfirmable: dict[str, int] = {}
     for kind in kinds:
         rows = problems(kind, "development")
         families[kind] = []
         for row in rows:
-            truths[row["key"]] = row["truth"]
             # The known answer shown to her model is the answer as the benchmark writes it.
-            families[kind].append(SolvedExample(row["key"], row["problem"], str(row.get("answer_text", row["truth"]))))
-    graders = {kind: grader_for(kind) for kind in kinds}
+            answer = str(row.get("answer_text", row["truth"]))
+            if not graders[kind](answer, row["truth"]):
+                # Its own grader rejects the reference answer itself (BBEH's evaluator keeps
+                # a reference's final period and strips the prediction's), so no answer can
+                # agree with it and it cannot count as known.
+                unconfirmable[kind] = unconfirmable.get(kind, 0) + 1
+                continue
+            truths[row["key"]] = row["truth"]
+            families[kind].append(SolvedExample(row["key"], row["problem"], answer))
+    if unconfirmable:
+        print(json.dumps({"left_out_as_unconfirmable": unconfirmable}), flush=True)
 
     def agree(returned: str, example: SolvedExample) -> bool:
         return bool(graders[example.key.split(":")[0]](returned, truths[example.key]))
