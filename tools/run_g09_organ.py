@@ -52,7 +52,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DOMAINS = ("math", "code", "planning", "knowledge", "transfer", "bbeh")
+DOMAINS = ("math", "code", "planning", "knowledge", "transfer", "bbeh", "trip")
 BENCH = Path("~/.aura/benchmarks").expanduser()
 #: EvalPlus's own request for a chat model.
 CODE_REQUEST = ("Please provide a self-contained Python script that solves the following problem "
@@ -143,8 +143,16 @@ def _bbeh_tasks() -> list[dict[str, Any]]:
     return tasks
 
 
+def _trip_tasks() -> list[dict[str, Any]]:
+    data = json.loads((BENCH / "g09/natural-plan/trip_planning.json").read_text(encoding="utf-8"))
+    return [{"id": f"trip:{key}", "request": value["prompt_5shot"],
+             "truth": {"cities": value["cities"], "durations": value["durations"]},
+             "group": f"cities={value['num_cities']}"} for key, value in data.items()]
+
+
 LOADERS = {"math": _math_tasks, "code": _code_tasks, "planning": _planning_tasks,
-           "knowledge": _knowledge_tasks, "transfer": _transfer_tasks, "bbeh": _bbeh_tasks}
+           "knowledge": _knowledge_tasks, "transfer": _transfer_tasks, "bbeh": _bbeh_tasks,
+           "trip": _trip_tasks}
 
 
 def sample(tasks: list[dict[str, Any]], count: int, seed: int, excluded: set[str]) -> list[dict[str, Any]]:
@@ -299,8 +307,49 @@ def grade_bbeh(text: str, truth: str) -> tuple[bool, str]:
     return _bbeh_match(answer, truth.strip().lower().replace(", ", ",")), answer[:120]
 
 
+def _parse_trip(response: str) -> list[tuple[str, int]]:
+    """Natural Plan's trip parser (evaluate_trip_planning.parse_response), restated: the
+    "Day a-b" stays and "Day n ... from X to Y" flights, up to the plan's last day."""
+    days, flights, total_days = [], [], None
+    for piece in response.split("\n"):
+        found = re.findall(r"European cities for (\d+) days", piece)
+        if found:
+            total_days = int(found[0])
+        visit = re.findall(r"\d+-\d+", piece)
+        if visit:
+            days.append(visit[0])
+            if int(visit[0].split("-")[1]) == total_days:
+                break
+        flight = re.findall(r".*Day (\d+).*from (\w+) to (\w+)", piece)
+        if flight:
+            flights.append(flight[0])
+    cities: list[str] = []
+    flight_days: list[int] = []
+    for day, begin, end in flights:
+        flight_days.append(int(day))
+        cities.extend([begin, end] if not cities else [end])
+    if not days or not flights or not cities:
+        return []
+    flight_days = [1] + flight_days + [int(days[-1].split("-")[1])]
+    return [(city, flight_days[i + 1] - flight_days[i] + 1) for i, city in enumerate(cities)]
+
+
+def grade_trip(text: str, truth: dict[str, str]) -> tuple[bool, str]:
+    """Natural Plan's exact match (compute_example_score): every stay, in order, right."""
+    plan = _parse_trip(text)
+    stays = [x for x in truth["cities"].split("**") if x]
+    days = [int(x) for x in truth["durations"].split("**") if x]
+    matched = 0
+    for index in range(min(len(stays), len(plan))):
+        if stays[index] != plan[index][0] or days[index] != plan[index][1]:
+            break
+        matched += 1
+    return matched == len(stays), str(plan)[:120]
+
+
 GRADERS = {"math": grade_math, "code": grade_code, "planning": grade_planning,
-           "knowledge": grade_knowledge, "transfer": grade_transfer, "bbeh": grade_bbeh}
+           "knowledge": grade_knowledge, "transfer": grade_transfer, "bbeh": grade_bbeh,
+           "trip": grade_trip}
 
 
 # ── The run ────────────────────────────────────────────────────────────────
