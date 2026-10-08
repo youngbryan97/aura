@@ -103,6 +103,8 @@ class _Run:
     new_screen_at: float = -math.inf
     clicked: dict[int, float] = field(default_factory=dict)
     last_click: float = -math.inf
+    #: Where in the picture a click at nothing in particular has paid (core/agency/where_clicks_pay.py).
+    clicks_pay: Any = None
     pointer: tuple[float, float] = (0.5, 0.5)
     pointed: int = 0
     pointer_first: bool = False
@@ -951,14 +953,21 @@ async def _click_the_picture(hands: Any, run: _Run, moves: WhatMoves, at: float)
     launch": a click aimed at nothing is how such a game is played (LIVE
     2026-10-07, four minutes in one with nothing clicked). Paced, so what one
     did can be seen before the next. Only while nothing in the picture moves
-    to be aimed at, and not once anything has been lost: where a miss costs,
-    a click at nothing is a miss.
+    to be aimed at. Where in it is learned as she goes: the places a click
+    paid are clicked more (core/agency/where_clicks_pay.py), and where such
+    clicks have cost more than they paid, she stops making them.
     """
-    if not run.pointer_first or at - run.last_click < CLICK_THE_PICTURE_S or run.losses:
+    from core.agency.where_clicks_pay import WhereClicksPay
+
+    if not run.pointer_first or at - run.last_click < CLICK_THE_PICTURE_S:
         return
     if any(thing.moved for thing in moves.things.values()):
         return
-    await hands.click(0.5, 0.5)
+    run.clicks_pay = run.clicks_pay or WhereClicksPay()
+    if run.clicks_pay.costing():
+        return
+    x, y = run.clicks_pay.where(run.gains, run.losses)
+    await hands.click(x, y)
     run.last_click = at
 
 
@@ -1209,6 +1218,7 @@ async def play_as_it_happens(
                contest=keep.get("contest") or ContestStands(), waits_for_her=waits_for_her)
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
+    run.clicks_pay = keep.get("where_clicks_pay")
     run.lately = dict(keep.get("said_lately") or {})
     # What is said once ("That's me", what a kind of thing is worth) is said once a game, not once a stretch.
     run.said = set(keep.get("said_once") or ())
@@ -1287,6 +1297,7 @@ async def play_as_it_happens(
             run.reading.cancel()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
+                 "where_clicks_pay": run.clicks_pay,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
