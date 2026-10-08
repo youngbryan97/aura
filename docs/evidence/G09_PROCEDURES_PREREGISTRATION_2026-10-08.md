@@ -90,3 +90,24 @@ ordinary arm sees only the benchmark's own prompt.
 ## What this does not show
 
 * Anything yet: this page is the plan.
+
+## Amendment, 8 October 2026, 07:30, before any held-out procedure or draft
+
+Decoding is slower than the plan assumed: in the first development run each
+proposal ran 8,000 to 16,600 tokens at about 3.8 tokens a second per
+sequence, and BBEH answers average 5,700 tokens. Three changes save model
+time without touching the criteria above:
+
+* Drafts are decoded only for test requests that a kept procedure answers.
+  Every other request keeps its draft in both arms, so its pair is
+  concordant whether or not the draft exists. The sets named above
+  (CRUXEval, calendar, trip, BBEH Mini) are drafted in full only where
+  their kind has a kept procedure; G12 completes its own BBEH Mini run
+  later in the same directory.
+* A second development run, `g09-induce-dev2-closed-20261008`, asks for the
+  same proposals with her private channel closed. Writing a procedure is
+  internal work, not a reply. If closed proposals keep procedures on the
+  development kinds about as often as open ones, the held-out run uses them.
+* The comparison with and without core/reasoning/mechanisms.py moves after
+  the confirmatory run; the held-out run does not use the module unless a
+  development run has tested it.
