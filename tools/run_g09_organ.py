@@ -192,13 +192,28 @@ def sample(tasks: list[dict[str, Any]], count: int, seed: int, excluded: set[str
 
 # ── Graders ────────────────────────────────────────────────────────────────
 
+def math_answer(text: str) -> str | None:
+    """The boxed answer; a reply that is one short line is its own answer.
+
+    Her reasoning organ hands back what its program printed ("70"), and a
+    person reading that has the answer as surely as one reading \\boxed{70}.
+    """
+    from tools.run_g12_math500 import last_boxed
+
+    boxed = last_boxed(text)
+    if boxed is not None:
+        return boxed
+    body = str(text or "").strip()
+    return body if body and "\n" not in body and len(body) <= 40 else None
+
+
 def grade_math(text: str, truth: str) -> tuple[bool, str]:
-    from tools.run_g12_math500 import grade, last_boxed
+    from tools.run_g12_math500 import grade
 
     sys.path.insert(0, str(BENCH / "math500"))
     from grading.grader import grade_answer  # MATH-500's own grader
 
-    return grade(grade_answer, last_boxed(text), truth, seconds=10)
+    return grade(grade_answer, math_answer(text), truth, seconds=10)
 
 
 _FENCE = re.compile(r"```(?:python|py)?\s*\n(.*?)```", re.S)
