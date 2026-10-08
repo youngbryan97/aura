@@ -135,7 +135,13 @@ def _mended(text: str, names: frozenset[str]) -> str:
     """
     out: list[str] = []
     prose = len(str(text or "").split()) >= 6 and legible_share(text, names) >= 0.8
+    latin = sum(ch.isascii() for ch in str(text or "") if ch.isalpha()) >= 0.8 * max(1, sum(ch.isalpha() for ch in str(text or "")))
     for token in str(text or "").split():
+        # Letters of another script in writing of this one are a misreading of it ("(ог" for "or").
+        if latin and any(ch.isalpha() and not ch.isascii() for ch in token):
+            if not (out and out[-1] == "…"):
+                out.append("…")
+            continue
         core = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", token)
         if not core or len(_plain(core)) <= 1 or core.isdigit() or _plain(core) in names:
             out.append(token)
@@ -212,13 +218,18 @@ class WhatAWatcherHears:
             text = match.group(1) or match.group(2) or match.group(3) or ""
             if text.startswith(("the shape at ", "the one that stands out at ", "the middle of the picture")):
                 continue
+            # A label's stray marks read off its edges ('START."') are not part of it; its own "!" or "?" is.
+            trimmed = re.sub(r"[\s.,:;'\"“”‘’]+$|^[\s.,:;'\"“”‘’]+", "", text)
+            if trimmed and trimmed != text and len(trimmed.split()) <= 4:
+                said = said.replace(text, trimmed, 1)
+                text = trimmed
             if legible_share(text, names) < LEGIBLE:
                 logger.info("not said, what it quotes could not be read: %r", said[:120])
                 return None
             mended = _mended(text, names)
             if mended != text:
                 said = said.replace(text, mended, 1)
-        return said
+        return re.sub(r'"{2,}', '"', said)
 
 
 _THE_WATCHER = WhatAWatcherHears()

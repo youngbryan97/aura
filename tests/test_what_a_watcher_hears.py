@@ -80,3 +80,11 @@ def test_in_plain_prose_a_name_and_a_hyphened_word_are_kept_and_a_short_unread_w
     assert said is not None and "Bloo" in said and "late-night" in said
     said = watcher.heard("It says: Game Over toct Your score: Try Again", 1.0)
     assert said is not None and "tact" not in said
+
+
+@pytest.mark.unit
+def test_stray_marks_and_another_scripts_letters_are_not_quoted():
+    watcher = WhatAWatcherHears()
+    assert watcher.heard('Clicking "START."" — to see what it does', 0.0) == 'Clicking "START" — to see what it does'
+    said = watcher.heard("It says: Aim with your MOUSE (ог and click to sling Rigby into the sky after the fireflies!", 1.0)
+    assert said is not None and "ог" not in said and "MOUSE … and click" in said
