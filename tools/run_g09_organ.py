@@ -52,7 +52,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DOMAINS = ("math", "code", "planning", "knowledge", "transfer", "bbeh", "trip")
+DOMAINS = ("math", "code", "planning", "knowledge", "transfer", "bbeh", "trip", "aime")
 BENCH = Path("~/.aura/benchmarks").expanduser()
 #: EvalPlus's own request for a chat model.
 CODE_REQUEST = ("Please provide a self-contained Python script that solves the following problem "
@@ -150,9 +150,27 @@ def _trip_tasks() -> list[dict[str, Any]]:
              "group": f"cities={value['num_cities']}"} for key, value in data.items()]
 
 
+def _aime_tasks() -> list[dict[str, Any]]:
+    import pandas as pd
+
+    from tools.run_g12_math500 import INSTRUCTION
+
+    tasks = []
+    for part in ("I", "II"):
+        lines = (BENCH / f"g09/aime/aime2025-{part}.jsonl").read_text(encoding="utf-8").splitlines()
+        for index, line in enumerate(line for line in lines if line.strip()):
+            row = json.loads(line)
+            tasks.append({"id": f"aime2025-{part}:{index + 1}", "request": f"{row['question']}\n\n{INSTRUCTION}",
+                          "truth": str(row["answer"]).strip(), "group": "2025"})
+    for _, row in pd.read_parquet(BENCH / "g09/aime/aime_2024_problems.parquet").iterrows():
+        tasks.append({"id": f"aime2024:{row['ID']}", "request": f"{row['Problem']}\n\n{INSTRUCTION}",
+                      "truth": str(row["Answer"]).strip(), "group": "2024"})
+    return tasks
+
+
 LOADERS = {"math": _math_tasks, "code": _code_tasks, "planning": _planning_tasks,
            "knowledge": _knowledge_tasks, "transfer": _transfer_tasks, "bbeh": _bbeh_tasks,
-           "trip": _trip_tasks}
+           "trip": _trip_tasks, "aime": _aime_tasks}
 
 
 def sample(tasks: list[dict[str, Any]], count: int, seed: int, excluded: set[str]) -> list[dict[str, Any]]:
@@ -349,7 +367,7 @@ def grade_trip(text: str, truth: dict[str, str]) -> tuple[bool, str]:
 
 GRADERS = {"math": grade_math, "code": grade_code, "planning": grade_planning,
            "knowledge": grade_knowledge, "transfer": grade_transfer, "bbeh": grade_bbeh,
-           "trip": grade_trip}
+           "trip": grade_trip, "aime": grade_math}
 
 
 # ── The run ────────────────────────────────────────────────────────────────
