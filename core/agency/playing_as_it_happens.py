@@ -944,15 +944,19 @@ async def _click_things(hands: Any, run: _Run, moves: WhatMoves, meeting: WhatMe
 CLICK_THE_PICTURE_S = 1.5
 
 
-async def _click_the_picture(hands: Any, run: _Run, at: float) -> None:
+async def _click_the_picture(hands: Any, run: _Run, moves: WhatMoves, at: float) -> None:
     """Where the game's words name the pointer and nothing she could click has come of it, a click on the picture itself.
 
     "Click your mouse button to start the hamster in motion... click again to
     launch": a click aimed at nothing is how such a game is played (LIVE
     2026-10-07, four minutes in one with nothing clicked). Paced, so what one
-    did can be seen before the next.
+    did can be seen before the next. Only while nothing in the picture moves
+    to be aimed at, and not once anything has been lost: where a miss costs,
+    a click at nothing is a miss.
     """
-    if not run.pointer_first or at - run.last_click < CLICK_THE_PICTURE_S:
+    if not run.pointer_first or at - run.last_click < CLICK_THE_PICTURE_S or run.losses:
+        return
+    if any(thing.moved for thing in moves.things.values()):
         return
     await hands.click(0.5, 0.5)
     run.last_click = at
@@ -1300,6 +1304,13 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
     # Every key is tried once before any is chosen: a plan that knows one key
     # can only go one way.
     trying_the_pointer = run.pointer_first and run.pointed < 2 * len(_POINTER_TRIAL) and not hers.follows_pointer
+    # A game its words say is played with the pointer is clicked between the keys tried, not after all of them:
+    # LIVE 2026-10-08 a stretch ended on its ten key trials before the click that would have started the game.
+    if (run.pointer_first and not trying_the_pointer and not hers.follows_pointer and choosing.mine is None
+            and hasattr(hands, "click") and at - run.last_click >= CLICK_THE_PICTURE_S):
+        await _click_the_picture(hands, run, moves, at)
+        if run.last_click == at:
+            return
     if not trying_the_pointer and run.trying < 2 * len(run.keys) and not hers.keys_known(run.keys) and not hers.follows_pointer:
         await _try_the_keys(hands, run, hers, at)
         return
@@ -1325,8 +1336,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
             return
         # Played with the pointer: a click, paced, before the keys are gone through again.
         if run.pointer_first and hasattr(hands, "click") and at - run.last_click >= CLICK_THE_PICTURE_S:
-            await _click_things(hands, run, moves, meeting, at)
-            await _click_the_picture(hands, run, at)
+            await _click_the_picture(hands, run, moves, at)
             if run.last_click == at:
                 return
         if run.trying < 4 * len(run.keys):
@@ -1338,7 +1348,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
             return
         if hasattr(hands, "click"):
             await _click_things(hands, run, moves, meeting, at)
-            await _click_the_picture(hands, run, at)
+            await _click_the_picture(hands, run, moves, at)
         return
     untried = [k for k in run.keys if hers.tried(k) < 4 and k not in choosing.ways]
     # Where she means to go and no way she knows takes her nearer, a way she has not learned yet is tried now: LIVE

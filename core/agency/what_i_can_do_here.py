@@ -215,7 +215,10 @@ class WhatWorksHere:
         self.asked_for = keys_a_screen_asks_for(words)
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
         keys, pointer = controls_named_in(words, keys_without_words=())
-        self.pointer_only = pointer and not keys
+        # A screen that names no controls keeps what the game's own screens said before it: LIVE 2026-10-08 the rules
+        # said "click your mouse button to start", and on the game's wordless screen after them she pressed arrows.
+        if keys or pointer:
+            self.pointer_only = pointer and not keys
 
     def looked_at(self, clickable: Sequence[str], says: str = "") -> None:
         """What she can click now: the writing that was there at the last look too.

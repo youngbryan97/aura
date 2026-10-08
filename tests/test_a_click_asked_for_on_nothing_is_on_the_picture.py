@@ -48,3 +48,13 @@ def test_a_game_named_as_played_with_the_mouse_offers_the_picture_too():
     can_do = WhatWorksHere(told=("up", "down", "left", "right"))
     can_do.asked_for_by("Use the mouse to aim and toss Bloo", [])
     assert a_click_on(THE_PICTURE) in can_do._available()
+
+
+@pytest.mark.unit
+def test_what_the_rules_said_of_the_mouse_holds_on_a_screen_that_says_nothing():
+    can_do = WhatWorksHere(told=("up", "down", "left", "right"))
+    can_do.asked_for_by("Click your mouse button to start the hamster in motion.", [])
+    can_do.asked_for_by("", [])  # the game's own screen, with no words
+    assert can_do.pointer_only and a_click_on(THE_PICTURE) in can_do._available()
+    can_do.asked_for_by("Use the arrow keys to move.", [])
+    assert not can_do.pointer_only

@@ -179,6 +179,14 @@ def _in_reading_order(regions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [region for line in lines for region in sorted(line, key=lambda r: float(r.get("x", 0.0)))]
 
 
+def _reads_as_a_sentence(text: str) -> bool:
+    """Whether one line of writing is a sentence by itself, however it is set: six words or more, or four with a
+    comma inside. A button says what it does in a word or a few ("Play", "Click here to play"); LIVE 2026-10-08
+    she clicked "Eduardo, Mac and Bloo are raiding", the first line of a game's story, as if it were one."""
+    words = re.findall(r"[A-Za-z][A-Za-z'’-]*", text)
+    return len(words) >= 6 or (len(words) >= 4 and bool(re.search(r"\w,\s+\w", text)))
+
+
 def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -> bool:
     """Whether a line of writing runs on into the line under it, as prose does.
 
@@ -190,6 +198,8 @@ def _set_as_a_paragraph(region: dict[str, Any], regions: list[dict[str, Any]]) -
     alone with room around it. Measured in the line's own height, so the size
     of the writing does not matter.
     """
+    if _reads_as_a_sentence(str(region.get("text") or "")):
+        return True
     try:
         x, y = float(region["x"]), float(region["y"])
         width, height = float(region["width"]), float(region["height"])
