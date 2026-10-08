@@ -337,19 +337,22 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         if violations:
             result["runtime_violations"] = violations
             break
-        if (until_won and run["ended"] == "won") or len(runs) >= limit or not reflexes.over_because:
-            # The run that ends it is told as it ends too: a win heard of
-            # only in the reply afterwards was not seen by anyone watching.
-            if run["ended"]:
-                _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
-            break
         # The round's own clock stops a little before the slice's end: a round that ran most of its slice ran out of it.
-        if until_won and not reflexes.over_because and time.monotonic() - started >= ROUND_S - 20.0 and time.monotonic() < deadline:
+        # Looked at before a round with no end of its own is taken as the last: LIVE 2026-10-07 this came after that
+        # break, could never be reached, and a game was left after four minutes with nothing said.
+        if (until_won and run["ended"] != "won" and not reflexes.over_because
+                and time.monotonic() - started >= ROUND_S - 20.0 and time.monotonic() < deadline):
             if run["gains"] > 0:
                 runs.pop()  # the same round, still getting somewhere: played on, not counted as another
                 continue
             _tell(f"{round(ROUND_S / 60)} minutes in this round and nothing gained; I'll leave this one here.")
             result["stopped_because"] = "getting nowhere in it"
+            break
+        if (until_won and run["ended"] == "won") or len(runs) >= limit or not reflexes.over_because:
+            # The run that ends it is told as it ends too: a win heard of
+            # only in the reply afterwards was not seen by anyone watching.
+            if run["ended"]:
+                _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
             break
         if until_won and not_getting_better(runs):
             # A person keeps at a game while they are getting better at it, and says so when they are not.

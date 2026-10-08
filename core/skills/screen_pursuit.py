@@ -1494,17 +1494,7 @@ async def pursue_on_screen(
         # done looks like — and it is the thing that would know. Where the
         # person named a finish, theirs stands.
         if first.get("ok") and not success_when:
-            from core.cognition.what_the_place_says import what_this_place_tells_her
-
-            written = "\n".join(
-                str(region.get("text") or "") for region in first.get("layout") or []
-            ) or str(first.get("text") or "")
-            told = what_this_place_tells_her(written, asked=goal, success_when=success_when)
-            if told.states:
-                success_when = told.aim or told.states
-                logger.info("finishing here is %r, as the place says", success_when)
-                if narrate and told.worth_saying:
-                    _tell(told.said_out_loud())
+            success_when = _the_finish_the_place_says(first, goal, narrate, region_top, region_bottom)
         if first.get("ok") and satisfied(first):
             already["value"] = False
             fresh = restart_control(first)
@@ -1868,6 +1858,30 @@ def _a_number_in(said: str) -> float:
     # not a failure: a value that is not a number is not one this can read.
     except ValueError:
         return 0.0
+
+
+def _the_finish_the_place_says(first: dict[str, Any], goal: str, narrate: bool, region_top: float, region_bottom: float) -> str:
+    """The finish the place states, where she was given none; "" where it states none, or one already met.
+
+    A finish that already holds before she has done anything only describes
+    the place: LIVE 2026-10-07 "make the craziest, creepiest..." was read as
+    the finish 'craziest', met by its own sentence, and the game ended after
+    two seconds.
+    """
+    from core.cognition.what_the_place_says import what_this_place_tells_her
+
+    written = "\n".join(str(region.get("text") or "") for region in first.get("layout") or []) or str(first.get("text") or "")
+    told = what_this_place_tells_her(written, asked=goal, success_when="")
+    finish = told.aim or told.states
+    if not finish:
+        return ""
+    if goal_reached(first, finish, region_top=region_top, region_bottom=region_bottom):
+        logger.info("the place's %r already holds at the first look; not a finish", told.states)
+        return ""
+    logger.info("finishing here is %r, as the place says", finish)
+    if narrate and told.worth_saying:
+        _tell(told.said_out_loud())
+    return finish
 
 
 def _tell(line: str) -> None:
