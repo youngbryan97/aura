@@ -16,9 +16,15 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 
 def two_sided_mcnemar(first_only: int, second_only: int) -> float:
@@ -46,11 +52,24 @@ def rows(directory: Path, key: str) -> dict[str, dict[str, Any]]:
         if path.parent.name not in {"rows", "ordinary"}:
             continue
         row = json.loads(path.read_text(encoding="utf-8"))
-        out[str(row[key])] = row
+        identity = str(row[key])
+        if identity in out:
+            raise ValueError(f"duplicate result case ID {identity!r}: {path}")
+        out[identity] = row
     return out
 
 
-def paired(her: dict[str, dict], base: dict[str, dict], field: str, group: str | None = None) -> dict[str, Any]:
+def paired(her: dict[str, dict], base: dict[str, dict], field: str, group: str | None = None,
+           *, expected_keys: Iterable[str] | None = None) -> dict[str, Any]:
+    expected = None
+    if expected_keys is not None:
+        expected_list = list(expected_keys)
+        expected = set(expected_list)
+        if len(expected) != len(expected_list):
+            raise ValueError("expected source case IDs are not unique")
+        unexpected = (set(her) | set(base)) - expected
+        if unexpected:
+            raise ValueError(f"results contain unexpected source case IDs: {sorted(unexpected)!r}")
     shared = sorted(set(her) & set(base))
     her_only = sum(bool(her[k][field]) and not bool(base[k][field]) for k in shared)
     base_only = sum(bool(base[k][field]) and not bool(her[k][field]) for k in shared)
@@ -59,7 +78,12 @@ def paired(her: dict[str, dict], base: dict[str, dict], field: str, group: str |
     result = {"requests": len(shared), "her": her_correct, "base": base_correct,
               "her_interval": wilson(her_correct, len(shared)), "base_interval": wilson(base_correct, len(shared)),
               "her_only": her_only, "base_only": base_only, "two_sided_p": two_sided_mcnemar(her_only, base_only),
-              "missing": {"her": len(set(base) - set(her)), "base": len(set(her) - set(base))}}
+              "unpaired": {"her": len(set(base) - set(her)), "base": len(set(her) - set(base))},
+              "missing": None if expected is None else
+              {"her": len(expected - set(her)), "base": len(expected - set(base))},
+              "coverage": {"expected": None, "complete": None} if expected is None else
+              {"expected": len(expected), "her": len(her), "base": len(base),
+               "complete": set(her) == set(base) == expected if expected else None}}
     if group:
         by: dict[str, list[str]] = defaultdict(list)
         for k in shared:
@@ -90,13 +114,22 @@ def main() -> int:
         parser.add_argument("--" + name, type=Path, required=True)
     for name in ("her-bbeh", "base-bbeh", "her-bbh", "base-bbh"):
         parser.add_argument("--" + name, type=Path)
+    parser.add_argument("--bbeh-mini", type=Path, default=Path("~/.aura/benchmarks/g09/bbeh/mini/data.json"),
+                        help="the pinned complete Mini source, for case coverage and reference validation")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
     report: dict[str, Any] = {}
     report["math500"] = paired(rows(args.her_math, "unique_id"), rows(args.base_math, "unique_id"), "correct", "level")
     if args.her_bbeh and args.base_bbeh:
-        report["bbeh_mini"] = paired(rows(args.her_bbeh, "id"), rows(args.base_bbeh, "id"), "correct", "task")
+        from tools.run_g12_bbeh import load_cases, validate_saved_result
+
+        _, catalog = load_cases(args.bbeh_mini)
+        her, base = rows(args.her_bbeh, "id"), rows(args.base_bbeh, "id")
+        for row in (*her.values(), *base.values()):
+            catalog.validate_row(row)
+            validate_saved_result(row)
+        report["bbeh_mini"] = paired(her, base, "correct", "task", expected_keys=catalog.by_id)
     if args.her_bbh and args.base_bbh:
         report["bbh"] = paired(rows(args.her_bbh, "id"), rows(args.base_bbh, "id"), "correct", "task")
     her_if, base_if = ifbench(args.her_ifbench), ifbench(args.base_ifbench)

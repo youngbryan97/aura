@@ -46,15 +46,16 @@ def drafts_from_harness(directory: Path, domain: str) -> list[dict[str, Any]]:
 
 def drafts_from_g12_bbeh(directory: Path) -> list[dict[str, Any]]:
     from tools.run_g09_organ import BBEH_SUFFIX
+    from tools.run_g12_bbeh import load_cases, saved_results
 
-    mini = json.loads((Path("~/.aura/benchmarks/g09/bbeh/mini/data.json").expanduser()).read_text())["examples"]
-    by_id = {hashlib.sha256(e["input"].encode()).hexdigest()[:24]: e for e in mini}
+    mini, catalog = load_cases(Path("~/.aura/benchmarks/g09/bbeh/mini/data.json"))
     out = []
-    for path in sorted((directory / "rows").glob("*.json")):
-        row = json.loads(path.read_text(encoding="utf-8"))
-        example = by_id[row["id"]]
+    for key, row in saved_results(directory / "rows", catalog).items():
+        case = catalog.by_id[key]
+        example = mini[case.source_ordinal]
         draft = row["public_text"] if row.get("termination") == "stop" else ""
-        out.append({"name": path.name, "id": row["id"], "request": f"{example['input']}\n\n{BBEH_SUFFIX}",
+        out.append({"name": f"{case.id}.json", "id": case.id, **case.metadata(),
+                    "request": f"{example['input']}\n\n{BBEH_SUFFIX}",
                     "truth": example["target"], "group": row.get("task"), "draft": draft,
                     "draft_correct": bool(row["correct"])})
     return out
@@ -91,6 +92,9 @@ def main() -> int:
             kept = answer_from_kept_procedures(draft["request"], book, own_book=False)
             row = {"id": draft["id"], "group": draft["group"], "book_sha256": book_sha, "adopted": kept is not None,
                    "authority": "kept_procedure" if kept is not None else "none"}
+            for key in ("source_ordinal", "reference_sha256"):
+                if key in draft:
+                    row[key] = draft[key]
             if kept is not None:
                 row["correct"], row["note"] = grade(kept.answer, draft["truth"])
                 row["text"] = kept.answer

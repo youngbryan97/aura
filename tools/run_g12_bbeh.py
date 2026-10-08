@@ -22,15 +22,69 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.benchmark_case_identity import CaseCatalog, SourceCase, source_cases  # noqa: E402
+
 #: sha256 of bbeh/mini/data.json at google-deepmind/bbeh main, read 2026-10-07.
 BBEH_MINI_SHA256 = "14e77b3d6be68faa008d268abf53b1f8d2420ffdd762504a304dafc3f8d43026"
+
+
+def load_cases(mini_path: Path) -> tuple[list[dict[str, Any]], CaseCatalog]:
+    """The pinned complete source and its identities, before task selection."""
+    raw = mini_path.expanduser().read_bytes()
+    if hashlib.sha256(raw).hexdigest() != BBEH_MINI_SHA256:
+        raise ValueError("the file is not BBEH Mini as pinned")
+    examples = json.loads(raw)["examples"]
+    catalog = source_cases(examples, legacy_id=lambda e: hashlib.sha256(e["input"].encode()).hexdigest()[:24],
+                           reference=lambda e: e["target"])
+    return examples, catalog
+
+
+def validate_saved_result(row: dict[str, Any]) -> None:
+    """A case binding alone is not evidence that its decode completed."""
+    termination = row.get("termination")
+    if not isinstance(termination, str) or termination not in {
+        "stop", "token_limit", "length", "native_thinking_incomplete"
+    }:
+        raise ValueError("saved BBEH row has no valid decode termination")
+    if not isinstance(row.get("public_text"), str):
+        raise ValueError("saved BBEH row has no public text")
+    tokens = row.get("generated_tokens")
+    if type(tokens) is not int or tokens < 0:
+        raise ValueError("saved BBEH row has no valid generated token count")
+    seconds = row.get("seconds")
+    if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds < 0:
+        raise ValueError("saved BBEH row has no valid decode duration")
+    if type(row.get("correct")) is not bool or (termination != "stop" and row["correct"]):
+        raise ValueError("saved BBEH row has no valid correctness verdict")
+
+
+def saved_results(rows_dir: Path, catalog: CaseCatalog) -> dict[str, dict[str, Any]]:
+    saved = catalog.saved_rows(rows_dir)
+    for row in saved.values():
+        validate_saved_result(row)
+    return saved
+
+
+def publish_result(path: Path, row: dict[str, Any]) -> None:
+    """Publish a completed result atomically without replacing prior evidence."""
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    validate_saved_result(row)
+    with local_internal_governed_scope("g12_bbeh.result", domain="file_write"):
+        created = get_file_write_gateway().write_bytes_if_absent(
+            path, json.dumps(row, indent=1).encode("utf-8"), source="g12_bbeh.result")
+    if not created:
+        raise ValueError(f"refusing to overwrite saved source case {row['id']!r}")
 
 
 def task_of(tasks_dir: Path) -> dict[str, str]:
@@ -57,10 +111,7 @@ def main() -> int:
     if args.batch < 1:
         raise SystemExit("--batch is at least 1")
 
-    raw = args.mini.expanduser().read_bytes()
-    if hashlib.sha256(raw).hexdigest() != BBEH_MINI_SHA256:
-        raise SystemExit("the file is not BBEH Mini as pinned")
-    examples = json.loads(raw)["examples"]
+    examples, catalog = load_cases(args.mini)
     labels = task_of(args.tasks.expanduser())
     from tools.run_g09_organ import BBEH_SUFFIX, grade_bbeh
 
@@ -68,13 +119,11 @@ def main() -> int:
     rows_dir = output / "rows"
     rows_dir.mkdir(parents=True, exist_ok=True)
 
-    def key(example: dict) -> str:
-        return hashlib.sha256(example["input"].encode()).hexdigest()[:24]
-
-    pending = [e for e in examples if not (rows_dir / f"{key(e)}.json").exists()]
+    saved = saved_results(rows_dir, catalog)
+    pending = [case for case in catalog.cases if case.id not in saved]
     if args.only_tasks:
         wanted = set(args.only_tasks.split(","))
-        pending = [e for e in pending if labels.get(e["input"]) in wanted]
+        pending = [case for case in pending if labels.get(examples[case.source_ordinal]["input"]) in wanted]
     print(json.dumps({"questions": len(examples), "pending": len(pending),
                       "unlabelled": sum(e["input"] not in labels for e in examples)}), flush=True)
     if not pending:
@@ -93,20 +142,21 @@ def main() -> int:
         model, tokenizer = load(str(model_path))
         done = 0
 
-        def write(example: dict, decoded: dict) -> None:
+        def write(case: SourceCase, decoded: dict) -> None:
             nonlocal done
+            example = examples[case.source_ordinal]
             public = decoded["public_text"] if decoded["termination"] == "stop" else ""
             correct, answer = grade_bbeh(public, example["target"])
-            row = {"id": key(example), "task": labels.get(example["input"], "unlabelled"),
-                   "target": example["target"], "answer": answer, "correct": correct, **decoded}
-            path = rows_dir / f"{key(example)}.json"
-            temporary = path.with_suffix(".tmp")
-            temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
-            temporary.replace(path)
+            row = {**decoded, "id": case.id, **case.metadata(),
+                   "task": labels.get(example["input"], "unlabelled"),
+                   "target": example["target"], "answer": answer, "correct": correct}
+            path = rows_dir / f"{case.id}.json"
+            publish_result(path, row)
             done += 1
             print(json.dumps({"done": done, "of": len(pending), "correct": correct}), flush=True)
 
-        conversations = [[{"role": "user", "content": f"{e['input']}\n\n{BBEH_SUFFIX}"}] for e in pending]
+        conversations = [[{"role": "user", "content": f"{examples[case.source_ordinal]['input']}\n\n{BBEH_SUFFIX}"}]
+                         for case in pending]
         if args.batch == 1:
             for example, conversation in zip(pending, conversations, strict=True):
                 write(example, decode_public(model, tokenizer, conversation, max_tokens=args.max_tokens))
