@@ -217,6 +217,18 @@ def _mechanisms_directory() -> str:
     return str(Path(mechanisms.__file__).resolve().parent)
 
 
+_FRAME = re.compile(r'File "[^"]*candidate\.py", line (\d+), in (\S+)\n\s*(.*)')
+
+
+def _where_it_failed(stderr: str, prelude_lines: int) -> str:
+    """The innermost frame of the procedure's own code in a traceback: its line, function and text."""
+    frames = _FRAME.findall(stderr)
+    if not frames:
+        return ""
+    line, function, text = frames[-1]
+    return f"line {int(line) - prelude_lines}, in {function}: {text.strip()}"
+
+
 def run_procedure(code: str, problem: str, *, timeout_s: float | None = None) -> tuple[str | None, str]:
     """One call of ``solve`` in the OS sandbox: what it returned, or why it did not.
 
@@ -232,7 +244,8 @@ def run_procedure(code: str, problem: str, *, timeout_s: float | None = None) ->
                                       timeout_s=timeout_s or DEFAULT_TIMEOUT_S, extra_read_paths=(directory,),
                                       source="procedures_from_solved_examples")
     if outcome.status != "ok":
-        return None, f"{outcome.status}: {str(outcome.error or '')[:300]}"
+        where = _where_it_failed(outcome.stderr or "", prelude.count("\n"))
+        return None, f"{outcome.status}: {str(outcome.error or '')[:300]}" + (f" ({where})" if where else "")
     results = list(getattr(outcome, "results", None) or [])
     if not results:
         return None, "no result"

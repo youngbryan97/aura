@@ -231,3 +231,13 @@ def test_books_merge_by_kind_and_refuse_a_kind_twice() -> None:
     assert book.agreed == {"a": 10, "b": 20}
     with pytest.raises(ValueError, match="more than one book"):
         ProcedureBook.merged([first, first])
+
+
+@needs_boundary
+def test_a_raising_procedure_reports_the_line_of_its_own_code_that_failed() -> None:
+    from core.learning.procedures_from_solved_examples import run_procedure
+
+    code = "def helper(x):\n    return int(x)\n\ndef solve(problem):\n    return helper(problem)\n"
+    returned, error = run_procedure(code, "abc")
+    assert returned is None and "ValueError" in error
+    assert error.endswith("(line 2, in helper: return int(x))")
