@@ -52,3 +52,20 @@ comparison is her against her base model under one protocol.
 Appended here, dated, as the runs finish. The page above was committed
 when 72 of her 500 MATH-500 rows were written and no other run had started.
 Paired comparisons and intervals come from `tools/g12_analysis.py`.
+
+## Amendment, 8 October 2026, before any run above is complete
+
+Measured decoding on this host puts the plan at about 40 hours of her
+model's time, half of it the base model's runs. To give that time back:
+
+* G12 is assessed on her three runs against the named systems: on BBEH
+  Mini, the leaderboard's systems on the same 460 questions under the same
+  instruction; on MATH-500 and IFBench, the published numbers with their
+  protocols stated. The base model's runs follow when the model is free,
+  are reported when they exist, and no longer gate the result.
+* The decode width may change from eight to the width a measurement on
+  this host finds fastest. Every row records the width it was decoded at;
+  greedy decoding in a batch can differ from a single decode in the last
+  digits of the arithmetic.
+* BBEH Mini rows that G09 needs are decoded first, into this run's own
+  directory, so neither item decodes a question twice.
