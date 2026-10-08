@@ -82,6 +82,10 @@ class Candidate:
     code: str
     sha256: str
     shown_keys: list[str]
+    pool_total: int = 0
+    sealed_total: int = 0
+    #: What was run, in order. A check stops once it has the counterexamples a
+    #: repair can use, so these may be shorter than the totals.
     pool: list[Outcome] = field(default_factory=list)
     sealed: list[Outcome] = field(default_factory=list)
 
@@ -95,7 +99,9 @@ class Candidate:
 
     @property
     def admitted(self) -> bool:
-        return bool(self.pool) and bool(self.sealed) and all(o.agreed for o in self.pool + self.sealed)
+        """Every known answer, shown pool and sealed half, run and agreed."""
+        return (0 < self.pool_total == self.pool_agreed == len(self.pool)
+                and 0 < self.sealed_total == self.sealed_agreed == len(self.sealed))
 
 
 @dataclass
@@ -237,23 +243,29 @@ def run_procedure(code: str, problem: str, *, timeout_s: float | None = None) ->
 
 
 def check_program(code: str, examples: Sequence[SolvedExample], agree: Agree = agrees_with_shown_answer,
-                  *, workers: int = 1, stop_at_first_failure: bool = False) -> list[Outcome]:
-    """Run ``solve`` on each example, one sandboxed child each, so one hang costs one example."""
+                  *, workers: int = 1, stop_after_failures: int | None = None) -> list[Outcome]:
+    """Run ``solve`` on each example in order, one sandboxed child each, so one hang costs one example.
+
+    With ``stop_after_failures``, no further examples start once that many
+    have disagreed: a function that is wrong somewhere is not kept, and a
+    repair needs only a few of the problems it got wrong, so a slow wrong
+    function does not cost a run over every known problem.
+    """
 
     def one(example: SolvedExample) -> Outcome:
         returned, error = run_procedure(code, example.problem)
         agreed = returned is not None and bool(agree(returned, example))
         return Outcome(key=example.key, agreed=agreed, returned=returned, error=error)
 
-    if stop_at_first_failure:
-        outcomes = []
-        for example in examples:
-            outcomes.append(one(example))
-            if not outcomes[-1].agreed:
+    width = max(1, workers)
+    outcomes: list[Outcome] = []
+    with ThreadPoolExecutor(max_workers=width) as pool:
+        for start in range(0, len(examples), width):
+            outcomes.extend(pool.map(one, examples[start:start + width]))
+            failed = sum(not outcome.agreed for outcome in outcomes)
+            if stop_after_failures is not None and failed >= stop_after_failures:
                 break
-        return outcomes
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        return list(pool.map(one, examples))
+    return outcomes
 
 
 @dataclass
@@ -315,7 +327,8 @@ def induce(
             family = state[name]
             previous, attempt = lineage[(name, line)]
             shown = _shown_for(family.pool, line, attempt, shots)
-            failures = [(e, o) for e, o in zip(family.pool, previous.pool, strict=True) if not o.agreed][:shots] \
+            by_key = {e.key: e for e in family.pool}
+            failures = [(by_key[o.key], o) for o in previous.pool if not o.agreed][:shots] \
                 if previous is not None else []
             if previous is not None and failures:
                 requests.append(repair_request(previous.code, shown, failures, mechanisms))
@@ -332,10 +345,12 @@ def induce(
                 continue
             candidate = Candidate(family=name, line=line, round=round_index, code=code,
                                   sha256=hashlib.sha256(code.encode()).hexdigest(),
-                                  shown_keys=[e.key for e in shown])
-            candidate.pool = check_program(code, family.pool, agree, workers=workers)
-            if all(o.agreed for o in candidate.pool):
-                candidate.sealed = check_program(code, family.sealed, agree, workers=workers)
+                                  shown_keys=[e.key for e in shown],
+                                  pool_total=len(family.pool), sealed_total=len(family.sealed))
+            candidate.pool = check_program(code, family.pool, agree, workers=workers, stop_after_failures=shots)
+            if candidate.pool_agreed == len(family.pool):
+                candidate.sealed = check_program(code, family.sealed, agree, workers=workers,
+                                                 stop_after_failures=1)
             family.candidates.append(candidate)
             if on_candidate is not None:
                 on_candidate(candidate)
@@ -441,8 +456,9 @@ def kept_procedure_book() -> ProcedureBook | None:
 def candidate_record(candidate: Candidate) -> dict[str, Any]:
     return {"family": candidate.family, "line": candidate.line, "round": candidate.round,
             "sha256": candidate.sha256, "shown_keys": candidate.shown_keys,
-            "pool": [candidate.pool_agreed, len(candidate.pool)],
-            "sealed": [candidate.sealed_agreed, len(candidate.sealed)],
+            # agreed, run, known
+            "pool": [candidate.pool_agreed, len(candidate.pool), candidate.pool_total],
+            "sealed": [candidate.sealed_agreed, len(candidate.sealed), candidate.sealed_total],
             "admitted": candidate.admitted, "code": candidate.code,
             "failures": [asdict(o) for o in candidate.pool + candidate.sealed if not o.agreed][:12]}
 

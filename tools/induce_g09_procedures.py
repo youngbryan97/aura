@@ -206,7 +206,8 @@ def main() -> int:
     (output / "book.json").write_text(dumps(book.to_json()), encoding="utf-8")
     summary = {name: {"development": len(f.pool) + len(f.sealed), "candidates": len(f.candidates),
                       "admitted": len(f.admitted),
-                      "best": max(([c.pool_agreed + c.sealed_agreed, len(c.pool) + len(c.sealed)]
+                      # The most known answers one function agreed with before its check stopped.
+                      "best": max(([c.pool_agreed + c.sealed_agreed, c.pool_total + c.sealed_total]
                                    for c in f.candidates), default=None),
                       "nearest_required": round(f.signature.nearest_required, 4)}
                for name, f in state.items()}

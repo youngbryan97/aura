@@ -89,8 +89,8 @@ def test_a_function_that_memorises_what_it_was_shown_fails_the_sealed_half() -> 
                       shots=2, lines=1, rounds=2)
     candidates = families["reversal"].candidates
     assert candidates and not any(c.admitted for c in candidates)
-    assert all(c.pool_agreed == len(c.pool) for c in candidates)
-    assert all(c.sealed_agreed < len(c.sealed) for c in candidates)
+    assert all(c.pool_agreed == len(c.pool) == c.pool_total for c in candidates)
+    assert all(c.sealed_agreed < c.sealed_total for c in candidates)
 
 
 @needs_boundary
@@ -206,3 +206,15 @@ def test_a_procedure_can_call_the_shared_mechanisms_in_the_sandbox() -> None:
     assert error == "" and returned == "c a b 1/2"
     assert "mechanisms.orders" in proposal_request([reversal(1)], reference())
     assert "Only the Python standard library" in proposal_request([reversal(1)])
+
+
+@needs_boundary
+def test_a_wrong_function_stops_being_run_once_it_has_given_the_counterexamples_a_repair_uses() -> None:
+    from core.learning.procedures_from_solved_examples import check_program
+
+    examples = [reversal(i) for i in range(16)]
+    code = extract_program(REVERSE_WRONG)
+    outcomes = check_program(code, examples, workers=2, stop_after_failures=3)
+    assert 3 <= sum(not o.agreed for o in outcomes) and len(outcomes) < len(examples)
+    assert [o.key for o in outcomes] == [e.key for e in examples[: len(outcomes)]]
+    assert len(check_program(code, examples, workers=2)) == len(examples)
