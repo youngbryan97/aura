@@ -954,13 +954,33 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         if not reasoning_amplifier_v2_enabled():
             return _the_amplifier_stood_down(draft, "amplifier_switched_off")
         try:
-            from core.brain.reasoning_amplifier_v2 import amplify_turn, is_amplifiable
+            from core.brain.reasoning_amplifier_v2 import (
+                amplify_turn,
+                answer_from_kept_procedures,
+                is_amplifiable,
+            )
         except ImportError as exc:
             _record_response_generation_degradation(
                 exc,
                 action="continued response generation without Amplifier v2 import",
             )
             return _the_amplifier_stood_down(draft, "amplifier_import_failed")
+
+        # A procedure she wrote for this kind of problem, kept because it
+        # agreed with every known answer of the kind, answers before any search.
+        kept = await asyncio.to_thread(answer_from_kept_procedures, objective)
+        if kept is not None:
+            receipt = kept.receipt.to_dict()
+            self._last_reasoning_receipt = receipt
+            state.response_modifiers["reasoning_receipt"] = receipt
+            state.response_modifiers["reasoning_amplifier_v2_active_phase"] = {
+                "task_type": "kept_procedure",
+                "verified": False,
+                "confidence": float(kept.confidence),
+                "promotion_authority": "kept_procedure",
+                "adopted": True,
+            }
+            return attributed_text(kept.answer, kept.generation_metadata)
 
         task_type = is_amplifiable(objective)
         if task_type is None:

@@ -398,6 +398,68 @@ class AmplifiedAnswer:
         }
 
 
+def answer_from_kept_procedures(objective: str, book: Any = None, *, own_book: bool = True) -> AmplifiedAnswer | None:
+    """A kept procedure's answer to this request, when one applies; None otherwise.
+
+    A kept procedure is a ``solve`` her model wrote for a kind of problem that
+    agreed with every known answer of that kind
+    (core/learning/procedures_from_solved_examples.py). It answers only a
+    request nearest its kind and as typical of it as the kind's known problems
+    are. When none applies, or one raises, or two disagree, the draft goes on
+    to the amplifier as before. ``book`` is a caller's book; without one, her
+    own is read when ``own_book``. The procedure runs in an OS sandbox child,
+    so async callers run this in a thread.
+    """
+    from core.learning.procedures_from_solved_examples import kept_procedure_book
+
+    started = time.monotonic()
+    if book is None and own_book:
+        book = kept_procedure_book()
+    if book is None:
+        return None
+    try:
+        kept = book.answer(objective)
+    except (OSError, RuntimeError, ValueError, TypeError) as exc:
+        record_degradation("amplifier_v2_kept_procedure", exc)
+        return None
+    if not kept.get("answer"):
+        return None
+    confidence = float(kept.get("confidence") or 0.0)
+    receipt = ReasoningReceipt(
+        mode="kept_procedure",
+        strategy_used="kept_procedure",
+        task_type="kept_procedure",
+        num_candidates=0,
+        verifiers_run=[],
+        valid_candidates=0,
+        winning_candidate_id=None,
+        confidence=confidence,
+        agreement=0.0,
+        epistemic_status="kept_procedure",
+        promotion_authority="kept_procedure",
+        # Checked against the kind's known answers, not against this request.
+        verification_outcome="not_applicable",
+        budget_used={"samples": 0, "time_s": round(time.monotonic() - started, 3)},
+        fallbacks_used=["kept_procedure"],
+        cognitive_operations=[kept],
+    )
+    return AmplifiedAnswer(
+        answer=str(kept["answer"]).strip(),
+        confidence=confidence,
+        verified=False,
+        calibrated=False,
+        receipt=receipt,
+        generation_metadata={
+            "response_path": "kept_procedure",
+            "surface_control_receipt": {
+                "generation_required": False,
+                "application_status": "not_applicable_kept_procedure",
+                "source": "kept_procedure",
+            },
+        },
+    )
+
+
 def _admit_sample_budget(requested: Any, mode: ReasoningMode) -> int:
     """Resolve a sample budget that is always inside the documented cap.
 

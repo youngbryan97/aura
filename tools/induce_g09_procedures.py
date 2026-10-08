@@ -67,6 +67,19 @@ def problems(kind: str, part: str) -> list[dict[str, Any]]:
              "answer_text": data[key]["golden_plan"]} for key in keys]
 
 
+def test_ids(domain: str) -> set[str]:
+    """The G09 harness's task ids for a domain's test problems."""
+    if domain == "bbeh":
+        kinds = sorted(p.name for p in (BENCH / "g09/bbeh").glob("bbeh_*"))
+    elif domain in ("planning", "calendar"):
+        kinds = ["calendar"]
+    elif domain == "trip":
+        kinds = ["trip"]
+    else:
+        raise ValueError(f"no development and test split is defined for {domain}")
+    return {row["key"] for kind in kinds for row in problems(kind, "test")}
+
+
 def grader_for(kind: str):
     """Whether a procedure's returned answer is right, by the benchmark's own grader."""
     from tools.run_g09_organ import grade_bbeh, grade_planning, grade_trip

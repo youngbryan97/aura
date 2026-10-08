@@ -326,16 +326,18 @@ def induce(
 
 @dataclass
 class ProcedureBook:
-    """Kept procedures and the signature of every kind she has examples of."""
+    """Kept procedures, how many known answers each kind's agreed with, and every kind's signature."""
 
     signatures: dict[str, Signature]
     procedures: dict[str, list[str]]
+    agreed: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def from_families(cls, families: dict[str, Family]) -> ProcedureBook:
+        kept = {name: family for name, family in families.items() if family.admitted}
         return cls(signatures={name: family.signature for name, family in families.items()},
-                   procedures={name: [c.code for c in family.admitted]
-                               for name, family in families.items() if family.admitted})
+                   procedures={name: [c.code for c in family.admitted] for name, family in kept.items()},
+                   agreed={name: len(family.pool) + len(family.sealed) for name, family in kept.items()})
 
     def route(self, problem: str) -> tuple[str | None, float]:
         """The nearest kind, if the problem is at least as near as that kind's least typical sealed problem."""
@@ -351,6 +353,11 @@ class ProcedureBook:
         family, similarity = self.route(problem)
         receipt: dict[str, Any] = {"schema": SOLVED_EXAMPLE_PROCEDURES_SCHEMA, "family": family,
                                    "similarity": round(similarity, 4), "answer": None}
+        if family is not None:
+            # Laplace's rule of succession over the known answers its procedures all matched.
+            known = int(self.agreed.get(family, 0))
+            receipt["agreed_known"] = known
+            receipt["confidence"] = round((known + 1) / (known + 2), 4)
         if family is None:
             receipt["declined"] = "no_kind_near_enough"
             return receipt
@@ -373,14 +380,36 @@ class ProcedureBook:
     def to_json(self) -> dict[str, Any]:
         return {"schema": SOLVED_EXAMPLE_PROCEDURES_SCHEMA,
                 "signatures": {n: asdict(s) for n, s in self.signatures.items()},
-                "procedures": self.procedures}
+                "procedures": self.procedures, "agreed": self.agreed}
 
     @classmethod
     def from_json(cls, value: dict[str, Any]) -> ProcedureBook:
         if value.get("schema") != SOLVED_EXAMPLE_PROCEDURES_SCHEMA:
             raise ValueError("not a procedure book")
         return cls(signatures={n: Signature(**s) for n, s in value["signatures"].items()},
-                   procedures={n: list(c) for n, c in value["procedures"].items()})
+                   procedures={n: list(c) for n, c in value["procedures"].items()},
+                   agreed={n: int(k) for n, k in (value.get("agreed") or {}).items()})
+
+
+#: Her own book, under her data directory. Nothing writes it yet but an
+#: induction run she is given; the live route reads it when it exists.
+KEPT_BOOK_RELATIVE = "procedures/kept_from_solved_examples.json"
+_kept_cache: dict[str, Any] = {}
+
+
+def kept_procedure_book() -> ProcedureBook | None:
+    """Her kept book, reread when the file changes; None when she has none."""
+    from core.utils.paths import aura_data_dir
+
+    path = aura_data_dir() / KEPT_BOOK_RELATIVE
+    try:
+        stamp = path.stat().st_mtime_ns
+    except FileNotFoundError:
+        return None
+    if _kept_cache.get("stamp") != (str(path), stamp):
+        _kept_cache["book"] = ProcedureBook.from_json(json.loads(path.read_text(encoding="utf-8")))
+        _kept_cache["stamp"] = (str(path), stamp)
+    return _kept_cache["book"]
 
 
 def candidate_record(candidate: Candidate) -> dict[str, Any]:

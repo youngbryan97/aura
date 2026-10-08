@@ -9,6 +9,7 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import TYPE_CHECKING, Any
@@ -61,9 +62,24 @@ class _AmplifiesTheDraft:
         if not reasoning_amplifier_v2_enabled():
             return draft
         try:
-            from core.brain.reasoning_amplifier_v2 import amplify_turn, is_amplifiable
+            from core.brain.reasoning_amplifier_v2 import (
+                amplify_turn,
+                answer_from_kept_procedures,
+                is_amplifiable,
+            )
         except ImportError:
             return draft
+        # A kept procedure answers before any search; see
+        # ResponseGenerationPhase._maybe_amplify_response.
+        kept = await asyncio.to_thread(answer_from_kept_procedures, objective)
+        if kept is not None:
+            receipt = kept.receipt.to_dict()
+            self._last_reasoning_receipt = receipt
+            if hasattr(state, "metadata") and isinstance(state.metadata, dict):
+                state.metadata["reasoning_receipt"] = receipt
+            logger.info("🧠 [AmplifyV2-live/phase] kept procedure answered (%s)",
+                        (receipt.get("cognitive_operations") or [{}])[0].get("family"))
+            return kept.answer
         task_type = is_amplifiable(objective)
         if task_type is None:
             return draft

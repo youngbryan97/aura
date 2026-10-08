@@ -406,12 +406,21 @@ def main() -> int:
                         help="ordinary decodes her drafts; organ runs on drafts already written")
     parser.add_argument("--model", type=Path,
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
+    parser.add_argument("--split", choices=("all", "test"), default="all",
+                        help="test: only problems no procedure was ever written or checked from "
+                             "(tools/induce_g09_procedures.py)")
     args = parser.parse_args()
 
     excluded: set[str] = set()
     for path in args.exclude:
         excluded |= {line.strip() for line in path.expanduser().read_text().splitlines() if line.strip()}
-    tasks = sample(LOADERS[args.domain](), args.tasks, args.seed, excluded)
+    pool = LOADERS[args.domain]()
+    if args.split == "test":
+        from tools.induce_g09_procedures import test_ids
+
+        allowed = test_ids(args.domain)
+        pool = [task for task in pool if task["id"] in allowed]
+    tasks = sample(pool, args.tasks, args.seed, excluded)
     output = args.output.expanduser()
     arms = {arm.strip() for arm in args.arms.split(",")}
     if not arms or not arms <= {"ordinary", "organ"}:
