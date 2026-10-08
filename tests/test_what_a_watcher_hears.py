@@ -71,3 +71,12 @@ def test_capitals_read_back_in_mixed_case_are_quoted_as_capitals():
     watcher = WhatAWatcherHears()
     assert watcher.heard('Clicking "no InvenToRY" — to see what it does', 0.0) == 'Clicking "NO INVENTORY" — to see what it does'
     assert watcher.heard('Clicking "Play Now" — it has worked here before', 1.0) == 'Clicking "Play Now" — it has worked here before'
+
+
+@pytest.mark.unit
+def test_in_plain_prose_a_name_and_a_hyphened_word_are_kept_and_a_short_unread_word_is_not_guessed():
+    watcher = WhatAWatcherHears()
+    said = watcher.heard("It says: Eduardo, Mac and Bloo are raiding the kitchen for a late-night snack. Click to start.", 0.0)
+    assert said is not None and "Bloo" in said and "late-night" in said
+    said = watcher.heard("It says: Game Over toct Your score: Try Again", 1.0)
+    assert said is not None and "tact" not in said

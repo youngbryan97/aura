@@ -97,7 +97,12 @@ def _the_move_once(said: str) -> str:
 
 
 def _a_word(token: str, names: frozenset[str]) -> str | None:
-    """The word ``token`` is: a name she was given, a short word of the language, or a word one misread letter away."""
+    """The word ``token`` is: a name she was given, a short word of the language, or a word one misread letter away.
+    A word joined by hyphens ("late-night") is a word where each of its parts is."""
+    parts = [part for part in token.split("-") if part]
+    if len(parts) > 1:
+        read = [_a_word(part, names) for part in parts]
+        return "-".join(read) if all(read) else None  # type: ignore[arg-type]
     plain = _plain(token.replace("’", "'").split("'")[0])
     if plain in names:
         return plain
@@ -123,14 +128,22 @@ def legible_share(text: str, names: frozenset[str] = frozenset()) -> float:
 
 
 def _mended(text: str, names: frozenset[str]) -> str:
-    """``text`` with each near miss written as the word it is, and each word not made out left out as "…"."""
+    """``text`` with each near miss written as the word it is, and each word not made out left out as "…".
+
+    In a reading that is plainly prose, a capitalised word the language does not have is a name ("Bloo"), and
+    is kept as written.
+    """
     out: list[str] = []
+    prose = len(str(text or "").split()) >= 6 and legible_share(text, names) >= 0.8
     for token in str(text or "").split():
         core = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", token)
         if not core or len(_plain(core)) <= 1 or core.isdigit() or _plain(core) in names:
             out.append(token)
             continue
         word = _a_word(core, names)
+        if word is None and prose and re.fullmatch(r"[A-Z][a-z]{2,}", core) and out and out[-1][-1:] not in ".!?":
+            out.append(token)
+            continue
         if word is None:
             if out and out[-1] == "…":
                 continue

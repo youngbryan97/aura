@@ -102,7 +102,9 @@ def _spelled(read: str) -> str | None:
                 (0, len(form)), form, _SPELLED_IN, 0) or []
     except Exception:  # noqa: BLE001 - a checker that cannot answer has said nothing
         return None
-    for guess in list(guesses)[:1]:
+    # A guess only for a word of five letters or more: a short one has too many neighbours, and "toct" taken for
+    # "tact" is a wrong word where "toct" was only an unread one.
+    for guess in list(guesses)[:1] if len(plain) >= 5 else []:
         word = str(guess).lower()
         if word.isalpha() and _misread_as(plain, word):
             return word
