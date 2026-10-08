@@ -1159,9 +1159,13 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
 
     counters = {said: value for name, value in meeting.readouts.values.items()
                 if not name.startswith("number") and (said := words_of(name)) is not None}
-    if counters and run.counters_first is None:
-        run.counters_first = dict(counters)
-    if counters and not run.contest_said and counters != run.counted and counters != run.counters_first and at - run.said_at > 25.0:
+    # Each counter as it first read is the baseline: read a few at a time, a set that grew was not a change.
+    first = run.counters_first if run.counters_first is not None else {}
+    for name, value in counters.items():
+        first.setdefault(name, value)
+    run.counters_first = first
+    moved = any(first.get(name) != value for name, value in counters.items())
+    if counters and moved and not run.contest_said and counters != run.counted and at - run.said_at > 25.0:
         run.counted = dict(counters)
         _say(run, say, ", ".join(f"{name} {value}" for name, value in list(counters.items())[:3]).capitalize() + ".", at)
 

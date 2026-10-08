@@ -752,12 +752,18 @@ def _how_many_as_asked(picked: Any) -> str:
     if not isinstance(picked, list) or len(picked) < 2:
         return ""
     had = [p for p in picked if isinstance(p, dict) and p.get("had")]
-    done = sum(1 for p in had if p.get("completed"))
+    done = sum(1 for p in had if p.get("as_asked", p.get("completed")))
     words = {0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
     of = words.get(len(picked), str(len(picked)))
     said = f"Of the {of}, {words.get(done, str(done))} ended the way you asked" if done != len(picked) else f"All {of} ended the way you asked"
+    apart = []
+    could_not = sum(1 for p in had if p.get("could_not_apply"))
+    if could_not:
+        apart.append(f"for {words.get(could_not, str(could_not))}, what you asked could not apply")
     missing = len(picked) - len(had)
-    return said + (f", and {words.get(missing, str(missing))} could not be had anywhere." if missing else ".")
+    if missing:
+        apart.append(f"{words.get(missing, str(missing))} could not be had anywhere")
+    return said + ("; " + ", and ".join(apart) if apart else "") + "."
 
 
 def _desktop_deliverable_text(result: Any) -> str:

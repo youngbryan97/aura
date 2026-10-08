@@ -449,7 +449,6 @@ def _narrate_a_fresh_plan(
     writing. It reads 10 name(s) from the turn and hands back
     0.
     """
-    from .screen_pursuit import _tell
     from .screen_pursuit import logger
     if narrate and not same:
         said = fresh.narrate()
@@ -477,7 +476,11 @@ def _narrate_a_fresh_plan(
             logger.info("the line she took, against what she read: %s", borne.says_so())
         if changing and ended:
             logger.info("the line before it ended: %s", ended)
-        _tell(said)
+        # Over a game drawn on her own page a plan is her working, kept as the rest of it is: LIVE 2026-10-08 "Plan:
+        # prioritize mapping the environment before committing to a specific path, while the 0 is still there".
+        from .screen_pursuit_bearings import _said_unless_playing
+
+        _said_unless_playing(said)
     elif going is not None:
         going.expecting(fresh.approach, len(moves))
 

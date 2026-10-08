@@ -133,6 +133,20 @@ async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: 
     return ""
 
 
+def _as_asked(done: Mapping[str, Any]) -> dict[str, bool]:
+    """Whether one pick ended the way it was asked to, by what doing it found (a game played: won or not), not by
+    whether the pursuit of it came to an end; and whether what was asked could apply to it at all.
+
+    LIVE 2026-10-08 three games none of which was won were tallied "All three ended the way you asked": each
+    pursuit had ended, which is all its own "completed" says.
+    """
+    done_by = [step for step in done.get("steps") or [] if isinstance(step, Mapping) and "won" in step]
+    if not done_by:
+        return {"as_asked": bool(done.get("completed")), "could_not_apply": False}
+    return {"as_asked": any(bool(step.get("completed")) for step in done_by),
+            "could_not_apply": any(bool(step.get("the_ask_does_not_apply")) for step in done_by)}
+
+
 def _how_it_ended(done: Mapping[str, Any]) -> str:
     """How one pick's pursuit ended, in her words: what she concluded, else why she said it was done.
 
@@ -259,7 +273,7 @@ async def picked_by_the_rule(skill: Any, browser: Any, url: str, goal: str, max_
                                           max_steps, action_context=action_context, said_before=said_before)
         done = done if isinstance(done, dict) else {}
         results.append({"number": pick.number, "item": pick.item, "url": item["href"], "had": True, "ok": bool(done.get("ok")),
-                        "completed": bool(done.get("completed")), "concluded": _how_it_ended(done)})
+                        "completed": bool(done.get("completed")), "concluded": _how_it_ended(done), **_as_asked(done)})
         if queue:
             skill._say_out_loud(f"That was “{pick.item}”. On to the next one the rule picks.")
     played = [r for r in results if r["had"]]

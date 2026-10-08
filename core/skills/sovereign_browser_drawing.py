@@ -410,6 +410,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         "ok": bool(moves) and complete,
         "runtime_violations": result.get("runtime_violations") or [],
         "stopped_because": str(result.get("stopped_because") or ""),
+        "the_ask_does_not_apply": result.get("stopped_because") == NOTHING_TO_WIN,
     }
 
 
