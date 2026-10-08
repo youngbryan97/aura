@@ -10,12 +10,13 @@ Two arms per task, paired:
 * ``organ``: that answer handed to her reasoning organ the way her response
   phase hands it (ResponseGenerationPhase._maybe_amplify_response): admitted
   only where is_amplifiable admits the request, seeded with the draft, the
-  draft verified first, a search of the amplifier's own planned size priced
-  at what the draft cost (the live phase reads the same quantity from its
-  measured rates), candidates generated through the same system message and
-  template at the amplifier's temperatures, and the draft replaced only by
-  an answer with checked-verifier or independent-executable-consensus
-  authority. Sealed from her memory and caches; read-only.
+  draft verified first, a search of the amplifier's own planned size given
+  all the time a live turn can give it (the user-facing ceiling, less what
+  the draft spent and the phase's reserve) and stopped at that deadline,
+  candidates generated through the same system message and template at the
+  amplifier's temperatures, and the draft replaced only by an answer with
+  checked-verifier or independent-executable-consensus authority. Sealed
+  from her memory and caches; read-only.
 
 Domains, each with the grader its source publishes: math (MATH test problems
 outside MATH-500, graded by MATH-500's grader), code (HumanEval+, run against
@@ -277,6 +278,7 @@ def main() -> int:
         planned_new_candidates,
     )
     from core.runtime.model_lane_control import standalone_model_lane
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
     from tools.run_g05_public_answers import decode_public
 
     grade = GRADERS[args.domain]
@@ -288,6 +290,9 @@ def main() -> int:
         model, tokenizer = load(str(model_path))
         model_lock = threading.Lock()
         generations: list[dict[str, Any]] = []
+        # When the turn's time runs out. A generation in a thread cannot be
+        # cancelled from outside, so it reads this and stops itself.
+        turn_deadline = [float("inf")]
 
         def sampled(messages: list[dict[str, str]], temperature: float) -> str:
             with model_lock:
@@ -298,13 +303,17 @@ def main() -> int:
                                                 reasoning_effort=reasoning_effort_for_generation(thinking=True))
                 ids = [int(t) for t in tokenizer.encode(rendered, add_special_tokens=False)]
                 began, pieces = time.monotonic(), []
+                cut = False
                 for response in stream_generate(model, tokenizer, ids, max_tokens=args.max_tokens,
                                                 sampler=make_sampler(temp=float(temperature), top_p=0.95)):
                     pieces.append(str(response.text or ""))
+                    if time.monotonic() >= turn_deadline[0]:
+                        cut = True
+                        break
                 channels = split_native_thinking_generation("".join(pieces), native_thinking=True)
                 generations.append({"temperature": temperature, "seconds": round(time.monotonic() - began, 3),
-                                    "closed": channels.boundary_closed})
-                return channels.surface
+                                    "closed": channels.boundary_closed, "cut_at_turn_deadline": cut})
+                return "" if cut or not channels.boundary_closed else channels.surface
 
         async def generate(prompt: str, temperature: float) -> str:
             messages = [{"role": "system", "content": AMPLIFIER_CANDIDATE_SYSTEM},
@@ -322,13 +331,19 @@ def main() -> int:
             task_type = is_amplifiable(task["request"])
             organ: dict[str, Any] = {"admitted": task_type is not None, "task_type": task_type}
             delivered = draft_text
-            if task_type is not None and draft_text:
+            if task_type is not None and draft_text and (
+                    USER_FACING_COMPLETION_DEADLINE_MAX_S - float(draft["seconds"]) - 4.0) <= 0.0:
+                organ["stood_down"] = "no_time_left_in_the_turn"
+            elif task_type is not None and draft_text:
                 executable = should_use_executable_reasoning(task["request"], task_type=task_type)
                 sample_budget = 3 if executable else None
                 planned = planned_new_candidates(task_type, sample_budget=sample_budget, seeds=1)
-                budget = max(1.0, planned * float(draft["seconds"]))
+                # All a live turn can give the search: its ceiling, less what the
+                # draft spent and the reserve the response phase keeps.
+                budget = USER_FACING_COMPLETION_DEADLINE_MAX_S - float(draft["seconds"]) - 4.0
                 generations.clear()
                 began = time.monotonic()
+                turn_deadline[0] = began + budget
                 try:
                     result = asyncio.run(amplify_turn(
                         task["request"], generate, task_type=task_type, time_budget_s=budget,
@@ -355,6 +370,7 @@ def main() -> int:
                                   "budget_s": round(budget, 3)})
                 with model_lock:  # any generation a timeout left running ends first
                     pass
+                turn_deadline[0] = float("inf")
                 organ["seconds"] = round(time.monotonic() - began, 3)
                 organ["generations"] = list(generations)
             ordinary_ok, ordinary_note = grade(draft_text, task["truth"])
