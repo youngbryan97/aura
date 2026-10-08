@@ -144,6 +144,10 @@ def _mended(text: str, names: frozenset[str]) -> str:
         out.pop()
     while out and out[0] == "…":
         out.pop(0)
+    # Capitals read off a drawn screen come back in mixed case ("no InvenToRY"); a quote with a word like that was
+    # written in capitals.
+    if len(out) <= 4 and any(re.search(r"[a-z][A-Z]|[A-Z]{2}[a-z]", token) for token in out):
+        out = [token.upper() for token in out]
     return " ".join(out)
 
 

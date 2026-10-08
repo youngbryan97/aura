@@ -64,3 +64,10 @@ def test_a_reason_that_names_the_move_again_says_it():
     watcher = WhatAWatcherHears()
     assert watcher.heard("Going up — up is the only thing available", 0.0) == "Going up — it is the only thing available"
     assert watcher.heard('Clicking "PLAY" — click "PLAY" has worked here before', 1.0) == 'Clicking "PLAY" — it has worked here before'
+
+
+@pytest.mark.unit
+def test_capitals_read_back_in_mixed_case_are_quoted_as_capitals():
+    watcher = WhatAWatcherHears()
+    assert watcher.heard('Clicking "no InvenToRY" — to see what it does', 0.0) == 'Clicking "NO INVENTORY" — to see what it does'
+    assert watcher.heard('Clicking "Play Now" — it has worked here before', 1.0) == 'Clicking "Play Now" — it has worked here before'
