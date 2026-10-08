@@ -14,7 +14,7 @@ written once and the run resumes. Each row is labelled with the task it was
 drawn from, recovered by matching the full task files.
 
 Usage:
-    run_g12_bbeh.py --mini FILE --tasks DIR --output DIR [--model DIR] [--batch N]
+    run_g12_bbeh.py --mini FILE --tasks DIR --output DIR [--model DIR] [--batch N] [--only-tasks a,b]
 """
 
 from __future__ import annotations
@@ -51,6 +51,8 @@ def main() -> int:
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--batch", type=int, default=1)
+    parser.add_argument("--only-tasks", default="",
+                        help="comma-separated task names: answer only these now; a later run without it does the rest")
     args = parser.parse_args()
     if args.batch < 1:
         raise SystemExit("--batch is at least 1")
@@ -70,6 +72,9 @@ def main() -> int:
         return hashlib.sha256(example["input"].encode()).hexdigest()[:24]
 
     pending = [e for e in examples if not (rows_dir / f"{key(e)}.json").exists()]
+    if args.only_tasks:
+        wanted = set(args.only_tasks.split(","))
+        pending = [e for e in pending if labels.get(e["input"]) in wanted]
     print(json.dumps({"questions": len(examples), "pending": len(pending),
                       "unlabelled": sum(e["input"] not in labels for e in examples)}), flush=True)
     if not pending:

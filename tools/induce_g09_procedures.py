@@ -16,7 +16,10 @@ ordered by a hash of their id and the first half is development.
 
 Usage:
     induce_g09_procedures.py --kinds bbeh_hyperbaton,calendar --output DIR
-        [--lines 2] [--rounds 3] [--shots 3] [--batch 8] [--mechanisms] [--fake-proposer FILE]
+        [--lines 2] [--rounds 3] [--shots 3] [--batch 8] [--mechanisms] [--no-thinking] [--fake-proposer FILE]
+
+A run started again with the same arguments in the same directory resumes: every proposal already
+decoded is read from requests/round*.jsonl rather than decoded again.
 """
 
 from __future__ import annotations
@@ -99,6 +102,53 @@ def grader_for(kind: str):
     return lambda returned, truth: grade(returned, truth)[0]
 
 
+def logged_proposer(output: Path, decode, *, thinking: bool):
+    """Proposals decoded once and logged with their text, keyed by the request's hash.
+
+    ``decode(requests, on_record)`` decodes and calls ``on_record(position,
+    record)`` as each finishes. A run started again in the same directory
+    reuses every logged proposal made in the same thinking mode, so a reset
+    costs only what was in flight.
+    """
+    before: dict[str, dict] = {}
+    for log_path in sorted((output / "requests").glob("round*.jsonl")):
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            logged = json.loads(line)
+            if logged.get("thinking", True) == thinking and "public_text" in logged:
+                before[logged["request_sha256"]] = logged
+
+    def proposals(requests: list[str], round_index: int) -> list[str]:
+        texts = [""] * len(requests)
+        log = output / "requests" / f"round{round_index}.jsonl"
+        keys = [hashlib.sha256(request.encode()).hexdigest() for request in requests]
+        pending = []
+        for index, key in enumerate(keys):
+            if key in before:
+                texts[index] = before[key]["public_text"] if before[key]["termination"] == "stop" else ""
+            else:
+                pending.append(index)
+
+        def record(position: int, decoded: dict) -> None:
+            index = pending[position]
+            texts[index] = decoded["public_text"] if decoded["termination"] == "stop" else ""
+            logged = {"index": index, "request_sha256": keys[index], "thinking": thinking, **decoded}
+            before[keys[index]] = logged
+            log.parent.mkdir(parents=True, exist_ok=True)
+            with log.open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(logged) + "\n")
+            print(json.dumps({"round": round_index, "index": index, "of": len(requests),
+                              "termination": decoded["termination"], "tokens": decoded["generated_tokens"],
+                              "seconds": decoded["seconds"]}), flush=True)
+
+        print(json.dumps({"round": round_index, "reused": len(requests) - len(pending), "to_decode": len(pending)}),
+              flush=True)
+        if pending:
+            decode([requests[i] for i in pending], record)
+        return texts
+
+    return proposals
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--kinds", required=True)
@@ -115,6 +165,8 @@ def main() -> int:
     parser.add_argument("--fake-proposer", type=Path, help="a JSON list of replies, for a dry run without the model")
     parser.add_argument("--mechanisms", action="store_true",
                         help="tell her model it may import core/reasoning/mechanisms.py, and what it offers")
+    parser.add_argument("--no-thinking", action="store_true",
+                        help="decode proposals with her private channel closed (writing a procedure is not a reply)")
     args = parser.parse_args()
 
     from core.learning.procedures_from_solved_examples import (
@@ -173,28 +225,24 @@ def main() -> int:
         context.__enter__()
         model, tokenizer = load(str(model_path))
 
-        def propose(requests: list[str]) -> list[str]:
-            texts = [""] * len(requests)
-            started = time.monotonic()
-            log = output / "requests" / f"round{round_counter['n']}.jsonl"
-
-            def record(index: int, decoded: dict) -> None:
-                texts[index] = decoded["public_text"] if decoded["termination"] == "stop" else ""
-                with log.open("a", encoding="utf-8") as handle:
-                    handle.write(json.dumps({"index": index, "request_sha256": hashlib.sha256(
-                        requests[index].encode()).hexdigest(), **decoded}) + "\n")
-                print(json.dumps({"round": round_counter["n"], "index": index, "of": len(requests),
-                                  "termination": decoded["termination"], "tokens": decoded["generated_tokens"],
-                                  "seconds": decoded["seconds"]}), flush=True)
-
+        def decode(requests: list[str], on_record) -> None:
             decode_stream(model, tokenizer, [[{"role": "user", "content": r}] for r in requests],
-                          max_tokens=args.max_tokens, width=args.batch, on_record=record)
+                          max_tokens=args.max_tokens, width=args.batch, on_record=on_record,
+                          thinking=not args.no_thinking)
+
+        cached = logged_proposer(output, decode, thinking=not args.no_thinking)
+
+        def propose(requests: list[str]) -> list[str]:
+            started = time.monotonic()
+            texts = cached(requests, round_counter["n"])
             print(json.dumps({"round_done": round_counter["n"], "seconds": round(time.monotonic() - started, 1)}),
                   flush=True)
             round_counter["n"] += 1
             return texts
 
     candidates_path = output / "candidates.jsonl"
+    # Derived from the logged proposals, so written afresh by every run, including a resumed one.
+    candidates_path.unlink(missing_ok=True)
 
     def on_candidate(candidate) -> None:
         record = candidate_record(candidate)
