@@ -249,6 +249,10 @@ def main() -> int:
     parser.add_argument("--exclude", type=Path, action="append", default=[],
                         help="files of task ids no development or earlier run may reuse")
     parser.add_argument("--max-tokens", type=int, default=32768)
+    parser.add_argument("--batch", type=int, default=1,
+                        help="drafts decoded together (tools/g12_batched.py); the organ always runs one at a time")
+    parser.add_argument("--arms", default="ordinary,organ",
+                        help="ordinary decodes her drafts; organ runs on drafts already written")
     parser.add_argument("--model", type=Path,
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     args = parser.parse_args()
@@ -258,6 +262,9 @@ def main() -> int:
         excluded |= {line.strip() for line in path.expanduser().read_text().splitlines() if line.strip()}
     tasks = sample(LOADERS[args.domain](), args.tasks, args.seed, excluded)
     output = args.output.expanduser()
+    arms = {arm.strip() for arm in args.arms.split(",")}
+    if not arms or not arms <= {"ordinary", "organ"}:
+        raise SystemExit("--arms names ordinary and/or organ")
     (output / "rows").mkdir(parents=True, exist_ok=True)
     (output / "task_ids.txt").write_text("".join(f"{task['id']}\n" for task in tasks), encoding="utf-8")
 
@@ -320,29 +327,64 @@ def main() -> int:
                         {"role": "user", "content": prompt}]
             return await asyncio.to_thread(sampled, messages, temperature)
 
-        for done, task in enumerate(tasks, 1):
-            path = output / "rows" / f"{hashlib.sha256(task['id'].encode()).hexdigest()[:24]}.json"
-            if path.exists():
-                continue
-            with model_lock:
-                draft = decode_public(model, tokenizer, [{"role": "user", "content": task["request"]}],
-                                      max_tokens=args.max_tokens, thinking=True)
+        def write_once(path: Path, row: dict[str, Any]) -> None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(row, indent=1, default=str), encoding="utf-8")
+            temporary.replace(path)
+
+        def row_name(task: dict[str, Any]) -> str:
+            return f"{hashlib.sha256(task['id'].encode()).hexdigest()[:24]}.json"
+
+        def ordinary_row(task: dict[str, Any], draft: dict[str, Any]) -> dict[str, Any]:
             draft_text = draft["public_text"] if draft["termination"] == "stop" else ""
+            correct, note = grade(draft_text, task["truth"])
+            return {"id": task["id"], "domain": args.domain, "group": task["group"], "correct": correct,
+                    "note": note, "text": draft_text, "termination": draft["termination"],
+                    "tokens": draft["generated_tokens"], "seconds": draft["seconds"],
+                    "batch_size": draft.get("batch_size", 1)}
+
+        if "ordinary" in arms and args.batch > 1:
+            from tools.g12_batched import decode_batch
+
+            pending = [task for task in tasks if not (output / "rows" / "ordinary" / row_name(task)).exists()]
+            for start in range(0, len(pending), args.batch):
+                group = pending[start : start + args.batch]
+                drafts = decode_batch(model, tokenizer, [[{"role": "user", "content": task["request"]}]
+                                                         for task in group], max_tokens=args.max_tokens)
+                for task, draft in zip(group, drafts, strict=True):
+                    write_once(output / "rows" / "ordinary" / row_name(task), ordinary_row(task, draft))
+                print(json.dumps({"ordinary_batched": start + len(group), "of": len(pending)}), flush=True)
+
+        for done, task in enumerate(tasks, 1):
+            name = row_name(task)
+            ordinary_path, organ_path = output / "rows" / "ordinary" / name, output / "rows" / "organ" / name
+            if "ordinary" in arms and not ordinary_path.exists():
+                with model_lock:
+                    draft = decode_public(model, tokenizer, [{"role": "user", "content": task["request"]}],
+                                          max_tokens=args.max_tokens, thinking=True)
+                row = ordinary_row(task, draft)
+                write_once(ordinary_path, row)
+                print(json.dumps({"done": done, "of": len(tasks), "arm": "ordinary", "correct": row["correct"]}),
+                      flush=True)
+            if "organ" not in arms or organ_path.exists() or not ordinary_path.exists():
+                continue
+            ordinary = json.loads(ordinary_path.read_text(encoding="utf-8"))
+            draft_text = ordinary["text"]
             task_type = is_amplifiable(task["request"])
-            organ: dict[str, Any] = {"admitted": task_type is not None, "task_type": task_type}
+            organ: dict[str, Any] = {"id": task["id"], "admitted": task_type is not None, "task_type": task_type}
             delivered = draft_text
-            if task_type is not None and draft_text and (
-                    USER_FACING_COMPLETION_DEADLINE_MAX_S - float(draft["seconds"]) - 4.0) <= 0.0:
+            budget = USER_FACING_COMPLETION_DEADLINE_MAX_S - float(ordinary["seconds"]) - 4.0
+            if task_type is not None and draft_text and budget <= 0.0:
                 organ["stood_down"] = "no_time_left_in_the_turn"
             elif task_type is not None and draft_text:
                 executable = should_use_executable_reasoning(task["request"], task_type=task_type)
                 sample_budget = 3 if executable else None
                 planned = planned_new_candidates(task_type, sample_budget=sample_budget, seeds=1)
-                # All a live turn can give the search: its ceiling, less what the
-                # draft spent and the reserve the response phase keeps.
-                budget = USER_FACING_COMPLETION_DEADLINE_MAX_S - float(draft["seconds"]) - 4.0
                 generations.clear()
                 began = time.monotonic()
+                # All a live turn can give the search: its ceiling, less what the
+                # draft spent and the reserve the response phase keeps.
                 turn_deadline[0] = began + budget
                 try:
                     result = asyncio.run(amplify_turn(
@@ -373,22 +415,18 @@ def main() -> int:
                 turn_deadline[0] = float("inf")
                 organ["seconds"] = round(time.monotonic() - began, 3)
                 organ["generations"] = list(generations)
-            ordinary_ok, ordinary_note = grade(draft_text, task["truth"])
-            organ_ok, organ_note = (ordinary_ok, ordinary_note) if delivered == draft_text else grade(delivered, task["truth"])
-            row = {"id": task["id"], "domain": args.domain, "group": task["group"],
-                   "ordinary": {"correct": ordinary_ok, "note": ordinary_note, "text": draft_text,
-                                "termination": draft["termination"], "tokens": draft["generated_tokens"],
-                                "seconds": draft["seconds"]},
-                   "organ": {"correct": organ_ok, "note": organ_note,
-                             "text": delivered if delivered != draft_text else None, **organ}}
-            temporary = path.with_suffix(".tmp")
-            temporary.write_text(json.dumps(row, indent=1, default=str), encoding="utf-8")
-            temporary.replace(path)
-            print(json.dumps({"done": done, "of": len(tasks), "ordinary": ordinary_ok, "organ": organ_ok,
-                              "admitted": organ["admitted"], "adopted": organ.get("adopted")}), flush=True)
-    rows = [json.loads(path.read_text()) for path in sorted((output / "rows").glob("*.json"))]
-    summary = Counter((row["ordinary"]["correct"], row["organ"]["correct"]) for row in rows)
-    print(json.dumps({"rows": len(rows), "both": summary[(True, True)], "organ_only": summary[(False, True)],
+            organ["correct"], organ["note"] = ((ordinary["correct"], ordinary["note"]) if delivered == draft_text
+                                               else grade(delivered, task["truth"]))
+            organ["text"] = delivered if delivered != draft_text else None
+            write_once(organ_path, organ)
+            print(json.dumps({"done": done, "of": len(tasks), "arm": "organ", "ordinary": ordinary["correct"],
+                              "organ": organ["correct"], "admitted": organ["admitted"],
+                              "adopted": organ.get("adopted")}), flush=True)
+    ordinary_rows = {path.name: json.loads(path.read_text()) for path in (output / "rows" / "ordinary").glob("*.json")}
+    organ_rows = {path.name: json.loads(path.read_text()) for path in (output / "rows" / "organ").glob("*.json")}
+    summary = Counter((ordinary_rows[name]["correct"], organ_rows[name]["correct"]) for name in organ_rows)
+    print(json.dumps({"ordinary": len(ordinary_rows), "ordinary_correct": sum(r["correct"] for r in ordinary_rows.values()),
+                      "organ": len(organ_rows), "both": summary[(True, True)], "organ_only": summary[(False, True)],
                       "ordinary_only": summary[(True, False)], "neither": summary[(False, False)]}), flush=True)
     return 0
 
