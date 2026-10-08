@@ -78,6 +78,8 @@ class PlayingAsItHappens:
     ending_parts: list[str] = field(default_factory=list)
     #: Something went on going while she held a key: a world that waits for her and moves under her hand.
     under_her_hand: bool = False
+    #: Screens this run reached that the game had not shown her before, told apart by their words.
+    new_screens: int = 0
     #: Since when its words have been known to set her to make something, not to win.
     for_making_since: float | None = None
     _clip: dict[str, float] | None = None
@@ -198,8 +200,28 @@ class PlayingAsItHappens:
         if said and (not self.words or self.words[-1] != said):
             self.words.append(said)
             del self.words[:-12]
+            self._a_screen_not_seen_before(said)
         if self.first_ways_back is None and observation.get("ok", True):
             self.first_ways_back = restart_controls(observation)
+
+    def _a_screen_not_seen_before(self, said: str) -> None:
+        """Count a screen the game has not shown her before: getting to one is getting somewhere, scored or not.
+
+        LIVE 2026-10-08 a game's menus, story and player choice took most of a round, nothing was scored on
+        them, and the game was left as its play began. Kept across the rounds of one game; two screens are one
+        where they share most of their words (core/agency/where_things_lead.py).
+        """
+        from core.agency.where_things_lead import SAME_SCREEN, screen_words
+
+        words = screen_words([], said)
+        if len(words) < 2:
+            return
+        seen: list[frozenset[str]] = self.keep.setdefault("screens_seen", [])
+        if any(len(words & before) >= SAME_SCREEN * len(words | before) for before in seen):
+            return
+        seen.append(words)
+        del seen[:-60]
+        self.new_screens += 1
 
     def run_is_over(self, observation: dict[str, Any]) -> bool:
         """Whether she has played, and the screen now offers a way to start again it did not offer at first."""

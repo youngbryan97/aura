@@ -356,8 +356,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         # break, could never be reached, and a game was left after four minutes with nothing said.
         if (until_won and run["ended"] != "won" and not reflexes.over_because
                 and time.monotonic() - started >= ROUND_S - 20.0 and time.monotonic() < deadline):
-            if run["gains"] > 0:
-                runs.pop()  # the same round, still getting somewhere: played on, not counted as another
+            if run["gains"] > 0 or reflexes.new_screens:
+                runs.pop()  # the same round, still getting somewhere (scoring, or reaching screens not seen): played on
                 continue
             _tell(f"{round(ROUND_S / 60)} minutes in this round and nothing gained; I'll leave this one here.")
             result["stopped_because"] = "getting nowhere in it"
