@@ -53,7 +53,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-DOMAINS = ("math", "code", "planning", "knowledge", "transfer", "bbeh", "trip", "aime")
+DOMAINS = ("math", "code", "planning", "knowledge", "transfer", "bbeh", "trip", "aime", "cruxeval")
 BENCH = Path("~/.aura/benchmarks").expanduser()
 #: EvalPlus's own request for a chat model.
 CODE_REQUEST = ("Please provide a self-contained Python script that solves the following problem "
@@ -169,9 +169,38 @@ def _aime_tasks() -> list[dict[str, Any]]:
     return tasks
 
 
+def _cruxeval_prompt(code: str, given: str) -> str:
+    """CRUXEval's chain-of-thought output-prediction prompt (prompts.make_cot_output_prompt), restated."""
+    return (
+        "You are given a Python function and an assertion containing an input to the function. Complete the "
+        "assertion with a literal (no unsimplified expressions, no function calls) containing the output when "
+        "executing the provided code on the given input, even if the function is incorrect or incomplete. Do NOT "
+        "output any extra information. Execute the program step by step before arriving at an answer, and provide "
+        "the full assertion with the correct output in [ANSWER] and [/ANSWER] tags, following the examples.\n\n"
+        "[PYTHON]\ndef f(s):\n    s = s + s\n    return \"b\" + s + \"a\"\nassert f(\"hi\") == ??\n[/PYTHON]\n"
+        "[THOUGHT]\nLet's execute the code step by step:\n\n"
+        "1. The function f is defined, which takes a single argument s.\n"
+        "2. The function is called with the argument \"hi\", so within the function, s is initially \"hi\".\n"
+        "3. Inside the function, s is concatenated with itself, so s becomes \"hihi\".\n"
+        "4. The function then returns a new string that starts with \"b\", followed by the value of s (which is "
+        "now \"hihi\"), and ends with \"a\".\n"
+        "5. The return value of the function is therefore \"bhihia\".\n[/THOUGHT]\n"
+        "[ANSWER]\nassert f(\"hi\") == \"bhihia\"\n[/ANSWER]\n\n"
+        f"[PYTHON]\n{code}\nassert f({given}) == ??\n[/PYTHON]\n[THOUGHT]\n"
+    )
+
+
+def _cruxeval_tasks() -> list[dict[str, Any]]:
+    rows = [json.loads(line) for line in (BENCH / "g09/cruxeval/test.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+    return [{"id": f"cruxeval:{row['id']}", "request": _cruxeval_prompt(row["code"], row["input"]),
+             "truth": {"code": row["code"], "input": row["input"], "output": row["output"]}, "group": "output"}
+            for row in rows]
+
+
 LOADERS = {"math": _math_tasks, "code": _code_tasks, "planning": _planning_tasks,
            "knowledge": _knowledge_tasks, "transfer": _transfer_tasks, "bbeh": _bbeh_tasks,
-           "trip": _trip_tasks, "aime": _aime_tasks}
+           "trip": _trip_tasks, "aime": _aime_tasks, "cruxeval": _cruxeval_tasks}
 
 
 def sample(tasks: list[dict[str, Any]], count: int, seed: int, excluded: set[str]) -> list[dict[str, Any]]:
@@ -381,9 +410,29 @@ def grade_trip(text: str, truth: dict[str, str]) -> tuple[bool, str]:
     return matched == len(stays), str(plan)[:120]
 
 
+def grade_cruxeval(text: str, truth: dict[str, str]) -> tuple[bool, str]:
+    """CRUXEval's output scoring, restated: the text after [ANSWER] and up to [/ANSWER] (where its
+    generation stopped), the part after "==", rejected if it calls f on the input, else
+    ``assert <true output> == <prediction>`` run after the function, here in her OS sandbox."""
+    from core.sandbox.untrusted_python import run_untrusted_script
+
+    answer = text
+    if "[ANSWER]" in answer:
+        answer = answer.split("[ANSWER]")[1].strip()
+    answer = answer.split("[/ANSWER]")[0]
+    if "==" in answer:
+        answer = answer.split("==")[1].strip()
+    answer = answer.strip()
+    if not answer or f"f({truth['input']})" in answer:
+        return False, answer[:120]
+    outcome = run_untrusted_script(f"{truth['code']}\nassert {truth['output']} == {answer}", timeout_s=3.0,
+                                   require_boundary=True, source="g09_grader")
+    return bool(outcome.ok and outcome.returncode == 0 and outcome.sandboxed), answer[:120]
+
+
 GRADERS = {"math": grade_math, "code": grade_code, "planning": grade_planning,
            "knowledge": grade_knowledge, "transfer": grade_transfer, "bbeh": grade_bbeh,
-           "trip": grade_trip, "aime": grade_math}
+           "trip": grade_trip, "aime": grade_math, "cruxeval": grade_cruxeval}
 
 
 # ── The run ────────────────────────────────────────────────────────────────

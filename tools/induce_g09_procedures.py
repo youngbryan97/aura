@@ -11,8 +11,8 @@ with a known one when the benchmark's own grader says so.
 
 Development and test problems never mix. For a BBEH task the test problems
 are its 20 in BBEH Mini and the development problems are its other 180; for a
-Natural Plan kind, the problems are ordered by a hash of their id and the
-first half is development.
+Natural Plan kind and for CRUXEval's output prediction, the problems are
+ordered by a hash of their id and the first half is development.
 
 Usage:
     induce_g09_procedures.py --kinds bbeh_hyperbaton,calendar --output DIR
@@ -51,6 +51,13 @@ def problems(kind: str, part: str) -> list[dict[str, Any]]:
     """The kind's development or test problems as the G09 harness poses them, with their truths."""
     from tools.run_g09_organ import BBEH_SUFFIX
 
+    if kind == "cruxeval":
+        from tools.run_g09_organ import LOADERS
+
+        tasks = sorted(LOADERS["cruxeval"](), key=lambda t: hashlib.sha256(t["id"].encode()).hexdigest())
+        half = tasks[: len(tasks) // 2] if part == "development" else tasks[len(tasks) // 2:]
+        return [{"key": t["id"], "problem": t["request"], "truth": t["truth"], "answer_text": t["truth"]["output"]}
+                for t in half]
     if kind.startswith("bbeh_"):
         mini = _mini_inputs()
         examples = json.loads((BENCH / f"g09/bbeh/{kind}/task.json").read_text(encoding="utf-8"))["examples"]
@@ -75,6 +82,8 @@ def test_ids(domain: str) -> set[str]:
         kinds = ["calendar"]
     elif domain == "trip":
         kinds = ["trip"]
+    elif domain == "cruxeval":
+        kinds = ["cruxeval"]
     else:
         raise ValueError(f"no development and test split is defined for {domain}")
     return {row["key"] for kind in kinds for row in problems(kind, "test")}
@@ -82,11 +91,11 @@ def test_ids(domain: str) -> set[str]:
 
 def grader_for(kind: str):
     """Whether a procedure's returned answer is right, by the benchmark's own grader."""
-    from tools.run_g09_organ import grade_bbeh, grade_planning, grade_trip
+    from tools.run_g09_organ import grade_bbeh, grade_cruxeval, grade_planning, grade_trip
 
     if kind.startswith("bbeh_"):
         return lambda returned, truth: grade_bbeh(f"The answer is: {returned}", truth)[0]
-    grade = {"calendar": grade_planning, "trip": grade_trip}[kind]
+    grade = {"calendar": grade_planning, "trip": grade_trip, "cruxeval": grade_cruxeval}[kind]
     return lambda returned, truth: grade(returned, truth)[0]
 
 
