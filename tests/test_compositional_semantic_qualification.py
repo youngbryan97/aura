@@ -99,3 +99,42 @@ def test_a_reader_package_is_named_by_its_receipt():
     from core.learning.compositional_semantic_qualification import semantic_reader_package_id
 
     assert semantic_reader_package_id("033feffa21a4415d" + "0" * 48) == "semantic-reader-27b-033feffa21a4"
+
+
+READER_PACKAGE = REPO_ROOT / "artifacts/rlc/semantic-reader-27b-033feffa21a4"
+
+
+def test_the_qualified_reader_package_reopens_cleanly():
+    activation = json.loads((READER_PACKAGE / "activation.json").read_text(encoding="ascii"))
+
+    assert activation["package_id"] == "semantic-reader-27b-033feffa21a4"
+    assert activation["serving_authority"] is False
+    assert all(value is True for key, value in activation["measured"]["qualification"].items()
+               if key != "requests")
+    assert compositional_semantic_activation_errors(
+        activation,
+        repo_root=REPO_ROOT,
+        selected_model_path=Path(activation["model"]["path"]),
+    ) == []
+
+
+def test_the_runtime_opens_the_reader_and_rolls_back_to_what_it_had(monkeypatch, tmp_path):
+    from core.brain.llm import compositional_semantic_shadow as shadow
+
+    model = Path(json.loads((READER_PACKAGE / "activation.json").read_text())["model"]["path"])
+    operational = tmp_path / "compositional-semantic-active.json"
+    monkeypatch.setattr(shadow, "ACTIVE_ACTIVATION_PATH", operational)
+    monkeypatch.delenv("AURA_COMPOSITIONAL_SEMANTIC_ACTIVATION", raising=False)
+
+    current = shadow.compositional_semantic_shadow_status(model)
+    assert current["available"] is True
+    assert current["package_id"] == "semantic-reader-27b-033feffa21a4"
+
+    # Rolled back to the package it opened before: refused, as it was.
+    operational.write_bytes(ACTIVATION_PATH.read_bytes())
+    before = shadow.compositional_semantic_shadow_status(model)
+    assert before["available"] is False
+    assert "source_contract_drift" in before["reason"]
+
+    operational.unlink()
+    assert shadow.compositional_semantic_shadow_status(model) == current

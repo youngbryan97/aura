@@ -1,0 +1,237 @@
+{
+ "all_declared_comparisons_reject": true,
+ "checks": {
+  "no_task_text_was_consumed": true,
+  "plan_matches_spec": true,
+  "references_agree_with_independent_interpreter": "248/248",
+  "task_commitment_recomputed": true,
+  "tasks_regenerate_from_seed": true
+ },
+ "checks_pass": true,
+ "construction": {
+  "candidate_equivalent": 62,
+  "holds": true,
+  "tasks": 62
+ },
+ "g04_closure_rule_holds": true,
+ "redecode": {
+  "construction/candidate": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "construction/incumbent": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "construction/no_phrase_reading": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "construction/no_recency": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "construction/v12": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "depth/candidate": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 54,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "depth/incumbent": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 8,
+   "not_reproduced": 3,
+   "reproduced": 59
+  },
+  "depth/no_phrase_reading": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 54,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "depth/no_recency": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 19,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "depth/v12": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 7,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "family/candidate": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "family/incumbent": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 47,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "family/no_phrase_reading": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "family/no_recency": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "family/v12": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 62,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "vocabulary/candidate": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 33,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "vocabulary/incumbent": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 21,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "vocabulary/no_phrase_reading": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 6,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "vocabulary/no_recency": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 33,
+   "not_reproduced": 0,
+   "reproduced": 62
+  },
+  "vocabulary/v12": {
+   "agrees_with_runner": 62,
+   "disagreements": [],
+   "independent_same": 9,
+   "not_reproduced": 0,
+   "reproduced": 62
+  }
+ },
+ "secondary": {
+  "candidate_vs_no_phrase_reading:vocabulary": {
+   "control_only": 0,
+   "exact_one_sided_p": 7.450580596923828e-09,
+   "missing": 0,
+   "rejects": true,
+   "treatment_only": 27
+  },
+  "candidate_vs_no_recency:depth": {
+   "control_only": 0,
+   "exact_one_sided_p": 2.9103830456733704e-11,
+   "missing": 0,
+   "rejects": true,
+   "treatment_only": 35
+  }
+ },
+ "strata": {
+  "depth": {
+   "both": 8,
+   "candidate_correct": 54,
+   "candidate_interval": [
+    0.7614918636182093,
+    0.9426099943929781
+   ],
+   "candidate_only": 46,
+   "exact_one_sided_p": 1.4210854715202004e-14,
+   "incumbent_correct": 8,
+   "incumbent_interval": [
+    0.05739000560702189,
+    0.23850813638179066
+   ],
+   "incumbent_only": 0,
+   "missing_rows": 0,
+   "neither": 8,
+   "rejects_at_plan_alpha": true,
+   "tasks": 62
+  },
+  "family": {
+   "both": 47,
+   "candidate_correct": 62,
+   "candidate_interval": [
+    0.942237365570709,
+    1.0
+   ],
+   "candidate_only": 15,
+   "exact_one_sided_p": 3.0517578125e-05,
+   "incumbent_correct": 47,
+   "incumbent_interval": [
+    0.6325502928140554,
+    0.857813964151982
+   ],
+   "incumbent_only": 0,
+   "missing_rows": 0,
+   "neither": 0,
+   "rejects_at_plan_alpha": true,
+   "tasks": 62
+  },
+  "vocabulary": {
+   "both": 14,
+   "candidate_correct": 33,
+   "candidate_interval": [
+    0.4011589686735288,
+    0.6601734121625106
+   ],
+   "candidate_only": 19,
+   "exact_one_sided_p": 0.014479637145996094,
+   "incumbent_correct": 21,
+   "incumbent_interval": [
+    0.22333042128568503,
+    0.4700687621658075
+   ],
+   "incumbent_only": 7,
+   "missing_rows": 0,
+   "neither": 22,
+   "rejects_at_plan_alpha": true,
+   "tasks": 62
+  }
+ }
+}

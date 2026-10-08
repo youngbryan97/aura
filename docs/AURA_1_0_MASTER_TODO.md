@@ -2925,8 +2925,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   prevents collapsed requests from becoming duplicate learning evidence and
   aligns persisted statistics with measured-receipt validity. Fifty-three
   focused tests passed; broad task-outcome learning remains open.
-- [ ] G10 Qualify runtime materialization or fusion on the current model;
+- [x] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
+  CLOSED 2026-10-07 ([qualification](evidence/G10_READER_QUALIFICATION_2026-10-07.md)).
+  G04's v17 reader, materialized through her resident worker's encode with
+  her steering and latent bridge attached the worker's way, on 416 requests
+  G04 and G05 recorded. Identity: active cortex `52d313c2…`, signed steering
+  generation `0d192ee4…`. Geometry: 64 layers, 16 hooks, 5,120-wide vectors
+  and three-channel states. Conversion: stored states bit-identical, 416 of
+  416. Steering at both declared extremes: bit-identical, nothing learned by
+  the bridge; the same encode without the observation pass differs on all
+  416. Rollback: continuations and states identical after detach, and the
+  package switch returns the runtime exactly to its previous state.
+  Canaries and no regression: through the runtime's own path all 416
+  readings agree with the offline evaluation. Fixed on the way: steering
+  reached every encode (356c95eb2). Shadow only; serving is G11's.
   [Balanced polarity controls](evidence/G10_BALANCED_POLARITY_CONTROLS_2026-09-27.md)
   prevent an extraction null from exactly reproducing the treatment direction;
   the model-active development and sealed qualifications remain open.

@@ -1,0 +1,124 @@
+{
+ "arms": {
+  "composition": {
+   "assisted": {
+    "budget_stops": 0,
+    "decodes": 48,
+    "exact": 48,
+    "median_generated_tokens": 7.0,
+    "median_seconds": 1.6400000000000001,
+    "thinking": [
+     "closed"
+    ]
+   },
+   "ordinary": {
+    "budget_stops": 1,
+    "decodes": 48,
+    "exact": 30,
+    "median_generated_tokens": 723.0,
+    "median_seconds": 42.955,
+    "thinking": [
+     "closed"
+    ]
+   },
+   "ordinary_open": {
+    "budget_stops": 0,
+    "decodes": 48,
+    "exact": 39,
+    "median_generated_tokens": 876.0,
+    "median_seconds": 50.596000000000004,
+    "thinking": [
+     "open"
+    ]
+   },
+   "sham": {
+    "budget_stops": 1,
+    "decodes": 48,
+    "exact": 33,
+    "median_generated_tokens": 696.0,
+    "median_seconds": 40.823,
+    "thinking": [
+     "closed"
+    ]
+   }
+  },
+  "lists": {
+   "assisted": {
+    "budget_stops": 0,
+    "decodes": 120,
+    "exact": 120,
+    "median_generated_tokens": 2.0,
+    "median_seconds": 1.6885,
+    "thinking": [
+     "closed"
+    ]
+   },
+   "ordinary": {
+    "budget_stops": 0,
+    "decodes": 120,
+    "exact": 108,
+    "median_generated_tokens": 446.5,
+    "median_seconds": 26.450499999999998,
+    "thinking": [
+     "closed"
+    ]
+   },
+   "sham": {
+    "budget_stops": 0,
+    "decodes": 120,
+    "exact": 57,
+    "median_generated_tokens": 3.0,
+    "median_seconds": 1.9815,
+    "thinking": [
+     "closed"
+    ]
+   }
+  }
+ },
+ "complete": true,
+ "g05_closure_rule_holds": true,
+ "missing": {
+  "composition": {
+   "assisted": 0,
+   "ordinary": 0,
+   "ordinary_open": 0,
+   "sham": 0
+  },
+  "lists": {
+   "assisted": 0,
+   "ordinary": 0,
+   "sham": 0
+  }
+ },
+ "primary": {
+  "assisted_only": 18,
+  "exact_one_sided_p": 3.814697265625e-06,
+  "ordinary_only": 0,
+  "rejects": true,
+  "stratum": "composition",
+  "tasks": 48
+ },
+ "secondary": {
+  "assisted_vs_ordinary_open:composition": {
+   "alternative": "two-sided",
+   "exact_p": 0.00390625,
+   "first_only": 9,
+   "rejects": true,
+   "second_only": 0,
+   "tasks": 48
+  },
+  "ordinary_vs_sham:lists": {
+   "alternative": "greater",
+   "exact_p": 8.489840774839053e-13,
+   "first_only": 55,
+   "rejects": true,
+   "second_only": 4,
+   "tasks": 120
+  }
+ },
+ "translation": {
+  "assisted_exact_where_reader_right": 168,
+  "holds": true,
+  "reader_right": 168
+ }
+}

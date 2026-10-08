@@ -29,7 +29,10 @@ def _drifted(root: Path) -> list[str]:
         COMPOSITIONAL_SEMANTIC_SOURCE_CONTRACTS,
     )
 
-    envelope = root / "artifacts/rlc/semantic_program_27b_frozen_path_v1/activation.json"
+    from core.brain.llm.compositional_semantic_shadow import DEFAULT_ACTIVATION_PATH, REPO_ROOT
+
+    # The envelope the runtime opens by default, wherever the tree is checked out.
+    envelope = root / DEFAULT_ACTIVATION_PATH.relative_to(REPO_ROOT)
     if not envelope.is_file():
         return [f"MISSING  {envelope.relative_to(root)}"]
     sealed = json.loads(envelope.read_text(encoding="ascii")).get(

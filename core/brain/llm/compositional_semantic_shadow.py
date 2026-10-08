@@ -48,7 +48,12 @@ LEGACY_ARTIFACT_DIRECTORY: Final = (
 ARTIFACT_DIRECTORY: Final = (
     REPO_ROOT / "artifacts/rlc/semantic_program_27b_frozen_path_v1"
 )
-DEFAULT_ACTIVATION_PATH: Final = ARTIFACT_DIRECTORY / "activation.json"
+#: G04's reader v17, qualified on the current model through the worker's
+#: observation pass (G10, docs/evidence/G10_READER_QUALIFICATION_2026-10-07.md).
+#: The frozen-path package above failed its source contract once G03 rewrote
+#: the decoder under it.
+READER_PACKAGE_DIRECTORY: Final = REPO_ROOT / "artifacts/rlc/semantic-reader-27b-033feffa21a4"
+DEFAULT_ACTIVATION_PATH: Final = READER_PACKAGE_DIRECTORY / "activation.json"
 ACTIVE_ACTIVATION_PATH: Final = (
     REPO_ROOT / "training/fused-model/compositional-semantic-active.json"
 )

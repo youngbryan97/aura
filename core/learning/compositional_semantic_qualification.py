@@ -433,7 +433,8 @@ def build_semantic_reader_activation(
         "measured": {
             "transfer": {name: {key: value[key] for key in ("candidate_only", "incumbent_only", "rejects")}
                          for name, value in transfer["primary"].items()},
-            "public_answers": {key: public["primary"][key] for key in
+            # As the plan's answer rule reads, which is the independent check's reading.
+            "public_answers": {key: public_check["primary"][key] for key in
                                ("assisted_exact", "ordinary_exact", "assisted_only", "ordinary_only", "rejects")},
             "qualification": {"requests": qualification["requests"], **qualification["predicates"]},
         },
