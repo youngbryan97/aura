@@ -111,3 +111,24 @@ time without touching the criteria above:
 * The comparison with and without core/reasoning/mechanisms.py moves after
   the confirmatory run; the held-out run does not use the module unless a
   development run has tested it.
+
+## Settings frozen, 8 October 2026, 10:20, before the held-out run starts
+
+From the two development runs (`g09-induce-dev1-20261008`, private channel
+open, stopped by hand after 10 of its 12 first proposals; and
+`g09-induce-dev2-closed-20261008`, closed, stopped after its first round):
+
+* Open channel. Open proposals came closer: on boolean expressions the
+  first function agreed with 89 of 90 known answers in the shown pool and
+  the second with 88; the closed proposals' best agreed with 9 of the first
+  12. Neither run kept a procedure in its first round.
+* A cap of 20,480 tokens a proposal. Every development proposal that
+  produced a function ended by 16,622 tokens; every longer one (28,424 to
+  32,768 tokens, eight of 22) produced none, open ones still thinking and
+  closed ones repeating a list of names inside the code.
+* One line a kind, three rounds, three shown problems, decode width eight.
+  A second line doubles the cost and dev1's two lines on boolean
+  expressions came out alike.
+* No shared mechanisms module (untested in development).
+
+Code: `3d34c1109`, worktree `g09-frozen`. Held-out kinds as listed above.
