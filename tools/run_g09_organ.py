@@ -496,16 +496,16 @@ def main() -> int:
                     "batch_size": draft.get("batch_size", 1)}
 
         if "ordinary" in arms and args.batch > 1:
-            from tools.g12_batched import decode_batch
+            from tools.g12_batched import decode_stream
 
             pending = [task for task in tasks if not (output / "rows" / "ordinary" / row_name(task)).exists()]
-            for start in range(0, len(pending), args.batch):
-                group = pending[start : start + args.batch]
-                drafts = decode_batch(model, tokenizer, [[{"role": "user", "content": task["request"]}]
-                                                         for task in group], max_tokens=args.max_tokens)
-                for task, draft in zip(group, drafts, strict=True):
-                    write_once(output / "rows" / "ordinary" / row_name(task), ordinary_row(task, draft))
-                print(json.dumps({"ordinary_batched": start + len(group), "of": len(pending)}), flush=True)
+
+            def write_draft(index: int, draft: dict[str, Any]) -> None:
+                write_once(output / "rows" / "ordinary" / row_name(pending[index]), ordinary_row(pending[index], draft))
+                print(json.dumps({"ordinary_written": pending[index]["id"]}), flush=True)
+
+            decode_stream(model, tokenizer, [[{"role": "user", "content": task["request"]}] for task in pending],
+                          max_tokens=args.max_tokens, width=args.batch, on_record=write_draft)
 
         for done, task in enumerate(tasks, 1):
             name = row_name(task)

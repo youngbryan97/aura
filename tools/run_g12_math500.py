@@ -32,7 +32,6 @@ import hashlib
 import json
 import signal
 import sys
-import time
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +63,7 @@ def last_boxed(text: str) -> str | None:
     return None
 
 
-class _GradingTimeout(Exception):
+class _GradingTimeoutError(Exception):
     pass
 
 
@@ -74,13 +73,13 @@ def grade(grade_answer: Any, given: str | None, truth: str, *, seconds: int) -> 
         return False, "no_boxed_answer"
 
     def expire(_signum: int, _frame: Any) -> None:
-        raise _GradingTimeout
+        raise _GradingTimeoutError
 
     previous = signal.signal(signal.SIGALRM, expire)
     signal.alarm(seconds)
     try:
         return bool(grade_answer(given, truth)), ""
-    except _GradingTimeout:
+    except _GradingTimeoutError:
         return False, "grader_timeout"
     except Exception as exc:  # noqa: BLE001 - the reference grader's failure is recorded, not hidden
         return False, f"grader_error:{type(exc).__name__}"
@@ -113,7 +112,6 @@ def main() -> int:
         problems = problems[: args.limit]
     sys.path.insert(0, str(args.grader.expanduser()))
     from grading.grader import grade_answer
-
     from mlx_lm import load
 
     from core.runtime.model_lane_control import standalone_model_lane
@@ -132,31 +130,34 @@ def main() -> int:
                                purpose="evaluation", preemptible=False, require_exclusive=True,
                                allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
         model, tokenizer = load(str(model_path))
-        from tools.g12_batched import decode_batch
+        from tools.g12_batched import decode_stream
 
         done = 0
-        for start in range(0, len(pending), args.batch):
-            group = pending[start : start + args.batch]
-            conversations = [[{"role": "user", "content": f"{p['problem']}\n\n{INSTRUCTION}"}] for p in group]
-            if args.batch == 1:
-                results = [decode_public(model, tokenizer, conversations[0], max_tokens=args.max_tokens)]
-            else:
-                results = decode_batch(model, tokenizer, conversations, max_tokens=args.max_tokens)
-            for problem, decoded in zip(group, results, strict=True):
-                path = rows_dir / f"{hashlib.sha256(problem['unique_id'].encode()).hexdigest()[:24]}.json"
-                given = last_boxed(decoded["public_text"])
-                correct, grading_note = grade(grade_answer, given, problem["answer"], seconds=30)
-                row = {
-                    "unique_id": problem["unique_id"], "subject": problem["subject"], "level": problem["level"],
-                    "answer": problem["answer"], "given": given, "correct": correct and
-                    decoded["termination"] == "stop", "grading_note": grading_note, **decoded,
-                }
-                temporary = path.with_suffix(".tmp")
-                temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
-                temporary.replace(path)
-                done += 1
-                print(json.dumps({"done": done, "of": len(pending), "correct": row["correct"],
-                                  "tokens": decoded["generated_tokens"]}), flush=True)
+
+        def write(problem: dict[str, Any], decoded: dict[str, Any]) -> None:
+            nonlocal done
+            path = rows_dir / f"{hashlib.sha256(problem['unique_id'].encode()).hexdigest()[:24]}.json"
+            given = last_boxed(decoded["public_text"])
+            correct, grading_note = grade(grade_answer, given, problem["answer"], seconds=30)
+            row = {
+                "unique_id": problem["unique_id"], "subject": problem["subject"], "level": problem["level"],
+                "answer": problem["answer"], "given": given, "correct": correct and
+                decoded["termination"] == "stop", "grading_note": grading_note, **decoded,
+            }
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
+            temporary.replace(path)
+            done += 1
+            print(json.dumps({"done": done, "of": len(pending), "correct": row["correct"],
+                              "tokens": decoded["generated_tokens"]}), flush=True)
+
+        conversations = [[{"role": "user", "content": f"{p['problem']}\n\n{INSTRUCTION}"}] for p in pending]
+        if args.batch == 1:
+            for problem, conversation in zip(pending, conversations, strict=True):
+                write(problem, decode_public(model, tokenizer, conversation, max_tokens=args.max_tokens))
+        else:
+            decode_stream(model, tokenizer, conversations, max_tokens=args.max_tokens, width=args.batch,
+                          on_record=lambda index, decoded: write(pending[index], decoded))
     return 0
 
 

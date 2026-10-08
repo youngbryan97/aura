@@ -207,19 +207,21 @@ def main() -> int:
             return hashlib.sha256(task["id"].encode()).hexdigest()[:24]
 
         if "ordinary" in arms and args.batch > 1:
-            from tools.g12_batched import decode_batch
+            from tools.g12_batched import decode_stream
 
             pending = [task for task in tasks
                        if not (output / "rows" / "ordinary" / f"{source_of(task)}.json").exists()]
-            for start in range(0, len(pending), args.batch):
-                group = pending[start : start + args.batch]
-                conversations = [[{"role": "user", "content": request_text(task["input"], task["examples"])}] for task in group]
-                for task, decoded in zip(group, decode_batch(model, tokenizer, conversations,
-                                                             max_tokens=args.max_tokens), strict=True):
-                    write_row(output / "rows" / "ordinary" / f"{source_of(task)}.json",
-                              ordinary_row(task, decoded, decoded["seconds"]))
-                print(json.dumps({"ordinary_batched": min(start + args.batch, len(pending)),
-                                  "of": len(pending)}), flush=True)
+
+            def write_ordinary(index: int, decoded: dict[str, Any]) -> None:
+                task = pending[index]
+                write_row(output / "rows" / "ordinary" / f"{source_of(task)}.json",
+                          ordinary_row(task, decoded, decoded["seconds"]))
+                print(json.dumps({"ordinary_written": task["id"]}), flush=True)
+
+            decode_stream(model, tokenizer,
+                          [[{"role": "user", "content": request_text(task["input"], task["examples"])}]
+                           for task in pending],
+                          max_tokens=args.max_tokens, width=args.batch, on_record=write_ordinary)
 
         for done, task in enumerate(tasks, 1):
             source = source_of(task)

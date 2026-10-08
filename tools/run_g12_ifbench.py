@@ -75,27 +75,30 @@ def main() -> int:
                                    purpose="evaluation", preemptible=False, require_exclusive=True,
                                    allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
             model, tokenizer = load(str(model_path))
-            from tools.g12_batched import decode_batch
+            from tools.g12_batched import decode_stream
 
             done = 0
-            for start in range(0, len(pending), args.batch):
-                group = pending[start : start + args.batch]
-                conversations = [[{"role": "user", "content": prompt["prompt"]}] for prompt in group]
-                if args.batch == 1:
-                    results = [decode_public(model, tokenizer, conversations[0], max_tokens=args.max_tokens)]
-                else:
-                    results = decode_batch(model, tokenizer, conversations, max_tokens=args.max_tokens)
-                for prompt, decoded in zip(group, results, strict=True):
-                    row = {"key": prompt["key"], "prompt": prompt["prompt"],
-                           "response": decoded["public_text"] if decoded["termination"] == "stop" else "",
-                           **decoded}
-                    path = row_path(prompt)
-                    temporary = path.with_suffix(".tmp")
-                    temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
-                    temporary.replace(path)
-                    done += 1
-                    print(json.dumps({"done": done, "of": len(pending), "tokens": decoded["generated_tokens"],
-                                      "termination": decoded["termination"]}), flush=True)
+
+            def write(prompt: dict, decoded: dict) -> None:
+                nonlocal done
+                row = {"key": prompt["key"], "prompt": prompt["prompt"],
+                       "response": decoded["public_text"] if decoded["termination"] == "stop" else "",
+                       **decoded}
+                path = row_path(prompt)
+                temporary = path.with_suffix(".tmp")
+                temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
+                temporary.replace(path)
+                done += 1
+                print(json.dumps({"done": done, "of": len(pending), "tokens": decoded["generated_tokens"],
+                                  "termination": decoded["termination"]}), flush=True)
+
+            conversations = [[{"role": "user", "content": prompt["prompt"]}] for prompt in pending]
+            if args.batch == 1:
+                for prompt, conversation in zip(pending, conversations, strict=True):
+                    write(prompt, decode_public(model, tokenizer, conversation, max_tokens=args.max_tokens))
+            else:
+                decode_stream(model, tokenizer, conversations, max_tokens=args.max_tokens, width=args.batch,
+                              on_record=lambda index, decoded: write(pending[index], decoded))
     rows = [json.loads(row_path(prompt).read_text(encoding="utf-8")) for prompt in prompts]
     with (output / "responses.jsonl").open("w", encoding="utf-8") as handle:
         for row in rows:

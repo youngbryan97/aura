@@ -78,7 +78,7 @@ def main() -> int:
     from mlx_lm import load
 
     from core.runtime.model_lane_control import standalone_model_lane
-    from tools.g12_batched import decode_batch
+    from tools.g12_batched import decode_stream
     from tools.run_g05_public_answers import decode_public
 
     model_path = args.model.expanduser().resolve(strict=True)
@@ -87,22 +87,27 @@ def main() -> int:
                                allow_owner_eviction=True, metadata={"tool": Path(__file__).name}):
         model, tokenizer = load(str(model_path))
         done = 0
-        for start in range(0, len(pending), args.batch):
-            group = pending[start : start + args.batch]
-            conversations = [[{"role": "user", "content": f"{e['input']}\n\n{BBEH_SUFFIX}"}] for e in group]
-            results = ([decode_public(model, tokenizer, conversations[0], max_tokens=args.max_tokens)]
-                       if args.batch == 1 else decode_batch(model, tokenizer, conversations, max_tokens=args.max_tokens))
-            for example, decoded in zip(group, results, strict=True):
-                public = decoded["public_text"] if decoded["termination"] == "stop" else ""
-                correct, answer = grade_bbeh(public, example["target"])
-                row = {"id": key(example), "task": labels.get(example["input"], "unlabelled"),
-                       "target": example["target"], "answer": answer, "correct": correct, **decoded}
-                path = rows_dir / f"{key(example)}.json"
-                temporary = path.with_suffix(".tmp")
-                temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
-                temporary.replace(path)
-                done += 1
-                print(json.dumps({"done": done, "of": len(pending), "correct": correct}), flush=True)
+
+        def write(example: dict, decoded: dict) -> None:
+            nonlocal done
+            public = decoded["public_text"] if decoded["termination"] == "stop" else ""
+            correct, answer = grade_bbeh(public, example["target"])
+            row = {"id": key(example), "task": labels.get(example["input"], "unlabelled"),
+                   "target": example["target"], "answer": answer, "correct": correct, **decoded}
+            path = rows_dir / f"{key(example)}.json"
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(row, indent=1), encoding="utf-8")
+            temporary.replace(path)
+            done += 1
+            print(json.dumps({"done": done, "of": len(pending), "correct": correct}), flush=True)
+
+        conversations = [[{"role": "user", "content": f"{e['input']}\n\n{BBEH_SUFFIX}"}] for e in pending]
+        if args.batch == 1:
+            for example, conversation in zip(pending, conversations, strict=True):
+                write(example, decode_public(model, tokenizer, conversation, max_tokens=args.max_tokens))
+        else:
+            decode_stream(model, tokenizer, conversations, max_tokens=args.max_tokens, width=args.batch,
+                          on_record=lambda index, decoded: write(pending[index], decoded))
     return 0
 
 

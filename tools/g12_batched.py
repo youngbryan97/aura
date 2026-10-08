@@ -27,6 +27,64 @@ def render_tokens(tokenizer: Any, conversation: list, *, thinking: bool = True) 
     return [int(t) for t in tokenizer.encode(prompt, add_special_tokens=False)]
 
 
+def decode_stream(
+    model: Any,
+    tokenizer: Any,
+    conversations: Sequence[list],
+    *,
+    max_tokens: int,
+    width: int,
+    on_record: Any,
+    thinking: bool = True,
+) -> None:
+    """Decode every conversation, ``width`` at a time, and hand each record over as it finishes.
+
+    The batch refills: the moment one sequence ends the next conversation is
+    admitted, so a long reply holds one slot rather than a whole batch.
+    ``on_record(index, record)`` receives the conversation's index and the
+    fields decode_public returns; ``seconds`` runs from that sequence's first
+    generated token, so time spent waiting for a slot is not counted.
+    """
+    from mlx_lm.generate import BatchGenerator
+
+    from core.brain.llm.chat_format import split_native_thinking_generation
+
+    prompts = [render_tokens(tokenizer, conversation, thinking=thinking) for conversation in conversations]
+    if not prompts:
+        return
+    generator = BatchGenerator(model, stop_tokens=[[token] for token in tokenizer.eos_token_ids],
+                               completion_batch_size=width, prefill_batch_size=min(width, 8))
+    uids = generator.insert(prompts, [max_tokens] * len(prompts))
+    index_of = {uid: index for index, uid in enumerate(uids)}
+    tokens: dict[int, list[int]] = {uid: [] for uid in uids}
+    started: dict[int, float] = {}
+    try:
+        while responses := generator.next_generated():
+            for response in responses:
+                uid = response.uid
+                started.setdefault(uid, time.monotonic())
+                if response.finish_reason != "stop":
+                    tokens[uid].append(int(response.token))
+                if response.finish_reason is None:
+                    continue
+                raw = tokenizer.decode(tokens[uid])
+                channels = split_native_thinking_generation(raw, native_thinking=thinking)
+                finish = "stop" if response.finish_reason == "stop" else "token_limit"
+                on_record(index_of[uid], {
+                    "public_text": channels.surface,
+                    "raw_sha256": hashlib.sha256(raw.encode("utf-8")).hexdigest(),
+                    "prompt_tokens": len(prompts[index_of[uid]]),
+                    "generated_tokens": len(tokens[uid]),
+                    "termination": finish if channels.boundary_closed else "native_thinking_incomplete",
+                    "seconds": round(time.monotonic() - started[uid], 3),
+                    "batch_size": width,
+                    "batching": "continuous",
+                })
+                tokens[uid] = []
+    finally:
+        generator.close()
+
+
 def decode_batch(
     model: Any, tokenizer: Any, conversations: Sequence[list], *, max_tokens: int, thinking: bool = True
 ) -> list[dict[str, Any]]:
