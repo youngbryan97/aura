@@ -22,6 +22,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from core.perception.shapes_that_look_pressable import STANDS_OUT
+
 __all__ = ["Bearings", "Place", "instructions_in", "leads_away", "take_bearings"]
 
 #: A control's words that say it leads away from the thing it is on.
@@ -93,7 +95,10 @@ class Bearings:
         and what she leaves alone."""
         parts = []
         if self.sticks_out:
-            parts.append(f"{_and(self.sticks_out[:2])} stand{'s' if len(self.sticks_out[:2]) == 1 else ''} out")
+            # A shape already named for standing out is named by where it is: LIVE 2026-10-09 'The one that stands out
+            # at 85% across, 30% down stands out.'
+            named = [label.replace(STANDS_OUT, "the one at", 1) for label in self.sticks_out[:2]]
+            parts.append(f"{_and(named)} stand{'s' if len(named) == 1 else ''} out")
         if self.leaving_alone:
             parts.append(f"{_and(self.leaving_alone[:2])} would take me away from it, so I leave {'it' if len(self.leaving_alone) == 1 else 'them'} be")
         if not parts:

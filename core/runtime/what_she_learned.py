@@ -197,6 +197,24 @@ def validate_indexed_state(what: Mapping[str, Any], *, indexed_tables: Sequence[
     return held
 
 
+def what_it_is_called(app: str = "", page: str = "") -> str:
+    """What a person calls the thing she is acting in: a page by the last part of its address that names something
+    ("…/details/food-bash" is Food Bash), an app by its name. Said aloud where ``named`` is a filename."""
+    from urllib.parse import unquote, urlparse
+
+    if page:
+        address = urlparse(page)
+        parts = [unquote(part) for part in address.path.split("/") if part and not part.lower().startswith("index")]
+        for part in reversed(parts):
+            words = re.sub(r"\.[a-z0-9]{2,5}$", "", part, flags=re.IGNORECASE)
+            words = " ".join(re.split(r"[-_+ ]+", words)).strip()
+            if re.search(r"[A-Za-z]{2}", words):
+                return words.title() if words == words.lower() else words
+        if address.netloc:
+            return address.netloc.removeprefix("www.")
+    return " ".join(str(app or "").split())
+
+
 def named(*parts: str) -> str:
     """A name for the thing she is acting in, from whatever identifies it.
 

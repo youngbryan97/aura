@@ -61,6 +61,7 @@ from core.runtime.what_she_learned import (  # noqa: F401  (read at call time by
     named,
     recall,
     remember,
+    what_it_is_called,
 )
 from core.skills.base_skill import BaseSkill
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
@@ -1573,6 +1574,8 @@ async def pursue_on_screen(
         this_world,
         _kept_as_it_was(knew, loaded_as, {
             "responds": responds["state"].as_memory(),
+            # What a person calls it, for saying so when another thing is shaped like it.
+            "_called": what_it_is_called(target_app, expect_page or open_page),
             # The largest thing she has made here — the carried record only
             # where this sitting saw something at least as big, so a reading
             # that was wrong once cannot stand for ever.

@@ -421,14 +421,28 @@ def _borrow_from_the_world_it_is_most_like(
     if not lend_to(knows.rules, given, world):
         return
     like_it["lent"] = likeness.world
+    # Said by what a person calls it, never by the name it is filed under: LIVE 2026-10-09 she read out
+    # 'her-own-browser-https-archive-org-details-food-bash'.
+    called = str(solved[likeness.world][1].get("_called") or "") or _a_name_to_say(likeness.world)
     _tell(
-        f"This is shaped like {likeness.world}, which I worked out before, so I "
+        f"This is shaped like {called or 'something'}, which I worked out before, so I "
         "will start from how that moved and let my moves here decide."
     )
     logger.info(
         "lent by %s, at %.2f of a fresh start: %s",
         likeness.says(), float(given.get("trust") or 0.0), knows.rules.says(),
     )
+
+
+def _a_name_to_say(filed_as: str) -> str:
+    """A world filed before it kept what it is called, said by its filed name only where that reads as a name (an app
+    such as 'numbers'), not an address."""
+    import re
+
+    words = filed_as.split("-")
+    if len(words) > 4 or re.search(r"https?|www|[0-9a-f]{12}|\d{3}", filed_as):
+        return ""
+    return " ".join(words)
 
 
 def _narrate_a_fresh_plan(

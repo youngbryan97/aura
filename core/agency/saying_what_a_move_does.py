@@ -204,7 +204,9 @@ def what_a_move_does(
     if because:
         parts.append(because)
     free = int(getattr(after, "rows", 0) or 0) * int(getattr(after, "columns", 0) or 0) - len(after.cells)
-    if 0 <= free <= 2 and not joined:
+    # Nought places left is said by the board itself; LIVE 2026-10-09 'Up — only 0 places left' was read out over a
+    # game that has no board.
+    if 1 <= free <= 2 and not joined:
         parts.append(f"only {free} place{'' if free == 1 else 's'} left")
     if not parts:
         return f"{said_move}."
