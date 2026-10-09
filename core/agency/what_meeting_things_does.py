@@ -247,6 +247,8 @@ class WhatMeetingDoes:
         self.told: dict[int, str] = {}
         self._places: list[tuple[float, float, float]] = []
         self._settled_places: set[tuple[float, float]] = set()
+        #: How much she has left, by the lowest of her bars that are worse lower (core/perception/how_full_a_bar_is.py).
+        self.vitals = 1.0
         #: Each kind's colour and size, as the picture last gave them: a kind not yet met is judged as one like it.
         self._looks: dict[int, tuple[tuple[int, int, int], float]] = {}
 

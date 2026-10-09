@@ -98,6 +98,10 @@ WAYS: tuple[Way, ...] = (
     Way("a legend", "know a thing drawn beside words about it (get it, keep clear of it, shoot it) when it turns up in play",
         "core.perception.what_a_legend_shows:what_a_legend_shows", "core.skills.screen_pursuit_as_it_happens",
         "tests/test_a_legend_says_what_things_are.py"),
+    Way("bars", "read the bars that fill and empty (health, energy, paint, a boss, time); a fall of what she has left is a "
+        "loss, and low, what costs her is given a wider berth",
+        "core.agency.playing_as_it_happens:_read_the_bars", "core.agency.playing_as_it_happens",
+        "tests/test_a_bar_that_empties_is_what_she_has_left.py"),
     Way("take stock", "read the rules; ask what she knows when stuck, failing, unsure or before she begins",
         "core.cognition.taking_stock:take_stock", "core.skills.sovereign_browser_taking_stock",
         "tests/test_she_takes_stock_when_she_keeps_failing.py"),

@@ -155,6 +155,11 @@ class _Run:
     first_moving: float = math.inf
     #: Every reading's words, with when its picture was taken.
     words_read: list[tuple[float, str]] = field(default_factory=list)
+    #: The bars on the screen that fill and empty (core/perception/how_full_a_bar_is.py), the last words read with where
+    #: each stood, and how much she has left: the lowest of her bars that are worse lower, 1 where none is known.
+    bars: Any = None
+    regions_read: list[dict[str, Any]] = field(default_factory=list)
+    vitals: float = 1.0
     situation: str = ""
     #: What she has said of the game, each part without where things stood.
     situation_known: set[str] = field(default_factory=set)
@@ -491,6 +496,9 @@ def _measure_response(run: _Run, mine: Any, at: float) -> None:
 class _Choosing:
     """The arithmetic of one decision, from what she has measured so far."""
 
+    #: How much wider a berth what costs her is given than usual: more as what she has left runs low.
+    caution: float = 1.0
+
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
                  physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
                  response_s: float = 0.0, covered: tuple[set[tuple[int, int]], float] | None = None,
@@ -516,6 +524,8 @@ class _Choosing:
         self.pointing = hers.follows_pointer
         shots = hers.makes
         self.shot = next(iter(shots.values()), None)
+        # Low on what she has left, what costs her is given a wider berth.
+        self.caution = 1.0 + 2.0 * max(0.0, CAREFUL_BELOW - getattr(meeting, "vitals", 1.0)) / CAREFUL_BELOW
 
     def line(self) -> int | None:
         """The axis she cannot move along, when she moves along only one."""
@@ -753,7 +763,7 @@ class _Choosing:
                 cost += abs(gx - x) / self.speed(0)
             if gy is not None:
                 cost += abs(gy - y) / self.speed(1)
-            cost += 3.0 * self.danger(way)
+            cost += 3.0 * self.caution * self.danger(way)
             cost += 0.0 if key == held else self.next_picture_s * 0.1
             if cost < best_cost:
                 best_key, best_cost = key, cost
@@ -981,10 +991,12 @@ async def _hold(hands: Any, run: _Run, hers: WhichIsHers, key: str, at: float, *
 
 
 async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves: WhatMoves,
-                        picture: Any, at: float, read_words: Callable[[Any], list[dict[str, Any]]] | None) -> None:
-    """Read the counters off to one side; take in the last reading when it is done."""
+                        picture: Any, at: float, read_words: Callable[[Any], list[dict[str, Any]]] | None,
+                        *, say: Any = None) -> None:
+    """Read the counters off to one side, and the bars every picture; take in the last reading when it is done."""
     from core.perception.the_drawing_as_objects import words_in
 
+    _read_the_bars(run, meeting, hers, moves, picture, at, say)
     rendered = words_in(picture)
     if rendered is not None:
         if run.reading is not None:
@@ -1012,6 +1024,7 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
 def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
                     moves: WhatMoves, regions: list[dict[str, Any]], when: float) -> None:
     """The same counter semantics for renderer text and text read from pixels."""
+    run.regions_read = list(regions)
     for region in regions:
         said = " ".join(str(region.get("text") or "").lower().split())
         if said and len(run.words_read) < 400:
@@ -1032,6 +1045,65 @@ def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
     run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
     run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when)
     meeting.writing = _what_is_writing(moves, regions)
+
+
+#: How full her bars may be before she is careful: below this share of their fullest, what costs is given wider berth.
+CAREFUL_BELOW = 0.5
+
+
+def _what_a_bar_measures(bar: Any, regions: list[dict[str, Any]], wide: int, tall: int) -> tuple[str, str]:
+    """The words written nearest a bar, before it on its line or just over it, and what a change in them means; a bar
+    with no words is taken for something running out, worse lower."""
+    from core.agency.what_meeting_things_does import _meaning
+
+    left, top, right, bottom = bar.where(wide, tall)
+    near = []
+    for region in regions:
+        said = " ".join(str(region.get("text") or "").split())
+        x, y = float(region.get("center_x", -1.0)), float(region.get("center_y", -1.0))
+        if not any(ch.isalpha() for ch in said):
+            continue
+        before = abs(y - (top + bottom) / 2) <= 0.06 and -0.02 <= left - x <= 0.25
+        over = 0.0 <= top - y <= 0.1 and left - 0.05 <= x <= right + 0.05
+        if before or over:
+            near.append((abs(y - (top + bottom) / 2) + abs(x - left), said))
+    label = min(near)[1] if near else ""
+    return label, (_meaning(label) if label else "") or "down is bad"
+
+
+def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves: WhatMoves, picture: Any, at: float,
+                   say: Any) -> None:
+    """Every bar's rise or fall, as a gain or a loss as its words say; and how much she has left, for how careful to be.
+
+    A bar that empties as she is hit is the cost of what hit her, learned as a counter's fall is: LIVE 2026-10-09 three
+    heroes shared a health bar, and she played as if nothing could hurt her.
+    """
+    from core.perception.how_full_a_bar_is import BarsOnTheScreen
+
+    if run.bars is None:
+        run.bars = BarsOnTheScreen()
+    for change in run.bars.read(picture, at):
+        bar = change["bar"]
+        tall, wide = run.bars.shape
+        if not bar.meaning:
+            bar.label, bar.meaning = _what_a_bar_measures(bar, run.regions_read, wide, tall)
+        if bar.meaning == "neither":
+            continue
+        fell = change["to"] < change["from"]
+        lost = fell if bar.meaning == "down is bad" else not fell
+        middle = ((bar.start + bar.end) / 2 / max(1, wide), bar.row / max(1, tall))
+        where = where_on_screen(moves, middle[0] * moves.shape[1], middle[1] * moves.shape[0]) if moves.shape[0] else "middle"
+        named = f"the {bar.label} bar" if bar.label else f"the bar at the {where}"
+        verdict = {"what": "loss" if lost else "gain", "at": at, "since": change["since"], "counter": named, "by": -1 if lost else 1}
+        meeting._verdict(verdict)
+        if lost:
+            run.losses += 1
+            _lost_from_a_distance(run, meeting, hers.thing(moves), moves, verdict)
+            _say(run, say, f"{named[0].upper()}{named[1:]} goes down as I'm hit: it's what I have left.", at, once=f"bar {named}")
+        else:
+            run.gains += 1
+    left = [bar.full for bar in run.bars.bars() if bar.meaning == "down is bad"]
+    run.vitals = meeting.vitals = min(left) if left else 1.0
 
 
 def _lost_from_a_distance(run: _Run, meeting: WhatMeetingDoes, mine: Any, moves: WhatMoves, verdict: dict[str, Any]) -> None:
@@ -1481,7 +1553,7 @@ async def play_as_it_happens(
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
-            await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
+            await _keep_reading(run, meeting, hers, moves, picture, at, read_words, say=say)
             run.shown.look(picture, at)
             violations = motion_checks.see(moves, happened, at, hers.number)
             if violations:
