@@ -37,10 +37,11 @@ from typing import Any
 
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
+from core.agency.the_controls_a_game_names import controls_named_in
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_she_has_left import CAREFUL_BELOW
 from core.agency.what_the_rules_said import WhatTheRulesSaid
-from core.agency.which_one_answers_to_her import RESPONSE_S, WAYS, WhichIsHers
+from core.agency.which_one_answers_to_her import RESPONSE_S, WAYS, WhichIsHers, ways_carried
 from core.perception.how_things_move_here import HowThingsMoveHere
 from core.perception.what_changed_and_stayed import WhatChangedAndStayed
 from core.perception.what_moves_in_the_picture import TOLD_FROM_STANDING_PX, WhatMoves
@@ -235,72 +236,8 @@ def _record_control_attribution(run: _Run, moves: Any, hers: WhichIsHers, at: fl
     run.control_attribution.append({"seconds": round(at - run.began, 3), "thing": state[0],
                                     "source": source, "keys": list(keys), "position": position})
 
-#: Words that say a game is played with the pointer.
-_POINTER_WORDS = ("mouse", "cursor", "pointer", "click", "drag", "aim", "trackpad")
-
-#: What the usual names of keys mean.
-_NAMED_KEYS = (
-    (("arrow", "arrows", "cursor keys", "direction"), ("up", "down", "left", "right")),
-    # The clusters of letters keyboards are steered by, named as one word: LIVE 2026-10-09 "USE WASD TO MOVE" was
-    # read as no keys at all, and she played a game steered by keys with the pointer for three minutes.
-    (("wasd",), ("w", "a", "s", "d")),
-    (("ijkl",), ("i", "j", "k", "l")),
-    (("esdf",), ("e", "s", "d", "f")),
-    (("zqsd",), ("z", "q", "s", "d")),
-    (("space", "spacebar", "space bar"), ("space",)),
-    (("up",), ("up",)),
-    (("down",), ("down",)),
-    (("left",), ("left",)),
-    (("right",), ("right",)),
-    (("enter", "return"), ("return",)),
-    (("shift",), ("shift",)),
-)
-
-
-#: Words beside a way that say a key is meant by it.
-_KEY_CUES = frozenset({"key", "keys", "arrow", "arrows", "press", "pressing", "hold", "holding", "tap", "hit", "push"})
-
-
-#: Words just after a way's name that say it is how a button or the pointer is pressed, not a key: "hold down the mouse
-#: button", "press down on the ball". LIVE 2026-10-09 "hold down the mouse while you aim" was read as the down arrow,
-#: and a game played with the mouse was taken to be played with keys.
-_NOT_A_KEY_AFTER = frozenset({"mouse", "button", "on"})
-
-
-def _a_key_is_meant(lowered: str, way: str) -> bool:
-    import re
-
-    words = re.findall(r"[a-z]+", lowered)
-    return any(word == way and _KEY_CUES & set(words[max(0, at - 2):at + 3])
-               and not _NOT_A_KEY_AFTER & set(words[at + 1:at + 4])
-               for at, word in enumerate(words))
-
-
-#: A single letter named as a key: "the X key", "X key"; or a capital after a word for pressing, or before what it is
-#: for: "press Z", "Z to shoot". Read in the case it was written: "press a button" names no key called A.
-_A_LETTER_KEY = re.compile(
-    r"\b(?:the\s+)?([A-Za-z])\s+key\b"
-    r"|\b(?:press|hit|tap|hold|use|push)\s+(?:the\s+)?[\"'“]?([A-Z])[\"'”]?(?![\w'])(?:\s+(?:key\s+)?to\s+([a-z]+))?"
-    r"|(?<![\w'])([A-Z])\s+to\s+([a-z]+)\b")
-
-#: What a key pressed only to begin or begin again is for: the menu's, not play's.
-_TO_BEGIN = frozenset({"start", "begin", "restart", "continue", "play", "pause", "quit"})
-
-
-def _letter_keys(text: str, *, during_play: bool = False) -> list[str]:
-    """Letter keys a game's own words name (LIVE 2026-10-09 "grenades (activated with the X key)" was not read as one)."""
-    keys: list[str] = []
-    for match in _A_LETTER_KEY.finditer(text):
-        letter = match.group(1) or match.group(2) or match.group(4)
-        purpose = (match.group(3) or match.group(5) or "").lower()
-        if not letter or (match.group(4) and letter in "IA"):
-            continue
-        if during_play and purpose in _TO_BEGIN:
-            continue
-        if letter.lower() not in keys:
-            keys.append(letter.lower())
-    return keys
-
+#: How far ahead, in seconds, she weighs each key for a thing of hers carried on by its own going.
+CARRIED_AHEAD_S = 0.6
 
 #: Words that say keys are pressed in turn and fast: "press left and right rapidly", "tap space repeatedly".
 _FAST = re.compile(r"\b(?:rapidly|repeatedly|quickly|as fast as|mash\w*|alternat\w*|in turn|over and over|again and again)\b",
@@ -337,51 +274,6 @@ async def _burst(hands: Any, run: _Run, at: float, *, say: Any = None) -> None:
         n += 1
         await asyncio.sleep(BURST_TAP_S)
     run.burst_at = at
-
-
-def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space"),
-                      during_play: bool = False) -> tuple[list[str], bool]:
-    """The keys a game's own words name, and whether they name the pointer.
-
-    "Use the arrow keys to move and space to jump" names five keys; "Move the
-    mouse to aim, click to throw" names the pointer. With no keys named, the
-    keys most games use are tried, after the pointer when it is named.
-    """
-    import re
-
-    from core.runtime.watched_goal import keys_named_in
-
-    lowered = " ".join(str(text or "").lower().split())
-    if during_play:
-        # A lifecycle command belongs to the menu, rather than to the active
-        # controls. Keep other uses of the same key, such as space to jump.
-        lowered = re.sub(r"\b(?:press|tap|hit)\s+[^.!?]{0,40}?\b(?:to\s+)?"
-                         r"(?:start|begin|restart|play\s+again)\b", "", lowered)
-    words = set(re.findall(r"[a-z]+", lowered))
-    # Restrict generic arrow instructions only when directions qualify the
-    # arrows themselves. "Pick up coins" says nothing about which arrows work.
-    arrow_directions = re.findall(
-        r"\b((?:(?:up|down|left|right)\s*(?:[,/&+-]|\band\b|\bor\b)?\s*)+)"
-        r"(?:arrows?\b|arrow\s+keys?\b|cursor\s+keys?\b)", lowered)
-    keys: list[str] = []
-    for names, meant in _NAMED_KEYS:
-        if meant == ("up", "down", "left", "right") and arrow_directions:
-            continue
-        if meant[0] in WAYS and len(meant) == 1:
-            # A way said alone is a key only beside a word for keys or pressing: LIVE 2026-10-07 "when the hamster
-            # lines up with the pillow" was read as the up key, and "left-click fires" as the left one.
-            qualified = meant[0] in re.findall(r"up|down|left|right", " ".join(arrow_directions))
-            if qualified or re.search(rf"\b{meant[0]}\b(?!-?\s?click)", lowered) and _a_key_is_meant(lowered, meant[0]):
-                keys.extend(key for key in meant if key not in keys)
-            continue
-        if any((name in words) if " " not in name else (name in lowered) for name in names):
-            keys.extend(key for key in meant if key not in keys)
-    keys.extend(key for key in keys_named_in(lowered) if key not in keys)
-    keys.extend(key for key in _letter_keys(str(text or ""), during_play=during_play) if key not in keys)
-    pointer = any(word in words or word + "s" in words for word in _POINTER_WORDS)
-    if not keys:
-        keys = list(keys_without_words)
-    return keys, pointer
 
 
 # -- naming what she sees -----------------------------------------------------
@@ -512,6 +404,9 @@ class _Choosing:
 
     #: How much wider a berth what costs her is given than usual: more as what she has left runs low.
     caution: float = 1.0
+    #: Carried on by her own going: the pace no key gives her, and how far ahead each key is weighed (0: the next picture).
+    rest: tuple[float, float] = (0.0, 0.0)
+    ahead_s: float = 0.0
 
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
                  physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
@@ -528,6 +423,11 @@ class _Choosing:
         self.response_s = response_s
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
+        # Carried on by her own going, a key is the pace it gives her a moment from now, and no key is where the pull on
+        # her takes her: she brakes before she gets there, not when she is there.
+        if getattr(hers, "carried", False) and self.mine is not None:
+            self.ahead_s = CARRIED_AHEAD_S
+            self.ways, self.rest = ways_carried(hers, keys, self.mine, self.ahead_s)
         self.reach = reach
         # A key that lifts her and lets her fall is pressed for what its press does, not held as a way to go.
         self.lifts = (presses.lifts(self.mine.kind, max(float(self.mine.w), float(self.mine.h)), self.mine.number)
@@ -764,19 +664,23 @@ class _Choosing:
             gx = gx - offset[0] if gx is not None else None
             gy = gy - offset[1] if gy is not None else None
         mine = self.mine
-        choices = {"": (0.0, 0.0), **self.ways}
+        choices = {"": self.rest, **self.ways}
         moving = choices.get(held, (0.0, 0.0))
         # The old command keeps moving her while the next one is delivered.
         # Its measured delay belongs in the prediction before the new command.
         here_x, here_y = mine.x + moving[0] * self.response_s, mine.y + moving[1] * self.response_s
         best_key, best_cost = held if held in choices else "", math.inf
         for key, way in choices.items():
-            x, y = here_x + way[0] * self.next_picture_s, here_y + way[1] * self.next_picture_s
+            x, y = here_x + way[0] * (self.ahead_s or self.next_picture_s), here_y + way[1] * (self.ahead_s or self.next_picture_s)
             cost = 0.0
             if gx is not None:
                 cost += abs(gx - x) / self.speed(0)
             if gy is not None:
                 cost += abs(gy - y) / self.speed(1)
+            if self.ahead_s and aim is not None and not aim.moved:
+                # Carried onto a still thing, she comes to it slowly: what lands hard on a thing breaks on it.
+                near = max(0.0, 1.0 - math.hypot(aim.x - x, aim.y - y) / (3 * max(float(mine.w), float(mine.h))))
+                cost += near * math.hypot(2 * way[0] - mine.vx, 2 * way[1] - mine.vy) / max(self.speed(0), self.speed(1))
             cost += 3.0 * self.caution * self.danger(way)
             cost += 0.0 if key == held else self.next_picture_s * 0.1
             if cost < best_cost:

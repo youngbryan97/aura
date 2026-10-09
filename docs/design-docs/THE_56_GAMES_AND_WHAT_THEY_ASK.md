@@ -44,6 +44,8 @@ if any of them is not called from her live play or has no test.
 | play as told | take up the way the place says it is played and play it, stretch after stretch, while it is learned or pays | `core/agency/the_way_it_is_played.py` |
 | a legend | know a thing drawn beside words about it (get it, keep clear of it, shoot it) when it turns up in play | `core/perception/what_a_legend_shows.py` |
 | bars | read the bars that fill and empty (health, energy, paint, a boss, time); a fall of what she has left is a loss, and low, she keeps wider of what costs her | `core/perception/how_full_a_bar_is.py` |
+| carried | a body carried on by its own going and pushed by her keys (a lander, a ship): known by what each key adds to its going, steered by where that takes it a moment ahead, brought onto a thing slowly | `core/agency/which_one_answers_to_her.py` (pushes) |
+| pause | a screen that says it is paused goes on by what paused it, which is not taken again in play | `core/skills/screen_pursuit_decision.py` |
 | take stock | read the rules; ask what she knows when stuck | `core/cognition/taking_stock.py` |
 
 ## The games
@@ -71,7 +73,7 @@ own words where it has any, else from what its code does.
 | 15 | Billy & Mandy: Zap to It! | copy a sequence (the arrows in the book), counters |
 | 16 | Toonami: Tunnel Rush | steer, shoot, counters |
 | 17 | KND: Numbuh Generator | make |
-| 18 | KND: Operation Tommy | send, steer |
+| 18 | KND: Operation Tommy | carried (a lander: thrust against a pull, onto a pad slowly), steer |
 | 19 | Foster's: A Friend in Need | send (aim and toss), counters |
 | 20 | Foster's: Coco's Egg Scramble | steer (mouse), shoot (click to throw), counters |
 | 21 | Foster's: Door to Door | click things (the doors), counters |

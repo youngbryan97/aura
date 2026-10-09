@@ -102,6 +102,13 @@ WAYS: tuple[Way, ...] = (
         "loss, and low, what costs her is given a wider berth",
         "core.agency.what_she_has_left:bars_read", "core.agency.playing_as_it_happens",
         "tests/test_a_bar_that_empties_is_what_she_has_left.py"),
+    Way("carried", "a body carried on by its own going and pushed by her keys (a lander, a ship, a skater): known by what each "
+        "key adds to its going, steered by where that takes it a moment ahead, and brought onto a thing slowly",
+        "core.agency.which_one_answers_to_her:WhichIsHers", "core.agency.playing_as_it_happens",
+        "tests/test_a_thing_carried_by_its_own_going_is_steered_by_its_pushes.py"),
+    Way("pause", "a screen that says it is paused goes on by what paused it, which is not taken again in play",
+        "core.skills.screen_pursuit_decision:_go_on_from_a_pause", "core.skills.screen_pursuit_decision",
+        "tests/test_the_way_a_place_asks_to_be_played.py"),
     Way("take stock", "read the rules; ask what she knows when stuck, failing, unsure or before she begins",
         "core.cognition.taking_stock:take_stock", "core.skills.sovereign_browser_taking_stock",
         "tests/test_she_takes_stock_when_she_keeps_failing.py"),
