@@ -7,9 +7,9 @@ book"). Or it plays it: places that light up one after another (a dance's
 steps, a lock's buttons, a tutorial that flashes what to click), and then
 waits. Either way the order is the thing.
 
-An arrow is read from its shape alone: along its longer axis, the end that
-is wider is its head, and the way it points is the way of the key with the
-same name. Places that light up are found by watching each stand brighter than
+An arrow is read from its shape alone (core/perception/keys_drawn_on_screen.py):
+along it, its tail is a shaft of even thickness and its head tapers, and the
+way it points is the way of the key with the same name. Places that light up are found by watching each stand brighter than
 it usually is, one at a time; the order they lit in is the order to click them.
 Then she does the same, at a person's pace, and watches whether the screen
 answers with something new (the next step, a score), which says she did it
@@ -65,24 +65,10 @@ class Shown:
 
 
 def _the_way_it_points(mask: np.ndarray) -> str | None:
-    """The way an arrow-shaped mask points: along its longer axis, toward its wider end."""
-    rows, cols = np.nonzero(mask)
-    if len(rows) < 12:
-        return None
-    tall, wide = rows.max() - rows.min() + 1, cols.max() - cols.min() + 1
-    across = wide >= tall
-    along = cols - cols.min() if across else rows - rows.min()
-    length = (wide if across else tall)
-    widths = np.bincount(along, minlength=length)
-    first, last = widths[: length // 3], widths[-(length // 3):]
-    if not len(first) or not len(last):
-        return None
-    head_first, head_last = float(first.max()), float(last.max())
-    if max(head_first, head_last) < 1.3 * min(head_first, head_last):
-        return None  # no end wider than the other: not an arrow
-    if across:
-        return "left" if head_first > head_last else "right"
-    return "up" if head_first > head_last else "down"
+    """The way an arrow-shaped mask points (core/perception/keys_drawn_on_screen.py), or None where it is no arrow."""
+    from core.perception.keys_drawn_on_screen import which_way_it_points
+
+    return which_way_it_points(mask) or None
 
 
 def arrows_in(picture: Any, regions: list[dict[str, Any]] | None = None) -> list[str]:

@@ -1396,6 +1396,10 @@ async def _read_until_settled(
         from core.perception.shapes_that_look_pressable import pressable_shapes
 
         reading["shapes"] = await asyncio.to_thread(pressable_shapes, picture, apart_from=reading.get("layout") or ())
+        # And keys drawn on it as pictures, which writing does not read (core/perception/keys_drawn_on_screen.py).
+        from core.perception.keys_drawn_on_screen import keys_drawn
+
+        reading["keys_drawn"] = await asyncio.to_thread(keys_drawn, picture)
     shape = (int(picture.shape[1]), int(picture.shape[0]))
     return reading, still, at_rest_but_unread, pictures, shape, looked_took
 

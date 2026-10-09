@@ -177,6 +177,8 @@ class _Run:
     #: How it stood, and the counters, when she came in: what they were then is not news (LIVE 2026-10-07 "I have 0.").
     contest_first: str | None = None
     counters_first: dict[str, Any] | None = None
+    #: Keys the screen shows as pictures in play, and whether it asks for them now (core/agency/pressing_what_is_shown.py).
+    shown: Any = None
 
 
 # -- what she was told ---------------------------------------------------------
@@ -1298,6 +1300,9 @@ async def play_as_it_happens(
     run.lately = dict(keep.get("said_lately") or {})
     # What is said once ("That's me", what a kind of thing is worth) is said once a game, not once a stretch.
     run.said = set(keep.get("said_once") or ())
+    from core.agency.pressing_what_is_shown import KeysShown
+
+    run.shown = KeysShown(keep.get("keys_never_absent"))
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -1349,6 +1354,7 @@ async def play_as_it_happens(
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words)
+            run.shown.look(picture, at)
             violations = motion_checks.see(moves, happened, at, hers.number)
             if violations:
                 ended = "runtime contract violated"
@@ -1371,6 +1377,7 @@ async def play_as_it_happens(
                 logger.debug("letting go of %s failed: %s", run.held, why)
         if run.reading is not None:
             run.reading.cancel()
+        keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
                  "where_clicks_pay": run.clicks_pay,
@@ -1384,6 +1391,13 @@ async def play_as_it_happens(
 
 async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes,
                choosing: _Choosing, at: float, *, say: Any = None, rules: WhatTheRulesSaid | None = None) -> None:
+    # Keys the screen puts up mid-play are asked for now, before anything she had in mind (pressing_what_is_shown.py).
+    if run.shown is not None and run.shown.asks(at):
+        if run.held:
+            await hands.up(run.held)
+            run.held = ""
+        await run.shown.press(hands, say=lambda line: _say(run, say, line, at, once="keys shown"))
+        return
     # A thing taken for hers that did not answer her keys: try them again.
     if hers.lost_at > run.lost_at:
         run.lost_at, run.trying = hers.lost_at, 0

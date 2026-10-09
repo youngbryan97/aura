@@ -1,0 +1,91 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Held</title></head><body>
+<script src="world.js"></script>
+<script>
+// A body the arrows move, and a grabber that comes for it. Caught, the body
+// cannot move; the world draws two keys over it, left and right, lit by turns,
+// and only pressing them one after the other, fast, breaks it free. While it
+// is held it loses a life every few seconds. Nothing on the screen says this
+// in words: the keys are pictures.
+const SIZE = 22, CAP = 26, FREE_AFTER = 10, HELD_COSTS_S = 4;
+const game = {
+  title: "HELD", rules: ["Use the arrows to move.", "Do not get caught."],
+  reset(world) {
+    this.me = { x: 60, y: world.H / 2 - SIZE / 2, w: SIZE, h: SIZE };
+    this.freed = 0; this.caught = 0; this.held = null;
+    this.spawn(world, 1.5);
+  },
+  spawn(world, after) {
+    this.grabber = null; this.comes = after;
+  },
+  step(dt, world) {
+    const me = this.me;
+    if (this.comes !== null) {
+      this.comes -= dt;
+      if (this.comes <= 0) {
+        this.comes = null;
+        this.grabber = { x: world.W - 40, y: 40 + world.rand() * (world.H - 80), w: SIZE, h: SIZE };
+      }
+    }
+    if (this.held) {
+      const h = this.held;
+      h.for += dt; h.lit = Math.floor(h.for / 0.25) % 2;
+      for (const key of ["ArrowLeft", "ArrowRight"]) {
+        if (world.held.has(key) && !h.down.has(key)) {
+          h.down.add(key);
+          if (key !== h.last) { h.presses += 1; h.last = key; }
+        }
+        if (!world.held.has(key)) h.down.delete(key);
+      }
+      if (h.for >= h.costs) { h.costs += HELD_COSTS_S; world.lose(); }
+      if (h.presses >= FREE_AFTER) {
+        this.held = null; this.freed += 1; world.score = this.freed; world.freed = this.freed;
+        this.spawn(world, 2.5);
+      }
+      return;
+    }
+    const speed = 150 * dt;
+    if (world.held.has("ArrowLeft")) me.x -= speed;
+    if (world.held.has("ArrowRight")) me.x += speed;
+    if (world.held.has("ArrowUp")) me.y -= speed;
+    if (world.held.has("ArrowDown")) me.y += speed;
+    me.x = Math.max(0, Math.min(world.W - SIZE, me.x)); me.y = Math.max(40, Math.min(world.H - SIZE, me.y));
+    const g = this.grabber;
+    if (g) {
+      const dx = me.x - g.x, dy = me.y - g.y, far = Math.hypot(dx, dy) || 1;
+      g.x += (dx / far) * 120 * dt; g.y += (dy / far) * 120 * dt;
+      if (hits(g, me)) {
+        this.caught += 1; world.caught = this.caught;
+        this.held = { for: 0, lit: 0, presses: 0, last: "", down: new Set(), costs: HELD_COSTS_S };
+        g.x = me.x + SIZE; g.y = me.y;
+      }
+    }
+  },
+  backdrop(ctx) {
+    ctx.fillStyle = "#5a4a30"; ctx.fillRect(0, 0, 480, 320);
+  },
+  cap(ctx, x, y, way, lit) {
+    ctx.fillStyle = lit ? "#f2ffe0" : "#c8d8b0";
+    ctx.beginPath(); ctx.roundRect(x, y, CAP, CAP, 5); ctx.fill();
+    ctx.fillStyle = "#18240c";
+    const m = y + CAP / 2;
+    if (way < 0) {
+      ctx.fillRect(x + 11, m - 2, 10, 4);
+      ctx.beginPath(); ctx.moveTo(x + 4, m); ctx.lineTo(x + 12, m - 7); ctx.lineTo(x + 12, m + 7); ctx.fill();
+    } else {
+      ctx.fillRect(x + 5, m - 2, 10, 4);
+      ctx.beginPath(); ctx.moveTo(x + 22, m); ctx.lineTo(x + 14, m - 7); ctx.lineTo(x + 14, m + 7); ctx.fill();
+    }
+  },
+  draw(ctx) {
+    ctx.fillStyle = "#e05050"; ctx.fillRect(this.me.x, this.me.y, SIZE, SIZE);
+    if (this.grabber) { ctx.fillStyle = "#4a90d0"; ctx.fillRect(this.grabber.x, this.grabber.y, SIZE, SIZE); }
+    if (this.held) {
+      const x = this.me.x + SIZE / 2, y = Math.max(4, this.me.y - CAP - 10);
+      this.cap(ctx, x - CAP - 3, y, -1, this.held.lit === 0);
+      this.cap(ctx, x + 3, y, 1, this.held.lit === 1);
+    }
+  },
+  readouts(ctx, world) { scoreAndLives(ctx, world); },
+};
+playWorld(game);
+</script></body></html>

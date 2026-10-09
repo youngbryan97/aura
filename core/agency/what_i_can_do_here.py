@@ -208,11 +208,11 @@ class WhatWorksHere:
     #: The screens of this place and where each act on them led, across sittings.
     leads: WhereThingsLead = field(default_factory=WhereThingsLead)
 
-    def asked_for_by(self, words: str, clickable: Sequence[str] = ()) -> None:
-        """Keys the screen's own words ask her to press, and labels on it they ask her to click, while it is asking."""
+    def asked_for_by(self, words: str, clickable: Sequence[str] = (), drawn: Sequence[str] = ()) -> None:
+        """Keys the screen asks her to press, in its words or drawn as keys on it, and labels its words ask her to click."""
         from core.agency.playing_as_it_happens import controls_named_in
 
-        self.asked_for = keys_a_screen_asks_for(words)
+        self.asked_for = tuple(dict.fromkeys([*keys_a_screen_asks_for(words), *drawn]))
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
         keys, pointer = controls_named_in(words, keys_without_words=())
         # A screen that names no controls keeps what the game's own screens said before it: LIVE 2026-10-08 the rules
