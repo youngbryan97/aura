@@ -24,7 +24,7 @@ if any of them is not called from her live play or has no test.
 | click things | click things as they show or cross | `playing_as_it_happens._click_things` |
 | send | press, pull or hold, let go; set how hard and which way | `core/agency/playing_by_shots.py` |
 | time a press | press when something moving is at the right place | not yet |
-| jump | clear what comes at her, or a gap, with a jump | not yet (keeping clear of danger ahead with learned keys, not shown for jumps) |
+| jump | clear what comes at her, or a gap, with a press whose effect plays out over the next moment: learned as a curve by watching, made when its whole path is clear | `core/agency/what_a_press_does.py` |
 | a view going by | a world that scrolls past | `core/perception/how_the_scenery_goes_by.py` |
 | keys shown | press the keys a screen draws mid-play while it shows them, in turn and fast where several are lit by turns | `core/agency/pressing_what_is_shown.py` |
 | copy a sequence | do again, in order, what was shown | `core/agency/doing_again_what_was_shown.py` |

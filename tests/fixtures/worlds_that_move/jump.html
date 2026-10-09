@@ -1,0 +1,60 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Jump</title></head><body>
+<script src="world.js"></script>
+<script>
+// A runner the ground carries along, and things coming at her along the ground:
+// blocks to clear, or (with ?gaps=1) holes in the ground. Space lifts her and the
+// world pulls her back down; nothing else moves her. Meeting a block or a hole
+// costs a life; each one cleared is a point.
+const params = new URLSearchParams(location.search);
+const GAPS = params.get("gaps") === "1";
+const GROUND = 260, SIZE = 22, SPEED = 170, LIFT = 430, PULL = 1100;
+const game = {
+  title: "JUMP", rules: ["Press SPACE to jump.", GAPS ? "Do not fall in the holes." : "Do not run into the blocks."],
+  reset(world) {
+    this.me = { x: 90, y: GROUND - SIZE, vy: 0, w: SIZE, h: SIZE };
+    this.coming = []; this.next = 1.6; this.cleared = 0; this.hits = 0;
+  },
+  step(dt, world) {
+    const me = this.me;
+    const standing = me.y >= GROUND - SIZE - 0.5 && !this.overHole();
+    if (standing && world.held.has(" ")) me.vy = -LIFT;
+    me.vy += PULL * dt; me.y += me.vy * dt;
+    // Once down in a hole she cannot step back out of it.
+    if (me.y >= GROUND - SIZE && me.y <= GROUND - SIZE + 6 && !this.overHole()) { me.y = GROUND - SIZE; me.vy = 0; }
+    if (me.y > world.H) { this.hits += 1; world.hits = this.hits; world.lose(); me.y = GROUND - SIZE; me.vy = 0; this.coming = []; this.next = 1.2; }
+    this.next -= dt;
+    if (this.next <= 0) {
+      this.coming.push(GAPS ? { x: world.W, w: 64, hole: true } : { x: world.W, w: 18, h: 26, hole: false });
+      this.next = 1.4 + world.rand() * 1.2;
+    }
+    for (const c of this.coming) c.x -= SPEED * dt;
+    for (const c of [...this.coming]) {
+      if (!c.hole && hits({ x: c.x, y: GROUND - c.h, w: c.w, h: c.h }, me)) {
+        this.hits += 1; world.hits = this.hits; world.lose();
+        this.coming.splice(this.coming.indexOf(c), 1);
+      } else if (c.x + c.w < me.x && !c.passed) {
+        c.passed = true; this.cleared += 1; world.score = this.cleared; world.cleared = this.cleared;
+      }
+    }
+    this.coming = this.coming.filter((c) => c.x + c.w > -10);
+  },
+  overHole() {
+    const me = this.me;
+    return this.coming.some((c) => c.hole && me.x + 4 > c.x && me.x + SIZE - 4 < c.x + c.w);
+  },
+  backdrop(ctx) {
+    ctx.fillStyle = "#7ab8e8"; ctx.fillRect(0, 0, 480, 320);
+    ctx.fillStyle = "#6a4a2a"; ctx.fillRect(0, GROUND, 480, 320 - GROUND);
+  },
+  draw(ctx) {
+    for (const c of this.coming) {
+      if (c.hole) { ctx.fillStyle = "#101010"; ctx.fillRect(c.x, GROUND, c.w, 320 - GROUND); }
+      else { ctx.fillStyle = "#c03030"; ctx.fillRect(c.x, GROUND - c.h, c.w, c.h); }
+    }
+    ctx.fillStyle = "#f0e040"; ctx.fillRect(this.me.x, this.me.y, SIZE, SIZE);
+  },
+  readouts(ctx, world) { scoreAndLives(ctx, world); },
+};
+game.lives = 30;
+playWorld(game);
+</script></body></html>

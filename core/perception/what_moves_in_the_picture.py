@@ -113,6 +113,12 @@ KIND_ALIKE = 45 / 255.0
 #: Sizes within this ratio of each other are one size to the eye.
 PLAINLY_THE_SAME_SIZE = 1.6
 
+#: How far, in its own sizes, a thing may go between two pictures when it sets off suddenly (a jump, a dash) and
+#: still be followed as itself, and how alike in look it must be to be: a jump of a 22-pixel body at 430 pixels a
+#: second is two of its sizes in a picture at 15 a second.
+LEAP_SIZES = 4.0
+SAME_LOOK = 0.4
+
 
 @dataclass
 class Thing:
@@ -301,6 +307,11 @@ class WhatMoves:
     @property
     def has_looked(self) -> bool:
         """Whether the first look at this screen is over, and what differs from it is followed."""
+        return self._backdrop is not None
+
+    @property
+    def seeing(self) -> bool:
+        """Whether the first look at this screen is done, so what happens on it can be told from what was there."""
         return self._backdrop is not None
 
     def _first_look(self, small: np.ndarray, at: float) -> bool:
@@ -554,7 +565,33 @@ class WhatMoves:
                 continue
             matched[number] = index
             taken.add(index)
+        # A thing that set off faster than it was going is still itself: what went from here and what came there
+        # look the same. LIVE-like 2026-10-09 a body standing still that jumped went 15 working pixels between
+        # pictures against a reach of 11, was taken for a new thing at every jump, and no press was ever seen to move it.
+        leaps = sorted((cost, number, index)
+                       for number, thing in {**self.things, **self.pending}.items() if number not in matched
+                       for index, blob in enumerate(blobs) if index not in taken
+                       if (cost := self._leap_cost(thing, blob, at)) < math.inf)
+        for _cost, number, index in leaps:
+            if number in matched or index in taken:
+                continue
+            matched[number] = index
+            taken.add(index)
         return matched, [index for index in range(len(blobs)) if index not in taken]
+
+    def _leap_cost(self, thing: Thing, blob: dict[str, Any], at: float) -> float:
+        """How far a blob is from where a thing was last seen, in reaches of a sudden move; inf where it is not the
+        thing: farther than a few of its sizes, or not of the same look, size and shape."""
+        dt = max(1e-3, at - thing.seen)
+        px, py = _measured(thing)
+        reach = 6.0 + 1.5 * math.hypot(thing.vx, thing.vy) * dt + LEAP_SIZES * max(thing.w, thing.h)
+        distance = math.hypot(blob["x"] - px, blob["y"] - py) / reach
+        looks = _look_apart(thing.look, blob["look"])
+        aspect = (blob["w"] / max(1.0, blob["h"])) / (thing.w / max(1.0, thing.h))
+        ratio = max(blob["w"] * blob["h"], thing.size) / max(1.0, min(blob["w"] * blob["h"], thing.size))
+        if distance > 1.0 or looks > SAME_LOOK or max(aspect, 1.0 / max(1e-6, aspect)) > PLAINLY_THE_SAME_SIZE or ratio > PLAINLY_THE_SAME_SIZE:
+            return math.inf
+        return distance + looks
 
     def _moved(self, thing: Thing, blob: dict[str, Any], at: float) -> None:
         dt = max(1e-3, at - thing.seen)

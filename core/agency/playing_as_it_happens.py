@@ -53,6 +53,20 @@ TRY_A_KEY_S = 0.45
 #: How far ahead she looks for anything she might walk into.
 DANGER_AHEAD_S = (0.08, 0.16, 0.28, 0.42, 0.6)
 
+def _times_to(lasts: float) -> tuple[float, ...]:
+    """The moments a press's path is looked at: the near ones, then a tenth of a second apart to its end."""
+    later = []
+    step = DANGER_AHEAD_S[-1] + 0.1
+    while step <= lasts + 1e-9:
+        later.append(round(step, 3))
+        step += 0.1
+    return (*DANGER_AHEAD_S, *later)
+
+
+#: How much less a press's path must meet than holding her course does, for the press to be made: half, so a press
+#: is made for what it clears and not for a near tie.
+CLEARER = 0.5
+
 #: How often the counters on the screen are read. Reading takes a tenth of a
 #: second off to one side and is never waited for.
 READ_EVERY_S = 0.5
@@ -179,6 +193,11 @@ class _Run:
     counters_first: dict[str, Any] | None = None
     #: Keys the screen shows as pictures in play, and whether it asks for them now (core/agency/pressing_what_is_shown.py).
     shown: Any = None
+    #: What each press does over the moment after it (core/agency/what_a_press_does.py), the things in the last
+    #: picture, and presses made beside the key held, each with when to let it go.
+    presses: Any = None
+    things: dict = field(default_factory=dict)
+    letting_go: dict[str, float] = field(default_factory=dict)
 
 
 # -- what she was told ---------------------------------------------------------
@@ -464,7 +483,7 @@ class _Choosing:
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
                  physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
                  response_s: float = 0.0, covered: tuple[set[tuple[int, int]], float] | None = None,
-                 barred: tuple[set[tuple[int, int]], float] | None = None) -> None:
+                 barred: tuple[set[tuple[int, int]], float] | None = None, presses: Any = None) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
         #: Where the rules ask for a place to be gone over, the cells of it her thing has been over; else None.
         self.covered = covered
@@ -475,6 +494,11 @@ class _Choosing:
         self.response_s = response_s
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
+        # A key that lifts her and lets her fall is pressed for what its press does, not held as a way to go.
+        self.lifts = (presses.lifts(self.mine.kind, max(float(self.mine.w), float(self.mine.h)), self.mine.number)
+                      if presses is not None and self.mine is not None else [])
+        for lift in self.lifts:
+            self.ways.pop(lift, None)
         self.across, self.updown = hers.follows_along if hers.follows_pointer else hers.axes(keys)
         self.pointing = hers.follows_pointer
         shots = hers.makes
@@ -644,6 +668,31 @@ class _Choosing:
         return (best[1], best[2]) if best is not None else None
 
     def danger(self, way: tuple[float, float]) -> float:
+        return self.danger_along(lambda after: (way[0] * after, way[1] * after))
+
+    def a_press_that_clears(self, presses: Any, held: str) -> str | None:
+        """A key whose press takes her clear of what is coming where holding ``held`` on runs into it; else None."""
+        way = self.ways.get(held, (0.0, 0.0))
+        staying = self.danger(way)
+        if staying <= 0.0 or presses is None:
+            return None
+        best: tuple[float, str] | None = None
+        for key in self.lifts:
+            path = presses.path(key, self.mine.kind, self.mine.number)
+            if key == held or path is None:
+                continue
+            # Judged over all of what the press does, not only the next moment: a jump that clears what is near and
+            # lands on it is no way clear (offline 2026-10-09: jumps made 0.7 s early landed on the block each time).
+            lasts = max(DANGER_AHEAD_S[-1], presses.lasts(key, self.mine.kind, self.mine.number))
+            risk = self.danger_along(lambda after, p=path: (way[0] * after + p(after)[0], way[1] * after + p(after)[1]),
+                                     times=_times_to(lasts))
+            if risk < CLEARER * staying and (best is None or risk < best[0]):
+                best = (risk, key)
+        return best[1] if best is not None else None
+
+    def danger_along(self, path: Callable[[float], tuple[float, float]], times: Sequence[float] = DANGER_AHEAD_S) -> float:
+        """How soon and how often her thing, taken along ``path`` (seconds to displacement), meets what to keep clear of,
+        looked at ``times`` seconds ahead."""
         mine = self.mine
         threats = [t for t in self.others() if self.stance(t) in (AVOID,) or self.stance(t) == SHOOT]
         if not threats:
@@ -652,9 +701,10 @@ class _Choosing:
         low_x, high_x = mine.w / 2, wide - mine.w / 2
         low_y, high_y = mine.h / 2, tall - mine.h / 2
         total = 0.0
-        for after in DANGER_AHEAD_S:
-            x = min(max(mine.x + way[0] * after, low_x), high_x) if high_x >= low_x else mine.x
-            y = min(max(mine.y + way[1] * after, low_y), high_y) if high_y >= low_y else mine.y
+        for after in times:
+            dx, dy = path(after)
+            x = min(max(mine.x + dx, low_x), high_x) if high_x >= low_x else mine.x
+            y = min(max(mine.y + dy, low_y), high_y) if high_y >= low_y else mine.y
             box = _moved_box(mine.box(), x - mine.x, y - mine.y, 2.0)
             for thing in threats:
                 tx, ty = thing.where_at(after)
@@ -897,10 +947,14 @@ async def _hold(hands: Any, run: _Run, hers: WhichIsHers, key: str, at: float, *
     if key != run.held:
         if run.held:
             await hands.up(run.held)
+            if run.presses is not None:
+                run.presses.released(run.held, time.monotonic())
         dispatched = time.monotonic()
         if key:
             await hands.down(key)
             run.input_key_downs[key] += 1
+            if run.presses is not None:
+                run.presses.pressed(key, dispatched, run.things.values(), hers.number)
         run.responses.append(max(0.0, time.monotonic() - at))
     delivered = time.monotonic()
     if key and key != run.held:
@@ -1303,6 +1357,9 @@ async def play_as_it_happens(
     from core.agency.pressing_what_is_shown import KeysShown
 
     run.shown = KeysShown(keep.get("keys_never_absent"))
+    from core.agency.what_a_press_does import WhatAPressDoes
+
+    run.presses = keep.get("presses") or WhatAPressDoes()
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -1347,9 +1404,12 @@ async def play_as_it_happens(
                                  response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
                                              else statistics.median(run.responses) if run.responses else 0.0),
                                  covered=(run.covered | run.barred, run.cell) if goes_over and run.cell else None,
-                                 barred=(run.barred, run.cell) if run.cell else None)
-            if choosing.mine is not None and (choosing.ways or choosing.pointing):
+                                 barred=(run.barred, run.cell) if run.cell else None, presses=run.presses)
+            if choosing.mine is not None and (choosing.ways or choosing.lifts or choosing.pointing):
                 run.responsive_pictures += 1
+            run.things = moves.things
+            run.presses.saw(moves.things, at)
+            await _let_go_of_presses(hands, run, at)
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
@@ -1370,17 +1430,17 @@ async def play_as_it_happens(
             _report(run, getting_somewhere, at)
             ended = _over(run, moves, happened, at) or _nothing_answers(run, hers, meeting, at)
     finally:
-        if run.held:
+        for key in [run.held, *run.letting_go] if run.held else list(run.letting_go):
             try:
-                await hands.up(run.held)
+                await hands.up(key)
             except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as why:
-                logger.debug("letting go of %s failed: %s", run.held, why)
+                logger.debug("letting go of %s failed: %s", key, why)
         if run.reading is not None:
             run.reading.cancel()
         keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
-                 "where_clicks_pay": run.clicks_pay,
+                 "where_clicks_pay": run.clicks_pay, "presses": run.presses,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
@@ -1397,6 +1457,9 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
             await hands.up(run.held)
             run.held = ""
         await run.shown.press(hands, say=lambda line: _say(run, say, line, at, once="keys shown"))
+        return
+    # A key pressed before she can see what it does tells her nothing: the first look at a screen takes its measure.
+    if not getattr(moves, "seeing", True):
         return
     # A thing taken for hers that did not answer her keys: try them again.
     if hers.lost_at > run.lost_at:
@@ -1427,7 +1490,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         await _trigger(hands, run, hers, choosing, aim, why, at, rules=rules)
         await _point_at(hands, run, hers, moves, choosing, at)
         return
-    if choosing.mine is None or not choosing.ways:
+    if choosing.mine is None or not (choosing.ways or choosing.lifts):
         # Held, having moved before: where the words say to press keys in turn, fast, that is how she breaks free.
         if run.burst_keys and hers.kind is not None and at - run.burst_at >= BURST_EVERY_S:
             await _burst(hands, run, at, say=say)
@@ -1486,7 +1549,37 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         mine = choosing.mine
         run.previous_control = (mine.number, mine.x, mine.y, at, before, after)
     await _hold(hands, run, hers, key, at)
+    await _press_to_get_clear(hands, run, hers, choosing, key, at, say)
     await _trigger(hands, run, hers, choosing, aim, why, at, rules=rules)
+
+
+async def _press_to_get_clear(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing, held: str, at: float,
+                              say: Any) -> None:
+    """A press beside the key held, where the path it takes her on (core/agency/what_a_press_does.py) is clear of what
+    is coming and holding her course is not: over a thing running at her, across a gap, out of the way of a fall."""
+    if run.letting_go or choosing.mine is None:
+        return
+    press = choosing.a_press_that_clears(run.presses, held)
+    if press is None:
+        return
+    began = time.monotonic()
+    await hands.down(press)
+    run.input_key_downs[press] += 1
+    run.presses.pressed(press, began, run.things.values(), choosing.mine.number)
+    run.letting_go[press] = began + run.presses.held_for(press, THE_PRESS_S)
+    hers.pressed_beside(began + max(run.presses.lasts(press, choosing.mine.kind, choosing.mine.number),
+                                    run.letting_go[press] - began))
+    _say(run, say, f"{press.capitalize()} lifts me clear of what comes at me; I'm using it when something is about to.",
+         at, once="a press that clears")
+
+
+async def _let_go_of_presses(hands: Any, run: _Run, at: float) -> None:
+    """Let go of each press made beside the held key once it has been held as long as it was when it was watched."""
+    for key, when in list(run.letting_go.items()):
+        if time.monotonic() >= when:
+            await hands.up(key)
+            run.presses.released(key, time.monotonic())
+            del run.letting_go[key]
 
 
 async def _trigger(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing,

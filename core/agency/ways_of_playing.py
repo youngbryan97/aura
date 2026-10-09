@@ -42,6 +42,10 @@ WAYS: tuple[Way, ...] = (
     Way("type", "type what a screen asks for (a name, a question, an answer, something to look for), where it points",
         "core.agency.typing_what_is_asked:type_what_is_asked", "core.skills.screen_pursuit_as_it_happens",
         "tests/test_what_a_screen_asks_to_have_typed_is_typed.py"),
+    Way("jump", "a press whose effect plays out over the next moment (a jump, a dash, a dodge), learned by watching and made "
+        "when the path it takes her on is clear of what holding her course runs into",
+        "core.agency.what_a_press_does:WhatAPressDoes", "core.agency.playing_as_it_happens",
+        "tests/test_what_a_press_does_over_time.py"),
     Way("keys shown", "press the keys a screen shows as pictures mid-play, while it shows them: in turn and fast where several are",
         "core.agency.pressing_what_is_shown:KeysShown", "core.agency.playing_as_it_happens",
         "tests/test_keys_a_screen_shows_are_pressed.py"),

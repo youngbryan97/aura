@@ -163,19 +163,19 @@ class _Speeds:
         # Each key needs repeated trials. One transient object seen during
         # one press can otherwise produce an enormous ratio by chance.
         groups = {key: values for key, values in presses.items() if len(values) >= 2}
+        # What a press sets going goes on after it is let go: a jump's fall is in the rest after it, and rests counted
+        # as trials of doing nothing then held a still body and a falling one, too unlike to compare (offline
+        # 2026-10-09, the runner's ratio 2.2 against her keys). Doing nothing is a trial only where fewer than two
+        # keys have been tried, and is then the only thing to compare a key with.
+        if sum(1 for key in groups if key) >= 2:
+            groups.pop("", None)
         if len(groups) < 2:
             return 0.0, 0.0
-        means = {key: _mean(values) for key, values in groups.items()}
-        everyone = [value for values in groups.values() for value in values]
-        grand = _mean(everyone)
-        between = sum(len(groups[key]) * _apart2(means[key], grand) for key in groups)
-        within = sum(_apart2(value, means[key]) for key, values in groups.items() for value in values)
-        k, n = len(groups), len(everyone)
-        if n <= k:
-            return 0.0, 0.0
-        f = (between / (k - 1)) / max(1e-6, within / (n - k))
-        widest = max(math.dist(a, b) for a in means.values() for b in means.values())
-        return f, widest
+        # A press's speeds, and how fast it went in all: a press that lifts a thing and lets it fall averages out to
+        # going nowhere, though it went somewhere every time and nowhere under any other key. The stronger of the two
+        # readings stands; a thing whose pace is the same whatever she presses (a ball) answers to neither.
+        by_pace = {key: [(math.hypot(*value), 0.0) for value in values] for key, values in groups.items()}
+        return max(_contingency(groups), _contingency(by_pace))
 
     def typical(self, key: str) -> tuple[float, float] | None:
         """The middle speed under a key: a picture matched to the wrong thing does not move it.
@@ -191,6 +191,20 @@ class _Speeds:
         if len(values) < ENOUGH:
             return None
         return statistics.median(v[0] for v in values), statistics.median(v[1] for v in values)
+
+
+def _contingency(groups: dict[str, list[tuple[float, float]]]) -> tuple[float, float]:
+    """The F ratio of a one-way analysis of variance over the keys' presses, and the widest gap between two keys' means."""
+    means = {key: _mean(values) for key, values in groups.items()}
+    everyone = [value for values in groups.values() for value in values]
+    grand = _mean(everyone)
+    between = sum(len(groups[key]) * _apart2(means[key], grand) for key in groups)
+    within = sum(_apart2(value, means[key]) for key, values in groups.items() for value in values)
+    k, n = len(groups), len(everyone)
+    if n <= k:
+        return 0.0, 0.0
+    f = (between / (k - 1)) / max(1e-6, within / (n - k))
+    return f, max(math.dist(a, b) for a in means.values() for b in means.values())
 
 
 def _ambiguous_controls_remain_unknown() -> bool:
@@ -282,6 +296,8 @@ class WhichIsHers(FollowsThePointer):
         self._held: deque = deque(maxlen=400)
         self._by_thing: dict[int, _Speeds] = defaultdict(_Speeds)
         self._by_kind: dict[int, _Speeds] = defaultdict(_Speeds)
+        #: Until when a press made beside the key held is still moving her: what she does then is not that key's.
+        self._beside_until = -math.inf
         #: How whichever thing was hers at the time moved under each key. Not
         #: by kind: the other player's paddle looks just like hers.
         self._hers = _Speeds()
@@ -330,6 +346,15 @@ class WhichIsHers(FollowsThePointer):
         if self.last_seen is not None:
             self._taps.append(_Tap(key, began, at, self.last_seen))
             self._pressed[key] += 1
+
+    def pressed_beside(self, until: float) -> None:
+        """A press made beside the key held moves her until ``until``: that motion teaches nothing of the held key.
+
+        Offline 2026-10-09 a runner held "up" and pressed space to clear a
+        block; the jump was put down to up, up was learned to lift her and then
+        to drop her, and holding it without jumping she disowned her own body.
+        """
+        self._beside_until = max(self._beside_until, until)
 
     def _held_at(self, at: float) -> tuple[float, str, bool] | None:
         for began, key, trying in reversed(self._held):
@@ -542,7 +567,7 @@ class WhichIsHers(FollowsThePointer):
                                                    settled=press is not None, position=(thing.x, thing.y))
                     self._by_kind[thing.kind].add(key, thing.vx, thing.vy, press=press,
                                                  settled=press is not None)
-                if thing.number == self.number:
+                if thing.number == self.number and at >= self._beside_until:
                     self._hers.add(key, thing.vx, thing.vy, pinned=self._pinned(thing),
                                    settled=press is not None, position=(thing.x, thing.y), at=at)
                     self._answering(thing, key, at - began, at)
@@ -571,6 +596,8 @@ class WhichIsHers(FollowsThePointer):
         best = self.identification.choose(witnesses, visible=set(moves.things),
                                           established=self.number, excluded=self.not_mine)
         if best is None:
+            best = self._the_one_of_a_kind_that_answers(moves)
+        if best is None:
             best = gone_the_ways_of_the_keys(self, moves)
         if best is None and self.lost():
             best = self._found_by_her_controls(moves)
@@ -588,6 +615,30 @@ class WhichIsHers(FollowsThePointer):
             if self.number is not None:
                 logger.info("her thing goes on as %s, the one of her kind within reach", self.number)
         self._remember_own_thing(moves, at)
+
+    def _the_one_of_a_kind_that_answers(self, moves: Any) -> int | None:
+        """Where no one thing's presses answer her keys, the kind whose do, where one thing of it is on the screen.
+
+        A thing's number does not outlast its being lost to sight: met by
+        something, a body is one patch with it for a picture and comes out
+        under a new number, and its presses are split between the two
+        (offline 2026-10-09, a runner met by the first block during her trials
+        of her keys: one press of each, under two numbers, and no answer). Its
+        kind outlasts that, and a kind with one thing of it on the screen is
+        that thing.
+        """
+        witnesses = []
+        for kind, speeds in self._by_kind.items():
+            things = [t for t in moves.things.values() if t.kind == kind and t.moved and t.number not in self.not_mine]
+            if len(things) != 1:
+                continue
+            f, widest = speeds.ratio()
+            trials: dict[str, int] = defaultdict(int)
+            for (key, _press), values in speeds.by_press.items():
+                if len(values) >= 2:
+                    trials[key] += 1
+            witnesses.append(CausalWitness(things[0].number, self.identification.epoch, tuple(sorted(trials.items())), f, widest))
+        return self.identification.choose(witnesses, visible=set(moves.things), established=None, excluded=self.not_mine)
 
     def _remember_own_thing(self, moves: Any, at: float | None) -> None:
         """Keep the observed pose for every established control, including the pointer."""
