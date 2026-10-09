@@ -296,7 +296,9 @@ class PlayingAsItHappens:
         if not self.keep.get("hers") and not self.recalled:
             self.recalled = True
             self.keep.update(_what_she_kept_of(self.page))
-        named, pointer_first = controls_named_in(" ".join([self.goal, *self.words[-6:]]),
+        # What the place's screens said, and what taking stock found out (core/cognition/taking_stock.py), read alike.
+        read = " ".join([self.goal, *self.words[-6:], str(self.keep.get("counsel") or "")])
+        named, pointer_first = controls_named_in(read,
                                                 keys_without_words=(), during_play=True)
         # The game's controls are every key any of its screens has named, not
         # only this screen's: LIVE 2026-10-04 a run begun from the end screen
@@ -317,7 +319,7 @@ class PlayingAsItHappens:
             self.look, self, keys=keys, seconds=min(STRETCH_S, self.ends_at - now),
             say=_said_while_playing, read_words=recognize_text, keep=self.keep,
             pointer_first=pointer_first, getting_somewhere=_getting_somewhere,
-            told=" ".join([self.goal, *self.words[-6:]]),
+            told=read,
             waits_for_her=self.under_her_hand,
         )
         self.stretches.append(stretch)

@@ -327,7 +327,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     deadline = time.monotonic() + (share if until_won or limit > 1 else _one_run_s())
     contract = step.get("runtime_contract") or {}
     keep: dict[str, Any] = {"required_edges": contract.get("required_edges") or [],
-                            "edge_provenance": contract.get("provenance") or ""}
+                            "edge_provenance": contract.get("provenance") or "", "stock": _a_stocktaking(goal, page)}
     runs: list[dict[str, Any]] = []
     moves: list[Any] = []
     result: dict[str, Any] = {}
@@ -384,8 +384,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         # break, could never be reached, and a game was left after four minutes with nothing said.
         if (until_won and run["ended"] != "won" and not reflexes.over_because
                 and time.monotonic() - started >= ROUND_S - 20.0 and time.monotonic() < deadline):
-            if run["gains"] > 0 or reflexes.new_screens:
-                runs.pop()  # the same round, still getting somewhere (scoring, or reaching screens not seen): played on
+            if run["gains"] > 0 or reflexes.new_screens or await _stopped_to_take_stock(STUCK_HERE, goal, reflexes, run, runs, keep, deadline):
+                runs.pop()  # the same round, still getting somewhere, or with something new to go by: played on
                 continue
             if terms.until_the_end and shape != MEASURE:
                 # Asked to carry it through to its end, a round that gained nothing is begun again from the top.
@@ -397,12 +397,10 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             result["stopped_because"] = "getting nowhere in it"
             break
         if (until_won and run["ended"] == "won") or len(runs) >= limit or not reflexes.over_because:
-            # The run that ends it is told as it ends too: a win heard of
-            # only in the reply afterwards was not seen by anyone watching.
-            if run["ended"]:
-                _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
+            _the_last_run_said(run, runs, keep)
             break
-        if until_won and not_getting_better(runs) and not terms.until_the_end:
+        if until_won and not_getting_better(runs) and not terms.until_the_end and not await _stopped_to_take_stock(
+                STUCK_HERE, goal, reflexes, run, runs, keep, deadline):
             # A person keeps at a game while they are getting better at it, and says so when they are not.
             _tell(f"That's {len(runs)} rounds, and the last two went no better than my best; I'll leave this one here.")
             run["ended"] = run["ended"] or "lost"
@@ -414,9 +412,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             _tell(f"This game has no winner, only a score, and the run is done: {run['words'][:80]!r}.")
             break
         # The screen's own words the first time; after that, the round counted: six of the same line read as one.
-        _tell(f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned." if len(runs) == 1
-              else f"Round {len(runs)}: {run['ended'] or 'over'}. Again.")
-        begin_run(keep)
+        await _between_runs(goal, reflexes, run, runs, keep, deadline)
     if time.monotonic() >= deadline and not any(r["ended"] == "won" for r in runs) and not result.get("stopped_because"):
         _tell("I've given this one its share of the time, and I leave it here.")
         result["stopped_because"] = "its share of the time is up"
@@ -450,6 +446,53 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         "the_ask_does_not_apply": result.get("stopped_because") in (NOTHING_TO_WIN, PLAYED_FOR_ITS_BEST, MADE_AS_ASKED),
         "best_score": max(scores) if scores else None,
     }
+
+
+#: Why she stops to take stock when a round gains nothing (core/cognition/taking_stock.py).
+STUCK_HERE = "I'm getting nowhere"
+
+
+def _a_stocktaking(goal: str, page: Any) -> Any:
+    from core.skills.sovereign_browser_taking_stock import Stocktaking, the_thing
+
+    return Stocktaking(the_thing(goal, str(getattr(page, "url", "") or "")))
+
+
+async def _stopped_to_take_stock(why: str, goal: str, reflexes: Any, run: dict[str, Any], runs: list[dict[str, Any]],
+                                 keep: dict[str, Any], deadline: float) -> bool:
+    """Taken stock, while the thing waits for her, with something found to go by (core/skills/sovereign_browser_taking_stock.py)."""
+    stock = keep.get("stock")
+    if stock is None or stock.taken >= 1 and why == STUCK_HERE and stock.counsel is not None:
+        return False
+    return bool(await stock.take(why, goal, list(reflexes.words), run["words"], runs, keep, deadline))
+
+
+def _the_last_run_said(run: dict[str, Any], runs: list[dict[str, Any]], keep: dict[str, Any]) -> None:
+    """The run that ends it, told as it ends (a win heard of only in the reply afterwards was not seen by anyone
+    watching), and what she went by in it judged by how it ended: a win after counsel is counsel that helped."""
+    if run["ended"]:
+        _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
+    stock = keep.get("stock")
+    if stock is not None and stock.counsel is not None and run["ended"] == "won":
+        stock.judge(runs)
+
+
+async def _between_runs(goal: str, reflexes: Any, run: dict[str, Any], runs: list[dict[str, Any]], keep: dict[str, Any],
+                        deadline: float) -> None:
+    """A run lost and another begun: how it ended said, the counsel in force judged, and stock taken where she keeps
+    losing (core/skills/sovereign_browser_taking_stock.py)."""
+    from core.skills.screen_pursuit_as_it_happens import begin_run
+
+    # The screen's own words the first time; after that, the round counted: six of the same line read as one.
+    _tell(f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned." if len(runs) == 1
+          else f"Round {len(runs)}: {run['ended'] or 'over'}. Again.")
+    stock = keep.get("stock")
+    if stock is not None:
+        stock.judge(runs)
+        why = stock.due(runs)
+        if why:
+            await stock.take(why, goal, list(reflexes.words), run["words"], runs, keep, deadline)
+    begin_run(keep)
 
 
 #: How long she keeps playing a game she was asked to win, in all.

@@ -103,6 +103,9 @@ class _Run:
     new_screen_at: float = -math.inf
     clicked: dict[int, float] = field(default_factory=dict)
     last_click: float = -math.inf
+    #: Keys the words say to press in turn, fast (core/agency/playing_as_it_happens.py `keys_pressed_fast`), and when last.
+    burst_keys: list[str] = field(default_factory=list)
+    burst_at: float = -math.inf
     last_trigger_began: float = -math.inf
     #: Where in the picture a click at nothing in particular has paid (core/agency/where_clicks_pay.py).
     clicks_pay: Any = None
@@ -222,6 +225,69 @@ def _a_key_is_meant(lowered: str, way: str) -> bool:
                for at, word in enumerate(words))
 
 
+#: A single letter named as a key: "the X key", "X key"; or a capital after a word for pressing, or before what it is
+#: for: "press Z", "Z to shoot". Read in the case it was written: "press a button" names no key called A.
+_A_LETTER_KEY = re.compile(
+    r"\b(?:the\s+)?([A-Za-z])\s+key\b"
+    r"|\b(?:press|hit|tap|hold|use|push)\s+(?:the\s+)?[\"'“]?([A-Z])[\"'”]?(?![\w'])(?:\s+(?:key\s+)?to\s+([a-z]+))?"
+    r"|(?<![\w'])([A-Z])\s+to\s+([a-z]+)\b")
+
+#: What a key pressed only to begin or begin again is for: the menu's, not play's.
+_TO_BEGIN = frozenset({"start", "begin", "restart", "continue", "play", "pause", "quit"})
+
+
+def _letter_keys(text: str, *, during_play: bool = False) -> list[str]:
+    """Letter keys a game's own words name (LIVE 2026-10-09 "grenades (activated with the X key)" was not read as one)."""
+    keys: list[str] = []
+    for match in _A_LETTER_KEY.finditer(text):
+        letter = match.group(1) or match.group(2) or match.group(4)
+        purpose = (match.group(3) or match.group(5) or "").lower()
+        if not letter or (match.group(4) and letter in "IA"):
+            continue
+        if during_play and purpose in _TO_BEGIN:
+            continue
+        if letter.lower() not in keys:
+            keys.append(letter.lower())
+    return keys
+
+
+#: Words that say keys are pressed in turn and fast: "press left and right rapidly", "tap space repeatedly".
+_FAST = re.compile(r"\b(?:rapidly|repeatedly|quickly|as fast as|mash\w*|alternat\w*|in turn|over and over|again and again)\b",
+                   re.I)
+
+#: How long a burst of presses lasts, how often one may come, and the time between presses in it, in seconds.
+BURST_S = 1.5
+BURST_EVERY_S = 3.0
+BURST_TAP_S = 0.06
+
+
+def keys_pressed_fast(text: str) -> list[str]:
+    """The keys a sentence says to press in turn and fast, one or two of them (LIVE 2026-10-09 a game wanted left and
+    right pressed in turn, fast, when she was caught, and she pressed each a second at a time)."""
+    keys: list[str] = []
+    for sentence in re.split(r"(?<=[.!?])\s+", str(text or "")):
+        if not _FAST.search(sentence):
+            continue
+        named, _pointer = controls_named_in(sentence, keys_without_words=(), during_play=True)
+        if 1 <= len(named) <= 2:
+            keys += [key for key in named if key not in keys]
+    return keys[:2]
+
+
+async def _burst(hands: Any, run: _Run, at: float, *, say: Any = None) -> None:
+    """The keys pressed in turn, as fast as a person can, for a moment."""
+    if run.held:
+        await hands.up(run.held)
+        run.held = ""
+    _say(run, say, f"Pressing {' and '.join(run.burst_keys)} in turn, fast, as I read I should.", at, once="burst")
+    began, n = time.monotonic(), 0
+    while time.monotonic() - began < BURST_S:
+        await hands.tap(run.burst_keys[n % len(run.burst_keys)])
+        n += 1
+        await asyncio.sleep(BURST_TAP_S)
+    run.burst_at = at
+
+
 def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space"),
                       during_play: bool = False) -> tuple[list[str], bool]:
     """The keys a game's own words name, and whether they name the pointer.
@@ -260,6 +326,7 @@ def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "
         if any((name in words) if " " not in name else (name in lowered) for name in names):
             keys.extend(key for key in meant if key not in keys)
     keys.extend(key for key in keys_named_in(lowered) if key not in keys)
+    keys.extend(key for key in _letter_keys(str(text or ""), during_play=during_play) if key not in keys)
     pointer = any(word in words or word + "s" in words for word in _POINTER_WORDS)
     if not keys:
         keys = list(keys_without_words)
@@ -1222,6 +1289,7 @@ async def play_as_it_happens(
     run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first,
                contest=keep.get("contest") or ContestStands(), waits_for_her=waits_for_her)
     run.pointer_trigger = rules is not None and rules.a_click_is_a_shot
+    run.burst_keys = keys_pressed_fast(told)
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
     run.clicks_pay = keep.get("where_clicks_pay")
@@ -1346,6 +1414,10 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         await _point_at(hands, run, hers, moves, choosing, at)
         return
     if choosing.mine is None or not choosing.ways:
+        # Held, having moved before: where the words say to press keys in turn, fast, that is how she breaks free.
+        if run.burst_keys and hers.kind is not None and at - run.burst_at >= BURST_EVERY_S:
+            await _burst(hands, run, at, say=say)
+            return
         if run.keys and run.trying >= 4 * len(run.keys) and at - run.tried_at >= RECHECK_CONTROLS_S:
             run.trying = 0
             run.control_probe_retries += 1
