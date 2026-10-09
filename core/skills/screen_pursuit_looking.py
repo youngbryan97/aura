@@ -832,7 +832,9 @@ def _where_the_way_on_was(observation: dict[str, Any], clickable: Any, says: str
         return clickable
     labels = [what_is_clicked(move) or "" for move in clickable]
     ways_on = [label for label in labels if how_much_it_leads_on(label) >= 1.4 and not label.startswith("the ")]
-    choosing = asks_to_choose(says)
+    # Read with its labels too: a screen's heading can be read as a thing to click ("Please Select Number Of Players").
+    said = " ".join([says or "", *labels])
+    choosing = asks_to_choose(said)
     # On a screen that asks her to choose, the choices are not its way on: what goes on after a choice is.
     if ways_on and not choosing:
         at = where_to_click(observation, ways_on[0])
@@ -841,7 +843,7 @@ def _where_the_way_on_was(observation: dict[str, Any], clickable: Any, says: str
         return clickable
     held = paced.get("way_on_at")
     own = [label for label in labels if label and label != THE_PICTURE]
-    if not held or held[2] == says or held[0] in labels or not (reads_as_rules(says) or choosing or not own):
+    if not held or held[2] == says or held[0] in labels or not (reads_as_rules(said) or choosing or not own):
         return clickable
     label, (x, y), _said = held
     observation.setdefault("shapes", []).append({"text": label, "center_x": x, "center_y": y, "shape": True})

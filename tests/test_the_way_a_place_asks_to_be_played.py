@@ -231,3 +231,16 @@ def test_a_way_on_is_looked_for_where_it_was_on_a_screen_that_asks_her_to_choose
     choose = {"layout": [{"text": "1 Player", "center_x": 0.4, "center_y": 0.55}, {"text": "back", "center_x": 0.7, "center_y": 0.72}]}
     offered = _where_the_way_on_was(choose, (a_click_on("1 Player"), a_click_on("back")), "Please Select Number Of Players", paced)
     assert a_click_on("next") in offered
+
+
+def test_a_heading_read_as_a_label_still_says_the_screen_asks_her_to_choose():
+    """LIVE 2026-10-09 "Please Select Number Of Players" was read as a thing to click, not as the screen's words."""
+    from core.agency.what_i_can_do_here import a_click_on
+    from core.skills.screen_pursuit_looking import _where_the_way_on_was
+
+    paced: dict = {}
+    _where_the_way_on_was({"layout": [{"text": "next", "center_x": 0.86, "center_y": 0.72}]}, (a_click_on("next"),),
+                          "Welcome to the island", paced)
+    choose = {"layout": [{"text": "Please Select Number Of Players", "center_x": 0.4, "center_y": 0.25}]}
+    moves = (a_click_on("Please Select Number Of Players"), a_click_on("1 Player"), a_click_on("back"))
+    assert a_click_on("next") in _where_the_way_on_was(choose, moves, "", paced)
