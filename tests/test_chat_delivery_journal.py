@@ -1092,3 +1092,29 @@ async def test_authenticated_status_endpoint_returns_live_progress(
     assert payload["terminal"] is False
     assert payload["progress"]["phase"] == "verifying"
     assert payload["progress"]["details"] == {"receipts": 2}
+
+
+@pytest.mark.asyncio
+async def test_a_turn_left_running_by_a_process_that_is_gone_is_settled_without_waiting_out_its_lease(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LIVE 2026-10-09 after a restart the chat said "reconciling the current turn" for the three minutes of the dead
+    process's last lease, and nothing typed in that time was sent."""
+    import core.runtime.chat_delivery_journal as journal_module
+
+    journal = ChatDeliveryJournal(tmp_path / "runtime" / "chat.sqlite3", stale_after_s=180.0)
+    owner = await journal.reserve(_identity(), _request_hash(), wait_timeout_s=0)
+    assert owner.may_execute
+    began = owner.record.updated_at
+    # Heard from after this process began: a live owner, whose lease stands.
+    monkeypatch.setattr(journal_module, "_THIS_PROCESS_BEGAN", began - 1.0)
+    monkeypatch.setattr(journal_module.time, "time", lambda: began + 30.0)
+    assert (await journal.get(_identity())).state is DeliveryState.RUNNING
+    # Last heard from before this process began, and unheard for longer than a live owner goes between heartbeats.
+    monkeypatch.setattr(journal_module, "_THIS_PROCESS_BEGAN", began + 1.0)
+    monkeypatch.setattr(journal_module.time, "time", lambda: began + 10.0)
+    assert (await journal.get(_identity())).state is DeliveryState.RUNNING
+    monkeypatch.setattr(journal_module.time, "time", lambda: began + 30.0)
+    settled = await journal.get(_identity())
+    assert settled.state is DeliveryState.AMBIGUOUS and settled.terminal
+    assert "restarted" in str((settled.response or {}).get("response"))

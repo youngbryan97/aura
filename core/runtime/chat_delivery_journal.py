@@ -42,6 +42,13 @@ _ALL_STATES = _TERMINAL_STATES | _PENDING_STATES
 _MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 _MAX_PROGRESS_BYTES = 64 * 1024
 _CLOCK_SKEW_TOLERANCE_S = 1.0
+#: When this process began. A turn left running, and not renewed since, belonged to a process that is gone: LIVE
+#: 2026-10-09 after a restart the chat said "reconciling the current turn" for three minutes, the length of the
+#: lease the dead process had last taken, and nothing typed in that time was sent.
+_THIS_PROCESS_BEGAN = time.time()
+#: How long a turn's owner has gone unheard before it is taken to be gone, where it was last heard from before this
+#: process began: four of the heartbeats a live owner renews by (every 5 s, interface/routes/chat_delivery.py).
+_OWNER_UNHEARD_S = 20.0
 _DB_PATH_FLAG = declare(
     "AURA_CHAT_DELIVERY_DB",
     kind=FlagKind.STRING,
@@ -203,6 +210,12 @@ class DeliveryAdmission:
     @property
     def may_execute(self) -> bool:
         return self.kind is AdmissionKind.EXECUTE
+
+
+def _orphaned(record: DeliveryRecord, now: float) -> bool:
+    """Whether a running turn's owner is gone: last heard from before this process began, and unheard since for
+    longer than a live owner goes between heartbeats."""
+    return record.updated_at < _THIS_PROCESS_BEGAN and now - record.updated_at >= _OWNER_UNHEARD_S
 
 
 def default_chat_delivery_db_path() -> Path:
@@ -770,8 +783,10 @@ class ChatDeliveryJournal:
     ) -> sqlite3.Row:
         if record.state is not DeliveryState.RUNNING:
             return row
-        if record.lease_expires_at > now:
+        orphaned = _orphaned(record, now)
+        if record.lease_expires_at > now and not orphaned:
             return row
+        lease_bound = max(now, record.lease_expires_at) if orphaned else now
         ambiguous_payload, ambiguous_hash = _canonical_response(
             {
                 # Said to a person, so said as one: what happened, and why it is not done again unasked.
@@ -810,7 +825,7 @@ class ChatDeliveryJournal:
                 record.request_hash,
                 record.generation,
                 str(row["owner_token"] or ""),
-                now,
+                lease_bound,
             ),
         ).rowcount
         if changed != 1:
@@ -1388,7 +1403,7 @@ class ChatDeliveryJournal:
                     return None
                 record = self._decode_row(row)
                 now = time.time()
-                if record.state is not DeliveryState.RUNNING or record.lease_expires_at > now:
+                if record.state is not DeliveryState.RUNNING or (record.lease_expires_at > now and not _orphaned(record, now)):
                     return record
                 conn.execute("BEGIN IMMEDIATE")
                 current_row = self._select_row(conn, identity)
