@@ -53,9 +53,29 @@ def _a_key_is_meant(lowered: str, way: str) -> bool:
     import re
 
     words = re.findall(r"[a-z]+", lowered)
-    return any(word == way and _KEY_CUES & set(words[max(0, at - 2):at + 3])
-               and not _NOT_A_KEY_AFTER & set(words[at + 1:at + 4])
-               for at, word in enumerate(words))
+    if any(word == way and _KEY_CUES & set(words[max(0, at - 2):at + 3]) and not _NOT_A_KEY_AFTER & set(words[at + 1:at + 4])
+           for at, word in enumerate(words)):
+        return True
+    return any(_for_an_act(re.findall(r"[a-z0-9]+", clause), way) for clause in re.split(r"[.,;:!?()]", lowered))
+
+
+def _for_an_act(words: list[str], way: str) -> bool:
+    """Whether a clause opens with ways said as what an act is done with: "left and right to move", "up to jump".
+
+    "Up to 5 players" and "from left to right" are not, for what follows "to" there is no act of play; nor is "turn
+    left to go home", where the way is where to go and not what to press.
+    """
+    from core.language.what_an_instruction_asks import ACT_FAMILIES
+
+    if way not in words[:4] or any(w not in WAYS and w not in ("and", "or") for w in words[: words.index(way)]):
+        return False
+    after = words.index(way)
+    while after < len(words) and (words[after] in WAYS or words[after] in ("and", "or")):
+        after += 1
+    if after + 1 >= len(words) or words[after] != "to":
+        return False
+    acts = {phrase[0] for family in ACT_FAMILIES.values() for phrase in family}
+    return words[after + 1] in acts | {"go", "run", "turn", "rotate", "crouch", "climb", "slide", "accelerate", "brake"}
 
 
 #: A single letter named as a key: "the X key", "X key"; or a capital after a word for pressing, or before what it is

@@ -316,6 +316,22 @@ def test_a_cluster_of_letters_named_as_one_word_is_the_keys_it_names(said):
     assert controls_named_in(said, keys_without_words=(), during_play=True)[0][:4] == ["w", "a", "s", "d"]
 
 
+@pytest.mark.parametrize(("said", "keys"), [
+    ("Left and right to move.", ["left", "right"]),
+    ("Up to jump, down to duck.", ["up", "down"]),
+    ("Press up to jump.", ["up"]),
+    ("Up to 5 players can join.", []),
+    ("Read the clues from left to right.", []),
+    ("Turn left to go home.", []),
+])
+def test_ways_said_as_what_an_act_is_done_with_are_keys(said, keys):
+    """Offline 2026-10-09 "Left and right to move" named no keys: a way was a key only beside a word for keys or
+    pressing. Said at the head of a clause as what an act is done with, it is one."""
+    from core.agency.playing_as_it_happens import controls_named_in
+
+    assert controls_named_in(said, keys_without_words=())[0] == keys
+
+
 def test_a_pause_is_let_go_by_what_made_it_and_what_made_it_is_not_taken_again_in_play():
     """LIVE 2026-10-09 trying a game's corner button paused it; on "PAUSED" she clicked the word, the middle of the
     picture and every shape but that button, and the game stood paused until its time ran out."""
