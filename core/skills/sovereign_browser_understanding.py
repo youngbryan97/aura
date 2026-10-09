@@ -331,9 +331,10 @@ class _UnderstandsThePage(_PlacesHerself):
             if element.get("value"):
                 state.append(f"value={element['value']}")
             suffix = f" ({', '.join(state)})" if state else ""
-            lines.append(
-                f"[{index}] {element.get('role')} \u2014 {element.get('name')}{suffix}"
-            )
+            # One control, one line: a name the page broke over lines (a tile's
+            # title above its year) would otherwise read as two controls.
+            name = " ".join(str(element.get("name") or "").split())
+            lines.append(f"[{index}] {element.get('role')} \u2014 {name}{suffix}")
         # What was left out, and what is below the fold.
         #
         # Neither was said, so a page whose list had been cut and a page with
