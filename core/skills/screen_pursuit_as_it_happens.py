@@ -66,7 +66,10 @@ MADE_NOT_WON = "it is for making things, and I have tried it out"
 #: Words that say a screen teaches how to play: it is read and gone on from, not played on. LIVE 2026-10-09 a game's
 #: putter lesson ("HOW TO USE THE PUTTER: 1. Click on your ball...") drew its "next" in letters she could not read, and
 #: she sent shots at the lesson for three minutes.
-_RULES = re.compile(r"\b(?:how to (?:play|use|win)|instructions|controls|how do (?:i|you)|tutorial)\b|(?:^|[\s:])1\.\s+[A-Za-z]", re.I)
+_RULES = re.compile(r"\b(?:how to (?:play|use|win)|instructions|controls|how do (?:i|you)|tutorial)\b|(?:^|:)\s*1\.\s+[A-Za-z]", re.I)
+
+#: Words that ask her to choose: a screen to choose on and go on from, not one to send things into.
+_CHOOSE = re.compile(r"\b(?:please )?(?:select|choose|pick) (?:a |an |the |your |number )", re.I)
 
 
 def reads_as_rules(said: str) -> bool:
@@ -321,6 +324,14 @@ class PlayingAsItHappens:
             return True
         return False
 
+    def _no_place_for_shots(self) -> bool:
+        """Whether the screen is one to be gone on from, not sent into: a way on shown, words that teach the rules, or
+        words that ask her to choose. LIVE 2026-10-09 a shot on a putter lesson pressed its "back", and she went round
+        title, welcome and lesson for a round without reaching the course.
+        """
+        said = self.words[-1] if self.words else ""
+        return self.way_on_shown or reads_as_rules(said) or bool(_CHOOSE.search(said))
+
     def held_to(self) -> Any:
         """The way she has taken up in this game, kept across its rounds (core/agency/the_way_it_is_played.py)."""
         from core.agency.the_way_it_is_played import HeldTo
@@ -409,7 +420,7 @@ class PlayingAsItHappens:
         # is not a world to steer (core/agency/the_way_it_is_played.py).
         said = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
         way = held.choose(ways_asked(said, self.words[-1] if self.words else ""), said)
-        if way == SEND and not self.way_on_shown:
+        if way == SEND and not self._no_place_for_shots():
             await self._by_shots(now)
             return
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
@@ -516,7 +527,7 @@ class PlayingAsItHappens:
         from core.perception.what_the_pixels_show import recognize_text
 
         told = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
-        if not sends_by_letting_go(told) or now < self.quiet_until or self.way_on_shown:
+        if not sends_by_letting_go(told) or now < self.quiet_until or self._no_place_for_shots():
             return
         logger.info("it waits for her to send something: playing it by shots")
         shots = self.keep.setdefault("by_shots", {})

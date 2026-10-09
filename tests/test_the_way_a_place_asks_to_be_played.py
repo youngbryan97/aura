@@ -135,3 +135,18 @@ def test_a_screen_that_teaches_how_to_play_is_gone_on_from_not_played_on(said, r
     reflexes = PlayingAsItHappens(page=None, band=(0.0, 0.0, 1.0, 1.0), goal="play", ends_at=0.0)
     reflexes.words = [said]
     assert reflexes._a_menu_first() is rules
+
+
+@pytest.mark.parametrize(("said", "no_shots"), [
+    ("HOW TO USE THE PUTTER: 1. Click on your ball and hold down the mouse button.", True),
+    ("Please Select Number Of Players", True), ("Choose your character", True),
+    ("LEVEL 1. Paint 502 of the ground to continue", False), ("Hole 1 Par 3 Strokes 0", False),
+])
+def test_nothing_is_sent_into_a_screen_that_teaches_or_asks_her_to_choose(said, no_shots):
+    """LIVE 2026-10-09 a shot on a putter lesson pressed its "back", and she went round title, welcome and lesson for a
+    round without reaching the course."""
+    from core.skills.screen_pursuit_as_it_happens import PlayingAsItHappens
+
+    reflexes = PlayingAsItHappens(page=None, band=(0.0, 0.0, 1.0, 1.0), goal="play", ends_at=0.0)
+    reflexes.words = [said]
+    assert reflexes._no_place_for_shots() is no_shots
