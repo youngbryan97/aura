@@ -76,7 +76,26 @@ def to_keep(keep: dict[str, Any]) -> dict[str, Any]:
         }
     if keep.get("meeting_with"):
         held["meeting_with"] = {str(part): counts for part, counts in keep["meeting_with"].items()}
+    shots = keep.get("by_shots") or {}
+    if shots.get("sends_from"):
+        # Where a press sends something from, and the setting that last got there, by each way of letting go.
+        measures = {way: [found.across, found.down, found.held_s]
+                    for way, tried in (shots.get("shots") or {}).items() if (found := tried.the_measure) is not None}
+        held["by_shots"] = {"sends_from": list(shots["sends_from"]), "measures": measures}
     return held
+
+
+def _shots_kept_from(held: dict[str, Any]) -> dict[str, Any]:
+    """Where a press sent something from, and the measure each way of letting go had, as shots she can start from:
+    the measure is tried first, and kept while it still gets there (core/agency/how_hard_and_which_way.py)."""
+    from core.agency.how_hard_and_which_way import Setting, Shot, Shots
+
+    shots = {}
+    for way, (across, down, held_s) in (held.get("measures") or {}).items():
+        tried = Shots(way=way)
+        tried.took(Shot(Setting(float(across), float(down), float(held_s)), ended_at=None, gained=1))
+        shots[way] = tried
+    return {"sends_from": tuple(held["sends_from"]), "shots": shots}
 
 
 def kept_from(held: dict[str, Any]) -> dict[str, Any]:
@@ -90,6 +109,8 @@ def kept_from(held: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(held, dict):
         return keep
     held = validate_indexed_state(held, indexed_tables=INDEXED_TABLES)
+    if isinstance(held, dict) and isinstance(held.get("by_shots"), dict) and held["by_shots"].get("sends_from"):
+        keep["by_shots"] = _shots_kept_from(held["by_shots"])
     if not isinstance(held, dict) or not held.get("kinds"):
         return keep
     keep["kinds"] = [

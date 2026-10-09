@@ -193,6 +193,15 @@ class PlayingAsItHappens:
     async def point(self, x: float, y: float) -> None:
         await self.page.mouse.move(*await self._at(x, y))
 
+    async def press(self, x: float, y: float) -> None:
+        """The button pressed at a place and kept down, for a pull or a hold (core/agency/playing_by_shots.py)."""
+        await self.page.mouse.move(*await self._at(x, y))
+        await self.page.mouse.down()
+        self._focused = True
+
+    async def release(self) -> None:
+        await self.page.mouse.up()
+
     # -- the pursuit's hooks ---------------------------------------------------
 
     def read(self, observation: dict[str, Any]) -> None:
@@ -293,6 +302,8 @@ class PlayingAsItHappens:
             return
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
         if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
+            # A world that waits until she sends something into it, where its words say so, is played by shots.
+            await self._by_shots(now)
             return
         if not self.keep.get("hers") and not self.recalled:
             self.recalled = True
@@ -331,6 +342,25 @@ class PlayingAsItHappens:
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
             self.under_her_hand = False
+
+    async def _by_shots(self, now: float) -> None:
+        """Shots, where the place's words speak of sending a thing by a press pulled or held and let go."""
+        from core.agency.playing_by_shots import play_by_shots, sends_by_letting_go
+        from core.perception.what_the_pixels_show import recognize_text
+
+        told = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
+        if not sends_by_letting_go(told) or now < self.quiet_until:
+            return
+        logger.info("it waits for her to send something: playing it by shots")
+        shots = self.keep.setdefault("by_shots", {})
+        stretch = await play_by_shots(self.look, self, seconds=min(STRETCH_S, self.ends_at - now), keep=shots,
+                                      say=_said_while_playing, read_words=recognize_text)
+        logger.info("shots played: %s", stretch)
+        self.stretches.append({"pictures": stretch.get("shots", 0), "gains": stretch.get("gains", 0), "losses": 0,
+                               "seconds": time.monotonic() - now, "ended": stretch.get("ended"), "by_shots": stretch})
+        _keep_what_she_learned(self.page, self.keep)
+        if not stretch.get("sends_from"):
+            self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
 
     def what_it_came_to(self) -> str:
         """One line on the play, for whoever handed the game over."""
