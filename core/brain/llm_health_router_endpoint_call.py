@@ -1465,8 +1465,7 @@ class _CallsTheEndpoint:
                                 # resident model came back a JSON array three
                                 # times, 230 seconds, because the decoder was
                                 # never told to hold an object.
-                                "output_shape",
-                                "choose_from",
+                                "output_shape", "choose_from",
                                 "cognitive_mode",
                                 "hard_output_token_ceiling",
                                 "web_interlocutor_contract",

@@ -100,3 +100,15 @@ def test_outside_a_choice_the_question_is_asked_as_before(monkeypatch):
 
     seen = _asked_through_quick_reasoning(monkeypatch, ())
     assert "choose_from" not in seen and seen["max_tokens"] == CHOICE_TOKENS
+
+
+def test_a_move_question_says_what_stays_the_same_first():
+    """Two moves in a row share the goal and what she knows at the front, so her model reads them once."""
+    from core.agency.deliberate_action import ActionOption, _objective, _situation_evidence
+
+    known = ["Its rules: the arrows move the paddle; miss three balls and it is over."]
+    first = [_objective("win it", []), *_situation_evidence("win it", "SCORE 10", [ActionOption(name="up")], [], [], known)]
+    then = [_objective("win it", []), *_situation_evidence("win it", "SCORE 20", [ActionOption(name="down")], [], [], known)]
+    shared = next(i for i, (a, b) in enumerate(zip(first, then, strict=True)) if a != b)
+    assert first[:shared] == [_objective("win it", []), "Goal: win it", *known]
+    assert first[-1] == "The available moves are: up." and first[shared].startswith("What is visible now")

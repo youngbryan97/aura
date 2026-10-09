@@ -315,11 +315,14 @@ def _biggest_thing_in(situation: str) -> str:
     in her mouth: an approach built around the big tile stops being the right
     approach when the big tile is gone.
     """
+    # A clock's reading is the time, not a thing in front of her, and a largest value of nothing is nothing to hold
+    # to: LIVE 2026-10-07 "Plan: ... while the 0 is still there", and a plan held while a timer read 90.
+    without_clocks = re.sub(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", " ", str(situation or ""))
     values = [
         int(found.replace(",", ""))
-        for found in re.findall(r"\b(\d[\d,]{0,9})\b", str(situation or ""))
+        for found in re.findall(r"\b(\d[\d,]{0,9})\b", without_clocks)
     ]
-    return str(max(values)) if values else ""
+    return str(max(values)) if values and max(values) > 0 else ""
 
 
 #: The fewest words that can describe a way of going about something. Below

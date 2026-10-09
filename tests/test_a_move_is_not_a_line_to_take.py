@@ -103,3 +103,12 @@ def test_the_test_runs_whatever_else_the_answer_mentions() -> None:
         assert "not a line to take" in body
         return
     raise AssertionError("read_strategy is gone")
+
+
+def test_a_line_is_not_held_to_nothing_or_to_a_clock():
+    """LIVE 2026-10-07 "Plan: ... while the 0 is still there": a value of nothing, or a clock's reading, is no anchor."""
+    from core.agency.standing_strategy import _biggest_thing_in
+
+    assert _biggest_thing_in("SCORE 0 LIVES 0") == ""
+    assert _biggest_thing_in("TIME 01:54 SCORE 0") == ""
+    assert _biggest_thing_in("TIME 01:54 SCORE 340") == "340"

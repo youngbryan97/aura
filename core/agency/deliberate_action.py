@@ -439,20 +439,25 @@ def _situation_evidence(
     history rather than above them, because a thing she read is evidence and
     not an instruction.
     """
-    # In order of what a decision cannot do without.
+    # Kept in order of what a decision cannot do without.
     #
     # The goal, what is on screen, and what she can do are the decision. What
     # she has learned and what just happened inform it. What happened further
     # back informs it less, and there is more of it every cycle.
     must_have = [f"Goal: {goal}", f"What is visible now: {situation}"]
     must_have.extend(f"Available move — {option.label()}" for option in options)
-    helpful = list(knowledge)
-    helpful.extend(attempt.as_evidence() for attempt in reversed(list(history)))
-    helpful.extend(recalled)
-    return _within_budget(must_have, helpful)
+    must_have.append(f"The available moves are: {', '.join(option.name for option in options)}.")
+    helpful = [*(("known", line) for line in knowledge), *(("lately", a.as_evidence()) for a in reversed(list(history))),
+               *(("recalled", line) for line in recalled)]
+    kept = _within_budget(must_have, helpful)
+    # And said in order of how long each part stays the same, the goal and what she knows first and the screen and
+    # its moves last, so the part of the question her model has already read is read once (core/brain/llm/
+    # prompt_cache.py). LIVE 2026-10-08 the moves were named first, nothing after the role was the same from one
+    # move to the next, and 1,222 tokens were read afresh for every move: 7.5 s of each 17.5 s decision.
+    return [must_have[0], *kept.get("known", []), *reversed(kept.get("lately", [])), *kept.get("recalled", []), *must_have[1:]]
 
 
-def _within_budget(must_have: list[str], helpful: Sequence[str]) -> list[str]:
+def _within_budget(must_have: list[str], helpful: Sequence[tuple[str, str]]) -> dict[str, list[str]]:
     """As much of the useful part as fits, newest first.
 
     Evidence accumulates: every graded move and every recalled consequence
@@ -464,17 +469,17 @@ def _within_budget(must_have: list[str], helpful: Sequence[str]) -> list[str]:
     dropped is the oldest, which is the part already accounted for by what
     came after it.
     """
-    evidence = list(must_have)
-    room = EVIDENCE_BUDGET_CHARS - sum(len(line) for line in evidence)
-    for line in helpful:
+    kept: dict[str, list[str]] = {kind: [] for kind, _line in helpful}
+    room = EVIDENCE_BUDGET_CHARS - sum(len(line) for line in must_have)
+    for kind, line in helpful:
         if room <= 0:
             break
         text = str(line or "")
         if not text:
             continue
-        evidence.append(text)
+        kept[kind].append(text)
         room -= len(text)
-    return evidence
+    return kept
 
 
 #: The names of the moves on offer while her mind is asked to choose one, for a mind that can hold its answer to
@@ -483,8 +488,8 @@ CHOOSING_FROM: ContextVar[tuple[str, ...]] = ContextVar("aura_choosing_from", de
 
 
 def _objective(goal: str, options: Sequence[ActionOption]) -> str:
-    names = ", ".join(option.name for option in options)
-    return f"Choose the next move toward this goal: {goal}. The available moves are: {names}."
+    # The moves on offer are said last, with the screen they are on (see _situation_evidence).
+    return f"Choose the next move toward this goal: {goal}."
 
 
 def choose_named(reply: str, options: Sequence[ActionOption]) -> ActionOption | None:
