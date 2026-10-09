@@ -93,6 +93,8 @@ class PlayingAsItHappens:
     held_for_a_way_on: dict[str, int] = field(default_factory=dict)
     #: Since when its words have been known to set her to make something, not to win.
     for_making_since: float | None = None
+    #: Whether the last screen read showed a label that goes on (Play, Start, Next): a menu, not a world to send into.
+    way_on_shown: bool = False
     _clip: dict[str, float] | None = None
     _focused: bool = False
     _frames: Any = None
@@ -220,7 +222,11 @@ class PlayingAsItHappens:
         """What a look of the pursuit showed: the screen's words, and its ways back at the start."""
         from core.skills.screen_pursuit_bearings import restart_controls
 
+        from core.language.a_way_on import how_much_it_leads_on
+
         said = " ".join(str(observation.get("text") or "").split())
+        labels = [" ".join(str(r.get("text") or "").split()) for r in observation.get("layout") or () if isinstance(r, dict)]
+        self.way_on_shown = any(0 < len(label) <= 40 and how_much_it_leads_on(label) > 1.0 for label in labels)
         if said and (not self.words or self.words[-1] != said):
             self.words.append(said)
             del self.words[:-12]
@@ -409,12 +415,16 @@ class PlayingAsItHappens:
         return bool(done.get("typed"))
 
     async def _by_shots(self, now: float) -> None:
-        """Shots, where the place's words speak of sending a thing by a press pulled or held and let go."""
+        """Shots, where the place's words speak of sending a thing by a press pulled or held and let go.
+
+        Not on a screen that offers a way on: a menu is gone through by its labels, whatever the game is played by
+        once it begins. LIVE 2026-10-09 two games' menus ("Enter Code or Play", a title's START) were shot at.
+        """
         from core.agency.playing_by_shots import play_by_shots, sends_by_letting_go
         from core.perception.what_the_pixels_show import recognize_text
 
         told = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
-        if not sends_by_letting_go(told) or now < self.quiet_until:
+        if not sends_by_letting_go(told) or now < self.quiet_until or self.way_on_shown:
             return
         logger.info("it waits for her to send something: playing it by shots")
         shots = self.keep.setdefault("by_shots", {})

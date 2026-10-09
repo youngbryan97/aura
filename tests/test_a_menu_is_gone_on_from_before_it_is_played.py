@@ -27,3 +27,23 @@ def test_play_waits_for_the_first_reading_and_twice_at_most_for_a_menu():
     assert not playing._a_menu_first()  # its way on did nothing twice: what moves on it is played
     playing.read({"text": "SCORE 0 FIREFLIES 3"})
     assert not playing._a_menu_first()
+
+
+@pytest.mark.unit
+def test_a_menu_is_never_shot_at_and_a_shooter_aimed_with_the_mouse_is_no_world_of_shots():
+    import asyncio
+    import time
+
+    from core.agency.playing_by_shots import sends_by_letting_go
+
+    # LIVE 2026-10-09: "Mouse to aim" and a menu reading "Enter Code or Play" had her letting go of shots at the menu.
+    assert not sends_by_letting_go("Arrow keys or WASD to move, Space to attack, Mouse to aim. Collect power-ups.")
+    playing = PlayingAsItHappens(page=None, band=(0, 0, 1, 1), goal="", ends_at=time.monotonic() + 60)
+    playing.keep["counsel"] = "Click and hold, then release to launch."
+    playing.read({"text": "Enter Code or Play", "layout": [{"text": "Enter Code"}, {"text": "or"}, {"text": "Play"}]})
+    assert playing.way_on_shown
+    asyncio.run(playing._by_shots(time.monotonic()))
+    assert not playing.stretches
+    # Rules in a sentence that says "let go" are not a way on.
+    playing.read({"text": "Drag back and let go to putt", "layout": [{"text": "Drag back and let go to putt it into the hole"}]})
+    assert not playing.way_on_shown

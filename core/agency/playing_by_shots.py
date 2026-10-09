@@ -42,11 +42,12 @@ STOPPED_FOR_S = 0.4
 PULL_STEPS = 8
 
 #: Words that say a thing is sent by a press pulled or held and let go. Not "drag": a thing dragged is carried to a
-#: place and stays there (core/agency/putting_things_in_place.py). LIVE 2026-10-09 "click and drag it into place"
-#: had her letting go of shots at a title screen for a minute.
+#: place and stays there (core/agency/putting_things_in_place.py); LIVE 2026-10-09 "click and drag it into place"
+#: had her letting go of shots at a title screen for a minute. Not "aim" or "power" alone: a shooter is aimed with
+#: the mouse and a platformer has power-ups, and "Mouse to aim" sent her into shots on a game's menu the same day.
 _SENDING_WORDS = (
-    "pull", "release", "let go", "launch", "fling", "sling", "toss", "putt", "power", "hold the mouse",
-    "click and hold", "hold down the mouse", "hold the button", "aim", "throw",
+    "pull", "release", "let go", "launch", "fling", "sling", "toss", "putt", "power meter", "power bar",
+    "hold the mouse", "click and hold", "hold down the mouse", "hold the button", "throw",
 )
 
 
