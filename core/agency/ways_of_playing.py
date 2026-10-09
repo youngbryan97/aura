@@ -1,0 +1,60 @@
+"""Every way she has of playing something: what it asks, the function in her live play that does it, and what shows it.
+
+A way of playing is named for what it asks of anyone, not for a game
+(docs/design-docs/THE_56_GAMES_AND_WHAT_THEY_ASK.md). Each is done by one
+function, called from her live play, and shown working by a test. A way with
+no function her live play reaches is a way she does not have, however well it
+is written: tests/test_every_way_of_playing_is_live.py holds each of these to
+all three.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+__all__ = ["WAYS", "Way"]
+
+
+@dataclass(frozen=True)
+class Way:
+    """One way of playing: what it asks, ``done_by`` (module:function), ``called_from`` (the module of her live play
+    that calls it) and ``shown_by`` (the test that shows it)."""
+
+    name: str
+    asks: str
+    done_by: str
+    called_from: str
+    shown_by: str
+
+
+WAYS: tuple[Way, ...] = (
+    Way("steer", "move a body to meet some things and keep clear of others, by keys or the pointer",
+        "core.agency.playing_as_it_happens:play_as_it_happens", "core.skills.screen_pursuit_as_it_happens",
+        "tests/test_playing_a_world_that_does_not_wait.py"),
+    Way("shoot", "fire or throw at things, aimed",
+        "core.agency.playing_as_it_happens:_trigger", "core.agency.playing_as_it_happens",
+        "tests/test_steering_and_triggering_use_separate_inputs.py"),
+    Way("click things", "click things as they show or cross",
+        "core.agency.playing_as_it_happens:_click_things", "core.agency.playing_as_it_happens",
+        "tests/test_inside_a_game_a_click_is_a_move.py"),
+    Way("send", "press, pull or hold, and let go; how hard and which way found from where each went",
+        "core.agency.playing_by_shots:play_by_shots", "core.skills.screen_pursuit_as_it_happens",
+        "tests/test_a_thing_sent_is_aimed_by_where_the_last_one_went.py"),
+    Way("a view going by", "a world that scrolls past, in layers",
+        "core.perception.how_the_scenery_goes_by:how_the_view_moved", "core.perception.what_moves_in_the_picture",
+        "tests/test_scenery_going_by_is_not_things.py"),
+    Way("a board in turns", "a board, moves in turns, someone on the other side: looked ahead as far as there is time",
+        "core.agency.looking_ahead:look_ahead", "core.skills.screen_pursuit_decision",
+        "tests/test_looking_as_far_ahead_as_there_is_time_for.py"),
+    Way("a grid's rule", "a grid whose rule is found by moving in it",
+        "core.skills.screen_pursuit_decision_reading:the_pixels_show_a_grid", "core.skills.screen_pursuit_decision_reading",
+        "tests/test_the_places_are_seen_not_inferred.py"),
+    Way("make", "make something, and say what was made and why",
+        "core.skills.sovereign_browser_drawing:_what_was_made", "core.skills.sovereign_browser_drawing",
+        "tests/test_a_thing_for_making_has_nothing_to_win.py"),
+    Way("counters", "read score, lives and time, and what each change meant",
+        "core.agency.what_meeting_things_does:readouts_in", "core.agency.what_meeting_things_does",
+        "tests/test_what_she_reads_off_a_screen_is_said_in_words.py"),
+    Way("take stock", "read the rules; ask what she knows when stuck, failing, unsure or before she begins",
+        "core.cognition.taking_stock:take_stock", "core.skills.sovereign_browser_taking_stock",
+        "tests/test_she_takes_stock_when_she_keeps_failing.py"),
+)
