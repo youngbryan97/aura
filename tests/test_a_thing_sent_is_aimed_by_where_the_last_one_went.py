@@ -145,3 +145,19 @@ def test_a_world_whose_words_say_to_pull_and_let_go_is_played_by_shots_on_her_pa
     asyncio.run(playing._by_shots(time.monotonic()))
     assert playing.keep["by_shots"].get("sends_from") is not None
     assert playing.stretches and playing.stretches[-1]["by_shots"]["shots"] >= 2
+
+
+def test_a_place_that_sent_once_long_ago_and_sends_nothing_now_is_given_up_for_the_one_that_sends():
+    """LIVE 2026-10-09 in a putt game one early shot sent something; four hundred after it, held where she stood, sent
+    nothing, and she went on holding there. What sends now is what is found."""
+    world = _World()
+    keep = {"sends_from": (0.8, 0.2)}                    # where something was sent from once, long ago
+    keep["shots"] = {"hold": Shots(way="hold")}
+    keep["shots"]["hold"].took(Shot(Setting(0.0, 0.0, 1.0), (0.81, 0.21)))
+
+    async def go():
+        return await play_by_shots(world.look, world, seconds=40.0, keep=keep, read_words=world.words)
+
+    played = asyncio.run(go())
+    assert keep.get("sends_from") is not None and math.dist(keep["sends_from"], world.home) < 0.06, keep.get("sends_from")
+    assert played["shots"] > 0

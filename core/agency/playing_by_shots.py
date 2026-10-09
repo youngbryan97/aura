@@ -185,7 +185,8 @@ async def play_by_shots(
     if seen is None:
         return {"shots": 0, "ended": "the picture could not be taken"}
     places = _places_to_send_from(seen[0], keep)
-    order = [way for way in ways if way in shots_by_way and shots_by_way[way].sends_anything] or list(ways)
+    # The way that has sent lately first, and the others behind it, never left out.
+    order = sorted(ways, key=lambda w: not (w in shots_by_way and shots_by_way[w].sends_anything))
     # One watch of the picture for all the shots, so what stays put is known before anything is sent.
     moves = WhatMoves(kinds=keep.get("kinds"))
     moves.see(seen[0], seen[1])
@@ -225,15 +226,14 @@ async def play_by_shots(
         gains += max(0, gained)
         logger.info("shot %d (%s from %s, %s): ended at %s, gained %d; %s", taken, way, start, setting, ended_at, gained, shots.how_it_goes())
         if ended_at is None and not shots.sends_anything and len(shots.tried) >= 2:
-            # Two tries of one way from one place sent nothing: the other way, then the next place.
-            if len(order) > 1:
-                order = order[1:] + order[:1]
-                if all(shots_by_way.get(w) is not None and len(shots_by_way[w].tried) >= 2 and not shots_by_way[w].sends_anything for w in order):
-                    places = places[1:]
-                    shots_by_way.clear()
-            else:
-                places = places[1:]
+            # Two tries of one way from one place, and nothing sent lately: the other way, then the next place. A place
+            # that sent once long ago is given up like any other: what sends now is what is being found.
+            order = order[1:] + order[:1]
+            if all(shots_by_way.get(w) is not None and len(shots_by_way[w].tried) >= 2 and not shots_by_way[w].sends_anything for w in order):
+                places = [place for place in places if math.dist(place, start) > 0.05]
+                keep["sends_from"] = None
                 shots_by_way.clear()
+                order = list(ways)
             continue
         if ended_at is not None and keep.get("sends_from") is None:
             keep["sends_from"] = start
