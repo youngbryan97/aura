@@ -96,6 +96,23 @@ def _names_it(name: str, title: str) -> bool:
     return _alike(name, title) >= SAME_THING or bool(series & there)
 
 
+def _own_name_in(name: str, title: str) -> bool:
+    """Whether ``title`` holds every word of the thing's own name (after a series name and a colon)."""
+    own = set(_words(str(name).split(":")[-1]))
+    return bool(own) and own <= set(_words(title))
+
+
+def _named_on_its_page(name: str, heading: str, text: str) -> bool:
+    """Whether a page is of the thing: its title names it, or its title holds the own name and its own words (topics, a
+    description, who made it) name the series. LIVE 2026-10-09 "Scooby-Doo: Ask Swami Shaggy" is kept under the title
+    "Ask Swami Shaggy", topic Scooby-Doo, and was passed over; "Tunnel Rush", with no word of Toonami on its page,
+    is still another thing."""
+    if _names_it(name, heading):
+        return True
+    series = set(_words(":".join(str(name).split(":")[:-1])))
+    return bool(series) and _own_name_in(name, heading) and bool(series & set(_words(text)))
+
+
 logger = logging.getLogger("Skills.SovereignBrowser.Going")
 
 #: How much of a name another title must share to be the same thing.
@@ -197,7 +214,7 @@ async def _the_first_that_serves(skill: object, browser: object, name: str, task
     likely = []
     for found in sorted(candidates, key=lambda c: (-_alike(name, c.title), c.runs_there is not True)):
         # A place that says it does not run the thing is not where it is played; one that says nothing is opened and looked at.
-        if found.url not in seen and _names_it(name, found.title) and not (runs and found.runs_there is False):
+        if found.url not in seen and _own_name_in(name, found.title) and not (runs and found.runs_there is False):
             seen.add(found.url)
             likely.append(found)
     from core.skills.whether_a_page_serves import watching, what_the_task_needs, whether_it_serves
@@ -211,9 +228,9 @@ async def _the_first_that_serves(skill: object, browser: object, name: str, task
         if not await skill._safe_browse(browser, found.url):  # type: ignore[attr-defined]
             continue
         title = await page.title()
-        text = await page.evaluate("document.body ? document.body.innerText.slice(0, 1500) : ''")
+        text = await page.evaluate("document.body ? document.body.innerText.slice(0, 4000) : ''")
         heading = await page.evaluate("(() => { const h = document.querySelector('h1'); return h ? h.innerText : ''; })()")
-        if refused(title, text) or not _names_it(name, f"{title} {heading}"):
+        if refused(title, text) or not _named_on_its_page(name, f"{title} {heading}", text):
             continue
         if runs and not await page.evaluate(_SOMETHING_RUNS):
             continue

@@ -93,3 +93,15 @@ def test_its_own_name_with_a_word_of_its_series_names_it():
     assert _names_it("Scooby-Doo: Scooby Snapshot", "Scooby Snapshot")
     assert not _names_it("Toonami: Tunnel Rush", PAGES["lookalike"][0])
     assert not _names_it("Scooby-Doo: Scooby Snapshot", "Scooby-Doo Mystery")
+
+
+def test_a_page_titled_with_its_own_name_whose_words_name_the_series_is_it():
+    # LIVE 2026-10-09 "Scooby-Doo: Ask Swami Shaggy" is kept as "Ask Swami Shaggy", topic Scooby-Doo, and was passed over.
+    from core.skills.sovereign_browser_going import _named_on_its_page, _own_name_in
+
+    assert _own_name_in("Scooby-Doo: Ask Swami Shaggy", "Ask Swami Shaggy")
+    assert _named_on_its_page("Scooby-Doo: Ask Swami Shaggy", "Ask Swami Shaggy",
+                              "Ask Swami Shaggy by Cartoon Network Topics Flash, Scooby-Doo, Cartoon Network, game")
+    assert not _named_on_its_page("Scooby-Doo: Ask Swami Shaggy", "Ask Swami Shaggy", "Ask Swami Shaggy, a fortune teller game")
+    title, body = PAGES["lookalike"]
+    assert not _named_on_its_page("Toonami: Tunnel Rush", title, body)
