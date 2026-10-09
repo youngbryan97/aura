@@ -67,3 +67,20 @@ def test_a_fall_in_a_bar_named_health_is_a_loss_and_low_she_is_careful():
                                                                      follows_pointer=False, axes=lambda _k: (False, False),
                                                                      makes={}), meeting, [])
     assert choosing.caution > 2.0
+
+
+def test_a_stretch_with_nothing_of_hers_that_goes_against_her_is_handed_back_and_one_that_pays_is_not():
+    """LIVE 2026-10-09 a game's bar went down twice while nothing answered to her, and she played on without anything
+    of her own for three minutes."""
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _nothing_answers, _Run
+    from core.agency.which_one_answers_to_her import WhichIsHers
+
+    run = _Run(keys=[], began=0)
+    meeting = SimpleNamespace(verdicts=[{"what": "loss"}], evidence={})
+    run.gains, run.losses = 1, 2
+    assert not _nothing_answers(run, WhichIsHers(), meeting, 20)
+    assert _nothing_answers(run, WhichIsHers(), meeting, 40) == "nothing here answers to me, and it is going against me"
+    run.gains = 3
+    assert not _nothing_answers(run, WhichIsHers(), meeting, 300)

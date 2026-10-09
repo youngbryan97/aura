@@ -241,6 +241,12 @@ _POINTER_WORDS = ("mouse", "cursor", "pointer", "click", "drag", "aim", "trackpa
 #: What the usual names of keys mean.
 _NAMED_KEYS = (
     (("arrow", "arrows", "cursor keys", "direction"), ("up", "down", "left", "right")),
+    # The clusters of letters keyboards are steered by, named as one word: LIVE 2026-10-09 "USE WASD TO MOVE" was
+    # read as no keys at all, and she played a game steered by keys with the pointer for three minutes.
+    (("wasd",), ("w", "a", "s", "d")),
+    (("ijkl",), ("i", "j", "k", "l")),
+    (("esdf",), ("e", "s", "d", "f")),
+    (("zqsd",), ("z", "q", "s", "d")),
     (("space", "spacebar", "space bar"), ("space",)),
     (("up",), ("up",)),
     (("down",), ("down",)),
@@ -1261,8 +1267,14 @@ def _nothing_answers(run: _Run, hers: WhichIsHers, meeting: WhatMeetingDoes, at:
     # Allow two complete experiments and their intervening wait before
     # declaring that no control answers. The run's own deadline still bounds it.
     experiment_time = 8 * len(run.keys) * TRY_A_KEY_S + RECHECK_CONTROLS_S if run.keys else 0.0
-    if at - run.began < NOTHING_ANSWERS_S + experiment_time or hers.kind is not None or meeting.verdicts:
+    if at - run.began < NOTHING_ANSWERS_S + experiment_time or hers.kind is not None:
         return ""
+    if meeting.verdicts:
+        # What is counted keeps it going while it is not all going against her: LIVE 2026-10-09 a game's bar went down
+        # twice while nothing answered to her, and she played on without anything of her own for three minutes.
+        if run.losses <= run.gains or at - run.began < NOTHING_ANSWERS_S + experiment_time + TOUCHING_TO_NO_END_S:
+            return ""
+        return "nothing here answers to me, and it is going against me"
     # Things she touched keep it going for a while, and only a while, where
     # touching them has gained and lost nothing: LIVE 2026-10-06 a game's
     # title screen, its picture moving, its START! drawn as words: she clicked

@@ -850,6 +850,21 @@ def _where_the_way_on_was(observation: dict[str, Any], clickable: Any, says: str
     return (*clickable, a_click_on(label))
 
 
+def _what_paused_it(observation: dict[str, Any], clickable: Any, can_do: Any, paced: Any) -> Any:
+    """On a screen that says it is paused, the click of hers that paused it, where she clicked it, though it is not read
+    there now: a pause is let go by what made it."""
+    from core.agency.what_i_can_do_here import what_is_clicked
+
+    label = what_is_clicked(str(getattr(can_do, "paused_by", "") or ""))
+    if not label or not getattr(can_do, "paused_here", False) or not isinstance(paced, dict) or can_do.paused_by in clickable:
+        return clickable
+    at = (paced.get("clicked_at") or {}).get(" ".join(label.split()).lower())
+    if at is None:
+        return clickable
+    observation.setdefault("shapes", []).append({"text": label, "center_x": at[0], "center_y": at[1], "shape": True})
+    return (*clickable, can_do.paused_by)
+
+
 def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: Any, narrate: bool) -> None:
     """What she can click on the screen now, and what it says that she has not yet read.
 
@@ -864,6 +879,7 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
 
     clickable, says, paced = things_to_click(observation, drawn_where), what_it_says(observation, drawn_where), MOVES_SAID.get()
     clickable = _where_the_way_on_was(observation, clickable, says, paced)
+    clickable = _what_paused_it(observation, clickable, can_do, paced)
     # Her bearings here (core/cognition/her_bearings.py): what tells her what to do, what stands out, and what would
     # take her away from the thing, which is not offered at all.
     bearings = _her_bearings(observation, clickable, says, can_do)

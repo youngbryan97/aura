@@ -219,6 +219,11 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
     choosing_here: bool = False
     chose_here: bool = False
     _choosing_on: str = ""
+    #: Whether the screen in front of her says what was going on is paused, whether the one before did, and the act of
+    #: hers that paused it: that act lets it go on, and is not taken again while it goes on.
+    paused_here: bool = False
+    _was_paused: bool = False
+    paused_by: str = ""
 
     def asked_for_by(self, words: str, clickable: Sequence[str] = (), drawn: Sequence[str] = (), counsel: str = "") -> None:
         """Keys the screen asks her to press, in its words or drawn as keys on it, and labels its words ask her to click;
@@ -227,13 +232,17 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
 
         self.told_of_carrying(f"{words} {counsel}")
         self.told_of_using(f"{words} {counsel}")
-        from core.language.a_way_on import asks_to_choose
+        from core.language.a_way_on import asks_to_choose, says_it_is_paused
 
         self.choosing_here = asks_to_choose(words)
+        self._was_paused, self.paused_here = self.paused_here, says_it_is_paused(words)
         screen = " ".join(sorted(set(re.findall(r"[a-z]{4,}", words.lower()))))
         if screen != self._choosing_on:
             self._choosing_on, self.chose_here = screen, False
-        self.asked_for = tuple(dict.fromkeys([*keys_a_screen_asks_for(words), *drawn]))
+        # Paused by something not hers (the thing lost the keyboard, or paused itself), the keys a pause is usually
+        # let go by are what the screen asks for, with its own words.
+        unpause = ("p", "escape") if self.paused_here and not self.paused_by else ()
+        self.asked_for = tuple(dict.fromkeys([*keys_a_screen_asks_for(words), *drawn, *unpause]))
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
         # What the screen names, and what taking stock found the thing is played with: LIVE 2026-10-09 a putter lesson
         # drawn in letters she could not read, the web saying "click the ball, hold down the mouse while you aim", and
@@ -274,6 +283,8 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
 
             if changed and self.choosing_here and not confirms(what_is_clicked(name) or ""):
                 self.chose_here = True
+            if changed and self.paused_here and not self._was_paused:
+                self.paused_by = name
         self.paired(name)
         self.carried(name, changed)
         self.leads.acted(name, changed)

@@ -49,24 +49,34 @@ PULL_STEPS = 8
 #: place and stays there (core/agency/putting_things_in_place.py); LIVE 2026-10-09 "click and drag it into place"
 #: had her letting go of shots at a title screen for a minute. Not "aim" or "power" alone: a shooter is aimed with
 #: the mouse and a platformer has power-ups, and "Mouse to aim" sent her into shots on a game's menu the same day.
-_SENDING_WORDS = (
-    "pull", "release", "let go", "launch", "fling", "sling", "putt", "power meter", "power bar",
-    "hold the mouse", "click and hold", "hold down the mouse", "hold the button",
-)
+_SENDING_WORDS = ("pull", "release", "let go", "launch", "fling", "sling", "putt", "power meter", "power bar")
+
+#: Words for a press held: a send only where what it is held for is aiming or gathering strength to let go of. Held to
+#: use something for as long as it is held (glide, fly, speed up), it is no send: LIVE 2026-10-09 a game said "while
+#: flying, click and hold your mouse button to use Glide Power", and she pulled and let go two hundred times.
+_HELD = re.compile(r"\b(?:hold the mouse|click and hold|hold down the mouse|hold the button)\b")
+_HELD_TO_SEND = re.compile(r"\b(?:aim\w*|release|let go|power up|shot|charge|strength|how hard|shoot|throw|putt|swing)\b")
 
 #: Words for sending that a click alone may do: "click to throw" is a shot aimed by the pointer, made at once
 #: (core/agency/playing_as_it_happens.py); a throw held, pulled or let go is sent. LIVE 2026-10-09 a food fight's
 #: "aim with your mouse and click to throw" was read as a world that waits for something sent.
 _THROWN = re.compile(r"\b(?:throw|toss)\w*")
-_A_CLICK_THROWS = re.compile(r"\bclick\w*(?:\s+\w+){0,3}\s+to\s+(?:throw|toss)", re.I)
+_A_CLICK_THROWS = re.compile(r"\bclick\w*(?:\s+\w+){0,3}\s+to\s+(?:throw|toss|launch|fling)", re.I)
 
 
 def sends_by_letting_go(told: str) -> bool:
     """Whether words a thing says of itself speak of sending by a press pulled or held and let go."""
-    lowered = " ".join(told.lower().split())
-    if any(word in lowered for word in _SENDING_WORDS):
-        return True
-    return bool(_THROWN.search(lowered)) and not _A_CLICK_THROWS.search(lowered)
+    for sentence in re.split(r"(?<=[.!?;])\s+", " ".join(told.lower().split())):
+        # "click again to launch the hamster" is a click that sends, made at once; "pull back and release to launch"
+        # is a press let go.
+        clicked = _A_CLICK_THROWS.search(sentence)
+        if any(word in sentence for word in _SENDING_WORDS if not (clicked and word in ("launch", "fling"))):
+            return True
+        if _HELD.search(sentence) and _HELD_TO_SEND.search(sentence):
+            return True
+        if _THROWN.search(sentence) and not clicked:
+            return True
+    return False
 
 
 async def _let_go(hands: Any, start: tuple[float, float], setting: Setting, way: str) -> None:

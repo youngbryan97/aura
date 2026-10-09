@@ -265,3 +265,43 @@ def test_once_a_choice_is_made_on_a_screen_that_asks_for_one_what_goes_on_is_wan
     assert after[a_click_on("next")] == 1.0 and max(v for k, v in after.items() if k != a_click_on("next")) < 0.01
     here.asked_for_by("Choose A Ball Pick your favorite color", moves)  # the next screen: chosen afresh
     assert not here.chose_here
+
+
+@pytest.mark.parametrize("said", ["USE WASD TO MOVE", "Use WASD to move, mouse to aim", "use the WASD keys to move"])
+def test_a_cluster_of_letters_named_as_one_word_is_the_keys_it_names(said):
+    """LIVE 2026-10-09 "USE WASD TO MOVE" was read as no keys at all, and she played a game steered by keys with the
+    pointer for three minutes."""
+    from core.agency.playing_as_it_happens import controls_named_in
+
+    assert controls_named_in(said, keys_without_words=(), during_play=True)[0][:4] == ["w", "a", "s", "d"]
+
+
+def test_a_pause_is_let_go_by_what_made_it_and_what_made_it_is_not_taken_again_in_play():
+    """LIVE 2026-10-09 trying a game's corner button paused it; on "PAUSED" she clicked the word, the middle of the
+    picture and every shape but that button, and the game stood paused until its time ran out."""
+    from core.agency.what_i_can_do_here import WhatWorksHere, a_click_on
+    from core.language.a_way_on import how_much_it_leads_on, says_it_is_paused
+    from core.skills.screen_pursuit_decision import _go_on_from_a_pause
+
+    corner, word = a_click_on("the shape at 5% across, 5% down"), a_click_on("PAUSED")
+    here = WhatWorksHere()
+    here.asked_for_by("SCORE: 0 USE WASD TO MOVE CHARGING", (corner,))
+    here.asked_for_by("SCORE: 0 PAUSED LEVEL SELECT", (corner, word))
+    here.tried(corner, changed=True)
+    assert here.paused_here and here.paused_by == corner
+    paused = _go_on_from_a_pause(here, {word: 0.8, corner: 0.1, a_click_on("LEVEL SELECT"): 0.3})
+    assert max(paused, key=paused.get) == corner
+    here.asked_for_by("SCORE: 0 USE WASD TO MOVE CHARGING", (corner,))
+    here.tried(corner, changed=True)
+    playing = _go_on_from_a_pause(here, {corner: 0.8, a_click_on("the middle of the picture"): 0.5})
+    assert playing[corner] < 0.1
+    assert says_it_is_paused("GAME PAUSED") and not says_it_is_paused("Pause the music with P")
+    assert how_much_it_leads_on("Resume") > 1.0
+
+
+def test_a_pause_she_did_not_make_is_let_go_by_the_keys_a_pause_is_usually_let_go_by():
+    from core.agency.what_i_can_do_here import WhatWorksHere
+
+    here = WhatWorksHere()
+    here.asked_for_by("PAUSED click to continue", ())
+    assert {"p", "escape"} <= set(here.asked_for)

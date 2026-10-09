@@ -157,7 +157,22 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
               / (1 + again(name))
               for name, value in (telling or {}).items()}
-    return _once_chosen_go_on(can_do, valued)
+    return _go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued))
+
+
+def _go_on_from_a_pause(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
+    """A screen that says it is paused goes on by what paused it, before anything on it is found out; and while it goes
+    on, what paused it is not taken again to see what it does.
+
+    LIVE 2026-10-09 trying a game's corner button paused it; on "PAUSED" she clicked the word, the middle of the picture
+    and every shape but that button, and the game stood paused until its time ran out.
+    """
+    by = getattr(can_do, "paused_by", "")
+    if not by or by not in valued:
+        return valued
+    out = dict(valued)
+    out[by] = max([1.0, *out.values()]) * 2.0 if getattr(can_do, "paused_here", False) else out[by] * CHOSEN_ALREADY
+    return out
 
 
 def _once_chosen_go_on(can_do: Any, valued: dict[str, float]) -> dict[str, float]:

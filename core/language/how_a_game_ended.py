@@ -159,7 +159,10 @@ def requested_attempts(request: str) -> int | None:
 
 
 #: A score as a screen writes it: "Your score: 1,250", "Points 40", "Total = 300".
-_A_SCORE: Final = re.compile(r"\b(?:score|points|pts|total)\b\s*[:=]?\s*(\d[\d,]*)")
+#: A score as a last screen writes it; and a run measured, not counted ("TOTAL DISTANCE: 24 ft", "Height: 120 m"): LIVE
+#: 2026-10-09 a hamster launch's end screen wrote its total distance, and she said no score was shown.
+_A_SCORE: Final = re.compile(r"\b(?:(?:total|final|your|best)\s+)?(?:score|points|pts|total|distance|height|altitude|depth)\b"
+                             r"\s*[:=]?\s*(\d[\d,]*)")
 #: Progress a game can be won by, counted: "Level 2", "Stage 1", "Round 3".
 _PROGRESS: Final = re.compile(r"\b(?:level|stage|round|wave|mission|world|chapter)\s*\d")
 
