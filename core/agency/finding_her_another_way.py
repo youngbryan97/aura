@@ -20,8 +20,23 @@ logger = logging.getLogger("core.agency.which_one_answers_to_her")
 __all__ = ["FoundAnotherWay"]
 
 
+#: How long after a life lost she may be set back somewhere else, in seconds: a game redraws her within moments.
+SET_BACK_S = 3.0
+
+
 class FoundAnotherWay:
     """Ways of finding which thing is hers beside her trials, for WhichIsHers."""
+
+    #: When she last lost a life, as her counters said.
+    set_back_at: float = float("-inf")
+
+    def lost_a_life(self, at: float) -> None:
+        """Her counters say she lost: for a moment, she may be set back anywhere on the screen."""
+        self.set_back_at = at
+
+    def just_set_back(self, at: float | None) -> bool:
+        """Whether a life was lost moments ago, so a lone lookalike far from where she was is her, set back."""
+        return at is not None and 0.0 <= at - self.set_back_at <= SET_BACK_S
 
     def _the_one_of_a_kind_that_answers(self, moves: Any) -> int | None:
         """Where no one thing's presses answer her keys, the kind whose do, where one thing of it is on the screen.

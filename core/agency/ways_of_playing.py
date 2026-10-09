@@ -54,6 +54,10 @@ WAYS: tuple[Way, ...] = (
         "a click on it and a click on the other",
         "core.agency.taking_and_using:TakingAndUsing", "core.agency.what_i_can_do_here",
         "tests/test_a_thing_taken_is_used_on_another.py"),
+    Way("unseen", "keep out of what reaches her without touching her (what sees, fires or goes off near her): the distance "
+        "and side at which each kind has cost her, kept clear of",
+        "core.agency.how_far_a_thing_reaches:HowFarThingsReach", "core.agency.playing_as_it_happens",
+        "tests/test_how_far_a_thing_reaches.py"),
     Way("keys shown", "press the keys a screen shows as pictures mid-play, while it shows them: in turn and fast where several are",
         "core.agency.pressing_what_is_shown:KeysShown", "core.agency.playing_as_it_happens",
         "tests/test_keys_a_screen_shows_are_pressed.py"),

@@ -164,19 +164,18 @@ class _Speeds:
         # Each key needs repeated trials. One transient object seen during
         # one press can otherwise produce an enormous ratio by chance.
         groups = {key: values for key, values in presses.items() if len(values) >= 2}
-        # What a press sets going goes on after it is let go: a jump's fall is in the rest after it, and rests counted
-        # as trials of doing nothing then held a still body and a falling one, too unlike to compare (offline
-        # 2026-10-09, the runner's ratio 2.2 against her keys). Doing nothing is a trial only where fewer than two
-        # keys have been tried, and is then the only thing to compare a key with.
-        if sum(1 for key in groups if key) >= 2:
-            groups.pop("", None)
         if len(groups) < 2:
             return 0.0, 0.0
-        # A press's speeds, and how fast it went in all: a press that lifts a thing and lets it fall averages out to
-        # going nowhere, though it went somewhere every time and nowhere under any other key. The stronger of the two
-        # readings stands; a thing whose pace is the same whatever she presses (a ball) answers to neither.
-        by_pace = {key: [(math.hypot(*value), 0.0) for value in values] for key, values in groups.items()}
-        return max(_contingency(groups), _contingency(by_pace))
+        # Which way it went under each key, against doing nothing too: a thing that goes on by itself goes on in the
+        # rests, and that keeps its chance agreements with her keys from counting (a guard pacing, a ball bouncing).
+        by_way = _contingency(groups)
+        # And how fast it went in all, under her keys only: a press that lifts a thing and lets it fall averages out to
+        # going nowhere, though it went somewhere every time and nowhere under any other key; and its fall goes on into
+        # the rest after it, so a rest is no trial of doing nothing for it (offline 2026-10-09, a runner's ratio 2.2).
+        # Doing nothing stays in where fewer than two keys have been tried, being then the only thing to compare with.
+        keyed = {key: values for key, values in groups.items() if key} if sum(1 for key in groups if key) >= 2 else groups
+        by_pace = _contingency({key: [(math.hypot(*value), 0.0) for value in values] for key, values in keyed.items()})
+        return max(by_way, by_pace)
 
     def typical(self, key: str) -> tuple[float, float] | None:
         """The middle speed under a key: a picture matched to the wrong thing does not move it.
@@ -652,6 +651,13 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         candidates = [t for t in moves.things.values() if t.kind == self.kind and t.number not in self.not_mine
                       and self._her_shape(t) and self.last_seen is not None
                       and self._within_reach(t, at)]
+        # Set back somewhere else just after a life was lost, she is the one thing of her kind and shape on the
+        # screen, however far from where she was: offline 2026-10-09 she was set back at the start after every loss,
+        # was too far from where she had been to be followed, and tried all her keys again to find herself. Only then:
+        # without a loss to set her back, a lookalike far off is no more her than any other thing.
+        alone = [t for t in moves.things.values() if t.kind == self.kind and t.number not in self.not_mine and self._her_shape(t)]
+        if not candidates and len(alone) == 1 and self.just_set_back(at):
+            candidates = alone
         if not candidates and self.last_seen is not None and self.last_size:
             candidates = [
                 t for t in moves.things.values()

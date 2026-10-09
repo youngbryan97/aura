@@ -64,6 +64,10 @@ def _times_to(lasts: float) -> tuple[float, ...]:
     return (*DANGER_AHEAD_S, *later)
 
 
+#: How near in time to a loss a thing must have met her for the loss to be its doing, in seconds: a counter is read
+#: every half second and the reading takes a moment.
+TOUCHED_WITHIN_S = 1.0
+
 #: How much less a press's path must meet than holding her course does, for the press to be made: half, so a press
 #: is made for what it clears and not for a near tie.
 CLEARER = 0.5
@@ -200,6 +204,8 @@ class _Run:
     things: dict = field(default_factory=dict)
     #: Where no body answers her keys: what pressing has paid by where the moving things were (when_a_press_pays.py).
     timing: Any = None
+    #: How far each kind reaches: the distance and side at which it has cost her untouched (how_far_a_thing_reaches.py).
+    reach: Any = None
     letting_go: dict[str, float] = field(default_factory=dict)
 
 
@@ -486,7 +492,8 @@ class _Choosing:
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
                  physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
                  response_s: float = 0.0, covered: tuple[set[tuple[int, int]], float] | None = None,
-                 barred: tuple[set[tuple[int, int]], float] | None = None, presses: Any = None) -> None:
+                 barred: tuple[set[tuple[int, int]], float] | None = None, presses: Any = None,
+                 reach: Any = None) -> None:
         self.moves, self.hers, self.meeting = moves, hers, meeting
         #: Where the rules ask for a place to be gone over, the cells of it her thing has been over; else None.
         self.covered = covered
@@ -497,6 +504,7 @@ class _Choosing:
         self.response_s = response_s
         self.mine = hers.thing(moves)
         self.ways = hers.keys_that_move_her(keys)
+        self.reach = reach
         # A key that lifts her and lets her fall is pressed for what its press does, not held as a way to go.
         self.lifts = (presses.lifts(self.mine.kind, max(float(self.mine.w), float(self.mine.h)), self.mine.number)
                       if presses is not None and self.mine is not None else [])
@@ -529,6 +537,9 @@ class _Choosing:
         ]
 
     def stance(self, thing: Any) -> str:
+        # A kind that has cost her from a distance is kept clear of, whatever meeting it has done.
+        if self.reach is not None and self.reach.reach(int(thing.kind)) is not None:
+            return AVOID
         return self.meeting.stance(thing.kind, fixture=not thing.moved)
 
     def speed(self, axis: int) -> float:
@@ -711,7 +722,8 @@ class _Choosing:
             box = _moved_box(mine.box(), x - mine.x, y - mine.y, 2.0)
             for thing in threats:
                 tx, ty = thing.where_at(after)
-                if _boxes_meet(box, _moved_box(thing.box(), tx - thing.x, ty - thing.y, 2.0)):
+                if (_boxes_meet(box, _moved_box(thing.box(), tx - thing.x, ty - thing.y, 2.0))
+                        or (self.reach is not None and self.reach.within(thing, x, y, (tx, ty)))):
                     total += 1.0 / (after + 0.1)
         return total
 
@@ -1009,9 +1021,35 @@ def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
             run.gains += 1
         else:
             run.losses += 1
+            hers.lost_a_life(when)
+            _lost_from_a_distance(run, meeting, mine, moves, verdict)
+            # A loss sets her back and changes the place: where she seemed not to get to before it is not known to be
+            # out of her reach (offline 2026-10-09, set back to the start each time, the way to a coin was marked out
+            # of her reach and she waited in a corner while it stood there).
+            run.barred.clear()
     run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
     run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when)
     meeting.writing = _what_is_writing(moves, regions)
+
+
+def _lost_from_a_distance(run: _Run, meeting: WhatMeetingDoes, mine: Any, moves: WhatMoves, verdict: dict[str, Any]) -> None:
+    """A loss with nothing having touched her lately is put down to the things near her when it came, as they stood then."""
+    if run.reach is None or mine is None:
+        return
+    then = (float(verdict.get("from", verdict["at"])) + float(verdict["at"])) / 2
+    if any(abs(when - then) <= TOUCHED_WITHIN_S for when in meeting._met.values()):
+        return
+    run.reach.lost_untouched(_as_it_stood(mine, then), [_as_it_stood(thing, then) for thing in moves.things.values()
+                                                         if thing.number != mine.number and thing.number not in meeting.writing])
+
+
+def _as_it_stood(thing: Any, then: float) -> Any:
+    """A thing as it stood at ``then``, from where its way had it nearest that time."""
+    from types import SimpleNamespace
+
+    path = list(getattr(thing, "path", ()) or ())
+    at, x, y = min(path, key=lambda step: abs(step[0] - then)) if path else (then, thing.x, thing.y)
+    return SimpleNamespace(number=thing.number, kind=thing.kind, x=x, y=y, vx=thing.vx, vy=thing.vy, w=thing.w, h=thing.h)
 
 
 def _what_is_writing(moves: WhatMoves, regions: list[dict[str, Any]]) -> set[int]:
@@ -1366,6 +1404,9 @@ async def play_as_it_happens(
     from core.agency.when_a_press_pays import WhenAPressPays
 
     run.timing = keep.get("timing") or WhenAPressPays()
+    from core.agency.how_far_a_thing_reaches import HowFarThingsReach
+
+    run.reach = keep.get("reach") or HowFarThingsReach()
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -1410,7 +1451,8 @@ async def play_as_it_happens(
                                  response_s=(statistics.median(run.motion_responses) if len(run.motion_responses) >= 3
                                              else statistics.median(run.responses) if run.responses else 0.0),
                                  covered=(run.covered | run.barred, run.cell) if goes_over and run.cell else None,
-                                 barred=(run.barred, run.cell) if run.cell else None, presses=run.presses)
+                                 barred=(run.barred, run.cell) if run.cell else None, presses=run.presses,
+                                 reach=run.reach)
             if choosing.mine is not None and (choosing.ways or choosing.lifts or choosing.pointing):
                 run.responsive_pictures += 1
             run.things = moves.things
@@ -1448,7 +1490,7 @@ async def play_as_it_happens(
         keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
-                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing,
+                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),

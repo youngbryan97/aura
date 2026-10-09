@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Guards</title></head><body>
+<script src="world.js"></script>
+<script>
+// A body the arrows move, coins to collect, and guards pacing back and forth.
+// A guard sees ahead of the way it is going: within 100 pixels ahead, and
+// level with it within 28. Seen, she loses a life and is set back at the start.
+// Nothing marks where a guard can see.
+const SIZE = 18, SEE = 100, LEVEL = 28, COIN = 12;
+const game = {
+  title: "GUARDS", rules: ["Use the arrows to move.", "Collect the coins.", "Do not let the guards see you."],
+  reset(world) {
+    this.me = { x: 20, y: world.H - 40, w: SIZE, h: SIZE };
+    this.guards = [0, 1, 2].map((i) => ({ x: 80 + world.rand() * 300, y: 80 + i * 70, w: 20, h: 20, vx: (i % 2 ? -1 : 1) * 70 }));
+    this.coin = null; this.coins = 0; this.seen = 0; this.place(world);
+  },
+  place(world) { this.coin = { x: 30 + world.rand() * 420, y: 50 + world.rand() * 220, w: COIN, h: COIN }; },
+  step(dt, world) {
+    const me = this.me, speed = 130 * dt;
+    if (world.held.has("ArrowLeft")) me.x -= speed;
+    if (world.held.has("ArrowRight")) me.x += speed;
+    if (world.held.has("ArrowUp")) me.y -= speed;
+    if (world.held.has("ArrowDown")) me.y += speed;
+    me.x = Math.max(0, Math.min(world.W - SIZE, me.x)); me.y = Math.max(36, Math.min(world.H - SIZE, me.y));
+    for (const g of this.guards) {
+      g.x += g.vx * dt;
+      if (g.x < 20 || g.x > world.W - 40) g.vx = -g.vx;
+      const ahead = (me.x + SIZE / 2 - (g.x + 10)) * Math.sign(g.vx);
+      if (ahead > 0 && ahead < SEE && Math.abs(me.y + SIZE / 2 - (g.y + 10)) < LEVEL) {
+        this.seen += 1; world.seen = this.seen; world.lose(); me.x = 20; me.y = world.H - 40;
+      }
+    }
+    if (this.coin && hits(this.coin, me)) { this.coins += 1; world.score = this.coins; world.coins = this.coins; this.place(world); }
+  },
+  backdrop(ctx) { ctx.fillStyle = "#2a3a2a"; ctx.fillRect(0, 0, 480, 320); },
+  draw(ctx) {
+    ctx.fillStyle = "#f0d040"; ctx.fillRect(this.coin.x, this.coin.y, COIN, COIN);
+    ctx.fillStyle = "#d04040"; for (const g of this.guards) ctx.fillRect(g.x, g.y, g.w, g.h);
+    ctx.fillStyle = "#60a0f0"; ctx.fillRect(this.me.x, this.me.y, SIZE, SIZE);
+  },
+  readouts(ctx, world) { scoreAndLives(ctx, world); },
+};
+game.lives = 60;
+playWorld(game);
+</script></body></html>
