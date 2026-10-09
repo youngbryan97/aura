@@ -240,14 +240,12 @@ class CanvasFrames:
         """A canvas drawn by WebGL without a kept buffer reads back blank while the screen shows a game."""
         import numpy as np
 
-        from core.perception.picture_arithmetic import decode
 
         if float(np.asarray(picture, dtype=np.float32).std()) > 2.0:
             return True
-        try:
-            shot = decode(await self.page.screenshot(clip=clip, type="jpeg", quality=80, scale="css"))
-        except Exception:  # noqa: BLE001 - nothing to compare with: trust neither, use the screen
-            return False
+        from core.perception.a_picture_of_her_page import picture_of
+
+        shot = await picture_of(self.page, clip, css=True)
         return shot is not None and float(np.asarray(shot, dtype=np.float32).std()) <= 2.0
 
 

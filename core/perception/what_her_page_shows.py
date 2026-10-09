@@ -17,7 +17,6 @@ click on the page is given.
 
 from __future__ import annotations
 
-import asyncio
 import io
 import time
 from typing import Any
@@ -69,11 +68,11 @@ async def look_at_a_page(
     }
 
     async def take() -> Any:
-        try:
-            png = await page.screenshot(clip=clip, type="png")
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
-            return None
-        return await asyncio.to_thread(_decoded, png) if png else None
+        from core.perception.a_picture_of_her_page import picture_of
+
+        # The whole window, cut down here: a picture of part of the page made a visible window flicker (LIVE 2026-10-09).
+        picture = await picture_of(page, clip, css=False, kind="png")
+        return None if picture is None else picture[:, :, ::-1].copy()
 
     settled = await _read_until_settled(
         looker_for(name),

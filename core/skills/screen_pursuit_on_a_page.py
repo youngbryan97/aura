@@ -209,7 +209,6 @@ class _PagePictures:
     canvas: Any = None
 
     async def __call__(self) -> Any:
-        from core.perception.what_her_page_shows import _decoded
 
         if self.canvas is not None and not self.canvas.unavailable:
             drawn = await self.canvas.look(self.clip)
@@ -219,8 +218,11 @@ class _PagePictures:
             streamed = await self.frames.look(self.clip)
             if streamed is not None:
                 return streamed
-        png = await self.page.screenshot(clip=self.clip, type="png")
-        return _decoded(png) if png else None
+        from core.perception.a_picture_of_her_page import picture_of
+
+        # The whole window, cut down here: a picture of part of the page made a visible window flicker (LIVE 2026-10-09).
+        picture = await picture_of(self.page, self.clip, css=False, kind="png")
+        return None if picture is None else picture[:, :, ::-1].copy()
 
     async def close(self) -> None:
         if self.canvas is not None:

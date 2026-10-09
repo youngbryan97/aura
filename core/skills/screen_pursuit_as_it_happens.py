@@ -19,7 +19,6 @@ caller holds.
 """
 from __future__ import annotations
 
-import asyncio
 import contextvars
 import logging
 import time
@@ -105,7 +104,6 @@ class PlayingAsItHappens:
 
     async def look(self) -> tuple[Any, float] | None:
         from core.perception.frames_as_they_are_drawn import CanvasFrames, PageFrames
-        from core.perception.picture_arithmetic import decode
 
         clip = await self._where()
         # The drawing read from its own canvas where it can be; else frames as
@@ -126,11 +124,12 @@ class PlayingAsItHappens:
             # At the page's own pixels: on a high-density screen a picture
             # at device pixels is four times the size for the same view, and
             # live play ran at thirteen pictures a second (2026-10-04).
-            data = await self.page.screenshot(clip=clip, type="jpeg", quality=80, scale="css")
+            from core.perception.a_picture_of_her_page import picture_of
+
+            picture = await picture_of(self.page, clip, css=True, kind="jpeg")
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return None
         at = time.monotonic()
-        picture = await asyncio.to_thread(decode, data)
         if picture is None:
             return None
         return picture, at

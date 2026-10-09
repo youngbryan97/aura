@@ -96,17 +96,14 @@ class _Watch:
 
 
 async def _look(page: Any, clip: dict[str, float], frames: Any = None) -> tuple[Any, float] | None:
-    from core.perception.picture_arithmetic import decode
 
     if frames is not None:
         seen = await frames.look(clip)
         if seen is not None:
             return seen
-    try:
-        data = await page.screenshot(clip=clip, type="jpeg", quality=80, scale="css")
-    except Exception:  # noqa: BLE001 - a page that cannot be photographed ends the watch
-        return None
-    picture = decode(data)
+    from core.perception.a_picture_of_her_page import picture_of
+
+    picture = await picture_of(page, clip, css=True)
     return (picture, time.monotonic()) if picture is not None else None
 
 

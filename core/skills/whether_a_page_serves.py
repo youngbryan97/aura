@@ -278,7 +278,6 @@ async def whether_it_serves(page: Any, task: str, *, look_for_s: float = 2.5) ->
 async def _what_it_draws(page: Any, thing: dict[str, Any], over_s: float) -> str:
     """'blank' when the thing shows one flat colour twice; else what it was seen to do: 'draws, and moves', 'draws its screen'; '' unseen."""
     import asyncio
-    import io
 
     try:
         from PIL import Image, ImageStat
@@ -287,11 +286,12 @@ async def _what_it_draws(page: Any, thing: dict[str, Any], over_s: float) -> str
     box = {"x": max(0.0, thing["x"]), "y": max(0.0, thing["y"]), "width": max(1.0, thing["w"]), "height": max(1.0, thing["h"])}
     looks = []
     for n in range(2):
-        try:
-            shot = await page.screenshot(clip=box, timeout=8000)
-        except Exception:  # noqa: BLE001 - off screen, or the page went away
-            return ""
-        looks.append(Image.open(io.BytesIO(shot)).convert("L").resize((64, 48)))
+        from core.perception.a_picture_of_her_page import picture_of
+
+        shot = await picture_of(page, box, css=True)
+        if shot is None:
+            return ""  # off screen, or the page went away
+        looks.append(Image.fromarray(shot).convert("L").resize((64, 48)))
         if n == 0:
             await asyncio.sleep(over_s)
     spread = [ImageStat.Stat(look).stddev[0] for look in looks]
