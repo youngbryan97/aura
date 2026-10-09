@@ -84,3 +84,24 @@ def test_a_stretch_with_nothing_of_hers_that_goes_against_her_is_handed_back_and
     assert _nothing_answers(run, WhichIsHers(), meeting, 40) == "nothing here answers to me, and it is going against me"
     run.gains = 3
     assert not _nothing_answers(run, WhichIsHers(), meeting, 300)
+
+
+def test_writing_that_says_the_round_is_over_ends_the_stretch_and_is_not_a_word_of_play():
+    """LIVE 2026-10-09 an end screen's stars twinkled under "TRY AGAIN", and she played on at it for half a minute."""
+    from core.agency.playing_as_it_happens import (
+        SAID_IT_IS_OVER,
+        _Run,
+        _said_it_is_over,
+        _the_words_of_play,
+    )
+
+    run = _Run(keys=["up"], began=0.0)
+    run.first_moving = 0.5
+    run.words_read = [(1.0, "landings: 0"), (5.0, "defeat the robots"), (9.0, "fuel")]
+    assert not _said_it_is_over(run)
+    run.words_read += [(12.0, "ouch!"), (12.0, "try again")]
+    assert _said_it_is_over(run) == SAID_IT_IS_OVER
+    assert "try again" not in _the_words_of_play(run, SAID_IT_IS_OVER) and "fuel" in _the_words_of_play(run, SAID_IT_IS_OVER)
+    begun_on_one = _Run(keys=["up"], began=0.0)
+    begun_on_one.words_read = [(0.5, "play again"), (6.0, "play again")]        # the last round's end, still up
+    assert not _said_it_is_over(begun_on_one)

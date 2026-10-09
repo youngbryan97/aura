@@ -155,6 +155,8 @@ class _Run:
     #: Every line of writing read on the screen during the stretch.
     #: When something was first seen moving in this stretch.
     first_moving: float = math.inf
+    #: When writing that says the round is over was first read in play.
+    over_read_at: float = math.inf
     #: Every reading's words, with when its picture was taken.
     words_read: list[tuple[float, str]] = field(default_factory=list)
     #: The bars on the screen that fill and empty (core/perception/how_full_a_bar_is.py), the last words read with where
@@ -1463,7 +1465,7 @@ async def play_as_it_happens(
             _what_she_says(run, say, moves, hers, meeting, at)
             _what_kind_of_game(run, say, moves, hers, meeting, physics, at)
             _report(run, getting_somewhere, at)
-            ended = _over(run, moves, happened, at) or _nothing_answers(run, hers, meeting, at)
+            ended = _over(run, moves, happened, at) or _nothing_answers(run, hers, meeting, at) or _said_it_is_over(run)
     finally:
         for key in [run.held, *run.letting_go] if run.held else list(run.letting_go):
             try:
@@ -1850,6 +1852,25 @@ def _where_to_meet_things(run: _Run, choosing: _Choosing, meeting: WhatMeetingDo
     run.credited_up_to = len(meeting.verdicts)
 
 
+#: How long into a stretch writing that says a round is over must first be read to be its end, not the last one's.
+OVER_READ_AFTER_S = 2.0
+SAID_IT_IS_OVER = "the screen says the round is over"
+
+
+def _said_it_is_over(run: _Run) -> str:
+    """Writing read in play that says a round is over ("TRY AGAIN", "GAME OVER") and was not there as it began: the
+    stretch hands the screen back. LIVE 2026-10-09 an end screen's stars twinkled, and she played on at it for half a
+    minute."""
+    from core.language.how_a_game_ended import says_a_round_is_over
+
+    there = {said for when, said in run.words_read if when < run.began + OVER_READ_AFTER_S}
+    for when, said in run.words_read[-12:]:
+        if when >= run.began + OVER_READ_AFTER_S and said not in there and says_a_round_is_over(said):
+            run.over_read_at = min(run.over_read_at, when)
+            return SAID_IT_IS_OVER
+    return ""
+
+
 def _the_words_of_play(run: _Run, ended: str) -> set[str]:
     """The words read while the game was going, not those of the screen it ended on.
 
@@ -1861,7 +1882,7 @@ def _the_words_of_play(run: _Run, ended: str) -> set[str]:
     for the game's furniture and she started another.
     """
     still = ended.startswith(("nothing on the screen", "the screen changed"))
-    cutoff = run.last_moving - END_SCREEN_MARGIN_S if still else math.inf
+    cutoff = run.last_moving - END_SCREEN_MARGIN_S if still else run.over_read_at - END_SCREEN_MARGIN_S if ended == SAID_IT_IS_OVER else math.inf
     # Nor the screen it began on, read before anything had moved: a stretch
     # begun as the last game's end screen gave way is not that screen's game.
     return {said for when, said in run.words_read if run.first_moving <= when < cutoff}

@@ -16,8 +16,8 @@ import re
 import unicodedata
 from typing import Final
 
-__all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "offers_a_win", "the_score_in",
-           "what_it_asks_of_a_player"]
+__all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "offers_a_win", "says_a_round_is_over",
+           "the_score_in", "what_it_asks_of_a_player"]
 
 _WINNING: Final = re.compile(r"\b(win|wins|won|winner|victory|victorious|beat|beats|defeated|champion)\b")
 _THE_PLAYER: Final = frozenset({"you", "player", "player 1", "p1", "your", "yours"})
@@ -91,6 +91,19 @@ def _who_it_says_won(text: str) -> str:
         if not re.search(r"\b(not|didn't|did not|never)\b", clause):
             return "lost"
     return ""
+
+
+#: What an end screen says over a round, won or lost, as against the rules' words for winning and losing ("defeat the
+#: robots", "don't crash"), which are read in play too.
+_ROUND_OVER: Final = re.compile(
+    r"\b(game over|try again|play again|retry|replay|you (?:lose|lost|win|won|died|crashed)|out of (?:lives|time)|"
+    r"time'?s up|(?:level|stage|round|mission|wave) (?:complete|completed|cleared|failed)|mission failed|well done|"
+    r"congratulations)\b")
+
+
+def says_a_round_is_over(words: str) -> bool:
+    """Whether writing says a round is over, the way an end screen says it: "GAME OVER", "TRY AGAIN", "Level Complete"."""
+    return bool(_ROUND_OVER.search(_plain(words)))
 
 
 def how_it_ended(words: str) -> str:
