@@ -50,6 +50,10 @@ LEAVE_A_MOVING_MENU_S = 20.0
 #: The longest one stretch of play runs before the pursuit gets a look.
 STRETCH_S = 300.0
 
+#: How long a showing is watched for places lit in turn, and how often one screen's showing is followed.
+WATCH_A_SHOWING_S = 6.0
+FOLLOW_AT_MOST = 6
+
 #: The longest she waits for her model's answer to a question a screen asks, in seconds.
 ANSWER_WITHIN_S = 20.0
 
@@ -308,6 +312,9 @@ class PlayingAsItHappens:
             return
         if not self.under_her_hand and self._a_menu_first():
             return
+        # A screen whose words ask for what it shows to be done again is watched, and followed, before it is played.
+        if await self._did_again_what_it_showed():
+            return
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
         if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
             # A world that waits for her: words it asks for are typed; where it says to send something, by shots.
@@ -351,6 +358,36 @@ class PlayingAsItHappens:
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
             self.under_her_hand = False
+
+    async def _did_again_what_it_showed(self) -> bool:
+        """Where the screen's words ask for what it shows to be followed: the arrows it draws pressed as keys, else the
+        places it lights in turn clicked in their order (core/agency/doing_again_what_was_shown.py). Whether anything
+        was done."""
+        from core.agency.doing_again_what_was_shown import Shown, arrows_in, asks_to_follow, do_again, lit_in_turn
+        from core.perception.what_the_pixels_show import recognize_text
+
+        told = " ".join(self.words[-3:])
+        if not asks_to_follow(told):
+            return False
+        tries = self.keep.setdefault("followed", {})
+        key = self.words[-1][:80] if self.words else ""
+        if tries.get(key, 0) >= FOLLOW_AT_MOST:
+            return False
+        tries[key] = tries.get(key, 0) + 1
+        seen = await self.look()
+        if seen is None:
+            return False
+        shown = Shown(keys=arrows_in(seen[0], recognize_text(seen[0])))
+        if len(shown.keys) < 2:
+            shown = Shown(places=await lit_in_turn(self.look, WATCH_A_SHOWING_S))
+        if len(shown.keys) + len(shown.places) < 2:
+            logger.info("asked to follow what is shown, and nothing was shown in order")
+            return False
+        done = await do_again(shown, self, say=_said_while_playing)
+        logger.info("did again what was shown: %s (%d acts)", shown, done)
+        self.stretches.append({"pictures": done, "gains": 0, "losses": 0, "ended": "did again what was shown",
+                               "followed": {"keys": shown.keys, "places": shown.places}})
+        return bool(done)
 
     async def _typed_what_it_asks(self) -> bool:
         """Where the screen's words ask for words typed, typed (core/agency/typing_what_is_asked.py), twice at most for

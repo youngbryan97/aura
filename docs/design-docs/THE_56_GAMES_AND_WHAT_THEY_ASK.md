@@ -26,7 +26,7 @@ if any of them is not called from her live play or has no test.
 | time a press | press when something moving is at the right place | not yet |
 | jump | clear what comes at her, or a gap, with a jump | not yet (keeping clear of danger ahead with learned keys, not shown for jumps) |
 | a view going by | a world that scrolls past | `core/perception/how_the_scenery_goes_by.py` |
-| copy a sequence | do again, in order, what was shown | not yet |
+| copy a sequence | do again, in order, what was shown | `core/agency/doing_again_what_was_shown.py` |
 | remember what was shown | turn things over and match what was seen where | not yet |
 | a board in turns | a board, moves in turns, someone on the other side | `core/skills/screen_pursuit.py` with `core/agency/looking_ahead.py` |
 | a grid's rule | a grid whose rule is found by moving in it | `core/skills/screen_pursuit.py` (her rule of the world) |
