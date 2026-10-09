@@ -35,8 +35,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Sequence
 
-from core.agency.taking_and_using import TakingAndUsing, what_is_used
-from core.agency.things_that_go_together import ThingsThatGoTogether, what_is_matched
+from core.agency.acts_on_two_places import two_places_of
+from core.agency.putting_things_in_place import PuttingInPlace
+from core.agency.taking_and_using import TakingAndUsing
+from core.agency.things_that_go_together import ThingsThatGoTogether
 from core.agency.where_things_lead import WhereThingsLead
 
 __all__ = [
@@ -184,9 +186,10 @@ def worth_trying(told: Sequence[str] = ()) -> tuple[str, ...]:
 
 
 @dataclass
-class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether):
+class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
     """Which inputs have done anything, and which have never done anything; and what she has taken to use
-    (core/agency/taking_and_using.py); and what each place showed, to pair what is alike (things_that_go_together.py)."""
+    (core/agency/taking_and_using.py); and what each place showed, to pair what is alike (things_that_go_together.py);
+    and whether things are carried here (putting_things_in_place.py)."""
 
     #: What she was told her actions were, if anything.
     told: tuple[str, ...] = ()
@@ -212,10 +215,12 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether):
     #: The screens of this place and where each act on them led, across sittings.
     leads: WhereThingsLead = field(default_factory=WhereThingsLead)
 
-    def asked_for_by(self, words: str, clickable: Sequence[str] = (), drawn: Sequence[str] = ()) -> None:
-        """Keys the screen asks her to press, in its words or drawn as keys on it, and labels its words ask her to click."""
+    def asked_for_by(self, words: str, clickable: Sequence[str] = (), drawn: Sequence[str] = (), counsel: str = "") -> None:
+        """Keys the screen asks her to press, in its words or drawn as keys on it, and labels its words ask her to click;
+        and whether its words, or the counsel she took before she began, speak of carrying things to places."""
         from core.agency.playing_as_it_happens import controls_named_in
 
+        self.told_of_carrying(f"{words} {counsel}")
         self.asked_for = tuple(dict.fromkeys([*keys_a_screen_asks_for(words), *drawn]))
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
         keys, pointer = controls_named_in(words, keys_without_words=())
@@ -244,13 +249,14 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether):
     def tried(self, key: str, changed: bool) -> None:
         """One input, and whether the world answered it."""
         name = str(key or "").strip()
-        name = name if what_is_clicked(name) is not None or what_is_used(name) or what_is_matched(name) else name.lower()
+        name = name if what_is_clicked(name) is not None or two_places_of(name) else name.lower()
         if not name:
             return
         if what_is_clicked(name) is not None:
             self.clicked_on(name, self.seen_before, changed)
             self.turned_over(what_is_clicked(name) or "")
         self.paired(name)
+        self.carried(name, changed)
         self.leads.acted(name, changed)
         if changed:
             self.quiet_since.clear()
@@ -299,7 +305,8 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether):
     def available(self) -> tuple[str, ...]:
         """What to offer her now, what led on from this screen before first (`core.agency.where_things_lead`)."""
         # A pair known to go together comes first: it is known to answer.
-        return self.pairs(self.on_screen) + self.leads.in_order(self._available()) + self.uses(self.on_screen)
+        return (self.pairs(self.on_screen) + self.leads.in_order(self._available()) + self.uses(self.on_screen)
+                + self.carries(self.on_screen))
 
     def _available(self) -> tuple[str, ...]:
         """What to offer her now.

@@ -175,6 +175,42 @@ class OnAPage:
         self._focused = True
         return True
 
+    #: The steps a carry is made in, and the pause between them: a page sees the pointer travel with the button down,
+    #: as a hand carries it, and not a jump from the one place to the other.
+    CARRY_STEPS = 12
+    CARRY_STEP_S = 0.02
+
+    async def carry(self, start: tuple[float, float], end: tuple[float, float], bounds: Sequence[int] | None) -> bool:
+        """A press at ``start`` carried with the button held to ``end`` and let go, at shares of ``bounds``."""
+        import asyncio
+
+        if not all(0.0 <= v <= 1.0 for v in (*start, *end)):
+            return False
+        if bounds and len(bounds) >= 4:
+            left, top, wide, tall = (float(value) for value in bounds[:4])
+        else:
+            from core.perception.what_her_page_shows import the_page_size
+
+            wide, tall = await the_page_size(self.page)
+            left = top = 0.0
+        (x0, y0), (x1, y1) = ((left + x * wide, top + y * tall) for x, y in (start, end))
+        try:
+            await self.page.mouse.move(x0, y0)
+            await self.page.mouse.down()
+            try:
+                for step in range(1, self.CARRY_STEPS + 1):
+                    share = step / self.CARRY_STEPS
+                    await self.page.mouse.move(x0 + (x1 - x0) * share, y0 + (y1 - y0) * share)
+                    await asyncio.sleep(self.CARRY_STEP_S)
+            finally:
+                await self.page.mouse.up()
+        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+            return False
+        if self.watching is not None:
+            self.watching.acted(f"carry from {start[0]:.2f}, {start[1]:.2f} to {end[0]:.2f}, {end[1]:.2f}")
+        self._focused = True
+        return True
+
     async def identity(self) -> dict[str, str]:
         try:
             title = str(await self.page.title() or "")

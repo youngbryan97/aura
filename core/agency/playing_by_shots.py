@@ -41,9 +41,11 @@ STOPPED_FOR_S = 0.4
 #: How many steps a pull is made in, so the page sees a drag and not a jump.
 PULL_STEPS = 8
 
-#: Words that say a thing is sent by a press pulled or held and let go.
+#: Words that say a thing is sent by a press pulled or held and let go. Not "drag": a thing dragged is carried to a
+#: place and stays there (core/agency/putting_things_in_place.py). LIVE 2026-10-09 "click and drag it into place"
+#: had her letting go of shots at a title screen for a minute.
 _SENDING_WORDS = (
-    "drag", "pull", "release", "let go", "launch", "fling", "sling", "toss", "putt", "power", "hold the mouse",
+    "pull", "release", "let go", "launch", "fling", "sling", "toss", "putt", "power", "hold the mouse",
     "click and hold", "hold down the mouse", "hold the button", "aim", "throw",
 )
 
@@ -72,9 +74,14 @@ async def _let_go(hands: Any, start: tuple[float, float], setting: Setting, way:
 
 
 async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_at: float,
-                         read_words: Callable[[Any], list[dict[str, Any]]] | None, counters: Any) -> tuple[tuple[float, float] | None, int]:
+                         read_words: Callable[[Any], list[dict[str, Any]]] | None, counters: Any,
+                         going_already: frozenset[int] = frozenset()) -> tuple[tuple[float, float] | None, int]:
     """Watch after a shot: the thing that set off first after the letting go, followed until it stops or goes; where,
-    as shares of the picture, and what was counted meanwhile."""
+    as shares of the picture, and what was counted meanwhile.
+
+    A thing already going before she pressed was not sent by her: LIVE 2026-10-09 a title's word bobbing on its
+    own was taken for what her press sent, and she went on shooting at it.
+    """
     sent: int | None = None
     last: tuple[float, float] | None = None
     slow_since: float | None = None
@@ -88,7 +95,8 @@ async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_
         happened = moves.see(picture, at)
         tall, wide = moves.shape
         if sent is None and at - let_go_at <= SETS_OFF_WITHIN_S:
-            setting_off = [thing for thing in moves.things.values() if math.hypot(thing.vx, thing.vy) > 2 * STOPPED_BELOW]
+            setting_off = [thing for thing in moves.things.values()
+                           if math.hypot(thing.vx, thing.vy) > 2 * STOPPED_BELOW and thing.number not in going_already]
             if setting_off:
                 sent = max(setting_off, key=lambda thing: math.hypot(thing.vx, thing.vy)).number
         if sent is not None:
@@ -195,10 +203,11 @@ async def play_by_shots(
             break
         aim = aim_at(seen[0]) if aim_at is not None else None
         setting = shots.next_setting(aim, start)
+        going = frozenset(n for n, thing in moves.things.items() if math.hypot(thing.vx, thing.vy) > STOPPED_BELOW)
         await _let_go(hands, start, setting, way)
         # When it was let go, on the pictures' own clock: the time of the last picture before it, and the act's length.
         let_go_at = seen[1] + (setting.held_s if way == HOLD else PULL_STEPS * 0.015)
-        ended_at, gained = await _where_it_went(look, moves, let_go_at, read_words, counters)
+        ended_at, gained = await _where_it_went(look, moves, let_go_at, read_words, counters, going_already=going)
         keep["kinds"] = moves.kinds
         shot = Shot(setting=setting, ended_at=ended_at, gained=gained, aimed_at=aim)
         shots.took(shot)

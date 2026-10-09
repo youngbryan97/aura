@@ -98,6 +98,22 @@ async def _click_what_she_named(run: SimpleNamespace, label: str) -> bool:
 BETWEEN_CLICKS_S = 0.3
 
 
+async def _carry_what_she_named(run: SimpleNamespace, thing: str, place: str) -> bool:
+    """A press on the writing or shape one move names, carried with the button held to where another is, and let go.
+
+    Both are where the reading showed them; a place the reading no longer holds is not guessed at.
+    """
+    from .screen_pursuit_bearings import where_to_click
+    from .screen_pursuit_surface import carry_normalized
+
+    seen = getattr(run, "observation", None) or {}
+    start, end = where_to_click(seen, thing), where_to_click(seen, place)
+    if start is None or end is None:
+        return False
+    return await carry_normalized(start, end, expect_app=run.target_app or run.anchor["app"],
+                                  bounds=list(seen.get("bounds") or []))
+
+
 async def _after_a_moment(click: Awaitable[bool]) -> bool:
     import asyncio
 
@@ -169,12 +185,11 @@ async def carry_out_the_move(
     # fifty-three moves between them, one screen reading apiece.
     # A click is one act. It is aimed at what the reading it was chosen from
     # showed, and the next reading has to be of what that click did.
-    from core.agency.taking_and_using import what_is_used
-    from core.agency.things_that_go_together import what_is_matched
+    from core.agency.acts_on_two_places import two_places_of
     from core.agency.what_i_can_do_here import what_is_clicked
 
-    clicked, used = what_is_clicked(key), what_is_used(key) or what_is_matched(key)
-    sequence = [key, *follow_on] if follow_on and clicked is None and used is None else [key]
+    clicked, two = what_is_clicked(key), two_places_of(key)
+    sequence = [key, *follow_on] if follow_on and clicked is None and two is None else [key]
     started_acting = time.monotonic()
     # Before the body moves: is this where she should be.
     #
@@ -238,9 +253,11 @@ async def carry_out_the_move(
                 _tell(move_said)
             continue
         _say_intent(step, reason, out_loud=aloud, following_on=position > 0)
-    if used is not None:
+    if two is not None and two.by_clicks:
         # Taken, then used: a click on the thing, a moment for the screen to answer, and a click on what it is used on.
-        arrived = 1 if await _click_what_she_named(run, used[0]) and await _after_a_moment(_click_what_she_named(run, used[1])) else 0
+        arrived = 1 if await _click_what_she_named(run, two.one) and await _after_a_moment(_click_what_she_named(run, two.other)) else 0
+    elif two is not None:
+        arrived = 1 if await _carry_what_she_named(run, two.one, two.other) else 0
     elif clicked is not None:
         arrived = 1 if await _click_what_she_named(run, clicked) else 0
     elif len(sequence) > 1:

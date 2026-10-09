@@ -34,6 +34,7 @@ if any of them is not called from her live play or has no test.
 | type | type what a screen asks for: an answer, a name, a question | `core/agency/typing_what_is_asked.py` |
 | make | make something and say what | `core/skills/sovereign_browser_drawing.py` (MADE) |
 | use things | take a thing (it goes elsewhere or is chosen where it is), then use it on another: two clicks | `core/agency/taking_and_using.py` |
+| carry | press on a thing and carry it, the button held, to a place, and let go there; a place marked as the one ("here", the one that stands out) first | `core/agency/putting_things_in_place.py` |
 | a chain | place pieces so each leads to the next, toward an end | not yet |
 | serve | give each what it asks for | not yet |
 | unseen | keep out of what reaches her without touching her: the distance and side at which each kind has cost her | `core/agency/how_far_a_thing_reaches.py` |
@@ -60,7 +61,7 @@ own words where it has any, else from what its code does.
 | 8 | Courage the Cowardly Dog: Nightmare Vacation | steer, a grid's rule |
 | 9 | Cow and Chicken: Ballet Parking | steer (park each car), counters |
 | 10 | Dexter's Laboratory: Clone-A Doodle Doo | send (place a post, drag, let go), counters |
-| 11 | Ed, Edd n Eddy's Candy Machine Deluxe | a grid's rule (drop candy left or right), time a press |
+| 11 | Ed, Edd n Eddy's Candy Machine Deluxe | carry (add a part, drag it to where it attaches), a chain (tubes from where the jawbreaker drops to the bucket), counters (tries) |
 | 12 | Samurai Jack: Code of the Samurai | steer, jump, shoot, counters |
 | 13 | Scooby-Doo and the Creepy Castle | use things (pick up objects, use them on ghosts), click things (doors), counters |
 | 14 | Scooby-Doo: Scooby Trap | steer, jump, counters |

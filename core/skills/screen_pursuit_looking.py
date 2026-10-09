@@ -764,8 +764,7 @@ def _say_intent(
     corrected out loud by :func:`_say_it_did_not_land`, and the RECORD of
     what she did is still written only from what landed.
     """
-    from core.agency.taking_and_using import what_is_used
-    from core.agency.things_that_go_together import what_is_matched
+    from core.agency.acts_on_two_places import two_places_of
     from core.agency.what_i_can_do_here import what_is_clicked
 
     from .screen_pursuit import (
@@ -773,11 +772,10 @@ def _say_intent(
         _tell,
     )
 
-    clicked, used, matched = what_is_clicked(str(key)), what_is_used(str(key)), what_is_matched(str(key))
+    clicked, two = what_is_clicked(str(key)), two_places_of(str(key))
     named = str(key).strip().lower()
     # A key named for a way is gone in; any other key is pressed: "Going up", "Pressing space" (not "Going space").
-    said = (f'Using "{used[0]}" on "{used[1]}"' if used is not None else f'Matching "{matched[0]}" with "{matched[1]}"'
-            if matched is not None else f'Clicking "{clicked}"' if clicked is not None
+    said = (two.said() if two is not None else f'Clicking "{clicked}"' if clicked is not None
             else f"Going {named}" if named in ("up", "down", "left", "right") else f"Pressing {named}")
     # A reason she did not give does not erase the one she has.
     #
@@ -841,9 +839,13 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     if hasattr(can_do, "asked_for_by"):
         from core.agency.what_i_can_do_here import what_is_clicked
 
+        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+
         labels = [what_is_clicked(move) or "" for move in clickable]
+        reflexes = AS_IT_HAPPENS.get()
         can_do.asked_for_by(" ".join([says or "", *labels]), clickable,
-                            drawn=[str(key.get("key")) for key in observation.get("keys_drawn") or () if key.get("key")])
+                            drawn=[str(key.get("key")) for key in observation.get("keys_drawn") or () if key.get("key")],
+                            counsel=str((getattr(reflexes, "keep", None) or {}).get("counsel") or ""))
     if not says or not narrate or paced is None:
         return
     words = set(says.lower().split())

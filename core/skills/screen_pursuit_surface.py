@@ -556,6 +556,64 @@ async def click_normalized(
     return bool(getattr(receipt, "success", False))
 
 
+async def carry_normalized(
+    start: tuple[float, float],
+    end: tuple[float, float],
+    *,
+    expect_app: str = "",
+    bounds: Sequence[int] | None = None,
+) -> bool:
+    """A press at ``start`` carried with the button held to ``end`` and let go there, both in 0..1 of ``bounds``.
+
+    Through the same guards as a click: on her own page the page's pointer, else the host's, refused when her
+    application is not in front and off the edge of the display.
+    """
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    if on is not None:
+        return await on.carry(start, end, bounds)
+    from core.capabilities.host_automation import get_host_automation
+
+    host = get_host_automation()
+    if expect_app and await host._refuse_if_not_frontmost(expect_app, "drag") is not None:
+        return False
+    if bounds and len(bounds) >= 4:
+        left, top, width, height = (int(value) for value in bounds[:4])
+    else:
+        left, top = 0, 0
+        width, height = await _screen_size()
+    across, down = await _screen_size()
+    points = [(int(round(left + x * width)), int(round(top + y * height))) for x, y in (start, end)]
+    if not width or not height or not all(0 <= x < across and 0 <= y < down for x, y in points):
+        return False
+    return await _drag_on_the_host(points[0], points[1])
+
+
+async def _drag_on_the_host(start: tuple[int, int], end: tuple[int, int]) -> bool:
+    """A drag of the person's own pointer, as a hand drags: cliclick's drag down, moves and up. Refused under a proof
+    run, which must never move the person's pointer."""
+    import asyncio
+
+    from core.runtime.proof_policy import proof_run_active
+    from core.runtime.subprocess_gateway import get_subprocess_gateway
+
+    if proof_run_active():
+        return False
+    (x0, y0), (x1, y1) = start, end
+    try:
+        proc = await get_subprocess_gateway().spawn_async(
+            ["cliclick", "-w", "20", f"dd:{x0},{y0}", f"dm:{(x0 + x1) // 2},{(y0 + y1) // 2}", f"dm:{x1},{y1}", f"du:{x1},{y1}"],
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            source="screen_pursuit.carry", accelerator_capability="none",
+        )
+        await asyncio.wait_for(proc.communicate(), timeout=3.0)
+    except (FileNotFoundError, OSError, TimeoutError) as why:
+        logger.info("the drag from %s to %s was not made: %s", start, end, why)
+        return False
+    return proc.returncode == 0
+
+
 async def _screen_size() -> tuple[int, int]:
     """Main display size in pixels, or (0, 0) when it cannot be read."""
     try:

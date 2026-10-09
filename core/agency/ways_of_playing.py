@@ -58,6 +58,10 @@ WAYS: tuple[Way, ...] = (
         "and side at which each kind has cost her, kept clear of",
         "core.agency.how_far_a_thing_reaches:HowFarThingsReach", "core.agency.playing_as_it_happens",
         "tests/test_how_far_a_thing_reaches.py"),
+    Way("carry", "press on a thing and carry it, the button held, to a place, and let go there: a part onto a machine, a "
+        "piece to its square",
+        "core.agency.putting_things_in_place:PuttingInPlace", "core.agency.what_i_can_do_here",
+        "tests/test_a_thing_is_carried_to_its_place.py"),
     Way("remember what was shown", "remember what each place showed when turned over, and turn together two places that were "
         "alike before and showed alike things",
         "core.agency.things_that_go_together:ThingsThatGoTogether", "core.agency.what_i_can_do_here",

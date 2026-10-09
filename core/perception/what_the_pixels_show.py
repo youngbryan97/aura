@@ -729,7 +729,10 @@ class Looker:
                     self.learn_what_was_read()
                 return cheap
             self.held_lessons = []
-        layout = recognize_text(image)
+        from core.perception.reading_closer import read_closer
+
+        # Lettering a whole-screen reading got half right is read again from its own place (reading_closer.py).
+        layout = read_closer(image, recognize_text(image), recognize_text)
         self._remember_around(image, grids, layout)
         return self._read_placed(image, panels, grids, layout, learn=learn)
 
