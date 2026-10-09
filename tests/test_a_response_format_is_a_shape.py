@@ -87,10 +87,12 @@ def test_the_client_puts_the_shape_on_the_job(given: str | None, expected: str) 
 
 
 def test_the_worker_holds_the_shape_the_job_names() -> None:
-    """The three shapes the worker accepts are the three the callers send."""
-    from core.brain.llm import mlx_worker
+    """The three shapes the worker accepts are the three the callers send, on both of its generation paths."""
+    from core.brain.llm import mlx_worker, what_the_decoder_holds
 
-    source = inspect.getsource(mlx_worker._mlx_worker_loop_shape_answer_held)
+    for path in (mlx_worker._mlx_worker_loop_shape_answer_held, mlx_worker._mlx_worker_loop__endo_receipt):
+        assert "hold_the_answer(job, tokenizer, native_thinking, logits_processors" in inspect.getsource(path)
+    source = inspect.getsource(what_the_decoder_holds)
     assert 'job.get("output_shape")' in source
     assert "enforce_json(" in source
     for shape in ("json", "json_object", "json_array"):
