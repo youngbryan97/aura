@@ -85,7 +85,8 @@ class WhatTheRulesSaid:
         keys: list[str] = []
         for instruction in self.instructions:
             if instruction.act in acts and not instruction.forbidden:
-                keys.extend(key for key in _KEYS_OF.get(instruction.control, ()) if key not in keys)
+                named = _KEYS_OF.get(instruction.control) or ((instruction.control,) if len(instruction.control) == 1 else ())
+                keys.extend(key for key in named if key not in keys)
         return tuple(keys)
 
     @property

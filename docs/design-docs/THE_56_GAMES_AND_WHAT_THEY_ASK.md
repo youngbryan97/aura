@@ -29,6 +29,7 @@ if any of them is not called from her live play or has no test.
 |---|---|---|
 | steer | move a body to meet some things and keep clear of others, by keys or the pointer | `core/agency/playing_as_it_happens.py` |
 | shoot | fire or throw at things, aimed | `playing_as_it_happens._trigger` |
+| strike | act on what is close by a key that sends nothing out (a punch, a swing): stand her ground against what comes on slowly enough, and press when it is within the reach that has paid | `core/agency/how_far_her_blow_reaches.py` |
 | click things | click things as they show or cross | `playing_as_it_happens._click_things` |
 | send | press, pull or hold, let go; set how hard and which way | `core/agency/playing_by_shots.py` |
 | time a press | press when something moving is at the right place, learned from what each press paid by where it was | `core/agency/when_a_press_pays.py` |
@@ -93,10 +94,10 @@ own words where it has any, else from what its code does.
 | 24 | Foster's: Wilt's Wash N' Swoosh | send (click and hold to aim, let go), steer |
 | 25 | Camp Lazlo: Paintcan Panic | steer (cover the ground), unseen |
 | 26 | KND: Tummy Trouble | shoot, steer, counters |
-| 27 | The Batman: The Cobblepot Caper | steer, jump, shoot (named keys), counters |
+| 27 | The Batman: The Cobblepot Caper | steer, jump, strike (S to punch, D to kick), shoot (A for the batarang), counters |
 | 28 | Tom's Trap-O-Matic | a chain (devices to the cage) |
 | 29 | Ben 10: Hero Matrix | make |
-| 30 | Code Lyoko: Monster Swarm | steer, jump, shoot |
+| 30 | Code Lyoko: Monster Swarm | steer, jump, strike (Z at close enemies), shoot |
 | 31 | Foster's: Big Shot Checkers | a board in turns |
 | 32 | Ben 10: Blockade Blitz | steer (paddle by mouse), shoot (click), counters |
 | 33 | Ben 10: Krakken Attack | shoot (aim for the chest), counters |
@@ -123,5 +124,7 @@ own words where it has any, else from what its code does.
 | 54 | Sonic Boom: Link 'N Smash | a grid's rule, time a press |
 | 55 | Gumball: Battle Bowlers | send (bowl), steer, switch (number keys) |
 
-Games 51 and 53 have no file the archive serves; what they ask is from their
-names and the museum's categories, and is the least sure of the map.
+Games 51 and 53 had no file the archive served when this map was made; what
+they ask is from their names and the museum's categories, and is the least sure
+of the map. On 9 October 2026 the museum's pages for both linked a game file,
+and a browser fetched it.

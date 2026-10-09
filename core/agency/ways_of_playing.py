@@ -33,6 +33,10 @@ WAYS: tuple[Way, ...] = (
     Way("shoot", "fire or throw at things, aimed",
         "core.agency.playing_as_it_happens:_trigger", "core.agency.playing_as_it_happens",
         "tests/test_steering_and_triggering_use_separate_inputs.py"),
+    Way("strike", "act on what is close by a key that sends nothing out (a punch, a swing, a tool used at hand's reach): "
+        "stand her ground against what comes on slowly enough and press when it is within the reach that has paid",
+        "core.agency.how_far_her_blow_reaches:HerBlows", "core.agency.playing_as_it_happens",
+        "tests/test_a_blow_strikes_what_is_close.py"),
     Way("click things", "click things as they show or cross",
         "core.agency.playing_as_it_happens:_click_things", "core.agency.playing_as_it_happens",
         "tests/test_inside_a_game_a_click_is_a_move.py"),

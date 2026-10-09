@@ -35,6 +35,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.agency.how_far_her_blow_reaches import BLOW_EVERY_S, HerBlows
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.the_controls_a_game_names import controls_named_in
@@ -219,6 +220,8 @@ class _Run:
     building_up: bool = False
     #: How far each kind reaches: the distance and side at which it has cost her untouched (how_far_a_thing_reaches.py).
     reach: Any = None
+    #: Each press of a key that strikes without sending anything out, and how far it has paid (how_far_her_blow_reaches.py).
+    blows: HerBlows = field(default_factory=HerBlows)
     letting_go: dict[str, float] = field(default_factory=dict)
 
 
@@ -408,6 +411,8 @@ class _Choosing:
 
     #: How much wider a berth what costs her is given than usual: more as what she has left runs low.
     caution: float = 1.0
+    #: How far her blow reaches, in her own sizes, where she has one worth standing her ground for; else None.
+    strikes: float | None = None
     #: Carried on by her own going: the pace no key gives her, and how far ahead each key is weighed (0: the next picture).
     rest: tuple[float, float] = (0.0, 0.0)
     ahead_s: float = 0.0
@@ -640,7 +645,8 @@ class _Choosing:
         """How soon and how often her thing, taken along ``path`` (seconds to displacement), meets what to keep clear of,
         looked at ``times`` seconds ahead."""
         mine = self.mine
-        threats = [t for t in self.others() if self.stance(t) in (AVOID,) or self.stance(t) == SHOOT]
+        threats = [t for t in self.others()
+                   if (self.stance(t) in (AVOID,) or self.stance(t) == SHOOT) and not self._struck_first(t)]
         if not threats:
             return 0.0
         tall, wide = self.moves.shape
@@ -658,6 +664,21 @@ class _Choosing:
                         or (self.reach is not None and self.reach.within(thing, x, y, (tx, ty)))):
                     total += 1.0 / (after + 0.1)
         return total
+
+    def _struck_first(self, thing: Any) -> bool:
+        """Whether a thing coming at her comes on slowly enough for her blow to reach it before it reaches her.
+
+        A person with a punch stands their ground against what walks up to them and hits it; one who backs away from
+        everything never lands a blow. What stands still, or comes too fast to be struck, is kept clear of as before.
+        """
+        mine = self.mine
+        if not self.strikes or mine is None or not thing.moved:
+            return False
+        dx, dy = float(mine.x) - float(thing.x), float(mine.y) - float(thing.y)
+        apart = math.hypot(dx, dy) or 1e-6
+        closing = (float(thing.vx) * dx + float(thing.vy) * dy) / apart
+        size = max(float(mine.w), float(mine.h), 1.0)
+        return 0.0 < closing <= self.strikes * size / BLOW_EVERY_S
 
     def key(self, held: str, *, offset: tuple[float, float] = (0.0, 0.0)) -> tuple[str, str, Any]:
         """The key to hold now ("" for none), why, and the thing it is for.
@@ -963,6 +984,7 @@ def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
     for verdict in meeting.read(regions, when, her_x):
         if verdict["what"] == "gain":
             run.gains += 1
+            run.blows.gained(when)
         else:
             run.losses += 1
             hers.lost_a_life(when)
@@ -1450,6 +1472,8 @@ async def play_as_it_happens(
                                  covered=(run.covered | run.barred, run.cell) if goes_over and run.cell else None,
                                  barred=(run.barred, run.cell) if run.cell else None, presses=run.presses,
                                  reach=run.reach)
+            if rules is not None:
+                choosing.strikes = run.blows.stands_ground(run.blows.keys(rules.fire_keys, hers.makes))
             if choosing.mine is not None and (choosing.ways or choosing.lifts or choosing.pointing):
                 run.responsive_pictures += 1
             run.things = moves.things
@@ -1704,6 +1728,8 @@ async def _trigger(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing
     used to return before its trigger could run. Named triggers are tried at
     a measured pace until their projectiles can be aimed by learned motion.
     """
+    if await _strike(hands, run, hers, choosing, rules):
+        return
     fire = choosing.fire(aim, why)
     discovering = choosing.shot is None
     if fire is None and discovering and choosing.pointing and choosing.mine is not None:
@@ -1739,6 +1765,39 @@ async def _trigger(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing
     run.last_trigger_began = dispatched
     run.last_click = delivered
     run.taps += 1
+
+
+async def _strike(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing, rules: WhatTheRulesSaid | None) -> bool:
+    """Strike what is close by a key the words give to hitting that has sent nothing out: a punch, a kick, a swing.
+
+    Read offline 2026-10-09, the 56 games' own words name blows ("PRESS THE 'S' KEY TO PUNCH 'D' TO KICK", "Press the Z
+    key to melee attack close enemies"). A fire key that brings nothing out never has a shot to aim, so once she had
+    found herself she never pressed it again. Nothing here knows a punch (core/agency/how_far_her_blow_reaches.py).
+    """
+    if rules is None or choosing.mine is None:
+        return False
+    things = list(choosing.moves.things.values())
+    for key in run.blows.keys(rules.fire_keys, hers.makes):
+        if key in WAYS or key == run.held:
+            continue
+        at = time.monotonic()
+        target = run.blows.to_strike(key, choosing.mine, things, lambda thing: _what_is_known_of(choosing.meeting, thing), at)
+        if target is None:
+            continue
+        await hands.tap(key)
+        hers.tapped(key, time.monotonic(), began=at)
+        run.blows.pressed(key, at, choosing.mine, things)
+        run.last_trigger_began, run.taps = at, run.taps + 1
+        return True
+    return False
+
+
+def _what_is_known_of(meeting: WhatMeetingDoes, thing: Any) -> str:
+    """What she was told or has learned to do about a thing; "" where her stance toward it is only the guess of meeting
+    what is unknown, which a blow does not wait on."""
+    if not meeting.known(thing.kind) and thing.kind not in meeting.told:
+        return ""
+    return meeting.stance(thing.kind, fixture=not thing.moved)
 
 
 #: How often she fires while still finding which thing is hers, by a key the words named for it or a click that throws.

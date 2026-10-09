@@ -39,6 +39,9 @@ ACT_FAMILIES: Final[dict[str, frozenset[tuple[str, ...]]]] = {
         ("shoot",), ("hit",), ("splat",), ("zap",), ("blast",), ("throw", "at"), ("fire", "at"),
         ("attack",), ("smash",), ("destroy",), ("defeat",), ("knock", "out"), ("bump",), ("pop",),
         ("whack",), ("squash",), ("beat",), ("throw",), ("fire",),
+        # Blows at close range: nothing flies, what is close is struck.
+        ("punch",), ("kick",), ("strike",), ("slash",), ("slice",), ("stab",), ("chop",), ("stomp",), ("swat",),
+        ("melee",), ("melee", "attack"),
     }),
     "click": frozenset({("click", "on"), ("click",), ("tap",), ("press", "on")}),
     "move": frozenset({("move",), ("steer",), ("walk",), ("drive",), ("fly",), ("guide",), ("control",)}),
@@ -107,6 +110,8 @@ def _act_at(words: list[str], index: int) -> tuple[str, int] | None:
 def _the_thing(words: list[str], start: int, stop: int | None = None) -> tuple[str, ...]:
     thing: list[str] = []
     for word in words[start : min(stop if stop is not None else len(words), start + 8)]:
+        if len(word) == 1 and word.isalpha() and word not in _DETERMINERS:
+            break                                                        # a letter here names the next act's key
         if (word in _ENDS_A_THING or word in _NUMBERS or word.isdigit()) and thing:
             break
         if word in _NUMBERS or word.isdigit():
@@ -119,7 +124,29 @@ def _the_thing(words: list[str], start: int, stop: int | None = None) -> tuple[s
     return tuple(thing)
 
 
+#: Words around a single letter that make it the name of a key: "the Z key", "press X", "hold down C".
+_KEY_WORDS: Final = frozenset({"key", "keys", "button"})
+_PRESSING: Final = frozenset({"press", "pressing", "presses", "hold", "holding", "tap", "tapping", "hit", "use"})
+
+
+def _a_letter_key(words: list[str]) -> str:
+    """A letter named as a key: followed by "key", after a pressing verb, or before "to" and an act ("D to kick")."""
+    for index, word in enumerate(words):
+        if len(word) != 1 or not word.isalpha():
+            continue
+        after = words[index + 1] if index + 1 < len(words) else ""
+        before = [w for w in words[max(0, index - 3) : index] if w not in ("the", "down", "on")]
+        if after in _KEY_WORDS or (before and before[-1] in _PRESSING and word not in ("a", "i")):
+            return word
+        if after == "to" and word not in ("a", "i") and (index + 2 >= len(words) or _act_at(words, index + 2) is not None):
+            return word
+    return ""
+
+
 def _the_control(words: list[str]) -> str:
+    letter = _a_letter_key(words)
+    if letter:
+        return letter
     for phrase, control in _CONTROLS:
         for index in range(len(words)):
             if words[index : index + len(phrase)] == list(phrase):
@@ -184,8 +211,11 @@ def what_the_words_ask(text: str) -> list[Instruction]:
             if family == "stop" and "past" in words:
                 # "Keep the ball from getting past you": the thing is to be met.
                 family = "get"
-            # "Space to fire", "click to throw": the control is what does it.
-            does_it = control if (index >= 1 and words[index - 1] == "to") or not thing else _the_control(words[max(0, index - 6) : (ends or len(words))])
+            # "Space to fire", "click to throw": the control is what does it. Where one clause gives two acts their
+            # own keys ("S to punch, D to kick"), each act's is the one named since the act before it.
+            since = acts[place - 1][0] + acts[place - 1][2] if place else 0
+            does_it = ((_the_control(words[since:index]) or control) if (index >= 1 and words[index - 1] == "to") or not thing
+                       else _the_control(words[max(0, index - 6) : (ends or len(words))]))
             # Going over a place names the place before the act as often as after it ("give the whole
             # campground a coat of paint"), or not at all: it stands with no thing named.
             if not thing and not does_it and family != "cover":

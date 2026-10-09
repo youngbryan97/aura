@@ -1,0 +1,46 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Brawl</title></head><body>
+<script src="world.js"></script>
+<script>
+// Robots walk in from both sides and straight across, whatever she does. Punch them when they are close; nothing
+// flies and nothing is drawn for a punch.
+const REACH = 16;
+const game = {
+  title: "BRAWL", lives: 5, rules: ["Use the arrow keys to move.", "Press Z to punch the robots.", "A robot that reaches you costs a life."],
+  reset(world) { this.me = { x: 230, y: 250, w: 20, h: 30 }; this.foes = []; this.next = 5.0; this.side = 0; this.punch = false; this.punches = 0; },
+  step(dt, world) {
+    const me = this.me;
+    if (world.held.has("ArrowLeft")) me.x -= 160 * dt;
+    if (world.held.has("ArrowRight")) me.x += 160 * dt;
+    me.x = Math.max(0, Math.min(world.W - me.w, me.x));
+    this.next -= dt;
+    if (this.next <= 0) {
+      const left = this.side++ % 2 === 0;
+      this.foes.push({ x: left ? -20 : world.W, y: 254, w: 20, h: 26, v: (left ? 1 : -1) * (35 + world.rand() * 15) });
+      this.next = 2.0 + world.rand() * 1.0;
+    }
+    if (this.punch) {
+      this.punch = false; this.punches += 1;
+      for (const f of this.foes) {
+        const gap = Math.max(f.x - (me.x + me.w), me.x - (f.x + f.w));
+        if (gap <= REACH) { f.gone = true; world.score += 10; }
+      }
+    }
+    for (const f of this.foes) {
+      if (f.gone) continue;
+      f.x += f.v * dt;
+      if (hits(f, me)) { f.gone = true; world.lose(); }
+      if (f.x < -30 || f.x > world.W + 10) f.gone = true;
+    }
+    this.foes = this.foes.filter((f) => !f.gone);
+  },
+  backdrop(ctx) { ctx.fillStyle = "#101820"; ctx.fillRect(0, 0, 480, 320); ctx.fillStyle = "#3b4a5a"; ctx.fillRect(0, 280, 480, 4); },
+  draw(ctx) {
+    const me = this.me;
+    ctx.fillStyle = "#ffcc33"; ctx.fillRect(me.x, me.y, me.w, me.h);
+    ctx.fillStyle = "#4cc3ff"; for (const f of this.foes) { ctx.fillRect(f.x, f.y, f.w, f.h); }
+  },
+  readouts: scoreAndLives,
+};
+addEventListener("keydown", (e) => { if (e.key === "z" || e.key === "Z") game.punch = true; });
+playWorld(game);
+</script></body></html>
