@@ -35,6 +35,7 @@ def test_a_thing_gone_from_where_it_was_and_come_again_elsewhere_is_taken():
 
 def test_a_thing_chosen_where_it_stands_is_taken_and_a_click_that_did_nothing_takes_nothing():
     here = WhatWorksHere()
+    here.asked_for_by("Click on objects to place them in your inventory. Use the objects you find to keep away the ghosts.")
     here.looked_at(ROOM)
     here.tried(a_click_on("LAMP"), changed=False)
     here.looked_at(ROOM)
@@ -43,6 +44,17 @@ def test_a_thing_chosen_where_it_stands_is_taken_and_a_click_that_did_nothing_ta
     here.looked_at(ROOM)
     assert here.taken == {"LAMP": "LAMP"}
     assert what_is_used(a_use_of("LAMP", "DOOR")) == ("LAMP", "DOOR")
+
+
+def test_where_nothing_speaks_of_using_things_a_click_that_set_something_going_takes_nothing():
+    """LIVE 2026-10-09 on a game's end screen every click that set something moving "took" a shape, and she used it
+    on the word SORRY."""
+    here = WhatWorksHere()
+    here.asked_for_by("SORRY You lost too much paint to cover the campground. TRY THIS LEVEL START OVER")
+    here.looked_at(ROOM)
+    here.tried(a_click_on("LAMP"), changed=True)
+    here.looked_at(ROOM)
+    assert here.taken == {} and not here.uses(here.on_screen)
 
 
 def test_a_use_is_carried_out_as_two_clicks_in_order(monkeypatch):

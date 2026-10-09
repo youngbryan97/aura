@@ -31,6 +31,12 @@ USES_OFFERED = 12
 
 _USE = re.compile(r'^use "(.+)" on "(.+)"$')
 
+#: Words that say a place's things are taken and used on others: an inventory, objects found and used, a tool picked.
+_SPEAKS_OF_USING = re.compile(
+    r"\b(?:inventory|use (?:the |an? |your )?(?:objects?|items?|things?|tools?)|objects you find|items? you find|"
+    r"pick (?:it |them |things |objects |items )?up|place them in your|select (?:an? |the )?(?:tool|item|weapon)|"
+    r"equip|combine|use (?:it|them) (?:on|to|with))\b", re.I)
+
 
 def a_use_of(item: str, target: str) -> str:
     """The move that uses one thing on another, named by what is written on each."""
@@ -52,6 +58,13 @@ class TakingAndUsing:
     clicked_last: str = ""
     labels_at_click: tuple[str, ...] = ()
     click_changed: bool = False
+    #: Whether the place's words, or what taking stock found, speak of using things on others: then a thing clicked
+    #: and still where it was may have been chosen. Elsewhere such a click was only clicked.
+    using_said: bool = False
+
+    def told_of_using(self, words: str) -> None:
+        """Words read at this place: once they speak of using things, it is a place where things are chosen and used."""
+        self.using_said = self.using_said or bool(_SPEAKS_OF_USING.search(words or ""))
 
     def clicked_on(self, move: str, labels: Sequence[str], changed: bool) -> None:
         """A click made with ``labels`` on the screen, and whether the screen answered it."""
@@ -69,7 +82,9 @@ class TakingAndUsing:
         came = [move for move in now if move not in before]
         if clicked not in now and len(came) == 1:
             held = what_is_clicked(came[0])
-        elif clicked in now and set(now) == before:
+        elif clicked in now and set(now) == before and self.using_said:
+            # Chosen where it is, where the place speaks of using things: LIVE 2026-10-09 on a game's end screen every
+            # click that set something moving "took" a shape, and she used it on the word SORRY.
             held = label
         else:
             return

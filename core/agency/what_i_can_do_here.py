@@ -221,6 +221,7 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         from core.agency.playing_as_it_happens import controls_named_in
 
         self.told_of_carrying(f"{words} {counsel}")
+        self.told_of_using(f"{words} {counsel}")
         self.asked_for = tuple(dict.fromkeys([*keys_a_screen_asks_for(words), *drawn]))
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
         keys, pointer = controls_named_in(words, keys_without_words=())
