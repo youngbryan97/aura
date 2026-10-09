@@ -29,6 +29,11 @@ __all__ = ["places_to_type", "type_what_is_asked", "what_to_type"]
 #: How far, as a share of the picture, past the words that ask the field is looked for.
 A_LINE_AWAY = 0.07
 
+#: How far below the words that ask a box drawn for the answer may be, as a share of the picture; and how tall it must
+#: be, as a share of the asking words' own line, to hold a line of writing.
+FIELD_WITHIN = 0.15
+FIELD_AS_TALL = 0.6
+
 
 #: Her name, typed where a screen asks for one.
 HER_NAME = "Aura"
@@ -77,8 +82,36 @@ def _region_of(regions: list[dict[str, Any]], words: str) -> dict[str, Any] | No
     return best
 
 
-def places_to_type(asked: WordsAsked, regions: list[dict[str, Any]]) -> list[tuple[float, float]]:
-    """Where to click before typing, in order, as shares of the picture."""
+def _fields_near(picture: Any, region: dict[str, Any]) -> list[tuple[float, float]]:
+    """Plain boxes drawn just below or beside the words that ask, nearest first: a field to type in is an empty strip.
+
+    LIVE 2026-10-09 a golf game's name box sat half a line under "Enter your name."; clicked a line and more below the
+    words, and to their right, the name went nowhere, and the game would not go on without it.
+    """
+    from core.perception.how_full_a_bar_is import _strips
+
+    if picture is None:
+        return []
+    import numpy as np
+
+    pixels = np.asarray(picture)
+    tall, wide = pixels.shape[:2]
+    x, y = float(region.get("center_x", 0.5)), float(region.get("center_y", 0.5))
+    line = float(region.get("height", 0.03) or 0.03)
+    found = []
+    for strip in _strips(pixels):
+        if strip.thick < FIELD_AS_TALL * line * tall:
+            continue  # a rule or an underline, not a box a line of writing goes in
+        cx, cy = (strip.start + strip.end) / 2 / wide, strip.row / tall
+        below = 0.0 < cy - y <= FIELD_WITHIN and abs(cx - x) <= 0.25
+        beside = abs(cy - y) <= 0.04 and 0.0 < cx - x <= 0.4
+        if below or beside:
+            found.append((abs(cy - y) + abs(cx - x) / 4, (round(cx, 4), round(cy, 4))))
+    return [place for _distance, place in sorted(found)]
+
+
+def places_to_type(asked: WordsAsked, regions: list[dict[str, Any]], picture: Any = None) -> list[tuple[float, float]]:
+    """Where to click before typing, in order, as shares of the picture: a field seen near the ask first."""
     region = _region_of(regions, asked.asked_by)
     if region is None:
         return [(0.5, 0.5)]
@@ -89,7 +122,7 @@ def places_to_type(asked: WordsAsked, regions: list[dict[str, Any]]) -> list[tup
     right = (min(1.0, x + wide / 2 + A_LINE_AWAY), y)
     said = {"above": [above], "over this": [above], "below": [below], "beneath": [below], "underneath": [below],
             "to the right": [right], "here": [(x, y)]}.get(asked.where)
-    order = said or [right, below, (x, y), above]
+    order = _fields_near(picture, region) + (said or [right, below, (x, y), above])
     return list(dict.fromkeys(order))
 
 
@@ -126,7 +159,7 @@ async def type_what_is_asked(
         return {"typed": "", "why": "the picture could not be taken"}
     regions = read_words(seen[0])
     landed_at = None
-    for place in places_to_type(asked, regions):
+    for place in places_to_type(asked, regions, seen[0]):
         await hands.click(*place)
         await hands.type_text(text)
         after = await look()

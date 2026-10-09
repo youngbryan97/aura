@@ -140,6 +140,39 @@ async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_
     return last, gained
 
 
+#: The width a picture is looked over at for small round things, and how much of it one may cover.
+ROUND_THINGS_WIDTH = 300
+ROUND_THINGS_SIZES = (0.0002, 0.008)
+
+
+def _round_things(picture: Any) -> list[tuple[float, float]]:
+    """Small, round, solid things that stand out from what is round them, as shares of the picture: what is sent is
+    nearly always one (a ball, a top, a bird, a ball of laundry). LIVE 2026-10-09 a putt game's ball, sat on its tee,
+    was never among the places she pressed: what stood out there were a heading and the middle of the picture.
+    """
+    import numpy as np
+
+    from core.perception.picture_arithmetic import median, pieces, shrink
+
+    pixels = np.asarray(picture)
+    tall, wide = pixels.shape[:2]
+    small = shrink(pixels, ROUND_THINGS_WIDTH, max(1, round(tall * ROUND_THINGS_WIDTH / wide))) if wide > ROUND_THINGS_WIDTH else pixels
+    high, across = small.shape[:2]
+    around = median(small, 11)
+    stands = np.abs(small.astype(np.int16) - around.astype(np.int16)).max(axis=2) > 50
+    count, _labels, stats, centres = pieces(stands)
+    found = []
+    for label in range(1, count):
+        x, y, w, h, area = (int(v) for v in stats[label])
+        share = area / (high * across)
+        if not ROUND_THINGS_SIZES[0] <= share <= ROUND_THINGS_SIZES[1] or not 0.6 <= w / max(1, h) <= 1.6:
+            continue
+        if area < 0.6 * w * h:
+            continue
+        found.append((share, (round(float(centres[label][0]) / across, 4), round(float(centres[label][1]) / high, 4))))
+    return [place for _share, place in sorted(found)]
+
+
 def _places_to_send_from(picture: Any, keep: dict[str, Any]) -> list[tuple[float, float]]:
     """Where a press might send something from: where it did before, else what stands out on the picture, largest first;
     never where a press changed the whole screen, which is a button."""
@@ -148,8 +181,8 @@ def _places_to_send_from(picture: Any, keep: dict[str, Any]) -> list[tuple[float
     known = keep.get("sends_from")
     buttons = [tuple(place) for place in keep.get("navigates_from") or ()]
     places: list[tuple[float, float]] = [tuple(known)] if known else []
-    for shape in pressable_shapes(picture):
-        place = (float(shape.get("center_x", 0.5)), float(shape.get("center_y", 0.5)))
+    shapes = [(float(shape.get("center_x", 0.5)), float(shape.get("center_y", 0.5))) for shape in pressable_shapes(picture)]
+    for place in [*_round_things(picture), *shapes]:
         if all(math.dist(place, other) > 0.05 for other in places):
             places.append(place)
     if all(math.dist((0.5, 0.5), other) > 0.05 for other in places):

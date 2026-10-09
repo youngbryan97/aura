@@ -202,3 +202,15 @@ def test_a_press_that_changes_the_whole_screen_is_a_button_not_a_shot_and_is_not
     pressed["button"] = False
     picture, _ = asyncio.run(look())
     assert all(math.dist(place, (0.75, 0.3)) > 0.05 for place in _places_to_send_from(picture, keep))
+
+
+def test_a_small_round_thing_is_among_the_places_to_send_from():
+    """LIVE 2026-10-09 a putt game's ball, sat on its tee, was never among the places she pressed."""
+    from core.agency.playing_by_shots import _places_to_send_from
+
+    picture = np.full((200, 300, 3), (200, 180, 120), np.uint8)
+    picture[20:40, 100:200] = (60, 60, 160)                     # a heading box
+    yy, xx = np.mgrid[0:200, 0:300]
+    picture[(yy - 140) ** 2 + (xx - 40) ** 2 <= 16] = (120, 40, 160)   # a ball on its tee
+    places = _places_to_send_from(picture, {})
+    assert any(math.dist(place, (40 / 300, 140 / 200)) < 0.03 for place in places), places

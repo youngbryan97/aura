@@ -108,21 +108,23 @@ def _strips(picture: np.ndarray) -> list[Bar]:
             if not SHORTEST * wide <= length <= LONGEST * wide:
                 continue
             colour = rows[y, a:b].mean(axis=0)
-            thick = 1
+            thick, reach = 1, {-1: y, 1: y}
             for step in (-1, 1):
                 yy = y + step
                 while 0 <= yy < tall and thick <= THICKEST * tall:
                     if np.abs(rows[yy, a:b] - colour).max(axis=1).mean() > ONE_COLOUR:
                         break
                     thick += 1
+                    reach[step] = yy
                     yy += step
             if thick > THICKEST * tall or length < LONGER_THAN_THICK * thick or thick < 2:
                 continue
             if a == 0 or b == wide:
                 continue  # running off the picture: sky, floor or a wall, not a bar drawn on it
             if any(abs(bar.row - y) <= bar.thick and abs(bar.start - a) <= 2 and abs(bar.end - b) <= 2 for bar in found):
-                continue
-            found.append(Bar(y, thick, tuple(int(c) for c in colour), int(a), int(b), longest=length))
+                continue  # the same strip, met again a row or two down
+            # Followed along its middle row, where a bar's colour is surest and a box is clicked.
+            found.append(Bar((reach[-1] + reach[1]) // 2, thick, tuple(int(c) for c in colour), int(a), int(b), longest=length))
     return found
 
 
