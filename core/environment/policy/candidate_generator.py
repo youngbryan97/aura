@@ -8,10 +8,11 @@ Generates candidates dynamically from:
 """
 from __future__ import annotations
 
+from core.environment.belief_graph import EnvironmentBeliefGraph
 from core.environment.command import ActionIntent
 from core.environment.parsed_state import ParsedState
-from core.environment.belief_graph import EnvironmentBeliefGraph
 from core.environment.planning import GridPathPlanner
+from core.environment.policy.purposes import ADVANCE, RESTORE
 
 
 class CandidateGenerator:
@@ -60,6 +61,7 @@ class CandidateGenerator:
                             risk="caution",
                             expected_effect="level_changed",
                             target_id=obj.object_id,
+                            tags={ADVANCE},
                         ))
                     else:
                         move_direction = self._direction_toward(parsed_state, obj.position)
@@ -74,7 +76,7 @@ class CandidateGenerator:
                 elif affordance == "open":
                     candidates.append(ActionIntent(name="open_door", parameters={"target_id": obj.object_id}))
                 elif affordance == "eat":
-                    candidates.append(ActionIntent(name="eat", parameters={"target_id": obj.object_id}))
+                    candidates.append(ActionIntent(name="eat", parameters={"target_id": obj.object_id}, tags={RESTORE}))
 
         # 4. Inventory-based actions
         inventory = (
@@ -89,7 +91,7 @@ class CandidateGenerator:
                 if category == "weapon":
                     candidates.append(ActionIntent(name="wield", parameters={"item_letter": letter}))
                 elif category == "food":
-                    candidates.append(ActionIntent(name="eat", parameters={"item_letter": letter}, risk="safe"))
+                    candidates.append(ActionIntent(name="eat", parameters={"item_letter": letter}, risk="safe", tags={RESTORE}))
                 elif category == "potion":
                     risk = "risky" if item.get("identified") is False else "caution"
                     tags = {"unknown"} if item.get("identified") is False else set()
@@ -159,6 +161,7 @@ class CandidateGenerator:
                         parameters={"direction": direction},
                         risk="caution",
                         expected_effect="level_changed",
+                        tags={ADVANCE},
                     ))
 
         # 9. Resource stabilization if homeostasis signals pressure

@@ -1,13 +1,11 @@
 """Scores and ranks candidate actions."""
 from __future__ import annotations
 
-import math
-from typing import Callable
-
 from core.environment.command import ActionIntent
-from core.environment.simulation import SimulationBundle
 from core.environment.homeostasis import HomeostaticAssessment
 from core.environment.parsed_state import ParsedState
+from core.environment.policy.purposes import ADVANCE, EVADE, IDLE, RESTORE, purpose_of
+from core.environment.simulation import SimulationBundle
 
 
 class ActionRanker:
@@ -66,15 +64,16 @@ class ActionRanker:
             # Positive deltas (healing, food) improve survival; negative (damage) worsen it
             survival_score += delta_value
 
-        # 2. Progress Score (goal progression)
+        # 2. Progress Score (goal progression), by what the action is for (purposes.py), not what a world calls it.
         progress_score = 0.0
-        if intent.name in ("move", "explore_frontier", "use_stairs", "use_stairs_down", "use_stairs_up"):
+        purpose = purpose_of(intent)
+        if purpose == ADVANCE:
             progress_score = 1.0
-        if intent.name in ("stabilize_resource", "eat", "pray") and resources.critical_resources:
+        if purpose == RESTORE and resources.critical_resources:
             progress_score += 0.8
-        if "threat_response" in intent.tags or intent.name in {"retreat_to_safety", "retreat"}:
+        if purpose == EVADE:
             progress_score += 1.4
-        if intent.name == "wait" and not resources.critical_resources:
+        if purpose == IDLE and intent.name == "wait" and not resources.critical_resources:
             progress_score -= 0.6
 
         # 3. Information Score (uncertainty reduction)
