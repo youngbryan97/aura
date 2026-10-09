@@ -54,9 +54,15 @@ def _a_key_is_meant(lowered: str, way: str) -> bool:
 
     words = re.findall(r"[a-z]+", lowered)
     if any(word == way and _KEY_CUES & set(words[max(0, at - 2):at + 3]) and not _NOT_A_KEY_AFTER & set(words[at + 1:at + 4])
-           for at, word in enumerate(words)):
+           and not _holding_down_another(words, at) for at, word in enumerate(words)):
         return True
     return any(_for_an_act(re.findall(r"[a-z0-9]+", clause), way) for clause in re.split(r"[.,;:!?()]", lowered))
+
+
+def _holding_down_another(words: list[str], at: int) -> bool:
+    """Whether "down" at ``at`` is how another key is pressed, not a key: "hold down the X key", "press down space"."""
+    return (words[at] == "down" and at > 0 and words[at - 1] in ("hold", "holding", "press", "pressing", "push")
+            and bool({"key", "keys", "space", "spacebar", "shift", "enter", "return"} & set(words[at + 1:at + 4])))
 
 
 def _for_an_act(words: list[str], way: str) -> bool:

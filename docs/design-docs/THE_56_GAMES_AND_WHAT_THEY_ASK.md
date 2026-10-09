@@ -30,6 +30,7 @@ if any of them is not called from her live play or has no test.
 | steer | move a body to meet some things and keep clear of others, by keys or the pointer | `core/agency/playing_as_it_happens.py` |
 | shoot | fire or throw at things, aimed | `playing_as_it_happens._trigger` |
 | strike | act on what is close by a key that sends nothing out (a punch, a swing): stand her ground against what comes on slowly enough, and press when it is within the reach that has paid | `core/agency/how_far_her_blow_reaches.py` |
+| charge | hold a key the words say to hold and let go, while playing on with the others, and let it go after the length of hold that has paid | `core/agency/holding_to_charge.py` |
 | click things | click things as they show or cross | `playing_as_it_happens._click_things` |
 | send | press, pull or hold, let go; set how hard and which way | `core/agency/playing_by_shots.py` |
 | time a press | press when something moving is at the right place, learned from what each press paid by where it was | `core/agency/when_a_press_pays.py` |
@@ -97,7 +98,7 @@ own words where it has any, else from what its code does.
 | 27 | The Batman: The Cobblepot Caper | steer, jump, strike (S to punch, D to kick), shoot (A for the batarang), counters |
 | 28 | Tom's Trap-O-Matic | a chain (devices to the cage) |
 | 29 | Ben 10: Hero Matrix | make |
-| 30 | Code Lyoko: Monster Swarm | steer, jump, strike (Z at close enemies), shoot |
+| 30 | Code Lyoko: Monster Swarm | steer, jump, strike (Z at close enemies), charge (hold X, let go), shoot |
 | 31 | Foster's: Big Shot Checkers | a board in turns |
 | 32 | Ben 10: Blockade Blitz | steer (paddle by mouse), shoot (click), counters |
 | 33 | Ben 10: Krakken Attack | shoot (aim for the chest), counters |

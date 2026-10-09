@@ -35,6 +35,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.agency.holding_to_charge import Charging
 from core.agency.how_far_her_blow_reaches import BLOW_EVERY_S, HerBlows
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
@@ -222,6 +223,8 @@ class _Run:
     reach: Any = None
     #: Each press of a key that strikes without sending anything out, and how far it has paid (how_far_her_blow_reaches.py).
     blows: HerBlows = field(default_factory=HerBlows)
+    #: A key held to build something up and let go to use it, and how long a hold has paid (holding_to_charge.py).
+    charging: Charging = field(default_factory=Charging)
     letting_go: dict[str, float] = field(default_factory=dict)
 
 
@@ -985,6 +988,7 @@ def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
         if verdict["what"] == "gain":
             run.gains += 1
             run.blows.gained(when)
+            run.charging.gained(when)
         else:
             run.losses += 1
             hers.lost_a_life(when)
@@ -1501,7 +1505,8 @@ async def play_as_it_happens(
             _report(run, getting_somewhere, at)
             ended = _over(run, moves, happened, at) or _nothing_answers(run, hers, meeting, at) or _said_it_is_over(run)
     finally:
-        for key in [run.held, *run.letting_go] if run.held else list(run.letting_go):
+        held = [run.held] if run.held else []
+        for key in [*held, *run.letting_go, *([run.charging.key] if run.charging.key else [])]:
             try:
                 await hands.up(key)
             except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as why:
@@ -1728,6 +1733,7 @@ async def _trigger(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing
     used to return before its trigger could run. Named triggers are tried at
     a measured pace until their projectiles can be aimed by learned motion.
     """
+    await _charge(hands, run, hers, choosing, rules)
     if await _strike(hands, run, hers, choosing, rules):
         return
     fire = choosing.fire(aim, why)
@@ -1790,6 +1796,32 @@ async def _strike(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing,
         run.last_trigger_began, run.taps = at, run.taps + 1
         return True
     return False
+
+
+async def _charge(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing, rules: WhatTheRulesSaid | None) -> None:
+    """Hold a key the words say to hold and let go, alongside the rest of play, and let it go once it has been held as
+    long as is meant: "hold down the X key to charge up, then release it to fire" (core/agency/holding_to_charge.py).
+
+    It is held where there is something on the screen to use it on, as a person charges a shot at what is coming and
+    not at an empty screen.
+    """
+    charging = run.charging
+    at = time.monotonic()
+    if charging.due(at):
+        key = charging.key
+        await hands.up(key)
+        let_go = time.monotonic()
+        charging.released(let_go)
+        # What a release brings out beside her is learned as a press's is.
+        hers.tapped(key, let_go, began=let_go)
+        return
+    if rules is None or not charging.ready(at) or not hasattr(hands, "down"):
+        return
+    keys = [key for key in rules.charge_keys if key not in WAYS and key != run.held]
+    if not keys or not any(_what_is_known_of(choosing.meeting, thing) not in (MEET, CLICK, IGNORE) for thing in choosing.others()):
+        return
+    await hands.down(keys[0])
+    charging.begin(keys[0], at)
 
 
 def _what_is_known_of(meeting: WhatMeetingDoes, thing: Any) -> str:

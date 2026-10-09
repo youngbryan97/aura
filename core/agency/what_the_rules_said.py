@@ -98,6 +98,11 @@ class WhatTheRulesSaid:
         return self.keys_for("hit")
 
     @property
+    def charge_keys(self) -> tuple[str, ...]:
+        """The keys the words say to hold to build something up and let go to use it."""
+        return self.keys_for("charge")
+
+    @property
     def covers(self) -> bool:
         """Whether the words ask for a place to be gone over, all of it: painted, mown, filled in, explored."""
         return any(i.act == "cover" and not i.forbidden for i in self.instructions)
@@ -123,7 +128,7 @@ class WhatTheRulesSaid:
         parts = []
         for instruction in self.instructions[:4]:
             act = {"get": "get", "keep clear": "keep clear of", "hit": "hit", "click": "click",
-                   "move": "move", "jump": "jump", "stop": "stop"}.get(instruction.act, instruction.act)
+                   "move": "move", "jump": "jump", "stop": "stop", "charge": "hold and let go"}.get(instruction.act, instruction.act)
             thing = " ".join(instruction.thing) or "it"
             line = f"{'not ' if instruction.forbidden else ''}{act} {thing}"
             if instruction.control:

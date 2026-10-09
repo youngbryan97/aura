@@ -1,0 +1,45 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Charge</title></head><body>
+<script src="world.js"></script>
+<script>
+// Invaders come down. Held long enough and let go, X sends a beam up that takes every invader over her; a short hold
+// sends nothing.
+const CHARGED_S = 0.9, BEAM = 40;
+const game = {
+  title: "CHARGE", lives: 5, rules: ["Use the arrow keys to move.", "Hold down the X key to charge up, then release it to fire a beam.", "An invader that lands costs a life."],
+  reset(world) { this.me = { x: 228, y: 290, w: 24, h: 14 }; this.foes = []; this.next = 2.0; this.beam = 0; this.beams = 0; this.fizzles = 0; },
+  step(dt, world) {
+    const me = this.me;
+    if (world.held.has("ArrowLeft")) me.x -= 200 * dt;
+    if (world.held.has("ArrowRight")) me.x += 200 * dt;
+    me.x = Math.max(0, Math.min(world.W - me.w, me.x));
+    this.next -= dt;
+    if (this.next <= 0) {
+      this.foes.push({ x: 20 + world.rand() * 420, y: 32, w: 22, h: 16, vy: 12 + world.rand() * 8 });
+      this.next = 2.2 + world.rand() * 1.2;
+    }
+    if (this.fire) {
+      this.fire = false; this.beams += 1; this.beam = 0.2;
+      const middle = me.x + me.w / 2;
+      for (const f of this.foes) if (Math.abs(f.x + f.w / 2 - middle) <= BEAM) { f.gone = true; world.score += 10; }
+    }
+    this.beam -= dt;
+    for (const f of this.foes) { f.y += f.vy * dt; if (!f.gone && f.y > world.H - 30) { f.gone = true; world.lose(); } }
+    this.foes = this.foes.filter((f) => !f.gone);
+  },
+  backdrop(ctx) { ctx.fillStyle = "#050a18"; ctx.fillRect(0, 0, 480, 320); },
+  draw(ctx) {
+    ctx.fillStyle = "#7cff6b"; ctx.fillRect(this.me.x, this.me.y, this.me.w, this.me.h);
+    ctx.fillStyle = "#e04ce0"; for (const f of this.foes) ctx.fillRect(f.x, f.y, f.w, f.h);
+  },
+  readouts: scoreAndLives,
+};
+let since = null;
+addEventListener("keydown", (e) => { if ((e.key === "x" || e.key === "X") && since === null) since = performance.now(); });
+addEventListener("keyup", (e) => {
+  if ((e.key === "x" || e.key === "X") && since !== null) {
+    if ((performance.now() - since) / 1000 >= CHARGED_S) game.fire = true; else game.fizzles = (game.fizzles || 0) + 1;
+    since = null;
+  }
+});
+playWorld(game);
+</script></body></html>

@@ -46,6 +46,8 @@ ACT_FAMILIES: Final[dict[str, frozenset[tuple[str, ...]]]] = {
     "click": frozenset({("click", "on"), ("click",), ("tap",), ("press", "on")}),
     "move": frozenset({("move",), ("steer",), ("walk",), ("drive",), ("fly",), ("guide",), ("control",)}),
     "jump": frozenset({("jump",), ("hop",), ("leap",)}),
+    # Holding to build something up, let go to use it: "hold X to charge up", "press and hold Z to power up".
+    "charge": frozenset({("charge",), ("charge", "up"), ("power", "up"), ("wind", "up")}),
     # Going over all of a place: painting it, mowing it, filling it in, exploring it. The ground is the point.
     "cover": frozenset({
         ("cover",), ("paint",), ("coat",), ("fill", "in"), ("colour", "in"), ("color", "in"), ("mow",), ("clean", "up"),

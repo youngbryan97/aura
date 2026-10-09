@@ -37,6 +37,10 @@ WAYS: tuple[Way, ...] = (
         "stand her ground against what comes on slowly enough and press when it is within the reach that has paid",
         "core.agency.how_far_her_blow_reaches:HerBlows", "core.agency.playing_as_it_happens",
         "tests/test_a_blow_strikes_what_is_close.py"),
+    Way("charge", "hold a key the words say to hold and let go (to charge a shot, a jump, a swing) while playing on with "
+        "the others, and let it go after the length of hold that has paid",
+        "core.agency.holding_to_charge:Charging", "core.agency.playing_as_it_happens",
+        "tests/test_a_key_held_to_charge_is_let_go_when_it_pays.py"),
     Way("click things", "click things as they show or cross",
         "core.agency.playing_as_it_happens:_click_things", "core.agency.playing_as_it_happens",
         "tests/test_inside_a_game_a_click_is_a_move.py"),
