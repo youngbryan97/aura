@@ -224,7 +224,10 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         self.told_of_using(f"{words} {counsel}")
         self.asked_for = tuple(dict.fromkeys([*keys_a_screen_asks_for(words), *drawn]))
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
-        keys, pointer = controls_named_in(words, keys_without_words=())
+        # What the screen names, and what taking stock found the thing is played with: LIVE 2026-10-09 a putter lesson
+        # drawn in letters she could not read, the web saying "click the ball, hold down the mouse while you aim", and
+        # she pressed arrows on every screen of the game to see what they did.
+        keys, pointer = controls_named_in(f"{words} {counsel}", keys_without_words=())
         # A screen that names no controls keeps what the game's own screens said before it: LIVE 2026-10-08 the rules
         # said "click your mouse button to start", and on the game's wordless screen after them she pressed arrows.
         if keys or pointer:

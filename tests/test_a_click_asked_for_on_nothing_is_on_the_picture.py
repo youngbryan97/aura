@@ -58,3 +58,15 @@ def test_what_the_rules_said_of_the_mouse_holds_on_a_screen_that_says_nothing():
     assert can_do.pointer_only and a_click_on(THE_PICTURE) in can_do._available()
     can_do.asked_for_by("Use the arrow keys to move.", [])
     assert not can_do.pointer_only
+
+
+def test_what_taking_stock_found_a_thing_is_played_with_holds_where_its_screens_cannot_be_read():
+    """LIVE 2026-10-09 a putter lesson drawn in letters she could not read, the web saying "click the ball, hold down the
+    mouse while you aim", and she pressed arrows on every screen of the game to see what they did."""
+    from core.agency.what_i_can_do_here import WhatWorksHere
+
+    here = WhatWorksHere(told=("up", "down", "left", "right"))
+    here.asked_for_by("Welcome to the island! Play by yourself or against a friend.", (),
+                      counsel="How to Play: click the ball, hold down the mouse while you aim.")
+    assert here.pointer_only
+    assert not {"up", "down", "left", "right"} & set(here.available())

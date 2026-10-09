@@ -337,8 +337,9 @@ class PlayingAsItHappens:
         self._screens_judged = self.new_screens
         said = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
         held = self.held_to()
+        holding = held.way == way
         held.took(way, stretch, said)
-        if held.way != way:
+        if holding and held.way != way:
             logger.info("left off playing it by %s: it had its turn and got nowhere", way)
 
     def goes_on_playing(self, observation: dict[str, Any], played_before: float) -> bool:

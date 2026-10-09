@@ -254,11 +254,18 @@ _NAMED_KEYS = (
 _KEY_CUES = frozenset({"key", "keys", "arrow", "arrows", "press", "pressing", "hold", "holding", "tap", "hit", "push"})
 
 
+#: Words just after a way's name that say it is how a button or the pointer is pressed, not a key: "hold down the mouse
+#: button", "press down on the ball". LIVE 2026-10-09 "hold down the mouse while you aim" was read as the down arrow,
+#: and a game played with the mouse was taken to be played with keys.
+_NOT_A_KEY_AFTER = frozenset({"mouse", "button", "on"})
+
+
 def _a_key_is_meant(lowered: str, way: str) -> bool:
     import re
 
     words = re.findall(r"[a-z]+", lowered)
     return any(word == way and _KEY_CUES & set(words[max(0, at - 2):at + 3])
+               and not _NOT_A_KEY_AFTER & set(words[at + 1:at + 4])
                for at, word in enumerate(words))
 
 
