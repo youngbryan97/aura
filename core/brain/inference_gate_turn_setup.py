@@ -582,6 +582,8 @@ class _SetsTheTurnUp:
             # The shape the caller will parse, held by the decoder in the
             # worker (core/brain/llm/a_shape_the_decoder_enforces.py).
             "output_shape",
+            # One of the choices on offer, held by the decoder (a_choice_the_decoder_enforces.py).
+            "choose_from",
             "strict_answer_contract",
             "strict_value_contract",
             "proof_evaluation_contract",

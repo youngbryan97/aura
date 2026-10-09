@@ -5864,39 +5864,11 @@ def _mlx_worker_loop_min_p(job, logger, make_sampler, max_tokens, temp, tokenize
     return kwargs, logits_processors
 
 def _mlx_worker_loop_shape_answer_held(_channel_budget, job, kwargs, logger, logits_processors, native_thinking, tokenizer):
-    # The shape of the answer, held by the decoder rather than
-    # asked for in the prompt. A caller that will parse JSON says
-    # so on the job, and the sampler cannot then produce prose,
-    # an unclosed string or an unbalanced brace. Ninety-four
-    # "Return ONLY JSON" strings were the request this replaces.
-    _shape = str(job.get("output_shape") or "").strip().lower()
-    if _shape in ("json", "json_object", "json_array"):
-        try:
-            from core.brain.llm.a_shape_the_decoder_enforces import enforce_json
+    # The shape of the answer, held by the decoder rather than asked for in
+    # the prompt: JSON a caller will parse, or one of the choices on offer.
+    from core.brain.llm.what_the_decoder_holds import hold_the_answer
 
-            _closing = None
-            if native_thinking is True:
-                from core.brain.llm.a_bounded_private_channel import (
-                    _the_token_that_closes_it,
-                )
-
-                _closing = _the_token_that_closes_it(tokenizer)
-            _held = enforce_json(
-                tokenizer,
-                after_token=_closing,
-                require={"json_object": "object", "json_array": "array"}.get(_shape, "any"),
-            )
-            if _held is not None:
-                logits_processors.append(_held)
-                logger.info("🧠 [WORKER] Answer shape held by the decoder: %s.", _shape)
-            else:
-                logger.warning("🧠 [WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", _shape)
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
-            _record_mlx_degradation(
-                e,
-                action="continued generation without the decoder holding the answer's shape",
-                severity="warning",
-            )
+    hold_the_answer(job, tokenizer, native_thinking, logits_processors, logger, _record_mlx_degradation)
 
     # The private channel, bounded by the decoder rather than by
     # hope. Nothing had ended it, so what it COST could only be
@@ -6231,39 +6203,11 @@ def _mlx_worker_loop_part_2_2(job, logger, logits_processors, strict_answer_cont
 def _mlx_worker_loop__endo_receipt(job, logger, logits_processors, model, native_thinking, tokenizer):
     _endo_receipt, _np_tap = _mlx_worker_loop_endogenous_language_pathway(job, logger, logits_processors, model, tokenizer)
 
-    # The shape of the answer, held by the decoder rather than
-    # asked for in the prompt. A caller that will parse JSON says
-    # so on the job, and the sampler cannot then produce prose,
-    # an unclosed string or an unbalanced brace. Ninety-four
-    # "Return ONLY JSON" strings were the request this replaces.
-    _shape = str(job.get("output_shape") or "").strip().lower()
-    if _shape in ("json", "json_object", "json_array"):
-        try:
-            from core.brain.llm.a_shape_the_decoder_enforces import enforce_json
+    # The shape of the answer, held by the decoder rather than asked for in
+    # the prompt: JSON a caller will parse, or one of the choices on offer.
+    from core.brain.llm.what_the_decoder_holds import hold_the_answer
 
-            _closing = None
-            if native_thinking is True:
-                from core.brain.llm.a_bounded_private_channel import (
-                    _the_token_that_closes_it,
-                )
-
-                _closing = _the_token_that_closes_it(tokenizer)
-            _held = enforce_json(
-                tokenizer,
-                after_token=_closing,
-                require={"json_object": "object", "json_array": "array"}.get(_shape, "any"),
-            )
-            if _held is not None:
-                logits_processors.append(_held)
-                logger.info("🧠 [WORKER] Answer shape held by the decoder: %s.", _shape)
-            else:
-                logger.warning("🧠 [WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", _shape)
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
-            _record_mlx_degradation(
-                e,
-                action="continued generation without the decoder holding the answer's shape",
-                severity="warning",
-            )
+    hold_the_answer(job, tokenizer, native_thinking, logits_processors, logger, _record_mlx_degradation)
     return _endo_receipt, _np_tap
 
 def _mlx_worker_loop(

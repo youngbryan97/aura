@@ -4850,6 +4850,7 @@ def _build_the_generation_request(
         "cognitive_mode": str(kwargs.get("cognitive_mode") or "").strip().lower(),
         # The shape the caller will parse, held by the decoder in the worker.
         "output_shape": _the_shape_named(kwargs),
+        "choose_from": [str(c) for c in (kwargs.get("choose_from") or ())],
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),

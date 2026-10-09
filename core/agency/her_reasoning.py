@@ -160,6 +160,23 @@ def _not_started_if_it_cannot_finish(asked: str, max_tokens: int) -> None:
         )
 
 
+def _room_to_answer(max_tokens: int) -> tuple[int, tuple[str, ...]]:
+    """The tokens an answer needs, and the choices it is held to where the question is a choice among moves.
+
+    Held to the choices on offer, the answer is the name of one: no longer than
+    its characters, and the end of the turn. LIVE 2026-10-08 a move was given
+    room for ninety-six tokens, its name came first and the rest explained it,
+    about six and a half seconds on the 27B, and a game that wanted its move in
+    eight seconds had it made without her.
+    """
+    from core.agency.deliberate_action import CHOOSING_FROM  # noqa: PLC0415
+
+    choices = CHOOSING_FROM.get()
+    if not choices:
+        return max_tokens, ()
+    return min(int(max_tokens), max(len(choice) for choice in choices) + 1), choices
+
+
 def generator(
     *,
     origin: str = "agency_next_move",
@@ -182,7 +199,8 @@ def generator(
         router = _router()
         if router is None:
             raise RuntimeError("no model router is registered")
-        allow_s = time_this_question_needs(prompt, max_tokens, timeout_s)
+        wanted, choices = _room_to_answer(max_tokens)
+        allow_s = time_this_question_needs(prompt, wanted, timeout_s)
         messages = [
             *([{"role": "system", "content": role}] if role else []),
             {"role": "user", "content": prompt},
@@ -196,7 +214,9 @@ def generator(
             is_background=False,
             foreground_request=True,
             allow_cloud_fallback=False,
-            max_tokens=max_tokens,
+            max_tokens=wanted,
+            # Held by the decoder to the moves on offer, where the question is a choice among them.
+            **({"choose_from": list(choices)} if choices else {}),
             # A decision on a live loop carries its own deadline.
             #
             # The endpoint's own budget is 103 seconds, which is right for a
@@ -271,8 +291,9 @@ def her_reasoning(
         from core.brain.reasoning_amplifier_v2 import amplify_turn  # noqa: PLC0415
 
         asked = "\n".join([objective, *evidence])
-        _not_started_if_it_cannot_finish(asked, max_tokens)
-        allow_s = time_this_question_needs(asked, max_tokens, time_budget_s)
+        wanted, _choices = _room_to_answer(max_tokens)
+        _not_started_if_it_cannot_finish(asked, wanted)
+        allow_s = time_this_question_needs(asked, wanted, time_budget_s)
         amplified = await asyncio.wait_for(
             amplify_turn(
                 objective,
@@ -376,8 +397,9 @@ def quick_reasoning(
         # returns is the same to this loop as one that returns nothing, and
         # only one of those is visible without a deadline of its own.
         asked = "\n".join([objective, *evidence])
-        _not_started_if_it_cannot_finish(asked, max_tokens)
-        allow_s = time_this_question_needs(asked, max_tokens, DECISION_BUDGET_S)
+        wanted, _choices = _room_to_answer(max_tokens)
+        _not_started_if_it_cannot_finish(asked, wanted)
+        allow_s = time_this_question_needs(asked, wanted, DECISION_BUDGET_S)
         said = await asyncio.wait_for(produce(asked, 0.3), timeout=allow_s + 2.0)
         answer = str(said or "").strip()
         if not answer:

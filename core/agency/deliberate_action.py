@@ -23,12 +23,12 @@ import logging
 import re
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.runtime.errors import record_degradation
-
 from core.cognition.when_the_situation_decides import nothing_to_decide
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -475,6 +475,11 @@ def _within_budget(must_have: list[str], helpful: Sequence[str]) -> list[str]:
         evidence.append(text)
         room -= len(text)
     return evidence
+
+
+#: The names of the moves on offer while her mind is asked to choose one, for a mind that can hold its answer to
+#: them (core/brain/llm/a_choice_the_decoder_enforces.py). Empty outside a choice.
+CHOOSING_FROM: ContextVar[tuple[str, ...]] = ContextVar("aura_choosing_from", default=())
 
 
 def _objective(goal: str, options: Sequence[ActionOption]) -> str:
@@ -978,7 +983,11 @@ async def deliberate(
             # No language this time by the caller's choice, not by failure.
             # A fast loop spends words where they change the answer.
             raise _NotAskedError
-        reply = await think(_objective(goal, options), evidence)
+        choosing = CHOOSING_FROM.set(tuple(option.name for option in options))
+        try:
+            reply = await think(_objective(goal, options), evidence)
+        finally:
+            CHOOSING_FROM.reset(choosing)
     # not a failure: the comment above says it: no language this time by the caller's
     # choice, not by failure.
     except _NotAskedError:
