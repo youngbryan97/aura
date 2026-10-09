@@ -11,7 +11,17 @@ import asyncio
 import pytest
 
 from core.agency.playing_by_shots import sends_by_letting_go
-from core.agency.the_way_it_is_played import AS_IT_HAPPENS, FOLLOW, SEND, HeldTo, ways_asked
+from core.agency.the_way_it_is_played import (
+    AS_IT_HAPPENS,
+    FOLLOW,
+    LEARNING,
+    PAYING_OVER,
+    SEND,
+    HeldTo,
+    held_her_own,
+    progress,
+    ways_asked,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -58,12 +68,42 @@ def test_a_way_is_held_to_while_it_is_learned_and_while_it_pays_and_let_go_when_
     assert held.choose(asked, THROW_BY_HOLDING + " Level 2: the basket moves!") == SEND   # the place says more
 
 
-def test_holding_her_own_steering_what_is_hers_pays_where_nothing_is_counted():
+HELD_ON = {"hers": "red thing", "seconds": 30.0, "gains": 0, "losses": 1}
+
+
+def test_holding_her_own_shows_she_has_the_controls_not_that_she_is_getting_anywhere():
     held = HeldTo()
-    held.choose([AS_IT_HAPPENS], "arrows")
-    for _ in range(4):
-        held.took(AS_IT_HAPPENS, {"hers": "red thing", "seconds": 30.0, "gains": 0, "losses": 0}, "arrows")
+    held.choose([AS_IT_HAPPENS], "Use the arrows to move.")
+    for _ in range(LEARNING):
+        held.took(AS_IT_HAPPENS, dict(HELD_ON), "Use the arrows to move.")
+    assert held_her_own(HELD_ON) and progress(HELD_ON) == ""
+    assert not held.holding()                                        # learned, held on, nothing came of it: let go
+
+
+@pytest.mark.parametrize("words", ["Survive as long as you can!", "Stay alive until the timer runs out."])
+def test_where_lasting_is_the_task_holding_her_own_is_progress(words):
+    held = HeldTo()
+    held.choose([AS_IT_HAPPENS], words)
+    for _ in range(LEARNING + 2):
+        held.took(AS_IT_HAPPENS, dict(HELD_ON), words)
     assert held.holding()
+    assert progress(HELD_ON, task="Avoid the bombs.") == ""          # keeping clear of things is not the task itself
+
+
+def test_a_counter_of_how_far_she_has_got_rising_is_progress_and_a_clock_is_not():
+    held = HeldTo()
+    held.choose([AS_IT_HAPPENS], "Use the arrows to move.")
+    for level in (1, 1, 2, 2):
+        held.took(AS_IT_HAPPENS, {**HELD_ON, "counters": {"level": level, "time": 40 + level}}, "Use the arrows to move.")
+    assert held.holding()                                             # the level rose in the latest stretches
+    for _ in range(PAYING_OVER):
+        held.took(AS_IT_HAPPENS, {**HELD_ON, "counters": {"level": 2, "time": 99}}, "Use the arrows to move.")
+    assert not held.holding()                                         # only the clock moved since
+
+
+def test_the_counters_settling_it_won_is_progress():
+    assert progress({"settled": "won"}) == "won"
+    assert progress({"settled": "lost", **HELD_ON}) == ""
 
 
 class _Reflexes:
