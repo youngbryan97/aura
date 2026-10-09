@@ -1106,7 +1106,9 @@ def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves
         if lost:
             run.losses += 1
             _lost_from_a_distance(run, meeting, hers.thing(moves), moves, verdict)
-            _say(run, say, f"{named[0].upper()}{named[1:]} goes down as I'm hit: it's what I have left.", at, once=f"bar {named}")
+            hit = any(0.0 <= at - when <= 1.0 for when in meeting._met.values())
+            _say(run, say, f"{named[0].upper()}{named[1:]} goes down{' as I am hit' if hit else ''}: it's what I have left.", at,
+                 once=f"bar {named}")
         else:
             run.gains += 1
     left = [bar.full for bar in run.bars.bars() if bar.meaning == "down is bad"]

@@ -46,11 +46,12 @@ THICKEST = 0.08
 
 #: How far, in read pixels, a run must change to have gone up or down, and how many changes make a strip a bar.
 CHANGED_BY = 2
-CHANGES_TO_BE_A_BAR = 2
+CHANGES_TO_BE_A_BAR = 3
 
-#: How many reads a bar holds its level before a change counts: a bar stands at a level between changes, where a run
-#: of sky or floor changes at every read as things cross it.
-STEADY_READS = 3
+#: How long a bar holds its level before a change counts, in seconds: a bar stands at a level between changes, where a
+#: run of sky, sand or water changes as things cross it or as it ripples. LIVE 2026-10-09 three strips of a beach scene,
+#: each held for a tenth of a second, were taken for bars going down.
+STEADY_S = 0.4
 
 #: How often the strips are looked for afresh, in seconds, and the most followed at once.
 LOOK_FOR_STRIPS_S = 3.0
@@ -70,8 +71,8 @@ class Bar:
     anchored: str = ""
     longest: int = 0
     changes: int = 0
-    #: Reads in a row at the same level; and changes that came without the level having held first.
-    steady: int = 0
+    #: Since when it has held its level; and changes that came without the level having held first.
+    steady_since: float = 0.0
     unsteady: int = 0
     #: (when, how far it ran) at each read.
     levels: list[tuple[float, int]] = field(default_factory=list)
@@ -182,7 +183,7 @@ class BarsOnTheScreen:
                 if not bar.is_a_bar:
                     self.strips.remove(bar)
                 continue
-            change = self._went(bar, run)
+            change = self._went(bar, run, at)
             since = bar.levels[-1][0] if bar.levels else at
             bar.levels.append((at, run[1] - run[0]))
             del bar.levels[:-120]
@@ -201,19 +202,21 @@ class BarsOnTheScreen:
             self.strips = bars + [s for s in self.strips if not s.is_a_bar][-(MOST_STRIPS - len(bars)):]
 
     @staticmethod
-    def _went(bar: Bar, run: tuple[int, int]) -> tuple[float, float] | None:
-        """Whether a strip's run changed at one end only, the other staying put: how full it was and is."""
+    def _went(bar: Bar, run: tuple[int, int], at: float) -> tuple[float, float] | None:
+        """Whether a strip's run changed at one end only, the other staying put, having held its level first: how full
+        it was and is."""
         start, end = run
         moved_start, moved_end = abs(start - bar.start) >= CHANGED_BY, abs(end - bar.end) >= CHANGED_BY
+        if not bar.steady_since:
+            bar.steady_since = at
         if moved_start and moved_end:
             # Both ends went: the strip moved, or something crossed it. Not a bar's change.
-            bar.start, bar.end, bar.steady = start, end, 0
+            bar.start, bar.end, bar.steady_since = start, end, at
             bar.unsteady += 1
             return None
         if not moved_start and not moved_end:
-            bar.steady += 1
             return None
-        held, bar.steady = bar.steady >= STEADY_READS, 0
+        held, bar.steady_since = at - bar.steady_since >= STEADY_S, at
         if not held:
             bar.unsteady += 1
             bar.start, bar.end = start, end

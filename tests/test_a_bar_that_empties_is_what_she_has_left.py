@@ -35,10 +35,11 @@ def _played(levels):
 
 
 def test_a_strip_that_shortens_in_steps_and_holds_between_is_a_bar_and_nothing_else_is():
-    bars, changes = _played([116, 116, 100, 100, 84, 84, 60])
+    bars, changes = _played([116, 116, 100, 100, 84, 84, 60, 60, 40])
     found = bars.bars()
     assert len(found) == 1 and found[0].anchored == "start", [(b.row, b.start, b.end) for b in bars.strips]
-    assert [round(c["to"], 2) for c in changes] == [round(84 / 116, 2), round(60 / 116, 2)]   # the first change makes it one
+    # Three changes, each after the level held, make it a bar; from then on each change is told.
+    assert [round(c["to"], 2) for c in changes] == [round(60 / 116, 2), round(40 / 116, 2)]
     assert all(c["to"] < c["from"] for c in changes)
 
 

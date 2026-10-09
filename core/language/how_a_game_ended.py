@@ -187,10 +187,13 @@ _OBJECTIVE: Final = re.compile(
     r"collect (?:all|every)|reach the (?:end|top|exit|goal|finish|other side)|solve|"
     r"help \w+ (?:to )?(?:find|get|escape|save|rescue|stop|reach|collect))\b"
 )
-#: Words that set a player to make something, not to win: a maker, a dress-up, a paint box.
+#: Words that set a player to make something, not to win: a maker, a dress-up, a paint box. Picking favourites is making
+#: where there are several things to pick ("your favorite body parts"); one pick ("Pick your favorite color!" for a golf
+#: ball, LIVE 2026-10-09) is a choice inside a game, and that game was left as a thing for making after ninety seconds.
 _FOR_MAKING: Final = re.compile(
     r"\b((?:create|make|design|build|draw|paint|invent) your own|dress (?:up|him|her|them)|decorate|customi[sz]e|"
-    r"mix and match|(?:choose|pick|select|selecting|choosing|picking) your (?:own |favou?rite )|your own (?:character|creation))"
+    r"mix and match|(?:choose|pick|select|selecting|choosing|picking) your (?:own |favou?rite )(?:\w+ )?\w+s\b|"
+    r"your own (?:character|creation))"
 )
 
 
