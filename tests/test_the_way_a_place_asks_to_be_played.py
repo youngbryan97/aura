@@ -167,3 +167,26 @@ def test_a_way_on_read_before_is_looked_for_where_it_was_on_a_lesson_whose_own_c
     assert a_click_on("next") in offered and where_to_click(lesson, "next") == (0.86, 0.9)
     play = {"layout": [{"text": "SCORE 120", "center_x": 0.1, "center_y": 0.05}, {"text": "MENU", "center_x": 0.9, "center_y": 0.05}]}
     assert a_click_on("next") not in _where_the_way_on_was(play, (a_click_on("MENU"),), "SCORE 120 MENU", paced)
+
+
+def test_a_key_is_pressed_by_the_browsers_name_for_it_and_one_it_does_not_know_does_not_end_the_game():
+    """LIVE 2026-10-09 a name typed into a game's scorecard was cleared with "backspace", which the browser calls
+    "Backspace", and the error ended the whole game."""
+    from core.skills.screen_pursuit_as_it_happens import PlayingAsItHappens
+
+    pressed = []
+
+    class _Keyboard:
+        async def press(self, key):
+            if key not in {"Backspace", "ArrowUp", "x", "F2"}:
+                raise RuntimeError(f'Keyboard.press: Unknown key: "{key}"')
+            pressed.append(key)
+
+    class _Page:
+        keyboard = _Keyboard()
+
+    reflexes = PlayingAsItHappens(page=_Page(), band=(0.0, 0.0, 1.0, 1.0), goal="play", ends_at=0.0)
+    reflexes._focused = True
+    for key in ("backspace", "up", "x", "f2", "no such key"):
+        asyncio.run(reflexes.tap(key))
+    assert pressed == ["Backspace", "ArrowUp", "x", "F2"]

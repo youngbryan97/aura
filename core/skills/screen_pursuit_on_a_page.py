@@ -39,6 +39,17 @@ _KEY_NAMES = {
     "tab": "Tab",
     "space": "Space",
     "escape": "Escape",
+    "esc": "Escape",
+    "backspace": "Backspace",
+    "delete": "Delete",
+    "shift": "Shift",
+    "control": "Control",
+    "ctrl": "Control",
+    "alt": "Alt",
+    "home": "Home",
+    "end": "End",
+    "pageup": "PageUp",
+    "pagedown": "PageDown",
 }
 
 #: Focus the thing the page draws, across shadow roots, so keys reach it. A

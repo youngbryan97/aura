@@ -189,20 +189,37 @@ class PlayingAsItHappens:
 
     @staticmethod
     def _key(name: str) -> str:
+        """A key by the browser's own name for it: "backspace" is "Backspace", a letter is itself."""
         from core.skills.screen_pursuit_on_a_page import _KEY_NAMES
 
-        return _KEY_NAMES.get(name, name)
+        lowered = str(name or "").lower()
+        if lowered in _KEY_NAMES:
+            return _KEY_NAMES[lowered]
+        if re.fullmatch(r"f\d{1,2}", lowered):
+            return lowered.upper()
+        return name if len(name) == 1 or not name.isalpha() else name[:1].upper() + name[1:]
+
+    async def _keyed(self, act: Any, key: str) -> None:
+        """A key pressed, let go or tapped; one the browser does not know is said and passed over, not the end of the
+        game: LIVE 2026-10-09 a name typed into a game's scorecard was cleared with "backspace", which the browser
+        calls "Backspace", and the error ended the whole game."""
+        try:
+            await act(self._key(key))
+        except Exception as why:  # noqa: BLE001 - the browser's refusal of one key name
+            if "Unknown key" not in str(why):
+                raise
+            logger.info("the browser knows no key %r; passed over", key)
 
     async def down(self, key: str) -> None:
         await self._focus()
-        await self.page.keyboard.down(self._key(key))
+        await self._keyed(self.page.keyboard.down, key)
 
     async def up(self, key: str) -> None:
-        await self.page.keyboard.up(self._key(key))
+        await self._keyed(self.page.keyboard.up, key)
 
     async def tap(self, key: str) -> None:
         await self._focus()
-        await self.page.keyboard.press(self._key(key))
+        await self._keyed(self.page.keyboard.press, key)
 
     async def pressed(self, key: str) -> None:
         """A key pressed for the pursuit the way a person presses one to see what it does: held a moment, watched."""
