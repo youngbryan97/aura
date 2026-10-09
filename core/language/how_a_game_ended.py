@@ -21,7 +21,10 @@ __all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "
 
 _WINNING: Final = re.compile(r"\b(win|wins|won|winner|victory|victorious|beat|beats|defeated|champion)\b")
 _THE_PLAYER: Final = frozenset({"you", "player", "player 1", "p1", "your", "yours"})
-_OVER: Final = re.compile(r"\b(game over|you lose|you lost|try again|out of lives|no lives|time'?s up|you died|defeat)\b")
+#: An end lost, as end screens say it. LIVE 2026-10-09 "Out of Time. You have failed." was read as no end at all.
+_OVER: Final = re.compile(r"\b(game over|you lose|you lost|try again|out of lives|no lives|time'?s up|you died|defeat|"
+                          r"(?:you )?(?:have )?failed|mission failed|out of time|time over|you crashed|crash(?:ed)?|"
+                          r"(?:you were|you got|you've been) (?:caught|captured)|busted)\b")
 _PRAISED: Final = re.compile(
     r"\b(congratulations|congrats|well done|you did it|you made it|"
     r"(?:level|stage|round|wave|mission|world)\s*\d*\s*(?:complete|completed|clear|cleared|passed|beaten))\b"

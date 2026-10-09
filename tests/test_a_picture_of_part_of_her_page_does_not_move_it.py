@@ -39,7 +39,7 @@ class _Page:
         self.window = window
 
         class _Context:
-            async def new_cdp_session(_self, page):
+            async def new_cdp_session(self, page):
                 return window
 
         self.context = _Context()
