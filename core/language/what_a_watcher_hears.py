@@ -31,8 +31,8 @@ from dataclasses import dataclass, field
 
 from core.language.words_of_the_language import the_word
 
-__all__ = ["WhatAWatcherHears", "a_fresh_watcher", "done_watching", "forget_what_was_heard", "heard", "legible_share", "shape_of",
-           "the_watcher"]
+__all__ = ["WhatAWatcherHears", "a_fresh_watcher", "done_watching", "forget_what_was_heard", "heard", "in_her_own_words",
+           "legible_share", "shape_of", "the_watcher"]
 
 logger = logging.getLogger("Aura.WhatAWatcherHears")
 
@@ -81,6 +81,20 @@ def shape_of(line: str) -> str:
     said = re.sub(r"\d+(?:[.,:]\d+)*\s*%?", "#", said)
     said = _WAYS.sub("~", said)
     return said
+
+
+def in_her_own_words(line: str) -> str:
+    """``line`` without the writing it quotes, so what is judged as her prose is only what she said herself.
+
+    LIVE 2026-10-07 "It says: NUMBUH: 361,188 Special Talents: Super Hero
+    Strength" was withheld from the chat as collapsed prose. The words were the
+    screen's, read out, and a list of labels has few small words in it.
+    """
+    lines = []
+    for one in str(line or "").splitlines():
+        reading = _IT_SAYS.match(one.strip())
+        lines.append(_QUOTED.sub(" ", reading.group("lead") if reading else one))
+    return "\n".join(lines)
 
 
 def _the_move_once(said: str) -> str:

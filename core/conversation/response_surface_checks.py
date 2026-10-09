@@ -182,6 +182,8 @@ def _looks_like_structured_output(body: str) -> bool:
 
 
 def _has_function_word_starvation(reply_text: Any) -> bool:
+    from core.language.what_a_watcher_hears import in_her_own_words
+
     from .response_reliability import (
         _FUNCTION_WORDS,
         _MIN_FUNCTION_WORD_RATIO,
@@ -192,7 +194,9 @@ def _has_function_word_starvation(reply_text: Any) -> bool:
     body = str(reply_text or "").strip()
     if not body or _looks_like_structured_output(body):
         return False
-    prose = re.sub(r"`[^`]*`", " ", body)
+    # Writing she quotes is someone else's words; a screen's labels read out
+    # are short of small words by nature, and her prose is judged without them.
+    prose = re.sub(r"`[^`]*`", " ", in_her_own_words(body))
     # Identifiers, hashes and telemetry blobs are not prose in either
     # direction. Left in, "[x_A_4521B_8A7C]" contributed two tokens that look
     # exactly like the article "a" and pushed a starved reply back over the

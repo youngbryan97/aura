@@ -88,3 +88,16 @@ def test_stray_marks_and_another_scripts_letters_are_not_quoted():
     assert watcher.heard('Clicking "START."" — to see what it does', 0.0) == 'Clicking "START" — to see what it does'
     said = watcher.heard("It says: Aim with your MOUSE (ог and click to sling Rigby into the sky after the fireflies!", 1.0)
     assert said is not None and "ог" not in said and "MOUSE … and click" in said
+
+
+@pytest.mark.unit
+def test_what_she_reads_out_is_not_judged_as_her_own_prose():
+    from core.conversation.response_surface_checks import _has_function_word_starvation
+    from core.language.what_a_watcher_hears import in_her_own_words
+
+    reading = "It says: NUMBUH: 361,188 Special Talents: Super Hero Strength Hobbies: Snorkeling Equipment: B.O.O.G.S. (Back Off Or Get Slapped)"
+    assert in_her_own_words(reading).strip() == "It says:"
+    assert not _has_function_word_starvation(reading)
+    collapsed = "Introspection signal conformance vector substrate coherence telemetry pipeline aggregation drift resonance lattice manifold"
+    assert _has_function_word_starvation(collapsed)
+    assert _has_function_word_starvation(f'{collapsed} "and the board says this"')
