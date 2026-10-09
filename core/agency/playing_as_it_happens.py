@@ -134,6 +134,8 @@ class _Run:
     #: Whether the visible instructions give the pointer a separate trigger.
     pointer_trigger: bool = False
     taps: int = 0
+    #: What a legend on the place's screens drew and said of each thing (core/perception/what_a_legend_shows.py).
+    legend: tuple[Any, ...] = ()
     said_at: float = -math.inf
     said: set[str] = field(default_factory=set)
     lines: list[str] = field(default_factory=list)
@@ -1234,14 +1236,16 @@ def _report(run: _Run, getting_somewhere: Callable[[str], Any] | None, at: float
 
 def _what_the_rules_said_of(rules: WhatTheRulesSaid | None, moves: WhatMoves, meeting: WhatMeetingDoes,
                             run: _Run, say: Any, at: float, *, pointer_steers: bool = False) -> None:
-    """Tie the rules' words to the kinds on screen by colour, as each kind first appears."""
-    if rules is None:
+    """Tie the rules' words to the kinds on screen by colour, and a legend's drawings by look, as each kind first appears."""
+    if rules is None and not run.legend:
         return
     for kind in moves.kinds:
         if run.told_checked.get(kind.number) == pointer_steers:
             continue
         run.told_checked[kind.number] = pointer_steers
-        stance = rules.stance_for_colour(colour_name(kind.colour), pointer_steers=pointer_steers)
+        stance = rules.stance_for_colour(colour_name(kind.colour), pointer_steers=pointer_steers) if rules is not None else None
+        if stance is None and _as_a_legend_drew(run, kind, meeting, say, at):
+            continue
         if stance is not None:
             meeting.told[kind.number] = stance
             line = {
@@ -1250,6 +1254,20 @@ def _what_the_rules_said_of(rules: WhatTheRulesSaid | None, moves: WhatMoves, me
             }.get(stance, "")
             if line:
                 _say(run, say, "The rules say " + line.format(c=colour_name(kind.colour)) + ".", at, once=f"told {kind.number} {stance}")
+
+
+def _as_a_legend_drew(run: _Run, kind: Any, meeting: WhatMeetingDoes, say: Any, at: float) -> bool:
+    """A kind that looks like a thing a legend drew is taken for what the legend said of it, until play says otherwise."""
+    from core.perception.what_a_legend_shows import most_like
+
+    drawn = most_like(kind.look, run.legend, colour=kind.colour)
+    stance = {"meet": MEET, "avoid": AVOID, "shoot": SHOOT}.get(drawn.stance if drawn is not None else "")
+    if drawn is None or stance is None:
+        return False
+    meeting.told[kind.number] = stance
+    _say(run, say, f"The {colour_name(kind.colour)} thing is what the rules showed: \u201c{drawn.words}\u201d", at,
+         once=f"legend {drawn.words}")
+    return True
 
 
 def _counters_without_reading(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, at: float) -> None:
@@ -1383,7 +1401,7 @@ async def play_as_it_happens(
     meeting: WhatMeetingDoes = keep.get("meeting") or WhatMeetingDoes()
     for kept in (physics, hers, meeting):
         kept.numbered_afresh()
-    run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first,
+    run = _Run(keys=list(keys), began=began, last_moving=began, pointer_first=pointer_first, legend=tuple(keep.get("legend") or ()),
                contest=keep.get("contest") or ContestStands(), waits_for_her=waits_for_her)
     run.pointer_trigger = rules is not None and rules.a_click_is_a_shot
     run.burst_keys = keys_pressed_fast(told)

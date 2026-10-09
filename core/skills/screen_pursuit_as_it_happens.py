@@ -342,6 +342,37 @@ class PlayingAsItHappens:
             return False
         return bool(self.held_to().holding())
 
+    async def read_a_legend(self) -> None:
+        """A screen that draws things beside words saying what to do about them is read as a legend, once a screen,
+        while it is still up: what each drawn thing is, kept for play to know them by (core/perception/what_a_legend_shows.py).
+        """
+        import asyncio
+
+        import numpy as np
+
+        from core.perception.what_a_legend_shows import stance_of, what_a_legend_shows
+        from core.perception.what_the_pixels_show import recognize_text
+
+        said = self.words[-1] if self.words else ""
+        read_before: set[str] = self.keep.setdefault("legends_read", set())
+        if not said or said[:120] in read_before or not stance_of(said):
+            return
+        read_before.add(said[:120])
+        seen = await self.look()
+        if seen is None:
+            return
+        picture = np.asarray(seen[0])
+        regions = await asyncio.to_thread(recognize_text, np.ascontiguousarray(picture[..., ::-1]))
+        shown = what_a_legend_shows(picture, regions)
+        if not shown:
+            return
+        kept = list(self.keep.get("legend") or [])
+        kept += [drawn for drawn in shown if all(drawn.words != k.words or drawn.where != k.where for k in kept)]
+        self.keep["legend"] = kept[-24:]
+        captions = list(dict.fromkeys(drawn.words for drawn in shown))
+        logger.info("a legend: %s", [(d.words[:40], d.stance, d.colour) for d in shown])
+        _said_while_playing("Its rules screen shows what things are: " + "; ".join(f"\u201c{c}\u201d" for c in captions[:3]) + ".")
+
     async def while_it_moves(self) -> None:
         """Play whatever is moving on its own, until it stops moving."""
         from core.agency.playing_as_it_happens import (
@@ -627,6 +658,7 @@ async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
     if reflexes is None:
         return seen
     reflexes.read(seen)
+    await reflexes.read_a_legend()
     # Held to a way that may still pay, she plays on with it: the pursuit is given the screen when the run is over, a
     # menu is up, or the way has had its turn and got nowhere (core/agency/the_way_it_is_played.py).
     while reflexes.goes_on_playing(seen, played_before):

@@ -86,6 +86,9 @@ class _Reflexes:
     def read(self, _seen):
         self.looks += 1
 
+    async def read_a_legend(self):
+        return None
+
     def run_is_over(self, _seen):
         return self.looks >= 4
 

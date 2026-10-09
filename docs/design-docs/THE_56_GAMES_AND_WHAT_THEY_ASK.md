@@ -41,6 +41,8 @@ if any of them is not called from her live play or has no test.
 | stack | drop or place pieces to build up | not yet |
 | switch | change which of several she controls: a key after which her keys move another of hers, the first kept hers | `core/agency/which_one_answers_to_her.py` |
 | counters | read score, lives and time | `core/agency/what_meeting_things_does.py` |
+| play as told | take up the way the place says it is played and play it, stretch after stretch, while it is learned or pays | `core/agency/the_way_it_is_played.py` |
+| a legend | know a thing drawn beside words about it (get it, keep clear of it, shoot it) when it turns up in play | `core/perception/what_a_legend_shows.py` |
 | take stock | read the rules; ask what she knows when stuck | `core/cognition/taking_stock.py` |
 
 ## The games

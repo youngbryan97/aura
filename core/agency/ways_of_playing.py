@@ -91,6 +91,13 @@ WAYS: tuple[Way, ...] = (
     Way("counters", "read score, lives and time, and what each change meant",
         "core.agency.what_meeting_things_does:readouts_in", "core.agency.what_meeting_things_does",
         "tests/test_what_she_reads_off_a_screen_is_said_in_words.py"),
+    Way("play as told", "take up the way the place says it is played (type, follow, send, steer or shoot) and play it, "
+        "stretch after stretch, while it is learned or pays; let it go when it gets nowhere",
+        "core.agency.the_way_it_is_played:ways_asked", "core.skills.screen_pursuit_as_it_happens",
+        "tests/test_the_way_a_place_asks_to_be_played.py"),
+    Way("a legend", "know a thing drawn beside words about it (get it, keep clear of it, shoot it) when it turns up in play",
+        "core.perception.what_a_legend_shows:what_a_legend_shows", "core.skills.screen_pursuit_as_it_happens",
+        "tests/test_a_legend_says_what_things_are.py"),
     Way("take stock", "read the rules; ask what she knows when stuck, failing, unsure or before she begins",
         "core.cognition.taking_stock:take_stock", "core.skills.sovereign_browser_taking_stock",
         "tests/test_she_takes_stock_when_she_keeps_failing.py"),
