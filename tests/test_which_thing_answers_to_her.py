@@ -387,3 +387,22 @@ def test_lost_she_does_not_take_a_lookalike_her_keys_do_not_move():
         rival.seen = at
         hers.saw(moves, [], at)
     assert hers.number is None and hers.lost()
+
+
+def test_her_keys_handed_to_another_of_hers_by_a_key_leave_the_first_still_hers():
+    """A team's next member, a second ship: a key that moves nothing hands her keys on, and the first stays hers."""
+    mine = _Thing(1, 0)
+    moves = _Moves([mine])
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 0
+    hers.last_seen = (mine.x, mine.y)
+    for _ in range(10):
+        hers._hers.add("up", 0.0, -120.0)
+    hers.tapped("tab", 0.0)
+    at = 0.0
+    hers.holding("up", at)
+    for _step in range(60):
+        at += 0.03
+        mine.seen, mine.vy = at, 0.0
+        hers.saw(moves, [], at)
+    assert hers.number is None and 1 not in hers.not_mine and "tab" in hers.switches

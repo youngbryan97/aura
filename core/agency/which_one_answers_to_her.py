@@ -58,6 +58,10 @@ ANSWERS = 20.0
 #: slowest key must differ by this many working pixels a second.
 REALLY_MOVES = 20.0
 
+#: How soon before her keys stop moving her thing a key that moves nothing must have been pressed to be what switched
+#: them to another of hers: the time it takes to find they no longer move it.
+SWITCHED_WITHIN_S = 3.0
+
 #: How lately one of her keys must have moved her thing for its standing still under another to be taken for a wall.
 BLOCKED_WHILE_S = 3.0
 
@@ -307,6 +311,10 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         self._held: deque = deque(maxlen=400)
         self._by_thing: dict[int, _Speeds] = defaultdict(_Speeds)
         self._by_kind: dict[int, _Speeds] = defaultdict(_Speeds)
+        #: Keys after which her keys moved another of hers: what changes which of several she plays.
+        self.switches: set[str] = set()
+        #: The last key tapped and when, kept past the taps' own window: a switch is found out a second or two later.
+        self.last_tapped: tuple[str, float] = ("", -math.inf)
         #: Until when a press made beside the key held is still moving her: what she does then is not that key's.
         self._beside_until = -math.inf
         #: How whichever thing was hers at the time moved under each key. Not
@@ -354,6 +362,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         began = at if began is None else began
         if not math.isfinite(began) or not math.isfinite(at) or began > at:
             raise ValueError("an input receipt must have a finite ordered delivery interval")
+        self.last_tapped = (key, at)
         if self.last_seen is not None:
             self._taps.append(_Tap(key, began, at, self.last_seen))
             self._pressed[key] += 1
@@ -415,7 +424,16 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
                 and len(judged) >= min(2, len(moving_keys)) and all(m < 0.2 for m in judged)):
             logger.info("control identity %s contradicted by keys %s", thing.number, sorted(moving_keys))
             self.identification.reset("observed control contradiction")
-            self.not_mine.add(thing.number)
+            # Just after a key that moves nothing of hers, her keys stopping moving this thing is that key handing them
+            # to another of hers (a team's next member, a second ship): this one is still hers to come back to.
+            key_before, pressed_at = self.last_tapped
+            # Not a key known to make something (a shot): what it does is known, and switching is not it.
+            if (key_before and key_before not in moving_keys and key_before not in self.makes
+                    and 0.0 <= at - pressed_at <= SWITCHED_WITHIN_S):
+                self.switches.add(key_before)
+                logger.info("%s handed her keys to another of hers; %s stays hers", key_before, thing.number)
+            else:
+                self.not_mine.add(thing.number)
             self.number, self.kind, self.lost_at = None, None, at
             # Contradiction invalidates the experiment's attribution. An old
             # rival's correlation cannot inherit her controls or identify it.

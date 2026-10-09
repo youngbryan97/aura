@@ -38,7 +38,7 @@ if any of them is not called from her live play or has no test.
 | serve | give each what it asks for | not yet |
 | unseen | keep out of what reaches her without touching her: the distance and side at which each kind has cost her | `core/agency/how_far_a_thing_reaches.py` |
 | stack | drop or place pieces to build up | not yet |
-| switch | change which of several she controls | not yet (keys named on screen are tried, not known as a switch) |
+| switch | change which of several she controls: a key after which her keys move another of hers, the first kept hers | `core/agency/which_one_answers_to_her.py` |
 | counters | read score, lives and time | `core/agency/what_meeting_things_does.py` |
 | take stock | read the rules; ask what she knows when stuck | `core/cognition/taking_stock.py` |
 
