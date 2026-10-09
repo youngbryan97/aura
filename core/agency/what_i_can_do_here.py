@@ -31,10 +31,12 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Sequence
 
 from core.agency.taking_and_using import TakingAndUsing, what_is_used
+from core.agency.things_that_go_together import ThingsThatGoTogether, what_is_matched
 from core.agency.where_things_lead import WhereThingsLead
 
 __all__ = [
@@ -182,9 +184,9 @@ def worth_trying(told: Sequence[str] = ()) -> tuple[str, ...]:
 
 
 @dataclass
-class WhatWorksHere(TakingAndUsing):
+class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether):
     """Which inputs have done anything, and which have never done anything; and what she has taken to use
-    (core/agency/taking_and_using.py)."""
+    (core/agency/taking_and_using.py); and what each place showed, to pair what is alike (things_that_go_together.py)."""
 
     #: What she was told her actions were, if anything.
     told: tuple[str, ...] = ()
@@ -222,7 +224,7 @@ class WhatWorksHere(TakingAndUsing):
         if keys or pointer:
             self.pointer_only = pointer and not keys
 
-    def looked_at(self, clickable: Sequence[str], says: str = "") -> None:
+    def looked_at(self, clickable: Sequence[str], says: str = "", looks: Mapping[str, tuple[float, ...]] | None = None) -> None:
         """What she can click now: the writing that was there at the last look too.
 
         A control stays where it is; a readout changes. LIVE 2026-10-03 04:49,
@@ -232,6 +234,7 @@ class WhatWorksHere(TakingAndUsing):
         """
         now = tuple(clickable)
         self.noticed_taking(now)
+        self.saw_looks(looks or {})
         self.on_screen = tuple(label for label in now if label in self.seen_before)
         self.seen_before = now
         self.leads.looked(now, says)
@@ -241,11 +244,13 @@ class WhatWorksHere(TakingAndUsing):
     def tried(self, key: str, changed: bool) -> None:
         """One input, and whether the world answered it."""
         name = str(key or "").strip()
-        name = name if what_is_clicked(name) is not None or what_is_used(name) is not None else name.lower()
+        name = name if what_is_clicked(name) is not None or what_is_used(name) or what_is_matched(name) else name.lower()
         if not name:
             return
         if what_is_clicked(name) is not None:
             self.clicked_on(name, self.seen_before, changed)
+            self.turned_over(what_is_clicked(name) or "")
+        self.paired(name)
         self.leads.acted(name, changed)
         if changed:
             self.quiet_since.clear()
@@ -293,7 +298,8 @@ class WhatWorksHere(TakingAndUsing):
 
     def available(self) -> tuple[str, ...]:
         """What to offer her now, what led on from this screen before first (`core.agency.where_things_lead`)."""
-        return self.leads.in_order(self._available()) + self.uses(self.on_screen)
+        # A pair known to go together comes first: it is known to answer.
+        return self.pairs(self.on_screen) + self.leads.in_order(self._available()) + self.uses(self.on_screen)
 
     def _available(self) -> tuple[str, ...]:
         """What to offer her now.

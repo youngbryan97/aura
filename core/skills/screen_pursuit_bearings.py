@@ -67,13 +67,14 @@ def screen_options(keys: Sequence[str] = DEFAULT_MOVES) -> list[Any]:
     """
     from core.agency.deliberate_action import ActionOption, Expectation
     from core.agency.taking_and_using import what_is_used
+    from core.agency.things_that_go_together import what_is_matched
     from core.agency.what_i_can_do_here import what_is_clicked
 
     options: list[Any] = []
     for key in keys:
-        used = what_is_used(str(key))
+        used = what_is_used(str(key)) or what_is_matched(str(key))
         if used is not None:
-            options.append(ActionOption(name=str(key).strip(), detail=f'use "{used[0]}" on "{used[1]}"',
+            options.append(ActionOption(name=str(key).strip(), detail=str(key).strip(),
                                         expectation=Expectation(changed=True, describes=f'the view to be different after using "{used[0]}" on "{used[1]}"')))
             continue
         clicked = what_is_clicked(str(key))

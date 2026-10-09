@@ -1396,6 +1396,11 @@ async def _read_until_settled(
         from core.perception.shapes_that_look_pressable import pressable_shapes
 
         reading["shapes"] = await asyncio.to_thread(pressable_shapes, picture, apart_from=reading.get("layout") or ())
+        # How each looks, so what a place showed can be told alike or not from what another did (how_a_place_looks.py).
+        from core.perception.how_a_place_looks import look_of
+
+        for region in reading["shapes"]:
+            region["look"] = look_of(picture, region)
         # And keys drawn on it as pictures, which writing does not read (core/perception/keys_drawn_on_screen.py).
         from core.perception.keys_drawn_on_screen import keys_drawn
 

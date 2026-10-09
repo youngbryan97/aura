@@ -765,6 +765,7 @@ def _say_intent(
     what she did is still written only from what landed.
     """
     from core.agency.taking_and_using import what_is_used
+    from core.agency.things_that_go_together import what_is_matched
     from core.agency.what_i_can_do_here import what_is_clicked
 
     from .screen_pursuit import (
@@ -772,10 +773,11 @@ def _say_intent(
         _tell,
     )
 
-    clicked, used = what_is_clicked(str(key)), what_is_used(str(key))
+    clicked, used, matched = what_is_clicked(str(key)), what_is_used(str(key)), what_is_matched(str(key))
     named = str(key).strip().lower()
     # A key named for a way is gone in; any other key is pressed: "Going up", "Pressing space" (not "Going space").
-    said = (f'Using "{used[0]}" on "{used[1]}"' if used is not None else f'Clicking "{clicked}"' if clicked is not None
+    said = (f'Using "{used[0]}" on "{used[1]}"' if used is not None else f'Matching "{matched[0]}" with "{matched[1]}"'
+            if matched is not None else f'Clicking "{clicked}"' if clicked is not None
             else f"Going {named}" if named in ("up", "down", "left", "right") else f"Pressing {named}")
     # A reason she did not give does not erase the one she has.
     #
@@ -831,7 +833,11 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     # take her away from the thing, which is not offered at all.
     bearings = _her_bearings(observation, clickable, says, can_do)
     clickable = tuple(move for move in clickable if _label_of(move) not in bearings.leaving_alone)
-    can_do.looked_at(clickable, says)
+    from core.agency.what_i_can_do_here import a_click_on
+
+    looks = {a_click_on(str(region["text"])): region["look"] for region in observation.get("shapes") or ()
+             if isinstance(region, dict) and region.get("text") and region.get("look")}
+    can_do.looked_at(clickable, says, looks=looks)
     if hasattr(can_do, "asked_for_by"):
         from core.agency.what_i_can_do_here import what_is_clicked
 

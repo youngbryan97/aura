@@ -58,6 +58,10 @@ WAYS: tuple[Way, ...] = (
         "and side at which each kind has cost her, kept clear of",
         "core.agency.how_far_a_thing_reaches:HowFarThingsReach", "core.agency.playing_as_it_happens",
         "tests/test_how_far_a_thing_reaches.py"),
+    Way("remember what was shown", "remember what each place showed when turned over, and turn together two places that were "
+        "alike before and showed alike things",
+        "core.agency.things_that_go_together:ThingsThatGoTogether", "core.agency.what_i_can_do_here",
+        "tests/test_what_was_shown_is_remembered_and_paired.py"),
     Way("keys shown", "press the keys a screen shows as pictures mid-play, while it shows them: in turn and fast where several are",
         "core.agency.pressing_what_is_shown:KeysShown", "core.agency.playing_as_it_happens",
         "tests/test_keys_a_screen_shows_are_pressed.py"),

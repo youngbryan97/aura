@@ -170,9 +170,10 @@ async def carry_out_the_move(
     # A click is one act. It is aimed at what the reading it was chosen from
     # showed, and the next reading has to be of what that click did.
     from core.agency.taking_and_using import what_is_used
+    from core.agency.things_that_go_together import what_is_matched
     from core.agency.what_i_can_do_here import what_is_clicked
 
-    clicked, used = what_is_clicked(key), what_is_used(key)
+    clicked, used = what_is_clicked(key), what_is_used(key) or what_is_matched(key)
     sequence = [key, *follow_on] if follow_on and clicked is None and used is None else [key]
     started_acting = time.monotonic()
     # Before the body moves: is this where she should be.
