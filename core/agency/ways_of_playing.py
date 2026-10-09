@@ -46,6 +46,10 @@ WAYS: tuple[Way, ...] = (
         "when the path it takes her on is clear of what holding her course runs into",
         "core.agency.what_a_press_does:WhatAPressDoes", "core.agency.playing_as_it_happens",
         "tests/test_what_a_press_does_over_time.py"),
+    Way("time a press", "where no body answers her keys and something keeps moving, press when it is about to be where a "
+        "press has paid, learned from what each press paid by where the thing was",
+        "core.agency.when_a_press_pays:WhenAPressPays", "core.agency.playing_as_it_happens",
+        "tests/test_a_press_is_timed_to_where_things_are.py"),
     Way("keys shown", "press the keys a screen shows as pictures mid-play, while it shows them: in turn and fast where several are",
         "core.agency.pressing_what_is_shown:KeysShown", "core.agency.playing_as_it_happens",
         "tests/test_keys_a_screen_shows_are_pressed.py"),

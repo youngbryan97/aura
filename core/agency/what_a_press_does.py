@@ -45,6 +45,8 @@ AGREE = 0.3
 WATCHED = 24
 #: Curves of the thing that was hers when the key was pressed, whatever its kind: a kind can be numbered afresh.
 HERS = -1
+#: How near where it began a lifted thing must come back down, as a share of how high it went.
+LIFTED_BACK = 0.2
 
 
 @dataclass
@@ -128,12 +130,15 @@ class WhatAPressDoes:
                         self.curves[(watch.key, HERS)].append(watch.samples)
 
     def _curves(self, key: str, kind: int | None, number: int | None) -> list[list[tuple[float, float, float]]]:
-        """The curves that say what ``key`` does to her: of her kind, else of her as she was known, else of her thing."""
-        for curves in (self.curves.get((key, kind), ()) if kind is not None else (),
-                       self.curves.get((key, HERS), ()),
-                       self.by_number.get((key, number), ()) if number is not None else ()):
+        """The curves that say what ``key`` does to her: of her kind, else of her as she was known, else of her thing.
+        One curve that lifts her and lets her down whole is enough on its own: a curve gone wrong has no such shape,
+        and her first trial of a key is often made before her thing is followed (offline 2026-10-09)."""
+        found = [(key, kind) if kind is not None else None, (key, HERS)]
+        stores = [self.curves.get(at, ()) if at is not None else () for at in found]
+        stores.append(self.by_number.get((key, number), ()) if number is not None else ())
+        for curves in stores:
             usable = [curve for curve in curves if len(curve) >= 3]
-            if _enough(usable):
+            if _enough(usable) or (len(usable) == 1 and _lifts(usable[0])):
                 return usable
         return []
 
@@ -155,6 +160,21 @@ class WhatAPressDoes:
         curves = self._curves(key, kind, number)
         return statistics.median(curve[-1][0] for curve in curves) if curves else 0.0
 
+    def moves_anything(self, least: float) -> bool:
+        """Whether a press has been seen to move a thing more than ``least`` the same way each time it was made."""
+        return bool(self.kinds_it_moves(least))
+
+    def kinds_it_moves(self, least: float) -> set[int]:
+        """The kinds of thing a press of some key moves more than ``least``, the same way each time it was made."""
+        moved = set()
+        for (key, kind) in list(self.curves):
+            if kind == HERS:
+                continue
+            path = self.path(key, kind)
+            if path is not None and max(math.hypot(*path(step / 20 * LONGEST_S)) for step in range(21)) > least:
+                moved.add(kind)
+        return moved
+
     def lifts(self, kind: int | None, size: float, number: int | None = None) -> list[str]:
         """The keys whose press lifts a thing of ``kind`` (numbered ``number``) by more than half its size and brings it
         back down near where it began."""
@@ -168,6 +188,12 @@ class WhatAPressDoes:
             if min(dy for _dx, dy in curve) < -0.5 * size and abs(curve[-1][1]) < 0.35 * size:
                 found.append(key)
         return found
+
+
+def _lifts(curve: list[tuple[float, float, float]]) -> bool:
+    """Whether one curve rises clear of where it began and comes back down to it, against its own height."""
+    highest = min(dy for _t, _dx, dy in curve)
+    return highest < 0 and abs(curve[-1][2]) < LIFTED_BACK * abs(highest) and curve[-1][0] >= SETTLED * 0.04
 
 
 def _enough(curves: list[list[tuple[float, float, float]]]) -> bool:

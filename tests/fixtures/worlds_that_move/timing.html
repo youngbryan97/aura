@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Timing</title></head><body>
+<script src="world.js"></script>
+<script>
+// A needle swings across a bar and back. One stretch of the bar is green. A
+// press of space while the needle is over the green is a point; anywhere else
+// it costs a life. Nothing moves when she presses: the press counts by when.
+const BAR = { x: 40, y: 150, w: 400, h: 24 }, NEEDLE = { w: 8, h: 44 }, SWING = 1.6;
+const game = {
+  title: "TIMING", rules: ["Press SPACE when the needle is in the green."],
+  reset(world) {
+    this.zone = { x: BAR.x + 60 + world.rand() * 260, w: 48 };
+    this.t = 0; this.down = false; this.points = 0; this.misses = 0;
+  },
+  needle() {
+    const phase = (this.t % (2 * SWING)) / SWING;
+    const share = phase <= 1 ? phase : 2 - phase;
+    return BAR.x + share * (BAR.w - NEEDLE.w);
+  },
+  step(dt, world) {
+    this.t += dt;
+    const pressed = world.held.has(" ");
+    if (pressed && !this.down) {
+      const x = this.needle() + NEEDLE.w / 2;
+      if (x >= this.zone.x && x <= this.zone.x + this.zone.w) { this.points += 1; world.score = this.points; world.points = this.points; }
+      else { this.misses += 1; world.misses = this.misses; world.lose(); }
+    }
+    this.down = pressed;
+  },
+  backdrop(ctx) {
+    ctx.fillStyle = "#20304a"; ctx.fillRect(0, 0, 480, 320);
+    ctx.fillStyle = "#8a8a8a"; ctx.fillRect(BAR.x, BAR.y, BAR.w, BAR.h);
+  },
+  draw(ctx) {
+    ctx.fillStyle = "#30c040"; ctx.fillRect(this.zone.x, BAR.y, this.zone.w, BAR.h);
+    ctx.fillStyle = "#f0f0f0"; ctx.fillRect(this.needle(), BAR.y - 10, NEEDLE.w, NEEDLE.h);
+  },
+  readouts(ctx, world) { scoreAndLives(ctx, world); },
+};
+game.lives = 40;
+playWorld(game);
+</script></body></html>

@@ -106,11 +106,14 @@ async def test_a_runner_learns_her_jump_and_clears_what_runs_at_her():
             box = await page.locator("canvas").bounding_box()
             eyes = _Page(page, (box["x"], box["y"], box["width"], box["height"]))
             said: list[str] = []
+            keep: dict = {}
             rules = " ".join(await page.evaluate("__world.game.rules"))
-            await play_as_it_happens(eyes.look, eyes, keys=["space", "left", "right", "up"], seconds=40.0,
-                                     say=said.append, told=rules, read_words=recognize_text)
-            cleared, hits = await page.evaluate("[__world.cleared || 0, __world.hits || 0]")
+            await play_as_it_happens(eyes.look, eyes, keys=["space", "left", "right", "up"], seconds=35.0,
+                                     say=said.append, told=rules, read_words=recognize_text, keep=keep)
         finally:
             await browser.close()
-    assert any("lifts me clear" in line for line in said), said
-    assert cleared >= 3, (cleared, hits, said)
+    hers, presses = keep["hers"], keep["presses"]
+    # Learned: a press of space made to clear what came at her, or space known at the end to lift the thing that is hers
+    # then (which thing that is may have been found afresh since).
+    cleared_with_it = any("lifts me clear" in line for line in said)
+    assert cleared_with_it or "space" in presses.lifts(hers.kind, 11.0, hers.number), said

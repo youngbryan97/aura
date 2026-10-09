@@ -36,12 +36,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.agency.how_the_contest_stands import ContestStands
+from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_the_rules_said import WhatTheRulesSaid
 from core.agency.which_one_answers_to_her import RESPONSE_S, WAYS, WhichIsHers
 from core.perception.how_things_move_here import HowThingsMoveHere
 from core.perception.what_changed_and_stayed import WhatChangedAndStayed
-from core.perception.what_moves_in_the_picture import WhatMoves
+from core.perception.what_moves_in_the_picture import TOLD_FROM_STANDING_PX, WhatMoves
 
 logger = logging.getLogger("Aura.PlayingAsItHappens")
 
@@ -197,6 +198,8 @@ class _Run:
     #: picture, and presses made beside the key held, each with when to let it go.
     presses: Any = None
     things: dict = field(default_factory=dict)
+    #: Where no body answers her keys: what pressing has paid by where the moving things were (when_a_press_pays.py).
+    timing: Any = None
     letting_go: dict[str, float] = field(default_factory=dict)
 
 
@@ -1360,6 +1363,9 @@ async def play_as_it_happens(
     from core.agency.what_a_press_does import WhatAPressDoes
 
     run.presses = keep.get("presses") or WhatAPressDoes()
+    from core.agency.when_a_press_pays import WhenAPressPays
+
+    run.timing = keep.get("timing") or WhenAPressPays()
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -1409,6 +1415,8 @@ async def play_as_it_happens(
                 run.responsive_pictures += 1
             run.things = moves.things
             run.presses.saw(moves.things, at)
+            run.timing.saw(moves.things.values())
+            _found_by_her_presses(run, moves, hers, at)
             await _let_go_of_presses(hands, run, at)
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             if getattr(picture, "drawing_scene", None) is None:
@@ -1440,7 +1448,7 @@ async def play_as_it_happens(
         keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
-                 "where_clicks_pay": run.clicks_pay, "presses": run.presses,
+                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
@@ -1494,6 +1502,17 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         # Held, having moved before: where the words say to press keys in turn, fast, that is how she breaks free.
         if run.burst_keys and hers.kind is not None and at - run.burst_at >= BURST_EVERY_S:
             await _burst(hands, run, at, say=say)
+            return
+        # No press of her keys has moved anything on the screen, after all her trials of them, and things go on by
+        # themselves: a press may count by when it is made, not by what it moves (core/agency/when_a_press_pays.py).
+        # A press that moved something the same way each time is a body still to be found, not a clock to beat:
+        # offline 2026-10-09 a runner missed by her first trials was timed against and never looked for again.
+        # And timing goes on while it pays; where it has not paid once every place has been tried, she looks for a
+        # body again.
+        if (run.keys and not run.pointer_first and run.timing is not None and run.trying >= 4 * len(run.keys)
+                and not run.presses.moves_anything(TOLD_FROM_STANDING_PX * 2)
+                and (run.timing.pays() or at - run.tried_at < max(RECHECK_CONTROLS_S, run.timing.a_round_s()))
+                and await _press_in_time(hands, run, moves, at, say)):
             return
         if run.keys and run.trying >= 4 * len(run.keys) and at - run.tried_at >= RECHECK_CONTROLS_S:
             run.trying = 0
@@ -1571,6 +1590,33 @@ async def _press_to_get_clear(hands: Any, run: _Run, hers: WhichIsHers, choosing
                                     run.letting_go[press] - began))
     _say(run, say, f"{press.capitalize()} lifts me clear of what comes at me; I'm using it when something is about to.",
          at, once="a press that clears")
+
+
+def _found_by_her_presses(run: _Run, moves: WhatMoves, hers: WhichIsHers, at: float) -> None:
+    """Where her trials have not found her, the one thing of a kind her presses move alike every time is hers."""
+    if hers.number is not None or hers.follows_pointer or not run.presses.curves:
+        return
+    kinds = run.presses.kinds_it_moves(TOLD_FROM_STANDING_PX * 2)
+    candidates = [thing for thing in moves.things.values() if thing.kind in kinds]
+    if len(candidates) == 1:
+        hers.moved_by_her_presses(candidates[0], at)
+
+
+async def _press_in_time(hands: Any, run: _Run, moves: WhatMoves, at: float, say: Any) -> bool:
+    """A press timed to where the things that keep moving will be; whether she is playing by timing presses."""
+    ahead = statistics.median(run.responses) if run.responses else RESPONSE_S
+    if not run.timing.press_now(moves.things.values(), at, ahead):
+        return run.timing.has_something_to_time(moves.things.values())
+    key = run.keys[0]
+    run.timing.credit(run.gains, run.losses)
+    _say(run, say, f"Nothing here moves when I press {key}; I'm timing each press to where the moving thing is, "
+         "and keeping to the places where a press has paid.", at, once="timing")
+    await hands.down(key)
+    run.input_key_downs[key] += 1
+    await asyncio.sleep(PRESSED_FOR_S)
+    await hands.up(key)
+    run.timing.pressed(moves.things.values(), at, ahead)
+    return True
 
 
 async def _let_go_of_presses(hands: Any, run: _Run, at: float) -> None:

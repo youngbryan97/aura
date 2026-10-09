@@ -26,32 +26,38 @@ __all__ = ["keys_drawn", "which_way_it_points"]
 LIGHT, DARK = 170.0, 60.0
 #: How far the mark on a tile's face stands from the tile itself.
 MARKED = 60.0
-#: A key cap's size, as a share of the picture's shorter side, and how square and filled it is.
-SMALLEST, LARGEST = 0.02, 0.12
+#: A key cap's size, as a share of the picture's shorter side, and how square and filled it is: the caps measured were
+#: 4.4% (a game) and 8% (a test world) of it, and the enclosed part of a letter in a score line is under 3%. A cap is a
+#: rounded square, filled 0.90 and 0.93 of its box as measured; a bold letter filled in has notches and is less.
+SMALLEST, LARGEST = 0.03, 0.12
 SQUARE = (0.7, 1.43)
-FILLED = 0.7
+FILLED = 0.85
 #: The fewest pixels a mark is made of, and how much wider an arrow's head is than its shaft.
 LEAST_MARK = 8
 HEAD_OVER_SHAFT = 2.0
-#: How lopsided a profile must be to run along an arrow. Across an arrow it is even (0.01 measured on a 14-pixel key
-#: cap); along one, 0.17 on the same cap and more on a longer arrow.
-LOPSIDED = 0.1
+#: How many more lines a head must narrow over one way than the other to be an arrow's.
+LEAST_TAPER = 2
 
 
-def _runs_even(extents: list[int]) -> tuple[int, int]:
-    """How many lines at each end of a profile hold the thickness the end has: a shaft is long, a tip is one line."""
-    def run(values: list[int]) -> int:
-        count = 1
-        while count < len(values) and abs(values[count] - values[0]) <= 1:
-            count += 1
-        return count
-    return run(extents), run(extents[::-1])
+def _one_way_taper(extents: list[int]) -> int:
+    """How much longer a profile's steadiest widening is than its steadiest narrowing: above nought it widens away
+    from its start (the start is a point), below nought it narrows to its end (the end is)."""
+    widest_run = narrowest_run = widening = narrowing = 1
+    for before, after in zip(extents, extents[1:], strict=False):
+        widening = widening + 1 if after > before else 1
+        narrowing = narrowing + 1 if after < before else 1
+        widest_run, narrowest_run = max(widest_run, widening), max(narrowest_run, narrowing)
+    return widest_run - narrowest_run
 
 
 def which_way_it_points(mark: np.ndarray) -> str:
     """"left", "right", "up" or "down" where a mask is an arrow, else "".
 
-    The one reading of an arrow's shape, for a key cap, a row of arrows to follow, or a sign.
+    The one reading of an arrow's shape, for a key cap, a row of arrows to follow, or a sign. Along an arrow its head
+    tapers one way, line after line narrower to the point, and the shaft does not taper back; across it the head
+    widens to the shaft and narrows again, as much one way as the other. Measured on a game's key caps: a one-way
+    taper of 4 lines along and 1 across. The arrow points to its narrow end. Where neither way tapers one way plainly
+    more, it is no arrow: a wrong key pressed is worse than none.
     """
     ys, xs = np.nonzero(mark)
     if len(ys) < LEAST_MARK:
@@ -60,18 +66,13 @@ def which_way_it_points(mark: np.ndarray) -> str:
     down = [int(np.ptp(xs[ys == y]) + 1) if (ys == y).any() else 0 for y in range(ys.min(), ys.max() + 1)]
     readings = []
     for extents, ways in ((across, ("left", "right")), (down, ("up", "down"))):
-        if len(extents) < 5:
-            continue
-        # Along an arrow its profile is lopsided, head at one end and shaft at the other; across it, it is even about
-        # the middle (head above and below, the shaft through the middle), and says nothing of which way it points.
-        lopsided = sum(abs(a - b) for a, b in zip(extents, extents[::-1], strict=True)) / (2 * sum(extents))
-        first, last = _runs_even(extents)
-        shaft = min(extents[0], extents[-1])
-        if lopsided < LOPSIDED or max(extents) < HEAD_OVER_SHAFT * max(1, shaft) or first == last:
-            continue
-        # The shaft is the long even run; the arrow points to the other end.
-        readings.append((lopsided, ways[0] if last > first else ways[1]))
-    return max(readings)[1] if readings else ""
+        taper = _one_way_taper(extents)
+        if abs(taper) >= LEAST_TAPER and max(extents) >= HEAD_OVER_SHAFT * max(1, min(extents[0], extents[-1])):
+            readings.append((abs(taper), ways[0] if taper > 0 else ways[1]))
+    readings.sort(reverse=True)
+    if not readings or (len(readings) > 1 and readings[0][0] <= readings[1][0]):
+        return ""
+    return readings[0][1]
 
 
 def keys_drawn(picture: Any) -> list[dict[str, Any]]:
@@ -99,11 +100,23 @@ def keys_drawn(picture: Any) -> list[dict[str, Any]]:
                 continue
             face = gray[place]
             ground = float(np.median(face[tile & tile_mask[place]]))
+            # A cap stands apart from what it sits on: the band just outside it is unlike its face.
+            top, left = max(0, place[0].start - 3), max(0, place[1].start - 3)
+            bottom, right = min(tall, place[0].stop + 3), min(wide, place[1].stop + 3)
+            around = np.ones((bottom - top, right - left), dtype=bool)
+            around[place[0].start - top:place[0].stop - top, place[1].start - left:place[1].stop - left] = False
+            if not around.any() or abs(float(np.median(gray[top:bottom, left:right][around])) - ground) < MARKED / 2:
+                continue
             edge = max(1, int(0.12 * min(high, broad)))
             inner = np.zeros_like(tile)
             inner[edge:-edge, edge:-edge] = True
             mark = inner & tile & (np.abs(face - ground) > MARKED)
             if int(mark.sum()) < LEAST_MARK:
+                continue
+            # The mark sits on the cap's face clear of its edges; what reaches in from an edge is the outline of
+            # something else (the strokes round the hole in a letter of a score line).
+            rows, cols = np.nonzero(mark)
+            if rows.min() <= edge or cols.min() <= edge or rows.max() >= high - edge - 1 or cols.max() >= broad - edge - 1:
                 continue
             way = which_way_it_points(mark)
             if way:

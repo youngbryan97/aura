@@ -37,6 +37,7 @@ from core.agency.causal_identification import (
     CausalWitness,
     within_observed_reach,
 )
+from core.agency.finding_her_another_way import FoundAnotherWay
 from core.agency.what_follows_the_pointer import FollowsThePointer
 from core.verify import invariant
 
@@ -190,7 +191,18 @@ class _Speeds:
         values = self.free.get(key) or []
         if len(values) < ENOUGH:
             return None
-        return statistics.median(v[0] for v in values), statistics.median(v[1] for v in values)
+        middle = statistics.median(v[0] for v in values), statistics.median(v[1] for v in values)
+        # A way is a key that moved her alike at two presses or more. At one, the pictures may have been of
+        # something else: offline 2026-10-09 a block passing through a runner was followed as her for a moment while
+        # she held left, left was learned to move her, and she held it to get out of the way of every block after.
+        # Overruled only by presses enough to say so: two of them seen, and fewer than two that moved her alike.
+        presses = [_mean(kept) for (pressed, _began), kept in self.by_press.items() if pressed == key and len(kept) >= 2]
+        if math.hypot(*middle) > REALLY_MOVES and len(presses) >= 2:
+            alike = [mean for mean in presses
+                     if math.hypot(*mean) > REALLY_MOVES and mean[0] * middle[0] + mean[1] * middle[1] > 0]
+            if len(alike) < 2:
+                return 0.0, 0.0
+        return middle
 
 
 def _contingency(groups: dict[str, list[tuple[float, float]]]) -> tuple[float, float]:
@@ -288,7 +300,7 @@ def _apart2(a: tuple[float, float], b: tuple[float, float]) -> float:
     return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2
 
 
-class WhichIsHers(FollowsThePointer):
+class WhichIsHers(FollowsThePointer, FoundAnotherWay):
     """Keeps, for each thing and each kind of thing, how it moved under each key."""
 
     def __init__(self) -> None:
@@ -568,7 +580,7 @@ class WhichIsHers(FollowsThePointer):
                     self._by_kind[thing.kind].add(key, thing.vx, thing.vy, press=press,
                                                  settled=press is not None)
                 if thing.number == self.number and at >= self._beside_until:
-                    self._hers.add(key, thing.vx, thing.vy, pinned=self._pinned(thing),
+                    self._hers.add(key, thing.vx, thing.vy, pinned=self._pinned(thing), press=press,
                                    settled=press is not None, position=(thing.x, thing.y), at=at)
                     self._answering(thing, key, at - began, at)
         self._what_follows_the_pointer(moves, at)
@@ -615,30 +627,6 @@ class WhichIsHers(FollowsThePointer):
             if self.number is not None:
                 logger.info("her thing goes on as %s, the one of her kind within reach", self.number)
         self._remember_own_thing(moves, at)
-
-    def _the_one_of_a_kind_that_answers(self, moves: Any) -> int | None:
-        """Where no one thing's presses answer her keys, the kind whose do, where one thing of it is on the screen.
-
-        A thing's number does not outlast its being lost to sight: met by
-        something, a body is one patch with it for a picture and comes out
-        under a new number, and its presses are split between the two
-        (offline 2026-10-09, a runner met by the first block during her trials
-        of her keys: one press of each, under two numbers, and no answer). Its
-        kind outlasts that, and a kind with one thing of it on the screen is
-        that thing.
-        """
-        witnesses = []
-        for kind, speeds in self._by_kind.items():
-            things = [t for t in moves.things.values() if t.kind == kind and t.moved and t.number not in self.not_mine]
-            if len(things) != 1:
-                continue
-            f, widest = speeds.ratio()
-            trials: dict[str, int] = defaultdict(int)
-            for (key, _press), values in speeds.by_press.items():
-                if len(values) >= 2:
-                    trials[key] += 1
-            witnesses.append(CausalWitness(things[0].number, self.identification.epoch, tuple(sorted(trials.items())), f, widest))
-        return self.identification.choose(witnesses, visible=set(moves.things), established=None, excluded=self.not_mine)
 
     def _remember_own_thing(self, moves: Any, at: float | None) -> None:
         """Keep the observed pose for every established control, including the pointer."""

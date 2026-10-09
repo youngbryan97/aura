@@ -86,15 +86,15 @@ def test_keys_that_appear_in_play_are_asked_for_and_pressed_in_turn_and_the_scre
         await _looked(appearing, _a_screen_with_keys(), 0.0)
         await _looked(appearing, _a_screen_with_keys("left", "right"), 2.0)
         hands, said = _Hands(), []
-        await appearing.press(hands, say=said.append)
-        await appearing.press(hands, say=said.append)
+        for _ in range(3):
+            await appearing.press(hands, say=said.append)
         assert said == ["It's showing left and right: pressing them in turn, fast."]
         return furniture, appearing, hands
 
     furniture, appearing, hands = asyncio.run(run())
     assert not furniture.asks(4.5)
     assert appearing.asks(2.2) and not appearing.asks(3.0)
-    assert hands.did == ["down left", "up left", "down right", "up right"] * 2
+    assert hands.did == ["down left", "up left", "down right", "up right"] * 3
 
 
 @pytest.mark.asyncio
