@@ -134,3 +134,16 @@ open, stopped by hand after 10 of its 12 first proposals; and
 Code: `3d34c1109`, worktree `g09-frozen`. Held-out kinds as listed above.
 
 Correction, 10:24: seven of the 22 development proposals ran past 16,622 tokens (three in dev1, four in dev2), not eight.
+
+## The held-out run's decoder, 8 October 2026, 22:40, after its first attempt crashed the Mac
+
+The held-out run started at 10:25 and logged 3 of its 20 first proposals.
+Then the Mac kernel-panicked in the GPU driver (`IOGPUGroupMemory::
+remove_memory_object() memory object not found`), with that run's process as
+the panicked task, and rebooted at 11:56. Its decoder refilled the batch as
+each sequence ended. The run resumes from its logged proposals with the
+decoder changed to fixed groups (`76f053ee7`), the mode every earlier batch
+ran in without a panic. Nothing else changes: the run's code is `3d34c1109`
+with that one commit applied on top (`19b9c7e6d` in worktree `g09-frozen`).
+Greedy decoding in a batch of a different composition can differ in the last
+digits of the arithmetic, as before.
