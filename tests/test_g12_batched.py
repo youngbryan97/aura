@@ -49,9 +49,11 @@ def test_batched_records_keep_order_finish_and_channels(monkeypatch) -> None:
     assert second["termination"] == "native_thinking_incomplete" and second["public_text"] == ""
 
 
-def test_a_refilling_stream_hands_each_record_over_as_its_sequence_ends(monkeypatch) -> None:
-    """Three conversations two at a time: the third starts when the first ends."""
+def test_a_stream_decodes_fixed_groups_and_hands_each_record_over_as_its_sequence_ends(monkeypatch) -> None:
+    """Three conversations two at a time: the third waits for a fresh generator after both of the first end."""
     import importlib
+
+    import mlx.core as mx
 
     generate = importlib.import_module("mlx_lm.generate")
 
@@ -59,36 +61,35 @@ def test_a_refilling_stream_hands_each_record_over_as_its_sequence_ends(monkeypa
     from tools.g12_batched import decode_stream
 
     words = {11: "think", 12: "</think>", 13: "answer", 0: ""}
-    seen_width: list[int] = []
+    groups: list[int] = []
+    released: list[str] = []
 
     class FakeGenerator:
         def __init__(self, model, *, stop_tokens, completion_batch_size, prefill_batch_size):
             self.stream = generate.generation_stream
             self._prompt_batch = SimpleNamespace(prompt_cache=[])
             self._generation_batch = SimpleNamespace(prompt_cache=[])
-            seen_width.append(completion_batch_size)
-            self.steps = [
-                [SimpleNamespace(uid=1, token=12, finish_reason=None), SimpleNamespace(uid=2, token=11, finish_reason=None)],
-                [SimpleNamespace(uid=1, token=13, finish_reason=None), SimpleNamespace(uid=2, token=11, finish_reason=None)],
-                [SimpleNamespace(uid=1, token=0, finish_reason="stop"), SimpleNamespace(uid=2, token=12, finish_reason=None)],
-                [SimpleNamespace(uid=3, token=12, finish_reason=None), SimpleNamespace(uid=2, token=13, finish_reason=None)],
-                [SimpleNamespace(uid=3, token=13, finish_reason=None), SimpleNamespace(uid=2, token=0, finish_reason="stop")],
-                [SimpleNamespace(uid=3, token=0, finish_reason="stop")],
-                [],
-            ]
+            assert completion_batch_size == prefill_batch_size
+            groups.append(completion_batch_size)
 
         def insert(self, prompts, max_tokens):
-            assert len(prompts) == 3
-            return [1, 2, 3]
+            first = 10 * len(groups)
+            self.uids = list(range(first, first + len(prompts)))
+            self.steps = [[SimpleNamespace(uid=u, token=12, finish_reason=None) for u in self.uids],
+                          [SimpleNamespace(uid=u, token=13, finish_reason=None) for u in self.uids],
+                          [SimpleNamespace(uid=u, token=0, finish_reason="stop") for u in self.uids], []]
+            return self.uids
 
         def next_generated(self):
             return self.steps.pop(0)
 
         def close(self):
-            pass
+            released.append("closed")
 
     monkeypatch.setattr(generate, "BatchGenerator", FakeGenerator)
     monkeypatch.setattr(chat_format, "render_chat_template", lambda *a, **k: "prompt")
+    monkeypatch.setattr(mx, "synchronize", lambda *a, **k: released.append("synchronized"))
+    monkeypatch.setattr(mx, "clear_cache", lambda: released.append("cleared"))
     tokenizer = SimpleNamespace(eos_token_ids=[0], encode=lambda text, add_special_tokens=False: [1, 2],
                                 decode=lambda ids: "".join(words[i] for i in ids))
     order: list[int] = []
@@ -100,10 +101,12 @@ def test_a_refilling_stream_hands_each_record_over_as_its_sequence_ends(monkeypa
 
     decode_stream(object(), tokenizer, [[{"role": "user", "content": c}] for c in "abc"], max_tokens=9, width=2,
                   on_record=keep)
-    assert seen_width == [2]
+    assert groups == [2, 1]
     assert order == [0, 1, 2]
+    assert released == ["closed", "synchronized", "cleared"] * 2
     assert all(records[i]["public_text"] == "answer" and records[i]["termination"] == "stop" for i in range(3))
-    assert records[1]["generated_tokens"] == 4 and records[2]["batching"] == "continuous"
+    assert records[1]["batch_size"] == 2 and records[2]["batch_size"] == 1
+    assert records[2]["batching"] == "fixed_groups"
 
 
 def test_metadata_evaluation_bounds_unread_chains_on_the_generator_stream(monkeypatch) -> None:
