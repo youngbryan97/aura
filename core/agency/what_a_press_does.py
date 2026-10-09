@@ -47,6 +47,8 @@ WATCHED = 24
 HERS = -1
 #: How near where it began a lifted thing must come back down, as a share of how high it went.
 LIFTED_BACK = 0.2
+#: How far out, in working pixels, where a thing is seen may be from where it is: a lift must rise further than this.
+SEEN_WITHIN_PX = 2.0
 
 
 @dataclass
@@ -191,9 +193,15 @@ class WhatAPressDoes:
 
 
 def _lifts(curve: list[tuple[float, float, float]]) -> bool:
-    """Whether one curve rises clear of where it began and comes back down to it, against its own height."""
+    """Whether one curve rises clear of where it began and comes back down to it, against its own height.
+
+    Clear means further than where a thing is seen can be out: offline 2026-10-09, read from screenshots, a robot
+    walking flat was seen a fraction of a pixel higher mid-walk than at either end, its one curve was taken for a lift,
+    and it was taken for hers in three runs of six.
+    """
     highest = min(dy for _t, _dx, dy in curve)
-    return highest < 0 and abs(curve[-1][2]) < LIFTED_BACK * abs(highest) and curve[-1][0] >= SETTLED * 0.04
+    return (highest < -SEEN_WITHIN_PX and abs(curve[-1][2]) < LIFTED_BACK * abs(highest)
+            and curve[-1][0] >= SETTLED * 0.04)
 
 
 def _enough(curves: list[list[tuple[float, float, float]]]) -> bool:
