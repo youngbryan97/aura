@@ -1579,11 +1579,7 @@ async def pursue_on_screen(
             # The largest thing she has made here — the carried record only
             # where this sitting saw something at least as big, so a reading
             # that was wrong once cannot stand for ever.
-            "furthest": (
-                furthest["here"]
-                if furthest["again"] >= furthest["here"]
-                else furthest["again"]
-            ),
+            "furthest": furthest["here"] if furthest["again"] >= furthest["here"] else furthest["again"],
             # And what each thing about a situation turned out to be worth.
             "matters": matters.as_memory(),
             # The properties she composed here and kept, by name and weight.
