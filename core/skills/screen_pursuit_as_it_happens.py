@@ -441,7 +441,9 @@ class PlayingAsItHappens:
         # ("Press SPACE to play again") was played with space alone, and the
         # arrows the title screen had named were never pressed.
         keys = list(dict.fromkeys([*(self.keep.get("named_keys") or []), *named]))
-        if not keys:
+        # A thing whose words name the mouse and no key is played with the mouse: LIVE 2026-10-09 a putt game, "click the
+        # ball, hold down the mouse while you aim", was played with the arrows a game is usually played with.
+        if not keys and not (pointer_first or self.keep.get("pointer_named")):
             keys = controls_named_in("")[0]
         # Keys named only for doing something ("space to jump") say nothing of moving, and a person takes the arrows to
         # move: LIVE 2026-10-07 a platformer whose screen named space and up was played with those alone, its hero never

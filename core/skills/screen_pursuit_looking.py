@@ -814,6 +814,37 @@ MOVES_SAID: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextV
 )
 
 
+def _where_the_way_on_was(observation: dict[str, Any], clickable: Any, says: str, paced: Any) -> Any:
+    """A way on read on the screen before ("next"), looked for where it was, on a screen that teaches or has nothing of
+    its own to click and whose own way on cannot be read: a run of screens keeps its way on in one place.
+
+    LIVE 2026-10-09 a game's welcome had "next" she could read; its putter lesson, after it, drew the same "back" and
+    "next" in letters of which she read only "back", and she went back and forth between the two for a round.
+    """
+    from core.agency.what_i_can_do_here import THE_PICTURE, a_click_on, what_is_clicked
+    from core.language.a_way_on import how_much_it_leads_on
+
+    from .screen_pursuit_as_it_happens import reads_as_rules
+    from .screen_pursuit_bearings import where_to_click
+
+    if not isinstance(paced, dict):
+        return clickable
+    labels = [what_is_clicked(move) or "" for move in clickable]
+    ways_on = [label for label in labels if how_much_it_leads_on(label) >= 1.4 and not label.startswith("the ")]
+    if ways_on:
+        at = where_to_click(observation, ways_on[0])
+        if at is not None:
+            paced["way_on_at"] = (ways_on[0], at, says)
+        return clickable
+    held = paced.get("way_on_at")
+    own = [label for label in labels if label and label != THE_PICTURE]
+    if not held or held[2] == says or held[0] in labels or not (reads_as_rules(says) or not own):
+        return clickable
+    label, (x, y), _said = held
+    observation.setdefault("shapes", []).append({"text": label, "center_x": x, "center_y": y, "shape": True})
+    return (*clickable, a_click_on(label))
+
+
 def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: Any, narrate: bool) -> None:
     """What she can click on the screen now, and what it says that she has not yet read.
 
@@ -827,6 +858,7 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     from .screen_pursuit_bearings import things_to_click, what_it_says
 
     clickable, says, paced = things_to_click(observation, drawn_where), what_it_says(observation, drawn_where), MOVES_SAID.get()
+    clickable = _where_the_way_on_was(observation, clickable, says, paced)
     # Her bearings here (core/cognition/her_bearings.py): what tells her what to do, what stands out, and what would
     # take her away from the thing, which is not offered at all.
     bearings = _her_bearings(observation, clickable, says, can_do)

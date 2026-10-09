@@ -150,3 +150,20 @@ def test_nothing_is_sent_into_a_screen_that_teaches_or_asks_her_to_choose(said, 
     reflexes = PlayingAsItHappens(page=None, band=(0.0, 0.0, 1.0, 1.0), goal="play", ends_at=0.0)
     reflexes.words = [said]
     assert reflexes._no_place_for_shots() is no_shots
+
+
+def test_a_way_on_read_before_is_looked_for_where_it_was_on_a_lesson_whose_own_cannot_be_read():
+    """LIVE 2026-10-09 a welcome had "next" she could read; the putter lesson after it drew the same "back" and "next" in
+    letters of which she read only "back", and she went back and forth between the two for a round."""
+    from core.agency.what_i_can_do_here import a_click_on
+    from core.skills.screen_pursuit_bearings import where_to_click
+    from core.skills.screen_pursuit_looking import _where_the_way_on_was
+
+    paced: dict = {}
+    welcome = {"layout": [{"text": "next", "center_x": 0.86, "center_y": 0.9}, {"text": "back", "center_x": 0.72, "center_y": 0.9}]}
+    _where_the_way_on_was(welcome, (a_click_on("next"), a_click_on("back")), "Welcome to the island", paced)
+    lesson = {"layout": [{"text": "back", "center_x": 0.72, "center_y": 0.9}]}
+    offered = _where_the_way_on_was(lesson, (a_click_on("back"),), "HOW TO USE THE PUTTER: 1. Click on your ball", paced)
+    assert a_click_on("next") in offered and where_to_click(lesson, "next") == (0.86, 0.9)
+    play = {"layout": [{"text": "SCORE 120", "center_x": 0.1, "center_y": 0.05}, {"text": "MENU", "center_x": 0.9, "center_y": 0.05}]}
+    assert a_click_on("next") not in _where_the_way_on_was(play, (a_click_on("MENU"),), "SCORE 120 MENU", paced)
