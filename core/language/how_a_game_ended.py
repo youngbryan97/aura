@@ -16,7 +16,8 @@ import re
 import unicodedata
 from typing import Final
 
-__all__ = ["asks_to_win", "how_it_ended", "how_it_ended_in", "offers_a_win", "the_score_in", "what_it_asks_of_a_player"]
+__all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "offers_a_win", "the_score_in",
+           "what_it_asks_of_a_player"]
 
 _WINNING: Final = re.compile(r"\b(win|wins|won|winner|victory|victorious|beat|beats|defeated|champion)\b")
 _THE_PLAYER: Final = frozenset({"you", "player", "player 1", "p1", "your", "yours"})
@@ -177,6 +178,12 @@ _FOR_POINTS: Final = re.compile(
     r"get the most|score as (?:many|much|high)|before (?:the )?time runs out|in (?:one|two|three|\d+) minutes?)\b"
 )
 _TO_WIN: Final = re.compile(r"\b(first to|wins?\b|beat (?:the|him|her|them|your opponent)|defeat|win the|to win)\b")
+#: An objective a player is set, that is reached and then over: someone rescued, all of something found, a place got to.
+_OBJECTIVE: Final = re.compile(
+    r"\b(rescue|save (?:the|him|her|them|his|their)|escape (?:from|the)|find (?:all|every|the|his|her|their)|"
+    r"collect (?:all|every)|reach the (?:end|top|exit|goal|finish|other side)|solve|"
+    r"help \w+ (?:to )?(?:find|get|escape|save|rescue|stop|reach|collect))\b"
+)
 #: Words that set a player to make something, not to win: a maker, a dress-up, a paint box.
 _FOR_MAKING: Final = re.compile(
     r"\b((?:create|make|design|build|draw|paint|invent) your own|dress (?:up|him|her|them)|decorate|customi[sz]e|"
@@ -202,4 +209,12 @@ def what_it_asks_of_a_player(words: str) -> str:
         return "score"
     if _FOR_MAKING.search(text):
         return "make"
+    # Set an objective ("Help Dexter find his missing robot"), a player has an end to reach.
+    if _OBJECTIVE.search(text):
+        return "win"
     return ""
+
+
+def declares_a_win(words: str) -> bool:
+    """Whether a thing's words name a winner or a win: "You win!", "Winner", "Victory"."""
+    return bool(_WINNING.search(_plain(words)))

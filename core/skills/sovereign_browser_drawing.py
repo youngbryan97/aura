@@ -318,7 +318,9 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     until_won = asks_to_win(without_conditions(goal)) or terms.until_the_end
     attempts = requested_attempts(without_conditions(goal))
     where_none = terms.measure_runs
-    limit = min(attempts, MOST_RUNS) if attempts is not None else MOST_RUNS if until_won else 1
+    # Asked to carry it through to its end, as many runs as that takes; else a count said, or the most in one hand-over.
+    limit = (min(attempts, MOST_RUNS) if attempts is not None else float("inf") if terms.until_the_end
+             else MOST_RUNS if until_won else 1)
     # One of several things asked for ("the first of the 3 picked") has its share of the time, not all of it; asked to
     # be carried on until its end is reached, it has all of it.
     share = PLAY_UNTIL_WON_S if terms.until_the_end else max(LEAST_SHARE_S, PLAY_UNTIL_WON_S / _how_many_asked(goal))

@@ -157,14 +157,31 @@ def without_conditions(request: str) -> str:
 
 
 def shape_in(words: str, *, a_measure_seen: bool = False) -> str:
-    """Which shape a thing is, from its own words (and whether a measure of it has been seen): END, MEASURE, MADE, or ""."""
-    from core.language.how_a_game_ended import offers_a_win, what_it_asks_of_a_player
+    """Which shape a thing is, from its own words (and whether a measure of it has been seen): END, MEASURE, MADE, or "".
+
+    What it says it sets out to do comes first: something to make, an
+    objective, a score to run up. Then a win it names. Then a measure it
+    keeps: a thing that ends each run with a score is played for the score,
+    levels or not, as an arcade game is. Levels or stages with no measure
+    shown are steps to an end.
+    """
+    from core.language.how_a_game_ended import (
+        declares_a_win,
+        offers_a_win,
+        what_it_asks_of_a_player,
+    )
 
     asked = what_it_asks_of_a_player(words)
     if asked == "make":
         return MADE
-    if asked == "win" or offers_a_win(words):
+    if asked == "win":
         return END
-    if asked == "score" or a_measure_seen:
+    if asked == "score":
         return MEASURE
+    if declares_a_win(words):
+        return END
+    if a_measure_seen:
+        return MEASURE
+    if offers_a_win(words):
+        return END
     return ""

@@ -69,6 +69,11 @@ def test_a_things_shape_is_read_from_its_own_words():
     assert shape_in("Create your own KND by selecting your favorite body parts.") == MADE
     assert shape_in("Use the arrow keys to move.") == ""
     assert shape_in("Use the arrow keys to move.", a_measure_seen=True) == MEASURE
+    # An objective is an end to reach; levels that each run ends with a score are an arcade game's, and it is played for the score.
+    assert shape_in("Help Dexter find his missing robot! Look for special pairs of glasses.") == END
+    assert shape_in("LEVEL 1 GAME OVER YOUR SCORE: 300", a_measure_seen=True) == MEASURE
+    assert shape_in("LEVEL 2") == END
+    assert shape_in("YOU WIN!", a_measure_seen=True) == END
     assert the_score_in("GAME OVER YOUR SCORE: 1,250 PLAY AGAIN") == 1250
     assert not offers_a_win("Catch the falling fruit. GAME OVER YOUR SCORE 12")
 
@@ -131,9 +136,9 @@ def test_a_thing_for_making_is_made_once_and_what_was_made_said(monkeypatch):
 
 def test_a_thing_with_an_end_is_kept_at_past_not_getting_better(monkeypatch):
     words = ["Level 1. Use the arrow keys to move."]
-    runs = [_Run(words, "GAME OVER") for _ in range(5)] + [_Run(words, "YOU WIN! Level 1 complete")]
+    runs = [_Run(words, "GAME OVER") for _ in range(13)] + [_Run(words, "YOU WIN! Level 1 complete")]
     played, said = _played_through(monkeypatch, runs, "Play this game. " + CONDITIONS)
-    assert played["won"] and played["runs"][-1] == "won"
+    assert played["won"] and played["runs"][-1] == "won" and len(played["runs"]) == 14
     assert not any("no better than my best" in line for line in said)
 
 
