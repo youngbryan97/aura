@@ -115,6 +115,6 @@ def test_the_loop_tells_the_delivery_whether_the_world_answered():
 
     in_order(
         pursuit_source(),
-        "can_do.tried(previous.chosen.name, attempt.verdict.observed_change)",
+        "can_do.tried(previous.chosen.name, it_was_answered(attempt.verdict.observed_change, observation))",
         "it_answered(",
     )

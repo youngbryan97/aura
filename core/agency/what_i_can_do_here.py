@@ -34,6 +34,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Sequence
 
+from core.agency.taking_and_using import TakingAndUsing, what_is_used
 from core.agency.where_things_lead import WhereThingsLead
 
 __all__ = [
@@ -181,8 +182,9 @@ def worth_trying(told: Sequence[str] = ()) -> tuple[str, ...]:
 
 
 @dataclass
-class WhatWorksHere:
-    """Which inputs have done anything, and which have never done anything."""
+class WhatWorksHere(TakingAndUsing):
+    """Which inputs have done anything, and which have never done anything; and what she has taken to use
+    (core/agency/taking_and_using.py)."""
 
     #: What she was told her actions were, if anything.
     told: tuple[str, ...] = ()
@@ -229,6 +231,7 @@ class WhatWorksHere:
         never tried, and she clicked the clock again and again.
         """
         now = tuple(clickable)
+        self.noticed_taking(now)
         self.on_screen = tuple(label for label in now if label in self.seen_before)
         self.seen_before = now
         self.leads.looked(now, says)
@@ -238,9 +241,11 @@ class WhatWorksHere:
     def tried(self, key: str, changed: bool) -> None:
         """One input, and whether the world answered it."""
         name = str(key or "").strip()
-        name = name if what_is_clicked(name) is not None else name.lower()
+        name = name if what_is_clicked(name) is not None or what_is_used(name) is not None else name.lower()
         if not name:
             return
+        if what_is_clicked(name) is not None:
+            self.clicked_on(name, self.seen_before, changed)
         self.leads.acted(name, changed)
         if changed:
             self.quiet_since.clear()
@@ -288,7 +293,7 @@ class WhatWorksHere:
 
     def available(self) -> tuple[str, ...]:
         """What to offer her now, what led on from this screen before first (`core.agency.where_things_lead`)."""
-        return self.leads.in_order(self._available())
+        return self.leads.in_order(self._available()) + self.uses(self.on_screen)
 
     def _available(self) -> tuple[str, ...]:
         """What to offer her now.

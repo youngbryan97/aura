@@ -33,7 +33,7 @@ if any of them is not called from her live play or has no test.
 | a grid's rule | a grid whose rule is found by moving in it | `core/skills/screen_pursuit.py` (her rule of the world) |
 | type | type what a screen asks for: an answer, a name, a question | `core/agency/typing_what_is_asked.py` |
 | make | make something and say what | `core/skills/sovereign_browser_drawing.py` (MADE) |
-| use things | pick things up and use them on other things | not yet |
+| use things | take a thing (it goes elsewhere or is chosen where it is), then use it on another: two clicks | `core/agency/taking_and_using.py` |
 | a chain | place pieces so each leads to the next, toward an end | not yet |
 | serve | give each what it asks for | not yet |
 | unseen | keep out of what can see her | not yet (keeping clear of things, not of what they can see) |

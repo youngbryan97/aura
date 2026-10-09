@@ -50,6 +50,10 @@ WAYS: tuple[Way, ...] = (
         "press has paid, learned from what each press paid by where the thing was",
         "core.agency.when_a_press_pays:WhenAPressPays", "core.agency.playing_as_it_happens",
         "tests/test_a_press_is_timed_to_where_things_are.py"),
+    Way("use things", "take a thing by clicking it (it goes elsewhere or is chosen where it is), then use it on another: "
+        "a click on it and a click on the other",
+        "core.agency.taking_and_using:TakingAndUsing", "core.agency.what_i_can_do_here",
+        "tests/test_a_thing_taken_is_used_on_another.py"),
     Way("keys shown", "press the keys a screen shows as pictures mid-play, while it shows them: in turn and fast where several are",
         "core.agency.pressing_what_is_shown:KeysShown", "core.agency.playing_as_it_happens",
         "tests/test_keys_a_screen_shows_are_pressed.py"),

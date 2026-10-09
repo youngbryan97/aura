@@ -66,10 +66,16 @@ def screen_options(keys: Sequence[str] = DEFAULT_MOVES) -> list[Any]:
     keystroke's own receipt said.
     """
     from core.agency.deliberate_action import ActionOption, Expectation
+    from core.agency.taking_and_using import what_is_used
     from core.agency.what_i_can_do_here import what_is_clicked
 
     options: list[Any] = []
     for key in keys:
+        used = what_is_used(str(key))
+        if used is not None:
+            options.append(ActionOption(name=str(key).strip(), detail=f'use "{used[0]}" on "{used[1]}"',
+                                        expectation=Expectation(changed=True, describes=f'the view to be different after using "{used[0]}" on "{used[1]}"')))
+            continue
         clicked = what_is_clicked(str(key))
         if clicked is not None:
             options.append(

@@ -67,7 +67,7 @@ def test_the_pursuit_says_it_and_keeps_it():
     source = pursuit_loop_source()
     assert "_she_got_further(made, beaten)" in source
     assert 'furthest["here"] = max(furthest["here"], made)' in source
-    assert '"furthest": (' in source
+    assert '"furthest": furthest["here"] if' in source
 
 
 def test_nothing_is_claimed_before_she_knows_what_the_thing_is():
@@ -130,6 +130,6 @@ def test_what_is_kept_is_the_record_this_sitting_could_stand_behind():
     from core.skills import screen_pursuit
 
     source = pursuit_loop_source()
-    at = source.index('"furthest": (')
+    at = source.index('"furthest":')
     nearby = source[at : at + 300]
     assert 'furthest["again"] >= furthest["here"]' in nearby

@@ -8,6 +8,7 @@ success. Every path ends in a receipt saying which of those happened.
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable
 from types import SimpleNamespace
 
 from .screen_pursuit_bearings import (
@@ -93,6 +94,17 @@ async def _click_what_she_named(run: SimpleNamespace, label: str) -> bool:
     )
 
 
+#: The moment between the two clicks of a use, in seconds: long enough for a screen to show what the first one took.
+BETWEEN_CLICKS_S = 0.3
+
+
+async def _after_a_moment(click: Awaitable[bool]) -> bool:
+    import asyncio
+
+    await asyncio.sleep(BETWEEN_CLICKS_S)
+    return bool(await click)
+
+
 async def carry_out_the_move(
 
     run: SimpleNamespace,
@@ -157,10 +169,11 @@ async def carry_out_the_move(
     # fifty-three moves between them, one screen reading apiece.
     # A click is one act. It is aimed at what the reading it was chosen from
     # showed, and the next reading has to be of what that click did.
+    from core.agency.taking_and_using import what_is_used
     from core.agency.what_i_can_do_here import what_is_clicked
 
-    clicked = what_is_clicked(key)
-    sequence = [key, *follow_on] if follow_on and clicked is None else [key]
+    clicked, used = what_is_clicked(key), what_is_used(key)
+    sequence = [key, *follow_on] if follow_on and clicked is None and used is None else [key]
     started_acting = time.monotonic()
     # Before the body moves: is this where she should be.
     #
@@ -224,7 +237,10 @@ async def carry_out_the_move(
                 _tell(move_said)
             continue
         _say_intent(step, reason, out_loud=aloud, following_on=position > 0)
-    if clicked is not None:
+    if used is not None:
+        # Taken, then used: a click on the thing, a moment for the screen to answer, and a click on what it is used on.
+        arrived = 1 if await _click_what_she_named(run, used[0]) and await _after_a_moment(_click_what_she_named(run, used[1])) else 0
+    elif clicked is not None:
         arrived = 1 if await _click_what_she_named(run, clicked) else 0
     elif len(sequence) > 1:
         # Only the keys that really landed are spoken for. Focus can

@@ -764,6 +764,7 @@ def _say_intent(
     corrected out loud by :func:`_say_it_did_not_land`, and the RECORD of
     what she did is still written only from what landed.
     """
+    from core.agency.taking_and_using import what_is_used
     from core.agency.what_i_can_do_here import what_is_clicked
 
     from .screen_pursuit import (
@@ -771,10 +772,11 @@ def _say_intent(
         _tell,
     )
 
-    clicked = what_is_clicked(str(key))
+    clicked, used = what_is_clicked(str(key)), what_is_used(str(key))
     named = str(key).strip().lower()
     # A key named for a way is gone in; any other key is pressed: "Going up", "Pressing space" (not "Going space").
-    said = f'Clicking "{clicked}"' if clicked is not None else f"Going {named}" if named in ("up", "down", "left", "right") else f"Pressing {named}"
+    said = (f'Using "{used[0]}" on "{used[1]}"' if used is not None else f'Clicking "{clicked}"' if clicked is not None
+            else f"Going {named}" if named in ("up", "down", "left", "right") else f"Pressing {named}")
     # A reason she did not give does not erase the one she has.
     #
     # This read the other way round and the assignment was unconditional, so

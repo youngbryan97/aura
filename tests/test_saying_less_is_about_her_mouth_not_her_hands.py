@@ -18,7 +18,7 @@ BODY = SOURCE[SOURCE.index("async def pursue_on_screen") :]
 
 def test_a_quiet_pace_no_longer_shortens_the_sequence():
     # A click is one act and is never batched; keys still go as the whole sequence.
-    assert "sequence = [key, *follow_on] if follow_on and clicked is None else [key]" in BODY
+    assert "sequence = [key, *follow_on] if follow_on and clicked is None and used is None else [key]" in BODY
     assert 'if follow_on and not pacing["brief"]' not in BODY
 
 
