@@ -247,6 +247,8 @@ class WhatMeetingDoes:
         self.told: dict[int, str] = {}
         self._places: list[tuple[float, float, float]] = []
         self._settled_places: set[tuple[float, float]] = set()
+        #: Each kind's colour and size, as the picture last gave them: a kind not yet met is judged as one like it.
+        self._looks: dict[int, tuple[tuple[int, int, int], float]] = {}
 
     # -- verdicts ----------------------------------------------------------
 
@@ -372,6 +374,8 @@ class WhatMeetingDoes:
             self.since = at
         if any(h.get("what") == "new screen" for h in happened):
             self.new_screen_at = at
+        self._looks = {int(kind.number): (tuple(int(c) for c in kind.colour), float(kind.size))
+                       for kind in getattr(moves, "kinds", None) or ()} or self._looks
         mine = hers.thing(moves)
         self._clicks_that_met(happened, at)
         self._touches(moves, mine, hers, at)
@@ -489,7 +493,7 @@ class WhatMeetingDoes:
         clear, so a rule read wrongly is corrected by play, and play does not
         have to pay a life to learn what the rules already said.
         """
-        kept = self.evidence.get(kind)
+        kept = self.evidence.get(kind) or self._like_it(kind)
         told = self.told.get(kind)
         if told is not None:
             measured = kept.meet if kept is not None else 0.0
@@ -507,6 +511,20 @@ class WhatMeetingDoes:
             return IGNORE
         return MEET
 
+    def _like_it(self, kind: int) -> _Evidence | None:
+        """What was found of the kind most like this one, where this one has not been met: the next block that comes is
+        judged by the last, whatever number the picture gave it (offline 2026-10-09, each block a new kind, each met
+        as if never seen, and a runner that had learned the blocks cost her ran into them again)."""
+        looks = self._looks.get(kind)
+        if looks is None:
+            return None
+        colour, size = looks
+        alike = [(kept.settled(), other) for other, kept in self.evidence.items()
+                 if other in self._looks and kept.settled()
+                 and max(abs(a - b) for a, b in zip(colour, self._looks[other][0], strict=True)) <= ALIKE_COLOUR
+                 and max(size, self._looks[other][1]) / max(1e-6, min(size, self._looks[other][1])) < ALIKE_SIZE]
+        return self.evidence[max(alike)[1]] if alike else None
+
     def known(self, kind: int) -> bool:
         """Whether what she makes of a kind rests on enough to say it out loud.
 
@@ -514,7 +532,7 @@ class WhatMeetingDoes:
         benefit is believed when several touches agree, because a gain that
         came while she happened to be touching something proves little.
         """
-        kept = self.evidence.get(kind)
+        kept = self.evidence.get(kind) or self._like_it(kind)
         if kept is None:
             return False
         return (kept.meet <= -0.6 and _a_cost_shown(kept)) or kept.shoot >= 0.5 or (kept.meet >= 0.5 and kept.touches_settled >= 3)
@@ -554,6 +572,11 @@ def _inside(thing: Any, mine: Any) -> bool:
     left, top, right, bottom = mine.box()
     return left <= thing.x <= right and top <= thing.y <= bottom
 
+
+#: How near in colour (levels of 255) and size (as a ratio) two kinds must be for one to be judged by the other: as
+#: her physics pools alike kinds (core/perception/how_things_move_here.py).
+ALIKE_COLOUR = 45
+ALIKE_SIZE = 2.5
 
 #: How soon after a touch a loss is the touch's own doing.
 AT_ONCE_S = 0.5

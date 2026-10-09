@@ -117,3 +117,17 @@ async def test_a_runner_learns_her_jump_and_clears_what_runs_at_her():
     # then (which thing that is may have been found afresh since).
     cleared_with_it = any("lifts me clear" in line for line in said)
     assert cleared_with_it or "space" in presses.lifts(hers.kind, 11.0, hers.number), said
+
+
+def test_a_kind_not_yet_met_is_judged_by_the_kind_most_like_it():
+    """Each block a runner meets may be numbered a new kind; the next is judged by what the last cost her."""
+    from core.agency.what_meeting_things_does import AVOID, MEET, WhatMeetingDoes
+
+    meeting = WhatMeetingDoes()
+    meeting._looks = {5: ((200, 40, 40), 100.0), 7: ((205, 45, 38), 110.0), 9: ((40, 200, 40), 100.0)}
+    kept = meeting.evidence[5]
+    kept.touched = kept.touches_settled = kept.immediate = 2
+    kept.touch_sum = -2.0
+    assert meeting.stance(5) == AVOID
+    assert meeting.stance(7) == AVOID
+    assert meeting.stance(9) == MEET
