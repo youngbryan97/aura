@@ -1559,6 +1559,12 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         if pointer_trial and run.pointer_first:
             await _try_the_pointer(hands, run, hers, moves, at)
             return
+        # Played with the pointer, nothing following it, and things going on by themselves: a click is a press, timed
+        # as one. LIVE 2026-10-09 "when the hamster lines up with the pillow, click again to launch the hamster", and
+        # with the hamster moving she held every click back.
+        if (run.pointer_first and not run.keys and not pointer_trial and run.timing is not None and hasattr(hands, "click")
+                and any(thing.moved for thing in moves.things.values()) and await _press_in_time(hands, run, moves, at, say)):
+            return
         # Played with the pointer: a click, paced, before the keys are gone through again.
         if run.pointer_first and hasattr(hands, "click") and at - run.last_click >= CLICK_THE_PICTURE_S:
             await _click_the_picture(hands, run, moves, at)
@@ -1636,14 +1642,20 @@ async def _press_in_time(hands: Any, run: _Run, moves: WhatMoves, at: float, say
     ahead = statistics.median(run.responses) if run.responses else RESPONSE_S
     if not run.timing.press_now(moves.things.values(), at, ahead):
         return run.timing.has_something_to_time(moves.things.values())
-    key = run.keys[0]
     run.timing.credit(run.gains, run.losses)
-    _say(run, say, f"Nothing here moves when I press {key}; I'm timing each press to where the moving thing is, "
-         "and keeping to the places where a press has paid.", at, once="timing")
-    await hands.down(key)
-    run.input_key_downs[key] += 1
-    await asyncio.sleep(PRESSED_FOR_S)
-    await hands.up(key)
+    if not run.keys:
+        _say(run, say, "Nothing here follows the mouse; I'm timing each click to where the moving thing is, and keeping "
+             "to the places where a click has paid.", at, once="timing")
+        await hands.click(0.5, 0.5)
+        run.last_click = at
+    else:
+        key = run.keys[0]
+        _say(run, say, f"Nothing here moves when I press {key}; I'm timing each press to where the moving thing is, "
+             "and keeping to the places where a press has paid.", at, once="timing")
+        await hands.down(key)
+        run.input_key_downs[key] += 1
+        await asyncio.sleep(PRESSED_FOR_S)
+        await hands.up(key)
     run.timing.pressed(moves.things.values(), at, ahead)
     return True
 

@@ -70,3 +70,26 @@ async def test_a_needle_over_the_green_is_learned_by_what_paid():
             await browser.close()
     assert any("timing each press" in line for line in said), said
     assert points >= 5, (points, misses, said)
+
+
+@pytest.mark.asyncio
+async def test_where_the_mouse_is_how_it_is_played_and_nothing_follows_it_a_click_is_the_press_that_is_timed():
+    """LIVE 2026-10-09 "when the hamster lines up with the pillow, click again to launch the hamster": with the hamster
+    moving she held every click back, and the hamster was never launched."""
+    from types import SimpleNamespace
+
+    from core.agency.playing_as_it_happens import _press_in_time, _Run
+
+    clicks, said = [], []
+    hands = SimpleNamespace(click=lambda x, y: _record(clicks, (x, y)))
+    run = _Run(keys=[], began=0.0)
+    run.timing = SimpleNamespace(press_now=lambda things, at, ahead: True, credit=lambda gains, losses: None,
+                                 pressed=lambda things, at, ahead: None, has_something_to_time=lambda things: True)
+    moves = SimpleNamespace(things={})
+    assert await _press_in_time(hands, run, moves, 3.0, said.append)
+    assert clicks == [(0.5, 0.5)] and run.last_click == 3.0
+    assert said and "click" in said[0]
+
+
+async def _record(into, value):
+    into.append(value)
