@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import contextvars
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -48,6 +49,9 @@ LEAVE_A_MOVING_MENU_S = 20.0
 
 #: The longest one stretch of play runs before the pursuit gets a look.
 STRETCH_S = 300.0
+
+#: The longest she waits for her model's answer to a question a screen asks, in seconds.
+ANSWER_WITHIN_S = 20.0
 
 #: How long she tries out a thing whose own words set her to make something, not to win: it has no end of its own.
 TRYING_OUT_S = 90.0
@@ -202,6 +206,10 @@ class PlayingAsItHappens:
     async def release(self) -> None:
         await self.page.mouse.up()
 
+    async def type_text(self, text: str) -> None:
+        """Words typed as a person types them, a key at a time, into whatever has the focus."""
+        await self.page.keyboard.type(text, delay=40)
+
     # -- the pursuit's hooks ---------------------------------------------------
 
     def read(self, observation: dict[str, Any]) -> None:
@@ -302,8 +310,9 @@ class PlayingAsItHappens:
             return
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
         if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
-            # A world that waits until she sends something into it, where its words say so, is played by shots.
-            await self._by_shots(now)
+            # A world that waits for her: words it asks for are typed; where it says to send something, by shots.
+            if not await self._typed_what_it_asks():
+                await self._by_shots(now)
             return
         if not self.keep.get("hers") and not self.recalled:
             self.recalled = True
@@ -342,6 +351,25 @@ class PlayingAsItHappens:
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
             self.under_her_hand = False
+
+    async def _typed_what_it_asks(self) -> bool:
+        """Where the screen's words ask for words typed, typed (core/agency/typing_what_is_asked.py), twice at most for
+        one ask. Whether anything was typed."""
+        from core.agency.typing_what_is_asked import type_what_is_asked
+        from core.language.words_asked_for import words_asked_for
+        from core.perception.what_the_pixels_show import recognize_text
+
+        asked = words_asked_for(self.words[-1]) if self.words else None
+        if asked is None:
+            return False
+        tries = self.keep.setdefault("typed_for", {})
+        if tries.get(asked.asked_by, 0) >= 2:
+            return False
+        tries[asked.asked_by] = tries.get(asked.asked_by, 0) + 1
+        done = await type_what_is_asked(asked, self.look, recognize_text, self, goal=self.goal,
+                                        answer=_an_answer_she_has, say=_said_while_playing)
+        logger.info("typed what the screen asks for: %s", done)
+        return bool(done.get("typed"))
 
     async def _by_shots(self, now: float) -> None:
         """Shots, where the place's words speak of sending a thing by a press pulled or held and let go."""
@@ -449,6 +477,23 @@ def _keep_what_she_learned(page: Any, keep: dict[str, Any]) -> None:
     from core.runtime.what_she_learned import remember
 
     remember(_this_game(page), to_keep(keep))
+
+
+async def _an_answer_she_has(question: str) -> str | None:
+    """Her answer to a question a screen asks, from her model as one witness, within a few seconds; else none."""
+    from core.cognition.taking_stock import from_her_model
+    from core.rebuilding.her_model import ask_her_model
+
+    try:
+        heard = await from_her_model(ask_her_model)([question], ANSWER_WITHIN_S)
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as why:
+        logger.info("no answer to %r: %s", question[:80], why)
+        return None
+    for one in heard:
+        said = re.sub(r"^(?:the answer is|it is|it's)\s+", "", str(one.text or "").strip(), flags=re.I).rstrip(".")
+        if said:
+            return said
+    return None
 
 
 def _said_while_playing(line: str) -> None:

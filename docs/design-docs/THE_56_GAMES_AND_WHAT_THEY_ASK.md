@@ -30,7 +30,7 @@ if any of them is not called from her live play or has no test.
 | remember what was shown | turn things over and match what was seen where | not yet |
 | a board in turns | a board, moves in turns, someone on the other side | `core/skills/screen_pursuit.py` with `core/agency/looking_ahead.py` |
 | a grid's rule | a grid whose rule is found by moving in it | `core/skills/screen_pursuit.py` (her rule of the world) |
-| type | type what a screen asks for: an answer, a name, a question | not yet |
+| type | type what a screen asks for: an answer, a name, a question | `core/agency/typing_what_is_asked.py` |
 | make | make something and say what | `core/skills/sovereign_browser_drawing.py` (MADE) |
 | use things | pick things up and use them on other things | not yet |
 | a chain | place pieces so each leads to the next, toward an end | not yet |
