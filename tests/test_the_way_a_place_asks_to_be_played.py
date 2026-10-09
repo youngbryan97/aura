@@ -190,3 +190,31 @@ def test_a_key_is_pressed_by_the_browsers_name_for_it_and_one_it_does_not_know_d
     for key in ("backspace", "up", "x", "f2", "no such key"):
         asyncio.run(reflexes.tap(key))
     assert pressed == ["Backspace", "ArrowUp", "x", "F2"]
+
+
+def test_inside_a_thing_handed_over_its_own_dialog_is_gone_on_through_not_the_end():
+    """LIVE 2026-10-09 a golf game's name box, typed into, was taken for an overlay that would not go, and ended it."""
+    from types import SimpleNamespace
+
+    from core.skills.screen_pursuit import MAX_BLOCKER_ATTEMPTS
+    from core.skills.screen_pursuit_as_it_happens import AS_IT_HAPPENS as REFLEXES
+    from core.skills.screen_pursuit_decision_branches import (
+        _FALL_THROUGH,
+        _decide_the_next_move_blocker,
+    )
+
+    async def blocker(_observation):
+        return SimpleNamespace(name="dismiss the dialog")
+
+    def decide():
+        attempts = {"count": MAX_BLOCKER_ATTEMPTS, "last": "", "dismissed": 0}
+        no_move = {"because": ""}
+        made = asyncio.run(_decide_the_next_move_blocker(attempts, blocker, {"reason": ""}, no_move, {"ok": True}))
+        return made, no_move["because"]
+
+    assert decide() == (None, "something is in front of it that will not move")    # a page's own overlay: stopped
+    token = REFLEXES.set(SimpleNamespace())
+    try:
+        assert decide() == (_FALL_THROUGH, "")                                       # a game's own dialog: gone on
+    finally:
+        REFLEXES.reset(token)

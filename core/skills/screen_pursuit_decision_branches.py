@@ -579,6 +579,13 @@ def _decide_the_next_move_where_move_she(
         marks.she_marked(kind, saying=aiming_at or goal)
     return kind
 
+def _a_thing_handed_over() -> bool:
+    """Whether this pursuit plays a thing drawn on her own page, handed over to her (core/skills/sovereign_browser_drawing.py)."""
+    from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+
+    return AS_IT_HAPPENS.get() is not None
+
+
 async def _decide_the_next_move_blocker(
     blocker_attempts: Any,
     clear_blocker: Any,
@@ -594,6 +601,13 @@ async def _decide_the_next_move_blocker(
         # said.
         if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
             blocker_attempts["last"] = blocker.name
+            if _a_thing_handed_over():
+                # Inside a thing she was handed to play, what looks like a dialog is drawn by the thing itself (a name
+                # to give, a score to read): it is gone on through as any screen of it is. LIVE 2026-10-09 a golf
+                # game's name box, typed into, was taken for an overlay that would not go, and ended the game.
+                logger.info("what covers it is the thing's own; going on with it")
+                blocker_attempts["count"] = 0
+                return _FALL_THROUGH
             no_move["because"] = "something is in front of it that will not move"
             return None
         blocker_attempts["count"] += 1
