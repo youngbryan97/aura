@@ -152,3 +152,15 @@ def test_each_thing_a_rule_picks_carries_the_conditions():
     from core.skills.sovereign_browser_picking import the_task_for_each
 
     assert the_task_for_each(ASKED) == "Play this game. " + conditions_as_said(ASKED)
+
+
+def test_what_a_request_asks_to_be_done_is_read_without_its_conditions():
+    from core.intent.declared_capability import rank_declaration_matches
+
+    catalogue = {"repair": (frozenset({"repair", "fix"}), frozenset({"program", "game", "win"})),
+                 "browse": (frozenset({"go", "open"}), frozenset({"page", "list"}))}
+    selective = {"repair": frozenset({"program", "game", "win"}), "browse": frozenset({"page", "list"})}
+    ranked = dict(rank_declaration_matches("Open the page and its list. " + CONDITIONS, catalogue, selective))
+    assert "repair" not in ranked or ranked["repair"] < ranked.get("browse", 0.0)
+    assert terms_asked("If you make a mistake, undo it.") == terms_asked("")
+    assert terms_asked("If there's time, tidy the tests.") == terms_asked("")

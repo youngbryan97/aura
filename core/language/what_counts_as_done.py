@@ -41,12 +41,14 @@ _CONDITION: Final = re.compile(r"^\s*(?:and\s+|or\s+|but\s+)?(?:if|where|when|wh
 #: A condition about a thing with neither an end nor a measure: a thing for making.
 _NEITHER: Final = re.compile(
     r"\b(neither|nothing to (?:win|score|beat)\b.*\b(?:or|nor) (?:score|measure)|no (?:score|measure)\b|not even a (?:score|measure|high score)|"
-    r"(?:just |only )?for fun|for (?:making|creating|building)|(?:make|create|build|design|draw|dress)\w*\b|creator|maker|sandbox|no (?:agenda|goal) at all)",
+    r"(?:just |only )?for fun|for (?:making|creating|building)|(?:lets? you|you can|is for|it'?s for|only) (?:make|create|build|design|draw|dress)\w*\b|"
+    r"creator|maker|sandbox|no (?:agenda|goal) at all)",
     re.I,
 )
 #: A condition about a thing that keeps a measure and has no end.
 _A_MEASURE: Final = re.compile(
-    r"\b(score|points|high score|\w*\s?time|record|measure|count|rating|rank|total|arcade|no way to win|no (?:win|winner|winning)|"
+    r"\b(score|points|high score|(?:best|lap|finish\w*|response|completion|race|fastest) times?|record|measure|count|rating|rank|"
+    r"total|arcade|no way to win|no (?:win|winner|winning)|"
     r"(?:can ?not|can'?t) (?:be )?(?:won|win|beaten)|(?:isn'?t|is not|not) winnable|nothing to win|no (?:end|ending|objective|goal))\b",
     re.I,
 )

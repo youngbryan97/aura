@@ -582,8 +582,17 @@ def rank_declaration_matches(
     the REPL, the sandbox and anything else declaring code. Picking the first
     by dictionary order would make the choice depend on registration order, so
     rank by how much of the request each skill actually accounts for.
+
+    What a request asks to be done is read without its conditions on when it is
+    done (core/language/what_counts_as_done.py). LIVE 2026-10-08 "if a game can
+    be won, keep playing it until you win; if it only keeps a score, play it
+    three times" made a request to play games on a web page read as a program
+    to repair, and it was kept from the browser.
     """
-    body = str(message or "").strip().lower()
+    from core.language.what_counts_as_done import without_conditions
+
+    asked = str(message or "").strip()
+    body = (without_conditions(asked) or asked).strip().lower()
     if not body:
         return []
     present = {_fold(word) for word in _words(body)}
