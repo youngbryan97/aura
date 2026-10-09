@@ -63,6 +63,9 @@ TRYING_OUT_S = 90.0
 #: Why a run of a thing for making is over.
 MADE_NOT_WON = "it is for making things, and I have tried it out"
 
+#: The ways the reflexes play, as core/agency/the_way_it_is_played.py names them.
+SEND_WAY, AS_IT_HAPPENS_WAY = "send", "as it happens"
+
 
 @dataclass
 class PlayingAsItHappens:
@@ -95,6 +98,9 @@ class PlayingAsItHappens:
     for_making_since: float | None = None
     #: Whether the last screen read showed a label that goes on (Play, Start, Next): a menu, not a world to send into.
     way_on_shown: bool = False
+    #: When she last played anything, and the screens not seen before counted when the last stretch was judged.
+    played_at: float = 0.0
+    _screens_judged: int = 0
     _clip: dict[str, float] | None = None
     _focused: bool = False
     _frames: Any = None
@@ -304,6 +310,38 @@ class PlayingAsItHappens:
             return True
         return False
 
+    def held_to(self) -> Any:
+        """The way she has taken up in this game, kept across its rounds (core/agency/the_way_it_is_played.py)."""
+        from core.agency.the_way_it_is_played import HeldTo
+
+        held = self.keep.get("held_to")
+        if held is None:
+            held = self.keep["held_to"] = HeldTo()
+        return held
+
+    def _judge(self, way: str, stretch: dict[str, Any]) -> None:
+        """A stretch played one way, with the screens not seen before that came up since the last was judged."""
+        self.played_at = time.monotonic()
+        stretch.setdefault("new_screens", self.new_screens - self._screens_judged)
+        self._screens_judged = self.new_screens
+        said = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
+        held = self.held_to()
+        held.took(way, stretch, said)
+        if held.way != way:
+            logger.info("left off playing it by %s: it had its turn and got nowhere", way)
+
+    def goes_on_playing(self, observation: dict[str, Any], played_before: float) -> bool:
+        """Whether, after a look, play goes straight on the way she holds to, without the pursuit looking round.
+
+        Not when the run is over, a menu is up, nothing was played since the look before, or the way has stopped paying:
+        then the screen is the pursuit's, to go on from as it goes on from any screen.
+        """
+        if self.played_at <= played_before or time.monotonic() >= self.ends_at:
+            return False
+        if not observation.get("ok", True) or self.way_on_shown or self.run_is_over(observation):
+            return False
+        return bool(self.held_to().holding())
+
     async def while_it_moves(self) -> None:
         """Play whatever is moving on its own, until it stops moving."""
         from core.agency.playing_as_it_happens import (
@@ -313,13 +351,23 @@ class PlayingAsItHappens:
         )
         from core.perception.what_the_pixels_show import recognize_text
 
+        from core.agency.the_way_it_is_played import SEND, ways_asked
+
         now = time.monotonic()
-        if now < self.quiet_until or now >= self.ends_at:
+        held = self.held_to()
+        if (now < self.quiet_until and not held.holding()) or now >= self.ends_at:
             return
         if not self.under_her_hand and self._a_menu_first():
             return
         # A screen whose words ask for what it shows to be done again is watched, and followed, before it is played.
         if await self._did_again_what_it_showed():
+            return
+        # The way the place says it is played, before what the world does by itself: a thrower bobbing where he stands
+        # is not a world to steer (core/agency/the_way_it_is_played.py).
+        said = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
+        way = held.choose(ways_asked(said, self.words[-1] if self.words else ""), said)
+        if way == SEND and not self.way_on_shown:
+            await self._by_shots(now)
             return
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
         if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
@@ -357,6 +405,7 @@ class PlayingAsItHappens:
             waits_for_her=self.under_her_hand,
         )
         self.stretches.append(stretch)
+        self._judge(AS_IT_HAPPENS_WAY, stretch)
         if (stretch.get("runtime_checks") or {}).get("violations"):
             self.over_because = "runtime contract violated"
         _keep_what_she_learned(self.page, self.keep)
@@ -431,8 +480,10 @@ class PlayingAsItHappens:
         stretch = await play_by_shots(self.look, self, seconds=min(STRETCH_S, self.ends_at - now), keep=shots,
                                       say=_said_while_playing, read_words=recognize_text)
         logger.info("shots played: %s", stretch)
-        self.stretches.append({"pictures": stretch.get("shots", 0), "gains": stretch.get("gains", 0), "losses": 0,
-                               "seconds": time.monotonic() - now, "ended": stretch.get("ended"), "by_shots": stretch})
+        record = {"pictures": stretch.get("shots", 0), "gains": stretch.get("gains", 0), "losses": 0,
+                  "seconds": time.monotonic() - now, "ended": stretch.get("ended"), "by_shots": stretch}
+        self.stretches.append(record)
+        self._judge(SEND_WAY, record)
         _keep_what_she_learned(self.page, self.keep)
         if not stretch.get("sends_from"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
@@ -569,10 +620,19 @@ async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
     play ends on; the reflexes then read what the look saw.
     """
     reflexes = AS_IT_HAPPENS.get()
+    played_before = reflexes.played_at if reflexes is not None else 0.0
     if reflexes is not None:
         await reflexes.while_it_moves()
     seen = await look()
-    if reflexes is not None:
+    if reflexes is None:
+        return seen
+    reflexes.read(seen)
+    # Held to a way that may still pay, she plays on with it: the pursuit is given the screen when the run is over, a
+    # menu is up, or the way has had its turn and got nowhere (core/agency/the_way_it_is_played.py).
+    while reflexes.goes_on_playing(seen, played_before):
+        played_before = reflexes.played_at
+        await reflexes.while_it_moves()
+        seen = await look()
         reflexes.read(seen)
     return seen
 

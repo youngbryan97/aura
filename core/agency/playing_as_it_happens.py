@@ -1531,6 +1531,8 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         await _click_the_picture(hands, run, moves, at)
         if run.last_click == at:
             return
+    if choosing.mine is None and not hers.follows_pointer:
+        await _fire_while_finding_herself(hands, run, hers, moves, rules, at)
     if not trying_the_pointer and run.trying < 2 * len(run.keys) and not hers.keys_known(run.keys) and not hers.follows_pointer:
         await _try_the_keys(hands, run, hers, at)
         return
@@ -1713,6 +1715,41 @@ async def _trigger(hands: Any, run: _Run, hers: WhichIsHers, choosing: _Choosing
     run.last_trigger_began = dispatched
     run.last_click = delivered
     run.taps += 1
+
+
+#: How often she fires while still finding which thing is hers, by a key the words named for it or a click that throws.
+FIRE_WHILE_FINDING_S = 0.35
+THROW_WHILE_FINDING_S = 0.6
+
+
+async def _fire_while_finding_herself(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves,
+                                      rules: WhatTheRulesSaid | None, at: float) -> None:
+    """Fire from the first moment, as the words say to, while she is still finding which thing is hers.
+
+    A person dropped into a game that says "SPACE to fire" fires at once and finds their feet as they go; one told
+    "aim with your mouse and click to throw" throws at what moves. LIVE 2026-10-08 she spent a hundred seconds of a
+    shooter holding one arrow at a time to see what moved, and never fired. A press of the fire key moves nothing, so
+    the finding goes on as before, and what each press brings out beside her is how she learns it fires.
+    """
+    if rules is None:
+        return
+    fire = next((key for key in rules.fire_keys if key not in WAYS and key != run.held), None)
+    if fire is not None and at - run.last_trigger_began >= FIRE_WHILE_FINDING_S:
+        began = time.monotonic()
+        await hands.tap(fire)
+        hers.tapped(fire, time.monotonic(), began=began)
+        run.last_trigger_began, run.taps = began, run.taps + 1
+        return
+    if not rules.a_click_is_a_shot or not hasattr(hands, "click") or at - run.last_click < THROW_WHILE_FINDING_S:
+        return
+    going = [t for t in moves.things.values() if math.hypot(t.vx, t.vy) > 8.0 and t.number != hers.number
+             and t.kind not in {made.kind for made in hers.makes.values()}]
+    if not going:
+        return
+    target = max(going, key=lambda t: t.size)
+    tall, wide = moves.shape
+    await hands.click(min(1.0, max(0.0, target.x / max(1, wide))), min(1.0, max(0.0, target.y / max(1, tall))))
+    run.last_click = at
 
 
 #: The parts of her thing she imagines meeting a thing with, from one end

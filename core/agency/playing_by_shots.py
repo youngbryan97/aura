@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
@@ -46,15 +47,23 @@ PULL_STEPS = 8
 #: had her letting go of shots at a title screen for a minute. Not "aim" or "power" alone: a shooter is aimed with
 #: the mouse and a platformer has power-ups, and "Mouse to aim" sent her into shots on a game's menu the same day.
 _SENDING_WORDS = (
-    "pull", "release", "let go", "launch", "fling", "sling", "toss", "putt", "power meter", "power bar",
-    "hold the mouse", "click and hold", "hold down the mouse", "hold the button", "throw",
+    "pull", "release", "let go", "launch", "fling", "sling", "putt", "power meter", "power bar",
+    "hold the mouse", "click and hold", "hold down the mouse", "hold the button",
 )
+
+#: Words for sending that a click alone may do: "click to throw" is a shot aimed by the pointer, made at once
+#: (core/agency/playing_as_it_happens.py); a throw held, pulled or let go is sent. LIVE 2026-10-09 a food fight's
+#: "aim with your mouse and click to throw" was read as a world that waits for something sent.
+_THROWN = re.compile(r"\b(?:throw|toss)\w*")
+_A_CLICK_THROWS = re.compile(r"\bclick\w*(?:\s+\w+){0,3}\s+to\s+(?:throw|toss)", re.I)
 
 
 def sends_by_letting_go(told: str) -> bool:
     """Whether words a thing says of itself speak of sending by a press pulled or held and let go."""
     lowered = " ".join(told.lower().split())
-    return any(word in lowered for word in _SENDING_WORDS)
+    if any(word in lowered for word in _SENDING_WORDS):
+        return True
+    return bool(_THROWN.search(lowered)) and not _A_CLICK_THROWS.search(lowered)
 
 
 async def _let_go(hands: Any, start: tuple[float, float], setting: Setting, way: str) -> None:
