@@ -63,6 +63,17 @@ TRYING_OUT_S = 90.0
 #: Why a run of a thing for making is over.
 MADE_NOT_WON = "it is for making things, and I have tried it out"
 
+#: Words that say a screen teaches how to play: it is read and gone on from, not played on. LIVE 2026-10-09 a game's
+#: putter lesson ("HOW TO USE THE PUTTER: 1. Click on your ball...") drew its "next" in letters she could not read, and
+#: she sent shots at the lesson for three minutes.
+_RULES = re.compile(r"\b(?:how to (?:play|use|win)|instructions|controls|how do (?:i|you)|tutorial)\b|(?:^|[\s:])1\.\s+[A-Za-z]", re.I)
+
+
+def reads_as_rules(said: str) -> bool:
+    """Whether a screen's words teach how to play, rather than show the play."""
+    return bool(_RULES.search(said or ""))
+
+
 #: The ways the reflexes play, as core/agency/the_way_it_is_played.py names them.
 SEND_WAY, AS_IT_HAPPENS_WAY = "send", "as it happens"
 
@@ -252,7 +263,7 @@ class PlayingAsItHappens:
         if not self.words:
             return True
         said = self.words[-1]
-        if not offers_a_way_on(said):
+        if not offers_a_way_on(said) and not reads_as_rules(said):
             return False
         key = said[:80]
         self.held_for_a_way_on[key] = self.held_for_a_way_on.get(key, 0) + 1
@@ -403,7 +414,7 @@ class PlayingAsItHappens:
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
         if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
             # A world that waits for her: words it asks for are typed; where it says to send something, by shots.
-            if not await self._typed_what_it_asks():
+            if not await self._typed_what_it_asks() and SEND not in held.let_go:
                 await self._by_shots(now)
             return
         if not self.keep.get("hers") and not self.recalled:

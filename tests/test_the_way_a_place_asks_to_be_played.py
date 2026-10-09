@@ -120,3 +120,18 @@ def test_while_a_way_pays_she_plays_on_through_the_looks_and_the_pursuit_gets_th
 
     asyncio.run(go())
     assert reflexes.plays == (4 if paying else 1), reflexes.plays
+
+
+@pytest.mark.parametrize(("said", "rules"), [
+    ("HOW TO USE THE PUTTER: 1. Click on your ball and hold down the mouse button.", True),
+    ("INSTRUCTIONS CANDY Gives you invincibility HEART Restores your health", True),
+    ("SCORE 1200 LIVES 3", False), ("Hole 3 Par 2 Strokes 1", False),
+])
+def test_a_screen_that_teaches_how_to_play_is_gone_on_from_not_played_on(said, rules):
+    """LIVE 2026-10-09 a putter lesson drew its "next" in letters she could not read, and she sent shots at it."""
+    from core.skills.screen_pursuit_as_it_happens import PlayingAsItHappens, reads_as_rules
+
+    assert reads_as_rules(said) is rules
+    reflexes = PlayingAsItHappens(page=None, band=(0.0, 0.0, 1.0, 1.0), goal="play", ends_at=0.0)
+    reflexes.words = [said]
+    assert reflexes._a_menu_first() is rules
