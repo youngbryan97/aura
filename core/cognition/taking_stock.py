@@ -206,12 +206,21 @@ def _sentences(text: str) -> list[str]:
     found = []
     for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z\"“(])", plain):
         words = re.findall(r"[A-Za-z][A-Za-z'’-]*", sentence)
-        if not 6 <= len(sentence.split()) <= 45 or not words:
+        if not 4 <= len(sentence.split()) <= 45 or not words:
             continue
-        if sum(w[0].islower() for w in words) < 0.5 * len(words):
+        # A page's heading run into the sentence under it ("How to Play Attack of the Puppybots Use the arrow keys...")
+        # is left off: the sentence begins at its own first word.
+        sentence = _A_HEADING_BEFORE.sub("", sentence.strip())
+        if sum(w[0].islower() for w in words) < 0.5 * len(words) or len(sentence.split()) < 4:
             continue
-        found.append(sentence.strip())
+        found.append(sentence)
     return found
+
+
+#: A run of capitalised words (a heading) right before a capitalised word of doing that begins a sentence of its own.
+_A_HEADING_BEFORE = re.compile(
+    r"^[A-Z0-9][\w'’:.&-]*\s+(?:(?:[A-Z0-9][\w'’:.&-]*|to|of|the|and|a|an|for|in|on|with)\s+)+(?=(?:Use|Press|Click|Move|Hold|Tap|Avoid|Collect|Catch|Jump|Shoot|Help|Guide|Steer|"
+    r"Aim|Drag|Keep|Try|Get|Find|Make|Select|Choose|Match|Stay|Watch|Don't|Do)\b\s+[a-z])")
 
 
 def what_to_take(heard: Sequence[Heard], situation: Situation, questions: Sequence[str]) -> list[Heard]:

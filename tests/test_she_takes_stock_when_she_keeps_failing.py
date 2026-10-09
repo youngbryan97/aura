@@ -132,3 +132,11 @@ def test_a_search_results_heading_is_its_title_not_the_address_above_it():
             '<span>Example</span>https://www.example.com › game › all-nighter'
             '<h3 class="title"><span class="fw-500">Regular Show: All Nighter | Example</span></h3></a>')
     assert _yahoo(page) == [("Regular Show: All Nighter | Example", "https://www.example.com/game/all-nighter/")]
+
+
+@pytest.mark.unit
+def test_a_pages_heading_run_into_an_instruction_is_left_off_and_a_short_instruction_kept():
+    from core.cognition.taking_stock import _sentences
+
+    found = _sentences("How to Play Attack of the Puppybots Use the arrow keys to move the girls. Press space to jump.")
+    assert found == ["Use the arrow keys to move the girls.", "Press space to jump."]
