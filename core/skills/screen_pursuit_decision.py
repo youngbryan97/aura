@@ -157,7 +157,34 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
               / (1 + again(name))
               for name, value in (telling or {}).items()}
-    return _go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued))
+    return _as_checked(can_do, _go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued)))
+
+
+def _with_the_guide(learned: Any) -> list[str]:
+    """What she has learned here, and what the guide to where she is holds (core/cognition/a_guide_to_a_place.py): how
+    it is worked, what it wants, what changed. Hers to reason with when settling on a line; it decides nothing."""
+    from core.cognition.a_guide_to_a_place import the_guide
+
+    from .screen_pursuit_looking import MOVES_SAID
+
+    paced = MOVES_SAID.get()
+    said = the_guide(paced if isinstance(paced, dict) else None).for_thinking()
+    return [*list(learned or []), *([f"What I know of how this place works: {said}"] if said.count("\n") >= 1 else [])]
+
+
+def _as_checked(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
+    """What she valued, checked against the guide to where she is (core/cognition/checking_the_debate.py); and what
+    each act she takes does, taught to the check."""
+    from core.cognition.a_guide_to_a_place import the_guide
+    from core.cognition.checking_the_debate import the_check
+
+    from .screen_pursuit_looking import MOVES_SAID
+
+    paced = MOVES_SAID.get()
+    check = the_check()
+    if hasattr(can_do, "on_tried"):
+        can_do.on_tried = check.learned
+    return check.weigh(valued, the_guide(paced if isinstance(paced, dict) else None), can_do)
 
 
 def _go_on_from_a_pause(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
@@ -1023,7 +1050,7 @@ async def decide_the_next_move(
                     #
                     # Bounded by the run and not by a move: nothing waits.
                     think=_within_the_run(think or _reasoning_for_a_plan(), ends_at),
-                    knowledge=learned,
+                    knowledge=_with_the_guide(learned),
                     history=history[-RECENT_ATTEMPTS:],
                     previous=plan["held"],
                     moves_made=len(moves),

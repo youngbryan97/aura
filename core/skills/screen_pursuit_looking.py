@@ -880,6 +880,7 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     clickable, says, paced = things_to_click(observation, drawn_where), what_it_says(observation, drawn_where), MOVES_SAID.get()
     clickable = _where_the_way_on_was(observation, clickable, says, paced)
     clickable = _what_paused_it(observation, clickable, can_do, paced)
+    clickable = _as_the_guide_reads_it(clickable, says, paced, narrate)
     # Her bearings here (core/cognition/her_bearings.py): what tells her what to do, what stands out, and what would
     # take her away from the thing, which is not offered at all.
     bearings = _her_bearings(observation, clickable, says, can_do)
@@ -888,7 +889,10 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
 
     looks = {a_click_on(str(region["text"])): region["look"] for region in observation.get("shapes") or ()
              if isinstance(region, dict) and region.get("text") and region.get("look")}
-    can_do.looked_at(clickable, says, looks=looks)
+    from .screen_pursuit_bearings import where_to_click
+
+    where = {move: at for move in clickable if (at := where_to_click(observation, _label_of(move))) is not None}
+    can_do.looked_at(clickable, says, looks=looks, where=where)
     if hasattr(can_do, "asked_for_by"):
         from core.agency.what_i_can_do_here import what_is_clicked
 
@@ -909,6 +913,32 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     _tell(f"It says: {says}")
     if bearings.said():
         _tell(bearings.said())
+
+
+def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool) -> Any:
+    """The screen taken into the guide to where she is (core/cognition/a_guide_to_a_place.py), what it changed said;
+    and what it is to read (a count, a meter, a clock) not offered to be pressed.
+
+    LIVE 2026-10-09 she clicked a game's "PAUSED" and "CHARGING..." to see what they did, and read a charge meter
+    filling as her health.
+    """
+    from core.agency.what_i_can_do_here import what_is_clicked
+    from core.cognition.a_guide_to_a_place import SCREEN, the_guide
+    from core.language.a_way_on import how_much_it_leads_on
+
+    from .screen_pursuit import _tell
+
+    guide = the_guide(paced if isinstance(paced, dict) else None)
+    labels = [what_is_clicked(move) or "" for move in clickable]
+    news = guide.take_in(SCREEN, [says or "", *labels])
+    if narrate:
+        if not guide.said and guide.says():
+            guide.said = True
+            _tell(guide.says())
+        for line in news[:2]:
+            _tell(line)
+    return tuple(move for move, label in zip(clickable, labels, strict=True)
+                 if not (label and guide.is_to_read(label) and how_much_it_leads_on(label) < 1.2))
 
 
 def _label_of(move: str) -> str:

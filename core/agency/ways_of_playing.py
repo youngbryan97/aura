@@ -109,6 +109,28 @@ WAYS: tuple[Way, ...] = (
     Way("pause", "a screen that says it is paused goes on by what paused it, which is not taken again in play",
         "core.skills.screen_pursuit_decision:_go_on_from_a_pause", "core.skills.screen_pursuit_decision",
         "tests/test_the_way_a_place_asks_to_be_played.py"),
+    Way("stack", "drop a piece when it is square over the top of what is built: the highest still thing under its way",
+        "core.agency.building_up:drop_now", "core.agency.playing_as_it_happens",
+        "tests/test_the_ways_of_building_serving_and_chaining.py"),
+    Way("a chain", "put each part on from where the last one that worked went, nearest first, leaning the way things "
+        "fall: a chain from where a thing starts to where it is to end",
+        "core.agency.putting_things_in_place:in_chain_order", "core.agency.putting_things_in_place",
+        "tests/test_the_ways_of_building_serving_and_chaining.py"),
+    Way("serve", "give each what it asks for: a thing taken given first to what looks most like it",
+        "core.agency.putting_things_in_place:served_first", "core.agency.taking_and_using",
+        "tests/test_the_ways_of_building_serving_and_chaining.py"),
+    Way("a guide", "know how the place she is in is worked, from what it shows and says, its page, its program and "
+        "what she looked up, kept up to date as it changes, and said",
+        "core.cognition.a_guide_to_a_place:the_guide", "core.skills.screen_pursuit_looking",
+        "tests/test_a_guide_says_how_a_place_is_worked.py"),
+    Way("checked against the guide", "each act she weighs scaled by what the guide says of it (a control, information, "
+        "not part of the task, past a boundary), learned from what acts did",
+        "core.cognition.checking_the_debate:the_check", "core.skills.screen_pursuit_decision",
+        "tests/test_a_guide_says_how_a_place_is_worked.py"),
+    Way("read the program", "read the program a page runs, where it can be had, for how it is worked: keys, pointer, "
+        "controls, instructions; nothing that would spoil it",
+        "core.skills.sovereign_browser_the_program:read_what_the_page_runs", "core.skills.sovereign_browser_guide",
+        "tests/test_a_guide_says_how_a_place_is_worked.py"),
     Way("take stock", "read the rules; ask what she knows when stuck, failing, unsure or before she begins",
         "core.cognition.taking_stock:take_stock", "core.skills.sovereign_browser_taking_stock",
         "tests/test_she_takes_stock_when_she_keeps_failing.py"),

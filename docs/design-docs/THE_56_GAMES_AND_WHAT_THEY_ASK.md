@@ -4,9 +4,17 @@ Status: Design map · What each Cartoon Network game in the Web Design Museum's 
 
 The games' own files were read offline, once, for this map: the words each
 game says to its player and the signs of what its code does (key handlers,
-drags, hit tests, timers). They are the design map and an answer key for
-checking her perception. She never reads a game's code while she plays; she
-plays from what she sees and what the game tells her on screen.
+drags, hit tests, timers). What they ask is said, mechanic by mechanic, for
+any place in `core/agency/mechanics_she_knows.py`, with what each means and
+how it is played: games, sites, forms, documents, programs.
+
+Wherever she is, she keeps a guide to the place
+(`core/cognition/a_guide_to_a_place.py`): from what it shows and tells her,
+its page, the program it runs where that can be had
+(`core/perception/reading_a_program.py`, informational only: keys, pointer,
+controls and instructions, never what play would show her later), and what
+she looked up. It is kept up to date as the place changes, and it tells her
+how; she decides what.
 
 A way of playing is named for what it asks of anyone, not for a game: a body
 steered to meet some things and keep clear of others is the same way in a
@@ -35,10 +43,10 @@ if any of them is not called from her live play or has no test.
 | make | make something and say what | `core/skills/sovereign_browser_drawing.py` (MADE) |
 | use things | take a thing (it goes elsewhere or is chosen where it is), then use it on another: two clicks | `core/agency/taking_and_using.py` |
 | carry | press on a thing and carry it, the button held, to a place, and let go there; a place marked as the one ("here", the one that stands out) first | `core/agency/putting_things_in_place.py` |
-| a chain | place pieces so each leads to the next, toward an end | not yet |
-| serve | give each what it asks for | not yet |
+| a chain | place pieces so each leads to the next, toward an end: each part put on from where the last one that worked went | `core/agency/putting_things_in_place.py` (in_chain_order) |
+| serve | give each what it asks for: a thing taken given first to what looks most like it | `core/agency/putting_things_in_place.py` (served_first) |
 | unseen | keep out of what reaches her without touching her: the distance and side at which each kind has cost her | `core/agency/how_far_a_thing_reaches.py` |
-| stack | drop or place pieces to build up | not yet |
+| stack | drop or place pieces to build up: square over the top of what is built | `core/agency/building_up.py` |
 | switch | change which of several she controls: a key after which her keys move another of hers, the first kept hers | `core/agency/which_one_answers_to_her.py` |
 | counters | read score, lives and time | `core/agency/what_meeting_things_does.py` |
 | play as told | take up the way the place says it is played and play it, stretch after stretch, while it is learned or pays | `core/agency/the_way_it_is_played.py` |
@@ -46,6 +54,9 @@ if any of them is not called from her live play or has no test.
 | bars | read the bars that fill and empty (health, energy, paint, a boss, time); a fall of what she has left is a loss, and low, she keeps wider of what costs her | `core/perception/how_full_a_bar_is.py` |
 | carried | a body carried on by its own going and pushed by her keys (a lander, a ship): known by what each key adds to its going, steered by where that takes it a moment ahead, brought onto a thing slowly | `core/agency/which_one_answers_to_her.py` (pushes) |
 | pause | a screen that says it is paused goes on by what paused it, which is not taken again in play | `core/skills/screen_pursuit_decision.py` |
+| a guide | know how the place she is in is worked, from what it shows and says, its page, its program and what she looked up; kept up to date as it changes | `core/cognition/a_guide_to_a_place.py` |
+| checked against the guide | each act she weighs scaled by what the guide says of it, learned from what acts did | `core/cognition/checking_the_debate.py` |
+| read the program | read the program a page runs, where it can be had, for how it is worked; nothing that would spoil it | `core/perception/reading_a_program.py` |
 | take stock | read the rules; ask what she knows when stuck | `core/cognition/taking_stock.py` |
 
 ## The games

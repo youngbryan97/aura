@@ -44,3 +44,10 @@ def alike(a: tuple[float, ...], b: tuple[float, ...]) -> bool:
     if not a or len(a) != len(b):
         return False
     return float(np.mean(np.abs(np.asarray(a) - np.asarray(b)))) <= ALIKE
+
+
+def apart(a: tuple[float, ...], b: tuple[float, ...]) -> float:
+    """How far apart two looks are (0 the same; 1 or more nothing alike); 1 where either is not known."""
+    if not a or not b or len(a) != len(b):
+        return 1.0
+    return float(np.mean(np.abs(np.asarray(a) - np.asarray(b))))

@@ -215,6 +215,8 @@ class _Run:
     things: dict = field(default_factory=dict)
     #: Where no body answers her keys: what pressing has paid by where the moving things were (when_a_press_pays.py).
     timing: Any = None
+    #: Whether the place is one where pieces are dropped to build up (core/agency/building_up.py).
+    building_up: bool = False
     #: How far each kind reaches: the distance and side at which it has cost her untouched (how_far_a_thing_reaches.py).
     reach: Any = None
     letting_go: dict[str, float] = field(default_factory=dict)
@@ -468,7 +470,9 @@ class _Choosing:
         # A kind that has cost her from a distance is kept clear of, whatever meeting it has done.
         if self.reach is not None and self.reach.reach(int(thing.kind)) is not None:
             return AVOID
-        return self.meeting.stance(thing.kind, fixture=not thing.moved)
+        # What only moves in place (a flag waving, stars twinkling, a figure idling) is judged as what stands still is:
+        # touched and found to count for nothing, it is decoration, left alone.
+        return self.meeting.stance(thing.kind, fixture=not thing.moved or not _goes_somewhere(thing))
 
     def speed(self, axis: int) -> float:
         if self.pointing:
@@ -559,7 +563,7 @@ class _Choosing:
             for _ in range(3):
                 px, py = thing.where_at(when)
                 when = math.hypot(px - mine.x, py - mine.y) / speed
-            curious = not thing.moved and not self.meeting.known(thing.kind)
+            curious = (not thing.moved or not _goes_somewhere(thing)) and not self.meeting.known(thing.kind)
             rank = when * (2.0 if curious else 1.0)
             if best is None or rank < best[0]:
                 best = (rank, thing.where_at(when), thing)
@@ -923,14 +927,14 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
             run.reading.cancel()
             run.reading = None
         run.read_at = at
-        _read_the_words(run, meeting, hers, moves, rendered, at)
+        _read_the_words(run, meeting, hers, moves, rendered, at, say)
         return
     if read_words is None:
         return
     if run.reading is not None and run.reading.done():
         regions, when = run.reading.result()
         run.reading = None
-        _read_the_words(run, meeting, hers, moves, regions, when)
+        _read_the_words(run, meeting, hers, moves, regions, when, say)
     if run.reading is None and at - run.read_at >= READ_EVERY_S:
         run.read_at = at
         bgr = picture[:, :, ::-1].copy()
@@ -942,13 +946,18 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
 
 
 def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
-                    moves: WhatMoves, regions: list[dict[str, Any]], when: float) -> None:
+                    moves: WhatMoves, regions: list[dict[str, Any]], when: float, say: Any = None) -> None:
     """The same counter semantics for renderer text and text read from pixels."""
+    from core.cognition.a_guide_to_a_place import heard_in_play
+
     run.regions_read = list(regions)
     for region in regions:
         said = " ".join(str(region.get("text") or "").lower().split())
         if said and len(run.words_read) < 400:
             run.words_read.append((when, said))
+    # What play says as it goes may change how it is played (a new power, a new stage): the guide hears it.
+    for line in heard_in_play([str(region.get("text") or "") for region in regions])[:1]:
+        _say(run, say, line, when, once=line)
     mine = hers.thing(moves)
     her_x = moves.share(mine.x, mine.y)[0] if mine is not None else None
     for verdict in meeting.read(regions, when, her_x):
@@ -1374,6 +1383,7 @@ async def play_as_it_happens(
                contest=keep.get("contest") or ContestStands(), waits_for_her=waits_for_her)
     run.pointer_trigger = rules is not None and rules.a_click_is_a_shot
     run.burst_keys = keys_pressed_fast(told)
+    run.building_up = _builds_up(told)
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
     run.clicks_pay = keep.get("where_clicks_pay")
@@ -1541,7 +1551,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
         # And timing goes on while it pays; where it has not paid once every place has been tried, she looks for a
         # body again.
         if (run.keys and not run.pointer_first and run.timing is not None and run.trying >= 4 * len(run.keys)
-                and not run.presses.moves_anything(TOLD_FROM_STANDING_PX * 2)
+                and (run.building_up or not run.presses.moves_anything(TOLD_FROM_STANDING_PX * 2))
                 and (run.timing.pays() or at - run.tried_at < max(RECHECK_CONTROLS_S, run.timing.a_round_s()))
                 and await _press_in_time(hands, run, moves, at, say)):
             return
@@ -1639,10 +1649,25 @@ def _found_by_her_presses(run: _Run, moves: WhatMoves, hers: WhichIsHers, at: fl
         hers.moved_by_her_presses(candidates[0], at)
 
 
+def _builds_up(told: str) -> bool:
+    """Whether what the place says, or the guide to it holds, is of pieces dropped to build up."""
+    from core.agency.mechanics_she_knows import mechanics_in
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    guide = THE_GUIDE.get()
+    return "stacking" in mechanics_in(told or "") or bool(guide is not None and guide.in_play("stacking"))
+
+
 async def _press_in_time(hands: Any, run: _Run, moves: WhatMoves, at: float, say: Any) -> bool:
     """A press timed to where the things that keep moving will be; whether she is playing by timing presses."""
     ahead = statistics.median(run.responses) if run.responses else RESPONSE_S
-    if not run.timing.press_now(moves.things.values(), at, ahead):
+    if run.building_up and not run.timing.pays():
+        # Building up, a press drops the piece: square over the top of what is built, until a press has paid elsewhere.
+        from core.agency.building_up import drop_now
+
+        if not drop_now(moves.things.values(), ahead):
+            return True
+    elif not run.timing.press_now(moves.things.values(), at, ahead):
         return run.timing.has_something_to_time(moves.things.values())
     run.timing.credit(run.gains, run.losses)
     if not run.keys:

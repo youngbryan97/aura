@@ -38,6 +38,13 @@ def what_a_bar_measures(bar: Any, regions: list[dict[str, Any]], wide: int, tall
         if before or over:
             near.append((abs(y - (top + bottom) / 2) + abs(x - left), said))
     label = min(near)[1] if near else ""
+    # A meter that fills while she holds, or empties while she uses what it holds (a charge, a glide), says how strong
+    # or how long her next act can be, not what she has left: LIVE 2026-10-09 a charge meter filling and emptying with
+    # every throw was read as her health going down.
+    from core.agency.mechanics_she_knows import what_a_label_measures
+
+    if label and what_a_label_measures(label) in ("charging", "holding to sustain"):
+        return label, "neither"
     return label, (_meaning(label) if label else "") or "down is bad"
 
 

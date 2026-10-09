@@ -33,7 +33,7 @@ import logging
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Any, Sequence
 
 from core.agency.acts_on_two_places import two_places_of
 from core.agency.putting_things_in_place import PuttingInPlace
@@ -224,6 +224,12 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
     paused_here: bool = False
     _was_paused: bool = False
     paused_by: str = ""
+    #: Told of each act and whether it answered, where something learns from that (core/cognition/checking_the_debate.py).
+    on_tried: Any = None
+    #: The mechanics this place's words, and what she found out before she began, have spoken of
+    #: (core/agency/mechanics_she_knows.py); and where each thing she can click is, as shares of the screen.
+    mechanics_said: set[str] = field(default_factory=set)
+    where: dict[str, tuple[float, float]] = field(default_factory=dict)
 
     def asked_for_by(self, words: str, clickable: Sequence[str] = (), drawn: Sequence[str] = (), counsel: str = "") -> None:
         """Keys the screen asks her to press, in its words or drawn as keys on it, and labels its words ask her to click;
@@ -232,6 +238,9 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
 
         self.told_of_carrying(f"{words} {counsel}")
         self.told_of_using(f"{words} {counsel}")
+        from core.agency.mechanics_she_knows import mechanics_in
+
+        self.mechanics_said |= set(mechanics_in(f"{words} {counsel}"))
         from core.language.a_way_on import asks_to_choose, says_it_is_paused
 
         self.choosing_here = asks_to_choose(words)
@@ -253,7 +262,8 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         if keys or pointer:
             self.pointer_only = pointer and not keys
 
-    def looked_at(self, clickable: Sequence[str], says: str = "", looks: Mapping[str, tuple[float, ...]] | None = None) -> None:
+    def looked_at(self, clickable: Sequence[str], says: str = "", looks: Mapping[str, tuple[float, ...]] | None = None,
+                  where: Mapping[str, tuple[float, float]] | None = None) -> None:
         """What she can click now: the writing that was there at the last look too.
 
         A control stays where it is; a readout changes. LIVE 2026-10-03 04:49,
@@ -262,6 +272,8 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         never tried, and she clicked the clock again and again.
         """
         now = tuple(clickable)
+        if where:
+            self.where.update({what_is_clicked(name) or name: at for name, at in where.items()})
         self.noticed_taking(now)
         self.saw_looks(looks or {})
         self.on_screen = tuple(label for label in now if label in self.seen_before)
@@ -288,6 +300,8 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         self.paired(name)
         self.carried(name, changed)
         self.leads.acted(name, changed)
+        if self.on_tried is not None:
+            self.on_tried(name, changed)
         if changed:
             self.quiet_since.clear()
             self.did_something[name] = self.did_something.get(name, 0) + 1

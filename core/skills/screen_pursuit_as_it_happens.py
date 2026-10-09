@@ -463,6 +463,15 @@ class PlayingAsItHappens:
         read = " ".join([self.goal, *self.words[-6:], str(self.keep.get("counsel") or "")])
         named, pointer_first = controls_named_in(read,
                                                 keys_without_words=(), during_play=True)
+        # And what the guide to the place holds of its controls: its page's words, its program, what she looked up
+        # (core/cognition/a_guide_to_a_place.py), words before code.
+        from core.cognition.a_guide_to_a_place import SCREEN as SCREEN_SAID
+        from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+        guide = THE_GUIDE.get()
+        if guide is not None:
+            named = list(dict.fromkeys([*named, *guide.keys_for_play()]))
+            pointer_first = pointer_first or guide.pointer_named()
         # The game's controls are every key any of its screens has named, not
         # only this screen's: LIVE 2026-10-04 a run begun from the end screen
         # ("Press SPACE to play again") was played with space alone, and the
@@ -489,6 +498,11 @@ class PlayingAsItHappens:
         )
         self.stretches.append(stretch)
         self._judge(AS_IT_HAPPENS_WAY, stretch)
+        if guide is not None:
+            # What play read and confirmed, into the guide: what changed said, and what it learned of every place kept.
+            for line in guide.take_in(SCREEN_SAID, stretch.get("words_seen") or [])[:1]:
+                _said_while_playing(line)
+            guide.confirmed_by(stretch)
         if (stretch.get("runtime_checks") or {}).get("violations"):
             self.over_because = "runtime contract violated"
         _keep_what_she_learned(self.page, self.keep)

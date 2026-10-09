@@ -106,4 +106,8 @@ class TakingAndUsing:
                 target = what_is_clicked(move)
                 if target and target != held and _not_read_only(move):
                     offered.append(a_use_of(held, target))
+        if "serving" in getattr(self, "mechanics_said", set()):
+            from core.agency.putting_things_in_place import served_first
+
+            offered = served_first(offered, getattr(self, "looked", {}), what_is_used)
         return tuple(offered[:USES_OFFERED])
