@@ -214,6 +214,11 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
     quiet_since: set[str] = field(default_factory=set)
     #: The screens of this place and where each act on them led, across sittings.
     leads: WhereThingsLead = field(default_factory=WhereThingsLead)
+    #: Whether the screen in front of her asks her to choose, and whether she has chosen on it: one choice is enough,
+    #: and then what goes on is wanted (core/skills/screen_pursuit_decision.py `_first_what_goes_on`).
+    choosing_here: bool = False
+    chose_here: bool = False
+    _choosing_on: str = ""
 
     def asked_for_by(self, words: str, clickable: Sequence[str] = (), drawn: Sequence[str] = (), counsel: str = "") -> None:
         """Keys the screen asks her to press, in its words or drawn as keys on it, and labels its words ask her to click;
@@ -222,6 +227,12 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
 
         self.told_of_carrying(f"{words} {counsel}")
         self.told_of_using(f"{words} {counsel}")
+        from core.language.a_way_on import asks_to_choose
+
+        self.choosing_here = asks_to_choose(words)
+        screen = " ".join(sorted(set(re.findall(r"[a-z]{4,}", words.lower()))))
+        if screen != self._choosing_on:
+            self._choosing_on, self.chose_here = screen, False
         self.asked_for = tuple(dict.fromkeys([*keys_a_screen_asks_for(words), *drawn]))
         self.clicks_asked_for = clicks_a_screen_asks_for(words, clickable)
         # What the screen names, and what taking stock found the thing is played with: LIVE 2026-10-09 a putter lesson
@@ -259,6 +270,10 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         if what_is_clicked(name) is not None:
             self.clicked_on(name, self.seen_before, changed)
             self.turned_over(what_is_clicked(name) or "")
+            from core.language.a_way_on import confirms
+
+            if changed and self.choosing_here and not confirms(what_is_clicked(name) or ""):
+                self.chose_here = True
         self.paired(name)
         self.carried(name, changed)
         self.leads.acted(name, changed)

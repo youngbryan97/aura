@@ -244,3 +244,24 @@ def test_a_heading_read_as_a_label_still_says_the_screen_asks_her_to_choose():
     choose = {"layout": [{"text": "Please Select Number Of Players", "center_x": 0.4, "center_y": 0.25}]}
     moves = (a_click_on("Please Select Number Of Players"), a_click_on("1 Player"), a_click_on("back"))
     assert a_click_on("next") in _where_the_way_on_was(choose, moves, "", paced)
+
+
+def test_once_a_choice_is_made_on_a_screen_that_asks_for_one_what_goes_on_is_wanted_and_the_other_choices_are_not():
+    """LIVE 2026-10-09 a choice of players drew its "next" faded until a player was chosen; she clicked "next" first,
+    it did nothing, and after choosing she went on clicking the choices and the shapes for three minutes."""
+    from core.agency.what_i_can_do_here import WhatWorksHere, a_click_on
+    from core.skills.screen_pursuit_decision import _once_chosen_go_on
+
+    here = WhatWorksHere()
+    moves = (a_click_on("1 Player"), a_click_on("2 Players"), a_click_on("next"))
+    here.asked_for_by("Please Select Number Of Players 1 Player 2 Players next", moves)
+    here.looked_at(moves)
+    here.looked_at(moves)
+    exploring = {a_click_on("2 Players"): 0.09, a_click_on("the shape at 40% across, 45% down"): 0.06}
+    assert _once_chosen_go_on(here, exploring) == exploring             # nothing chosen yet: as it was
+    here.tried(a_click_on("next"), changed=False)
+    here.tried(a_click_on("1 Player"), changed=True)
+    after = _once_chosen_go_on(here, exploring)
+    assert after[a_click_on("next")] == 1.0 and max(v for k, v in after.items() if k != a_click_on("next")) < 0.01
+    here.asked_for_by("Choose A Ball Pick your favorite color", moves)  # the next screen: chosen afresh
+    assert not here.chose_here

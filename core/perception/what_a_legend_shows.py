@@ -72,8 +72,16 @@ class Shown:
     where: tuple[float, float, float, float]
 
 
+#: A caption that tells how to work a control ("click and hold your mouse button to glide") says what a control does,
+#: not what a drawn thing is: LIVE 2026-10-09 a game's glide meter was taken for a thing to get.
+_HOW_A_CONTROL_WORKS = re.compile(r"\b(?:click|press|hold|tap|use)\b[^.!?]{0,30}\b(?:mouse|key|keys|button|space ?bar|arrows?)\b",
+                                  re.I)
+
+
 def stance_of(words: str) -> str:
     """What a caption says to do about its thing: "meet", "avoid", "shoot", or "" where it says nothing."""
+    if _HOW_A_CONTROL_WORKS.search(words or ""):
+        return ""
     found = [(match.start(), stance) for stance, pattern in _SAYS for match in [pattern.search(words or "")] if match]
     return min(found)[1] if found else ""
 
@@ -83,9 +91,10 @@ def _captions(regions: Sequence[dict[str, Any]]) -> list[tuple[str, str, tuple[f
     lines = [r for r in regions if str(r.get("text") or "").strip()]
     out = []
     for line in lines:
-        text = " ".join(str(line["text"]).split())
+        text = " ".join(str(line["text"]).split()).lstrip("•·-*– ").strip()
         stance = stance_of(text)
-        if not stance:
+        # A caption says something in words; a read-out ("+ 12 ft.") is a number with its unit.
+        if not stance or len(re.findall(r"[A-Za-z]{3,}", text)) < 2:
             continue
         x, y, w, h = (float(line.get(k, 0.0)) for k in ("x", "y", "width", "height"))
         left, top, right, bottom = x, y, x + w, y + h

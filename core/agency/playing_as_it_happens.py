@@ -38,6 +38,7 @@ from typing import Any
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
+from core.agency.what_she_has_left import CAREFUL_BELOW
 from core.agency.what_the_rules_said import WhatTheRulesSaid
 from core.agency.which_one_answers_to_her import RESPONSE_S, WAYS, WhichIsHers
 from core.perception.how_things_move_here import HowThingsMoveHere
@@ -1054,30 +1055,6 @@ def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
     meeting.writing = _what_is_writing(moves, regions)
 
 
-#: How full her bars may be before she is careful: below this share of their fullest, what costs is given wider berth.
-CAREFUL_BELOW = 0.5
-
-
-def _what_a_bar_measures(bar: Any, regions: list[dict[str, Any]], wide: int, tall: int) -> tuple[str, str]:
-    """The words written nearest a bar, before it on its line or just over it, and what a change in them means; a bar
-    with no words is taken for something running out, worse lower."""
-    from core.agency.what_meeting_things_does import _meaning
-
-    left, top, right, bottom = bar.where(wide, tall)
-    near = []
-    for region in regions:
-        said = " ".join(str(region.get("text") or "").split())
-        x, y = float(region.get("center_x", -1.0)), float(region.get("center_y", -1.0))
-        if not any(ch.isalpha() for ch in said):
-            continue
-        before = abs(y - (top + bottom) / 2) <= 0.06 and -0.02 <= left - x <= 0.25
-        over = 0.0 <= top - y <= 0.1 and left - 0.05 <= x <= right + 0.05
-        if before or over:
-            near.append((abs(y - (top + bottom) / 2) + abs(x - left), said))
-    label = min(near)[1] if near else ""
-    return label, (_meaning(label) if label else "") or "down is bad"
-
-
 def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves: WhatMoves, picture: Any, at: float,
                    say: Any) -> None:
     """Every bar's rise or fall, as a gain or a loss as its words say; and how much she has left, for how careful to be.
@@ -1085,34 +1062,27 @@ def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves
     A bar that empties as she is hit is the cost of what hit her, learned as a counter's fall is: LIVE 2026-10-09 three
     heroes shared a health bar, and she played as if nothing could hurt her.
     """
+    from core.agency.what_she_has_left import bars_read, what_is_left
     from core.perception.how_full_a_bar_is import BarsOnTheScreen
 
     if run.bars is None:
         run.bars = BarsOnTheScreen()
-    for change in run.bars.read(picture, at):
-        bar = change["bar"]
-        tall, wide = run.bars.shape
-        if not bar.meaning:
-            bar.label, bar.meaning = _what_a_bar_measures(bar, run.regions_read, wide, tall)
-        if bar.meaning == "neither":
-            continue
-        fell = change["to"] < change["from"]
-        lost = fell if bar.meaning == "down is bad" else not fell
-        middle = ((bar.start + bar.end) / 2 / max(1, wide), bar.row / max(1, tall))
-        where = where_on_screen(moves, middle[0] * moves.shape[1], middle[1] * moves.shape[0]) if moves.shape[0] else "middle"
-        named = f"the {bar.label} bar" if bar.label else f"the bar at the {where}"
-        verdict = {"what": "loss" if lost else "gain", "at": at, "since": change["since"], "counter": named, "by": -1 if lost else 1}
+
+    def place(x: float, y: float) -> str:
+        return where_on_screen(moves, x * moves.shape[1], y * moves.shape[0]) if moves.shape[0] else "middle"
+
+    for verdict in bars_read(run.bars, picture, at, run.regions_read, place):
         meeting._verdict(verdict)
-        if lost:
-            run.losses += 1
-            _lost_from_a_distance(run, meeting, hers.thing(moves), moves, verdict)
-            hit = any(0.0 <= at - when <= 1.0 for when in meeting._met.values())
-            _say(run, say, f"{named[0].upper()}{named[1:]} goes down{' as I am hit' if hit else ''}: it's what I have left.", at,
-                 once=f"bar {named}")
-        else:
+        if verdict["what"] == "gain":
             run.gains += 1
-    left = [bar.full for bar in run.bars.bars() if bar.meaning == "down is bad"]
-    run.vitals = meeting.vitals = min(left) if left else 1.0
+            continue
+        run.losses += 1
+        _lost_from_a_distance(run, meeting, hers.thing(moves), moves, verdict)
+        hit = any(0.0 <= at - when <= 1.0 for when in meeting._met.values())
+        named = verdict["counter"]
+        _say(run, say, f"{named[0].upper()}{named[1:]} goes down{' as I am hit' if hit else ''}: it's what I have left.", at,
+             once=f"bar {named}")
+    run.vitals = meeting.vitals = what_is_left(run.bars)
 
 
 def _lost_from_a_distance(run: _Run, meeting: WhatMeetingDoes, mine: Any, moves: WhatMoves, verdict: dict[str, Any]) -> None:

@@ -68,8 +68,6 @@ MADE_NOT_WON = "it is for making things, and I have tried it out"
 #: she sent shots at the lesson for three minutes.
 _RULES = re.compile(r"\b(?:how to (?:play|use|win)|instructions|controls|how do (?:i|you)|tutorial)\b|(?:^|:)\s*1\.\s+[A-Za-z]", re.I)
 
-#: Words that ask her to choose: a screen to choose on and go on from, not one to send things into.
-_CHOOSE = re.compile(r"\b(?:please )?(?:select|choose|pick) (?:a |an |the |your |number )", re.I)
 
 
 def reads_as_rules(said: str) -> bool:
@@ -79,8 +77,13 @@ def reads_as_rules(said: str) -> bool:
 
 def asks_to_choose(said: str) -> bool:
     """Whether a screen's words ask her to choose something: a player, a ball, a level, a character."""
-    return bool(_CHOOSE.search(said or ""))
+    from core.language.a_way_on import asks_to_choose as asks
 
+    return asks(said)
+
+
+#: The fewest words a screen that is not plainly rules must have to be read for a legend.
+LEGEND_WORDS = 6
 
 #: The ways the reflexes play, as core/agency/the_way_it_is_played.py names them.
 SEND_WAY, AS_IT_HAPPENS_WAY = "send", "as it happens"
@@ -400,7 +403,9 @@ class PlayingAsItHappens:
 
         said = self.words[-1] if self.words else ""
         read_before: set[str] = self.keep.setdefault("legends_read", set())
-        if not said or said[:120] in read_before or not stance_of(said):
+        # A screen of rules, or one with words enough to tell things apart: a score's "+ 12 ft." is neither.
+        enough = reads_as_rules(said) or len(re.findall(r"[A-Za-z]{3,}", said)) >= LEGEND_WORDS
+        if not said or said[:120] in read_before or not stance_of(said) or not enough:
             return
         read_before.add(said[:120])
         seen = await self.look()

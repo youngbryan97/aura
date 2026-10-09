@@ -154,9 +154,34 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     again = getattr(held, "taken_here_to_no_end", lambda _act: 0)
     # What the screen's own words ask to be clicked goes on as surely as a Play does: it is doing what it says.
     asked = set(getattr(can_do, "clicks_asked_for", ()) or ())
-    return {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
-            / (1 + again(name))
-            for name, value in (telling or {}).items()}
+    valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
+              / (1 + again(name))
+              for name, value in (telling or {}).items()}
+    return _once_chosen_go_on(can_do, valued)
+
+
+def _once_chosen_go_on(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
+    """On a screen that asks her to choose, once a choice has been made the other choices are not to find out, and
+    what goes on (Next, OK) is wanted, though it did nothing before the choice.
+
+    LIVE 2026-10-09 a golf game's choice of players drew its "next" faded until a player was chosen; she clicked "next"
+    first, it did nothing, and after choosing she went on clicking the choices and the shapes for three minutes.
+    """
+    from core.agency.what_i_can_do_here import what_is_clicked
+    from core.language.a_way_on import confirms
+
+    if not getattr(can_do, "chose_here", False):
+        return valued
+    out = {name: value * (1.0 if confirms(what_is_clicked(name) or "") else CHOSEN_ALREADY)
+           for name, value in valued.items()}
+    for name in getattr(can_do, "on_screen", ()) or ():
+        if confirms(what_is_clicked(name) or ""):
+            out[name] = max(out.get(name, 0.0), 1.0)
+    return out
+
+
+#: How much less the other choices on a screen are worth finding out once one has been made.
+CHOSEN_ALREADY = 0.1
 
 
 def _the_layout_is_made(success_when: str, knows: Any, laid_out: Any) -> bool:

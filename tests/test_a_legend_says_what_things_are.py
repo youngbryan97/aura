@@ -78,3 +78,11 @@ def test_play_takes_a_kind_for_what_the_legend_said_until_play_says_otherwise():
     assert meeting.told == {4: SHOOT}
     assert said and "Destroy the robots" in said[0]
     assert meeting.stance(4) == SHOOT
+
+
+def test_a_read_out_of_a_number_and_its_unit_is_not_a_caption():
+    """LIVE 2026-10-09 a launch game's distance read-out ("+ 12 ft.") was read as a legend of things to get."""
+    picture, _regions = _screen()
+    regions = [{"text": "+ 12 ft.", "x": 0.2, "y": 0.41, "width": 0.1, "height": 0.04},
+               {"text": "24 ft.: + 0 ft.", "x": 0.6, "y": 0.78, "width": 0.2, "height": 0.045}]
+    assert what_a_legend_shows(picture, regions) == []
