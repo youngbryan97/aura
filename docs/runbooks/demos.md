@@ -91,12 +91,15 @@ way a person would ask. Nothing is started from a script.
 Type in her chat:
 
 > Go to https://www.webdesignmuseum.org/flash-game-exhibitions/cartoon-network-flash-games
-> and play three of the games, one after another, and win each one. To pick
-> them: number the games on the list from 0, starting with the first one. Take
-> the current minute of the hour, divide it by how many games there are, and
-> play the game whose number is the remainder. When that game is over, go back
-> to the list, add 19 to the number, take the remainder again, and play that
-> game. Then add 19 once more for the third game.
+> and play three of the games, one after another. To pick them: number the
+> games on the list from 0, starting with the first one. Take the current
+> minute of the hour, divide it by how many games there are, and play the game
+> whose number is the remainder. When that game is over, go back to the list,
+> add 19 to the number, take the remainder again, and play that game. Then add
+> 19 once more for the third game. If a game can be won, keep playing it until
+> you win. If it only keeps a score, play it three times and tell me your best.
+> If it has neither, like a character maker, do it once and tell me what you
+> made and why.
 
 The museum refuses its game files to an automated browser. Each game page
 links the same game in the Internet Archive, and she plays it there.
@@ -107,8 +110,27 @@ She reads the list off the page (all 56 games, in order), works the rule out
 from the clock as it is when she starts, and says the working before she
 plays: "There are 56 games on the list. By your rule: it is 7:14 am, so the
 minute is 14; 14 divided by 56 leaves 14: number 14, "Scooby-Doo: Scooby
-Trap". Then ..." Each game picked is then played for the task said of one:
-"Play this game and win it." Over an hour, every game is someone's first.
+Trap". Then ..." Each game picked is then played for the task said of one,
+with the request's three conditions carried along in its own words.
+Over an hour, every game is someone's first.
+
+The three conditions are about what counts as done, and nothing in them is
+about games (core/language/what_counts_as_done.py). A thing has an END it
+declares (won, cleared, solved), a MEASURE it keeps and never closes (a score,
+a time), or neither, and then it is something MADE. The request says what to do
+with each shape, and those words become the terms: how long to go on, how many
+runs, and what to say at the end. No number for these is in the code. Which
+shape a game has is read off the game itself: its own words, the screens she
+has seen, and how its runs end.
+
+- END: she keeps at it until the game says she won. A round that gains
+  nothing starts the game again from the top; she does not leave it for being
+  no better than her best.
+- MEASURE: as many runs as the request says, a score read off each ("Run 1
+  of 3: scored 120. Again."), and the best named before she moves on ("That's
+  3 runs. My best was run 2, with 340").
+- MADE: once, then what it shows at the end and the choices she made to get
+  there.
 
 ## Demo 3: a clean-room reconstruction of Microsoft Word
 
@@ -188,4 +210,4 @@ feature, whether its checks held, and how many tries it took).
 | --- | --- |
 | She answers in words instead of acting | The request must name the file or the page; see the routing tests in `tests/test_repairing_a_program_is_asked_for.py`. |
 | A game page shows "Ruffle failed to load" | Expected on the museum; she follows the Internet Archive link. |
-| She plays a game and never stops | A game that only counts points has no winner; she stops after one finished run. |
+| She plays a game and never stops | A game with nothing to win is played as many times as the request says (three in the request above), then left with its best run named; with no such words, one finished run. |

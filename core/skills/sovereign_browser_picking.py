@@ -89,7 +89,12 @@ def the_task_for_each(words: str) -> str:
     asked = _COUNTED.sub(lambda m: f"this {_one(m.group(1))}", asked, count=1)
     asked = re.sub(r"\b(?:each\s+one|each\s+of\s+them|every\s+one|all\s+of\s+them|them\s+all|them)\b", "it", asked, flags=re.I)
     asked = re.sub(r"\s+,", ",", asked).strip(" .,")
-    return (asked[:1].upper() + asked[1:] + ".") if asked else "Do with it what was asked."
+    said = (asked[:1].upper() + asked[1:] + ".") if asked else "Do with it what was asked."
+    # What the person said counts as done for each shape of thing goes with each one, in their words: it is about
+    # whichever of them turns out to have an end, a measure or neither, and it was being dropped with the rule.
+    from core.language.what_counts_as_done import conditions_as_said
+
+    return f"{said} {conditions_as_said(text)}".strip()
 
 
 async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: str = "") -> str:

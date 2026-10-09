@@ -1,7 +1,7 @@
 {
   "threshold_lines": 400,
   "tracked": 58,
-  "total_lines": 54667,
+  "total_lines": 54657,
   "functions": {
     "core/brain/cognitive_engine_quick_reply.py::_AnswersTheDesktopDirectly._direct_desktop_quick_reply": {
       "lines": 765,
@@ -225,7 +225,7 @@
     },
     "core/phases/response_generation_unitary.py::UnitaryResponsePhase.execute": {
       "lines": 2938,
-      "complexity": 613,
+      "complexity": 614,
       "returns": 47
     },
     "core/runtime/action_executor.py::ActionExecutor.execute": {
@@ -249,8 +249,8 @@
       "returns": 11
     },
     "core/skills/screen_pursuit.py::pursue_on_screen": {
-      "lines": 879,
-      "complexity": 97,
+      "lines": 869,
+      "complexity": 88,
       "returns": 14
     },
     "core/skills/screen_pursuit_decision.py::decide_the_next_move": {

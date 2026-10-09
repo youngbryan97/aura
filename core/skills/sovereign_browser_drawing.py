@@ -18,6 +18,7 @@ whether what is drawn is the way on; the screen pursuit finds out how it moves.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -309,13 +310,19 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     import time
 
     from core.language.how_a_game_ended import asks_to_win, requested_attempts
+    from core.language.what_counts_as_done import MADE, MEASURE, terms_asked, without_conditions
     from core.skills.screen_pursuit_as_it_happens import MADE_NOT_WON, begin_run
 
-    until_won = asks_to_win(goal)
-    attempts = requested_attempts(goal)
+    # What the person said counts as done for each shape of thing: an end reached, a measure bettered, a thing made.
+    terms = terms_asked(goal)
+    until_won = asks_to_win(without_conditions(goal)) or terms.until_the_end
+    attempts = requested_attempts(without_conditions(goal))
+    where_none = terms.measure_runs
     limit = min(attempts, MOST_RUNS) if attempts is not None else MOST_RUNS if until_won else 1
-    # One of several things asked for ("the first of the 3 picked") has its share of the time, not all of it.
-    deadline = time.monotonic() + (max(LEAST_SHARE_S, PLAY_UNTIL_WON_S / _how_many_asked(goal)) if until_won or limit > 1 else _one_run_s())
+    # One of several things asked for ("the first of the 3 picked") has its share of the time, not all of it; asked to
+    # be carried on until its end is reached, it has all of it.
+    share = PLAY_UNTIL_WON_S if terms.until_the_end else max(LEAST_SHARE_S, PLAY_UNTIL_WON_S / _how_many_asked(goal))
+    deadline = time.monotonic() + (share if until_won or limit > 1 else _one_run_s())
     contract = step.get("runtime_contract") or {}
     keep: dict[str, Any] = {"required_edges": contract.get("required_edges") or [],
                             "edge_provenance": contract.get("provenance") or ""}
@@ -339,7 +346,26 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
                                                "control_attribution", "attribution_changes", "identification_evidence")}
             for stretch in reflexes.stretches if stretch.get("pictures")
         ]
+        run["score"] = _the_score_of(run, reflexes)
         runs.append(run)
+        shape = MADE if reflexes.over_because == MADE_NOT_WON else _the_shape_of(reflexes, run)
+        if shape == MADE and (terms.made_once or terms.tell_what_was_made):
+            # Made once, and what was made said, as the person asked of a thing with no end and no measure.
+            run["ended"] = "finished"
+            _tell(_what_was_made(run, moves))
+            result["stopped_because"] = MADE_AS_ASKED
+            break
+        nothing_to_win = shape == MEASURE or _for_points_only(reflexes, goal) or _only_a_score(reflexes, run)
+        if nothing_to_win and where_none:
+            # Where there is nothing to win, what the person asked for that case: so many runs, and the best of them.
+            run["ended"] = run["ended"] if run["ended"] in ("won", "lost") else "finished"
+            if len(runs) < where_none and time.monotonic() < deadline:
+                _tell(f"{_what_there_is_to_play_for(reflexes)} Run {len(runs)} of {where_none}: {_scored(run)}. Again.")
+                begin_run(keep)
+                continue
+            _tell(_the_best_of(runs))
+            result["stopped_because"] = PLAYED_FOR_ITS_BEST
+            break
         if reflexes.over_because == MADE_NOT_WON:
             # Asked to win a thing that has no winning, the honest end is to say so, in its own words.
             _tell(f"There's nothing to win in this one; it's for making things: {_what_it_is_for(reflexes.words)!r}. "
@@ -359,6 +385,12 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             if run["gains"] > 0 or reflexes.new_screens:
                 runs.pop()  # the same round, still getting somewhere (scoring, or reaching screens not seen): played on
                 continue
+            if terms.until_the_end and shape != MEASURE:
+                # Asked to carry it through to its end, a round that gained nothing is begun again from the top.
+                _tell(f"{round(ROUND_S / 60)} minutes in this round and nothing gained; I'm starting it again from the top.")
+                band = await _from_the_top(page, band)
+                begin_run(keep)
+                continue
             _tell(f"{round(ROUND_S / 60)} minutes in this round and nothing gained; I'll leave this one here.")
             result["stopped_because"] = "getting nowhere in it"
             break
@@ -368,7 +400,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             if run["ended"]:
                 _tell(f"That one ended {run['words'][:80]!r}: {run['ended']}.")
             break
-        if until_won and not_getting_better(runs):
+        if until_won and not_getting_better(runs) and not terms.until_the_end:
             # A person keeps at a game while they are getting better at it, and says so when they are not.
             _tell(f"That's {len(runs)} rounds, and the last two went no better than my best; I'll leave this one here.")
             run["ended"] = run["ended"] or "lost"
@@ -394,6 +426,9 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     won = any(r["ended"] == "won" for r in runs)
     counted = (until_won and won) or attempts is None or (len(runs) >= attempts and all(r["ended"] in ("won", "lost", "finished") for r in runs))
     complete = (won if until_won else bool(result.get("completed")) or bool(runs and runs[-1]["ended"])) and counted and not result.get("runtime_violations")
+    # Nothing to win, and played as the person said to play such a thing: done as asked.
+    complete = complete or (result.get("stopped_because") in (PLAYED_FOR_ITS_BEST, MADE_AS_ASKED) and not result.get("runtime_violations"))
+    scores = [r["score"] for r in runs if r.get("score") is not None]
     return {
         **step,
         "landed": len(moves),
@@ -410,7 +445,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         "ok": bool(moves) and complete,
         "runtime_violations": result.get("runtime_violations") or [],
         "stopped_because": str(result.get("stopped_because") or ""),
-        "the_ask_does_not_apply": result.get("stopped_because") == NOTHING_TO_WIN,
+        "the_ask_does_not_apply": result.get("stopped_because") in (NOTHING_TO_WIN, PLAYED_FOR_ITS_BEST, MADE_AS_ASKED),
+        "best_score": max(scores) if scores else None,
     }
 
 
@@ -516,6 +552,102 @@ def not_getting_better(runs: list[dict[str, Any]]) -> bool:
 
 #: Why play to win stopped at a thing that has no winning.
 NOTHING_TO_WIN = "there is nothing to win in it, as it is for making things"
+
+#: Why play stopped at a thing with nothing to win, played the number of times the person said to play such a thing.
+PLAYED_FOR_ITS_BEST = "there is nothing to win in it, so I played it as many times as you said and kept my best"
+
+#: Why play stopped at a thing for making, made once as the person said to make such a thing.
+MADE_AS_ASKED = "it is for making things, so I made one and said what I made"
+
+
+def _the_shape_of(reflexes: Any, run: Mapping[str, Any]) -> str:
+    """Which shape the thing played is, from all its words seen so far and whether a run of it showed a measure."""
+    from core.language.what_counts_as_done import shape_in
+
+    return shape_in(" ".join([*getattr(reflexes, "words", []), str(run.get("words") or "")]),
+                    a_measure_seen=run.get("score") is not None)
+
+
+def _what_was_made(run: Mapping[str, Any], moves: list[Any]) -> str:
+    """What she made, from what the thing shows at the end, and how she came to it, from the choices she made."""
+    chose: list[str] = []
+    for move in moves:
+        key = str(move.get("key") if isinstance(move, Mapping) else move or "")
+        found = re.match(r'click "(.+)"$', key)
+        if found and (not chose or chose[-1] != found.group(1)):
+            chose.append(found.group(1))
+    shows = str(run.get("words") or "").strip()
+    what = f"I made it: at the end it shows {shows[:120]!r}." if shows else "I made it; at the end it shows no words to quote."
+    how = (f" I chose {', '.join(chose[:8])}" + (" and more" if len(chose) > 8 else "")
+           + ", trying each to see what it changed and keeping what I finished with.") if chose else (
+        " I worked it by clicking on the picture, keeping what each click made.")
+    return f"There's nothing to win or score in this one; it's for making things. {what}{how}"
+
+
+async def _from_the_top(page: Any, band: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+    """The page reloaded and the thing on it begun again, as a person starts again when a go has got nowhere."""
+    from core.runtime.errors import record_degradation
+
+    try:
+        await page.reload(wait_until="domcontentloaded")
+        band = _the_band(await page.evaluate(_WHERE_IT_DRAWS)) or band
+        band = await _start_what_is_covered(page, band)
+        await page.evaluate(_HOLD_IT_STILL)
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        record_degradation("sovereign_browser", exc, severity="info", action="begin the page's thing again")
+    return band
+
+
+def _only_a_score(reflexes: Any, run: Mapping[str, Any]) -> bool:
+    """Whether a game shows nothing that could be won, anywhere it has been seen, and ends a run with a score.
+
+    An endless game says no "as many points as possible"; it only ends with
+    "GAME OVER YOUR SCORE: 120". Seen whole, with no winner, no goal to beat
+    and no level or stage on any of its screens, its run is finished, not lost.
+    """
+    from core.language.how_a_game_ended import offers_a_win
+
+    seen = " ".join([*getattr(reflexes, "words", []), str(run.get("words") or "")])
+    return not offers_a_win(seen) and run.get("score") is not None
+
+
+def _the_score_of(run: Mapping[str, Any], reflexes: Any) -> int | None:
+    """A run's score: as its last screen writes it, else as the game's own score counter last read, else None."""
+    from core.language.how_a_game_ended import the_score_in
+
+    written = the_score_in(str(run.get("words") or ""))
+    if written is not None:
+        return written
+    for stretch in reversed([s for s in getattr(reflexes, "stretches", []) if s.get("pictures")]):
+        for name, value in (stretch.get("counters") or {}).items():
+            if re.search(r"score|points|pts", str(name), re.I) and str(value).replace(",", "").isdigit():
+                return int(str(value).replace(",", ""))
+    return None
+
+
+def _scored(run: Mapping[str, Any]) -> str:
+    score = run.get("score")
+    return f"scored {score}" if score is not None else f"{run.get('ended') or 'over'}, its score not shown"
+
+
+def _what_there_is_to_play_for(reflexes: Any) -> str:
+    from core.skills.screen_pursuit_as_it_happens import MADE_NOT_WON
+
+    if reflexes.over_because == MADE_NOT_WON:
+        return f"There's nothing to win in this one; it's for making things: {_what_it_is_for(reflexes.words)!r}."
+    return "There's nothing to win in this one, only a score."
+
+
+def _the_best_of(runs: list[dict[str, Any]]) -> str:
+    """The best of the runs, said: the highest score where any was shown, else the longest run."""
+    scored = [(r["score"], i) for i, r in enumerate(runs, 1) if r.get("score") is not None]
+    if scored:
+        best, which = max(scored)
+        return f"That's {len(runs)} runs. My best was run {which}, with {best}" + (
+            f"; the others: {', '.join(str(r.get('score')) for r in runs if r.get('score') is not None and r is not runs[which - 1])}."
+            if len(scored) > 1 else ".")
+    longest = max(range(len(runs)), key=lambda i: float(runs[i].get("took_s") or 0.0))
+    return f"That's {len(runs)} runs. No score was shown; my longest was run {longest + 1}, at {float(runs[longest].get('took_s') or 0.0):.0f} seconds."
 
 
 def _what_it_is_for(words: list[str]) -> str:

@@ -16,7 +16,7 @@ import re
 import unicodedata
 from typing import Final
 
-__all__ = ["asks_to_win", "how_it_ended", "how_it_ended_in", "what_it_asks_of_a_player"]
+__all__ = ["asks_to_win", "how_it_ended", "how_it_ended_in", "offers_a_win", "the_score_in", "what_it_asks_of_a_player"]
 
 _WINNING: Final = re.compile(r"\b(win|wins|won|winner|victory|victorious|beat|beats|defeated|champion)\b")
 _THE_PLAYER: Final = frozenset({"you", "player", "player 1", "p1", "your", "yours"})
@@ -126,20 +126,50 @@ def asks_to_win(request: str) -> bool:
     return bool(_ASKS.search(_plain(request)))
 
 
-def requested_attempts(request: str) -> int | None:
-    """An explicit count of play attempts, independent of whether winning is asked."""
-    numbers = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
-               "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
-               "eleven": 11, "twelve": 12}
-    count = r"(\d{1,3}|" + "|".join(numbers) + r")"
-    found = re.search(r"\b(?:play|try|make|take|do)\s+(?:(?:it|the game|this game)\s+)?"
-                      r"(?:(?:for|at most|up to)\s+)?" + count + r"\s+(?:attempts?|tries|times|rounds?)\b",
-                      _plain(request))
+_NUMBERS: Final = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+                   "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
+_A_COUNT: Final = r"(\d{1,3}|" + "|".join(_NUMBERS) + r")"
+_ATTEMPTS: Final = re.compile(r"\b(?:play|try|make|take|do|run|give)\s+(?:(?:it|the game|this game|that game|them)\s+)?"
+                              r"(?:(?:for|at most|up to)\s+)?" + _A_COUNT + r"\s+(?:attempts?|tries|times|rounds?|runs?|goes)\b")
+_BEST_OF: Final = re.compile(r"\bbest (?:of|out of)\s+" + _A_COUNT + r"\b")
+
+def _a_count_in(text: str) -> int | None:
+    found = _ATTEMPTS.search(text) or _BEST_OF.search(text)
     if not found:
         return None
     word = found.group(1)
-    value = numbers.get(word) if word in numbers else int(word)
+    value = _NUMBERS.get(word) if word in _NUMBERS else int(word)
     return value if value > 0 else None
+
+
+def requested_attempts(request: str) -> int | None:
+    """An explicit count of play attempts, independent of whether winning is asked.
+
+    A count said in a condition on one shape of thing ("if it only keeps a
+    score, play it three times") belongs to that shape
+    (core/language/what_counts_as_done.py), not to every game played.
+    """
+    from core.language.what_counts_as_done import without_conditions
+
+    return _a_count_in(_plain(without_conditions(request)))
+
+
+#: A score as a screen writes it: "Your score: 1,250", "Points 40", "Total = 300".
+_A_SCORE: Final = re.compile(r"\b(?:score|points|pts|total)\b\s*[:=]?\s*(\d[\d,]*)")
+#: Progress a game can be won by, counted: "Level 2", "Stage 1", "Round 3".
+_PROGRESS: Final = re.compile(r"\b(?:level|stage|round|wave|mission|world|chapter)\s*\d")
+
+
+def the_score_in(words: str) -> int | None:
+    """The last score a screen's words write out, or None where they write none."""
+    found = list(_A_SCORE.finditer(_plain(words)))
+    return int(found[-1].group(1).replace(",", "")) if found else None
+
+
+def offers_a_win(words: str) -> bool:
+    """Whether a game's words anywhere hold out a win: a winner, a goal to beat, or levels and stages to clear."""
+    text = _plain(words)
+    return bool(_TO_WIN.search(text) or _WINNING.search(text) or _PRAISED.search(text) or _PROGRESS.search(text))
 
 
 _FOR_POINTS: Final = re.compile(
