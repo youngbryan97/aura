@@ -34,7 +34,7 @@ TAKING_STOCK_S = 25.0
 AT_MOST_OF_WHAT_IS_LEFT = 0.2
 
 #: How many times in one thing, and how many runs its counsel is given before it is judged.
-AT_MOST = 3
+AT_MOST = 4
 JUDGED_AFTER = 2
 
 
@@ -67,6 +67,13 @@ class Stocktaking:
     at_run: int = 0
     before: list[dict[str, Any]] = field(default_factory=list)
 
+    def remembered(self) -> bool:
+        """Whether she has gone by counsel here before that helped: then she begins with it, not by asking again."""
+        from core.cognition.taking_stock import WhatHelped
+
+        helped = WhatHelped.of(self.thing).helped if self.thing else []
+        return bool(helped)
+
     def due(self, runs: list[dict[str, Any]]) -> str:
         """FAILING where the last two runs were lost and no counsel is still being tried; else ''."""
         from core.cognition.taking_stock import FAILING
@@ -79,6 +86,7 @@ class Stocktaking:
                    deadline: float) -> bool:
         """Stop, ask, and put what is worth going by where play will read it; whether anything was found."""
         from core.cognition.taking_stock import (
+            BEFORE,
             Situation,
             WhatHelped,
             from_her_corpus,
@@ -98,7 +106,8 @@ class Stocktaking:
         self.taken += 1
         situation = Situation(self.thing, goal, tuple(words[-6:]), ended, why)
         helped = WhatHelped.of(self.thing)
-        _tell(f"{why}, so I'm taking stock: {questions_for(situation)[0]}?")
+        lead = "Before I begin, I'm taking stock" if why == BEFORE else f"{why}, so I'm taking stock"
+        _tell(f"{lead}: {questions_for(situation)[0]}?")
         sources = {
             "what helped me before": helped.source(),
             "what I remember": from_her_memory(),
@@ -122,6 +131,10 @@ class Stocktaking:
         if self.counsel is None or len(runs) - self.at_run < JUDGED_AFTER and not any(r.get("ended") == "won" for r in runs[self.at_run:]):
             return
         after = runs[self.at_run:]
+        if not self.before and not any(r.get("ended") == "won" for r in after):
+            # Counsel taken before the first run has nothing to be held against but a win; it is kept in force, unjudged.
+            self.counsel = None
+            return
         helped = _better(after, self.before)
         WhatHelped.of(self.thing).came_of(self.thing, self.counsel, helped)
         _tell("That helped; I'll remember it." if helped else "Going by that didn't help, so I won't count on it again.")

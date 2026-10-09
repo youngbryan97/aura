@@ -517,6 +517,12 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
     from core.skills.screen_pursuit_as_it_happens import AS_IT_HAPPENS, PlayingAsItHappens
     from core.skills.screen_pursuit_on_a_page import HER_OWN_PAGE, OnAPage
 
+    stock = keep.get("stock")
+    if stock is not None and not stock.taken and not stock.remembered():
+        # Somewhere new, with nothing kept of it: taking stock before acting, while it waits at its start.
+        from core.cognition.taking_stock import BEFORE
+
+        await stock.take(BEFORE, goal, [], "", [], keep, deadline)
     reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=deadline, keep=keep)
     held = HER_OWN_PAGE.set(on := OnAPage(page=page, name=HER_BROWSER))
     quick = AS_IT_HAPPENS.set(reflexes)

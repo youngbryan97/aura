@@ -79,6 +79,8 @@ class PlayingAsItHappens:
     under_her_hand: bool = False
     #: Screens this run reached that the game had not shown her before, told apart by their words.
     new_screens: int = 0
+    #: Her bearings on the last screen she took in (core/cognition/her_bearings.py).
+    bearings: Any = None
     #: How often play as it happens was held back for the way on a screen offered, by the screen's words.
     held_for_a_way_on: dict[str, int] = field(default_factory=dict)
     #: Since when its words have been known to set her to make something, not to win.

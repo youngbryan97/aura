@@ -825,6 +825,10 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     from .screen_pursuit_bearings import things_to_click, what_it_says
 
     clickable, says, paced = things_to_click(observation, drawn_where), what_it_says(observation, drawn_where), MOVES_SAID.get()
+    # Her bearings here (core/cognition/her_bearings.py): what tells her what to do, what stands out, and what would
+    # take her away from the thing, which is not offered at all.
+    bearings = _her_bearings(observation, clickable, says, can_do)
+    clickable = tuple(move for move in clickable if _label_of(move) not in bearings.leaving_alone)
     can_do.looked_at(clickable, says)
     if hasattr(can_do, "asked_for_by"):
         from core.agency.what_i_can_do_here import what_is_clicked
@@ -839,6 +843,35 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
         return
     read.append(words)
     _tell(f"It says: {says}")
+    if bearings.said():
+        _tell(bearings.said())
+
+
+def _label_of(move: str) -> str:
+    from core.agency.what_i_can_do_here import what_is_clicked
+
+    return what_is_clicked(move) or ""
+
+
+def _her_bearings(observation: dict[str, Any], clickable: Any, says: str, can_do: Any) -> Any:
+    """Her bearings on the screen in front of her, kept with the play in hand for taking stock."""
+    from core.cognition.her_bearings import Place, take_bearings
+    from core.language.a_way_on import how_much_it_leads_on
+
+    from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+
+    reflexes = AS_IT_HAPPENS.get()
+    labels = tuple(dict.fromkeys(_label_of(move) for move in clickable if _label_of(move)))
+    apart = tuple(str(s.get("text") or "") for s in observation.get("shapes") or () if isinstance(s, dict) and s.get("stands_apart"))
+    leads_on = tuple(label for label in labels if how_much_it_leads_on(label) > 1.0)
+    moving = any(isinstance(r, dict) and r.get("of_its_own") for r in observation.get("layout") or ())
+    place = Place(asked=str(getattr(reflexes, "goal", "") or ""), says=str(says or ""), labels=labels,
+                  stands_out=tuple(dict.fromkeys(apart + leads_on)), moving=moving,
+                  keys=tuple(getattr(can_do, "works", lambda: ())()))
+    bearings = take_bearings(place)
+    if reflexes is not None:
+        reflexes.bearings = bearings
+    return bearings
 
 
 def _the_last_move_could_be_read(paced: dict[str, Any]) -> bool:
