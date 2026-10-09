@@ -61,6 +61,23 @@ FIRST_LOOK_S = 0.5
 #: second.
 BACKDROP_DRIFT = 2.5
 
+#: Pictures a thing must have gone as the view goes before it is taken back into the view.
+SCENERY_AFTER = 4
+
+#: How long after the view last moved it is taken to be going by still, in seconds.
+VIEW_GOING_FOR_S = 0.5
+
+#: Where the view goes by, how many working pixels a thing's edges are closed over to make it whole.
+CLOSED_OVER = 2
+
+#: How far, in working pixels on average, a thing's places may lie off one straight line for it to have had one
+#: going over them.
+ONE_GOING_PX = 1.0
+
+#: How far, in working pixels, a layer of the view must go over a stretch of a thing's path for going with it to be
+#: told from standing still.
+TOLD_FROM_STANDING_PX = 4.0
+
 #: How much bigger than its own size a followed thing has grown when part of it is something it left behind.
 LEFT_BEHIND_GROWTH = 1.6
 
@@ -124,6 +141,8 @@ class Thing:
     sizes: deque = field(default_factory=lambda: deque(maxlen=15))
     #: Its own size: the least it has measured, over a few pictures at a time, while followed.
     least: float = math.inf
+    #: Whether anyone has been told it appeared: while the view moves, not until it has shown it is not scenery.
+    announced: bool = True
 
     @property
     def size(self) -> float:
@@ -234,6 +253,8 @@ class WhatMoves:
         self.scale = 1.0
         self.shape: tuple[int, int] = (0, 0)
         self.things: dict[int, Thing] = {}
+        #: Things born while the view moved and not yet shown not to be scenery: followed, and kept from everyone else.
+        self.pending: dict[int, Thing] = {}
         #: Kinds met before in this world keep their numbers, so what was
         #: learned about one in an earlier stretch of play still applies.
         self.kinds: list[Kind] = list(kinds or [])
@@ -255,6 +276,15 @@ class WhatMoves:
         self.screens = 0
         #: Where each thing that went was last seen, for whoever asks what it went beside.
         self.last_box: dict[int, tuple[float, float, float, float]] = {}
+        #: How the view itself last moved (core/perception/how_the_scenery_goes_by.py), and what turns its layers'
+        #: shifts into pixels a second.
+        self.view_moved: Any = None
+        #: When the view last moved, and how: the view going by is still going by in a picture that repeats the last.
+        self.view_moved_at = -math.inf
+        self.view_going: Any = None
+        #: The last few pictures that were drawn anew, with when: the view is measured against the oldest.
+        self._drawn: deque = deque(maxlen=3)
+        self._now = -math.inf
 
     # -- the picture -------------------------------------------------------
 
@@ -290,6 +320,7 @@ class WhatMoves:
         """A new screen: what was kept of the old one says nothing about this one."""
         self._first = []
         self._backdrop = None
+        self._drawn.clear()
         self.screens += 1
 
     def _drift(self, small: np.ndarray, dt: float) -> None:
@@ -310,9 +341,13 @@ class WhatMoves:
         left_behind = np.zeros(small.shape[:2], dtype=bool)
         tall, wide = small.shape[:2]
         still = self._still if self._still is not None and self._still.shape == held.shape else None
-        for thing in self.things.values():
+        for thing in [*self.things.values(), *self.pending.values()]:
             left, top, right, bottom = thing.box()
             area = (slice(max(0, int(top) - 2), min(tall, int(bottom) + 3)), slice(max(0, int(left) - 2), min(wide, int(right) + 3)))
+            if self._goes_with_the_view(thing, dt):
+                # What goes as the view goes is the view: an edge of the scenery the backdrop was laid a part of a
+                # pixel off. Held, it is held wrong, and it grows.
+                continue
             if still is not None and thing.size > LEFT_BEHIND_GROWTH * thing.least:
                 stood = still[area] >= LEFT_BEHIND_S
                 held[area] |= ~stood
@@ -320,10 +355,79 @@ class WhatMoves:
             else:
                 held[area] = True
         rate = min(1.0, BACKDROP_DRIFT * max(0.0, dt))
+        scenery = getattr(self.view_moved, "scenery", None)
+        if self.view_is_moving and scenery is not None and scenery.shape == held.shape:
+            # What went by with the view is the backdrop as it is now, but for what she follows.
+            left_behind |= scenery
         # A weight a pixel, nought under what she follows: the same blend as
         # picking the free pixels out, without copying them out and back.
         weight = np.where(held, np.float32(0.0), np.where(left_behind, np.float32(1.0), np.float32(rate)))[..., None]
         self._backdrop += weight * (small.astype(np.float32) - self._backdrop)
+
+    @property
+    def view_is_moving(self) -> bool:
+        """Whether the view has moved lately: a game draws more slowly than she looks, and between its pictures the
+        view stands still for one of hers while it is going by."""
+        return self._now - self.view_moved_at <= VIEW_GOING_FOR_S
+
+    def _back_into_the_view(self, dt: float) -> None:
+        """Things that have gone as the view goes for a few pictures were scenery: they go back into it, unsaid.
+
+        Not said to have gone, because nothing went: what she learns from things
+        going (a target hit, a ball let by) must not be learned from a roof.
+        """
+        if not self.view_is_moving:
+            return
+        for kept in (self.pending, self.things):
+            for number in [n for n, t in kept.items() if self._goes_with_the_view(t, dt) and len(t.path) >= SCENERY_AFTER]:
+                del kept[number]
+
+    def _shown_not_scenery(self, dt: float) -> list[dict[str, Any]]:
+        """Things born while the view moved that have been followed long enough without going as it goes: they
+        appeared, as of when they were first seen."""
+        shown = []
+        for number, thing in list(self.pending.items()):
+            if len(thing.path) >= SCENERY_AFTER and not self._goes_with_the_view(thing, dt):
+                thing.announced = True
+                self.things[number] = self.pending.pop(number)
+                shown.append(what_happened("appeared", thing, thing.born))
+        return shown
+
+    def _goes_with_the_view(self, thing: Thing, dt: float) -> bool:
+        """Whether a thing has gone as one of the view's layers where it stands goes, while the view is moving: it is
+        part of the view. LIVE 2026-10-09 the fences nearest the eye went by faster than the town behind them and were
+        too small a share of their band to be a layer of it; they are a layer of the whole picture.
+
+        Its going is taken over the last few pictures of its path, as one straight line, not its last step; it must
+        be nearer the layer's going than standing still, and the layer must have gone far enough over that time to
+        be told from standing: offline 2026-10-09 a hero that stopped in front of hills going by at a pixel every
+        other picture, and then set off, was taken for the hills, and lost.
+        """
+        moved = self.view_moved
+        if not self.view_is_moving or self.view_going is None or not hasattr(moved, "ways_going"):
+            return False
+        recent = [step for step in thing.path if step[0] >= thing.path[-1][0] - VIEW_GOING_FOR_S] if thing.path else []
+        if len(recent) < SCENERY_AFTER:
+            return False
+        times = np.array([step[0] for step in recent]) - recent[0][0]
+        span = float(times[-1])
+        if span <= 0:
+            return False
+        # Its going as one straight line through where it was: a thing that stood and then set off has no one going.
+        places = np.array([[step[1], step[2]] for step in recent])
+        slope, start = np.polyfit(times, places, 1)
+        if float(np.sqrt(np.mean((start + np.outer(times, slope) - places) ** 2))) > ONE_GOING_PX:
+            return False
+        vx, vy = float(slope[0]), float(slope[1])
+        tall, wide = self.shape
+        for dx, dy in moved.ways_going(thing.y, thing.x, tall, wide):
+            lx, ly = dx * self.view_going, dy * self.view_going
+            if math.hypot(lx, ly) * span < TOLD_FROM_STANDING_PX:
+                continue
+            off = math.hypot(vx - lx, vy - ly)
+            if off < 0.35 * math.hypot(lx, ly) and off < 0.5 * math.hypot(vx, vy):
+                return True
+        return False
 
     def _what_differs(self, small: np.ndarray) -> tuple[np.ndarray, np.ndarray] | None:
         from core.perception.picture_arithmetic import grow
@@ -332,6 +436,19 @@ class WhatMoves:
             return None
         apart = np.abs(small.astype(np.float32) - self._backdrop).max(axis=2)
         strict = (apart > DIFFERENT_ENOUGH).astype(np.uint8)
+        moved = self.view_moved
+        if self.view_is_moving and getattr(moved, "going_by", None) is not None and moved.going_by.shape == strict.shape:
+            # Where the view goes by, a thing is what no layer of the view lays over: moving its own way, or holding
+            # its place on the screen while the view goes by under it. What stood still is told by the backdrop, as
+            # anywhere: a thing that came and stopped there is unlike it.
+            # A thing no layer lays over is told at its edges, for a flat patch is laid over by any layer: it is closed
+            # over, and its pieces a few pixels apart are one.
+            from scipy import ndimage
+
+            own = ndimage.binary_closing(moved.on_its_own, structure=np.ones((3, 3), bool), iterations=CLOSED_OVER)
+            strict = np.where(moved.going_by, own | (moved.standing & strict.astype(bool)), strict.astype(bool)).astype(np.uint8)
+            near = ndimage.binary_dilation(strict, structure=np.ones((3, 3), bool), iterations=CLOSED_OVER + 1)
+            return strict, (grow(strict).astype(bool) | (near & moved.going_by)).astype(np.uint8)
         return strict, grow(strict)
 
     def _blobs(self, small: np.ndarray, masks: tuple[np.ndarray, np.ndarray]) -> list[dict[str, Any]]:
@@ -424,7 +541,7 @@ class WhatMoves:
 
     def _match(self, blobs: list[dict[str, Any]], at: float) -> tuple[dict[int, int], list[int]]:
         pairs = []
-        for number, thing in self.things.items():
+        for number, thing in {**self.things, **self.pending}.items():
             for index, blob in enumerate(blobs):
                 cost = self._cost(thing, blob, at)
                 if cost < math.inf:
@@ -523,7 +640,8 @@ class WhatMoves:
         thing.kind = self._kind_for(thing.look, thing.size, thing.colour)
         thing.path.append((at, thing.x, thing.y))
         thing.least = thing.size  # as it first stands out, before it has left anything behind
-        self.things[thing.number] = thing
+        thing.announced = not self.view_is_moving
+        (self.things if thing.announced else self.pending)[thing.number] = thing
         return thing
 
     # -- one picture -------------------------------------------------------
@@ -533,12 +651,16 @@ class WhatMoves:
         small = self._smaller(np.asarray(picture))
         self.shape = small.shape[:2]
         happened: list[dict[str, Any]] = []
+        self._now = at
+        if self._with_the_view(small):
+            return happened
         if self._a_new_screen(small):
             self._start_again()
             happened.append({"what": "new screen", "at": at})
-            happened.extend(what_happened("gone", thing, at) for thing in self.things.values())
+            happened.extend(what_happened("gone", thing, at) for thing in self.things.values() if thing.announced)
             self.last_box.update({number: thing.box() for number, thing in self.things.items()})
             self.things.clear()
+            self.pending.clear()
         dt = at - self._last_at if self._last is not None else 0.0
         # How long each pixel has stood unchanged, picture to picture.
         if self._last is not None and self._last.shape == small.shape:
@@ -558,12 +680,52 @@ class WhatMoves:
             blobs = self._drawn_objects(scene, small, masks[0])
         matched, fresh = self._match(blobs, at)
         for number, index in matched.items():
-            self._moved(self.things[number], blobs[index], at)
+            self._moved(self.things.get(number) or self.pending[number], blobs[index], at)
+        self._back_into_the_view(dt)
         happened.extend(self._the_unmatched(small, matched, at))
         for index in fresh:
-            happened.append(what_happened("appeared", self._born(blobs[index], at), at))
+            thing = self._born(blobs[index], at)
+            if thing.announced:
+                happened.append(what_happened("appeared", thing, at))
+        happened.extend(self._shown_not_scenery(dt))
         self._drift(small, dt)
         return happened
+
+    def _with_the_view(self, small: np.ndarray) -> bool:
+        """How the view itself moved: where it goes by, the scenery going by is not things coming and going
+        (core/perception/how_the_scenery_goes_by.py). Returns whether the picture is the last one again while the
+        view is going by: nothing has been drawn, and nothing happened.
+
+        The view is measured against the picture drawn two before this one,
+        not the last: scenery going by at a part of a pixel a picture is laid
+        over by standing still as well as by its own going, and over two
+        pictures it has gone far enough to tell. A game draws more slowly than
+        she looks: LIVE 2026-10-09 every other picture of a scrolling town was
+        the one before, and measured against it the view stood still half the
+        time.
+        """
+        from core.perception.how_the_scenery_goes_by import (
+            STILL,
+            how_the_view_moved,
+            the_same_picture,
+        )
+
+        if self._drawn and the_same_picture(self._drawn[-1][1], small):
+            if self.view_is_moving:
+                return True
+        else:
+            self._drawn.append((self._now, small))
+        self.view_moved = STILL
+        if len(self._drawn) < 2:
+            return False
+        then, before = self._drawn[0]
+        measured = how_the_view_moved(before, small)
+        if measured.still:
+            return False
+        # Layers are measured in pixels over the pictures between; this turns them into pixels a second.
+        self.view_going = 1.0 / max(1e-3, self._now - then)
+        self.view_moved, self.view_moved_at = measured, self._now
+        return False
 
     def _drawn_objects(self, scene: dict[str, Any], small: np.ndarray, foreground: np.ndarray) -> list[dict[str, Any]]:
         """Exact painted bounds for foreground objects, checked against their pixels.
@@ -612,8 +774,9 @@ class WhatMoves:
 
     def _the_unmatched(self, small: np.ndarray, matched: dict[int, int], at: float) -> list[dict[str, Any]]:
         happened = []
-        for number in [n for n in self.things if n not in matched]:
-            thing = self.things[number]
+        for number in [n for n in [*self.things, *self.pending] if n not in matched]:
+            kept = self.things if number in self.things else self.pending
+            thing = kept[number]
             if self._still_there(thing, small):
                 thing.x, thing.y = _measured(thing)
                 thing.vx *= 0.5
@@ -623,9 +786,10 @@ class WhatMoves:
                 thing.path.append((at, thing.x, thing.y))
                 continue
             if at - thing.seen >= GONE_AFTER_S:
-                happened.append(what_happened("gone", thing, at))
-                self.last_box[number] = thing.box()
-                del self.things[number]
+                if thing.announced:
+                    happened.append(what_happened("gone", thing, at))
+                    self.last_box[number] = thing.box()
+                del kept[number]
                 continue
             # Not seen, and not gone yet: where its speed has taken it. A
             # ball that runs into a paddle draws as one blob with it for a
