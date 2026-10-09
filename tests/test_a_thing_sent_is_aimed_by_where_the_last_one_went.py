@@ -161,3 +161,44 @@ def test_a_place_that_sent_once_long_ago_and_sends_nothing_now_is_given_up_for_t
     played = asyncio.run(go())
     assert keep.get("sends_from") is not None and math.dist(keep["sends_from"], world.home) < 0.06, keep.get("sends_from")
     assert played["shots"] > 0
+
+
+def test_a_press_that_changes_the_whole_screen_is_a_button_not_a_shot_and_is_not_pressed_as_one_again():
+    """LIVE 2026-10-09 a press on a game's rules screen went back to its title, the title moving into place was taken
+    for a thing sent, and every shot after it pressed START."""
+    from core.agency.playing_by_shots import _places_to_send_from
+
+    world = _World()
+    pressed = {"button": False}
+    looked = world.look
+
+    async def look():
+        picture, at = await looked()
+        if pressed["button"]:
+            picture = picture.copy()
+            picture[:] = (200, 40, 160)                     # another screen altogether
+        return picture, at
+
+    async def press(x, y):
+        if math.dist((x, y), (0.75, 0.3)) < 0.06:            # the dark square is a button here
+            pressed["button"] = True
+        await world.press(x, y)
+
+    world.press_first = world.press
+    keep = {"sends_from": (0.75, 0.3)}
+
+    class _Hands:
+        async def press(self, x, y):
+            await press(x, y)
+
+        async def point(self, x, y):
+            await world.point(x, y)
+
+        async def release(self):
+            await world.release()
+
+    played = asyncio.run(play_by_shots(look, _Hands(), seconds=20.0, keep=keep))
+    assert played["ended"] == "the screen changed" and keep.get("sends_from") is None
+    pressed["button"] = False
+    picture, _ = asyncio.run(look())
+    assert all(math.dist(place, (0.75, 0.3)) > 0.05 for place in _places_to_send_from(picture, keep))

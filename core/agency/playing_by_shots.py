@@ -30,6 +30,9 @@ logger = logging.getLogger("Aura.PlayingByShots")
 
 __all__ = ["play_by_shots", "sends_by_letting_go"]
 
+#: What a press that changed the whole screen is said to have sent: nothing, it was a button.
+NAVIGATED: Any = object()
+
 #: How long after letting go something must have set off for it to have been sent, and the longest a shot is
 #: watched before what it sent is taken to have stopped where it is.
 SETS_OFF_WITHIN_S = 1.0
@@ -103,6 +106,9 @@ async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_
             break
         picture, at = seen
         happened = moves.see(picture, at)
+        if any(event.get("what") == "new screen" for event in happened):
+            # The whole screen changed under the press: a button was pressed, not a thing sent.
+            return NAVIGATED, gained
         tall, wide = moves.shape
         if sent is None and at - let_go_at <= SETS_OFF_WITHIN_S:
             setting_off = [thing for thing in moves.things.values()
@@ -135,10 +141,12 @@ async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_
 
 
 def _places_to_send_from(picture: Any, keep: dict[str, Any]) -> list[tuple[float, float]]:
-    """Where a press might send something from: where it did before, else what stands out on the picture, largest first."""
+    """Where a press might send something from: where it did before, else what stands out on the picture, largest first;
+    never where a press changed the whole screen, which is a button."""
     from core.perception.shapes_that_look_pressable import pressable_shapes
 
     known = keep.get("sends_from")
+    buttons = [tuple(place) for place in keep.get("navigates_from") or ()]
     places: list[tuple[float, float]] = [tuple(known)] if known else []
     for shape in pressable_shapes(picture):
         place = (float(shape.get("center_x", 0.5)), float(shape.get("center_y", 0.5)))
@@ -146,7 +154,7 @@ def _places_to_send_from(picture: Any, keep: dict[str, Any]) -> list[tuple[float
             places.append(place)
     if all(math.dist((0.5, 0.5), other) > 0.05 for other in places):
         places.append((0.5, 0.5))
-    return places
+    return [place for place in places if all(math.dist(place, button) > 0.05 for button in buttons)]
 
 
 async def play_by_shots(
@@ -219,6 +227,14 @@ async def play_by_shots(
         # When it was let go, on the pictures' own clock: the time of the last picture before it, and the act's length.
         let_go_at = seen[1] + (setting.held_s if way == HOLD else PULL_STEPS * 0.015)
         ended_at, gained = await _where_it_went(look, moves, let_go_at, read_words, counters, going_already=going)
+        if ended_at is NAVIGATED:
+            # LIVE 2026-10-09 a press on a game's rules screen went back to its title, the title's moving into place was
+            # taken for a thing sent, and every shot after it pressed START.
+            keep.setdefault("navigates_from", []).append(start)
+            if keep.get("sends_from") is not None and math.dist(tuple(keep["sends_from"]), start) <= 0.05:
+                keep["sends_from"] = None
+            ended = "the screen changed"
+            break
         keep["kinds"] = moves.kinds
         shot = Shot(setting=setting, ended_at=ended_at, gained=gained, aimed_at=aim)
         shots.took(shot)

@@ -327,7 +327,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     deadline = time.monotonic() + (share if until_won or limit > 1 else _one_run_s())
     contract = step.get("runtime_contract") or {}
     keep: dict[str, Any] = {"required_edges": contract.get("required_edges") or [],
-                            "edge_provenance": contract.get("provenance") or "", "stock": _a_stocktaking(goal, page)}
+                            "edge_provenance": contract.get("provenance") or "", "stock": await _a_stocktaking(goal, page)}
     runs: list[dict[str, Any]] = []
     moves: list[Any] = []
     result: dict[str, Any] = {}
@@ -452,10 +452,17 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
 STUCK_HERE = "I'm getting nowhere"
 
 
-def _a_stocktaking(goal: str, page: Any) -> Any:
+async def _a_stocktaking(goal: str, page: Any) -> Any:
+    """Taking stock in the thing on the page, named as the request names it, else by the page's own title: LIVE
+    2026-10-09 asked for a game by its address, she asked the web "how to win https://archive.org/details/...".
+    """
     from core.skills.sovereign_browser_taking_stock import Stocktaking, the_thing
 
-    return Stocktaking(the_thing(goal, str(getattr(page, "url", "") or "")))
+    try:
+        title = str(await page.title() or "")
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        title = ""
+    return Stocktaking(the_thing(goal, title or str(getattr(page, "url", "") or "")))
 
 
 async def _stopped_to_take_stock(why: str, goal: str, reflexes: Any, run: dict[str, Any], runs: list[dict[str, Any]],
