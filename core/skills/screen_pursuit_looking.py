@@ -815,8 +815,9 @@ MOVES_SAID: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextV
 
 
 def _where_the_way_on_was(observation: dict[str, Any], clickable: Any, says: str, paced: Any) -> Any:
-    """A way on read on the screen before ("next"), looked for where it was, on a screen that teaches or has nothing of
-    its own to click and whose own way on cannot be read: a run of screens keeps its way on in one place.
+    """A way on read on the screen before ("next"), looked for where it was, on a screen that teaches, asks her to choose,
+    or has nothing of its own to click, and whose own way on cannot be read: a run of screens keeps its way on in one
+    place. LIVE 2026-10-09 a choice of players drew its "next" faded until a choice was made, and she never read it.
 
     LIVE 2026-10-09 a game's welcome had "next" she could read; its putter lesson, after it, drew the same "back" and
     "next" in letters of which she read only "back", and she went back and forth between the two for a round.
@@ -824,21 +825,23 @@ def _where_the_way_on_was(observation: dict[str, Any], clickable: Any, says: str
     from core.agency.what_i_can_do_here import THE_PICTURE, a_click_on, what_is_clicked
     from core.language.a_way_on import how_much_it_leads_on
 
-    from .screen_pursuit_as_it_happens import reads_as_rules
+    from .screen_pursuit_as_it_happens import asks_to_choose, reads_as_rules
     from .screen_pursuit_bearings import where_to_click
 
     if not isinstance(paced, dict):
         return clickable
     labels = [what_is_clicked(move) or "" for move in clickable]
     ways_on = [label for label in labels if how_much_it_leads_on(label) >= 1.4 and not label.startswith("the ")]
-    if ways_on:
+    choosing = asks_to_choose(says)
+    # On a screen that asks her to choose, the choices are not its way on: what goes on after a choice is.
+    if ways_on and not choosing:
         at = where_to_click(observation, ways_on[0])
         if at is not None:
             paced["way_on_at"] = (ways_on[0], at, says)
         return clickable
     held = paced.get("way_on_at")
     own = [label for label in labels if label and label != THE_PICTURE]
-    if not held or held[2] == says or held[0] in labels or not (reads_as_rules(says) or not own):
+    if not held or held[2] == says or held[0] in labels or not (reads_as_rules(says) or choosing or not own):
         return clickable
     label, (x, y), _said = held
     observation.setdefault("shapes", []).append({"text": label, "center_x": x, "center_y": y, "shape": True})

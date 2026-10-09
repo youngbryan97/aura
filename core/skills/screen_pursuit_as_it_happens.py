@@ -77,6 +77,11 @@ def reads_as_rules(said: str) -> bool:
     return bool(_RULES.search(said or ""))
 
 
+def asks_to_choose(said: str) -> bool:
+    """Whether a screen's words ask her to choose something: a player, a ball, a level, a character."""
+    return bool(_CHOOSE.search(said or ""))
+
+
 #: The ways the reflexes play, as core/agency/the_way_it_is_played.py names them.
 SEND_WAY, AS_IT_HAPPENS_WAY = "send", "as it happens"
 
@@ -347,7 +352,7 @@ class PlayingAsItHappens:
         title, welcome and lesson for a round without reaching the course.
         """
         said = self.words[-1] if self.words else ""
-        return self.way_on_shown or reads_as_rules(said) or bool(_CHOOSE.search(said))
+        return self.way_on_shown or reads_as_rules(said) or asks_to_choose(said)
 
     def held_to(self) -> Any:
         """The way she has taken up in this game, kept across its rounds (core/agency/the_way_it_is_played.py)."""

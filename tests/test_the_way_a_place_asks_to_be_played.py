@@ -218,3 +218,16 @@ def test_inside_a_thing_handed_over_its_own_dialog_is_gone_on_through_not_the_en
         assert decide() == (_FALL_THROUGH, "")                                       # a game's own dialog: gone on
     finally:
         REFLEXES.reset(token)
+
+
+def test_a_way_on_is_looked_for_where_it_was_on_a_screen_that_asks_her_to_choose():
+    """LIVE 2026-10-09 a choice of players drew its "next" faded until a choice was made, and she never read it."""
+    from core.agency.what_i_can_do_here import a_click_on
+    from core.skills.screen_pursuit_looking import _where_the_way_on_was
+
+    paced: dict = {}
+    welcome = {"layout": [{"text": "next", "center_x": 0.86, "center_y": 0.72}]}
+    _where_the_way_on_was(welcome, (a_click_on("next"),), "Welcome to the island", paced)
+    choose = {"layout": [{"text": "1 Player", "center_x": 0.4, "center_y": 0.55}, {"text": "back", "center_x": 0.7, "center_y": 0.72}]}
+    offered = _where_the_way_on_was(choose, (a_click_on("1 Player"), a_click_on("back")), "Please Select Number Of Players", paced)
+    assert a_click_on("next") in offered
