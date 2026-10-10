@@ -39,7 +39,11 @@ class FollowsThePointer:
         pointer at every turn and falls short of the test (offline
         2026-10-04, bounce). Each delay is a separate try; the best stands.
         """
-        from core.agency.which_one_answers_to_her import POINTER_LAGS_S, _measured_along
+        from core.agency.which_one_answers_to_her import (
+            POINTER_LAGS_S,
+            _chases_along,
+            _measured_along,
+        )
 
         best: list[bool | None] = [None, None]
         for lag in POINTER_LAGS_S:
@@ -49,6 +53,11 @@ class FollowsThePointer:
             for axis, value in enumerate(_measured_along(pairs, extent)):
                 if value or (value is False and best[axis] is None):
                     best[axis] = value
+            # Or it heads for where the pointer is at a pace of its own (eased, or kept to a lane).
+            if lag == 0.0:
+                for axis, value in enumerate(_chases_along(pairs)):
+                    if value:
+                        best[axis] = True
         return best[0], best[1]
 
     def _what_follows_the_pointer(self, moves: Any, at: float) -> None:

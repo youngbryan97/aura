@@ -349,6 +349,35 @@ def _measured_along(pairs: list[tuple[float, float, float, float]], extent: tupl
     return along[0], along[1]
 
 
+def _chases_along(pairs: list[tuple[float, float, float, float]]) -> tuple[bool | None, bool | None]:
+    """Along which axes a thing heads for where the pointer is, at its own pace: whenever it moves along the axis, it
+    moves toward the pointer, and it has gone both ways as the pointer went from one side of it to the other. A boat
+    the mouse steers eases toward the mouse, or keeps to its lane, and is never under it: LIVE 2026-10-10 "Nothing here
+    follows the mouse" of a boat that did, and its game was lost. A paddle chasing a ball while the pointer is swept
+    is not heading for the pointer. None where it cannot be told."""
+    import numpy as np
+
+    data = np.asarray(pairs[-60:], dtype=np.float64)
+    along: list[bool | None] = []
+    for axis in (0, 1):
+        went = np.diff(data[:, 2 + axis])
+        toward = data[:-1, axis] - data[:-1, 2 + axis]
+        use = (np.abs(went) > CHASE_STEP_PX) & (np.abs(toward) > CHASE_GAP_PX)
+        if use.sum() < CHASE_SAMPLES or min((toward[use] > 0).sum(), (toward[use] < 0).sum()) < CHASE_SAMPLES // 3:
+            along.append(None)
+            continue
+        along.append(float(np.mean(np.sign(went[use]) == np.sign(toward[use]))) >= CHASE_SHARE)
+    return along[0], along[1]
+
+
+#: How far a thing must go in a picture, and stand from the pointer, for its going to say whether it heads for it; how
+#: many such pictures at least; and in what share of them it must go toward the pointer.
+CHASE_STEP_PX = 0.5
+CHASE_GAP_PX = 3.0
+CHASE_SAMPLES = 9
+CHASE_SHARE = 0.85
+
+
 #: Delays at which a page may answer the pointer, in seconds.
 POINTER_LAGS_S = (0.0, 0.05, 0.1, 0.2)
 
