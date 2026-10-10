@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any
@@ -207,6 +208,11 @@ class Rules:
     unanswered_steps: dict[str, int] = field(default_factory=dict)
     asking: Any = None
     unanswered: int = 0
+    #: The passages understood on an earlier visit (recalled, not read now), and when each new passage was heard.
+    recalled: set[str] = field(default_factory=set)
+    heard_times: list[float] = field(default_factory=list)
+    #: Whether watching a lesson play has been said.
+    said_watching: bool = False
 
     def hear(self, passages: Iterable[str]) -> list[str]:
         """Passages the place showed, in order: kept, and read at once where one like it was read before; a passage
@@ -217,8 +223,10 @@ class Rules:
             if len(text.split()) < FEWEST_WORDS or text in self.heard or self._within_one_heard(text):
                 continue
             self.heard.append(text)
+            self.heard_times.append(time.monotonic())
             known = store.get(_key(text)) or _like(store, text)
             if known is not None:
+                self.recalled.add(text)
                 at = len(self.heard) - 1
                 for part, held in enumerate((known if isinstance(known, list) else [known])[:STEPS_A_PASSAGE]):
                     frame = Frame(**{**_held_to(text, _as_fields(held)), "sentence": text, "part": part,
@@ -314,12 +322,36 @@ class Rules:
                 return frame
         return None
 
+    def seen_before(self) -> bool:
+        """Whether everything this place has shown her she had understood on an earlier visit: a lesson she has seen."""
+        return bool(self.heard) and all(p in self.recalled for p in self.heard)
+
     def passes_over_what_it_teaches(self, move: str) -> bool:
-        """Whether a move skips the place's teaching while she has no lesson of it: she reads what it teaches first."""
+        """Whether a move skips the place's teaching on a visit where the teaching is new to her: a person watches a
+        lesson through the first time and skips only one they have seen. LIVE 2026-10-10 she pressed a game's SKIP
+        INSTRUCTIONS twice, the second time because a menu's words had already given her steps."""
         from core.agency.what_i_can_do_here import what_is_clicked
 
         clicked = what_is_clicked(move)
-        return bool(clicked) and not self.steps() and skips_the_teaching(clicked)
+        return bool(clicked) and not self.seen_before() and skips_the_teaching(clicked)
+
+    def a_lesson_plays(self, labels: Iterable[str], now: float | None = None) -> bool:
+        """Whether a lesson new to her is playing on the screen: it offers to skip its teaching, she has not seen it,
+        and it showed new words within its own beat (how long it has kept each of its captions up). Then she reads, and
+        presses nothing; once it stops giving new words, what it said is done (an interactive lesson waits for her)."""
+        if self.seen_before() or not any(skips_the_teaching(label) for label in labels if label):
+            return False
+        now = time.monotonic() if now is None else now
+        return bool(self.heard_times) and now - self.heard_times[-1] < self.beat()
+
+    def beat(self) -> float:
+        """How long the place keeps one caption up: half again the usual gap between its new passages, at least as long
+        as a scene takes to be seen to have ended, at most as long as anything is watched."""
+        from core.perception.watching_it_happen import SCENE_ENDS_AFTER_S, WATCH_AT_MOST_S
+
+        gaps = sorted(b - a for a, b in zip(self.heard_times, self.heard_times[1:], strict=False))
+        usual = gaps[len(gaps) // 2] if gaps else 0.0
+        return min(WATCH_AT_MOST_S, max(2 * SCENE_ENDS_AFTER_S, 1.5 * usual))
 
     def forbids(self, move: str) -> bool:
         """Whether a rule says never to do what a move does."""

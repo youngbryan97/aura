@@ -59,7 +59,7 @@ def worlds_it_belongs_to(thing: str, *, said_of_it: list[str] = ()) -> list[str]
     names.append(thing)
     out: list[str] = []
     for name in names:
-        key = re.sub(r"[^a-z0-9]", "", name.lower())
+        key = re.sub(r"[^a-z0-9]", "", name.lower().replace("&", " and "))
         if 3 <= len(key) <= 40 and key not in out and key not in ("flash", "games", "game", "software"):
             out.append(key)
     return out

@@ -150,9 +150,27 @@ def test_on_a_first_visit_she_reads_what_a_place_teaches_rather_than_skip_it():
         guide.rules.hear(["Drag a device to the room."])
         guide.rules.took([Frame("Drag a device to the room.", act="carry", thing="a device", where="the room")])
         valued = _the_lesson_first({'click "SKIP INSTRUCTIONS"': 0.709, 'click "the shape at 75% across, 5% down"': 0.644})
-        assert valued['click "SKIP INSTRUCTIONS"'] == 0.709                     # once she knows the lesson, skip is fine
+        assert valued['click "SKIP INSTRUCTIONS"'] < 0.1                        # read this visit: still new to her
     finally:
         THE_GUIDE.reset(token)
+    again = Guide(place="a place of devices")                                    # a later visit: seen before
+    again.rules.hear(["Drag a device to the room."])
+    token = THE_GUIDE.set(again)
+    try:
+        valued = _the_lesson_first({'click "SKIP INSTRUCTIONS"': 0.709, 'click "the shape at 75% across, 5% down"': 0.644})
+        assert valued['click "SKIP INSTRUCTIONS"'] == 0.709
+    finally:
+        THE_GUIDE.reset(token)
+
+
+def test_while_a_new_lesson_plays_she_reads_it_and_once_it_stops_giving_words_she_acts():
+    rules = Rules()
+    rules.hear(["Click here to open the device library."])
+    shown = ["SKIP INSTRUCTIONS", "DEVICE LIBRARY"]
+    began = rules.heard_times[-1]
+    assert rules.a_lesson_plays(shown, now=began + 1.0)
+    assert not rules.a_lesson_plays(["DEVICE LIBRARY"], now=began + 1.0)          # no lesson offered to be skipped
+    assert not rules.a_lesson_plays(shown, now=began + rules.beat() + 0.1)      # it waits for her: she acts
 
 
 def test_a_screen_whose_lesson_is_laid_out_around_its_controls_is_read_whole_into_its_steps():

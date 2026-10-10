@@ -69,6 +69,8 @@ class Stocktaking:
     """Taking stock in one thing: how often, the counsel in force, and the runs it is judged by."""
 
     thing: str
+    #: Where the thing is: its record there is one of what others wrote of it (core/skills/what_others_wrote.py).
+    url: str = ""
     taken: int = 0
     counsel: Any = None
     at_run: int = 0
@@ -127,7 +129,7 @@ class Stocktaking:
                                     on_its_page=_named_on_its_page),
             # And where people wrote of it: its record where it is kept, its fans' wiki, players' questions.
             "what others wrote": from_what_others_wrote(lambda seconds: what_others_wrote(
-                self.thing, seconds, kind=kind, on_its_page=_named_on_its_page)),
+                self.thing, seconds, url=self.url, kind=kind, on_its_page=_named_on_its_page)),
             "my model": from_her_model(ask_her_model),
         }
         counsel = helped.without_what_did_not(await take_stock(situation, sources, seconds=seconds))

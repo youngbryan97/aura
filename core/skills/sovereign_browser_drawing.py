@@ -462,7 +462,7 @@ async def _a_stocktaking(goal: str, page: Any) -> Any:
         title = str(await page.title() or "")
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
         title = ""
-    return Stocktaking(the_thing(goal, title or str(getattr(page, "url", "") or "")))
+    return Stocktaking(the_thing(goal, title or str(getattr(page, "url", "") or "")), url=str(getattr(page, "url", "") or ""))
 
 
 async def _stopped_to_take_stock(why: str, goal: str, reflexes: Any, run: dict[str, Any], runs: list[dict[str, Any]],

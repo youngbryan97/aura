@@ -25,10 +25,11 @@ LINES = ["SWITCH ROOMS", "SWITCH ROOMS", "TEST TRAP", "P", "i", "c", "k", "the t
 
 def test_a_programs_lines_are_read_as_its_user_reads_them():
     runs = _runs(LINES)
-    assert "click here to open THE device Library choose the type of device you wish to use CONTINUE ADDING " \
-           "Additional DEVICES … UNTIL YOU are ready to test the trap!" in runs
-    assert any(r.endswith("mouse trap … AND toM NEEDS YOUR HELP TO buILD a Trap to the cage that WiLL catch Jerry!")
-               for r in runs)
+    assert "click here to open THE device Library choose the type of device you wish to use" in runs
+    assert "Additional DEVICES … UNTIL YOU are ready to test the trap!" in runs
+    assert "the trap-o-matic starts with this mouse trap … AND toM NEEDS YOUR HELP TO buILD a Trap to the cage that " \
+           "WiLL catch Jerry!" in runs
+    assert "SWITCH ROOMS" in runs and "TEST TRAP" in runs                       # controls' labels stand alone
     assert not any(" P i c k " in r for r in runs)                              # a title drawn a letter at a time
 
 

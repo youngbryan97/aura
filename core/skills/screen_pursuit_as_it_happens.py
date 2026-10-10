@@ -496,6 +496,11 @@ class PlayingAsItHappens:
         from core.cognition.what_this_place_is import done_by_its_lesson, not_steered
 
         done_by = not_steered(guide) if guide is not None and not named and not pointer_first else ""
+        if guide is not None and guide.rules.a_lesson_plays(self.labels_seen):
+            # A lesson new to her is playing: it is read, not played (core/cognition/reading_the_rules.py).
+            logger.info("a lesson is playing: reading it, not playing it")
+            self.quiet_until = time.monotonic() + guide.rules.beat()
+            return
         # What its lesson asks is said by the place itself, and outweighs a key a screen happened to name.
         done_by = done_by or done_by_its_lesson(guide)
         if done_by:

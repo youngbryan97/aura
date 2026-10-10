@@ -64,8 +64,8 @@ def test_a_plan_is_made_of_what_the_place_has_and_says_each_step_as_a_use():
     assert [f.sentence for f in plan.steps()] == ["Open the device library",
                                                   "Put a roller at the end of the mouse trap's arrow",
                                                   "Turn it toward the cage", "Test the trap"]
-    assert said and said[0].startswith("To get the cage drops on Jerry, starting from the mouse trap: using DEVICE "
-                                       "LIBRARY to see what I can use; then using a roller to carry the action")
+    assert said and said[0].startswith("What I'm after: the cage drops on Jerry. It starts from the mouse trap. My plan: "
+                                       "using DEVICE LIBRARY to see what I can use; then using a roller to carry the action")
     thinking = guide.for_thinking()
     assert "What I can use: a roller (rolls the way its arrow points; works with the end of the arrow)" in thinking
     assert "a launcher (throws what lands on it; not on its own)" in thinking

@@ -190,6 +190,31 @@ def _the_lesson_first(valued: dict[str, float]) -> dict[str, float]:
     return out
 
 
+async def _the_screen_taken_in_while_a_lesson_plays(can_do: Any, observation: dict[str, Any], drawn_where: Any,
+                                                    narrate: bool, no_move: dict[str, str]) -> bool:
+    """What can be clicked in the thing she was sent to play, as it is now, taken in; and whether a lesson new to her
+    is playing on it (core/cognition/reading_the_rules.py), when she reads it and presses nothing, a look at a time,
+    said once a lesson. LIVE 2026-10-10 a game's instructions played as a clip of captions, and she clicked the shapes
+    in it and its SKIP INSTRUCTIONS."""
+    from core.agency.what_i_can_do_here import what_is_clicked
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    _take_in_the_screen(can_do, observation, drawn_where, narrate)
+    guide = THE_GUIDE.get()
+    rules = getattr(guide, "rules", None)
+    labels = [what_is_clicked(move) or "" for move in getattr(can_do, "on_screen", ()) or ()]
+    if rules is None or not rules.a_lesson_plays(labels):
+        return False
+    if narrate and not getattr(rules, "said_watching", False):
+        from .screen_pursuit import _tell
+
+        rules.said_watching = True
+        _tell("The instructions are playing; I'm reading them through before I touch anything.")
+    await asyncio.sleep(min(rules.beat(), 4.0))
+    no_move["because"] = "a lesson new to her is playing; she reads it and presses nothing"
+    return True
+
+
 def _with_the_guide(learned: Any, *, brief: bool = False) -> list[str]:
     """What she has learned here, and what the guide to where she is holds (core/cognition/a_guide_to_a_place.py): how
     it is worked, what it wants, what changed. Hers to reason with when settling on a line, and, in brief, when choosing
@@ -651,8 +676,8 @@ async def decide_the_next_move(
         return _left__
 
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
-    # What can be clicked in the thing she was sent to play, as it is now.
-    _take_in_the_screen(can_do, observation, drawn.get("where"), narrate)
+    if await _the_screen_taken_in_while_a_lesson_plays(can_do, observation, drawn.get("where"), narrate, no_move):
+        return None
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
     answering, lattice = _decide_the_next_move_part_4(
         knows, lattice, move_keys, responds, skilled=skilled, world=world,

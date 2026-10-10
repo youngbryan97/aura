@@ -190,7 +190,8 @@ def _acts_keyed(names: list[str]) -> list[str]:
 _HOW_IT_IS_WORKED = re.compile(
     r"\b(?:press|click|hold|use|tap|drag|move|steer|jump|shoot|fire|aim|avoid|collect|catch|dodge|grab|keys?|mouse|"
     r"arrows?|space ?bar|instructions|how to play|controls?|goal|object of|try to|don'?t let|watch out|lives|health|"
-    r"score|points|timer?|level|power[- ]?ups?|bonus|to (?:move|jump|shoot|start|play|pause|switch|win))\b", re.I)
+    r"score|points|timer?|level|power[- ]?ups?|bonus|to (?:move|jump|shoot|start|play|pause|switch|win)|"
+    r"add(?:ing)?|build|place|connect\w*|test|choose|select|open|rotate|turn|delete|until)\b", re.I)
 #: What would spoil it or play it for her: cheats, debugging, answers, solutions, secrets.
 _SPOILS = re.compile(r"\b(?:cheats?|debug\w*|password|secret|answers? (?:is|are)|solution|walkthrough|skip (?:to|level)|"
                      r"god ?mode|unlock (?:all|every)|correct answer|hack)\b", re.I)
@@ -208,12 +209,29 @@ def _runs(texts: list[str]) -> list[str]:
     ends. LIVE 2026-10-10 a game's lesson was held as twenty-nine lines ("choose the", "type of device", "you wish to
     use"), and each line was judged alone: six were kept, and the steps between them were lost. A piece of one letter
     (a title drawn a letter at a time) and a line said twice running are no part of a sentence."""
-    lines: list[str] = []
-    for text in texts:
-        said = " ".join(re.sub(r"<[^>]+>", " ", str(text or "")).split())
-        if len(re.findall(r"[A-Za-z0-9]", said)) < 2 or (lines and lines[-1] == said):
+    from collections import Counter
+
+    lines = [" ".join(re.sub(r"<[^>]+>", " ", str(text or "")).split()) for text in texts]
+    lines = [line for line in lines if len(re.findall(r"[A-Za-z0-9]", line)) >= 2]
+    times = Counter(lines)
+    out: list[str] = []
+    run: list[str] = []
+    for line in lines:
+        # A control's label is no line of a sentence: drawn again for each of its states, or a word or three in
+        # capitals with no stop ("SWITCH ROOMS", "TEST TRAP"). It stands alone, and ends the run before it.
+        label = times[line] > 1 or (len(line.split()) <= 3 and line == line.upper()
+                                    and not re.search(r"^(?:\.\.\.|…)|[.!?…]$", line))
+        if label:
+            out += _sentences_of(run)
+            run = []
+            if line not in out:
+                out.append(line)
             continue
-        lines.append(said)
+        run.append(line)
+    return out + _sentences_of(run)
+
+
+def _sentences_of(lines: list[str]) -> list[str]:
     joined = re.sub(r"\.\.\.\s+\.\.\.", " … ", " ".join(lines))
     return [s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[^.\s])", joined) if s.strip()]
 

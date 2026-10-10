@@ -63,7 +63,8 @@ def the_telling_part(read: Any) -> str:
     seen: set[str] = set()
     where = ""
     for line in code:
-        text = " ".join(line.split())
+        # Braces are left out: written-out bodies ("{...}") say nothing, and an answer that echoed one was read as empty.
+        text = " ".join(line.replace("{...}", "").replace("{", "").replace("}", "").split())
         if text.startswith("//"):
             where = text
             continue
@@ -118,7 +119,8 @@ async def what_the_code_says(place: str, excerpt: str, ask: Callable[..., Awaita
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("the code of %r could not be read: %s", place, str(why)[:160])
         return None
-    return _without_spoilers(got.model_dump()) if got is not None and hasattr(got, "model_dump") else None
+    manual = _without_spoilers(got.model_dump()) if got is not None and hasattr(got, "model_dump") else None
+    return manual if manual and any(manual.values()) else None
 
 
 def _without_spoilers(manual: dict[str, Any]) -> dict[str, Any]:

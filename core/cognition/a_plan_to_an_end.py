@@ -88,6 +88,8 @@ class Plan(Rules):
         for f in self.steps():
             used = f.thing or f.using
             why = f.for_what or (f"to {f.where}" if f.where else "")
+            if why and not re.match(r"(?:to|so|for|in order|until)\b", why, re.I):
+                why = f"to {_lower(why)}"
             out.append(f"using {used} {why}".strip() if used else f.sentence)
         return out
 
@@ -95,9 +97,10 @@ class Plan(Rules):
         uses = self.as_uses()
         if not uses:
             return ""
-        lead = f"To get {_lower(self.end)}, starting from {_lower(self.start)}" if self.end and self.start else (
-            f"To get {_lower(self.end)}" if self.end else "My plan")
-        return f"{lead}: " + "; then ".join(uses[:4]) + ("; and so on." if len(uses) > 4 else ".")
+        lead = " ".join(p for p in (f"What I'm after: {_lower(self.end)}." if self.end else "",
+                                     f"It starts from {_lower(self.start)}." if self.start else "") if p)
+        return (f"{lead} " if lead else "") + "My plan: " + "; then ".join(uses[:4]) + ("; and so on." if len(uses) > 4
+                                                                                        else ".")
 
     def for_thinking(self) -> str:
         steps = self.steps()
