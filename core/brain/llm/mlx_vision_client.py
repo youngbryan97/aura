@@ -287,11 +287,16 @@ class MLXVisionClient:
                     return True
                 from core.brain.llm.model_registry import get_model_runtime_assignment
 
+                # Claimed under what the registry RESOLVED the model to, as the assignment is bound to it: a model
+                # named by its id ("mlx-community/...") resolves to its artifact path, and a claim under the id was
+                # refused by the very assignment it carried. LIVE 2026-10-09 every look of her eyes failed so, and
+                # no thing she played among was ever seen as anything (core/brain/llm/mlx_client.py does the same).
+                assignment = get_model_runtime_assignment(self.model_path)
                 claim = LaneClaim(
                     owner_id=self._lane_owner_id,
-                    model_path=self.model_path,
+                    model_path=assignment.model_path,
                     request_gb=estimate_model_job_footprint_gb(
-                        self.model_path,
+                        assignment.model_path,
                         purpose="serve",
                     ),
                     purpose="serve",
@@ -299,7 +304,7 @@ class MLXVisionClient:
                     preemptible=True,
                     foreground=True,
                     request_id=f"vision-model-{uuid.uuid4()}",
-                    runtime_assignment=get_model_runtime_assignment(self.model_path),
+                    runtime_assignment=assignment,
                     metadata={"owner": "MLXVisionClient", "modality": "vision"},
                 )
                 lane_controller, lane_decision = await prepare_model_lane_claim(

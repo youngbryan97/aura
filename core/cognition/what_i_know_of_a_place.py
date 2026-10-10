@@ -130,5 +130,6 @@ def _what_it_added(manual: dict[str, Any], filled: list[str]) -> str:
 
 
 def _lower(text: str) -> str:
-    said = " ".join(str(text or "").split()).rstrip(".")
-    return said[:1].lower() + said[1:] if said[:2] != said[:2].upper() else said
+    from core.language.words_of_the_language import as_said_inside
+
+    return as_said_inside(text)

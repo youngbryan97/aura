@@ -16,7 +16,7 @@ import threading
 from functools import cache
 from pathlib import Path
 
-__all__ = ["the_word", "words_of"]
+__all__ = ["as_said_inside", "the_word", "words_of"]
 
 #: Where a system keeps its word list.
 _LISTS = (Path("/usr/share/dict/words"), Path("/usr/share/dict/web2"))
@@ -135,6 +135,36 @@ def the_word(read: str) -> str | None:
                 return fixed
             start = plain.find(wrong, start + 1)
     return _spelled(re.sub(r"[^A-Za-z]", "", str(read or "").strip()) if plain.isalpha() else plain)
+
+
+@cache
+def _spelled_as_listed() -> tuple[frozenset[str], frozenset[str]]:
+    """The system's word list as it spells its words: the ones it lists in small letters, and the ones it lists with a
+    capital (names: Dexter, Ed)."""
+    for listed in _LISTS:
+        try:
+            words = [w.strip() for w in listed.read_text("utf-8", errors="ignore").splitlines() if w.strip()]
+        except OSError:
+            continue
+        return frozenset(w for w in words if w.islower()), frozenset(w.lower() for w in words if w[:1].isupper())
+    return frozenset(), frozenset()
+
+
+def as_said_inside(text: str) -> str:
+    """A sentence as it is said inside another: its first word in small letters where it is a word of the language and
+    not a name or a short form ("A hamster game" is "a hamster game"; "Dr. Fruitenstein", "NBA 2K" and "I" stay)."""
+    said = " ".join(str(text or "").split()).rstrip(".")
+    first = re.match(r"[A-Za-z]+", said)
+    if not first:
+        return said
+    word = first.group(0)
+    if word == "I" or (len(word) >= 2 and word.isupper()):
+        return said
+    common, named = _spelled_as_listed()
+    lower = word.lower()
+    if word == "A" or (_is_known(lower, common) and lower not in named) or not common:
+        return said[:1].lower() + said[1:]
+    return said
 
 
 def words_of(name: str, *, most: int = 2) -> str | None:

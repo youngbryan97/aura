@@ -206,3 +206,28 @@ def test_what_she_works_with_is_found_by_a_name_that_shares_what_it_is():
     moves = SimpleNamespace(things={1: SimpleNamespace(kind=0, x=40.0, y=150.0, w=20.0, h=40.0)}, kinds=kinds,
                             share=lambda x, y: (x / 320, y / 240))
     assert where_seen(guide, moves, "giant slingshot") == [(40 / 320, 150 / 240)]
+
+
+def test_a_sentence_said_inside_another_starts_small_unless_it_starts_with_a_name():
+    from core.language.words_of_the_language import as_said_inside
+
+    assert as_said_inside("A hamster launching game.") == "a hamster launching game"
+    assert as_said_inside("Getting caught by Dr. Fruitenstein") == "getting caught by Dr. Fruitenstein"
+    assert as_said_inside("Dr. Fruitenstein catches you") == "Dr. Fruitenstein catches you"
+    assert as_said_inside("NBA 2K on a court") == "NBA 2K on a court"
+    place = WhatThisPlaceIs()
+    assert "it's about a hamster launching game" in place.take(Reading(about="A hamster launching game", rests_on=SAID))
+
+
+def test_her_eyes_claim_their_lane_under_the_model_the_registry_resolved():
+    # LIVE 2026-10-09 every look of her eyes was refused: the lane was claimed under the model's id and the assignment
+    # it carried was bound to the id's resolved path.
+    import inspect
+
+    from core.brain.llm import mlx_vision_client
+    from core.brain.llm.model_registry import get_model_runtime_assignment
+
+    assignment = get_model_runtime_assignment(mlx_vision_client.DEFAULT_VISION_MODEL)
+    assignment.assert_bound_to(model_path=assignment.model_path, purpose="serve")
+    source = inspect.getsource(mlx_vision_client.MLXVisionClient.start_async)
+    assert "model_path=assignment.model_path" in source and "runtime_assignment=assignment" in source
