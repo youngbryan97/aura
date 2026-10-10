@@ -85,10 +85,14 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
     
     try:
         import mlx.core  # noqa: F401
+
+        # Before mlx-vlm is imported: it makes its generation stream on whatever device is the default when it is,
+        # and a stream made on the CPU stays there whatever the default becomes after (LIVE 2026-10-10, the model
+        # "loaded on the GPU" and every look still multiplied on the CPU).
+        _on_the_gpu()
         from mlx_vlm import load, generate
         from mlx_vlm.utils import load_config
 
-        _on_the_gpu()
         if _bind_wired_limit_to_this_device():
             logger.info("This worker's device has no wired working set: mlx-vlm's wired-memory guard is not used.")
         logger.info("Loading Vision Model: %s", model_path)
