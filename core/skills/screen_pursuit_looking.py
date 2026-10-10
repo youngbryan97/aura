@@ -851,6 +851,20 @@ def _where_the_way_on_was(observation: dict[str, Any], clickable: Any, says: str
     return (*clickable, a_click_on(label))
 
 
+def _the_place_its_words_name(observation: dict[str, Any], clickable: Any, can_do: Any) -> Any:
+    """Where its words say things are carried to ("the end of another device's arrow"), as her eyes found it on the
+    screen (core/perception/where_the_words_point.py): a place to carry things to, though no writing is there."""
+    from core.agency.what_i_can_do_here import a_click_on
+    from core.perception.where_the_words_point import PLACES
+
+    place = str(getattr(can_do, "place_named", "") or "")
+    at = PLACES.where(place) if place and getattr(can_do, "carrying_said", False) else None
+    if at is None or a_click_on(place) in clickable:
+        return clickable
+    observation.setdefault("shapes", []).append({"text": place, "center_x": at[0], "center_y": at[1], "shape": True})
+    return (*clickable, a_click_on(place))
+
+
 def _what_paused_it(observation: dict[str, Any], clickable: Any, can_do: Any, paced: Any) -> Any:
     """On a screen that says it is paused, the click of hers that paused it, where she clicked it, though it is not read
     there now: a pause is let go by what made it."""
@@ -881,6 +895,7 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     clickable, says, paced = things_to_click(observation, drawn_where), what_it_says(observation, drawn_where), MOVES_SAID.get()
     clickable = _where_the_way_on_was(observation, clickable, says, paced)
     clickable = _what_paused_it(observation, clickable, can_do, paced)
+    clickable = _the_place_its_words_name(observation, clickable, can_do)
     clickable = _as_the_guide_reads_it(clickable, says, paced, narrate)
     # Her bearings here (core/cognition/her_bearings.py): what tells her what to do, what stands out, and what would
     # take her away from the thing, which is not offered at all.

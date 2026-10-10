@@ -1399,6 +1399,10 @@ async def _read_until_settled(
         from core.perception.shapes_that_look_pressable import pressable_shapes
 
         reading["shapes"] = await asyncio.to_thread(pressable_shapes, picture, apart_from=reading.get("layout") or ())
+        # The screen standing still, for her eyes to find a place its words name (core/perception/where_the_words_point.py).
+        from core.perception.where_the_words_point import remember_the_still_picture
+
+        remember_the_still_picture(picture)
         # How each looks, so what a place showed can be told alike or not from what another did (how_a_place_looks.py).
         from core.perception.how_a_place_looks import look_of
 

@@ -8,7 +8,9 @@ Search engines are asked in turn. One that refuses or answers with a challenge
 ("are you a robot?") is not argued with; the next is asked. LIVE 2026-10-09 one
 engine answered every question by its first word alone ("how to win ..."
 returned a page about archive software), and another asked to be shown a human;
-a third answered as it answers anyone.
+a third answered as it answers anyone. LIVE 2026-10-10 the one that had answered
+answered "Tom's Trap-O-Matic" with a talking-cat app: the page a search engine
+makes for browsers without scripts is asked first, and found the game.
 """
 from __future__ import annotations
 
@@ -53,6 +55,18 @@ def _yahoo(text: str) -> list[tuple[str, str]]:
     return found
 
 
+def _duckduckgo(text: str) -> list[tuple[str, str]]:
+    """Each result of the page made for browsers without scripts: its heading, and where its link goes."""
+    found: list[tuple[str, str]] = []
+    for href, heading in re.findall(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', text, re.S):
+        href = html.unescape(href)
+        url = urllib.parse.parse_qs(urllib.parse.urlparse(href).query).get("uddg", [href])[0]
+        title = " ".join(html.unescape(re.sub(r"<[^>]+>", " ", heading)).split())
+        if url.startswith("http") and "duckduckgo.com" not in url and title:
+            found.append((title, url))
+    return found
+
+
 def _bing(text: str) -> list[tuple[str, str]]:
     from core.capabilities.browser_controller import _bing_results_in
 
@@ -61,6 +75,7 @@ def _bing(text: str) -> list[tuple[str, str]]:
 
 #: Where to search, in turn: the address with the query in it, and how to read the results.
 ENGINES: tuple[tuple[str, str, Callable[[str], list[tuple[str, str]]]], ...] = (
+    ("duckduckgo", "https://html.duckduckgo.com/html/?q={q}", _duckduckgo),
     ("yahoo", "https://search.yahoo.com/search?p={q}", _yahoo),
     ("bing", "https://www.bing.com/search?q={q}&setlang=en-US", _bing),
 )
@@ -92,7 +107,8 @@ async def search_and_read(query: str, seconds: float, *, pages: int = PAGES) -> 
             except Exception as why:  # noqa: BLE001 - an engine that does not answer is asked no more
                 logger.info("%s did not answer: %s", name, str(why)[:120])
                 continue
-            if answer.status_code >= 400 or _CHALLENGED.search(answer.text[:4000]):
+            # Anything but a plain answer (a 202 asks to be asked more slowly) is taken as no, and the next is asked.
+            if answer.status_code != 200 or _CHALLENGED.search(answer.text[:4000]):
                 logger.info("%s would not answer a search from here (%s)", name, answer.status_code)
                 continue
             hits = read(answer.text)

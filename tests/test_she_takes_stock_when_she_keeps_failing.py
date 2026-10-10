@@ -159,3 +159,23 @@ def test_before_play_a_manual_is_gathered_and_a_blurb_is_not_how_to_play():
     texts = [h.text for h in kept]
     assert not any(t.startswith("Left behind") for t in texts), texts
     assert len(kept) >= 3 and any("arrow keys" in t for t in texts) and any("crash" in t for t in texts)
+
+
+@pytest.mark.unit
+def test_a_search_names_the_thing_exactly_and_says_what_kind_of_thing_it_is():
+    """LIVE 2026-10-10 "Tom’s Trap-O-Matic how to play" found a talking-cat app."""
+    from core.cognition.taking_stock import as_searched
+
+    assert as_searched("Tom’s Trap-O-Matic how to play controls instructions", "Tom’s Trap-O-Matic", "game") == \
+        "\"Tom's Trap-O-Matic\" how to play controls instructions game"
+    assert as_searched("how to win the game Foo", "Foo", "game") == "how to win the game \"Foo\""
+
+
+@pytest.mark.unit
+def test_the_results_of_a_page_for_browsers_without_scripts_are_read():
+    from core.skills.looking_it_up import _duckduckgo
+
+    page = ('<a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.example.com%2Fgame%2F'
+            'trap%2F&amp;rut=abc">Tom and Jerry: <b>Tom&#x27;s Trap-O-Matic</b> - Play</a>'
+            '<a class="result__a" href="https://duckduckgo.com/y.js?ad">An advert</a>')
+    assert _duckduckgo(page) == [("Tom and Jerry: Tom's Trap-O-Matic - Play", "https://www.example.com/game/trap/")]

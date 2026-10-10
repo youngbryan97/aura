@@ -37,6 +37,14 @@ _CARRYING = re.compile(
     re.IGNORECASE,
 )
 
+#: A label that tells the place to do something ("SKIP INSTRUCTIONS", "TEST TRAP", "DELETE X", "Undo"): pressed, never
+#: picked up. LIVE 2026-10-10 she carried "SKIP INSTRUCTIONS" to "DELETE X" in a game of devices dragged into a room.
+_A_COMMAND = re.compile(r"^\W*(?:skip|delete|remove|test|run|go|start|clear|reset|undo|redo|back|menu|help|quit|exit|"
+                        r"options|settings|sound|music|mute|pause|save|load|submit|done|finish|launch|play|next|continue|"
+                        r"restart|retry|ok|cancel|close|show|hide|rotate|flip|zoom)\b", re.IGNORECASE)
+#: A command whose place takes what is carried to it away: a bin is a place things are carried to.
+_A_BIN = re.compile(r"\b(?:delete|remove|trash|bin|discard|recycle)\b", re.IGNORECASE)
+
 #: Words that mark a place as where things go ("attach here!", "drop here").
 _MARKS_A_PLACE = re.compile(r"\bhere\b", re.IGNORECASE)
 
@@ -67,10 +75,15 @@ class PuttingInPlace:
     carried_to: dict[str, bool] = field(default_factory=dict)
     #: Where the last carry that answered put its thing: where a chain built so far ends.
     chain_ends_at: tuple[float, float] | None = None
+    #: The place the words say things are carried to ("the end of another device's arrow"), found by her eyes.
+    place_named: str = ""
 
     def told_of_carrying(self, words: str) -> None:
         """Words read at this place: once they speak of carrying, it is a place where things are carried."""
         self.carrying_said = self.carrying_said or speaks_of_carrying(words)
+        from core.perception.where_the_words_point import the_place_named
+
+        self.place_named = the_place_named(words) or self.place_named
 
     def carries(self, on_screen: Sequence[str]) -> tuple[str, ...]:
         """Each thing on the screen carried to each other place there, the places marked as the one first, untried
@@ -81,9 +94,15 @@ class PuttingInPlace:
         from core.perception.shapes_that_look_pressable import STANDS_OUT
 
         worth = [move for move in on_screen if what_is_clicked(move) and _not_read_only(move)]
-        things = [what_is_clicked(move) or "" for move in worth if not _goes_on(move)]
-        places = [what_is_clicked(move) or "" for move in worth]
-        marked = [p for p in places if p.startswith(STANDS_OUT) or _MARKS_A_PLACE.search(p)]
+        things = [what_is_clicked(move) or "" for move in worth
+                  if not _goes_on(move) and not _A_COMMAND.search(what_is_clicked(move) or "")]
+        # A bin is somewhere a thing is carried to be got rid of, not to be used: it is offered last.
+        places = [what_is_clicked(move) or "" for move in worth if not _A_COMMAND.search(what_is_clicked(move) or "")]
+        places += [what_is_clicked(move) or "" for move in worth if _A_BIN.search(what_is_clicked(move) or "")]
+        # The place the words name is where things go, first; it is no thing to carry.
+        things = [t for t in things if t != self.place_named]
+        marked = [p for p in places if p == self.place_named] + [
+            p for p in places if p != self.place_named and (p.startswith(STANDS_OUT) or _MARKS_A_PLACE.search(p))]
         places = marked + [p for p in places if p not in marked]
         offered = [a_carry_of(thing, place) for place in places for thing in things
                    if thing != place and self.carried_to.get(a_carry_of(thing, place)) is not False]
@@ -101,6 +120,10 @@ class PuttingInPlace:
         found = what_is_carried(move)
         if found:
             self.carried_to[move] = changed
+            if changed:
+                from core.perception.where_the_words_point import PLACES
+
+                PLACES.moved()
             at = getattr(self, "where", {}).get(found[1])
             if changed and at is not None:
                 self.chain_ends_at = at

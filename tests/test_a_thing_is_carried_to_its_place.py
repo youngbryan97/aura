@@ -123,3 +123,45 @@ async def test_on_her_page_a_carry_takes_the_piece_to_its_place():
             await browser.close()
     assert world["placed"], world
     assert abs(world["piece"]["x"] - 310) < 3 and abs(world["piece"]["y"] - 210) < 3
+
+
+def test_a_label_that_tells_the_place_to_do_something_is_pressed_not_carried():
+    """LIVE 2026-10-10 she carried "SKIP INSTRUCTIONS" to "DELETE X"; a device is carried, a bin is carried to last."""
+    from core.agency.putting_things_in_place import PuttingInPlace, what_is_carried
+
+    putting = PuttingInPlace()
+    putting.told_of_carrying("Drag the device to the end of another device's arrow to make a connection.")
+    offered = putting.carries(['click "SKIP INSTRUCTIONS"', 'click "DELETE X"', 'click "TEST TRAP"', 'click "anvil"',
+                               'click "the shape at the top"'])
+    carried = [what_is_carried(move) for move in offered]
+    assert all(thing not in ("SKIP INSTRUCTIONS", "DELETE X", "TEST TRAP") for thing, _place in carried)
+    assert {thing for thing, _place in carried} == {"anvil", "the shape at the top"}
+    assert carried[-1][1] == "DELETE X" and all(place != "TEST TRAP" for _thing, place in carried)
+
+
+@pytest.mark.parametrize(("words", "place"), [
+    ("DRAG THE DEVICE AT THE END OF ANOTHER DEVICE'S ARROW TO MAKE A CONNECTION", "the end of another device's arrow"),
+    ("Drag and drop the piece to the highlighted area", "the highlighted area"),
+    ("Put the toys in the toy box before mom comes home!", "the toy box"),
+    ("Use the mouse to drag the cannon", ""),
+    ("Click and drag with the left mouse button", ""),
+])
+def test_the_place_words_say_things_are_carried_to_is_read(words, place):
+    from core.perception.where_the_words_point import the_place_named
+
+    assert the_place_named(words) == place
+
+
+def test_the_place_the_words_name_is_carried_to_first_and_is_not_carried():
+    """LIVE 2026-10-10 told to put a device at the end of another's arrow, she carried shapes to shapes."""
+    from core.agency.putting_things_in_place import PuttingInPlace, what_is_carried
+    from core.perception.where_the_words_point import place_from
+
+    putting = PuttingInPlace()
+    putting.told_of_carrying("Drag the device at the end of another device's arrow to make a connection.")
+    assert putting.place_named == "the end of another device's arrow"
+    offered = putting.carries(['click "anvil"', 'click "the shape at the top"', 'click "the end of another device\'s arrow"'])
+    first = what_is_carried(offered[0])
+    assert first[1] == "the end of another device's arrow"
+    assert all(what_is_carried(m)[0] != "the end of another device's arrow" for m in offered)
+    assert place_from('{"bbox_2d": [100, 200, 300, 400]}') == (0.2, 0.3) and place_from('{"bbox_2d": null}') is None

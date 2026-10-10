@@ -113,13 +113,15 @@ class Stocktaking:
         self.taken += 1
         situation = Situation(self.thing, goal, tuple(words[-6:]), ended, why)
         helped = WhatHelped.of(self.thing)
-        lead = "Before I begin, I'm taking stock" if why == BEFORE else f"{why}, so I'm taking stock"
-        _tell(f"{lead}: {questions_for(situation)[0]}?")
+        # Said as a person says it, not as a search is typed.
+        _tell(f"Before I begin, I'm looking up how {self.thing} is played." if why == BEFORE
+              else f"{why}, so I'm taking stock: {questions_for(situation)[0]}?")
         sources = {
             "what helped me before": helped.source(),
             "what I remember": from_her_memory(),
             "my own copy of Wikipedia": from_her_corpus(thing=self.thing, names_it=_names_it),
-            "the web": from_the_web(search_and_read, thing=self.thing, names_it=_names_it),
+            "the web": from_the_web(search_and_read, thing=self.thing, names_it=_names_it,
+                                    kind="game" if re.search(r"\b(?:games?|play)\b", goal, re.I) else ""),
             "my model": from_her_model(ask_her_model),
         }
         counsel = helped.without_what_did_not(await take_stock(situation, sources, seconds=seconds))

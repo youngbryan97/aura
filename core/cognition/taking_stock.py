@@ -39,7 +39,8 @@ from typing import Any
 
 __all__ = [
     "BEFORE", "FAILING", "QUESTION", "STUCK", "Counsel", "Heard", "Situation", "WhatHelped",
-    "HELPED_BEFORE", "from_her_corpus", "from_her_memory", "from_her_model", "from_the_web", "questions_for", "take_stock",
+    "HELPED_BEFORE", "as_searched", "from_her_corpus", "from_her_memory", "from_her_model", "from_the_web", "questions_for",
+    "take_stock",
     "what_to_take",
 ]
 
@@ -418,15 +419,29 @@ def from_her_model(ask_typed: Callable[..., Awaitable[Any]], *, tokens: int = 22
 Reader = Callable[[str, float], Awaitable[list[tuple[str, str, str]]]]
 
 
-def from_the_web(search_and_read: Reader, *, thing: str = "", names_it: Callable[[str, str], bool] | None = None) -> Source:
-    """The web: each question searched, and the pages read whose titles name the thing (a page about something else,
-    whatever it says, is not about this)."""
+def as_searched(question: str, thing: str, kind: str = "") -> str:
+    """A question as a person types it into a search: the thing's name exactly, in quotes, and what kind of thing it is
+    where the name alone may be taken for something else. LIVE 2026-10-10 "Tom’s Trap-O-Matic how to play" found
+    a talking-cat app, and "how to win Tom’s Trap-O-Matic" an operating system."""
+    name = " ".join(str(thing or "").replace("’", "'").replace("‘", "'").split())
+    question = " ".join(str(question or "").replace("’", "'").replace("‘", "'").split())
+    if name and name in question and f'"{name}"' not in question:
+        question = question.replace(name, f'"{name}"')
+    if kind and kind.lower() not in question.lower():
+        question = f"{question} {kind}"
+    return question
+
+
+def from_the_web(search_and_read: Reader, *, thing: str = "", names_it: Callable[[str, str], bool] | None = None,
+                 kind: str = "") -> Source:
+    """The web: each question searched as a person types it (``as_searched``), and the pages read whose titles name the
+    thing (a page about something else, whatever it says, is not about this)."""
 
     async def ask(questions: list[str], seconds: float) -> list[Heard]:
         found: list[Heard] = []
         per = max(4.0, seconds / max(1, len(questions[:2])))
         for question in questions[:2]:
-            for title, where, text in await search_and_read(question, per) or []:
+            for title, where, text in await search_and_read(as_searched(question, thing, kind), per) or []:
                 if names_it is not None and thing and not names_it(thing, title):
                     continue
                 site = re.sub(r"^https?://(www\.)?", "", where).split("/")[0]
