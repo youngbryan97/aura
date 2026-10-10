@@ -66,7 +66,11 @@ _A_CLICK_THROWS = re.compile(r"\bclick\w*(?:\s+\w+){0,3}\s+to\s+(?:throw|toss|la
 
 def sends_by_letting_go(told: str) -> bool:
     """Whether words a thing says of itself speak of sending by a press pulled or held and let go."""
-    for sentence in re.split(r"(?<=[.!?;])\s+", " ".join(told.lower().split())):
+    for sentence in re.split(r"(?<=[.!?;])\s+|\n", "\n".join(" ".join(line.lower().split()) for line in told.splitlines())):
+        # A word on its own is a label, not a way of playing: LIVE 2026-10-10 a tunnel racer's start button said
+        # "LAUNCH", and she pulled and let go at a game steered with the arrows.
+        if len(sentence.split()) < 3:
+            continue
         # "click again to launch the hamster" is a click that sends, made at once; "pull back and release to launch"
         # is a press let go.
         clicked = _A_CLICK_THROWS.search(sentence)

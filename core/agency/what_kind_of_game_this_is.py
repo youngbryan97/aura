@@ -101,6 +101,10 @@ def shape_of_a_moving_world(moves: Any, hers: Any, meeting: Any, physics: Any, k
     return Graph(name="a moving world", relations=tuple(relations))
 
 
+#: The most a sentence on what kind of game this is says: what she is, and three more things.
+MOST_PARTS = 4
+
+
 def in_a_sentence(moves: Any, hers: Any, meeting: Any, physics: Any, keys: list[str], *, me: str = "") -> str:
     """What kind of game this is, said plainly, from the same measurements.
 
@@ -116,7 +120,7 @@ def in_a_sentence(moves: Any, hers: Any, meeting: Any, physics: Any, keys: list[
 
     pointer = a_pointer_seen(mine.kind) if hers.follows_pointer else ""
     parts = [f"my pointer is the {pointer} at the {where_on_screen(moves, mine.x, mine.y)}" if pointer else
-             f"I'm the {me or describe(moves, mine.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}"]
+             f"I'm {_the(me or describe(moves, mine.kind, mine))} at the {where_on_screen(moves, mine.x, mine.y)}"]
     if hers.follows_pointer and not pointer:
         parts[0] += ", and I go where the mouse goes"
     else:
@@ -142,5 +146,13 @@ def in_a_sentence(moves: Any, hers: Any, meeting: Any, physics: Any, keys: list[
             bits.append({MEET: "is worth getting", AVOID: "costs me", SHOOT: "is worth shooting", CLICK: "is worth clicking"}.get(stance, ""))
         bits = [bit for bit in bits if bit]
         if bits:
-            parts.append(f"the {name} " + ", ".join(bits[:-1]) + (" and " if len(bits) > 1 else "") + bits[-1])
-    return "; ".join(parts) + "."
+            said = "" if name[:1].isupper() else "the "
+            parts.append(f"{said}{name} " + ", ".join(bits[:-1]) + (" and " if len(bits) > 1 else "") + bits[-1])
+    # A few things said of the place, not everything in it: LIVE 2026-10-10 seven kinds in one breath, cut off midway.
+    return "; ".join(parts[:MOST_PARTS]) + "."
+
+
+def _the(name: str) -> str:
+    """A thing as said after "I'm": a name as itself ("Amy"), any other with "the"."""
+    return name if name[:1].isupper() else f"the {name}"
+

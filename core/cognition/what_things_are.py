@@ -88,6 +88,10 @@ class WhatThingsAre:
     known: dict[str, WhatAThingIs] = field(default_factory=dict)
     asking: set[str] = field(default_factory=set)
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+    #: Names waiting to be asked of, the one question being asked, and who is told of answers.
+    queue: list[str] = field(default_factory=list)
+    asker: Any = field(default=None, repr=False)
+    then: list[Any] = field(default_factory=list, repr=False)
 
     def of(self, name: str) -> WhatAThingIs | None:
         """What she knows of a thing by this name: from her model where it has said, else a first guess, else None.
@@ -101,9 +105,11 @@ class WhatThingsAre:
 
     def ask_about(self, names: Iterable[str], ask: Callable[..., Awaitable[Any]], *,
                   then: Callable[[list[WhatAThingIs]], Any] | None = None) -> bool:
-        """Ask her model of the names not yet known, beside her work; ``then`` told of what it said. Whether asked."""
+        """Ask her model of the names not yet known, beside her work, a few at a time and one question at a time: the
+        names wait their turn in a queue (LIVE 2026-10-10 each thing seen was asked of at once, and a dozen questions
+        waited on her busy model together, most given up). ``then`` is told of what each answer said. Whether any name
+        was put to be asked."""
         wanted = [k for k in dict.fromkeys(_key(n) for n in names) if k and k not in self.known and k not in self.asking]
-        wanted = wanted[:ASKED_AT_ONCE]
         if not wanted:
             return False
         try:
@@ -111,14 +117,22 @@ class WhatThingsAre:
         except RuntimeError:
             return False
         self.asking |= set(wanted)
+        self.queue += wanted
+        if then is not None:
+            self.then.append(then)
+        if self.asker is None or self.asker.done():
+            self.asker = loop.create_task(self._ask_in_turn(ask))
+        return True
 
-        async def asked() -> None:
+    async def _ask_in_turn(self, ask: Callable[..., Awaitable[Any]]) -> None:
+        while self.queue:
+            batch, self.queue = self.queue[:ASKED_AT_ONCE], self.queue[ASKED_AT_ONCE:]
             try:
-                learned = await _asked_of_her_model(wanted, ask)
+                learned = await _asked_of_her_model(batch, ask)
             finally:
-                self.asking -= set(wanted)
+                self.asking -= set(batch)
             if not learned:
-                return
+                continue
             with self.lock:
                 for one in learned:
                     self.known[one.name] = one
@@ -126,11 +140,8 @@ class WhatThingsAre:
                     del self.known[next(iter(self.known))]
             self.keep()
             logger.info("what things are, from her model: %s", {o.name: o.bears for o in learned})
-            if then is not None:
+            for then in list(self.then):
                 then(learned)
-
-        loop.create_task(asked())
-        return True
 
     def keep(self) -> None:
         from core.runtime.what_she_learned import named, remember
@@ -250,16 +261,20 @@ class WhatSheSees:
     #: Kinds seen as one of the cast, by the name.
     who: dict[int, str] = field(default_factory=dict)
 
-    def saw(self, kind: int, what: str, odd: str = "") -> str:
-        """A kind seen as ``what``: the cast member it is, by name, where it is one; else ""."""
+    def saw(self, kind: int, what: str, odd: str = "", who: str = "") -> str:
+        """A kind seen as ``what`` (and known by name as ``who``, where her eyes knew it): the place's character it is,
+        by name, where it is one; else the name her eyes knew it by; else ""."""
         self.by_kind[kind] = what
         if odd:
             self.odd[kind] = odd
         for name in self.cast:
-            if words_shared(name, what) or words_shared(name, self.cast[name].get("what", "")) & set(_key(what).split()):
+            if (words_shared(name, who) or words_shared(name, what)
+                    or words_shared(name, self.cast[name].get("what", "")) & set(_key(what).split())):
                 self.who[kind] = name
                 return name
-        return ""
+        if who:
+            self.who[kind] = who
+        return who
 
     def take_in_cast(self, who: Iterable[Any]) -> list[str]:
         """Her model's knowledge of who and what the place has in it: what was added."""

@@ -120,6 +120,8 @@ class PlayingAsItHappens:
     for_making_since: float | None = None
     #: Whether the last screen read showed a label that goes on (Play, Start, Next): a menu, not a world to send into.
     way_on_shown: bool = False
+    #: The short labels her screens have shown (a button's "LAUNCH", "Next"): words on their own, not what it says to do.
+    labels_seen: set = field(default_factory=set)
     #: When she last played anything, and the screens not seen before counted when the last stretch was judged.
     played_at: float = 0.0
     _screens_judged: int = 0
@@ -282,6 +284,7 @@ class PlayingAsItHappens:
                 glance_beside(self.look, guide, screen=said, then=lambda: ask_for_a_reading(
                     guide, getattr(guide, "ask_her_model", None), task=self.goal, tell=_said_while_playing))
         self.way_on_shown = any(0 < len(label) <= 40 and how_much_it_leads_on(label) > 1.0 for label in labels)
+        self.labels_seen.update(label for label in labels if 0 < len(label.split()) <= 3)
         if said and (not self.words or self.words[-1] != said):
             self.words.append(said)
             del self.words[:-12]
@@ -595,7 +598,8 @@ class PlayingAsItHappens:
         from core.agency.playing_by_shots import play_by_shots, sends_by_letting_go
         from core.perception.what_the_pixels_show import recognize_text
 
-        told = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
+        told = "\n".join([*(_without_labels(said, self.labels_seen) for said in self.words[-6:]),
+                          str(self.keep.get("counsel") or "")])
         if not sends_by_letting_go(told) or now < self.quiet_until or self._no_place_for_shots():
             return
         logger.info("it waits for her to send something: playing it by shots")
@@ -632,6 +636,14 @@ class PlayingAsItHappens:
         if self.over_because:
             parts.append(f"the run is over: {self.over_because}")
         return "; ".join(part for part in parts if part)
+
+
+def _without_labels(said: str, labels: set) -> str:
+    """A screen's words with its short labels taken out, each leaving a break: a button's "LAUNCH" is not part of the
+    sentence written beside it (LIVE 2026-10-10 it read as one with the rules, and a steered game was played by shots)."""
+    for label in sorted(labels, key=len, reverse=True):
+        said = re.sub(rf"(?<!\w){re.escape(label)}(?!\w)", "\n", said)
+    return said
 
 
 def _lines_of(regions: list[dict[str, Any]]) -> list[str]:

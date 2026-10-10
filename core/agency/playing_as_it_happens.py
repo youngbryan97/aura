@@ -41,6 +41,7 @@ from core.agency.how_far_her_blow_reaches import BLOW_EVERY_S, HerBlows
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.naming_what_she_sees import (
     SeeingInPlay,
+    a_stance_said,
     colour_name,
     describe,
     i_go_where_the_mouse_goes,
@@ -1230,16 +1231,10 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         if not meeting.known(kind) or not any(t.kind == kind for t in moves.things.values()):
             continue
         stance = meeting.stance(kind)
-        sample = next((t for t in moves.things.values() if t.kind == kind), None)
-        name = _named(moves, kind, sample, {MEET: "get", AVOID: "avoid", SHOOT: "shoot"}.get(stance, ""))
-        names = name if name.endswith("s") else f"{name}s"
-        line = {
-            MEET: f"The {names} are worth getting to.",
-            AVOID: f"The {names} cost me. Keeping clear of them.",
-            SHOOT: f"The {names} are worth shooting.",
-        }.get(stance)
-        if line:
-            _say(run, say, line, at, once=f"{kind} {stance}")
+        if f"{kind} {stance}" not in run.said:
+            line = a_stance_said(run, moves, kind, stance, at)
+            if line:
+                _say(run, say, line, at, once=f"{kind} {stance}")
     # How it stands, said when it changes: the score, what is left to win, what is left to lose.
     standing = run.contest.says()
     if standing and run.contest_first is None:

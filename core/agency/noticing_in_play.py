@@ -107,7 +107,7 @@ class NoticingInPlay:
         what = "gain" if verdict.get("what") == "gain" else "lose"
         when = float(verdict.get("at", at))
         # A count by its own name, not where on the screen it was read ("the score at 0.46").
-        counter = re.sub(r"\s+at\s+0?\.\d+$", "", str(verdict.get("counter") or "").strip())
+        counter = re.sub(r"\s+at\s+[0-9.]+(?:\s*,\s*[0-9.]+)?$", "", str(verdict.get("counter") or "").strip())
         self.outcomes += 1
         recent = [(when_done, act) for when_done, act in self.acts if 0.0 <= when - when_done <= FOLLOWS_WITHIN_S]
         if not recent and what == "gain" and counter:

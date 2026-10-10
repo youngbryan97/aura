@@ -41,7 +41,7 @@ def test_what_her_eyes_say_is_read_plainly_and_nothing_odd_is_nothing():
     seen = sighting_from('Sure: {"is": "A Zombie", "odd": "No"}')
     assert seen is not None and seen.what == "zombie" and seen.odd == ""
     assert sighting_from('{"is": "unclear", "odd": ""}') is None
-    assert sighting_from('{"is": "orange", "odd": "it has a face and eyes"}').odd == "it has a face and eyes"
+    assert sighting_from('{"is": "orange", "odd": "it has a face and eyes"}').odd == "has a face and eyes"
 
 
 def test_her_eyes_are_asked_of_each_kind_once_hers_first_and_never_of_a_speck_or_the_backdrop():
@@ -68,7 +68,7 @@ def test_her_eyes_are_asked_of_each_kind_once_hers_first_and_never_of_a_speck_or
 
     looking = asyncio.run(play())
     assert [k for k, _s in looking.newly()] == [0, 1]                 # hers first, then the other; no speck, no backdrop
-    assert looking.by_kind[0].what == "red car" and looking.by_kind[1].odd == "it is green and glowing"
+    assert looking.by_kind[0].what == "red car" and looking.by_kind[1].odd == "is green and glowing"
     assert len(asked) == 2
 
 
@@ -261,3 +261,42 @@ def test_who_she_is_is_said_once_play_has_held_it_and_not_for_a_cursor():
     finally:
         place.played_shows_hers = original
         place.ask_for_a_reading = original_ask
+
+
+def test_what_things_are_worth_is_said_a_few_times_a_game_paced_and_never_both_ways_of_one_name():
+    """LIVE 2026-10-10 sixteen such lines in a minute, and "the red things cost me" then "are worth getting to"."""
+    from core.agency.naming_what_she_sees import (
+        MOST_STANCES_SAID,
+        STANCE_EVERY_S,
+        SeeingInPlay,
+        a_stance_said,
+    )
+    from core.agency.what_meeting_things_does import AVOID, MEET
+
+    moves = _moves([_thing(1, 0, 10, 10), _thing(2, 1, 50, 50), _thing(3, 2, 90, 90)] +
+                   [_thing(10 + k, 3 + k, 20 * k, 30) for k in range(8)],
+                   [(210, 40, 40), (210, 40, 40), (60, 180, 70), (240, 210, 50), (50, 110, 230), (60, 210, 230),
+                    (150, 60, 200), (240, 110, 200), (140, 90, 45), (240, 140, 30), (240, 240, 240)])
+    run = SimpleNamespace(seeing=SeeingInPlay())
+    assert a_stance_said(run, moves, 0, AVOID, 0.0) == "The red things cost me. Keeping clear of them."
+    assert a_stance_said(run, moves, 2, MEET, 1.0) == ""                      # too soon after the last
+    assert a_stance_said(run, moves, 1, MEET, STANCE_EVERY_S + 1) == ""       # red things were said to cost her
+    said = [a_stance_said(run, moves, kind, MEET, 100.0 * kind) for kind in range(2, 11)]
+    assert len([line for line in said if line]) == MOST_STANCES_SAID - 1
+
+
+def test_a_thing_her_eyes_know_by_name_is_called_by_it():
+    from core.agency.naming_what_she_sees import describe
+    from core.perception.what_things_look_like import sighting_from
+
+    seen = sighting_from('{"is": "hedgehog", "unusual": false, "how": "", "who": "Amy Rose"}')
+    assert seen.what == "hedgehog" and seen.who == "Amy Rose"
+    assert sighting_from('{"is": "car", "who": "car"}').who == ""
+    guide = Guide(place="a place")
+    token = THE_GUIDE.set(guide)
+    try:
+        moves = _moves([_thing(5, 0, 50, 50)], [(140, 90, 45)])
+        guide.seen.saw(0, seen.what, seen.odd, seen.who)
+        assert describe(moves, 0) == "Amy Rose"
+    finally:
+        THE_GUIDE.reset(token)

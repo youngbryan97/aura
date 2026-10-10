@@ -55,9 +55,11 @@ RESTED_S = 300.0
 _PROMPT = ("This is part of a screen from a game, a website or a program. One thing in it is marked with a {colour} "
            "box. Answer with JSON only, filled in: {{\"is\": \"<the most specific everyday name for the thing in the "
            "box, in a word or a few, as a person would name it; not 'object', 'item', 'thing' or 'character'; "
-           "'unclear' if you cannot tell>\", \"odd\": \"<what about the thing itself, not its setting or how it is "
-           "drawn, is unlike such a thing in the real world (a face, a weapon, a strange colour, two things in one), "
-           "in a few words; empty if nothing>\"}}")
+           "'unclear' if you cannot tell>\", \"unusual\": <true only if the thing itself, not its setting or how it "
+           "is drawn, is plainly unlike such a thing in the real world, such as a face on something that has none, a "
+           "weapon, a strange colour, or two things in one; else false>, \"how\": \"<if unusual, what about it, in a "
+           "few words; else empty>\", \"who\": \"<its name, if it is a character or a thing you recognise by name; else "
+           "empty>\"}}")
 
 #: Answers that say nothing is odd, or that nothing could be told; a bare yes is no saying what.
 _NOTHING = re.compile(r"^\W*(?:no|none|nothing|n/?a|not really|normal|yes|true|false|no\W.*|nothing (?:odd|unusual).*|"
@@ -83,6 +85,8 @@ class Sighting:
     what: str
     odd: str = ""
     at: float = 0.0
+    #: Its own name, where her eyes knew it by one (a character, a famous thing): "Amy Rose", not "hedgehog".
+    who: str = ""
 
 
 def sighting_from(answer: str, at: float = 0.0) -> Sighting | None:
@@ -96,7 +100,11 @@ def sighting_from(answer: str, at: float = 0.0) -> Sighting | None:
         except ValueError:
             said = {}
     what = " ".join(str(said.get("is") or "").split()).strip(" .").lower()
-    odd = " ".join(str(said.get("odd") or "").split()).strip()
+    # What is odd about it is said only where her eyes said it is unusual at all: asked for what was odd, they said
+    # what was not ("a letter, not a face or weapon") as readily as what was (LIVE 2026-10-10).
+    unusual = said.get("unusual")
+    flagged = unusual is True or str(unusual).strip().lower() in ("true", "yes")
+    odd = " ".join(str((said.get("how") if flagged else "") or said.get("odd") or "").split()).strip()
     if not what or _UNCLEAR.match(what) or len(what.split()) > 5:
         return None
     what = re.sub(r"^(?:a|an|the)\s+", "", what)
@@ -104,7 +112,13 @@ def sighting_from(answer: str, at: float = 0.0) -> Sighting | None:
         return None
     if not odd or _NOTHING.match(odd) or (_ONLY_HOW_DRAWN.search(odd) and not _OF_THE_THING.search(odd)):
         odd = ""
-    return Sighting(what=what, odd=odd.rstrip(".")[:160], at=at)
+    # Said as what it has, not as a comparison: "It has a face, which is not typical for an apple" is "has a face".
+    odd = re.sub(r",?\s+(?:which|unlike|not typical|not like|as opposed)\b.*$", "", odd, flags=re.I)
+    odd = re.sub(r"^(?:it|this|the thing)\s+(?=has|is|wears|holds|looks|carries)", "", odd, flags=re.I)
+    who = " ".join(str(said.get("who") or "").split()).strip(" .")
+    if not who or _UNCLEAR.match(who) or who.lower() in (what, *_NO_NAME) or len(who.split()) > 4 or not who[:1].isupper():
+        who = ""
+    return Sighting(what=what, odd=odd.rstrip(". ")[:160], at=at, who=who)
 
 
 async def _her_eyes(prompt: str, image_b64: str) -> str:

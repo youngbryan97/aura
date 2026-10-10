@@ -21,9 +21,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.agency.what_meeting_things_does import AVOID, MEET
+from core.agency.what_meeting_things_does import AVOID, MEET, SHOOT
 
-__all__ = ["SeeingInPlay", "a_pointer_seen", "colour_name", "describe", "i_go_where_the_mouse_goes", "named_for_its_part", "plural", "seen_in_play", "shape_name", "still_looking_at",
+__all__ = ["SeeingInPlay", "a_pointer_seen", "a_stance_said", "colour_name", "describe", "i_go_where_the_mouse_goes", "named_for_its_part", "plural", "seen_in_play", "shape_name", "still_looking_at",
            "where_on_screen"]
 
 logger = logging.getLogger("Aura.NamingWhatSheSees")
@@ -131,6 +131,36 @@ def plural(name: str) -> str:
     return name + "s"
 
 
+#: How long between two lines on what a kind of thing is worth, and how many of them a game.
+STANCE_EVERY_S = 6.0
+MOST_STANCES_SAID = 5
+
+
+def a_stance_said(run: Any, moves: Any, kind: int, stance: str, at: float) -> str:
+    """What to say of what meeting a kind has shown it is worth, or "" where it is not to be said now: a line a while
+    after the last, a few a game, and never the opposite of what was said of a thing by the same name. LIVE 2026-10-10
+    sixteen of them came in a minute of a crowded game, and "the red things cost me" was followed by "the red things are
+    worth getting to" (two kinds, one colour)."""
+    seeing: SeeingInPlay | None = getattr(run, "seeing", None)
+    if seeing is None:
+        seeing = run.seeing = SeeingInPlay()
+    if at - seeing.stance_said_at < STANCE_EVERY_S or len(seeing.stances_said) >= MOST_STANCES_SAID:
+        return ""
+    sample = next((t for t in moves.things.values() if t.kind == kind), None)
+    name = named_for_its_part(moves, kind, sample, {MEET: "get", AVOID: "avoid", SHOOT: "shoot"}.get(stance, ""))
+    if name in seeing.stances_said:
+        return ""
+    proper = name[:1].isupper()
+    line = ({MEET: f"{name} is worth getting to.", AVOID: f"{name} costs me. Keeping clear.",
+             SHOOT: f"{name} is worth shooting."} if proper else
+            {MEET: f"The {plural(name)} are worth getting to.", AVOID: f"The {plural(name)} cost me. Keeping clear of them.",
+             SHOOT: f"The {plural(name)} are worth shooting."}).get(stance, "")
+    if line:
+        seeing.stances_said[name] = stance
+        seeing.stance_said_at = at
+    return line
+
+
 def _a(name: str) -> str:
     return ("an " if name[:1].lower() in "aeiou" else "a ") + name if name[:1].islower() else name
 
@@ -144,7 +174,7 @@ _STANCE_OF = {"danger": AVOID, "to get": MEET, "to use": MEET, "to reach": MEET}
 _BEARS_AS = {"danger": "danger", "to get": "to get", "to use": "to use", "what I work with": "to use",
              "to reach": "to reach", "a friend": "a friend", "information": "information", "scenery": "scenery"}
 #: Bearings worth saying out loud on first seeing a thing: what she would act on.
-_WORTH_SAYING = frozenset({"danger", "to get", "to use", "to stand on", "to reach", "a friend", "to press"})
+_WORTH_SAYING = frozenset({"danger", "to get", "to use", "to stand on", "to reach", "a friend"})
 #: How long between two things said of what she sees, and how many in one game; and how many odd looks she asks her
 #: model about.
 SAY_EVERY_S = 6.0
@@ -177,6 +207,9 @@ class SeeingInPlay:
     hers_kind: Any = None
     hers_since: float = 0.0
     hers_shown: bool = False
+    #: What each thing, by the name it is said by, has been said to be worth, and when the last such line was said.
+    stances_said: dict[str, str] = field(default_factory=dict)
+    stance_said_at: float = -1e9
 
 
 def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at: float,
@@ -204,7 +237,7 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
             store.ask_about(named, ask)
     seeing.looking.look(picture, moves, at, mine=hers.number, met=list(meeting.evidence))
     for kind, sighting in seeing.looking.newly():
-        who = guide.seen.saw(kind, sighting.what, sighting.odd)
+        who = guide.seen.saw(kind, sighting.what, sighting.odd, getattr(sighting, "who", ""))
         colour = colour_name(moves.kinds[kind].colour) if kind < len(moves.kinds) else ""
         if kind < len(moves.kinds):
             # How it looks to her play, so where it is can be found by other ways of looking (a send's).
