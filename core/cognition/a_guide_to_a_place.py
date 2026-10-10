@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.cognition.what_she_notices import Notebook
+from core.cognition.what_things_are import WhatSheSees
 
 __all__ = ["MODEL", "THE_GUIDE", "Guide", "carry_over", "confirmed_by", "guide_for", "guide_of", "heard_in_play", "the_guide"]
 
@@ -148,6 +149,8 @@ class Guide:
     #: Whether her own model has been asked what it knows of the place (core/cognition/what_i_know_of_a_place.py).
     asked_what_i_know: bool = False
     asking_what_i_know: Any = None
+    #: How her model is asked, as whoever began the work here gave it (core/cognition/what_i_know_of_a_place.py).
+    ask_her_model: Any = None
     #: The sentence each control was named in, for what play confirms of it.
     named_in: dict[str, str] = field(default_factory=dict)
     #: The place's own names for things, by the part they play ("me", "goal", "get", "avoid", "shoot"), and which
@@ -158,6 +161,8 @@ class Guide:
     _supposed: set[str] = field(default_factory=set)
     #: What she notices there, and the theories it grew into (core/cognition/what_she_notices.py).
     notes: Notebook = field(default_factory=Notebook)
+    #: What the things she sees there are, as they look, and who its characters are (core/cognition/what_things_are.py).
+    seen: WhatSheSees = field(default_factory=WhatSheSees)
 
     # -- taking things in ---------------------------------------------------------------------------------------
 
@@ -362,7 +367,7 @@ class Guide:
                  "Not part of the task: " + ", ".join(self.not_for_play[:4]) if self.not_for_play else "",
                  "Lately changed: " + " | ".join(what for _when, what in self.changes[-2:]) if self.changes else ""]
         noted = self.notes.for_thinking(time.monotonic()) if self.notes is not None else ""
-        return "\n".join(line for line in [*lines, noted] if line)[:900]
+        return "\n".join(line for line in [*lines, self.seen.for_thinking(), noted] if line)[:1100]
 
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
@@ -384,6 +389,7 @@ class Guide:
                  "Counsel: " + " ".join(self.strategy[:3]) if self.strategy else ""]
         from core.agency.mechanics_she_knows import known
 
+        lines.append(self.seen.for_thinking())
         if self.notes is not None and self.notes.for_thinking(time.monotonic()):
             lines.append(self.notes.for_thinking(time.monotonic()))
         for name in [n for n in self.mechanics if self.in_play(n)][:6]:
@@ -434,6 +440,11 @@ class Guide:
                     name = _a_name(found.group(1))
                     if name and name not in self.names.setdefault(part, []):
                         self.names[part].append(name)
+        # Whose the place is, by its title ("Buddy's Big Adventure"): who she likely plays, after what its words say.
+        for found in _A_TITLE_OWNER.finditer(self.place or ""):
+            name = _a_name(found.group(1))
+            if name and name not in self.names.setdefault("me", []):
+                self.names["me"].append(name)
         for thing, stance in self.things.items():
             if thing in self._supposed:
                 continue
@@ -487,6 +498,8 @@ class Guide:
             filled += ["tips"] if not self.tips else []
             self.tips += [t for t in tips if t not in self.tips]
             del self.tips[:-8]
+        if self.seen.take_in_cast(manual.get("who") or []):
+            filled.append("who")
         self.sources.add(MODEL)
         how = " ".join(str(manual.get("how") or "").split())
         if how:
@@ -600,12 +613,17 @@ _A_NOUN = r"((?:[A-Za-z]+'s\s+)?(?:the\s+|your\s+|a\s+|an\s+)?[A-Za-z][A-Za-z -]
 _ENDS = (r"(?=\s+(?:onto|to|into|through|around|across|safely|slowly|and|with|by|using|past|so|while|before|without|from|"
          r"in|on|at|as|escape|find|get|reach|save|stop|enjoy|catch|collect|win|land|fly|jump|run)\b|[.,!;:)]|$)")
 _NAMING = (
-    ("me", re.compile(r"\b(?:guide|control|steer|drive|fly|pilot|move|help|lead|play as)\s+" + _A_NOUN + _ENDS, re.I)),
+    ("me", re.compile(r"\b(?:guide|control|steer|drive|park|ride|fly|pilot|move|help|lead|play as|you are|you're|you play)\s+"
+                      + _A_NOUN + _ENDS, re.I)),
     ("goal", re.compile(r"\b(?:onto|land on|reach|get to|into|bring (?:it|them) to)\s+" + _A_NOUN + _ENDS, re.I)),
     ("get", re.compile(r"\b(?:collect|grab|catch|pick up|gather)\s+(?:all\s+|every\s+|as many\s+)?" + _A_NOUN + _ENDS, re.I)),
-    ("avoid", re.compile(r"\b(?:avoid|dodge|watch out for|beware of|keep away from|don'?t (?:touch|hit))\s+" + _A_NOUN + _ENDS, re.I)),
+    ("avoid", re.compile(r"\b(?:avoid|dodge|watch out for|beware of|keep away from|don'?t (?:touch|hit)|escape(?: from)?|"
+                         r"flee(?: from)?|run from|get away from|hide from)\s+" + _A_NOUN + _ENDS, re.I)),
+    ("friend", re.compile(r"\b(?:rescue|save|protect|free|defend)\s+(?:all\s+|every\s+)?" + _A_NOUN + _ENDS, re.I)),
     ("shoot", re.compile(r"\b(?:shoot|destroy|defeat|blast|zap|stop)\s+(?:all\s+|every\s+)?" + _A_NOUN + _ENDS, re.I)),
 )
+#: A title that says whose the place is: "Buddy's Big Adventure", "Dexter's Laboratory: Robot Rampage".
+_A_TITLE_OWNER = re.compile(r"(?:^|[:\-–]\s*)(?:The\s+)?([A-Z][\w.-]*(?:\s+[A-Z][\w.-]*){0,2})['’]s\s+[A-Z]")
 #: Words that are no name for a thing.
 _NOT_A_NAME = frozenset("""the a an your you it its them they this that these those what which keys key arrow arrows mouse
     button buttons space spacebar time way ground game screen level points score as many all every each other own

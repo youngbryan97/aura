@@ -39,6 +39,8 @@ STANCES = (MEET, AVOID, SHOOT, IGNORE, CLICK)
 #: over three settled meetings and passes or more, to overrule what she was
 #: told about it.
 OVERRULES = 0.6
+#: How many settled meetings with a kind it takes for what they showed to outrank what she supposed from its look.
+SUPPOSED_UNTIL = 2
 
 #: How long after a touch or a pass its verdict may still arrive: a reading of
 #: the counters every half second, a second reading to confirm a change, and
@@ -281,6 +283,9 @@ class WhatMeetingDoes:
         self._clicks: dict[int, tuple[float, int]] = {}
         #: What reading the situation said each kind is for, before any evidence.
         self.told: dict[int, str] = {}
+        #: What she supposes a kind is for from what it looks like (a zombie is trouble, a coin is worth getting), until
+        #: meeting it says (core/agency/naming_what_she_sees.py).
+        self.supposed: dict[int, str] = {}
         self._places: list[tuple[float, float, float]] = []
         self._settled_places: set[tuple[float, float]] = set()
         #: How much she has left, by the lowest of her bars that are worse lower (core/perception/how_full_a_bar_is.py).
@@ -545,6 +550,9 @@ class WhatMeetingDoes:
             against = enough and ((told in (MEET, CLICK) and measured <= -OVERRULES) or (told == AVOID and measured >= OVERRULES))
             if not against and not (kept is not None and kept.shoot >= 0.5 and told != AVOID):
                 return SHOOT if told == SHOOT else told
+        supposed = self.supposed.get(kind)
+        if supposed is not None and (kept is None or kept.settled() < SUPPOSED_UNTIL):
+            return supposed
         if kept is None:
             return MEET
         if kept.shoot >= 0.5:

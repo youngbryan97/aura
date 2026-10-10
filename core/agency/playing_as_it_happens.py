@@ -39,6 +39,15 @@ from core.agency.building_up import builds_up
 from core.agency.holding_to_charge import Charging
 from core.agency.how_far_her_blow_reaches import BLOW_EVERY_S, HerBlows
 from core.agency.how_the_contest_stands import ContestStands
+from core.agency.naming_what_she_sees import (
+    SeeingInPlay,
+    colour_name,
+    describe,
+    seen_in_play,
+    where_on_screen,
+)
+from core.agency.naming_what_she_sees import named_for_its_part as _named
+from core.agency.naming_what_she_sees import shape_name as shape_name
 from core.agency.noticing_in_play import a_key_that_pays, noticed
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.the_controls_a_game_names import controls_named_in
@@ -226,8 +235,9 @@ class _Run:
     things: dict = field(default_factory=dict)
     #: Where no body answers her keys: what pressing has paid by where the moving things were (when_a_press_pays.py).
     timing: Any = None
-    #: What she notices as she plays (core/agency/noticing_in_play.py).
+    #: What she notices as she plays (core/agency/noticing_in_play.py), and what she sees things as (naming_what_she_sees.py).
     noticing: Any = None
+    seeing: Any = None
     #: Whether the place is one where pieces are dropped to build up (core/agency/building_up.py).
     building_up: bool = False
     #: How far each kind reaches: the distance and side at which it has cost her untouched (how_far_a_thing_reaches.py).
@@ -297,61 +307,6 @@ async def _burst(hands: Any, run: _Run, at: float, *, say: Any = None) -> None:
         n += 1
         await asyncio.sleep(BURST_TAP_S)
     run.burst_at = at
-
-
-# -- naming what she sees -----------------------------------------------------
-
-_COLOURS = {
-    "black": (20, 20, 20), "white": (240, 240, 240), "grey": (128, 128, 128),
-    "red": (210, 40, 40), "orange": (240, 140, 30), "yellow": (240, 210, 50),
-    "green": (60, 180, 70), "blue": (50, 110, 230), "cyan": (60, 210, 230),
-    "purple": (150, 60, 200), "pink": (240, 110, 200), "brown": (140, 90, 45),
-}
-
-
-def colour_name(rgb: Sequence[int]) -> str:
-    return min(_COLOURS, key=lambda name: sum((a - b) ** 2 for a, b in zip(rgb, _COLOURS[name], strict=True)))
-
-
-def shape_name(w: float, h: float) -> str:
-    long, short = max(w, h), max(1.0, min(w, h))
-    if long / short >= 2.5:
-        return "bar"
-    return "thing"
-
-
-def _named(moves: WhatMoves, kind: int, thing: Any = None, part: str = "") -> str:
-    """A thing as the place calls it, for the part it plays ("me", "goal", "get", "avoid", "shoot"), where the guide to
-    the place (core/cognition/a_guide_to_a_place.py) has a name for it; else as it looks."""
-    from core.cognition.a_guide_to_a_place import THE_GUIDE
-
-    looks = describe(moves, kind, thing)
-    guide = THE_GUIDE.get()
-    if guide is None or not part or looks == "other":
-        return looks
-    # What follows the pointer is the place's character only where the mouse is said to move it; else a cursor.
-    pointer = guide.controls.get("the pointer")
-    if part == "me" and pointer is not None and pointer.act not in ("move", "steer", "guide", "drive", "fly", "walk", "run"):
-        return looks
-    # Still, a thing to get to is where she is to be brought; going about, a thing to get.
-    still = thing is not None and not getattr(thing, "moved", True)
-    alternatives = {"get": ("goal",) if still else (), "goal": ("get",)}.get(part, ())
-    return guide.name_for("goal" if part == "get" and still else part, looks.split()[0], alternatives=alternatives) or looks
-
-
-def describe(moves: WhatMoves, kind: int, thing: Any = None) -> str:
-    alike = [thing] if thing is not None else [t for t in moves.things.values() if t.kind == kind]
-    if not alike or kind >= len(moves.kinds):
-        return "other"
-    sample = alike[0]
-    return f"{colour_name(moves.kinds[kind].colour)} {shape_name(sample.w, sample.h)}"
-
-
-def where_on_screen(moves: WhatMoves, x: float, y: float) -> str:
-    sx, sy = moves.share(x, y)
-    across = "left" if sx < 0.33 else "right" if sx > 0.67 else ""
-    down = "top" if sy < 0.33 else "bottom" if sy > 0.67 else ""
-    return " ".join(part for part in (down, across) if part) or "middle"
 
 
 # -- deciding -----------------------------------------------------------------
@@ -1374,6 +1329,7 @@ async def play_as_it_happens(
     from core.agency.noticing_in_play import NoticingInPlay
 
     run.noticing = keep.get("noticing") or NoticingInPlay()
+    run.seeing = keep.get("seeing") or SeeingInPlay()
     from core.agency.how_far_a_thing_reaches import HowFarThingsReach
 
     run.reach = keep.get("reach") or HowFarThingsReach()
@@ -1434,6 +1390,7 @@ async def play_as_it_happens(
             await _let_go_of_presses(hands, run, at)
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             noticed(run, moves, meeting, at, say, _named)
+            seen_in_play(run, moves, hers, meeting, picture, at, lambda line, once, at=at: _say(run, say, line, at, once=once))
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words, say=say)
@@ -1464,7 +1421,7 @@ async def play_as_it_happens(
         keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
-                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach, "noticing": run.noticing,
+                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach, "noticing": run.noticing, "seeing": run.seeing,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),

@@ -26,7 +26,8 @@ def test_things_are_called_by_what_the_place_calls_them_for_the_part_they_play()
     assert guide.name_for("get", "red") == "red gems"
     assert guide.name_for("avoid", "grey") == "asteroids" and guide.name_for("shoot", "black") == "robot dogs"
     assert guide.name_for("avoid", "grey") == "asteroids"                 # the same thing keeps its name
-    assert guide.name_for("avoid", "blue") == ""                          # and two things are not given one
+    assert guide.name_for("avoid", "blue") == "monster"                   # what Bloo escapes from is kept clear of
+    assert guide.name_for("avoid", "purple") == ""                        # and two things are not given one name
 
 
 def test_a_noticing_seen_often_and_holding_is_a_theory_and_one_the_evidence_turns_against_is_let_go():
