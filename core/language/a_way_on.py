@@ -18,12 +18,12 @@ import re
 from core.language.learned_matcher import LearnedMatcher
 from core.language.model_features import model_hidden_features
 
-__all__ = ["how_much_it_leads_on", "offers_a_way_on"]
+__all__ = ["asks_to_choose", "confirms", "how_much_it_leads_on", "offers_a_way_on", "says_it_is_paused"]
 
 #: Labels that go on, whole: a label that merely contains "play" ("Display")
 #: is not one.
 _GOES_ON = re.compile(
-    r"^(?:play(?:\s+(?:now|game|again))?|start(?:\s+game)?|begin|next|continue|skip(?:\s+intro)?|ok(?:ay)?|go!?|"
+    r"^(?:play(?:\s+(?:now|game|again))?|start(?:\s+game)?|begin|next|continue|resume|unpause|skip(?:\s+intro)?|ok(?:ay)?|go!?|"
     r"enter|let'?s\s+go|ready|i'?m\s+ready|yes|accept|done|new\s+game|easy|normal|1\s*player|one\s+player|"
     r"(?:click|press|tap)\s+(?:here\s+)?to\s+(?:play|start|begin|continue)|(?:press|hit)\s+(?:any\s+key|space|enter|start))$",
     re.IGNORECASE,
@@ -47,7 +47,7 @@ _A_WAY_ON = LearnedMatcher(
 
 
 #: The single words of the floor, for labels the screen reading got one letter wrong ("Nex", "P1ay").
-_ONE_WORD = ("play", "start", "begin", "next", "continue", "skip", "enter", "ready", "easy", "normal", "done", "accept")
+_ONE_WORD = ("play", "start", "begin", "next", "continue", "resume", "skip", "enter", "ready", "easy", "normal", "done", "accept")
 
 
 def _one_letter_off(word: str, other: str) -> bool:
@@ -113,3 +113,30 @@ def how_much_it_leads_on(label: str) -> float:
     if learned is False:
         return 0.6
     return 0.8
+
+
+#: Words that ask a person to choose: a player, a ball, a level, a character.
+_CHOOSE = re.compile(r"\b(?:please )?(?:select|choose|pick) (?:a |an |the |your |number )", re.I)
+
+#: Labels that go on once a choice is made, as against the choices themselves.
+_CONFIRMS = re.compile(r"^\W*(?:next|continue|ok|okay|done|go|confirm|start|play|begin|enter|let'?s go|ready)\W*$", re.I)
+
+
+def asks_to_choose(said: str) -> bool:
+    """Whether a screen's words ask a person to choose something: a player, a ball, a level, a character."""
+    return bool(_CHOOSE.search(said or ""))
+
+
+#: A screen that says the thing is stopped and waits to be let go on: "PAUSED", "Game Paused", "Pause Menu".
+_PAUSED = re.compile(r"\b(?:paused|pause\s+menu)\b", re.I)
+
+
+def says_it_is_paused(said: str) -> bool:
+    """Whether a screen's words say what was going on is stopped until she lets it go on: what stopped it lets it go
+    on (core/skills/screen_pursuit_decision.py `_go_on_from_a_pause`)."""
+    return bool(_PAUSED.search(said or ""))
+
+
+def confirms(label: str) -> bool:
+    """Whether a label is what goes on after a choice ("next", "OK", "start"), not a choice."""
+    return bool(_CONFIRMS.match(str(label or "")))

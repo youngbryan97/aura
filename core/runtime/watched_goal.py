@@ -866,7 +866,7 @@ def keys_named_in(text: str) -> tuple[str, ...]:
         return tuple(best)
     for before, after in zip(words, words[1:], strict=False):
         if (
-            after in ("keys", "controls")
+            after in ("keys",)
             and before not in _NOT_KEYS
             and re.fullmatch(r"[a-z]{2,8}", before)
             and len(set(before)) == len(before)

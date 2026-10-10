@@ -1,6 +1,6 @@
 # Aura
 
-DEMO: https://youtu.be/iTyxeugcZtI?si=B91No0Hjz3eKLMwz
+DEMOS: [https://youtu.be/iTyxeugcZtI?si=B91No0Hjz3eKLMwz](https://www.youtube.com/@AuraDemos)
 
 Aura is a local AI research project that runs entirely on your Mac. It explores
 how to build an AI agent that can think continuously, remember things long-term,

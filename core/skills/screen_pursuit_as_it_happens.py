@@ -63,6 +63,31 @@ TRYING_OUT_S = 90.0
 #: Why a run of a thing for making is over.
 MADE_NOT_WON = "it is for making things, and I have tried it out"
 
+#: Words that say a screen teaches how to play: it is read and gone on from, not played on. LIVE 2026-10-09 a game's
+#: putter lesson ("HOW TO USE THE PUTTER: 1. Click on your ball...") drew its "next" in letters she could not read, and
+#: she sent shots at the lesson for three minutes.
+_RULES = re.compile(r"\b(?:how to (?:play|use|win)|instructions|controls|how do (?:i|you)|tutorial)\b|(?:^|:)\s*1\.\s+[A-Za-z]", re.I)
+
+
+
+def reads_as_rules(said: str) -> bool:
+    """Whether a screen's words teach how to play, rather than show the play."""
+    return bool(_RULES.search(said or ""))
+
+
+def asks_to_choose(said: str) -> bool:
+    """Whether a screen's words ask her to choose something: a player, a ball, a level, a character."""
+    from core.language.a_way_on import asks_to_choose as asks
+
+    return asks(said)
+
+
+#: The fewest words a screen that is not plainly rules must have to be read for a legend.
+LEGEND_WORDS = 6
+
+#: The ways the reflexes play, as core/agency/the_way_it_is_played.py names them.
+SEND_WAY, AS_IT_HAPPENS_WAY = "send", "as it happens"
+
 
 @dataclass
 class PlayingAsItHappens:
@@ -95,6 +120,9 @@ class PlayingAsItHappens:
     for_making_since: float | None = None
     #: Whether the last screen read showed a label that goes on (Play, Start, Next): a menu, not a world to send into.
     way_on_shown: bool = False
+    #: When she last played anything, and the screens not seen before counted when the last stretch was judged.
+    played_at: float = 0.0
+    _screens_judged: int = 0
     _clip: dict[str, float] | None = None
     _focused: bool = False
     _frames: Any = None
@@ -169,20 +197,37 @@ class PlayingAsItHappens:
 
     @staticmethod
     def _key(name: str) -> str:
+        """A key by the browser's own name for it: "backspace" is "Backspace", a letter is itself."""
         from core.skills.screen_pursuit_on_a_page import _KEY_NAMES
 
-        return _KEY_NAMES.get(name, name)
+        lowered = str(name or "").lower()
+        if lowered in _KEY_NAMES:
+            return _KEY_NAMES[lowered]
+        if re.fullmatch(r"f\d{1,2}", lowered):
+            return lowered.upper()
+        return name if len(name) == 1 or not name.isalpha() else name[:1].upper() + name[1:]
+
+    async def _keyed(self, act: Any, key: str) -> None:
+        """A key pressed, let go or tapped; one the browser does not know is said and passed over, not the end of the
+        game: LIVE 2026-10-09 a name typed into a game's scorecard was cleared with "backspace", which the browser
+        calls "Backspace", and the error ended the whole game."""
+        try:
+            await act(self._key(key))
+        except Exception as why:  # noqa: BLE001 - the browser's refusal of one key name
+            if "Unknown key" not in str(why):
+                raise
+            logger.info("the browser knows no key %r; passed over", key)
 
     async def down(self, key: str) -> None:
         await self._focus()
-        await self.page.keyboard.down(self._key(key))
+        await self._keyed(self.page.keyboard.down, key)
 
     async def up(self, key: str) -> None:
-        await self.page.keyboard.up(self._key(key))
+        await self._keyed(self.page.keyboard.up, key)
 
     async def tap(self, key: str) -> None:
         await self._focus()
-        await self.page.keyboard.press(self._key(key))
+        await self._keyed(self.page.keyboard.press, key)
 
     async def pressed(self, key: str) -> None:
         """A key pressed for the pursuit the way a person presses one to see what it does: held a moment, watched."""
@@ -220,9 +265,8 @@ class PlayingAsItHappens:
 
     def read(self, observation: dict[str, Any]) -> None:
         """What a look of the pursuit showed: the screen's words, and its ways back at the start."""
-        from core.skills.screen_pursuit_bearings import restart_controls
-
         from core.language.a_way_on import how_much_it_leads_on
+        from core.skills.screen_pursuit_bearings import restart_controls
 
         said = " ".join(str(observation.get("text") or "").split())
         labels = [" ".join(str(r.get("text") or "").split()) for r in observation.get("layout") or () if isinstance(r, dict)]
@@ -246,7 +290,7 @@ class PlayingAsItHappens:
         if not self.words:
             return True
         said = self.words[-1]
-        if not offers_a_way_on(said):
+        if not offers_a_way_on(said) and not reads_as_rules(said):
             return False
         key = said[:80]
         self.held_for_a_way_on[key] = self.held_for_a_way_on.get(key, 0) + 1
@@ -304,6 +348,80 @@ class PlayingAsItHappens:
             return True
         return False
 
+    def _no_place_for_shots(self) -> bool:
+        """Whether the screen is one to be gone on from, not sent into: a way on shown, words that teach the rules, or
+        words that ask her to choose. LIVE 2026-10-09 a shot on a putter lesson pressed its "back", and she went round
+        title, welcome and lesson for a round without reaching the course.
+        """
+        said = self.words[-1] if self.words else ""
+        return self.way_on_shown or reads_as_rules(said) or asks_to_choose(said)
+
+    def held_to(self) -> Any:
+        """The way she has taken up in this game, kept across its rounds (core/agency/the_way_it_is_played.py)."""
+        from core.agency.the_way_it_is_played import HeldTo
+
+        held = self.keep.get("held_to")
+        if held is None:
+            held = self.keep["held_to"] = HeldTo()
+        return held
+
+    def _judge(self, way: str, stretch: dict[str, Any]) -> None:
+        """A stretch played one way, with the screens not seen before that came up since the last was judged."""
+        self.played_at = time.monotonic()
+        stretch.setdefault("new_screens", self.new_screens - self._screens_judged)
+        self._screens_judged = self.new_screens
+        said = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
+        held = self.held_to()
+        holding = held.way == way
+        held.took(way, stretch, said)
+        if holding and held.way != way:
+            logger.info("left off playing it by %s: it had its turn and got nowhere", way)
+
+    def goes_on_playing(self, observation: dict[str, Any], played_before: float) -> bool:
+        """Whether, after a look, play goes straight on the way she holds to, without the pursuit looking round.
+
+        Not when the run is over, a menu is up, nothing was played since the look before, or the way has stopped paying:
+        then the screen is the pursuit's, to go on from as it goes on from any screen.
+        """
+        if self.played_at <= played_before or time.monotonic() >= self.ends_at:
+            return False
+        if not observation.get("ok", True) or self.way_on_shown or self.run_is_over(observation):
+            return False
+        return bool(self.held_to().holding())
+
+    async def read_a_legend(self) -> None:
+        """A screen that draws things beside words saying what to do about them is read as a legend, once a screen,
+        while it is still up: what each drawn thing is, kept for play to know them by (core/perception/what_a_legend_shows.py).
+        """
+        import asyncio
+
+        import numpy as np
+
+        from core.perception.what_a_legend_shows import stance_of, what_a_legend_shows
+        from core.perception.what_the_pixels_show import recognize_text
+
+        said = self.words[-1] if self.words else ""
+        read_before: set[str] = self.keep.setdefault("legends_read", set())
+        # A screen of rules, or one with words enough to tell things apart: a score's "+ 12 ft." is neither.
+        enough = reads_as_rules(said) or len(re.findall(r"[A-Za-z]{3,}", said)) >= LEGEND_WORDS
+        if not said or said[:120] in read_before or not stance_of(said) or not enough:
+            return
+        read_before.add(said[:120])
+        seen = await self.look()
+        if seen is None:
+            return
+        picture = np.asarray(seen[0])
+        regions = await asyncio.to_thread(recognize_text, np.ascontiguousarray(picture[..., ::-1]))
+        shown = what_a_legend_shows(picture, regions)
+        if not shown:
+            return
+        kept = list(self.keep.get("legend") or [])
+        kept += [drawn for drawn in shown if all(drawn.words != k.words or drawn.where != k.where for k in kept)]
+        self.keep["legend"] = kept[-24:]
+        captions = list(dict.fromkeys(drawn.words for drawn in shown))
+        logger.info("a legend: %s", [(d.words[:40], d.stance, d.colour) for d in shown])
+        _said_while_playing("Its rules screen shows what things are: " + "; ".join(f"\u201c{c}\u201d" for c in captions[:3]) + ".")
+
     async def while_it_moves(self) -> None:
         """Play whatever is moving on its own, until it stops moving."""
         from core.agency.playing_as_it_happens import (
@@ -311,20 +429,29 @@ class PlayingAsItHappens:
             play_as_it_happens,
             the_world_moves_on_its_own,
         )
+        from core.agency.the_way_it_is_played import SEND, ways_asked
         from core.perception.what_the_pixels_show import recognize_text
 
         now = time.monotonic()
-        if now < self.quiet_until or now >= self.ends_at:
+        held = self.held_to()
+        if (now < self.quiet_until and not held.holding()) or now >= self.ends_at:
             return
         if not self.under_her_hand and self._a_menu_first():
             return
         # A screen whose words ask for what it shows to be done again is watched, and followed, before it is played.
         if await self._did_again_what_it_showed():
             return
+        # The way the place says it is played, before what the world does by itself: a thrower bobbing where he stands
+        # is not a world to steer (core/agency/the_way_it_is_played.py).
+        said = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
+        way = held.choose(ways_asked(said, self.words[-1] if self.words else ""), said)
+        if way == SEND and not self._no_place_for_shots():
+            await self._by_shots(now)
+            return
         # Played as it happens where it moves on its own, and where it moves for as long as she holds a key.
         if not self.under_her_hand and not await the_world_moves_on_its_own(self.look):
             # A world that waits for her: words it asks for are typed; where it says to send something, by shots.
-            if not await self._typed_what_it_asks():
+            if not await self._typed_what_it_asks() and SEND not in held.let_go:
                 await self._by_shots(now)
             return
         if not self.keep.get("hers") and not self.recalled:
@@ -334,12 +461,25 @@ class PlayingAsItHappens:
         read = " ".join([self.goal, *self.words[-6:], str(self.keep.get("counsel") or "")])
         named, pointer_first = controls_named_in(read,
                                                 keys_without_words=(), during_play=True)
+        # And what the guide to the place holds of its controls: its page's words, its program, what she looked up
+        # (core/cognition/a_guide_to_a_place.py), words before code.
+        from core.cognition.a_guide_to_a_place import SCREEN as SCREEN_SAID
+        from core.cognition.a_guide_to_a_place import THE_GUIDE, confirmed_by
+
+        guide = THE_GUIDE.get()
+        if guide is not None:
+            named = list(dict.fromkeys([*named, *guide.keys_for_play()]))
+            # Where keys move her and the pointer only aims, her body is looked for by the keys: what follows the
+            # pointer then is where she aims.
+            pointer_first = (pointer_first or guide.pointer_named()) and not guide.pointer_aims()
         # The game's controls are every key any of its screens has named, not
         # only this screen's: LIVE 2026-10-04 a run begun from the end screen
         # ("Press SPACE to play again") was played with space alone, and the
         # arrows the title screen had named were never pressed.
         keys = list(dict.fromkeys([*(self.keep.get("named_keys") or []), *named]))
-        if not keys:
+        # A thing whose words name the mouse and no key is played with the mouse: LIVE 2026-10-09 a putt game, "click the
+        # ball, hold down the mouse while you aim", was played with the arrows a game is usually played with.
+        if not keys and not (pointer_first or self.keep.get("pointer_named")):
             keys = controls_named_in("")[0]
         # Keys named only for doing something ("space to jump") say nothing of moving, and a person takes the arrows to
         # move: LIVE 2026-10-07 a platformer whose screen named space and up was played with those alone, its hero never
@@ -357,6 +497,12 @@ class PlayingAsItHappens:
             waits_for_her=self.under_her_hand,
         )
         self.stretches.append(stretch)
+        self._judge(AS_IT_HAPPENS_WAY, stretch)
+        if guide is not None:
+            # What play read and confirmed, into the guide: what changed said, and what it learned of every place kept.
+            for line in guide.take_in(SCREEN_SAID, stretch.get("words_seen") or [])[:1]:
+                _said_while_playing(line)
+            confirmed_by(guide, stretch)
         if (stretch.get("runtime_checks") or {}).get("violations"):
             self.over_because = "runtime contract violated"
         _keep_what_she_learned(self.page, self.keep)
@@ -369,7 +515,13 @@ class PlayingAsItHappens:
         """Where the screen's words ask for what it shows to be followed: the arrows it draws pressed as keys, else the
         places it lights in turn clicked in their order (core/agency/doing_again_what_was_shown.py). Whether anything
         was done."""
-        from core.agency.doing_again_what_was_shown import Shown, arrows_in, asks_to_follow, do_again, lit_in_turn
+        from core.agency.doing_again_what_was_shown import (
+            Shown,
+            arrows_in,
+            asks_to_follow,
+            do_again,
+            lit_in_turn,
+        )
         from core.perception.what_the_pixels_show import recognize_text
 
         told = " ".join(self.words[-3:])
@@ -424,15 +576,17 @@ class PlayingAsItHappens:
         from core.perception.what_the_pixels_show import recognize_text
 
         told = " ".join([*self.words[-6:], str(self.keep.get("counsel") or "")])
-        if not sends_by_letting_go(told) or now < self.quiet_until or self.way_on_shown:
+        if not sends_by_letting_go(told) or now < self.quiet_until or self._no_place_for_shots():
             return
         logger.info("it waits for her to send something: playing it by shots")
         shots = self.keep.setdefault("by_shots", {})
         stretch = await play_by_shots(self.look, self, seconds=min(STRETCH_S, self.ends_at - now), keep=shots,
                                       say=_said_while_playing, read_words=recognize_text)
         logger.info("shots played: %s", stretch)
-        self.stretches.append({"pictures": stretch.get("shots", 0), "gains": stretch.get("gains", 0), "losses": 0,
-                               "seconds": time.monotonic() - now, "ended": stretch.get("ended"), "by_shots": stretch})
+        record = {"pictures": stretch.get("shots", 0), "gains": stretch.get("gains", 0), "losses": 0,
+                  "seconds": time.monotonic() - now, "ended": stretch.get("ended"), "by_shots": stretch}
+        self.stretches.append(record)
+        self._judge(SEND_WAY, record)
         _keep_what_she_learned(self.page, self.keep)
         if not stretch.get("sends_from"):
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
@@ -569,10 +723,20 @@ async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
     play ends on; the reflexes then read what the look saw.
     """
     reflexes = AS_IT_HAPPENS.get()
+    played_before = reflexes.played_at if reflexes is not None else 0.0
     if reflexes is not None:
         await reflexes.while_it_moves()
     seen = await look()
-    if reflexes is not None:
+    if reflexes is None:
+        return seen
+    reflexes.read(seen)
+    await reflexes.read_a_legend()
+    # Held to a way that may still pay, she plays on with it: the pursuit is given the screen when the run is over, a
+    # menu is up, or the way has had its turn and got nowhere (core/agency/the_way_it_is_played.py).
+    while reflexes.goes_on_playing(seen, played_before):
+        played_before = reflexes.played_at
+        await reflexes.while_it_moves()
+        seen = await look()
         reflexes.read(seen)
     return seen
 

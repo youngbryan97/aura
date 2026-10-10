@@ -110,3 +110,20 @@ def test_a_waiting_screen_that_asks_for_words_has_them_typed_on_her_page(monkeyp
     assert oracle.typed == "Will I win?" and oracle.answered
     assert asyncio.run(playing._typed_what_it_asks())
     assert not asyncio.run(playing._typed_what_it_asks()), "the same ask is typed for twice at most"
+
+
+def test_the_box_drawn_under_the_words_that_ask_is_clicked_first_in_its_middle():
+    """LIVE 2026-10-09 a golf game's name box sat half a line under "Enter your name."; clicked a line and more below
+    the words, and to their right, the name went nowhere."""
+    import numpy as np
+
+    from core.agency.typing_what_is_asked import places_to_type
+    from core.language.words_asked_for import words_asked_for
+
+    picture = np.full((400, 600, 3), (250, 245, 190), np.uint8)
+    picture[140:160, 190:300] = (200, 60, 40)                   # the words that ask, drawn
+    picture[168:198, 200:350] = (215, 205, 150)                 # the box to type in
+    regions = [{"text": "Enter your name.", "x": 0.32, "y": 0.35, "width": 0.18, "height": 0.05,
+                "center_x": 0.41, "center_y": 0.375}]
+    first = places_to_type(words_asked_for("Enter your name."), regions, picture)[0]
+    assert abs(first[0] - 275 / 600) < 0.03 and abs(first[1] - 183 / 400) < 0.02, first

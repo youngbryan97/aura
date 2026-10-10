@@ -85,7 +85,8 @@ class WhatTheRulesSaid:
         keys: list[str] = []
         for instruction in self.instructions:
             if instruction.act in acts and not instruction.forbidden:
-                keys.extend(key for key in _KEYS_OF.get(instruction.control, ()) if key not in keys)
+                named = _KEYS_OF.get(instruction.control) or ((instruction.control,) if len(instruction.control) == 1 else ())
+                keys.extend(key for key in named if key not in keys)
         return tuple(keys)
 
     @property
@@ -95,6 +96,11 @@ class WhatTheRulesSaid:
     @property
     def fire_keys(self) -> tuple[str, ...]:
         return self.keys_for("hit")
+
+    @property
+    def charge_keys(self) -> tuple[str, ...]:
+        """The keys the words say to hold to build something up and let go to use it."""
+        return self.keys_for("charge")
 
     @property
     def covers(self) -> bool:
@@ -122,7 +128,7 @@ class WhatTheRulesSaid:
         parts = []
         for instruction in self.instructions[:4]:
             act = {"get": "get", "keep clear": "keep clear of", "hit": "hit", "click": "click",
-                   "move": "move", "jump": "jump", "stop": "stop"}.get(instruction.act, instruction.act)
+                   "move": "move", "jump": "jump", "stop": "stop", "charge": "hold and let go"}.get(instruction.act, instruction.act)
             thing = " ".join(instruction.thing) or "it"
             line = f"{'not ' if instruction.forbidden else ''}{act} {thing}"
             if instruction.control:

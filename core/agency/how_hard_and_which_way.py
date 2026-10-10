@@ -42,6 +42,9 @@ HOLD = "hold"
 FURTHEST_PULL = 0.4
 LONGEST_HOLD_S = 2.5
 
+#: How many of the latest shots a way is judged by, for whether it sends anything now.
+SENT_LATELY = 8
+
 #: The first settings tried, to see which way and how far a pull sends: a little each way, then a little more.
 FIRST_PULLS = ((0.15, 0.0), (0.0, 0.15), (-0.15, 0.0), (0.0, -0.15))
 FIRST_HOLDS = (0.3, 0.9)
@@ -118,8 +121,12 @@ class Shots:
 
     @property
     def sends_anything(self) -> bool:
-        """Whether any setting has sent something anywhere."""
-        return any(shot.ended_at is not None for shot in self.tried)
+        """Whether any of the latest settings sent something anywhere.
+
+        Lately, not ever: LIVE 2026-10-09 one shot of a putt game sent something early on, and every one of the next
+        four hundred, held where she stood without a pull, sent nothing, and she went on holding.
+        """
+        return any(shot.ended_at is not None for shot in self.tried[-SENT_LATELY:])
 
     @property
     def the_measure(self) -> Setting | None:

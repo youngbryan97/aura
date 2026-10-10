@@ -80,12 +80,17 @@ async def _click_what_she_named(run: SimpleNamespace, label: str) -> bool:
     no longer holds is not guessed at; the move did not land.
     """
     from .screen_pursuit_bearings import where_to_click
+    from .screen_pursuit_looking import MOVES_SAID
     from .screen_pursuit_surface import click_normalized
 
     seen = getattr(run, "observation", None) or {}
     at = where_to_click(seen, label)
     if at is None:
         return False
+    # Where each thing was clicked, for a click that is wanted again where it is no longer read (a pause let go).
+    paced = MOVES_SAID.get()
+    if isinstance(paced, dict):
+        paced.setdefault("clicked_at", {})[" ".join(str(label).split()).lower()] = at
     return await click_normalized(
         at[0],
         at[1],

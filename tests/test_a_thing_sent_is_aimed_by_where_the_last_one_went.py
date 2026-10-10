@@ -160,3 +160,72 @@ def test_shots_end_when_the_screen_offers_a_way_on():
     result = asyncio.run(play_by_shots(world.look, world, seconds=12.0, keep={}, read_words=words, ways=(PULL,)))
     assert result["ended"] == "the screen offers a way on (Play Again)", result
     assert result["shots"] <= 4
+
+
+def test_a_place_that_sent_once_long_ago_and_sends_nothing_now_is_given_up_for_the_one_that_sends():
+    """LIVE 2026-10-09 in a putt game one early shot sent something; four hundred after it, held where she stood, sent
+    nothing, and she went on holding there. What sends now is what is found."""
+    world = _World()
+    keep = {"sends_from": (0.8, 0.2)}                    # where something was sent from once, long ago
+    keep["shots"] = {"hold": Shots(way="hold")}
+    keep["shots"]["hold"].took(Shot(Setting(0.0, 0.0, 1.0), (0.81, 0.21)))
+
+    async def go():
+        return await play_by_shots(world.look, world, seconds=40.0, keep=keep, read_words=world.words)
+
+    played = asyncio.run(go())
+    assert keep.get("sends_from") is not None and math.dist(keep["sends_from"], world.home) < 0.06, keep.get("sends_from")
+    assert played["shots"] > 0
+
+
+def test_a_press_that_changes_the_whole_screen_is_a_button_not_a_shot_and_is_not_pressed_as_one_again():
+    """LIVE 2026-10-09 a press on a game's rules screen went back to its title, the title moving into place was taken
+    for a thing sent, and every shot after it pressed START."""
+    from core.agency.playing_by_shots import _places_to_send_from
+
+    world = _World()
+    pressed = {"button": False}
+    looked = world.look
+
+    async def look():
+        picture, at = await looked()
+        if pressed["button"]:
+            picture = picture.copy()
+            picture[:] = (200, 40, 160)                     # another screen altogether
+        return picture, at
+
+    async def press(x, y):
+        if math.dist((x, y), (0.75, 0.3)) < 0.06:            # the dark square is a button here
+            pressed["button"] = True
+        await world.press(x, y)
+
+    world.press_first = world.press
+    keep = {"sends_from": (0.75, 0.3)}
+
+    class _Hands:
+        async def press(self, x, y):
+            await press(x, y)
+
+        async def point(self, x, y):
+            await world.point(x, y)
+
+        async def release(self):
+            await world.release()
+
+    played = asyncio.run(play_by_shots(look, _Hands(), seconds=20.0, keep=keep))
+    assert played["ended"] == "the screen changed" and keep.get("sends_from") is None
+    pressed["button"] = False
+    picture, _ = asyncio.run(look())
+    assert all(math.dist(place, (0.75, 0.3)) > 0.05 for place in _places_to_send_from(picture, keep))
+
+
+def test_a_small_round_thing_is_among_the_places_to_send_from():
+    """LIVE 2026-10-09 a putt game's ball, sat on its tee, was never among the places she pressed."""
+    from core.agency.playing_by_shots import _places_to_send_from
+
+    picture = np.full((200, 300, 3), (200, 180, 120), np.uint8)
+    picture[20:40, 100:200] = (60, 60, 160)                     # a heading box
+    yy, xx = np.mgrid[0:200, 0:300]
+    picture[(yy - 140) ** 2 + (xx - 40) ** 2 <= 16] = (120, 40, 160)   # a ball on its tee
+    places = _places_to_send_from(picture, {})
+    assert any(math.dist(place, (40 / 300, 140 / 200)) < 0.03 for place in places), places

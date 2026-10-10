@@ -71,9 +71,32 @@ _SAYS_WHAT_TO_DO = re.compile(
     r"quickly|as fast as|arrow keys?|space ?bar|spacebar|mouse|left|right|up|down|enter|shift|ctrl|key|button|"
     r"win|wins|lose|before|until|when|if)\b", re.I)
 
-#: The acts and controls a sentence names: what two sources agree on, when they agree.
+#: The acts and controls a sentence names: what two sources agree on, when they agree. A way ("left", "up") is a
+#: control only where a key is meant by it (read as play reads controls): LIVE 2026-10-09 "Left behind by his brother's
+#: team, Tommy proves his mettle" was kept as how to play a game, for its "left".
 _A_CUE = re.compile(r"\b(press|hold|click|tap|drag|jump|dodge|avoid|collect|catch|shoot|throw|aim|steer|alternate|"
-                    r"repeatedly|rapidly|quickly|arrow keys?|space ?bar|spacebar|mouse|left|right|up|down|enter)\b", re.I)
+                    r"repeatedly|rapidly|quickly|arrow keys?|space ?bar|spacebar|mouse)\b", re.I)
+
+#: The sections of a manual a sentence can fill: what it is for, how a round is won and lost, what is worth getting and
+#: keeping clear of, how it is scored, and how to do well. A sentence that fills none (a story, a blurb) is not how to
+#: play it.
+_MANUAL = {
+    "goal": re.compile(r"\b(?:goal|objective|object of|aim of|your (?:mission|job|task)|you (?:must|need to|have to)|try to|"
+                       r"help \w+ (?:to )?\w+|guide|get (?:to|all|as many)|reach the|rescue|escape)\b", re.I),
+    "win": re.compile(r"\b(?:to win|you win|win by|beat (?:the|each|all)|complete (?:the|each|all)|clear (?:the|each|all)|"
+                      r"land (?:safely|softly|gently))\b", re.I),
+    "lose": re.compile(r"\b(?:you lose|lose (?:a|one|the|all|your)|game over|crash\w*|die|dies|killed|fail\w*|run out|"
+                       r"don'?t let|if you (?:touch|hit|fall|miss))\b", re.I),
+    "scoring": re.compile(r"\b(?:points?|score|bonus|combo|multiplier|high score)\b", re.I),
+    "things": re.compile(r"\b(?:collect|grab|pick up|catch|avoid|dodge|watch out for|beware|power-?ups?|enemies|obstacles)\b",
+                         re.I),
+    "tips": re.compile(r"\b(?:tip|trick|best (?:way|to)|make sure|remember|be careful|slowly|gently|strategy|it helps|"
+                       r"the key is|instead of|rather than)\b", re.I),
+}
+
+#: Before play, what a manual would say is asked for, and as much of it kept as says something.
+MOST_KEPT_BEFORE = 8
+FROM_ONE_PAGE_BEFORE = 3
 
 
 def _words(text: str) -> set[str]:
@@ -134,8 +157,11 @@ def _unfamiliar_terms(said: Sequence[str], thing: str) -> list[str]:
 
 
 def questions_for(situation: Situation) -> list[str]:
-    """The few questions a person in her place would ask, in the order they matter."""
+    """The few questions a person in her place would ask, in the order they matter. Before beginning, a manual's: how it
+    is played and worked, how it is won, and how to do well at it."""
     thing, aim = situation.thing.strip(), _the_aim(situation.task)
+    if situation.why == BEFORE:
+        return [f"{thing} how to play controls instructions", f"how to {aim} {thing}", f"{thing} tips strategy"]
     asked = [f"how to {aim} {thing}"]
     happened = _what_ended_it(situation.ended, thing)
     if happened and situation.why in (FAILING, STUCK):
@@ -177,6 +203,14 @@ class Counsel:
 
     def __bool__(self) -> bool:
         return bool(self.kept)
+
+    def gathered(self) -> str:
+        """Before play, what was found of how it is played, counted, and from where: the guide says what it was."""
+        if not self.kept:
+            return self.said()
+        sources = sorted({h.source for h in self.kept})
+        return (f"I looked up how it's played: {len(self.kept)} thing{'s' if len(self.kept) != 1 else ''} worth going by, "
+                f"from {' and '.join(sources)}.")
 
     def said(self) -> str:
         """In a sentence or two: what she found, and from where; or that nothing said more than the place itself."""
@@ -228,18 +262,27 @@ def what_to_take(heard: Sequence[Heard], situation: Situation, questions: Sequen
     one source says the same acts and controls. One sentence a source at most, the best first."""
     about = _words(situation.thing) | set().union(*(_words(q) for q in questions)) if questions else _words(situation.thing)
     said_on_screen = set().union(*(_words(s) for s in situation.said)) if situation.said else set()
+    from core.agency.the_controls_a_game_names import controls_named_in
+
     candidates: list[tuple[float, Heard, set[str]]] = []
     for one in heard:
         for sentence in _sentences(one.text):
             words = _words(sentence)
-            cues = {c.lower() for c in _A_CUE.findall(sentence)}
+            keys, pointer = controls_named_in(sentence, keys_without_words=())
+            cues = {c.lower() for c in _A_CUE.findall(sentence)} | set(keys) | ({"mouse"} if pointer else set())
+            sections = {name for name, says in _MANUAL.items() if says.search(sentence)}
             # Each source is already kept to what is about the thing (a page or an article whose title names it, an
-            # answer to the question asked); a sentence of it need not name the thing again to be about it.
-            if not _SAYS_WHAT_TO_DO.search(sentence):
+            # answer to the question asked); a sentence of it need not name the thing again to be about it. It must say
+            # how it is played: a control or an act named, or a section of a manual filled.
+            if not cues and not sections:
                 continue
-            if not cues and len(words & about) < 2:
+            if not _SAYS_WHAT_TO_DO.search(sentence) and not sections:
+                continue
+            if not cues and len(words & about) < 2 and not sections:
                 continue  # neither an act or a control named, nor plainly about what was asked: a site's own chatter
-            score = len(words & about) + 2.0 * len(cues) + (4.0 if one.source == HELPED_BEFORE else 0.0)
+            # A sentence naming four arrows names one control, not four: what it names counts up to three.
+            score = (len(words & about) + 2.0 * min(3, len(cues)) + 1.5 * len(sections)
+                     + (4.0 if one.source == HELPED_BEFORE else 0.0))
             # What the place already says is not news; a sentence only repeating it is worth less.
             if words and len(words & said_on_screen) > 0.8 * len(words):
                 score *= 0.4
@@ -251,11 +294,16 @@ def what_to_take(heard: Sequence[Heard], situation: Situation, questions: Sequen
     ranked = sorted(((score + 1.5 * sum(len(by_cue[c]) - 1 for c in cues), one) for score, one, cues in candidates),
                     key=lambda pair: -pair[0])
     kept: list[Heard] = []
+    before = situation.why == BEFORE
+    most, from_one = (MOST_KEPT_BEFORE, FROM_ONE_PAGE_BEFORE) if before else (MOST_KEPT, 1)
     for _score, one in ranked:
-        # One sentence from each place it was found: two pages of the web are two witnesses, one page is one.
-        if all((one.source, one.where) != (k.source, k.where) for k in kept) and all(one.text != k.text for k in kept):
+        # One sentence from each place it was found, where it is counsel: two pages of the web are two witnesses, one
+        # page is one. Before play it is a manual being put together, and a page that says how a thing is played says
+        # it in more than one sentence.
+        same_page = sum((one.source, one.where) == (k.source, k.where) for k in kept)
+        if same_page < from_one and all(one.text != k.text for k in kept):
             kept.append(one)
-        if len(kept) >= MOST_KEPT:
+        if len(kept) >= most:
             break
     return kept
 

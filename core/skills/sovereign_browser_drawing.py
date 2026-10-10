@@ -327,7 +327,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     deadline = time.monotonic() + (share if until_won or limit > 1 else _one_run_s())
     contract = step.get("runtime_contract") or {}
     keep: dict[str, Any] = {"required_edges": contract.get("required_edges") or [],
-                            "edge_provenance": contract.get("provenance") or "", "stock": _a_stocktaking(goal, page)}
+                            "edge_provenance": contract.get("provenance") or "", "stock": await _a_stocktaking(goal, page)}
     runs: list[dict[str, Any]] = []
     moves: list[Any] = []
     result: dict[str, Any] = {}
@@ -452,10 +452,17 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
 STUCK_HERE = "I'm getting nowhere"
 
 
-def _a_stocktaking(goal: str, page: Any) -> Any:
+async def _a_stocktaking(goal: str, page: Any) -> Any:
+    """Taking stock in the thing on the page, named as the request names it, else by the page's own title: LIVE
+    2026-10-09 asked for a game by its address, she asked the web "how to win https://archive.org/details/...".
+    """
     from core.skills.sovereign_browser_taking_stock import Stocktaking, the_thing
 
-    return Stocktaking(the_thing(goal, str(getattr(page, "url", "") or "")))
+    try:
+        title = str(await page.title() or "")
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        title = ""
+    return Stocktaking(the_thing(goal, title or str(getattr(page, "url", "") or "")))
 
 
 async def _stopped_to_take_stock(why: str, goal: str, reflexes: Any, run: dict[str, Any], runs: list[dict[str, Any]],
@@ -513,19 +520,23 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
     """One run of the game: menus by the screen pursuit, play by its reflexes, until the run is over."""
     import time
 
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
     from core.skills.screen_pursuit import pursue_on_screen
     from core.skills.screen_pursuit_as_it_happens import AS_IT_HAPPENS, PlayingAsItHappens
     from core.skills.screen_pursuit_on_a_page import HER_OWN_PAGE, OnAPage
 
     stock = keep.get("stock")
+    guide = await _the_guide(page, keep)
     if stock is not None and not stock.taken and not stock.remembered():
         # Somewhere new, with nothing kept of it: taking stock before acting, while it waits at its start.
         from core.cognition.taking_stock import BEFORE
 
         await stock.take(BEFORE, goal, [], "", [], keep, deadline)
+    _what_the_guide_says(guide, keep, goal)
     reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=deadline, keep=keep)
     held = HER_OWN_PAGE.set(on := OnAPage(page=page, name=HER_BROWSER))
     quick = AS_IT_HAPPENS.set(reflexes)
+    guided = THE_GUIDE.set(guide)
     try:
         result = await pursue_on_screen(
             goal=goal,
@@ -536,11 +547,58 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
             max_seconds=max(1.0, deadline - time.monotonic()),
         )
     finally:
+        THE_GUIDE.reset(guided)
         AS_IT_HAPPENS.reset(quick)
         HER_OWN_PAGE.reset(held)
         await reflexes.close()
         await on.stop_watching()
+        _keep_the_guide(guide)
     return result, reflexes
+
+
+async def _the_guide(page: Any, keep: dict[str, Any]) -> Any:
+    """The guide to the thing on the page (core/cognition/a_guide_to_a_place.py): the one in hand, else what she kept of
+    it before, else one made now from the page's words and its program."""
+    from core.cognition.a_guide_to_a_place import Guide, carry_over
+    from core.runtime.what_she_learned import named, recall
+    from core.skills.sovereign_browser_guide import guide_to_the_page
+
+    guide = keep.get("guide")
+    if isinstance(guide, Guide):
+        return guide
+    stock = keep.get("stock")
+    thing = str(getattr(stock, "thing", "") or "")
+    # Made afresh from the page and its program every visit (what a page says of itself can change); what play taught
+    # her of it before (what she came to think, its names, what helped) is carried over.
+    guide = await guide_to_the_page(page, thing)
+    kept = recall(named("a guide", thing)) if thing else None
+    if kept:
+        carry_over(guide, Guide.from_memory(kept, thing))
+    keep["guide"] = guide
+    return guide
+
+
+def _what_the_guide_says(guide: Any, keep: dict[str, Any], goal: str = "") -> None:
+    """What was looked up taken into the guide, and what the guide holds said once, before she begins; and what she
+    knows herself of the place asked of her model beside her play (core/cognition/what_i_know_of_a_place.py)."""
+    from core.cognition.what_i_know_of_a_place import ask_in_the_background
+    from core.rebuilding.her_model import ask_her_model
+
+    stock = keep.get("stock")
+    counsel = getattr(stock, "counsel", None)
+    if counsel is not None and getattr(counsel, "told", ""):
+        guide.take_in_counsel(counsel.told)
+    if not guide.said and guide.says():
+        guide.said = True
+        _tell(guide.says())
+    ask_in_the_background(guide, task=goal, said=" ".join(guide.goals[:2]), ask=ask_her_model, tell=_tell)
+
+
+def _keep_the_guide(guide: Any) -> None:
+    from core.runtime.what_she_learned import named, remember
+
+    if guide is not None and guide.place:
+        remember(named("a guide", guide.place), guide.as_memory())
 
 
 def _how_the_run_went(reflexes: Any, result: Mapping[str, Any]) -> dict[str, str]:

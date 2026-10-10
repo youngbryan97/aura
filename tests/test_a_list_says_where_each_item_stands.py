@@ -60,4 +60,4 @@ async def test_her_decision_is_shown_the_place(browser):
     await browser.page.goto("https://example.com/aura-list", wait_until="load")
     observation = await browser.observe(principal="owner")
     rendered = SovereignBrowserSkill._render_observation(observation, "play game number 20")
-    assert "Game number 20 2005 (21 of 56 alike)" in " ".join(rendered.split()), rendered[:3000]
+    assert "[20] link \u2014 Game number 20 2005 (21 of 56 alike, number 20 counting from 0)" in rendered.splitlines(), rendered[:3000]

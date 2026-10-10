@@ -43,7 +43,14 @@ def the_thing(goal: str, title: str = "") -> str:
     named = re.search(r"[“\"]([^”\"]{3,120})[”\"]", str(goal or ""))
     if named:
         return named.group(1).strip()
-    return re.split(r"\s+[:|–—-]\s+", str(title or "").strip())[0][:120]
+    # A title's own separators first ("Name : Publisher : Site", "Name | Site"); a dash only where there is none, for a
+    # dash is often inside a name ("The Powerpuff Girls - Attack Of The Puppybots : Cartoon Network").
+    title = str(title or "").strip()
+    for separator in (r"\s+[:|]\s+", r"\s+[–—-]\s+"):
+        parts = re.split(separator, title)
+        if len(parts) > 1:
+            return parts[0][:120]
+    return title[:120]
 
 
 def _better(after: list[dict[str, Any]], before: list[dict[str, Any]]) -> bool:
@@ -116,7 +123,8 @@ class Stocktaking:
             "my model": from_her_model(ask_her_model),
         }
         counsel = helped.without_what_did_not(await take_stock(situation, sources, seconds=seconds))
-        _tell(counsel.said())
+        # Before play what was found goes into the guide to the place, which says it whole; after, it is counsel.
+        _tell(counsel.gathered() if why == BEFORE else counsel.said())
         if not counsel:
             return False
         self.counsel, self.at_run, self.before = counsel, len(runs), list(runs[-3:])

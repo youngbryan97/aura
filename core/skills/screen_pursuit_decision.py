@@ -154,9 +154,78 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     again = getattr(held, "taken_here_to_no_end", lambda _act: 0)
     # What the screen's own words ask to be clicked goes on as surely as a Play does: it is doing what it says.
     asked = set(getattr(can_do, "clicks_asked_for", ()) or ())
-    return {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
-            / (1 + again(name))
-            for name, value in (telling or {}).items()}
+    valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
+              / (1 + again(name))
+              for name, value in (telling or {}).items()}
+    return _as_checked(can_do, _go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued)))
+
+
+def _with_the_guide(learned: Any, *, brief: bool = False) -> list[str]:
+    """What she has learned here, and what the guide to where she is holds (core/cognition/a_guide_to_a_place.py): how
+    it is worked, what it wants, what changed. Hers to reason with when settling on a line, and, in brief, when choosing
+    a move; it decides nothing."""
+    from core.cognition.a_guide_to_a_place import the_guide
+
+    from .screen_pursuit_looking import MOVES_SAID
+
+    paced = MOVES_SAID.get()
+    guide = the_guide(paced if isinstance(paced, dict) else None)
+    said = guide.in_brief() if brief else guide.for_thinking()
+    return [*list(learned or []), *([f"What I know of how this place works: {said}"] if said.count("\n") >= 1 else [])]
+
+
+def _as_checked(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
+    """What she valued, checked against the guide to where she is (core/cognition/checking_the_debate.py); and what
+    each act she takes does, taught to the check."""
+    from core.cognition.a_guide_to_a_place import the_guide
+    from core.cognition.checking_the_debate import the_check
+
+    from .screen_pursuit_looking import MOVES_SAID
+
+    paced = MOVES_SAID.get()
+    check = the_check()
+    if hasattr(can_do, "on_tried"):
+        can_do.on_tried = check.learned
+    return check.weigh(valued, the_guide(paced if isinstance(paced, dict) else None), can_do)
+
+
+def _go_on_from_a_pause(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
+    """A screen that says it is paused goes on by what paused it, before anything on it is found out; and while it goes
+    on, what paused it is not taken again to see what it does.
+
+    LIVE 2026-10-09 trying a game's corner button paused it; on "PAUSED" she clicked the word, the middle of the picture
+    and every shape but that button, and the game stood paused until its time ran out.
+    """
+    by = getattr(can_do, "paused_by", "")
+    if not by or by not in valued:
+        return valued
+    out = dict(valued)
+    out[by] = max([1.0, *out.values()]) * 2.0 if getattr(can_do, "paused_here", False) else out[by] * CHOSEN_ALREADY
+    return out
+
+
+def _once_chosen_go_on(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
+    """On a screen that asks her to choose, once a choice has been made the other choices are not to find out, and
+    what goes on (Next, OK) is wanted, though it did nothing before the choice.
+
+    LIVE 2026-10-09 a golf game's choice of players drew its "next" faded until a player was chosen; she clicked "next"
+    first, it did nothing, and after choosing she went on clicking the choices and the shapes for three minutes.
+    """
+    from core.agency.what_i_can_do_here import what_is_clicked
+    from core.language.a_way_on import confirms
+
+    if not getattr(can_do, "chose_here", False):
+        return valued
+    out = {name: value * (1.0 if confirms(what_is_clicked(name) or "") else CHOSEN_ALREADY)
+           for name, value in valued.items()}
+    for name in getattr(can_do, "on_screen", ()) or ():
+        if confirms(what_is_clicked(name) or ""):
+            out[name] = max(out.get(name, 0.0), 1.0)
+    return out
+
+
+#: How much less the other choices on a screen are worth finding out once one has been made.
+CHOSEN_ALREADY = 0.1
 
 
 def _the_layout_is_made(success_when: str, knows: Any, laid_out: Any) -> bool:
@@ -983,7 +1052,7 @@ async def decide_the_next_move(
                     #
                     # Bounded by the run and not by a move: nothing waits.
                     think=_within_the_run(think or _reasoning_for_a_plan(), ends_at),
-                    knowledge=learned,
+                    knowledge=_with_the_guide(learned),
                     history=history[-RECENT_ATTEMPTS:],
                     previous=plan["held"],
                     moves_made=len(moves),
@@ -1430,7 +1499,7 @@ async def decide_the_next_move(
                 if asking
                 else None
             ),
-            knowledge=learned,
+            knowledge=_with_the_guide(learned, brief=True),
             history=history[-RECENT_ATTEMPTS:],
             stakes=stakes,
             control_point="screen_pursuit.next_move",

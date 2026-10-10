@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
@@ -28,6 +29,9 @@ from core.agency.how_hard_and_which_way import HOLD, PULL, Setting, Shot, Shots
 logger = logging.getLogger("Aura.PlayingByShots")
 
 __all__ = ["play_by_shots", "sends_by_letting_go"]
+
+#: What a press that changed the whole screen is said to have sent: nothing, it was a button.
+NAVIGATED: Any = object()
 
 #: How long after letting go something must have set off for it to have been sent, and the longest a shot is
 #: watched before what it sent is taken to have stopped where it is.
@@ -45,16 +49,34 @@ PULL_STEPS = 8
 #: place and stays there (core/agency/putting_things_in_place.py); LIVE 2026-10-09 "click and drag it into place"
 #: had her letting go of shots at a title screen for a minute. Not "aim" or "power" alone: a shooter is aimed with
 #: the mouse and a platformer has power-ups, and "Mouse to aim" sent her into shots on a game's menu the same day.
-_SENDING_WORDS = (
-    "pull", "release", "let go", "launch", "fling", "sling", "toss", "putt", "power meter", "power bar",
-    "hold the mouse", "click and hold", "hold down the mouse", "hold the button", "throw",
-)
+_SENDING_WORDS = ("pull", "release", "let go", "launch", "fling", "sling", "putt", "power meter", "power bar")
+
+#: Words for a press held: a send only where what it is held for is aiming or gathering strength to let go of. Held to
+#: use something for as long as it is held (glide, fly, speed up), it is no send: LIVE 2026-10-09 a game said "while
+#: flying, click and hold your mouse button to use Glide Power", and she pulled and let go two hundred times.
+_HELD = re.compile(r"\b(?:hold the mouse|click and hold|hold down the mouse|hold the button)\b")
+_HELD_TO_SEND = re.compile(r"\b(?:aim\w*|release|let go|power up|shot|charge|strength|how hard|shoot|throw|putt|swing)\b")
+
+#: Words for sending that a click alone may do: "click to throw" is a shot aimed by the pointer, made at once
+#: (core/agency/playing_as_it_happens.py); a throw held, pulled or let go is sent. LIVE 2026-10-09 a food fight's
+#: "aim with your mouse and click to throw" was read as a world that waits for something sent.
+_THROWN = re.compile(r"\b(?:throw|toss)\w*")
+_A_CLICK_THROWS = re.compile(r"\bclick\w*(?:\s+\w+){0,3}\s+to\s+(?:throw|toss|launch|fling)", re.I)
 
 
 def sends_by_letting_go(told: str) -> bool:
     """Whether words a thing says of itself speak of sending by a press pulled or held and let go."""
-    lowered = " ".join(told.lower().split())
-    return any(word in lowered for word in _SENDING_WORDS)
+    for sentence in re.split(r"(?<=[.!?;])\s+", " ".join(told.lower().split())):
+        # "click again to launch the hamster" is a click that sends, made at once; "pull back and release to launch"
+        # is a press let go.
+        clicked = _A_CLICK_THROWS.search(sentence)
+        if any(word in sentence for word in _SENDING_WORDS if not (clicked and word in ("launch", "fling"))):
+            return True
+        if _HELD.search(sentence) and _HELD_TO_SEND.search(sentence):
+            return True
+        if _THROWN.search(sentence) and not clicked:
+            return True
+    return False
 
 
 async def _let_go(hands: Any, start: tuple[float, float], setting: Setting, way: str) -> None:
@@ -94,6 +116,9 @@ async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_
             break
         picture, at = seen
         happened = moves.see(picture, at)
+        if any(event.get("what") == "new screen" for event in happened):
+            # The whole screen changed under the press: a button was pressed, not a thing sent.
+            return NAVIGATED, gained
         tall, wide = moves.shape
         if sent is None and at - let_go_at <= SETS_OFF_WITHIN_S:
             setting_off = [thing for thing in moves.things.values()
@@ -142,19 +167,54 @@ def _a_way_on_shown(picture: Any, read_words: Callable[[Any], list[dict[str, Any
     return ""
 
 
+#: The width a picture is looked over at for small round things, and how much of it one may cover.
+ROUND_THINGS_WIDTH = 300
+ROUND_THINGS_SIZES = (0.0002, 0.008)
+
+
+def _round_things(picture: Any) -> list[tuple[float, float]]:
+    """Small, round, solid things that stand out from what is round them, as shares of the picture: what is sent is
+    nearly always one (a ball, a top, a bird, a ball of laundry). LIVE 2026-10-09 a putt game's ball, sat on its tee,
+    was never among the places she pressed: what stood out there were a heading and the middle of the picture.
+    """
+    import numpy as np
+
+    from core.perception.picture_arithmetic import median, pieces, shrink
+
+    pixels = np.asarray(picture)
+    tall, wide = pixels.shape[:2]
+    small = shrink(pixels, ROUND_THINGS_WIDTH, max(1, round(tall * ROUND_THINGS_WIDTH / wide))) if wide > ROUND_THINGS_WIDTH else pixels
+    high, across = small.shape[:2]
+    around = median(small, 11)
+    stands = np.abs(small.astype(np.int16) - around.astype(np.int16)).max(axis=2) > 50
+    count, _labels, stats, centres = pieces(stands)
+    found = []
+    for label in range(1, count):
+        x, y, w, h, area = (int(v) for v in stats[label])
+        share = area / (high * across)
+        if not ROUND_THINGS_SIZES[0] <= share <= ROUND_THINGS_SIZES[1] or not 0.6 <= w / max(1, h) <= 1.6:
+            continue
+        if area < 0.6 * w * h:
+            continue
+        found.append((share, (round(float(centres[label][0]) / across, 4), round(float(centres[label][1]) / high, 4))))
+    return [place for _share, place in sorted(found)]
+
+
 def _places_to_send_from(picture: Any, keep: dict[str, Any]) -> list[tuple[float, float]]:
-    """Where a press might send something from: where it did before, else what stands out on the picture, largest first."""
+    """Where a press might send something from: where it did before, else what stands out on the picture, largest first;
+    never where a press changed the whole screen, which is a button."""
     from core.perception.shapes_that_look_pressable import pressable_shapes
 
     known = keep.get("sends_from")
+    buttons = [tuple(place) for place in keep.get("navigates_from") or ()]
     places: list[tuple[float, float]] = [tuple(known)] if known else []
-    for shape in pressable_shapes(picture):
-        place = (float(shape.get("center_x", 0.5)), float(shape.get("center_y", 0.5)))
+    shapes = [(float(shape.get("center_x", 0.5)), float(shape.get("center_y", 0.5))) for shape in pressable_shapes(picture)]
+    for place in [*_round_things(picture), *shapes]:
         if all(math.dist(place, other) > 0.05 for other in places):
             places.append(place)
     if all(math.dist((0.5, 0.5), other) > 0.05 for other in places):
         places.append((0.5, 0.5))
-    return places
+    return [place for place in places if all(math.dist(place, button) > 0.05 for button in buttons)]
 
 
 async def play_by_shots(
@@ -193,7 +253,8 @@ async def play_by_shots(
     if seen is None:
         return {"shots": 0, "ended": "the picture could not be taken"}
     places = _places_to_send_from(seen[0], keep)
-    order = [way for way in ways if way in shots_by_way and shots_by_way[way].sends_anything] or list(ways)
+    # The way that has sent lately first, and the others behind it, never left out.
+    order = sorted(ways, key=lambda w: not (w in shots_by_way and shots_by_way[w].sends_anything))
     # One watch of the picture for all the shots, so what stays put is known before anything is sent.
     moves = WhatMoves(kinds=keep.get("kinds"))
     moves.see(seen[0], seen[1])
@@ -226,32 +287,39 @@ async def play_by_shots(
         # When it was let go, on the pictures' own clock: the time of the last picture before it, and the act's length.
         let_go_at = seen[1] + (setting.held_s if way == HOLD else PULL_STEPS * 0.015)
         ended_at, gained = await _where_it_went(look, moves, let_go_at, read_words, counters, going_already=going)
+        if ended_at is NAVIGATED:
+            # LIVE 2026-10-09 a press on a game's rules screen went back to its title, the title's moving into place was
+            # taken for a thing sent, and every shot after it pressed START.
+            keep.setdefault("navigates_from", []).append(start)
+            if keep.get("sends_from") is not None and math.dist(tuple(keep["sends_from"]), start) <= 0.05:
+                keep["sends_from"] = None
+            ended = "the screen changed"
+            break
         keep["kinds"] = moves.kinds
         shot = Shot(setting=setting, ended_at=ended_at, gained=gained, aimed_at=aim)
         shots.took(shot)
         taken += 1
         gains += max(0, gained)
         logger.info("shot %d (%s from %s, %s): ended at %s, gained %d; %s", taken, way, start, setting, ended_at, gained, shots.how_it_goes())
+        after = await look()
+        way_on = _a_way_on_shown(after[0] if after else None, read_words)
+        if way_on:
+            ended = f"the screen offers a way on ({way_on})"
+            break
         if ended_at is None and not shots.sends_anything and len(shots.tried) >= 2:
-            # Two tries of one way from one place sent nothing: the other way, then the next place.
-            if len(order) > 1:
-                order = order[1:] + order[:1]
-                if all(shots_by_way.get(w) is not None and len(shots_by_way[w].tried) >= 2 and not shots_by_way[w].sends_anything for w in order):
-                    places = places[1:]
-                    shots_by_way.clear()
-            else:
-                places = places[1:]
+            # Two tries of one way from one place, and nothing sent lately: the other way, then the next place. A place
+            # that sent once long ago is given up like any other: what sends now is what is being found.
+            order = order[1:] + order[:1]
+            if all(shots_by_way.get(w) is not None and len(shots_by_way[w].tried) >= 2 and not shots_by_way[w].sends_anything for w in order):
+                places = [place for place in places if math.dist(place, start) > 0.05]
+                keep["sends_from"] = None
                 shots_by_way.clear()
+                order = list(ways)
             continue
         if ended_at is not None and keep.get("sends_from") is None:
             keep["sends_from"] = start
             tell("Pressing there and letting go sends it; now finding how hard and which way.")
         if shot.got_there:
             tell("That's the measure of it.")
-        after = await look()
-        way_on = _a_way_on_shown(after[0] if after else None, read_words)
-        if way_on:
-            ended = f"the screen offers a way on ({way_on})"
-            break
     return {"shots": taken, "gains": gains, "ended": ended, "sends_from": keep.get("sends_from"),
             "how_it_goes": {way: shots.how_it_goes() for way, shots in shots_by_way.items()}}

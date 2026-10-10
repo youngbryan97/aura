@@ -258,6 +258,7 @@ class _UnderstandsThePage(_PlacesHerself):
             # A refusal is a page too, and the way on from it is somewhere else.
             *([f"This page refused your browser. The same address as the Internet Archive keeps it, to go to: {its_archived_copy(str(observation.get('url') or ''))}"]
               if refused(str(observation.get("title") or ""), str(observation.get("text") or "")) else []),
+            *_how_it_works(observation, elements),
             "",
             "PAGE TEXT:",
             "",  # filled in last, with the room the rest leaves
@@ -330,9 +331,10 @@ class _UnderstandsThePage(_PlacesHerself):
             if element.get("value"):
                 state.append(f"value={element['value']}")
             suffix = f" ({', '.join(state)})" if state else ""
-            lines.append(
-                f"[{index}] {element.get('role')} \u2014 {element.get('name')}{suffix}"
-            )
+            # One control, one line: a name the page broke over lines (a tile's
+            # title above its year) would otherwise read as two controls.
+            name = " ".join(str(element.get("name") or "").split())
+            lines.append(f"[{index}] {element.get('role')} \u2014 {name}{suffix}")
         # What was left out, and what is below the fold.
         #
         # Neither was said, so a page whose list had been cut and a page with
@@ -1896,3 +1898,12 @@ class _UnderstandsThePage(_PlacesHerself):
                     "sovereign_browser.retain_positions", exc, severity="warning"
                 )
                 return
+
+
+def _how_it_works(observation: Mapping[str, Any], elements: list[Any]) -> list[str]:
+    """What she has read of how the site works (core/cognition/a_guide_to_a_place.py), told as what she knows, never as
+    what to do."""
+    from .sovereign_browser_guide import how_this_place_works
+
+    said = how_this_place_works(observation, elements)
+    return ["", "HOW THIS PLACE WORKS (what you have read of it; yours to reason with):", said] if said else []

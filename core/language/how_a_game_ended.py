@@ -16,8 +16,8 @@ import re
 import unicodedata
 from typing import Final
 
-__all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "offers_a_win", "the_score_in",
-           "what_it_asks_of_a_player"]
+__all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "offers_a_win", "says_a_round_is_over",
+           "the_score_in", "what_it_asks_of_a_player"]
 
 _WINNING: Final = re.compile(r"\b(win|wins|won|winner|victory|victorious|beat|beats|defeated|champion)\b")
 _THE_PLAYER: Final = frozenset({"you", "player", "player 1", "p1", "your", "yours"})
@@ -93,6 +93,19 @@ def _who_it_says_won(text: str) -> str:
     return ""
 
 
+#: What an end screen says over a round, won or lost, as against the rules' words for winning and losing ("defeat the
+#: robots", "don't crash"), which are read in play too.
+_ROUND_OVER: Final = re.compile(
+    r"\b(game over|try again|play again|retry|replay|you (?:lose|lost|win|won|died|crashed)|out of (?:lives|time)|"
+    r"time'?s up|(?:level|stage|round|mission|wave) (?:complete|completed|cleared|failed)|mission failed|well done|"
+    r"congratulations)\b")
+
+
+def says_a_round_is_over(words: str) -> bool:
+    """Whether writing says a round is over, the way an end screen says it: "GAME OVER", "TRY AGAIN", "Level Complete"."""
+    return bool(_ROUND_OVER.search(_plain(words)))
+
+
 def how_it_ended(words: str) -> str:
     """"won", "lost", or "" where the words do not say."""
     text = _plain(words)
@@ -159,7 +172,10 @@ def requested_attempts(request: str) -> int | None:
 
 
 #: A score as a screen writes it: "Your score: 1,250", "Points 40", "Total = 300".
-_A_SCORE: Final = re.compile(r"\b(?:score|points|pts|total)\b\s*[:=]?\s*(\d[\d,]*)")
+#: A score as a last screen writes it; and a run measured, not counted ("TOTAL DISTANCE: 24 ft", "Height: 120 m"): LIVE
+#: 2026-10-09 a hamster launch's end screen wrote its total distance, and she said no score was shown.
+_A_SCORE: Final = re.compile(r"\b(?:(?:total|final|your|best)\s+)?(?:score|points|pts|total|distance|height|altitude|depth)\b"
+                             r"\s*[:=]?\s*(\d[\d,]*)")
 #: Progress a game can be won by, counted: "Level 2", "Stage 1", "Round 3".
 _PROGRESS: Final = re.compile(r"\b(?:level|stage|round|wave|mission|world|chapter)\s*\d")
 
@@ -187,10 +203,13 @@ _OBJECTIVE: Final = re.compile(
     r"collect (?:all|every)|reach the (?:end|top|exit|goal|finish|other side)|solve|"
     r"help \w+ (?:to )?(?:find|get|escape|save|rescue|stop|reach|collect))\b"
 )
-#: Words that set a player to make something, not to win: a maker, a dress-up, a paint box.
+#: Words that set a player to make something, not to win: a maker, a dress-up, a paint box. Picking favourites is making
+#: where there are several things to pick ("your favorite body parts"); one pick ("Pick your favorite color!" for a golf
+#: ball, LIVE 2026-10-09) is a choice inside a game, and that game was left as a thing for making after ninety seconds.
 _FOR_MAKING: Final = re.compile(
     r"\b((?:create|make|design|build|draw|paint|invent) your own|dress (?:up|him|her|them)|decorate|customi[sz]e|"
-    r"mix and match|(?:choose|pick|select|selecting|choosing|picking) your (?:own |favou?rite )|your own (?:character|creation))"
+    r"mix and match|(?:choose|pick|select|selecting|choosing|picking) your (?:own |favou?rite )(?:\w+ )?\w+s\b|"
+    r"your own (?:character|creation))"
 )
 
 

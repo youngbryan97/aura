@@ -43,7 +43,7 @@ from core.verify import invariant
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["Makes", "WhichIsHers"]
+__all__ = ["Makes", "WhichIsHers", "ways_carried"]
 
 #: How long after a key is pressed its effect shows in a picture: one frame of
 #: the game and one of the picture being taken.
@@ -75,6 +75,15 @@ MADE_EVERY = 0.3
 #: Pictures of holding a key over which her thing must mostly not go the
 #: key's way before it is taken not to be hers: about a second.
 ANSWERING_OVER = 40
+
+#: A push is measured over a press of at least this many settled pictures, this many seconds apart first to last (a key
+#: tried is held 0.45 s, of which what comes after it settles is a quarter of a second at most); and
+#: a push is as good as the speed it gives in this many seconds, for how much it moves her.
+#: How often whether her thing is carried is looked at again, in seconds.
+CARRIED_CHECKED_EVERY_S = 1.0
+PUSH_PICTURES = 4
+PUSH_OVER_S = 0.15
+PUSHED_FOR_S = 0.5
 
 @dataclass
 class Makes:
@@ -121,9 +130,12 @@ class _Speeds:
     highest: list[float] = field(default_factory=lambda: [-math.inf, -math.inf])
     #: When a key was last seen to move it.
     moved_at: float = -math.inf
+    #: The speeds of each settled press with when each was taken: how much faster it went under the press.
+    timed: dict[tuple[str, float], list[tuple[float, float, float]]] = field(default_factory=dict)
 
     def add(self, key: str, vx: float, vy: float, *, press: float | None = None, pinned: bool = False,
-            settled: bool = True, position: tuple[float, float] | None = None, at: float | None = None) -> None:
+            settled: bool = True, position: tuple[float, float] | None = None, at: float | None = None,
+            when: float | None = None) -> None:
         if position is not None:
             for axis, (place, speed) in enumerate(zip(position, (vx, vy), strict=True)):
                 self.lowest[axis] = min(self.lowest[axis], place)
@@ -149,6 +161,48 @@ class _Speeds:
             self.by_press.setdefault((key, press), []).append((vx, vy))
             if len(self.by_press) > 80:
                 del self.by_press[next(iter(self.by_press))]
+            if when is not None:
+                self.timed.setdefault((key, press), []).append((when, vx, vy))
+                if len(self.timed) > 80:
+                    del self.timed[next(iter(self.timed))]
+
+    def pushes(self) -> dict[str, list[tuple[float, float]]]:
+        """How much faster it went under each press, in working pixels a second each second, by key.
+
+        A thing carried on by its own going and pushed by her keys (a lander's
+        thrust, a ship's engine, a skater's push) does not go at a pace of
+        each key's: it goes faster and faster the key's way while the key is
+        down, and on as it was going when it is let go. Its pace under a key
+        is whatever it was going at before, give or take; its push is the
+        key's. LIVE 2026-10-09 a lander falling under her arrows answered to
+        none of them by its pace, and she never found it was hers.
+        """
+        out: dict[str, list[tuple[float, float]]] = defaultdict(list)
+        for (key, _began), samples in self.timed.items():
+            if len(samples) < PUSH_PICTURES or samples[-1][0] - samples[0][0] < PUSH_OVER_S:
+                continue
+            middle = statistics.fmean(sample[0] for sample in samples)
+            spread = sum((sample[0] - middle) ** 2 for sample in samples)
+            if spread <= 0.0:
+                continue
+            out[key].append((sum((t - middle) * vx for t, vx, _vy in samples) / spread,
+                             sum((t - middle) * vy for t, _vx, vy in samples) / spread))
+        return out
+
+    def push(self, key: str) -> tuple[float, float] | None:
+        """The middle push under a key, from two of its presses or more; None until then."""
+        pushes = self.pushes().get(key) or []
+        if len(pushes) < 2:
+            return None
+        return statistics.median(p[0] for p in pushes), statistics.median(p[1] for p in pushes)
+
+    def by_push(self) -> tuple[float, float]:
+        """F over presses by push, and the widest gap between two keys' pushes as the speed it gives in PUSHED_FOR_S."""
+        groups = {key: values for key, values in self.pushes().items() if len(values) >= 2}
+        if len(groups) < 2:
+            return 0.0, 0.0
+        f, gap = _contingency(groups)
+        return f, gap * PUSHED_FOR_S
 
     def ratio(self) -> tuple[float, float]:
         """F over presses, and the largest difference between two keys' mean speeds.
@@ -179,7 +233,21 @@ class _Speeds:
         # Doing nothing stays in where fewer than two keys have been tried, being then the only thing to compare with.
         keyed = {key: values for key, values in groups.items() if key} if sum(1 for key in groups if key) >= 2 else groups
         by_pace = _contingency({key: [(math.hypot(*value), 0.0) for value in values] for key, values in keyed.items()})
-        return max(by_way, by_pace)
+        return max(by_way, by_pace, self.by_push())
+
+    def carried(self) -> bool:
+        """Whether it answers to her keys by how they push it, more than by the pace it goes under each: it is carried
+        on by its own going (see `pushes`)."""
+        f, gap = self.by_push()
+        return f >= ANSWERS and gap >= REALLY_MOVES and f > self._by_pace_alone()
+
+    def _by_pace_alone(self) -> float:
+        presses: dict[str, list[tuple[float, float]]] = defaultdict(list)
+        for (key, _began), values in self.by_press.items():
+            if len(values) >= 2:
+                presses[key].append(_mean(values))
+        groups = {key: values for key, values in presses.items() if len(values) >= 2}
+        return _contingency(groups)[0] if len(groups) >= 2 else 0.0
 
     def typical(self, key: str) -> tuple[float, float] | None:
         """The middle speed under a key: a picture matched to the wrong thing does not move it.
@@ -350,6 +418,10 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         self._answered: dict[str, list[float]] = {}
         self._answered_by: int | None = None
         self._expecting: dict[str, tuple[float, float]] = {}
+        #: Whether her thing is carried on by its own going and pushed by her keys (see `_Speeds.pushes`), and when that
+        #: was last looked at.
+        self.carried = False
+        self._carried_checked = -math.inf
 
     # -- what she did ------------------------------------------------------
 
@@ -392,7 +464,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         digit for her paddle and steered it for a whole game. She says it was
         not hers and finds hers again.
         """
-        if self.follows_pointer or not key or held_for < SETTLE_S:
+        if self.follows_pointer or not key or held_for < SETTLE_S or self.carried:
             return
         # What the key was known to do before this thing was taken for hers:
         # its own pictures go into what she knows of her keys, and a thing
@@ -593,16 +665,21 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
                     continue
                 if trying:
                     self._by_thing[thing.number].add(key, thing.vx, thing.vy, press=press,
-                                                   settled=press is not None, position=(thing.x, thing.y))
+                                                   settled=press is not None, position=(thing.x, thing.y), when=at)
                     self._by_kind[thing.kind].add(key, thing.vx, thing.vy, press=press,
                                                  settled=press is not None)
                 if thing.number == self.number and at >= self._beside_until:
                     self._hers.add(key, thing.vx, thing.vy, pinned=self._pinned(thing), press=press,
-                                   settled=press is not None, position=(thing.x, thing.y), at=at)
+                                   settled=press is not None, position=(thing.x, thing.y), at=at, when=at)
                     self._answering(thing, key, at - began, at)
         self._what_follows_the_pointer(moves, at)
         if not self.follows_pointer:
             self._decide(moves, at)
+        # However she was found (a trial of her keys, her presses moving her kind alike, set back after a loss), whether
+        # she is carried by her own going is what her own pushes say, looked at again as they come in.
+        if self.number is not None and not self.carried and at - self._carried_checked >= CARRIED_CHECKED_EVERY_S:
+            self._carried_checked = at
+            self.carried = self._hers.carried()
         elif self.number not in moves.things:
             self.number = self._under_the_pointer(moves, at)
         self._remember_own_thing(moves, at)
@@ -637,6 +714,9 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
                     self._hers.by_key[key].extend(values[-50:])
                 for key, values in self._by_thing[best].free.items():
                     self._hers.free[key].extend(values[-50:])
+            if best != self.number:
+                self.carried = self._by_thing[best].carried()
+                self._hers.timed.update(self._by_thing[best].timed)
             self.number = best
             self.kind = moves.things[best].kind
         elif self.number not in moves.things and self.kind is not None:
@@ -775,10 +855,21 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
             return None
         return self._hers.typical(key)
 
+    def push_of(self, key: str) -> tuple[float, float] | None:
+        """How much faster her thing goes each second while ``key`` is held ("" for none), where it is carried."""
+        if self.kind is None:
+            return None
+        return self._hers.push(key)
+
     def keys_that_move_her(self, keys: list[str]) -> dict[str, tuple[float, float]]:
         moving = {}
         for key in keys:
-            way = self.way_of(key)
+            if self.carried:
+                # Carried, a key moves her by what it adds to her going: its push less the pull on her with no key.
+                push, rest = self.push_of(key), self.push_of("") or (0.0, 0.0)
+                way = None if push is None else ((push[0] - rest[0]) * PUSHED_FOR_S, (push[1] - rest[1]) * PUSHED_FOR_S)
+            else:
+                way = self.way_of(key)
             if way is not None and math.hypot(*way) > REALLY_MOVES:
                 moving[key] = way
         return moving
@@ -799,6 +890,18 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
             any(abs(vx) > REALLY_MOVES for vx, _vy in ways),
             any(abs(vy) > REALLY_MOVES for _vx, vy in ways),
         )
+
+
+def ways_carried(hers: WhichIsHers, keys: list[str], mine: Any, ahead_s: float) -> tuple[dict[str, tuple[float, float]], tuple[float, float]]:
+    """Carried, the pace each key gives her over the next ``ahead_s`` seconds, from the pace she is going at now, and
+    the pace no key gives her: what the world's pull alone makes of her going (a lander falls faster)."""
+    going = (float(mine.vx), float(mine.vy))
+
+    def over(push: tuple[float, float]) -> tuple[float, float]:
+        return going[0] + push[0] * ahead_s / 2, going[1] + push[1] * ahead_s / 2
+
+    ways = {key: over(push) for key in keys if (push := hers.push_of(key)) is not None}
+    return ways, over(hers.push_of("") or (0.0, 0.0))
 
 
 @invariant("agency.emissions_require_distinct_input_receipts", scope="agency",

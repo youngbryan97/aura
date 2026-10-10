@@ -20,8 +20,9 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Any
 
-__all__ = ["PuttingInPlace", "a_carry_of", "speaks_of_carrying", "what_is_carried"]
+__all__ = ["PuttingInPlace", "a_carry_of", "in_chain_order", "served_first", "speaks_of_carrying", "what_is_carried"]
 
 #: The most carries offered at once.
 CARRIES_OFFERED = 12
@@ -64,6 +65,8 @@ class PuttingInPlace:
     carrying_said: bool = False
     #: Each carry made, and whether the screen answered it.
     carried_to: dict[str, bool] = field(default_factory=dict)
+    #: Where the last carry that answered put its thing: where a chain built so far ends.
+    chain_ends_at: tuple[float, float] | None = None
 
     def told_of_carrying(self, words: str) -> None:
         """Words read at this place: once they speak of carrying, it is a place where things are carried."""
@@ -85,9 +88,57 @@ class PuttingInPlace:
         offered = [a_carry_of(thing, place) for place in places for thing in things
                    if thing != place and self.carried_to.get(a_carry_of(thing, place)) is not False]
         offered.sort(key=lambda move: move in self.carried_to)
+        said = getattr(self, "mechanics_said", set())
+        where = getattr(self, "where", {})
+        if "chains" in said:
+            offered = in_chain_order(offered, where, self.chain_ends_at, falls="pull" in said)
+        if "serving" in said:
+            offered = served_first(offered, getattr(self, "looked", {}), what_is_carried)
         return tuple(offered[:CARRIES_OFFERED])
 
     def carried(self, move: str, changed: bool) -> None:
-        """A carry made, and whether the screen answered it."""
-        if what_is_carried(move):
+        """A carry made, and whether the screen answered it; one that answered extends the chain built so far."""
+        found = what_is_carried(move)
+        if found:
             self.carried_to[move] = changed
+            at = getattr(self, "where", {}).get(found[1])
+            if changed and at is not None:
+                self.chain_ends_at = at
+
+
+#: How near, as a share of the screen, a place is to where the last part went to be that place, taken.
+TAKEN_WITHIN = 0.03
+
+
+def in_chain_order(offered: Sequence[str], where: dict[str, tuple[float, float]], ends_at: tuple[float, float] | None,
+                   *, falls: bool = False) -> list[str]:
+    """Carries in the order a chain is built: each part put on from where the last one went, the nearest place first,
+    leaning the way things fall where they fall. A chain fails at its weakest link: a part put far from the last leaves
+    a gap no thing crosses, whether the parts are tubes, devices or ropes."""
+    if ends_at is None:
+        return list(offered)
+
+    def far(move: str) -> float:
+        found = what_is_carried(move)
+        at = where.get(found[1]) if found else None
+        if at is None:
+            return 9.0
+        across, down = at[0] - ends_at[0], at[1] - ends_at[1]
+        gap = (across ** 2 + down ** 2) ** 0.5
+        if gap < TAKEN_WITHIN:
+            return 8.0  # where the last part went: taken
+        return gap - (0.15 * down if falls and down > 0 else 0.0)
+
+    return sorted(offered, key=far)
+
+
+def served_first(offered: Sequence[str], looked: dict[str, tuple[float, ...]], parts: Any) -> list[str]:
+    """Moves that give a thing to another, the thing given to what looks most like it first: where each asks for
+    something, what it asks for is drawn by it, and giving each what it asks for is giving it what it looks like."""
+    from core.perception.how_a_place_looks import apart
+
+    def unlike(move: str) -> float:
+        found = parts(move)
+        return apart(looked.get(found[0], ()), looked.get(found[1], ())) if found else 1.0
+
+    return sorted(offered, key=unlike)

@@ -61,8 +61,8 @@ def test_what_several_sources_say_to_do_is_taken_and_what_says_nothing_to_do_is_
         Heard("the web", "a video page", "About Press Copyright Contact us Creators Advertise Developers Terms Privacy Policy."),
     ]
     kept = what_to_take(heard, SITUATION, questions_for(SITUATION))
-    assert [h.source for h in kept] == ["the web", "my model"]
-    assert "rapidly" in kept[0].text and controls_named_in(Counsel((), tuple(kept)).told)[0][:2] == ["left", "right"]
+    assert sorted(h.source for h in kept) == ["my model", "the web"]
+    assert any("rapidly" in h.text for h in kept) and controls_named_in(Counsel((), tuple(kept)).told)[0][:2] == ["left", "right"]
 
 
 @pytest.mark.unit
@@ -140,3 +140,22 @@ def test_a_pages_heading_run_into_an_instruction_is_left_off_and_a_short_instruc
 
     found = _sentences("How to Play Attack of the Puppybots Use the arrow keys to move the girls. Press space to jump.")
     assert found == ["Use the arrow keys to move the girls.", "Press space to jump."]
+
+
+def test_before_play_a_manual_is_gathered_and_a_blurb_is_not_how_to_play():
+    """LIVE 2026-10-09 asked how to win a lander game, she kept "Left behind by his brother's team, Tommy proves his
+    mettle by navigating the dangers of outer space to secure a safe landing on the moon" for its "left", and went by
+    that alone."""
+    from core.cognition.taking_stock import BEFORE, Heard, Situation, questions_for, what_to_take
+
+    situation = Situation("a lander game", "play the game and win it", why=BEFORE)
+    asked = questions_for(situation)
+    assert any("how to play" in q for q in asked) and any("how to win" in q for q in asked)
+    page = ("Left behind by his brother's team, Tommy proves his mettle by navigating the dangers of outer space to "
+            "secure a safe landing on the moon. Use the arrow keys to fire the lander's thrusters. The up arrow slows "
+            "your fall and the left and right arrows push you sideways. Land on the platform slowly or you will crash. "
+            "You only have so much fuel, so make sure you don't waste it hovering. Each safe landing scores points.")
+    kept = what_to_take([Heard("the web", "a games site", page)], situation, asked)
+    texts = [h.text for h in kept]
+    assert not any(t.startswith("Left behind") for t in texts), texts
+    assert len(kept) >= 3 and any("arrow keys" in t for t in texts) and any("crash" in t for t in texts)
