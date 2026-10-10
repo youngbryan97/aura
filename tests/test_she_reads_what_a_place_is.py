@@ -159,3 +159,39 @@ def test_the_check_on_her_debate_weighs_what_fits_the_place():
     assert facts[FACTS.index("makes no sense there")] == 1.0
     weighed = DebateCheck().weigh({"left": 1.0, 'click "Music"': 1.0}, guide)
     assert weighed['click "Music"'] > weighed["left"]
+
+
+def test_a_screen_taken_in_at_a_glance_gives_the_setting_a_reading_rests_on():
+    import numpy as np
+
+    from core.perception.what_a_scene_is import GLANCES_A_PLACE, glance_beside, glance_from
+
+    assert glance_from('{"scene": "A basketball court in an arena", "things": ["a player in blue", "the hoop", "unclear"]}').things == \
+        ["player in blue", "hoop"]
+    assert glance_from('{"scene": "unclear", "things": []}') is None
+
+    guide = Guide(place="a sports game")
+    asked: list[str] = []
+
+    async def look():
+        return np.zeros((60, 80, 3), np.uint8), 0.0
+
+    async def see(prompt, image):
+        return '{"scene": "a basketball court in an arena", "things": ["player in blue", "player in red", "hoop", "ball"]}'
+
+    async def ask(prompt, schema, most):
+        asked.append(prompt)
+        return schema.model_validate({"about": "a basketball game on a court", "hers": "player in blue", "by": "steer",
+                                      "want": "more points than the other team"})
+
+    async def run() -> None:
+        assert glance_beside(look, guide, screen="TIP OFF", see=see, then=lambda: ask_for_a_reading(guide, ask))
+        assert not glance_beside(look, guide, screen="TIP OFF", see=see)          # the same screen once
+        await guide.reading.glancing
+        await guide.reading.asking
+
+    asyncio.run(run())
+    assert guide.reading.scenes == ["a basketball court in an arena"]
+    assert "Its screens, at a glance: a basketball court in an arena" in asked[0] and "hoop" in asked[0]
+    assert guide.reading.now.rests_on == SEEN and guide.reading.now.hers == "player in blue"
+    assert GLANCES_A_PLACE >= 2

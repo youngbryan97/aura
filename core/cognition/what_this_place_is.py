@@ -152,6 +152,12 @@ class WhatThisPlaceIs:
     asking: Any = None
     #: Lines already said, so a reading taken again is not said again.
     said: set[str] = field(default_factory=set)
+    #: What her eyes took the screens in as at a glance (core/perception/what_a_scene_is.py): settings, and what stood
+    #: out in them; and the screens glanced at, by their words.
+    scenes: list[str] = field(default_factory=list)
+    stood_out: list[str] = field(default_factory=list)
+    glanced: list[str] = field(default_factory=list)
+    glancing: Any = None
 
     # -- taking a reading in -------------------------------------------------------------------------------------
 
@@ -198,6 +204,13 @@ class WhatThisPlaceIs:
         if entry not in kept:
             kept.append(entry)  # type: ignore[arg-type]
             del kept[:-4]
+
+    def glimpsed(self, scene: str, things: Sequence[str]) -> None:
+        """A screen taken in at a glance: its setting, and what stood out in it."""
+        if scene and scene not in self.scenes:
+            self.scenes.append(scene)
+        self.stood_out += [t for t in things if t and t not in self.stood_out]
+        del self.stood_out[:-12]
 
     def _lay_shown_over(self) -> None:
         if self.now is None:
@@ -361,7 +374,8 @@ def rests_on_for(guide: Any) -> str:
 
     if set(getattr(guide, "sources", ()) or ()) & {TOLD, PAGE, COUNSEL, PROGRAM}:
         return SAID
-    if getattr(getattr(guide, "seen", None), "by_kind", None):
+    reading = getattr(guide, "reading", None)
+    if getattr(getattr(guide, "seen", None), "by_kind", None) or getattr(reading, "scenes", None):
         return SEEN
     return NAME
 
@@ -373,9 +387,11 @@ def _what_it_says(guide: Any) -> str:
 
 
 def _seen(guide: Any) -> list[str]:
+    """The things she has seen there: what her play's things were seen as, then what stood out at a glance."""
     seen = getattr(guide, "seen", None)
     names = [seen.as_seen(kind) for kind in list(getattr(seen, "by_kind", {}))[:12]] if seen is not None else []
-    return [n for n in dict.fromkeys(" ".join(str(n).lower().split()) for n in names) if n]
+    names += list(getattr(getattr(guide, "reading", None), "stood_out", []) or [])
+    return [n for n in dict.fromkeys(" ".join(str(n).lower().split()) for n in names) if n][:14]
 
 
 def ask_for_a_reading(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, task: str = "",
@@ -404,7 +420,7 @@ def ask_for_a_reading(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, 
     async def asked() -> None:
         got = await _a_reading(guide.place, task, rests_on, seen if len(seen) >= SEEN_AFTER else [],
                                _what_it_says(guide) if rests_on == SAID else "",
-                               _what_play_showed(reading), ask)
+                               _what_play_showed(reading), ask, scenes=reading.scenes[-3:])
         if got is None:
             return
         line = reading.take(got)
@@ -428,7 +444,7 @@ def _what_play_showed(reading: WhatThisPlaceIs) -> str:
 
 
 async def _a_reading(place: str, task: str, rests_on: str, seen: list[str], says: str, showed: str,
-                     ask: Callable[..., Awaitable[Any]]) -> Reading | None:
+                     ask: Callable[..., Awaitable[Any]], *, scenes: Sequence[str] = ()) -> Reading | None:
     """Her model's reading of a place, its choices held to what was seen and to her own ways; None where it gave none."""
     from typing import Literal
 
@@ -458,6 +474,7 @@ async def _a_reading(place: str, task: str, rests_on: str, seen: list[str], says
     ways = "; ".join(f"{w.name}: {w.asks}" for w in WAYS if w.name in _ACTS)
     prompt = (f"Someone has just opened “{place}”" + (f" to {_the_task(task)}" if task else "") + ".\n"
               + (f"What it says of itself: {says}\n" if says else "")
+              + (f"Its screens, at a glance: {'; '.join(scenes)}.\n" if scenes else "")
               + (f"What they see in it: {'; '.join(seen)}.\n" if seen else "")
               + (f"What playing it has shown: {showed}.\n" if showed else "")
               + "From what you know of places like it and of what its name and what is in it usually mean, read it as "

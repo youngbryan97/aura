@@ -270,6 +270,17 @@ class PlayingAsItHappens:
 
         said = " ".join(str(observation.get("text") or "").split())
         labels = [" ".join(str(r.get("text") or "").split()) for r in observation.get("layout") or () if isinstance(r, dict)]
+        if said and (not self.words or self.words[-1] != said):
+            # A screen not taken in before, glanced at as a whole, beside her play (core/perception/what_a_scene_is.py).
+            from core.cognition.a_guide_to_a_place import THE_GUIDE
+            from core.perception.what_a_scene_is import glance_beside
+
+            guide = THE_GUIDE.get()
+            if guide is not None:
+                from core.cognition.what_this_place_is import ask_for_a_reading
+
+                glance_beside(self.look, guide, screen=said, then=lambda: ask_for_a_reading(
+                    guide, getattr(guide, "ask_her_model", None), task=self.goal, tell=_said_while_playing))
         self.way_on_shown = any(0 < len(label) <= 40 and how_much_it_leads_on(label) > 1.0 for label in labels)
         if said and (not self.words or self.words[-1] != said):
             self.words.append(said)
