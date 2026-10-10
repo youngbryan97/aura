@@ -36,6 +36,10 @@ HOLDS = 0.6
 LET_GO_BELOW = 0.35
 JUDGED_AFTER = 6
 
+#: The kinds of note that can grow into a theory: patterns (what follows what, what a thing does when met, what goes on by
+#: itself). A sighting ("that's new"), a question or a remark stays a note, however often it comes.
+PATTERNS = frozenset({"after", "when met", "by itself", "together", "noticed"})
+
 #: How long interest in a note lasts, in seconds, by half; and below how much a note that is no theory is forgotten.
 HALF_LIFE_S = 90.0
 FORGOTTEN_BELOW = 0.15
@@ -87,7 +91,7 @@ class Notebook:
         else:
             note.against += 1
         became = None
-        if not note.theory and note.seen >= A_THEORY_AFTER and note.holds >= HOLDS:
+        if not note.theory and note.kind in PATTERNS and note.seen >= A_THEORY_AFTER and note.holds >= HOLDS:
             note.theory = True
             became = note
             logger.info("noticing became a theory (%d for, %d against): %s", note.seen, note.against, note.said)

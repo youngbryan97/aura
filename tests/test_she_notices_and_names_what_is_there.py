@@ -103,3 +103,19 @@ def test_what_she_has_come_to_think_is_in_what_she_reasons_with_and_weighs_what_
     assert "I've come to think" in guide.in_brief()
     facts = DebateCheck().facts("space", guide)
     assert facts[FACTS.index("what I've noticed of it")] == 1.0
+
+
+def test_where_every_act_is_followed_by_gains_no_act_is_noticed_for_them():
+    """LIVE 2026-10-09 a flickering bar gained and lost all the time, and within seconds every key was a theory."""
+    from core.agency.noticing_in_play import NoticingInPlay
+
+    seeing, book = NoticingInPlay(), Notebook()
+    meeting = SimpleNamespace(verdicts=[], _met={})
+    downs = {"w": 0, "a": 0, "s": 0, "d": 0}
+    for tick in range(80):
+        at = tick * 0.5
+        key = "wasd"[tick % 4]
+        downs[key] += 1
+        meeting.verdicts.append({"what": "gain", "at": at + 0.2, "counter": "the bar"})
+        seeing.saw(_run(input_key_downs=dict(downs)), SimpleNamespace(things={}), meeting, at + 0.3, book, None, None)
+    assert not book.theories(), [n.said for n in book.theories()]

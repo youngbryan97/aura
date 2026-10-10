@@ -189,10 +189,11 @@ class Guide:
         news += self._stage_from(text, at)
         # New to play, not merely read first: what the place shows after play has begun that it had not shown before.
         late = self.playing and source == SCREEN and bool(self.mechanics)
-        for name, evidence in mechanics_in(text).items():
-            news += self._know(name, evidence, source, at, late=late)
+        # What the place says is new or gone first; then what it only mentions.
         for how, name, sentence in changes_told(text):
             news += self._changed(how, name, sentence, at)
+        for name, evidence in mechanics_in(text).items():
+            news += self._know(name, evidence, source, at, late=late)
         return news
 
     def take_in_program(self, read: Any, at: float | None = None) -> None:
@@ -519,15 +520,18 @@ class Guide:
         if known is None:
             known = self.mechanics[name] = Known(name, since=at)
             if late:
-                self.changes.append((at, f"{name} came into play"))
-                return [f"Something new here: {name}."]
+                # First read once play is under way: a note of hers, not news. What the place says is new is said
+                # (``_changed``); a screen that only mentions a thing is not.
+                self.changes.append((at, f"{name} first read of"))
+                self.notes.notice(f"read of {name}", f"this place speaks of {name} now", at, kind="read of")
         known.evidence += [e for e in evidence if e not in known.evidence][:6]
         known.sources.add(source)
         return []
 
     def _changed(self, how: str, name: str, sentence: str, at: float) -> list[str]:
+        new = name not in self.mechanics
         known = self.mechanics.setdefault(name, Known(name, since=at))
-        was = known.in_play
+        was = known.in_play and not new
         known.in_play = how == "added"
         lasts = _FOR_A_WHILE.search(sentence)
         known.until = at + float(lasts.group(1)) if lasts and how == "added" else 0.0

@@ -33,6 +33,11 @@ JUDGED_AFTER = 4
 #: noticed, and how many times at least.
 MORE_THAN_CHANCE = 1.5
 FOLLOWED_AT_LEAST = 3
+#: Where acts of hers are followed by an outcome more often than this whatever they are, no one act is noticed for it:
+#: the outcome comes on its own.
+MOST_FOLLOWED = 0.6
+#: How often a theory, as it becomes one, is said, in seconds.
+SAY_A_THEORY_EVERY_S = 30.0
 #: How long after meeting a thing its stopping is looked for, how slow it must go to have stopped, as a share of how
 #: fast it went before, and how fast it must have gone to be said to stop.
 STOPS_WITHIN_S = (0.2, 1.0)
@@ -60,6 +65,9 @@ class NoticingInPlay:
     met: Counter = field(default_factory=Counter)
     stopped: Counter = field(default_factory=Counter)
     kinds_seen: set[int] = field(default_factory=set)
+    followed_any: Counter = field(default_factory=Counter)
+    _credited: set = field(default_factory=set)
+    _said_at: float = -math.inf
 
     def saw(self, run: Any, moves: Any, meeting: Any, at: float, notebook: Any, name: Any, say: Any = None) -> None:
         """One picture: what she did since the last, what came of it, what she met, what turned up. ``name(kind,
@@ -99,25 +107,37 @@ class NoticingInPlay:
         when = float(verdict.get("at", at))
         counter = str(verdict.get("counter") or "").strip()
         self.outcomes += 1
-        recent = {act for when_done, act in self.acts if 0.0 <= when - when_done <= FOLLOWS_WITHIN_S}
+        recent = [(when_done, act) for when_done, act in self.acts if 0.0 <= when - when_done <= FOLLOWS_WITHIN_S]
         if not recent and what == "gain" and counter:
             whose = counter if counter.lower().startswith(("the ", "my ")) else f"my {counter}"
             self._said(notebook.notice(f"by itself {counter}", f"{whose} goes up with nothing I did beside it", at,
-                                       kind="by itself", about=counter, pays=1), say)
-        for act in recent:
-            self.followed[(act, what)] += 1
+                                       kind="by itself", about=counter, pays=1), say, at)
+        # Each act done is followed by a kind of outcome once, however many come after it.
+        for done_at, act in recent:
+            if (done_at, act, what) not in self._credited:
+                self._credited.add((done_at, act, what))
+                self.followed[(act, what)] += 1
+                self.followed_any[what] += 1
+        if len(self._credited) > 2000:
+            self._credited = {c for c in self._credited if at - c[0] <= 10 * FOLLOWS_WITHIN_S}
+        # An act is noticed for being followed more often than her other acts are, or, where she has done little else,
+        # than the outcome comes at all in the time.
         span = max(1.0, at - (self.began or at))
-        chance = min(1.0, self.outcomes / span * FOLLOWS_WITHIN_S)
-        for act in {a for a, _w in self.followed} | recent:
+        by_time = min(1.0, self.outcomes / span * FOLLOWS_WITHIN_S)
+        for act in {a for a, _w in self.followed} | {a for _t, a in recent}:
             done = self.pressed[act]
             if done < JUDGED_AFTER:
                 continue
-            share = self.followed[(act, what)] / done
-            held = share >= MORE_THAN_CHANCE * chance and share >= 0.3 and self.followed[(act, what)] >= FOLLOWED_AT_LEAST
+            others_done = sum(self.pressed.values()) - done
+            chance = (min(1.0, (self.followed_any[what] - self.followed[(act, what)]) / others_done)
+                      if others_done >= JUDGED_AFTER else by_time)
+            share = min(1.0, self.followed[(act, what)] / done)
+            held = (share >= MORE_THAN_CHANCE * chance and chance <= MOST_FOLLOWED and share >= 0.3
+                    and self.followed[(act, what)] >= FOLLOWED_AT_LEAST)
             self._said(notebook.notice(f"after {act} {what}", f"after I {act}, I tend to {what}"
                                        + (f" ({counter})" if counter else ""), at, kind="after", held=held,
                                        about=act.split(" ", 1)[-1] if act != "click" else "click",
-                                       pays=1 if what == "gain" else -1, bears=True), say)
+                                       pays=1 if what == "gain" else -1, bears=True), say, at)
 
     # -- what things do when met ---------------------------------------------------------------------------------------
 
@@ -146,7 +166,7 @@ class NoticingInPlay:
                 self.stopped[kind] += 1
                 called = name(kind, thing, "") if name is not None else "thing"
                 self._said(notebook.notice(f"stops when met {kind}", f"the {called} stops for a moment after I meet it",
-                                           at, kind="when met", about=str(kind), bears=True), say)
+                                           at, kind="when met", about=str(kind), bears=True), say, at)
 
     # -- what is new -----------------------------------------------------------------------------------------------------
 
@@ -161,10 +181,12 @@ class NoticingInPlay:
                 called = name(kind, thing, "") if name is not None else "thing"
                 notebook.notice(f"new {called}", f"that's new: a {called} showed up", at, kind="new", about=str(kind))
 
-    @staticmethod
-    def _said(became: Any, say: Any) -> None:
-        if became is not None and say is not None:
-            say(f"I think I've noticed something: {became.said}.")
+    def _said(self, became: Any, say: Any, at: float) -> None:
+        """A theory as it becomes one, said, one in a while: the rest are in her log and her reasoning."""
+        if became is None or say is None or at - self._said_at < SAY_A_THEORY_EVERY_S:
+            return
+        self._said_at = at
+        say(f"I think I've noticed something: {became.said}.")
 
 
 def noticed(run: Any, moves: Any, meeting: Any, at: float, say: Any, named: Any) -> None:

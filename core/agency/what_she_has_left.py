@@ -81,10 +81,11 @@ def _a_button(label: str) -> bool:
     import re
     import unicodedata
 
-    from core.language.a_way_on import _one_letter_off, offers_a_way_on
+    from core.language.a_way_on import _one_letter_off, asks_to_choose, offers_a_way_on
     from core.language.how_a_game_ended import says_a_round_is_over
 
     plain = unicodedata.normalize("NFKD", str(label or "")).encode("ascii", "ignore").decode("ascii").lower()
-    if says_a_round_is_over(plain) or offers_a_way_on(plain):
+    # A menu's choosing ("PICK A PLAYER") moves a highlight along a strip: no bar either.
+    if says_a_round_is_over(plain) or offers_a_way_on(plain) or asks_to_choose(plain):
         return True
     return any(word == way or _one_letter_off(word, way) for word in re.findall(r"[a-z]{4,}", plain) for way in _WAYS_ON)
