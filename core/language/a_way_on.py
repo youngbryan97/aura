@@ -22,9 +22,11 @@ __all__ = ["asks_to_choose", "confirms", "how_much_it_leads_on", "offers_a_way_o
            "says_it_is_paused"]
 
 #: Labels that go on, whole: a label that merely contains "play" ("Display")
-#: is not one.
+#: is not one. "Try again" is one: LIVE 2026-10-10 a lander's end screen said OUCH! and TRY AGAIN over twinkling stars,
+#: and she played the stars for three minutes.
 _GOES_ON = re.compile(
     r"^(?:play(?:\s+(?:now|game|again))?|start(?:\s+game)?|begin|next|continue|resume|unpause|skip(?:\s+intro)?|ok(?:ay)?|go!?|"
+    r"try\s+again\??|retry|replay|restart|again\??|"
     r"enter|let'?s\s+go|ready|i'?m\s+ready|yes|accept|done|new\s+game|easy|normal|1\s*player|one\s+player|"
     r"(?:click|press|tap)\s+(?:here\s+)?to\s+(?:play|start|begin|continue)|(?:press|hit)\s+(?:any\s+key|space|enter|start))$",
     re.IGNORECASE,

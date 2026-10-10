@@ -72,3 +72,12 @@ def test_a_screen_that_says_it_is_being_made_ready_is_waited_out_before_anything
     playing.read(first)
     seen = asyncio.run(reflexes_module._waited_out_while_made_ready(playing, look, first))
     assert seen["text"].endswith("PLAY")
+
+
+def test_try_again_is_a_way_on_from_an_end_screen():
+    """LIVE 2026-10-10 a lander's end screen said OUCH! and TRY AGAIN over twinkling stars, and she played the stars."""
+    from core.language.a_way_on import how_much_it_leads_on, offers_a_way_on
+
+    assert how_much_it_leads_on("TRY AGAIN") > 1.0 and how_much_it_leads_on("Retry") > 1.0
+    assert how_much_it_leads_on("OUCH!") < 1.0
+    assert offers_a_way_on("OUCH! LANDINGS: 0 CRASHES: 1 SUCCESS RATE: 0% TRY AGAIN")
