@@ -634,6 +634,9 @@ _NAMING = (
 )
 #: A title that says whose the place is: "Buddy's Big Adventure", "Dexter's Laboratory: Robot Rampage".
 _A_TITLE_OWNER = re.compile(r"(?:^|[:\-–]\s*)(?:The\s+)?([A-Z][\w.-]*(?:\s+[A-Z][\w.-]*){0,2})['’]s\s+[A-Z]")
+#: Words that make a phrase an act, not a thing: "crashing into obstacles", "landing too hard" (LIVE 2026-10-10 both
+#: were said as things that cost her: "The landing too hards cost me").
+_OF_AN_ACT = frozenset("into onto too off through very without against".split())
 #: Words that are no name for a thing.
 _NOT_A_NAME = frozenset("""the a an your you it its them they this that these those what which keys key arrow arrows mouse
     button buttons space spacebar time way ground game screen level points score as many all every each other own
@@ -648,7 +651,7 @@ def _a_name(said: str) -> str:
     words = re.sub(r"^[A-Za-z]+'s\s+", "", str(said or "").strip()).split()
     words = [w for w in words if w.lower() not in ("the", "your", "a", "an")]
     if (not words or len(words) > 4 or words[-1].lower() in _NOT_A_NAME or len(words[-1]) < 3
-            or not any(w.lower() not in _NOT_A_NAME for w in words)):
+            or not any(w.lower() not in _NOT_A_NAME for w in words) or any(w.lower() in _OF_AN_ACT for w in words)):
         return ""
     return " ".join(w.lower() for w in words[-3:])
 

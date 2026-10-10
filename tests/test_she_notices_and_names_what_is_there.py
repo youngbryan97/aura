@@ -120,3 +120,11 @@ def test_where_every_act_is_followed_by_gains_no_act_is_noticed_for_them():
         meeting.verdicts.append({"what": "gain", "at": at + 0.2, "counter": "the bar"})
         seeing.saw(_run(input_key_downs=dict(downs)), SimpleNamespace(things={}), meeting, at + 0.3, book, None, None)
     assert not book.theories(), [n.said for n in book.theories()]
+
+
+def test_a_phrase_of_an_act_is_no_name_for_a_thing():
+    """LIVE 2026-10-10 "Avoid crashing into obstacles" and "don't land too hard" made "The landing too hards cost me"."""
+    guide = Guide()
+    guide.take_in(TOLD, ["Avoid crashing into obstacles and don't land too hard!", "Land on the landing platform."])
+    assert not any("into" in n or "too" in n for n in guide.names.get("avoid", []))
+    assert "landing platform" in guide.names.get("goal", [])
