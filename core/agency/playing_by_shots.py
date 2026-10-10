@@ -276,8 +276,7 @@ async def play_by_shots(
     # One watch of the picture for all the shots, so what stays put is known before anything is sent.
     moves = WhatMoves(kinds=keep.get("kinds"))
     moves.see(seen[0], seen[1])
-    worked_with = _what_the_place_is_worked_with(moves)
-    places = worked_with + [p for p in places if all(math.dist(p, q) > 0.05 for q in worked_with)]
+    looked_for_what_it_is_worked_with = False
     gains = 0
     ended = "out of time"
     while time.monotonic() - began < seconds:
@@ -300,6 +299,12 @@ async def play_by_shots(
         if seen is None:
             ended = "the picture could not be taken"
             break
+        if not looked_for_what_it_is_worked_with:
+            # Once the first look is over and its things are known: what the place is worked with first.
+            looked_for_what_it_is_worked_with = True
+            worked_with = _what_the_place_is_worked_with(moves)
+            places = worked_with + [p for p in places if all(math.dist(p, q) > 0.05 for q in worked_with)]
+            start = tuple(keep.get("sends_from") or places[0])
         aim = aim_at(seen[0]) if aim_at is not None else None
         setting = shots.next_setting(aim, start)
         going = frozenset(n for n, thing in moves.things.items() if math.hypot(thing.vx, thing.vy) > STOPPED_BELOW)

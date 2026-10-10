@@ -229,3 +229,27 @@ def test_a_small_round_thing_is_among_the_places_to_send_from():
     picture[(yy - 140) ** 2 + (xx - 40) ** 2 <= 16] = (120, 40, 160)   # a ball on its tee
     places = _places_to_send_from(picture, {})
     assert any(math.dist(place, (40 / 300, 140 / 200)) < 0.03 for place in places), places
+
+
+def test_a_send_is_tried_first_from_what_the_place_is_worked_with():
+    # Hamsters and a giant slingshot are launched: what the reading of the place says she works with is where a send is
+    # tried from before anything that only stands out (core/cognition/what_this_place_is.py).
+    from core.agency.playing_by_shots import _what_the_place_is_worked_with
+    from core.cognition.a_guide_to_a_place import THE_GUIDE, Guide
+    from core.cognition.what_this_place_is import SEEN, Reading
+    from core.perception.what_moves_in_the_picture import WhatMoves
+
+    world = _World()
+    moves = WhatMoves()
+    while not moves.things:
+        moves.see(*asyncio.run(world.look()))
+    ball = min(moves.things.values(), key=lambda t: math.dist(moves.share(t.x, t.y), world.home))
+    guide = Guide(place="a putting game")
+    guide.reading.saw("golf ball", moves.kinds[ball.kind].colour, moves.kinds[ball.kind].size)
+    guide.reading.take(Reading(about="putting a golf ball into a hole", worked_with="golf ball", by="send", rests_on=SEEN))
+    token = THE_GUIDE.set(guide)
+    try:
+        places = _what_the_place_is_worked_with(moves)
+    finally:
+        THE_GUIDE.reset(token)
+    assert places and math.dist(places[0], world.home) < 0.06, places
