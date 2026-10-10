@@ -490,9 +490,10 @@ async def _between_runs(goal: str, reflexes: Any, run: dict[str, Any], runs: lis
     losing (core/skills/sovereign_browser_taking_stock.py)."""
     from core.skills.screen_pursuit_as_it_happens import begin_run
 
-    # The screen's own words the first time; after that, the round counted: six of the same line read as one.
-    _tell(f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned." if len(runs) == 1
-          else f"Round {len(runs)}: {run['ended'] or 'over'}. Again.")
+    # The screen's own words the first time; after that, the round counted: six of the same line read as one. And what
+    # cost her, by name, where play came to keep clear of it: a person going again says what they will do differently.
+    _tell((f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned." if len(runs) == 1
+           else f"Round {len(runs)}: {run['ended'] or 'over'}. Again.") + _what_i_do_differently(reflexes))
     stock = keep.get("stock")
     if stock is not None:
         stock.judge(runs)
@@ -500,6 +501,15 @@ async def _between_runs(goal: str, reflexes: Any, run: dict[str, Any], runs: lis
         if why:
             await stock.take(why, goal, list(reflexes.words), run["words"], runs, keep, deadline)
     begin_run(keep)
+
+
+def _what_i_do_differently(reflexes: Any) -> str:
+    """What cost her in the run just played, as play came to keep clear of it, said as what she does differently."""
+    cost = list(dict.fromkeys(name for stretch in getattr(reflexes, "stretches", []) or []
+                              for name in stretch.get("came_to_avoid") or [] if name and name != "other"))[:2]
+    if not cost:
+        return ""
+    return f" The {' and the '.join(cost)} cost me; this time I keep clear of {'it' if len(cost) == 1 else 'them'}."
 
 
 #: How long she keeps playing a game she was asked to win, in all.

@@ -135,16 +135,20 @@ async def _one(browser, world, seed, seconds, player, observations="pixels"):
         keys, pointer_first = [*keys, "mouse"], False
     began = time.monotonic()
     stretches, keep = [], {}
+    # As live play finds a world that waits for her, by a key held and the world going (screen_pursuit_as_it_happens).
+    waits = False
     while time.monotonic() - began < seconds:
         left = seconds - (time.monotonic() - began)
         if player == "her":
             stretch = await play_as_it_happens(
                 eyes.look, eyes, keys=keys, seconds=left, read_words=recognize_text, keep=keep,
-                pointer_first=pointer_first, told=rules,
+                pointer_first=pointer_first, told=rules, waits_for_her=waits,
             )
         else:
             stretch = await _random_player(eyes, left)
         stretches.append(stretch)
+        print(f"a stretch ended: {stretch.get('ended')}", flush=True)
+        waits = waits or "has moved" in str(stretch.get("ended") or "")
         state = await page.evaluate("__world.state")
         if state != "play":
             from core.skills.screen_pursuit_as_it_happens import begin_run
@@ -154,7 +158,7 @@ async def _one(browser, world, seed, seconds, player, observations="pixels"):
     tally = await page.evaluate(
         "(() => { const w = __world; return {state: w.state, score: w.score, lives: w.lives,"
         " losses: w.losses || 0, games: w.games, ended: w.ended, mine: w.mine, theirs: w.theirs,"
-        " returns: w.returns, caught: w.caught}; })()"
+        " returns: w.returns, caught: w.caught, opened: w.game.opened}; })()"
     )
     if eyes.frames is not None:
         await eyes.frames.close()

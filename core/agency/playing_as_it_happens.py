@@ -54,8 +54,14 @@ from core.agency.naming_what_she_sees import shape_name as shape_name
 from core.agency.noticing_in_play import a_key_that_pays, noticed
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.the_controls_a_game_names import controls_named_in
+from core.agency.using_a_control_on_a_thing import (
+    UsingOnThings,
+    a_place_to_go,
+    use_controls_on_things,
+)
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_play_measures_of_a_place import measured_in_play
+from core.agency.what_she_cannot_reach import out_of_her_reach as _out_of_her_reach
 from core.agency.what_she_has_left import CAREFUL_BELOW
 from core.agency.what_the_rules_said import WhatTheRulesSaid
 from core.agency.whether_it_goes_by_itself import HELD_TO_SEE_S as HELD_TO_SEE_S
@@ -242,6 +248,9 @@ class _Run:
     #: What she notices as she plays (core/agency/noticing_in_play.py), and what she sees things as (naming_what_she_sees.py).
     noticing: Any = None
     seeing: Any = None
+    using: Any = None
+    #: The kinds she kept clear of when the stretch began: what she comes to keep clear of in it is what it taught her.
+    avoided_before: set[int] = field(default_factory=set)
     #: Whether the place is one where pieces are dropped to build up (core/agency/building_up.py).
     building_up: bool = False
     #: How far each kind reaches: the distance and side at which it has cost her untouched (how_far_a_thing_reaches.py).
@@ -410,6 +419,9 @@ class _Choosing:
     #: Carried on by her own going: the pace no key gives her, and how far ahead each key is weighed (0: the next picture).
     rest: tuple[float, float] = (0.0, 0.0)
     ahead_s: float = 0.0
+    #: Where to go when nothing more pressing is chosen: a thing standing still that a key she was told of is for
+    #: (core/agency/using_a_control_on_a_thing.py).
+    going_to: tuple[float, float] | None = None
 
     def __init__(self, moves: WhatMoves, hers: WhichIsHers, meeting: WhatMeetingDoes, keys: list[str],
                  physics: HowThingsMoveHere | None = None, *, next_picture_s: float = 1 / 30,
@@ -516,9 +528,29 @@ class _Choosing:
             goal = [None, None]
             goal[free] = best[1]
             return (goal[0], goal[1]), "meet", best[2]
+        # With nothing coming, a thing standing on her own level (a star by her feet, a coin down the hall) is walked
+        # to, as a walker does: offline 2026-10-10 the star behind a door she opened was never gone to.
+        level = [t for t in self.others() if not t.moved and self.stance(t) in (MEET, CLICK) and not self._out_of_reach(t)
+                 and abs((t.x, t.y)[line] - her_line) <= max((mine.w, mine.h)[line], (t.w, t.h)[line])
+                 and not _boxes_meet(mine.box(), t.box())]
+        if level:
+            nearest = min(level, key=lambda t: abs((t.x, t.y)[free] - her_free))
+            goal = [None, None]
+            goal[free] = (nearest.x, nearest.y)[free]
+            return (goal[0], goal[1]), "meet", nearest
         aimed = self._aim_a_shot(line)
         if aimed is not None:
             return aimed
+        if self.going_to is not None:
+            goal = [None, None]
+            goal[free] = self.going_to[free]
+            return (goal[0], goal[1]), "use", None
+        # A walker in a world that waits for her walks on to where she has not been along her own way, not up a wall.
+        ground = self._ground_not_yet_covered(line)
+        if ground is not None:
+            goal = [None, None]
+            goal[free] = ground[free]
+            return (goal[0], goal[1]), "cover", None
         low, high = self.hers.lowest[free], self.hers.highest[free]
         goal = [None, None]
         goal[free] = (low + high) / 2 if high > low else her_free
@@ -571,6 +603,8 @@ class _Choosing:
         aimed = self._aim_a_shot(None)
         if aimed is not None:
             return aimed
+        if self.going_to is not None:
+            return self.going_to, "use", None
         ground = self._ground_not_yet_covered()
         if ground is not None:
             return ground, "cover", None
@@ -583,7 +617,7 @@ class _Choosing:
         cells, cell = self.barred
         return (int(thing.x // cell), int(thing.y // cell)) in cells
 
-    def _ground_not_yet_covered(self) -> tuple[float, float] | None:
+    def _ground_not_yet_covered(self, line: int | None = None) -> tuple[float, float] | None:
         """Where the rules ask for a place to be gone over, the middle of the nearest part of it her thing has not been over.
 
         Waiting is right for a paddle and wrong where the ground is the point:
@@ -591,6 +625,7 @@ class _Choosing:
         coat of paint" stood waiting for something to go to, and its paint ran
         out where it stood. Measured in cells of her own thing's size, over
         the picture; ties go to the way she is already going, so she sweeps.
+        Where she goes along one ``line`` only, the cells along it at her own.
         """
         mine = self.mine
         if self.covered is None or mine is None:
@@ -602,7 +637,7 @@ class _Choosing:
         best = None
         for row in range(rows):
             for column in range(columns):
-                if (column, row) in covered:
+                if (column, row) in covered or line is not None and (column, row)[line] != int((mine.x, mine.y)[line] // cell):
                     continue
                 x, y = (column + 0.5) * cell, (row + 0.5) * cell
                 far = math.hypot(x - mine.x, y - mine.y)
@@ -732,60 +767,6 @@ class _Choosing:
 # -- the loop -----------------------------------------------------------------
 
 
-#: How long her thing stays put under a way held before what lies that way is taken to be out of her reach.
-OUT_OF_REACH_S = 0.6
-
-#: How long she makes for a place and gets no nearer before it is taken to be out of her reach.
-NO_NEARER_S = 1.5
-
-
-def _out_of_her_reach(run: _Run, choosing: _Choosing, at: float) -> None:
-    """What she has found she cannot get to: the cells beyond what stops her, and places she gets no nearer to.
-
-    A room has walls, and the ground she means to go over is only the ground
-    she can get to: a person walking into a wall learns there is a wall that way
-    and looks elsewhere. Where she holds a way and her thing does not go, the
-    cells that way to the edge of the picture, across the band of her thing's
-    own size. Where she makes for a place, by whatever ways, and for a while
-    gets no nearer to it, that place: LIVE 2026-10-07 her hero went left and
-    right under a spot on the wall above it a hundred and forty times.
-    """
-    mine, cell = choosing.mine, run.cell
-    if mine is None or not cell:
-        run.stuck = run.making_for = None
-        return
-    (gx, gy), why, _aim = choosing.target()
-    if why in ("meet", "cover") and gx is not None and gy is not None:
-        place, far = (int(gx // cell), int(gy // cell)), math.hypot(gx - mine.x, gy - mine.y)
-        if run.making_for is None or run.making_for[0] != place or far < run.making_for[1] - 0.25 * cell:
-            run.making_for = (place, far, at)
-        elif at - run.making_for[2] >= NO_NEARER_S:
-            run.barred.add(place)
-            run.making_for = None
-    else:
-        run.making_for = None
-    way = choosing.ways.get(run.held) if run.held else None
-    if way is None:
-        run.stuck = None
-        return
-    if run.stuck is None or run.stuck[0] != run.held or math.dist(run.stuck[1:3], (mine.x, mine.y)) > 0.25 * cell:
-        run.stuck = (run.held, mine.x, mine.y, at)
-        return
-    if at - run.stuck[3] < OUT_OF_REACH_S:
-        return
-    tall, wide = choosing.moves.shape
-    along = 0 if abs(way[0]) >= abs(way[1]) else 1
-    step = 1 if way[along] > 0 else -1
-    middle, half = (mine.y, mine.h / 2) if along == 0 else (mine.x, mine.w / 2)
-    band = range(int((middle - half) // cell), int((middle + half) // cell) + 1)
-    ahead = int((mine.x, mine.y)[along] // cell) + step
-    while 0 <= ahead <= int((wide, tall)[along] // cell):
-        for across in band:
-            run.barred.add((ahead, across) if along == 0 else (across, ahead))
-        ahead += step
-    run.stuck = None
-
-
 #: How long a line once said is not said again, word for word, in the same game: a watcher heard it.
 REPEAT_AFTER_S = 90.0
 
@@ -896,7 +877,7 @@ def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
             # of her reach and she waited in a corner while it stood there).
             run.barred.clear()
     run.contest.heard(" ".join(str(region.get("text") or "") for region in regions))
-    run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when)
+    run.contest.counted(meeting.readouts.current, meeting.readouts.where, her_x, when, meeting.readouts.out_of)
     meeting.writing = _what_is_writing(moves, regions)
 
 
@@ -1316,6 +1297,7 @@ async def play_as_it_happens(
     run.lately = dict(keep.get("said_lately") or {})
     # What is said once ("That's me", what a kind of thing is worth) is said once a game, not once a stretch.
     run.said = set(keep.get("said_once") or ())
+    run.avoided_before = {kind for kind in meeting.evidence if meeting.stance(kind) == AVOID}
     from core.agency.pressing_what_is_shown import KeysShown
 
     run.shown = KeysShown(keep.get("keys_never_absent"))
@@ -1329,6 +1311,7 @@ async def play_as_it_happens(
 
     run.noticing = keep.get("noticing") or NoticingInPlay()
     run.seeing = keep.get("seeing") or SeeingInPlay()
+    run.using = keep.get("using") or UsingOnThings()
     from core.agency.how_far_a_thing_reaches import HowFarThingsReach
 
     run.reach = keep.get("reach") or HowFarThingsReach()
@@ -1380,6 +1363,7 @@ async def play_as_it_happens(
                                  reach=run.reach)
             if rules is not None:
                 choosing.strikes = run.blows.stands_ground(run.blows.keys(rules.fire_keys, hers.makes))
+            choosing.going_to = a_place_to_go(run, moves, hers, at, lambda line, once, at=at: _say(run, say, line, at, once=once))
             if choosing.mine is not None and (choosing.ways or choosing.lifts or choosing.pointing):
                 run.responsive_pictures += 1
             run.things = moves.things
@@ -1401,6 +1385,8 @@ async def play_as_it_happens(
                 _say(run, say, "This still behaves incorrectly: " + violations[0]["finding"] + ". I need to check the repair.", at, once="runtime_fault")
                 break
             await _act(hands, run, moves, hers, meeting, choosing, at, say=say, rules=rules)
+            await use_controls_on_things(hands, run, moves, hers, happened, at,
+                                         lambda line, once, at=at: _say(run, say, line, at, once=once), picture)
             _out_of_her_reach(run, choosing, at)
             if goes_over:
                 if waits_for_her and choosing.mine is not None and choosing.ways and choosing.target()[1] == "cover":
@@ -1421,7 +1407,7 @@ async def play_as_it_happens(
         keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
-                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach, "noticing": run.noticing, "seeing": run.seeing,
+                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach, "noticing": run.noticing, "seeing": run.seeing, "using": run.using,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
@@ -1931,6 +1917,9 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
         "keys_that_move_her": sorted(hers.keys_that_move_her(run.keys)),
         "fires": sorted(hers.makes),
         "learned": learned,
+        # What cost her in it, by name: kept clear of from now on, and said between rounds.
+        "came_to_avoid": [describe(moves, kind) for kind in meeting.evidence if kind < len(moves.kinds)
+                          and kind not in run.avoided_before and meeting.stance(kind) == AVOID][:3],
         "gains": run.gains,
         "losses": run.losses,
         "counters": dict(meeting.readouts.values),

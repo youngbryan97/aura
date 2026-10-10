@@ -48,6 +48,8 @@ class WhatWins:
     to_collect: int | None = None
     lives_lose: bool = False
     timed: bool = False
+    #: A score to reach to go on (to the next stage, round or level), which is not winning the game.
+    to_pass: int | None = None
 
     def says(self) -> str:
         said = []
@@ -57,6 +59,8 @@ class WhatWins:
             said.append(f"reaching level {self.to_level} wins")
         if self.to_collect:
             said.append(f"collecting all {self.to_collect} wins")
+        if self.to_pass:
+            said.append(f"{self.to_pass} points to go on")
         if self.lives_lose:
             said.append("losing every life loses")
         if self.timed:
@@ -69,6 +73,14 @@ _TO_SCORE = re.compile(
     r"\b(?:score|get|reach|earn) (\d{1,4}) (?:points? |goals? |runs? )?(?:to win|wins?|first)\b|"
     r"\b(\d{1,4}) (?:points?|goals?) (?:to win|wins?)\b|"
     r"\bwins? (?:at|with|by reaching) (\d{1,4})\b"
+)
+_TO_PASS = re.compile(
+    r"\bneed(?:s)? (?:at least |a score of )?(\d[\d,]{0,7}) (?:points? |pts )?(?:or more )?(?:to|and) "
+    r"(?:advance|pass|go on|move on|qualify|continue|progress|unlock|get through|clear|proceed|reach the next)\b|"
+    r"\b(\d[\d,]{0,7}) (?:points? |pts )?(?:are )?(?:needed|required) to\b|"
+    r"\b(?:score|get|reach|earn|make) (?:at least |a score of )?(\d[\d,]{0,7}) (?:points? |pts )?(?:or more )?(?:to|and) "
+    r"(?:advance|pass|go on|move on|qualify|continue|progress|unlock|get through|clear|proceed)\b|"
+    r"\b(?:target|goal|par)(?: score)?:? (\d[\d,]{0,7})\b"
 )
 _TO_LEVEL = re.compile(r"\b(?:reach|complete|beat|clear|finish) (?:all )?(?:level|stage|wave|world) (\d{1,3})\b|\b(?:all|every) (\d{1,3}) (?:levels|stages|waves)\b")
 _TO_COLLECT = re.compile(r"\b(?:collect|find|gather|get) all (\d{1,4})\b|\b(?:collect|find|gather) (?:all )?(\d{1,4}) [a-z]+")
@@ -84,7 +96,7 @@ def what_wins(words: str) -> WhatWins:
         found = pattern.search(text)
         if not found:
             return None
-        return next((int(g) for g in found.groups() if g), None)
+        return next((int(g.replace(",", "")) for g in found.groups() if g), None)
 
     return WhatWins(
         to_score=first_number(_TO_SCORE),
@@ -92,6 +104,7 @@ def what_wins(words: str) -> WhatWins:
         to_collect=first_number(_TO_COLLECT),
         lives_lose=bool(_LIVES.search(text)),
         timed=bool(_TIMED.search(text)),
+        to_pass=first_number(_TO_PASS),
     )
 
 
@@ -106,22 +119,31 @@ class ContestStands:
     level: int | None = None
     clock: int | None = None
     changed_at: list[float] = field(default_factory=list)
+    #: A count out of a whole, as a counter writes one ("2/40"): how many she has, and of how many.
+    gathered: tuple[int, int] | None = None
     _last: dict[str, int] = field(default_factory=dict)
     _started_at: float | None = None
 
     def heard(self, words: str) -> None:
         """A game's words: what wins and loses, kept where they say something new."""
         said = what_wins(words)
-        for name in ("to_score", "to_level", "to_collect"):
+        for name in ("to_score", "to_level", "to_collect", "to_pass"):
             if getattr(said, name) and not getattr(self.wins, name):
                 setattr(self.wins, name, getattr(said, name))
         self.wins.lives_lose |= said.lives_lose
         self.wins.timed |= said.timed
 
-    def counted(self, values: Mapping[str, int], where: Mapping[str, tuple[float, float]], her_x: float | None, at: float) -> None:
-        """The counters as they now read, by their label (or their place), and where they are."""
+    def counted(self, values: Mapping[str, int], where: Mapping[str, tuple[float, float]], her_x: float | None, at: float,
+                out_of: Mapping[str, int] | None = None) -> None:
+        """The counters as they now read, by their label (or their place), where they are, and the whole any is counted
+        out of."""
         if self._started_at is None:
             self._started_at = at
+        for key, whole in (out_of or {}).items():
+            # Which try, life, stage or round this is is not a count of things got.
+            if key in values and not re.search(r"\b(lives?|hearts?|health|hp|level|stage|wave|rounds?|time|runs?|tries|try|"
+                                               r"attempts?|turns?|games?|players?|innings|holes?|laps?|days?|weeks?)\b", key):
+                self.gathered = (values[key], whole)
         if any(self._last.get(k) != v for k, v in values.items() if k in self._last):
             self.changed_at.append(at)
         self._last = dict(values)
@@ -201,6 +223,12 @@ class ContestStands:
         mine_left, theirs_left = self.to_go()
         if mine_left:
             parts.append(f"{mine_left} more to win" + (f", they need {theirs_left}" if theirs_left else ""))
+        elif self.wins.to_pass and self.mine is not None:
+            short = self.wins.to_pass - self.mine
+            parts.append(f"{short} more to go on" if short > 0 else f"past the {self.wins.to_pass} I need to go on")
+        if self.gathered is not None:
+            have, whole = self.gathered
+            parts.append(f"{have} of {whole}" + (f", {whole - have} to go" if whole > have else ", all of them"))
         if self.lives is not None:
             parts.append(f"{self.lives} {'life' if self.lives == 1 else 'lives'} left")
         if self.clock is not None and self.wins.timed:

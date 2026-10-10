@@ -73,6 +73,12 @@ class Readout:
     value: int
     x: float
     y: float
+    #: The whole it is counted out of, where it is written as one ("2/40", "3 of 10"): how many there are to get.
+    out_of: int | None = None
+
+
+#: A count written out of a whole: "2/40", "3 of 10", "7 out of 12".
+_OUT_OF = re.compile(r"(\d+)\s*(?:/|\bout of\b|\bof\b)\s*(\d+)", re.I)
 
 
 def _meaning(label: str) -> str:
@@ -96,7 +102,14 @@ def readouts_in(regions: list[dict[str, Any]]) -> list[Readout]:
         said = str(region.get("text") or "")
         numbers = re.findall(r"\d+", said)
         label = " ".join(re.findall(r"[A-Za-z]+", said))
-        if numbers:
+        whole = _OUT_OF.search(said)
+        if whole and int(whole.group(2)) >= int(whole.group(1)):
+            # "Fish 2/40" counts two of forty: the count is the first number, the whole the second (offline
+            # 2026-10-10 the forty was read as the count, and nothing she caught ever counted).
+            label = " ".join(re.findall(r"[A-Za-z]+", _OUT_OF.sub(" ", said)))
+            found.append(Readout(label, int(whole.group(1)), float(region.get("center_x", 0)),
+                                 float(region.get("center_y", 0)), int(whole.group(2))))
+        elif numbers:
             found.append(Readout(label, int(numbers[-1]), float(region.get("center_x", 0)), float(region.get("center_y", 0))))
         elif label:
             words.append(region)
@@ -120,6 +133,8 @@ class Readouts:
     where: dict[str, tuple[float, float]] = field(default_factory=dict)
     read_at: dict[str, float] = field(default_factory=dict)
     present: set[str] = field(default_factory=set)
+    #: The whole a counter is counted out of, where it is written as one.
+    out_of: dict[str, int] = field(default_factory=dict)
 
     @property
     def current(self) -> dict[str, int]:
@@ -141,6 +156,8 @@ class Readouts:
         for readout in readouts:
             key = self._key(readout)
             self.where[key] = (readout.x, readout.y)
+            if readout.out_of is not None:
+                self.out_of[key] = readout.out_of
             meaning = _meaning(readout.label) if readout.label else self._unlabelled(readout, unlabelled, her_x)
             change = self._confirmed(key, readout.value, at)
             if change is None or meaning in ("", "neither"):

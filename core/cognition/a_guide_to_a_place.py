@@ -55,6 +55,8 @@ _A_WIN = re.compile(r"\b(?:to win|you win|wins? (?:the|a|by|if|when)|beat (?:the
                     r"clear (?:the|each|all)|land (?:safely|softly|gently)|safe landing|victory|until you)\b", re.I)
 _A_LOSS = re.compile(r"\b(?:you lose|lose (?:a|one|all|the|your)|game over|crash\w*|you die|dies|killed|fail\w*|run out|"
                      r"runs out|don'?t let|if you (?:touch|hit|fall|miss|crash|run)|too (?:fast|hard|slow))\b", re.I)
+_HOW_IT_IS_WORKED = re.compile(r"^\W*(?:use|press|hold|click|tap|move) (?:the |your )?(?:mouse|arrow|keys?|space|\w+ key|"
+                               r"left|right|up|down|button)", re.I)
 _A_TIP = re.compile(r"\b(?:tip|trick|best (?:way|to)|make sure|remember|be careful|slowly|gently|first|strategy|it helps|"
                     r"the key is|instead of|rather than|don'?t (?:waste|rush))\b", re.I)
 
@@ -103,6 +105,8 @@ class Control:
     act: str
     source: str
     since: float = 0.0
+    #: What it is said to be used on, where its words say ("Press SPACE to open doors": doors).
+    on: str = ""
 
 
 @dataclass
@@ -132,6 +136,8 @@ class Guide:
     tips: list[str] = field(default_factory=list)
     #: A thing's words, and what to do about it: "meet", "avoid", "shoot".
     things: dict[str, str] = field(default_factory=dict)
+    #: What the people of the place have asked of her, and offered for it (core/cognition/what_is_asked_of_her.py).
+    errands: list[Any] = field(default_factory=list)
     #: A label read off the screen, and the mechanic it measures.
     readouts: dict[str, str] = field(default_factory=dict)
     #: Controls that are not part of play, by what they are for.
@@ -186,6 +192,7 @@ class Guide:
         news: list[str] = []
         if source != MODEL:
             self._controls_from(new, source, at)
+            news += self._errands_from(new)
         self._goals_and_things_from(new)
         self._sections_from(new)
         if source != MODEL:
@@ -338,6 +345,9 @@ class Guide:
         plan = self.tips[0] if self.tips else (mattering[0].play if mattering else "")
         if plan:
             lines.append(f"• Plan: {_short(re.sub(r'^(?:tips?|hint|strategy)\s*:\s*', '', plan, flags=re.I))}")
+        crafts = [c for c in crafts_of(self, most=4) if not c.foundational][:1]
+        if crafts:
+            lines.append(f"• As people play it: {_short(crafts[0].moment, 170).rstrip('.')}, because {crafts[0].why}.")
         if self.not_for_play:
             names = list(dict.fromkeys(c.split(" (")[0] for c in self.not_for_play))[:3]
             lines.append(f"• Its {_listed(names)} controls aren't part of play.")
@@ -375,12 +385,15 @@ class Guide:
                  "Not part of the task: " + ", ".join(self.not_for_play[:4]) if self.not_for_play else "",
                  "Lately changed: " + " | ".join(what for _when, what in self.changes[-2:]) if self.changes else ""]
         noted = self.notes.for_thinking(time.monotonic()) if self.notes is not None else ""
-        return "\n".join(line for line in [*lines, self.seen.for_thinking(), noted] if line)[:1400]
+        crafts = [c for c in crafts_of(self, most=4) if not c.foundational][:1]
+        craft = f"As people play it: {_short(crafts[0].moment, 160)}" if crafts else ""
+        return "\n".join(line for line in [*lines, craft, self.seen.for_thinking(), noted] if line)[:1600]
 
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
         lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(), self._controls_said(),
                  "Goals: " + " | ".join(self.goals[:4]) if self.goals else "",
+                 "Asked of me: " + " | ".join(e.says() for e in self.errands[-4:]) if self.errands else "",
                  "Mechanics in play: " + ", ".join(n for n in self.mechanics if self.in_play(n))
                  if any(self.in_play(n) for n in self.mechanics) else "",
                  "Gone from play: " + ", ".join(n for n in self.mechanics if not self.in_play(n))
@@ -396,7 +409,12 @@ class Guide:
                  "Tips: " + " | ".join(self.tips[:3]) if self.tips else "",
                  "Counsel: " + " ".join(self.strategy[:3]) if self.strategy else ""]
         from core.agency.mechanics_she_knows import known
+        from core.agency.the_craft_of_play import PRINCIPLES
 
+        for craft in crafts_of(self):
+            lines.append(f"How people play it ({craft.name}): first, {craft.first}; then, {craft.moment}; over a round, "
+                         f"{craft.strategy}; not {craft.mistakes}. Why: {craft.why}.")
+        lines.append("What all good play rests on: " + "; ".join(PRINCIPLES[:5]) + ".")
         lines.append(self.seen.for_thinking())
         if self.notes is not None and self.notes.for_thinking(time.monotonic()):
             lines.append(self.notes.for_thinking(time.monotonic()))
@@ -413,16 +431,33 @@ class Guide:
 
         for sentence in sentences:
             keys, pointer = controls_named_in(sentence, keys_without_words=(), during_play=True)
-            act = _the_act(sentence)
+            act, on = _the_act_and_what_on(sentence)
             for key in keys:
                 known = self.controls.get(key)
                 if known is None or _TRUST.get(source, 0) >= _TRUST.get(known.source, 0):
-                    self.controls[key] = Control(key, act or (known.act if known else ""), source, at)
+                    self.controls[key] = Control(key, act or (known.act if known else ""), source, at,
+                                                 on=on or (known.on if known else ""))
                     self.named_in[key] = sentence[:200]
             if pointer:
                 known = self.controls.get("the pointer")
                 if known is None or _TRUST.get(source, 0) >= _TRUST.get(known.source, 0):
-                    self.controls["the pointer"] = Control("the pointer", act or (known.act if known else ""), source, at)
+                    self.controls["the pointer"] = Control("the pointer", act or (known.act if known else ""), source, at,
+                                                           on=on or (known.on if known else ""))
+
+    def _errands_from(self, sentences: list[str]) -> list[str]:
+        """What the place's people ask of her: kept, the thing wanted made a thing to get, and each said once."""
+        from core.cognition.what_is_asked_of_her import errands_in
+
+        said: list[str] = []
+        for sentence in sentences:
+            for errand in errands_in(sentence):
+                if any(e.want == errand.want for e in self.errands):
+                    continue
+                self.errands.append(errand)
+                self.things.setdefault(errand.want, "get")
+                said.append(errand.says())
+        del self.errands[:-8]
+        return said
 
     def _goals_and_things_from(self, sentences: list[str]) -> None:
         from core.perception.what_a_legend_shows import stance_of
@@ -480,8 +515,11 @@ class Guide:
         for sentence in (_A_HEADING.sub("", s) for s in sentences):
             if len(sentence.split()) < 3:
                 continue
+            # A sentence that says how the controls work says that, not how a round is won or lost: "Use the mouse to
+            # move him to catch the eggs before they crash" is no loss (LIVE-like 2026-10-10).
+            controls = bool(_HOW_IT_IS_WORKED.search(sentence))
             for kept, says in ((self.win, _A_WIN), (self.lose, _A_LOSS), (self.tips, _A_TIP)):
-                if says.search(sentence) and sentence not in kept:
+                if says.search(sentence) and sentence not in kept and not (controls and kept is not self.tips):
                     kept.append(sentence[:220])
                     del kept[:-6]
 
@@ -569,7 +607,7 @@ class Guide:
         for control in self.controls.values():
             if control.source == PROGRAM and control.key not in playing:
                 continue
-            by_act.setdefault(control.act or "?", []).append(control.key)
+            by_act.setdefault(f"{control.act} {control.on}".strip() if control.act else "?", []).append(control.key)
         said = [f"{_listed(keys)} {'to ' + act if act != '?' else ''}".strip() for act, keys in by_act.items()]
         uses = [use for use in self.pointer if not use.startswith("keys kept")]
         if uses and "the pointer" not in self.controls:
@@ -584,7 +622,7 @@ class Guide:
 
     def as_memory(self) -> dict[str, Any]:
         return {"place": self.place,
-                "controls": {k: [c.act, c.source] for k, c in self.controls.items()},
+                "controls": {k: [c.act, c.source, c.on] for k, c in self.controls.items()},
                 "pointer": dict(self.pointer),
                 "mechanics": {n: {"evidence": k.evidence[:6], "sources": sorted(k.sources), "in_play": k.in_play}
                               for n, k in self.mechanics.items()},
@@ -601,8 +639,8 @@ class Guide:
         if not isinstance(held, dict):
             return guide
         guide.place = str(held.get("place") or place)
-        for key, (act, source) in (held.get("controls") or {}).items():
-            guide.controls[key] = Control(key, act, source)
+        for key, (act, source, *on) in (held.get("controls") or {}).items():
+            guide.controls[key] = Control(key, act, source, on=str(on[0]) if on else "")
         guide.pointer = dict(held.get("pointer") or {})
         for name, known in (held.get("mechanics") or {}).items():
             guide.mechanics[name] = Known(name, list(known.get("evidence") or []), set(known.get("sources") or []),
@@ -697,6 +735,46 @@ def _the_act(sentence: str) -> str:
     return found.group(1).lower() if found else ""
 
 
+#: Any act a control is said to do ("to open doors", "to talk", "to perform a special move"), where it is none of the
+#: acts known by name; and what it is done to.
+_NOT_AN_OBJECT = (r"(?:and|or|when|while|after|before|if|to|with|on|in|at|by|for|from|it|them|back|forth|around|about|away|"
+                  r"along|over|up|down|left|right)\b")
+_NOT_WHAT_ON = frozenset({"it", "them", "that", "this", "something", "things", "around", "about", "away", "back"})
+_TO_ANY = re.compile(rf"\bto ((?!(?:the|a|an|your|be|it|them|go|get)\b)[a-z]{{3,}})\b(?:\s+(?:the |a |an |your |any |all )?"
+                     rf"((?!{_NOT_AN_OBJECT})[a-z]+(?:\s+(?!{_NOT_AN_OBJECT})[a-z]+)?))?", re.I)
+
+
+def _the_act_and_what_on(sentence: str) -> tuple[str, str]:
+    """What a control is said to do, and what to, where its words say: ("open", "doors"); ("jump", ""). Where the thing
+    is named before the act and the act says "them" ("Click on the doors to open them"), the thing named before."""
+    known = _the_act(sentence)
+    if known:
+        after = re.search(rf"\bto {re.escape(known)}\b\s+(?:the |a |an |your |any |all )?((?!{_NOT_AN_OBJECT})[a-z]+"
+                          rf"(?:\s+(?!{_NOT_AN_OBJECT})[a-z]+)?)", sentence or "", re.I)
+        act, on = known, after.group(1).lower() if after else ""
+    else:
+        # The act follows the control ("walk up to people and press space to talk"): read from the control on.
+        control = _A_CONTROL_WORD.search(sentence or "")
+        found = _TO_ANY.search(sentence or "", control.start() if control else 0) or _TO_ANY.search(sentence or "")
+        if not found:
+            return "", ""
+        act, on = found.group(1).lower(), (found.group(2) or "").lower()
+    if not on and re.search(rf"\bto {re.escape(act)}\s+(?:(?:to|with|at|on|up|in)\s+)?(?:it|them|one|ones)\b", sentence or "", re.I):
+        before = _NAMED_BEFORE.search(sentence or "")
+        on = before.group(1).lower() if before else ""
+    return act, "" if on in _NOT_WHAT_ON else on
+
+
+_A_CONTROL_WORD = re.compile(r"\b(?:press|click|tap|hit|hold|use|push|type|touch)\b", re.I)
+
+
+#: A thing named before what is done to it: "click on the doors to open them", "walk up to people to talk to them".
+_NAMED_BEFORE = re.compile(r"\b(?:click|tap|touch|select|hover|point|walk|go|move|stand|get|run)\s+(?:on |over |at |up to "
+                           r"|next to |near |to |by )?(?:the |a |an |any |all |your )?((?!(?:the|a|an|it|them|button|key|"
+                           r"mouse|bar|arrow|arrows|keys|space|enter|return|shift|up|down|left|right|[a-z])\b)[a-z]+"
+                           r"(?: (?!(?:to|and)\b)[a-z]+)?)\s+(?:to|and)\b", re.I)
+
+
 #: The thing a caption speaks of: "Avoid the spikes", "Collect coins", "Candy: gives you invincibility".
 _SPOKEN_OF = re.compile(r"^\W*([A-Za-z][A-Za-z ]{1,24}?)\s*[:\-–]\s|\b(avoid|collect|catch|grab|get|destroy|shoot|"
                         r"dodge|stop|beware of|watch out for|keep away from|rescue|save|free)\s+(?:the |all |all the |"
@@ -741,6 +819,16 @@ def pointer_acts(guide: Any) -> str:
     pointer = getattr(guide, "controls", {}).get("the pointer") if guide is not None else None
     act = str(getattr(pointer, "act", "") or "").lower()
     return act if act and any(act == a or act.startswith(a + " ") for a in _A_BODY_ACT) else ""
+
+
+def crafts_of(guide: Any, most: int = 3) -> list[Any]:
+    """The crafts of play (core/agency/the_craft_of_play.py) the place asks for, by everything it has said and the
+    mechanics found in it."""
+    from core.agency.the_craft_of_play import crafts_for
+
+    said = " ".join([*getattr(guide, "_read", ()), *guide.goals, *guide.win, *guide.lose, *guide.tips, *guide.things,
+                     *(f"{c.key} {c.act}" for c in guide.controls.values())])
+    return crafts_for(said, [n for n in guide.mechanics if guide.in_play(n)], most=most)
 
 
 def guide_of(keep: dict[str, Any], place: str = "") -> Guide:

@@ -1,0 +1,65 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Doors</title></head><body>
+<script src="world.js"></script>
+<script>
+// A hall of closed doors along a floor. Walking past one does nothing; space, pressed beside it, opens it, and a star
+// is behind it. What the words say a key is for, and what it is done to, is the only way on.
+const FLOOR = 280;
+const game = {
+  title: "DOORS", rules: ["Arrow keys to walk.", "Press the SPACE BAR to open doors.", "Collect the stars behind them."],
+  reset(world) {
+    this.me = { x: 40, y: FLOOR - 24, w: 14, h: 24 }; this.doors = []; this.stars = []; this.opened = 0;
+    for (let i = 0; i < 3; i++) this.doors.push(this.aDoor(world, i));
+  },
+  aDoor(world, i) {
+    return { x: 110 + i * 120 + world.rand() * 50, y: FLOOR - 52, w: 30, h: 52 };
+  },
+  step(dt, world) {
+    const me = this.me, v = 140 * dt;
+    if (world.held.has("ArrowLeft")) me.x -= v;
+    if (world.held.has("ArrowRight")) me.x += v;
+    me.x = Math.max(0, Math.min(world.W - me.w, me.x));
+    if (world.held.has(" ")) {
+      for (const d of this.doors) {
+        if (Math.abs(d.x + d.w / 2 - (me.x + me.w / 2)) < 30 && !d.open) {
+          d.open = true; this.opened += 1;
+          this.stars.push({ x: d.x + 7, y: FLOOR - 30, w: 16, h: 16 });
+        }
+      }
+      this.doors = this.doors.filter((d) => !d.open);
+    }
+    for (const s of this.stars) if (hits(s, me)) { s.gone = true; world.score += 10; }
+    this.stars = this.stars.filter((s) => !s.gone);
+    if (!this.doors.length && !this.stars.length) {
+      if (world.score >= 60) { world.over("won"); return; }
+      for (let i = 0; i < 3; i++) this.doors.push(this.aDoor(world, i));
+    }
+  },
+  backdrop(ctx) {
+    ctx.fillStyle = "#c9b48a"; ctx.fillRect(0, 0, 480, 320);
+    ctx.fillStyle = "#6b4a2b"; ctx.fillRect(0, FLOOR, 480, 40);
+  },
+  draw(ctx) {
+    for (const d of this.doors) {
+      ctx.fillStyle = "#3b2412"; ctx.fillRect(d.x - 3, d.y - 3, d.w + 6, d.h + 3);
+      ctx.fillStyle = "#8b5a2b"; ctx.fillRect(d.x, d.y, d.w, d.h);
+      ctx.strokeStyle = "#5e3a1a"; ctx.lineWidth = 2;
+      ctx.strokeRect(d.x + 4, d.y + 4, d.w - 8, d.h / 2 - 6); ctx.strokeRect(d.x + 4, d.y + d.h / 2 + 2, d.w - 8, d.h / 2 - 6);
+      ctx.fillStyle = "#f2c84b"; ctx.beginPath(); ctx.arc(d.x + d.w - 7, d.y + d.h / 2, 2.5, 0, 6.3); ctx.fill();
+    }
+    ctx.fillStyle = "#ffd700";
+    for (const s of this.stars) {
+      ctx.beginPath();
+      for (let k = 0; k < 10; k++) {
+        const r = k % 2 ? 3.5 : 8, a = -Math.PI / 2 + k * Math.PI / 5;
+        ctx.lineTo(s.x + 8 + r * Math.cos(a), s.y + 8 + r * Math.sin(a));
+      }
+      ctx.fill();
+    }
+    const me = this.me;
+    ctx.fillStyle = "#2f6fd6"; ctx.fillRect(me.x, me.y + 8, me.w, me.h - 8);
+    ctx.fillStyle = "#f1c27d"; ctx.beginPath(); ctx.arc(me.x + me.w / 2, me.y + 5, 5, 0, 6.3); ctx.fill();
+  },
+  readouts: scoreAndLives,
+};
+playWorld(game);
+</script></body></html>
