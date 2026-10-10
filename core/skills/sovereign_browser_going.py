@@ -12,7 +12,8 @@ import re
 import urllib.parse
 from typing import Any
 
-__all__ = ["Where", "the_same_thing_elsewhere", "where_the_page_points", "where_to_go"]
+__all__ = ["Where", "found_it_at", "the_same_thing_elsewhere", "where_i_found_it_before", "where_the_page_points",
+           "where_to_go"]
 
 
 def where_to_go(value: str) -> str:
@@ -246,3 +247,38 @@ async def _the_first_that_serves(skill: object, browser: object, name: str, task
     if unsure is not None and await skill._safe_browse(browser, str(unsure)):  # type: ignore[attr-defined]
         return unsure
     return ""
+
+
+def _kept_as(name: str) -> str:
+    from core.runtime.what_she_learned import named
+
+    # Every word and number of its name: "Game 1" and "Game 2" are two things.
+    return named("where it is kept", " ".join(re.findall(r"[a-z0-9]+", str(name or "").lower().replace("\u2019", "'"))))
+
+
+def found_it_at(name: str, url: str) -> None:
+    """``name`` was found to do what it was wanted for at ``url``: kept, so that where the place that pointed to it
+    refuses her another day, she goes where she found it before rather than looking from nothing (LIVE 2026-10-10 a
+    museum's pages were refused to her all evening, and each game it listed was looked for afresh)."""
+    from core.runtime.what_she_learned import remember
+
+    if name and url and not url.startswith("https://web.archive.org/"):
+        try:
+            remember(_kept_as(name), {"url": str(url)})
+        except (RuntimeError, OSError, ValueError, TypeError) as why:
+            logger.debug("where %r is kept could not be kept: %s", name, why)
+
+
+async def where_i_found_it_before(skill: object, browser: object, name: str, *, task: str = "", not_at: str = "") -> str:
+    """Where ``name`` was found working before, opened and judged again as any candidate is; or ''."""
+    from core.runtime.what_she_learned import recall
+    from core.skills.where_things_are_kept import Candidate
+
+    if getattr(browser, "page", None) is None:
+        return ""
+    kept = recall(_kept_as(name)) if _words(name) else {}
+    url = str((kept or {}).get("url") or "") if isinstance(kept, dict) else ""
+    if not url or url.rstrip("/") == not_at.rstrip("/"):
+        return ""
+    return await _the_first_that_serves(skill, browser, name, task, [Candidate(name, url, "where I found it before")], not_at)
+

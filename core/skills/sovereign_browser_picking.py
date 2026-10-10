@@ -115,13 +115,16 @@ async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: 
     if await skill._safe_browse(browser, url):
         verdict = await whether_it_serves(page, task) if page is not None and what_the_task_needs(task) else None
         if verdict is None or verdict.ok is not False:
+            going.found_it_at(name, url)
             return url
         there = url
         line = f"“{name}” opens where the list points, but does not work there: {verdict.says()}. I look for it elsewhere."
         skill._say_out_loud(line, {"label": "Not working", "said": line})
-        tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task, not_at=there)]
+        tries = [lambda: going.where_i_found_it_before(skill, browser, name, task=task, not_at=there),
+                 lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task, not_at=there)]
     else:
-        tries = [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task)] if runs else []
+        tries = [lambda: going.where_i_found_it_before(skill, browser, name, task=task)]
+        tries += [lambda: going.the_same_thing_elsewhere(skill, browser, name, task=task)] if runs else []
         tries += [lambda: going.the_archived_copy(skill, browser, url)]
         if not runs:
             tries += [lambda: going.the_same_thing_elsewhere(skill, browser, name)]
@@ -133,6 +136,7 @@ async def _the_item_itself(skill: Any, browser: Any, url: str, name: str, task: 
             found = await _the_copy_or_where_it_points(skill, browser, found, name, task)
         if found:
             if not found.startswith("https://web.archive.org/"):
+                going.found_it_at(name, found)
                 where = re.sub(r"^https?://(www\.)?", "", found).split("/")[0]
                 seen = getattr(getattr(found, "serves", None), "seen", "")
                 lead = f"“{name}” does not work where the list points" if there else f"“{name}” is not to be had where the list points"
