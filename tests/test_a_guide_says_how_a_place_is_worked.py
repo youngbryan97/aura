@@ -25,7 +25,7 @@ pytestmark = pytest.mark.unit
 A_PROGRAM = b"""
 <html><body><canvas id="stage"></canvas><button id="pauseBtn"></button><button id="muteButton"></button>
 <script>
-var help = "Use the arrow keys to move and press space to jump over the pits.";
+var help = "Press space to jump over the pits and keep going as far as you can.";
 var story = "Chapter two: the castle falls and the hero learns the secret of the tower.";
 var answers = "The answer is 42 and the password is swordfish.";
 document.addEventListener('keydown', function (e) {
@@ -45,17 +45,18 @@ def test_a_program_says_its_keys_its_controls_and_its_instructions_and_nothing_t
     assert {"left", "right", "space", "p"} <= set(read.keys) and "`" not in read.keys
     assert read.keys["space"] == "jump" and read.keys["p"] == "pause"
     assert "pause" in read.buttons and "mute" in read.buttons
-    assert any("arrow keys to move" in w for w in read.words)
+    assert any("space to jump" in w for w in read.words)
     assert not any("answer" in w or "password" in w or "secret" in w for w in read.words)
 
 
 def test_words_outrank_code_and_the_screen_outranks_what_was_read_before():
     guide = Guide(place="a place")
     guide.take_in_program(read_program(A_PROGRAM))
-    assert set(guide.keys_for_play()) >= {"left", "right", "space"} and "p" not in guide.keys_for_play()
+    # Its words name only what space does; the keys its code moves her by are kept beside them.
+    assert set(guide.keys_for_play()) == {"left", "right", "space"} and "p" not in guide.keys_for_play()
     assert any("pause" in c for c in guide.not_for_play)
     guide.take_in(TOLD, "Use WASD to move. Click to throw.")
-    assert set(guide.keys_for_play()) == {"w", "a", "s", "d"}          # the place's words, not its code
+    assert set(guide.keys_for_play()) == {"space", "w", "a", "s", "d"}   # its words name how she moves now
     assert guide.pointer_named()
     assert guide.controls["w"].source == TOLD
 
@@ -107,7 +108,7 @@ def test_each_source_is_kept_and_said_and_nothing_tells_her_what_to_do():
     guide.take_in_program(read_program(A_PROGRAM))
     guide.take_in_counsel("Ease off the thrust before you touch down.")
     said, thinking = guide.says(), guide.for_thinking()
-    assert said.startswith("From its page") and "its program" in said and "what I looked up" in said
+    assert said.startswith("From ") and all(source in said for source in ("its page", "its program", "what I looked up"))
     assert "thrust" in thinking and "fuel" in thinking
     assert guide.sources >= {PAGE, PROGRAM, COUNSEL}
     assert not re.search(r"\byou must\b|\bpress now\b", said + thinking, re.I)

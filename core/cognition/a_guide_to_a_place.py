@@ -46,7 +46,8 @@ _TRUST = {SCREEN: 5, TOLD: 4, PAGE: 3, COUNSEL: 2, PROGRAM: 1}
 
 #: A sentence that sets a goal: what to do to win, or what not to let happen.
 _A_GOAL = re.compile(r"\b(?:your (?:goal|mission|job|task) is|the (?:goal|object|aim) (?:of the game )?is|try to|"
-                     r"you (?:need|have|must) to|help \w+(?: \w+)? (?:to )?|get (?:all|as many|to the)|reach|collect|"
+                     r"you (?:need|have|must) to|help \w+(?: \w+)? (?:to )?(?:find|get|escape|save|rescue|stop|reach|"
+                     r"collect|enjoy|win)|get (?:all|as many|to the)|reach|collect|"
                      r"guide|rescue|save|escape|survive|don'?t let|before (?:time|the timer)|as (?:many|far|long) as)\b",
                      re.I)
 #: A short label shown with a value: what is read off the screen, not pressed.
@@ -61,8 +62,16 @@ _NOT_FOR_PLAY = ("pause", "mute", "unmute", "sound", "music", "menu", "quit", "e
 #: Keys a program's handlers listen for that work its menus, fields and windows, not play.
 _NOT_PLAYED_BY = ("escape", "tab", "control", "shift", "alt", "home", "end", "pageup", "pagedown", "delete", "backspace",
                   "insert", "return")
-#: What a key the program keeps for something other than play is for.
-_KEYS_NOT_FOR_PLAY = ("pause", "mute", "sound", "quit", "menu", "help", "restart")
+#: The clusters of letters keyboards steer by, and the acts a key may be tested for in play.
+_CLUSTERS = ("wasd", "ijkl", "esdf", "zqsd")
+_PLAY_ACTS = ("jump", "fire", "shoot", "throw", "attack", "punch", "kick", "stomp", "thrust", "boost", "brake",
+              "accelerat", "rotate", "duck", "crouch", "block", "dash", "switch", "swap")
+#: What a control may be for that stops, silences or leaves play: not part of the task while it goes on.
+_INTERRUPTS = ("pause", "mute", "sound", "quit", "menu", "help")
+#: The keys a body is moved by.
+_MOVING = frozenset({"up", "down", "left", "right", *"wasdijklefzq"})
+#: What a key kept for something other than play is for: the menu's keys, not play's.
+_KEYS_NOT_FOR_PLAY = ("pause", "mute", "sound", "quit", "menu", "help", "restart", "play", "start", "begin", "continue")
 
 
 @dataclass
@@ -150,11 +159,12 @@ class Guide:
         if not read:
             return
         at = time.monotonic() if at is None else at
-        self.take_in(PROGRAM, getattr(read, "words", []) or [], at)
+        # The instructions a program holds are what it tells its player, as a manual does: its instructions.
+        self.take_in(TOLD, getattr(read, "words", []) or [], at)
         for key, purpose in (getattr(read, "keys", {}) or {}).items():
             if key not in self.controls:
                 self.controls[key] = Control(key, purpose or "", PROGRAM, at)
-            if purpose in _KEYS_NOT_FOR_PLAY and purpose not in self.not_for_play:
+            if purpose in _INTERRUPTS and purpose not in self.not_for_play:
                 self.not_for_play.append(f"{purpose} ({key})")
         for act in getattr(read, "keyed", []) or []:
             self.pointer.setdefault(f"keys kept for {act}", PROGRAM)
@@ -200,12 +210,23 @@ class Guide:
         worded = [c.key for c in self.controls.values() if c.source != PROGRAM and c.key != "the pointer"
                   and not self._not_for_play_act(c.act)]
         if worded or any(c.source != PROGRAM for c in self.controls.values()):
+            # Words that name only what keys do ("space to attack") say nothing of how she moves: the keys its
+            # program moves her by are kept beside them.
+            if worded and not set(worded) & _MOVING:
+                worded += [c.key for c in self.controls.values() if c.source == PROGRAM and c.key in _MOVING
+                           and c.key not in worded]
             return worded
         # A program's handlers listen for keys its menus and its debugging use too: only the keys play is usually
         # worked by are taken from it, digits only where it switches between things.
-        return [c.key for c in self.controls.values() if c.source == PROGRAM and c.key != "the pointer"
-                and not self._not_for_play_act(c.act) and c.key not in _NOT_PLAYED_BY
-                and (not c.key.isdigit() or "switching" in self.mechanics)]
+        coded = [c for c in self.controls.values() if c.source == PROGRAM and c.key != "the pointer"
+                 and not self._not_for_play_act(c.act) and c.key not in _NOT_PLAYED_BY]
+        letters = {c.key for c in coded if len(c.key) == 1 and c.key.isalpha()}
+        clusters = {k for cluster in _CLUSTERS if set(cluster) <= letters for k in cluster}
+        # A letter a program tests is a key of play only in a cluster keyboards steer by, or tested for something play
+        # does: letters tested one after another spell a code (a cheat, a name), not controls.
+        return [c.key for c in coded
+                if (not c.key.isdigit() or "switching" in self.mechanics)
+                and (not (len(c.key) == 1 and c.key.isalpha()) or c.key in clusters or c.act in _PLAY_ACTS)]
 
     def pointer_named(self) -> bool:
         """Whether the place is worked with the pointer, by words; or by its program where no word names any control."""
@@ -255,7 +276,8 @@ class Guide:
         if avoid:
             parts.append(f"To keep clear of: {_listed(avoid)}.")
         if self.not_for_play:
-            parts.append(f"Its {_listed([c.split(' (')[0] for c in self.not_for_play[:3]])} controls aren't part of play.")
+            names = list(dict.fromkeys(c.split(" (")[0] for c in self.not_for_play))[:3]
+            parts.append(f"Its {_listed(names)} controls aren't part of play.")
         sources = [s for s in (SCREEN, TOLD, PAGE, COUNSEL, PROGRAM) if s in self.sources]
         lead = f"From {_listed(sources)}: " if sources else ""
         return (lead + " ".join(parts)).strip() if parts else ""
@@ -363,8 +385,9 @@ class Guide:
 
     def _controls_said(self) -> str:
         by_act: dict[str, list[str]] = {}
+        playing = set(self.keys_for_play()) | {"the pointer"}
         for control in self.controls.values():
-            if control.source == PROGRAM and any(c.source != PROGRAM for c in self.controls.values()):
+            if control.source == PROGRAM and control.key not in playing:
                 continue
             by_act.setdefault(control.act or "?", []).append(control.key)
         said = [f"{_listed(keys)} {'to ' + act if act != '?' else ''}".strip() for act, keys in by_act.items()]
@@ -442,7 +465,8 @@ _SPOKEN_OF = re.compile(r"^\W*([A-Za-z][A-Za-z ]{1,24}?)\s*[:\-–]\s|\b(?:avoid
 
 #: Words that are not things: what a caption's verb is followed by when it speaks of no thing.
 _NOT_THINGS = frozenset("""to it its you your them him her this that there here away past apart up down out off over
-    in on at as by for from with into onto back again more all each every some any the a an no not one ones way time""".split())
+    in on at as by for from with into onto back again more all each every some any the a an no not one ones way time
+    while when hint hints tip tips instructions""".split())
 
 
 def _the_thing_spoken_of(sentence: str) -> str:
@@ -450,7 +474,7 @@ def _the_thing_spoken_of(sentence: str) -> str:
     if not found:
         return ""
     words = (found.group(1) or found.group(2) or "").strip().lower().split()
-    if not words or len(words) > 3 or words[0] in _NOT_THINGS or words[-1] in _NOT_THINGS:
+    if not words or len(words) > 3 or words[0] in _NOT_THINGS or words[-1] in _NOT_THINGS or words[-1].endswith("ing"):
         return ""
     return " ".join(words)
 
