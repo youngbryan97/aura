@@ -265,11 +265,14 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
             # Where the screen names none, what the guide to the place holds of its controls: only the pointer, and no
             # key, is a place worked with the mouse (LIVE 2026-10-10 "Going down", "Going left" in a boat game whose
             # instructions said to move the mouse, on its wordless screens).
-            from core.cognition.a_guide_to_a_place import THE_GUIDE
+            from core.cognition.a_guide_to_a_place import _TRUST, PAGE, THE_GUIDE
 
             controls = getattr(THE_GUIDE.get(), "controls", None) or {}
-            if controls:
-                self.pointer_only = set(controls) == {"the pointer"}
+            # What its words name outranks keys found only in its program: LIVE 2026-10-10 a music maker whose guide
+            # said "Controls: the mouse holds and drags" had its arrows pressed on every screen.
+            said = {key for key, control in controls.items() if _TRUST.get(getattr(control, "source", ""), 0) >= _TRUST[PAGE]}
+            if said or controls:
+                self.pointer_only = (said or set(controls)) == {"the pointer"}
 
     def looked_at(self, clickable: Sequence[str], says: str = "", looks: Mapping[str, tuple[float, ...]] | None = None,
                   where: Mapping[str, tuple[float, float]] | None = None) -> None:

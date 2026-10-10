@@ -98,3 +98,21 @@ def test_a_bar_is_not_named_by_writing_she_could_not_make_out():
     legible = [{"text": "Energy", "center_x": 0.5, "center_y": 0.06}]
     assert what_a_bar_measures(_Bar(), misread, 320, 240)[0] == ""
     assert what_a_bar_measures(_Bar(), legible, 320, 240)[0] == "Energy"
+
+
+def test_a_place_whose_words_name_only_the_mouse_is_not_offered_keys_its_program_alone_listens_for():
+    from core.agency.what_i_can_do_here import WhatWorksHere, a_click_on
+    from core.cognition.a_guide_to_a_place import PROGRAM, THE_GUIDE, TOLD, Control, Guide
+
+    guide = Guide(place="a music maker")
+    guide.take_in(TOLD, ["Hold the mouse button and drag a beat onto a dancer."])
+    guide.controls["space"] = Control("space", "", PROGRAM, 0.0)
+    token = THE_GUIDE.set(guide)
+    try:
+        here = WhatWorksHere(told=("up", "down", "left", "right"))
+        here.asked_for_by("")
+        here.looked_at([a_click_on("PLAY")])
+        here.looked_at([a_click_on("PLAY")])
+        assert here.pointer_only
+    finally:
+        THE_GUIDE.reset(token)
