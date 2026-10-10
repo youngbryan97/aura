@@ -102,6 +102,16 @@ async def _let_go(hands: Any, start: tuple[float, float], setting: Setting, way:
         await hands.release()
 
 
+def _went_on_after(thing: Any, since: float) -> bool:
+    """Whether a thing went on going after the button came up, half its own size at least: a thing carried under the
+    pointer stops where it is let go, and is not sent. LIVE 2026-10-10 a device dragged across a puzzle's board was
+    taken for a shot, and she set about finding how hard to throw it."""
+    after = [(x, y) for at, x, y in getattr(thing, "path", ()) if at >= since]
+    if len(after) < 3:
+        return False
+    return math.dist(after[0], after[-1]) >= max(3.0, 0.5 * max(float(thing.w), float(thing.h)))
+
+
 async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_at: float,
                          read_words: Callable[[Any], list[dict[str, Any]]] | None, counters: Any,
                          going_already: frozenset[int] = frozenset()) -> tuple[tuple[float, float] | None, int]:
@@ -128,7 +138,8 @@ async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_
         tall, wide = moves.shape
         if sent is None and at - let_go_at <= SETS_OFF_WITHIN_S:
             setting_off = [thing for thing in moves.things.values()
-                           if math.hypot(thing.vx, thing.vy) > 2 * STOPPED_BELOW and thing.number not in going_already]
+                           if math.hypot(thing.vx, thing.vy) > 2 * STOPPED_BELOW and thing.number not in going_already
+                           and _went_on_after(thing, let_go_at)]
             if setting_off:
                 sent = max(setting_off, key=lambda thing: math.hypot(thing.vx, thing.vy)).number
         if sent is not None:

@@ -253,3 +253,22 @@ def test_a_send_is_tried_first_from_what_the_place_is_worked_with():
     finally:
         THE_GUIDE.reset(token)
     assert places and math.dist(places[0], world.home) < 0.06, places
+
+
+class _APieceCarried(_World):
+    """A piece that follows the pointer while the button is down, and stays where it is let go."""
+
+    async def point(self, x, y):
+        self.pointer = (x, y)
+        if self.pressed_at is not None and math.dist(self.pressed_at, self.home) < 0.06:
+            self.ball = [x, y]
+
+    async def release(self):
+        self.pressed_at = None
+
+
+def test_a_piece_carried_and_put_down_is_not_taken_for_a_thing_sent():
+    world = _APieceCarried()
+    keep: dict = {}
+    result = asyncio.run(play_by_shots(world.look, world, seconds=10.0, keep=keep, read_words=world.words, ways=(PULL,)))
+    assert keep.get("sends_from") is None, result
