@@ -62,6 +62,21 @@ def _bind_wired_limit_to_this_device() -> bool:
     return True
 
 
+def _on_the_gpu() -> str:
+    """This worker's MLX device set to the GPU, as the model worker sets its own (core/brain/llm/mlx_worker.py): the
+    desktop process keeps MLX on the CPU, and a worker spawned from it looked with that, every look of her eyes taking
+    longer than a minute (LIVE 2026-10-10: 45 seconds and not done, on Device(cpu, 0)). Where the GPU cannot be had,
+    the CPU, said so. The device it is on."""
+    from core.runtime.desktop_boot_safety import configure_mlx_process_device
+
+    contract = configure_mlx_process_device("metal", reason="vision_worker", force=True)
+    if not contract.get("verified"):
+        logger.warning("The vision worker could not be put on the GPU (%s); it looks on the CPU, slowly.",
+                       contract.get("reason", "unknown"))
+        configure_mlx_process_device("cpu", reason="vision_worker_fallback", force=True)
+    return str(contract.get("device") or "")
+
+
 def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - VisionWorker - %(levelname)s - %(message)s')
     
@@ -72,7 +87,8 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
         import mlx.core  # noqa: F401
         from mlx_vlm import load, generate
         from mlx_vlm.utils import load_config
-        
+
+        _on_the_gpu()
         if _bind_wired_limit_to_this_device():
             logger.info("This worker's device has no wired working set: mlx-vlm's wired-memory guard is not used.")
         logger.info("Loading Vision Model: %s", model_path)
