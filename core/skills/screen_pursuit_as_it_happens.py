@@ -31,6 +31,13 @@ logger = logging.getLogger("Aura.ScreenPursuit.AsItHappens")
 __all__ = ["AS_IT_HAPPENS", "PlayingAsItHappens", "a_handed_over_run_is_over", "looked_at_as_it_happens"]
 
 
+def _a_different_screen(said: str, before: str) -> bool:
+    """Whether two readings of a screen are of different screens: little of the words of either is in the other (a
+    reading a little differently made is the same screen)."""
+    now, then = set(re.findall(r"[a-z]{3,}", said.lower())), set(re.findall(r"[a-z]{3,}", before.lower()))
+    return len(now & then) < 0.5 * max(1, min(len(now), len(then))) if now or then else False
+
+
 def begin_run(keep: dict[str, Any]) -> None:
     """A new attempt keeps world knowledge and measures its own state."""
     from core.agency.how_the_contest_stands import ContestStands
@@ -102,6 +109,9 @@ class PlayingAsItHappens:
     words: list[str] = field(default_factory=list)
     first_ways_back: frozenset[str] | None = None
     quiet_until: float = 0.0
+    #: The words of the screen she was left quiet on, and of the screen as last looked at: quiet is for that screen.
+    quiet_on: str = ""
+    said_now: str = ""
     over_because: str = ""
     recalled: bool = False
     #: The words of the screen that ended the run, for whoever asks how it ended.
@@ -283,6 +293,7 @@ class PlayingAsItHappens:
 
         said = " ".join(str(observation.get("text") or "").split())
         labels = [" ".join(str(r.get("text") or "").split()) for r in observation.get("layout") or () if isinstance(r, dict)]
+        self.said_now = said
         if said and (not self.words or self.words[-1] != said):
             # A screen not taken in before, glanced at as a whole, beside her play (core/perception/what_a_scene_is.py).
             from core.cognition.a_guide_to_a_place import THE_GUIDE
@@ -459,6 +470,10 @@ class PlayingAsItHappens:
 
         now = time.monotonic()
         held = self.held_to()
+        # Left alone on a moving screen that gave her nothing, she is not left alone on the next one: LIVE 2026-10-10 PLAY
+        # led from an animated menu into a boat game, which played itself to GAME OVER in the quiet left on the menu.
+        if now < self.quiet_until and self.said_now != self.quiet_on and _a_different_screen(self.said_now, self.quiet_on):
+            self.quiet_until = 0.0
         if (now < self.quiet_until and not held.holding()) or now >= self.ends_at:
             return
         if not self.under_her_hand and self._a_menu_first():
@@ -507,7 +522,7 @@ class PlayingAsItHappens:
             # Nothing it says names a control for moving, and what it is says it is done by another way: what moves on
             # it is left moving, and the screen is acted on as a screen (core/cognition/what_this_place_is.py).
             logger.info("it moves on its own, but it is done by %s, not steered: leaving it to be acted on", done_by)
-            self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
+            self.quiet_until, self.quiet_on = time.monotonic() + LEAVE_A_MOVING_MENU_S, self.said_now
             return
         acts = pointer_acts(guide)
         if guide is not None:
@@ -557,7 +572,7 @@ class PlayingAsItHappens:
         _keep_what_she_learned(self.page, self.keep)
         logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "keys_that_move_her", "pictures_a_second", "learned", "gains", "losses")})
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
-            self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
+            self.quiet_until, self.quiet_on = time.monotonic() + LEAVE_A_MOVING_MENU_S, self.said_now
             self.under_her_hand = False
 
     async def _did_again_what_it_showed(self) -> bool:
@@ -639,7 +654,7 @@ class PlayingAsItHappens:
         self._judge(SEND_WAY, record)
         _keep_what_she_learned(self.page, self.keep)
         if not stretch.get("sends_from"):
-            self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
+            self.quiet_until, self.quiet_on = time.monotonic() + LEAVE_A_MOVING_MENU_S, self.said_now
 
     def what_it_came_to(self) -> str:
         """One line on the play, for whoever handed the game over."""

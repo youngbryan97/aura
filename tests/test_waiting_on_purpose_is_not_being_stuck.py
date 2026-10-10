@@ -47,3 +47,22 @@ def test_a_game_she_has_been_playing_and_not_finished_is_played_on_without_askin
         drawing._PLAYED_HERE.discard(drawing._address(url))
         drawing._PLAYED_ON.pop(drawing._address(url), None)
         drawing._PLAY_OVER.pop(drawing._address(url), None)
+
+
+def test_left_alone_on_one_moving_screen_she_is_not_left_alone_on_the_next():
+    """LIVE 2026-10-10 PLAY led from an animated menu into a boat game, which played itself to GAME OVER in the quiet
+    she had been left in on the menu."""
+    from core.skills.screen_pursuit_as_it_happens import _a_different_screen
+
+    menu = "BONUS ITEMS Grab the rainbow monkeys to get bonuses PLAY"
+    assert not _a_different_screen("BONuS ITEMS Grab the rainbow monkeys to get bonuses PLAY", menu)   # read again
+    assert _a_different_screen("SCORE 0 LIVES 3", menu)                                              # the game
+    assert _a_different_screen("", menu)                                                             # wordless play
+
+
+@pytest.mark.parametrize(("label", "read"), [("GAME", True), ("OVER", True), ("YOUR SCORE", True), ("You Win!", True),
+                                             ("CONTINUE", False), ("NEW GAME", False), ("PLAY AGAIN", False)])
+def test_what_an_end_announces_is_read_and_a_way_on_from_it_is_pressed(label, read):
+    from core.language.a_way_on import how_much_it_leads_on
+
+    assert (how_much_it_leads_on(label) < 0.7) is read

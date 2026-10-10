@@ -152,6 +152,9 @@ class _Run:
     lost_at: float = -math.inf
     last_moving: float = 0.0
     new_screen_at: float = -math.inf
+    #: Her acts (keys pressed, the pointer tried or moved) when the screen last changed, and the pointer's moves.
+    acts_at_new_screen: int = 0
+    pointer_moves: int = 0
     clicked: dict[int, float] = field(default_factory=dict)
     last_click: float = -math.inf
     #: Keys the words say to press in turn, fast (core/agency/playing_as_it_happens.py `keys_pressed_fast`), and when last.
@@ -1058,13 +1061,15 @@ async def _point_at(hands: Any, run: _Run, hers: WhichIsHers, moves: WhatMoves, 
     # picture is closer than her thing can be put anyway.
     if math.dist((sx, sy), run.pointer) > 0.02:
         run.pointer = (sx, sy)
+        run.pointer_moves += 1
         await hands.point(sx, sy)
         hers.pointed(x, y, time.monotonic())
 
 
 def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float) -> str:
+    acts = sum(run.input_key_downs.values()) + run.pointed + run.pointer_moves
     if any(h.get("what") == "new screen" for h in happened):
-        run.new_screen_at = at
+        run.new_screen_at, run.acts_at_new_screen = at, acts
     # Motion seen in this picture, not a thing carried on along its last speed
     # because it was not seen.
     if any(thing.seen == at for thing in moves.moving(faster_than=8.0)):
@@ -1073,7 +1078,10 @@ def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float
     still = at - run.last_moving
     # A world that waits for her is still until she moves: its stillness ends a stretch only once her ways have had time.
     still_for = WAITING_STILL_FOR_S if run.waits_for_her else STILL_FOR_S
-    if at - run.new_screen_at < still_for and still >= max(NEW_SCREEN_STILL_S, still_for - STILL_FOR_S) and at - run.began > 2.0:
+    # A new screen that stands still is handed back once she has tried it: a level often waits for the player's first
+    # move (LIVE 2026-10-10 a boat game's level was handed back 2 seconds in, and played itself to GAME OVER).
+    if (at - run.new_screen_at < still_for and still >= max(NEW_SCREEN_STILL_S, still_for - STILL_FOR_S)
+            and at - run.began > 2.0 and (acts > run.acts_at_new_screen or at - run.new_screen_at >= STILL_FOR_S)):
         return "the screen changed and nothing on it moves"
     if still >= still_for and at - run.began > still_for:
         return "nothing on the screen has moved for a while"

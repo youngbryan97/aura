@@ -34,7 +34,11 @@ _GOES_ON = re.compile(
 
 #: Labels that are read, not pressed: numbers, scores, measures.
 _IS_READ = re.compile(r"^[\d\s.,:/%+-]+(?:pts?|points?)?$|^(?:score|time(?:\s+left)?|lives?|level|speed|health|energy|hi-?score)\b"
-                      r"|^[a-z]+s\s+left\b", re.IGNORECASE)
+                      r"|^[a-z]+s\s+left\b"
+                      # What an end announces, in its own words or a line of them: read, never pressed (LIVE 2026-10-10
+                      # she clicked "GAME" and then "OVER", the two lines of a GAME OVER title).
+                      r"|^(?:game\s*over|game|over|you\s+(?:win|won|lose|lost)|your\s+score|final\s+score|well\s+done|"
+                      r"congratulations|level\s+(?:complete|cleared)|time'?s\s+up|the\s+end)[!.]*$", re.IGNORECASE)
 
 #: A measure as a game draws it: a number and its unit ("= 0 ft.", "120 m", "3 sec"), its noughts read as letters
 #: as often as not; and the caption of a gauge ("Launch Meter", "Glide Meter").
