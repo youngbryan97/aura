@@ -249,7 +249,11 @@ async def _where_it_serves(skill: Any, browser: Any, url: str, goal: str) -> str
     line = (f"The page opens but does not work: {verdict.says()}. I look for “{name}” where it does." if name else
             f"The page opens but does not work: {verdict.says()}.")
     skill._say_out_loud(line, {"label": "Not working", "said": line})
-    found = await going.the_same_thing_elsewhere(skill, browser, name, task=goal, not_at=url) if name else ""
+    # Where it was found working before first, as a person goes back to the copy that worked last time.
+    found = (await going.where_i_found_it_before(skill, browser, name, task=goal, not_at=url) if name else "") or (
+        await going.the_same_thing_elsewhere(skill, browser, name, task=goal, not_at=url) if name else "")
+    if found:
+        going.found_it_at(name, found)
     if not found:
         skill._say_out_loud(f"I could not find “{name}” anywhere it works, so I go on with the page I was sent to." if name else
                             "I go on with the page I was sent to.")
