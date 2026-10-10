@@ -115,7 +115,10 @@ CRAFTS: tuple[Craft, ...] = (
           "deal with the problem that will land first, not the biggest one",
           why="every step away from one danger is a step toward another; the middle keeps both ways open"),
     Craft("getting under what to catch",
-          r"\b(?:catch|collect .{0,20}(?:falling|before they)|before (?:they|it) (?:crash|hit|fall)|eggs?)\b",
+          # Catching what falls, not catching someone: "catch the eggs", not "try to catch Jerry" (a capture).
+          r"\b(?:catch(?= (?:the |all |as many |each |every )?(?:falling|dropping|eggs?|fruits?|balls?|food|coins?|"
+          r"stars?|\w+ (?:as|before) (?:they|it)))|collect .{0,20}(?:falling|before they)|before (?:they|it) "
+          r"(?:crash|hit|fall|land)|falling|eggs?)\b",
           ("collecting", "hazards"),
           "tell what is worth catching from what is not (bombs, rocks): the bad ones are let fall",
           "go to where the next good one will land, the one that lands soonest first; stay out from under the bad ones",
@@ -208,7 +211,8 @@ CRAFTS: tuple[Craft, ...] = (
           "do the step that unblocks the most others first",
           why="one act that sets off others does the work of many; spend where it spreads"),
     Craft("building a way through",
-          r"\b(?:pipes?|parts?|build|connect|route|from .{1,20} to|machine|add a part|drop)\b",
+          r"\b(?:pipes?|parts?|build|connect(?:ion|s|ed)?|route|from .{1,20} to|machine|add a part|drop|traps?|"
+          r"devices?|contraptions?|gadgets?)\b",
           ("chains", "putting things in place"),
           "find where the thing starts and where it must end up",
           "lay parts from the start toward the end, each joining the last; test it; fix the gap where it stops",

@@ -125,3 +125,11 @@ def test_an_instruction_is_no_errand(said):
     guide = Guide(place="a place")
     guide.take_in(TOLD, [said])
     assert guide.errands == []
+
+
+def test_catching_someone_is_no_catching_of_what_falls():
+    """LIVE 2026-10-10 "PICK A ROOM AND TRY TO CATCH JERRY!" (a trap to build) was taken for catching what falls."""
+    said = ("PICK A ROOM AND TRY TO CATCH JERRY! DRAG THE DEVICE AT THE END OF ANOTHER DEVICE'S ARROW TO MAKE A "
+            "CONNECTION. TEST TRAP")
+    found = [c.name for c in crafts_for(said) if not c.foundational]
+    assert "getting under what to catch" not in found and found[0] == "building a way through", found
