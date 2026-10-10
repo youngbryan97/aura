@@ -38,6 +38,30 @@ class HeartbeatThread(threading.Thread):
     def stop(self):
         self._stop_event.set()
 
+def _bind_wired_limit_to_this_device() -> bool:
+    """mlx-vlm's wired-memory guard reads the Metal working-set size off the device's own description, and on a worker
+    that generates on the CPU that description has no such field: every look died with KeyError
+    'max_recommended_working_set_size' (LIVE 2026-10-09). Where this process's device has no working set to wire,
+    the guard is a no-op, as the main worker binds mlx-lm's (core/brain/llm/mlx_worker.py). Whether it was bound."""
+    import contextlib
+    import importlib
+
+    import mlx.core as mx
+
+    # The module, not the package's `generate`, which is the function of the same name.
+    vlm_generate = importlib.import_module("mlx_vlm.generate")
+
+    if "max_recommended_working_set_size" in mx.device_info():
+        return False
+
+    @contextlib.contextmanager
+    def _nothing_to_wire(_model, _streams=None):
+        yield
+
+    vlm_generate.wired_limit = _nothing_to_wire
+    return True
+
+
 def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - VisionWorker - %(levelname)s - %(message)s')
     
@@ -49,6 +73,8 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
         from mlx_vlm import load, generate
         from mlx_vlm.utils import load_config
         
+        if _bind_wired_limit_to_this_device():
+            logger.info("This worker's device has no wired working set: mlx-vlm's wired-memory guard is not used.")
         logger.info("Loading Vision Model: %s", model_path)
         model, processor = load(model_path)
         config = load_config(model_path)

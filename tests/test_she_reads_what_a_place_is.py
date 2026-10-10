@@ -231,3 +231,20 @@ def test_her_eyes_claim_their_lane_under_the_model_the_registry_resolved():
     assignment.assert_bound_to(model_path=assignment.model_path, purpose="serve")
     source = inspect.getsource(mlx_vision_client.MLXVisionClient.start_async)
     assert "model_path=assignment.model_path" in source and "runtime_assignment=assignment" in source
+
+
+def test_her_eyes_generate_on_a_device_without_a_metal_working_set():
+    # LIVE 2026-10-09 every look died with KeyError 'max_recommended_working_set_size' on the CPU-owned vision worker.
+    mx = pytest.importorskip("mlx.core")
+    vlm_generate = pytest.importorskip("mlx_vlm.generate")
+    from core.brain.llm.mlx_vision_worker import _bind_wired_limit_to_this_device
+
+    device, guard = mx.default_device(), vlm_generate.wired_limit
+    try:
+        mx.set_default_device(mx.cpu)
+        assert _bind_wired_limit_to_this_device()
+        with vlm_generate.wired_limit(None, None):
+            pass
+    finally:
+        mx.set_default_device(device)
+        vlm_generate.wired_limit = guard

@@ -952,8 +952,52 @@ def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool)
         from core.rebuilding.her_model import ask_her_model
 
         ask_in_the_background(guide, task=str(run["goal"]), said=says, ask=ask_her_model, tell=_tell if narrate else None)
+        _glance_at_where_she_is(guide, says, str(run["goal"]), _tell if narrate else None)
     return tuple(move for move, label in zip(clickable, labels, strict=True)
                  if not (label and guide.is_to_read(label) and how_much_it_leads_on(label) < 1.2))
+
+
+def _glance_at_where_she_is(guide: Any, says: str, task: str, tell: Any) -> None:
+    """A site or a program taken in at a glance, as a game handed to her reflexes is (core/perception/what_a_scene_is.py):
+    its setting and what stands out in it, for the reading of what the place is. Where her reflexes are playing, they
+    glance themselves."""
+    from core.cognition.what_this_place_is import ask_for_a_reading
+    from core.perception.what_a_scene_is import glance_beside
+    from core.rebuilding.her_model import ask_her_model
+
+    from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
+
+    if AS_IT_HAPPENS.get() is not None:
+        return
+    glance_beside(_a_picture_of_what_is_in_front, guide, screen=says,
+                  then=lambda: ask_for_a_reading(guide, ask_her_model, task=task, tell=tell))
+
+
+async def _a_picture_of_what_is_in_front() -> Any:
+    """A picture of what she is working in: her own page where she is on one, else the screen as the person sees it
+    (taken under the screen-capture policy); None where neither can be had."""
+    import asyncio
+
+    from core.skills.screen_pursuit_on_a_page import on_her_page
+
+    on = on_her_page()
+    pictures = getattr(on, "_pictures", None) if on is not None else None
+    if pictures is not None:
+        return await pictures()
+    from core.perception.screen_perception import get_screen_perception
+
+    path = await get_screen_perception().a_picture_of_the_screen()
+    if not path:
+        return None
+
+    def read() -> Any:
+        import numpy as np
+        from PIL import Image
+
+        with Image.open(path) as image:
+            return np.asarray(image.convert("RGB"))
+
+    return await asyncio.to_thread(read)
 
 
 def _label_of(move: str) -> str:

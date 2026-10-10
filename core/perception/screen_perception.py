@@ -493,6 +493,10 @@ end tell''',
             after_path,
         )
 
+    async def a_picture_of_the_screen(self) -> str:
+        """A picture of the screen as the person sees it, under the screen-capture policy: its file path, or ""."""
+        return await self._take_screenshot()
+
     async def _take_screenshot(self) -> str:
         """Take a screenshot and return the file path."""
         from core.security.screen_capture_policy import (
