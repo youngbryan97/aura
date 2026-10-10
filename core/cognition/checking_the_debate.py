@@ -30,10 +30,11 @@ logger = logging.getLogger("Aura.CheckingTheDebate")
 
 #: What each fact about an act is, in order: the model's inputs.
 FACTS = ("always", "a control it names", "a way on", "serves a goal", "information to read", "not part of the task",
-         "a key where the mouse works it", "past a boundary", "did nothing lately", "what I've noticed of it")
+         "a key where the mouse works it", "past a boundary", "did nothing lately", "what I've noticed of it",
+         "fits what the place is", "makes no sense there")
 
 #: What the facts mean before anything is learned: the weights she starts from.
-STARTING = (0.0, 1.0, 1.0, 0.8, -2.0, -1.5, -1.5, -3.0, -1.0, 1.0)
+STARTING = (0.0, 1.0, 1.0, 0.8, -2.0, -1.5, -1.5, -3.0, -1.0, 1.0, 0.6, -1.2)
 
 #: How far one outcome moves the weights, and how far learning may take a weight from where it started.
 LEARNING_RATE = 0.05
@@ -79,7 +80,14 @@ class DebateCheck:
         # What her theories say of it: +1 where she has come to think it pays, -1 where it costs (what_she_notices.py).
         notes = getattr(guide, "notes", None) if guide is not None else None
         noticed = notes.paying(key or ("click" if label else "")) if notes is not None else 0
-        return tuple(float(f) for f in (1, named, way_on, serves, to_read, aside, mouse_only, boundary, quiet, noticed))
+        # What the place is (core/cognition/what_this_place_is.py): an act that fits it, and one that makes no sense
+        # there (steering keys in a program for making music), unless the place's own words name it.
+        from core.cognition.what_this_place_is import how_an_act_fits
+
+        fits, senseless = how_an_act_fits(guide, label, key)
+        senseless = senseless and not named
+        return tuple(float(f) for f in (1, named, way_on, serves, to_read, aside, mouse_only, boundary, quiet, noticed,
+                                        fits, senseless))
 
     def weigh(self, valued: Mapping[str, float], guide: Any, can_do: Any = None) -> dict[str, float]:
         """What her deliberation valued, each act scaled by how the check sees it; a parting of views logged."""
@@ -143,6 +151,8 @@ def the_check() -> DebateCheck:
         if where not in _CHECKS:
             held = recall(named("what holds everywhere", "checking the debate")) or {}
             weights = list(held.get("weights") or STARTING) if isinstance(held, dict) else list(STARTING)
+            # Weights learned before a fact was added keep what they learned; the new facts start where they mean.
+            weights = weights + list(STARTING[len(weights):]) if len(weights) < len(STARTING) else weights
             _CHECKS[where] = DebateCheck(weights=weights if len(weights) == len(STARTING) else list(STARTING),
                                          seen=int(held.get("seen") or 0) if isinstance(held, dict) else 0)
         return _CHECKS[where]

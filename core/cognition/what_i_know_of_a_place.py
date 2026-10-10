@@ -92,14 +92,18 @@ def ask_in_the_background(guide: Any, *, task: str, said: str, ask: Callable[...
     guide.asked_what_i_know = True
 
     async def asked() -> None:
+        from core.cognition.what_this_place_is import ask_for_a_reading
+
         manual = await what_i_know_of(guide.place, task, said, ask)
-        if not manual:
-            return
-        filled = guide.take_in_what_i_know(manual)
-        logger.info("what I know of %r: %s (filled %s)", guide.place, {k: v for k, v in manual.items() if v}, filled)
-        line = _what_it_added(manual, filled)
-        if line and tell is not None:
-            tell(line)
+        if manual:
+            filled = guide.take_in_what_i_know(manual)
+            logger.info("what I know of %r: %s (filled %s)", guide.place, {k: v for k, v in manual.items() if v}, filled)
+            line = _what_it_added(manual, filled)
+            if line and tell is not None:
+                tell(line)
+        # And what the place is, on what there is to go on now: its name, what it says, what she has seen of it
+        # (core/cognition/what_this_place_is.py), asked once the manual is in and her model's one lane is free again.
+        ask_for_a_reading(guide, ask, task=task, tell=tell)
 
     guide.asking_what_i_know = loop.create_task(asked())
     return True

@@ -467,6 +467,15 @@ class PlayingAsItHappens:
         from core.cognition.a_guide_to_a_place import THE_GUIDE, confirmed_by
 
         guide = THE_GUIDE.get()
+        from core.cognition.what_this_place_is import not_steered
+
+        done_by = not_steered(guide) if guide is not None and not named and not pointer_first else ""
+        if done_by:
+            # Nothing it says names a control for moving, and what it is says it is done by another way: what moves on
+            # it is left moving, and the screen is acted on as a screen (core/cognition/what_this_place_is.py).
+            logger.info("it moves on its own, but it is done by %s, not steered: leaving it to be acted on", done_by)
+            self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
+            return
         if guide is not None:
             named = list(dict.fromkeys([*named, *guide.keys_for_play()]))
             # Where keys move her and the pointer only aims, her body is looked for by the keys: what follows the

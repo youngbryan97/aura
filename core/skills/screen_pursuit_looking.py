@@ -903,6 +903,13 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
         can_do.asked_for_by(" ".join([says or "", *labels]), clickable,
                             drawn=[str(key.get("key")) for key in observation.get("keys_drawn") or () if key.get("key")],
                             counsel=str((getattr(reflexes, "keep", None) or {}).get("counsel") or ""))
+        # A place whose reading says things are put in place there (core/cognition/what_this_place_is.py) is offered
+        # carries as one whose words say so is.
+        from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+        guide = THE_GUIDE.get()
+        if guide is not None and "carry" in guide.reading.acts() and hasattr(can_do, "carrying_said"):
+            can_do.carrying_said = True
     if not says or not narrate or paced is None:
         return
     words = set(says.lower().split())

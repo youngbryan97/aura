@@ -40,6 +40,7 @@ from typing import Any
 
 from core.cognition.what_she_notices import Notebook
 from core.cognition.what_things_are import WhatSheSees
+from core.cognition.what_this_place_is import WhatThisPlaceIs
 
 __all__ = ["MODEL", "THE_GUIDE", "Guide", "carry_over", "confirmed_by", "guide_for", "guide_of", "heard_in_play", "the_guide"]
 
@@ -163,6 +164,9 @@ class Guide:
     notes: Notebook = field(default_factory=Notebook)
     #: What the things she sees there are, as they look, and who its characters are (core/cognition/what_things_are.py).
     seen: WhatSheSees = field(default_factory=WhatSheSees)
+    #: What the place is: what it is about, who she is in it, what she works it with and by what, what she wants out of
+    #: it, and what makes sense there (core/cognition/what_this_place_is.py).
+    reading: WhatThisPlaceIs = field(default_factory=WhatThisPlaceIs)
 
     # -- taking things in ---------------------------------------------------------------------------------------
 
@@ -359,7 +363,7 @@ class Guide:
     def in_brief(self) -> str:
         """What a move is chosen with: what it is for, how it is worked, what to get and keep clear of, what is not part
         of the task, and what changed lately; short, as it is read at every move."""
-        lines = [f"Place: {self.place}" if self.place else "",
+        lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(),
                  "Goal: " + _short(self.goals[0]) if self.goals else "",
                  "What loses: " + _short(self.lose[0]) if self.lose else "",
                  self._controls_said(),
@@ -367,11 +371,11 @@ class Guide:
                  "Not part of the task: " + ", ".join(self.not_for_play[:4]) if self.not_for_play else "",
                  "Lately changed: " + " | ".join(what for _when, what in self.changes[-2:]) if self.changes else ""]
         noted = self.notes.for_thinking(time.monotonic()) if self.notes is not None else ""
-        return "\n".join(line for line in [*lines, self.seen.for_thinking(), noted] if line)[:1100]
+        return "\n".join(line for line in [*lines, self.seen.for_thinking(), noted] if line)[:1400]
 
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
-        lines = [f"Place: {self.place}" if self.place else "", self._controls_said(),
+        lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(), self._controls_said(),
                  "Goals: " + " | ".join(self.goals[:4]) if self.goals else "",
                  "Mechanics in play: " + ", ".join(n for n in self.mechanics if self.in_play(n))
                  if any(self.in_play(n) for n in self.mechanics) else "",
@@ -584,7 +588,8 @@ class Guide:
                 "readouts": dict(list(self.readouts.items())[:40]), "not_for_play": self.not_for_play[:20],
                 "strategy": self.strategy[:6], "stage": self.stage, "sources": sorted(self.sources),
                 "names": {part: names[:6] for part, names in self.names.items()},
-                "notes": self.notes.as_memory() if self.notes is not None else {}}
+                "notes": self.notes.as_memory() if self.notes is not None else {},
+                "reading": self.reading.as_memory()}
 
     @classmethod
     def from_memory(cls, held: Any, place: str = "") -> Guide:
@@ -604,6 +609,7 @@ class Guide:
         guide.sources = set(held.get("sources") or [])
         guide.names = {part: list(names) for part, names in (held.get("names") or {}).items()}
         guide.notes = Notebook.from_memory(held.get("notes"))
+        guide.reading = WhatThisPlaceIs.from_memory(held.get("reading"))
         return guide
 
 

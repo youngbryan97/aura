@@ -200,6 +200,24 @@ def _round_things(picture: Any) -> list[tuple[float, float]]:
     return [place for _share, place in sorted(found)]
 
 
+def _what_the_place_is_worked_with(moves: Any) -> list[tuple[float, float]]:
+    """Where the things the reading of the place says she works with, or is, are on the picture: where a send is tried
+    from before anything that only stands out (core/cognition/what_this_place_is.py). A slingshot beside hamsters is
+    pulled; a ball by a club is struck."""
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+    from core.cognition.what_this_place_is import where_seen
+
+    guide = THE_GUIDE.get()
+    reading = getattr(getattr(guide, "reading", None), "now", None)
+    if reading is None:
+        return []
+    found: list[tuple[float, float]] = []
+    for place in where_seen(guide, moves, reading.worked_with, reading.hers):
+        if all(math.dist(place, other) > 0.05 for other in found):
+            found.append(place)
+    return found[:3]
+
+
 def _places_to_send_from(picture: Any, keep: dict[str, Any]) -> list[tuple[float, float]]:
     """Where a press might send something from: where it did before, else what stands out on the picture, largest first;
     never where a press changed the whole screen, which is a button."""
@@ -258,6 +276,8 @@ async def play_by_shots(
     # One watch of the picture for all the shots, so what stays put is known before anything is sent.
     moves = WhatMoves(kinds=keep.get("kinds"))
     moves.see(seen[0], seen[1])
+    worked_with = _what_the_place_is_worked_with(moves)
+    places = worked_with + [p for p in places if all(math.dist(p, q) > 0.05 for q in worked_with)]
     gains = 0
     ended = "out of time"
     while time.monotonic() - began < seconds:

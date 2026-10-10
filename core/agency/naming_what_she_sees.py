@@ -109,6 +109,10 @@ def _a(name: str) -> str:
 
 #: What a kind of thing's bearing makes her do about it, until meeting it says.
 _STANCE_OF = {"danger": AVOID, "to get": MEET, "to use": MEET, "to reach": MEET}
+#: What a thing is to her in the reading of the place (core/cognition/what_this_place_is.py), as a bearing. A rival is
+#: beaten by whatever the place is done by (passed in a race, fought in a ring), so it sets no stance of its own.
+_BEARS_AS = {"danger": "danger", "to get": "to get", "to use": "to use", "what I work with": "to use",
+             "to reach": "to reach", "a friend": "a friend", "information": "information", "scenery": "scenery"}
 #: Bearings worth saying out loud on first seeing a thing: what she would act on.
 _WORTH_SAYING = frozenset({"danger", "to get", "to use", "to stand on", "to reach", "a friend", "to press"})
 #: How long between two things said of what she sees, and how many in one game; and how many odd looks she asks her
@@ -165,6 +169,10 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
     for kind, sighting in seeing.looking.newly():
         who = guide.seen.saw(kind, sighting.what, sighting.odd)
         colour = colour_name(moves.kinds[kind].colour) if kind < len(moves.kinds) else ""
+        if kind < len(moves.kinds):
+            # How it looks to her play, so where it is can be found by other ways of looking (a send's).
+            looked = moves.kinds[kind]
+            guide.reading.saw(who or sighting.what, looked.colour, float(getattr(looked, "size", 0.0) or 0.0))
         guide.notes.notice(f"looks like {kind}", f"the {colour} one looks like {_a(who or sighting.what)}", at,
                            kind="seen", about=str(kind))
         if ask is not None:
@@ -172,6 +180,7 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
         seeing.pending[kind] = at
         if sighting.odd:
             _wonder_at(guide, seeing, who or sighting.what, sighting.odd, at, ask)
+    _read_the_place(guide, hers, ask, tell)
     for kind, since in sorted(seeing.pending.items()):
         what = guide.seen.as_seen(kind)
         cast = guide.seen.cast.get(guide.seen.who.get(kind, ""), {})
@@ -190,8 +199,11 @@ def _make_of(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any, hers: Any, 
              known: Any, cast: dict[str, str], at: float, tell: Callable[[str, str], Any]) -> None:
     """What a kind turned out to be, made something of: a stance until meeting it says, and a thought said once."""
     side = cast.get("side", "")
-    bears = "danger" if side == "against you" else "a friend" if side == "with you" else (known.bears if known else "")
-    mine = kind == hers.kind or side == "you"
+    # What it is to her in this place, as the reading of the place has it, before what such things are anywhere.
+    role = guide.reading.role_of(guide.seen.by_kind.get(kind, "") or what)
+    bears = (_BEARS_AS.get(role) or ("danger" if side == "against you" else "a friend" if side == "with you" else "")
+             or (known.bears if known else ""))
+    mine = kind == hers.kind or side == "you" or role == "me"
     stance = _STANCE_OF.get(bears)
     if stance is not None and not mine and kind not in meeting.told:
         meeting.supposed[kind] = stance
@@ -205,6 +217,18 @@ def _make_of(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any, hers: Any, 
     seeing.said += 1
     seeing.said_at = at
     tell(line, f"seen {what}")
+
+
+def _read_the_place(guide: Any, hers: Any, ask: Any, tell: Callable[[str, str], Any]) -> None:
+    """What she sees, put to the reading of what the place is (core/cognition/what_this_place_is.py): read again, beside
+    her play, where there is more to go on; and the thing her keys move, once play has found it and it has been seen as
+    something, kept as who she is there over any reading."""
+    from core.cognition.what_this_place_is import ask_for_a_reading, played_shows_hers
+
+    said = played_shows_hers(guide, getattr(hers, "kind", None)) if getattr(hers, "number", None) is not None else ""
+    if said:
+        tell(said, f"who I am: {said[:80]}")
+    ask_for_a_reading(guide, ask, task=" ".join(guide.goals[:1]), tell=lambda line: tell(line, f"what this place is: {line[:80]}"))
 
 
 def _wonder_at(guide: Any, seeing: SeeingInPlay, what: str, odd: str, at: float, ask: Any) -> None:

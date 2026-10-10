@@ -60,9 +60,12 @@ _LASTING_IS_THE_TASK = re.compile(
 
 
 def ways_asked(read: str, last_screen: str = "") -> list[str]:
-    """The ways the place's words ask to be played, most particular first.
+    """The ways the place's words ask to be played, most particular first; then the ways it looks to be played by.
 
     ``read`` is everything the place has said and what taking stock found; ``last_screen`` the screen in front of her.
+    What the place says comes first; after it, what the reading of the place says it is done by (a slingshot and
+    hamsters are launched, a court is played on, core/cognition/what_this_place_is.py), which is a reading, not its
+    word.
     """
     from core.agency.doing_again_what_was_shown import asks_to_follow
     from core.agency.playing_as_it_happens import controls_named_in
@@ -79,7 +82,12 @@ def ways_asked(read: str, last_screen: str = "") -> list[str]:
     keys, pointer = controls_named_in(read, keys_without_words=(), during_play=True)
     if keys or pointer:
         asked.append(AS_IT_HAPPENS)
-    return asked
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+    from core.cognition.what_this_place_is import ways_it_is_played_by
+
+    guide = THE_GUIDE.get()
+    looks = ways_it_is_played_by(guide) if guide is not None else []
+    return asked + [way for way in looks if way not in asked and way != TYPE]
 
 
 def held_her_own(stretch: dict[str, Any]) -> bool:
