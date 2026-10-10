@@ -32,10 +32,10 @@ def test_a_piece_is_dropped_square_over_the_top_of_what_is_built_and_not_elsewhe
 
 
 def test_where_a_place_is_of_pieces_dropped_to_build_up_play_knows_it():
-    from core.agency.playing_as_it_happens import _builds_up
+    from core.agency.building_up import builds_up
 
-    assert _builds_up("Stack the blocks as high as you can; don't let the tower fall.")
-    assert not _builds_up("Use the arrow keys to move and space to jump.")
+    assert builds_up("Stack the blocks as high as you can; don't let the tower fall.")
+    assert not builds_up("Use the arrow keys to move and space to jump.")
 
 
 def test_parts_are_put_on_from_where_the_last_one_that_worked_went_nearest_first_and_down_where_things_fall():

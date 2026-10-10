@@ -38,6 +38,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.cognition.what_she_notices import Notebook
+
 __all__ = ["MODEL", "THE_GUIDE", "Guide", "guide_for", "guide_of", "heard_in_play", "the_guide"]
 
 #: Sources, most trusted first. What her own model knows of a place is the least sure of what is said of it: it may be
@@ -141,6 +143,12 @@ class Guide:
     asking_what_i_know: Any = None
     #: The sentence each control was named in, for what play confirms of it.
     named_in: dict[str, str] = field(default_factory=dict)
+    #: The place's own names for things, by the part they play ("me", "goal", "get", "avoid", "shoot"), and which
+    #: name each thing she sees has been given, by the part it plays and what it looks like.
+    names: dict[str, list[str]] = field(default_factory=dict)
+    given: dict[tuple[str, str], str] = field(default_factory=dict)
+    #: What she notices there, and the theories it grew into (core/cognition/what_she_notices.py).
+    notes: Notebook = field(default_factory=Notebook)
 
     # -- taking things in ---------------------------------------------------------------------------------------
 
@@ -162,6 +170,7 @@ class Guide:
             self._controls_from(new, source, at)
         self._goals_and_things_from(new)
         self._sections_from(new)
+        self._names_from(new)
         if source == SCREEN:
             # A label read off the screen with a value beside it; an instruction ("Watch your fuel") is not one.
             for label in new:
@@ -344,7 +353,8 @@ class Guide:
                  "Things: " + ", ".join(f"{w} ({s})" for w, s in list(self.things.items())[:6]) if self.things else "",
                  "Not part of the task: " + ", ".join(self.not_for_play[:4]) if self.not_for_play else "",
                  "Lately changed: " + " | ".join(what for _when, what in self.changes[-2:]) if self.changes else ""]
-        return "\n".join(line for line in lines if line)[:700]
+        noted = self.notes.for_thinking(time.monotonic()) if self.notes is not None else ""
+        return "\n".join(line for line in [*lines, noted] if line)[:900]
 
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
@@ -366,6 +376,8 @@ class Guide:
                  "Counsel: " + " ".join(self.strategy[:3]) if self.strategy else ""]
         from core.agency.mechanics_she_knows import known
 
+        if self.notes is not None and self.notes.for_thinking(time.monotonic()):
+            lines.append(self.notes.for_thinking(time.monotonic()))
         for name in [n for n in self.mechanics if self.in_play(n)][:6]:
             mechanic = known(name)
             if mechanic is not None:
@@ -403,6 +415,35 @@ class Guide:
                 if stance:
                     self.things[thing] = stance
         del self.goals[:-8]
+
+    def _names_from(self, sentences: list[str]) -> None:
+        """The place's own names for what plays each part: what its controls move, where it is to be brought, what to
+        get, keep clear of and shoot."""
+        for sentence in sentences:
+            for part, says in _NAMING:
+                for found in says.finditer(sentence):
+                    name = _a_name(found.group(1))
+                    if name and name not in self.names.setdefault(part, []):
+                        self.names[part].append(name)
+        for thing, stance in self.things.items():
+            part = {"meet": "get", "avoid": "avoid", "shoot": "shoot"}.get(stance, "")
+            name = _a_name(thing)
+            if part and name and name not in self.names.setdefault(part, []):
+                self.names[part].append(name)
+
+    def name_for(self, part: str, looks: str, *, alternatives: tuple[str, ...] = ()) -> str:
+        """What the place calls the thing she sees that plays ``part``, looking like ``looks`` (a colour); "" where its
+        words name nothing for it. The same thing keeps its name; two things are not given one name."""
+        if (part, looks) in self.given:
+            return self.given[(part, looks)]
+        taken = set(self.given.values())
+        candidates = [n for p in (part, *alternatives) for n in self.names.get(p, []) if n not in taken]
+        if not candidates:
+            return ""
+        coloured = [n for n in candidates if looks and looks in n.split()]
+        name = (coloured or candidates)[0]
+        self.given[(part, looks)] = name
+        return name
 
     def _sections_from(self, sentences: list[str]) -> None:
         """Each sentence that says how a round is won or lost, or how to do well, kept under that."""
@@ -513,7 +554,9 @@ class Guide:
                               for n, k in self.mechanics.items()},
                 "goals": self.goals[:8], "things": dict(list(self.things.items())[:40]),
                 "readouts": dict(list(self.readouts.items())[:40]), "not_for_play": self.not_for_play[:20],
-                "strategy": self.strategy[:6], "stage": self.stage, "sources": sorted(self.sources)}
+                "strategy": self.strategy[:6], "stage": self.stage, "sources": sorted(self.sources),
+                "names": {part: names[:6] for part, names in self.names.items()},
+                "notes": self.notes.as_memory() if self.notes is not None else {}}
 
     @classmethod
     def from_memory(cls, held: Any, place: str = "") -> Guide:
@@ -531,7 +574,36 @@ class Guide:
         guide.readouts, guide.not_for_play = dict(held.get("readouts") or {}), list(held.get("not_for_play") or [])
         guide.strategy, guide.stage = list(held.get("strategy") or []), str(held.get("stage") or "")
         guide.sources = set(held.get("sources") or [])
+        guide.names = {part: list(names) for part, names in (held.get("names") or {}).items()}
+        guide.notes = Notebook.from_memory(held.get("notes"))
         return guide
+
+
+#: Where a place's words name what plays each part: what its controls move ("guide the lander", "help Bloo"), where it
+#: is to be brought ("onto the landing platform", "reach the exit"), and what to get, keep clear of and shoot.
+_A_NOUN = r"((?:[A-Za-z]+'s\s+)?(?:the\s+|your\s+|a\s+|an\s+)?[A-Za-z][A-Za-z -]{1,32}?)"
+_ENDS = (r"(?=\s+(?:onto|to|into|through|around|across|safely|slowly|and|with|by|using|past|so|while|before|without|from|"
+         r"in|on|at|as|escape|find|get|reach|save|stop|enjoy|catch|collect|win|land|fly|jump|run)\b|[.,!;:)]|$)")
+_NAMING = (
+    ("me", re.compile(r"\b(?:guide|control|steer|drive|fly|pilot|move|help|lead|play as)\s+" + _A_NOUN + _ENDS, re.I)),
+    ("goal", re.compile(r"\b(?:onto|land on|reach|get to|into|bring (?:it|them) to)\s+" + _A_NOUN + _ENDS, re.I)),
+    ("get", re.compile(r"\b(?:collect|grab|catch|pick up|gather)\s+(?:all\s+|every\s+|as many\s+)?" + _A_NOUN + _ENDS, re.I)),
+    ("avoid", re.compile(r"\b(?:avoid|dodge|watch out for|beware of|keep away from|don'?t (?:touch|hit))\s+" + _A_NOUN + _ENDS, re.I)),
+    ("shoot", re.compile(r"\b(?:shoot|destroy|defeat|blast|zap|stop)\s+(?:all\s+|every\s+)?" + _A_NOUN + _ENDS, re.I)),
+)
+#: Words that are no name for a thing.
+_NOT_A_NAME = frozenset("""the a an your you it its them they this that these those what which keys key arrow arrows mouse
+    button buttons space spacebar time way ground game screen level points score as many all every each other own""".split())
+
+
+def _a_name(said: str) -> str:
+    """A thing's name as a place says it, kept to its last few words and lowered: "Tommy's Lunar Lander" is the lunar
+    lander; "" where it is no name ("the arrow keys", "it")."""
+    words = re.sub(r"^[A-Za-z]+'s\s+", "", str(said or "").strip()).split()
+    words = [w for w in words if w.lower() not in ("the", "your", "a", "an")]
+    if not words or any(w.lower() in _NOT_A_NAME for w in words[-1:]) or len(words) > 4:
+        return ""
+    return " ".join(w.lower() for w in words[-3:])
 
 
 #: Words that say nothing of a mechanic, left out of what is learned as a sign of one.

@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-__all__ = ["drop_now", "the_top"]
+__all__ = ["builds_up", "drop_now", "the_top"]
 
 #: How near square over the top a piece must be when let go, as a share of the narrower of the two.
 SQUARE_WITHIN = 0.2
@@ -48,3 +48,12 @@ def drop_now(things: Iterable[Any], ahead_s: float = 0.0) -> bool:
         return False
     x = float(piece.x) + float(piece.vx) * ahead_s
     return abs(x - float(top.x)) <= SQUARE_WITHIN * min(float(piece.w), float(top.w))
+
+
+def builds_up(told: str) -> bool:
+    """Whether what the place says, or the guide to it holds, is of pieces dropped to build up."""
+    from core.agency.mechanics_she_knows import mechanics_in
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    guide = THE_GUIDE.get()
+    return "stacking" in mechanics_in(told or "") or bool(guide is not None and guide.in_play("stacking"))

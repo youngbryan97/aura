@@ -35,9 +35,11 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.agency.building_up import builds_up
 from core.agency.holding_to_charge import Charging
 from core.agency.how_far_her_blow_reaches import BLOW_EVERY_S, HerBlows
 from core.agency.how_the_contest_stands import ContestStands
+from core.agency.noticing_in_play import noticed
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.the_controls_a_game_names import controls_named_in
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
@@ -224,6 +226,8 @@ class _Run:
     things: dict = field(default_factory=dict)
     #: Where no body answers her keys: what pressing has paid by where the moving things were (when_a_press_pays.py).
     timing: Any = None
+    #: What she notices as she plays (core/agency/noticing_in_play.py).
+    noticing: Any = None
     #: Whether the place is one where pieces are dropped to build up (core/agency/building_up.py).
     building_up: bool = False
     #: How far each kind reaches: the distance and side at which it has cost her untouched (how_far_a_thing_reaches.py).
@@ -314,6 +318,21 @@ def shape_name(w: float, h: float) -> str:
     if long / short >= 2.5:
         return "bar"
     return "thing"
+
+
+def _named(moves: WhatMoves, kind: int, thing: Any = None, part: str = "") -> str:
+    """A thing as the place calls it, for the part it plays ("me", "goal", "get", "avoid", "shoot"), where the guide to
+    the place (core/cognition/a_guide_to_a_place.py) has a name for it; else as it looks."""
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    looks = describe(moves, kind, thing)
+    guide = THE_GUIDE.get()
+    if guide is None or not part or looks == "other":
+        return looks
+    # Still, a thing to get to is where she is to be brought; going about, a thing to get.
+    still = thing is not None and not getattr(thing, "moved", True)
+    alternatives = {"get": ("goal",) if still else (), "goal": ("get",)}.get(part, ())
+    return guide.name_for("goal" if part == "get" and still else part, looks.split()[0], alternatives=alternatives) or looks
 
 
 def describe(moves: WhatMoves, kind: int, thing: Any = None) -> str:
@@ -1236,23 +1255,25 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         run.hers_description = run.hers_descriptions.most_common(1)[0][0]
     settled = all(hers.tried(k) >= 4 for k in run.keys) or at - run.began > 8.0
     if mine is not None and hers.kind is not None and hers.follows_pointer:
-        _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")
+        _say(run, say, f"That's me: the {_named(moves, hers.kind, mine, 'me')} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")
     elif mine is not None and hers.kind is not None and keys and settled:
         how = " and ".join(keys)
         verb = "moves" if len(keys) == 1 else "move"
-        _say(run, say, f"That's me: the {describe(moves, hers.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}. {how.capitalize()} {verb} it.",
+        _say(run, say, f"That's me: the {_named(moves, hers.kind, mine, 'me')} at the {where_on_screen(moves, mine.x, mine.y)}. {how.capitalize()} {verb} it.",
              at, once="me")
     for key in hers.makes:
         _say(run, say, f"{key.capitalize()} fires.", at, once=f"fires {key}")
     for kind in list(meeting.evidence):
         if not meeting.known(kind) or not any(t.kind == kind for t in moves.things.values()):
             continue
-        name = describe(moves, kind)
         stance = meeting.stance(kind)
+        sample = next((t for t in moves.things.values() if t.kind == kind), None)
+        name = _named(moves, kind, sample, {MEET: "get", AVOID: "avoid", SHOOT: "shoot"}.get(stance, ""))
+        names = name if name.endswith("s") else f"{name}s"
         line = {
-            MEET: f"The {name}s are worth getting to.",
-            AVOID: f"The {name}s cost me. Keeping clear of them.",
-            SHOOT: f"The {name}s are worth shooting.",
+            MEET: f"The {names} are worth getting to.",
+            AVOID: f"The {names} cost me. Keeping clear of them.",
+            SHOOT: f"The {names} are worth shooting.",
         }.get(stance)
         if line:
             _say(run, say, line, at, once=f"{kind} {stance}")
@@ -1325,7 +1346,7 @@ async def play_as_it_happens(
                contest=keep.get("contest") or ContestStands(), waits_for_her=waits_for_her)
     run.pointer_trigger = rules is not None and rules.a_click_is_a_shot
     run.burst_keys = keys_pressed_fast(told)
-    run.building_up = _builds_up(told)
+    run.building_up = builds_up(told)
     from core.agency.what_meeting_things_does import says_to_come_gently
 
     meeting.told_gently = meeting.told_gently or says_to_come_gently(told)
@@ -1346,6 +1367,9 @@ async def play_as_it_happens(
     from core.agency.when_a_press_pays import WhenAPressPays
 
     run.timing = keep.get("timing") or WhenAPressPays()
+    from core.agency.noticing_in_play import NoticingInPlay
+
+    run.noticing = keep.get("noticing") or NoticingInPlay()
     from core.agency.how_far_a_thing_reaches import HowFarThingsReach
 
     run.reach = keep.get("reach") or HowFarThingsReach()
@@ -1405,6 +1429,7 @@ async def play_as_it_happens(
             _found_by_her_presses(run, moves, hers, at)
             await _let_go_of_presses(hands, run, at)
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
+            noticed(run, moves, meeting, at, say, _named)
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words, say=say)
@@ -1435,7 +1460,7 @@ async def play_as_it_happens(
         keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
-                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach,
+                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach, "noticing": run.noticing,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
@@ -1502,6 +1527,14 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
                 and (run.building_up or not run.presses.moves_anything(TOLD_FROM_STANDING_PX * 2))
                 and (run.timing.pays() or at - run.tried_at < max(RECHECK_CONTROLS_S, run.timing.a_round_s()))
                 and await _press_in_time(hands, run, moves, at, say)):
+            return
+        # A key she has come to think pays (core/cognition/what_she_notices.py), used while nothing of hers is found.
+        paying = _a_key_that_pays(run)
+        timing = run.timing is not None and run.timing.has_something_to_time(moves.things.values())
+        if paying and not timing and at - run.tried_at >= TRY_A_KEY_S and hasattr(hands, "tap"):
+            await hands.tap(paying)
+            run.input_key_downs[paying] += 1
+            run.tried_at = at
             return
         if run.keys and run.trying >= 4 * len(run.keys) and at - run.tried_at >= RECHECK_CONTROLS_S:
             run.trying = 0
@@ -1597,13 +1630,12 @@ def _found_by_her_presses(run: _Run, moves: WhatMoves, hers: WhichIsHers, at: fl
         hers.moved_by_her_presses(candidates[0], at)
 
 
-def _builds_up(told: str) -> bool:
-    """Whether what the place says, or the guide to it holds, is of pieces dropped to build up."""
-    from core.agency.mechanics_she_knows import mechanics_in
+def _a_key_that_pays(run: _Run) -> str:
+    """A key of hers she has come to think pays, from the notes of the guide to where she is; "" where none."""
     from core.cognition.a_guide_to_a_place import THE_GUIDE
 
     guide = THE_GUIDE.get()
-    return "stacking" in mechanics_in(told or "") or bool(guide is not None and guide.in_play("stacking"))
+    return next((key for key in run.keys if guide is not None and guide.notes.paying(key) > 0), "")
 
 
 async def _press_in_time(hands: Any, run: _Run, moves: WhatMoves, at: float, say: Any) -> bool:

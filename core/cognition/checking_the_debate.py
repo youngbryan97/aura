@@ -30,10 +30,10 @@ logger = logging.getLogger("Aura.CheckingTheDebate")
 
 #: What each fact about an act is, in order: the model's inputs.
 FACTS = ("always", "a control it names", "a way on", "serves a goal", "information to read", "not part of the task",
-         "a key where the mouse works it", "past a boundary", "did nothing lately")
+         "a key where the mouse works it", "past a boundary", "did nothing lately", "what I've noticed of it")
 
 #: What the facts mean before anything is learned: the weights she starts from.
-STARTING = (0.0, 1.0, 1.0, 0.8, -2.0, -1.5, -1.5, -3.0, -1.0)
+STARTING = (0.0, 1.0, 1.0, 0.8, -2.0, -1.5, -1.5, -3.0, -1.0, 1.0)
 
 #: How far one outcome moves the weights, and how far learning may take a weight from where it started.
 LEARNING_RATE = 0.05
@@ -76,7 +76,10 @@ class DebateCheck:
         mouse_only = bool(key) and pointer and not keys
         boundary = bool(label) and guide is not None and _past_a_boundary(label, guide)
         quiet = act in (getattr(can_do, "quiet_since", ()) or ())
-        return tuple(float(f) for f in (1, named, way_on, serves, to_read, aside, mouse_only, boundary, quiet))
+        # What her theories say of it: +1 where she has come to think it pays, -1 where it costs (what_she_notices.py).
+        notes = getattr(guide, "notes", None) if guide is not None else None
+        noticed = notes.paying(key or ("click" if label else "")) if notes is not None else 0
+        return tuple(float(f) for f in (1, named, way_on, serves, to_read, aside, mouse_only, boundary, quiet, noticed))
 
     def weigh(self, valued: Mapping[str, float], guide: Any, can_do: Any = None) -> dict[str, float]:
         """What her deliberation valued, each act scaled by how the check sees it; a parting of views logged."""
