@@ -357,8 +357,12 @@ class Guide:
             if mechanic is None or not self.in_play(name) or name in _SAID_ELSEWHERE or mechanic.kind not in _BEHAVES:
                 continue
             worded = any(source != PROGRAM for source in kept.sources)
-            found.append((0 if worded else 1, _BEHAVES.index(mechanic.kind), -len(kept.evidence), mechanic))
-        return [mechanic for *_rank, mechanic in sorted(found, key=lambda row: row[:3])]
+            # One word alone is a weak sign: LIVE 2026-10-10 a tunnel racer's "Zip Arrows 1000 pts" made it a place of
+            # forms to fill. What more than one thing speaks of comes first.
+            strong = len(set(kept.evidence)) >= 2
+            found.append((0 if worded else 1, 0 if strong else 1, _BEHAVES.index(mechanic.kind), -len(kept.evidence),
+                          mechanic))
+        return [mechanic for *_rank, mechanic in sorted(found, key=lambda row: row[:4])]
 
     def in_brief(self) -> str:
         """What a move is chosen with: what it is for, how it is worked, what to get and keep clear of, what is not part

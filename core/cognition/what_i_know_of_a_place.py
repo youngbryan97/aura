@@ -124,7 +124,9 @@ def _what_it_added(manual: dict[str, Any], filled: list[str]) -> str:
     avoid = [str(t) for t in manual.get("avoid") or [] if str(t).strip()][:3]
     if "avoid" in filled and avoid:
         parts.append(f"keep clear of {', '.join(avoid)}")
-    who = [w for w in manual.get("who") or [] if isinstance(w, dict) and w.get("name")][:4]
+    # Who is said to be on a side: a name on no side is as likely the brand on the box as anyone in it.
+    who = [w for w in manual.get("who") or [] if isinstance(w, dict) and w.get("name")
+           and w.get("side") in ("you", "with you", "against you")][:4]
     if "who" in filled and who:
         parts.append("who's who: " + ", ".join(
             w["name"] + (f" ({w['side']})" if w.get("side") not in (None, "", "unsure", "neither") else "") for w in who))

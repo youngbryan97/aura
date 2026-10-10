@@ -295,3 +295,14 @@ async def test_what_her_own_model_knows_fills_the_guide_beside_her_work_and_neve
     assert "space" not in guide.keys_for_play()                                         # a model's keys are not taken
     assert said and said[0].startswith("From what I know of it:") and "crashes" in said[0]
     assert "what I know of it" in guide.says()
+
+
+def test_what_one_word_alone_speaks_of_is_said_after_what_more_speak_of():
+    """LIVE 2026-10-10 a tunnel racer's "Zip Arrows 1000 pts" made "forms" the first thing said of how it works."""
+    from core.cognition.a_guide_to_a_place import Known
+
+    guide = Guide(place="a place")
+    guide.mechanics["forms"] = Known(name="forms", evidence=["says “Zip”"], sources={TOLD}, in_play=True)
+    guide.mechanics["shooting"] = Known(name="shooting", evidence=["says “shoot”", "says “Fire”"], sources={TOLD},
+                                        in_play=True)
+    assert [m.name for m in guide._the_mechanics_that_matter()][:1] == ["shooting"]

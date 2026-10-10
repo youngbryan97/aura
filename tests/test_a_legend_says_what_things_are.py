@@ -86,3 +86,17 @@ def test_a_read_out_of_a_number_and_its_unit_is_not_a_caption():
     regions = [{"text": "+ 12 ft.", "x": 0.2, "y": 0.41, "width": 0.1, "height": 0.04},
                {"text": "24 ft.: + 0 ft.", "x": 0.6, "y": 0.78, "width": 0.2, "height": 0.045}]
     assert what_a_legend_shows(picture, regions) == []
+
+
+@pytest.mark.unit
+def test_a_paragraph_of_rules_wrapped_over_lines_is_not_read_as_captions():
+    """LIVE 2026-10-10 "You have two" / "minutes to collect" was read as a thing called "You have two", to be got."""
+    from core.perception.what_a_legend_shows import _captions
+
+    def line(text, y):
+        return {"text": text, "x": 0.2, "y": y, "width": 0.4, "height": 0.04}
+
+    wrapped = [line("You have two", 0.30), line("minutes to collect", 0.35), line("as many points as possible.", 0.40)]
+    assert _captions(wrapped) == []
+    legend = [line("Gem", 0.30), line("Collect these for points", 0.35)]
+    assert [c[0] for c in _captions(legend)] == ["Gem: Collect these for points"]

@@ -78,6 +78,10 @@ _HOW_A_CONTROL_WORKS = re.compile(r"\b(?:click|press|hold|tap|use)\b[^.!?]{0,30}
                                   re.I)
 
 
+#: Words that make a short line part of a sentence, not the name of a thing drawn beside a caption.
+_A_SENTENCE = re.compile(r"\b(?:you|your|i|we|they|it|have|has|is|are|was|be|can|will|to|the|a|an)\b", re.I)
+
+
 def stance_of(words: str) -> str:
     """What a caption says to do about its thing: "meet", "avoid", "shoot", or "" where it says nothing."""
     if _HOW_A_CONTROL_WORKS.search(words or ""):
@@ -93,14 +97,17 @@ def _captions(regions: Sequence[dict[str, Any]]) -> list[tuple[str, str, tuple[f
     for line in lines:
         text = " ".join(str(line["text"]).split()).lstrip("•·-*– ").strip()
         stance = stance_of(text)
-        # A caption says something in words; a read-out ("+ 12 ft.") is a number with its unit.
-        if not stance or len(re.findall(r"[A-Za-z]{3,}", text)) < 2:
+        # A caption says something in words; a read-out ("+ 12 ft.") is a number with its unit. A line begun in small
+        # letters goes on from the line before: a paragraph wrapped, not a caption (LIVE 2026-10-10 "You have two" /
+        # "minutes to collect" was read as a thing called "You have two" that is to be collected).
+        if not stance or len(re.findall(r"[A-Za-z]{3,}", text)) < 2 or text[:1].islower():
             continue
         x, y, w, h = (float(line.get(k, 0.0)) for k in ("x", "y", "width", "height"))
         left, top, right, bottom = x, y, x + w, y + h
         for label in lines:
             lx, ly, lw, lh = (float(label.get(k, 0.0)) for k in ("x", "y", "width", "height"))
-            if label is line or stance_of(str(label["text"])) or len(str(label["text"]).split()) > 3:
+            if (label is line or stance_of(str(label["text"])) or len(str(label["text"]).split()) > 3
+                    or _A_SENTENCE.search(str(label["text"]))):
                 continue
             just_above = -0.5 * h <= top - (ly + lh) <= 1.5 * h and lx < right and lx + lw > left
             if just_above:
