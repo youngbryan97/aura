@@ -47,3 +47,16 @@ def test_the_web_asked_by_programs_includes_the_encyclopedias_own_search():
     assert ENGINES[0][0] == "wikipedia"
     hits = _wikipedia('{"query": {"search": [{"title": "Parallel parking"}]}}')
     assert hits == [("Parallel parking", "https://en.wikipedia.org/wiki/Parallel_parking")]
+
+
+def test_an_act_is_read_in_any_of_its_forms_and_split_from_its_last_word():
+    from core.language.what_an_instruction_asks import what_the_words_ask
+
+    def acts(text):
+        return [(i.act, i.thing) for i in what_the_words_ask(text)]
+
+    assert acts("Earn points by knocking other tops out of the stadium.") == [("hit", ("other", "tops"))]
+    assert acts("Knock the other tops out of the stadium.") == [("hit", ("other", "tops"))]
+    assert acts("Pick the coins up before they vanish.") == [("get", ("coins",))]
+    assert acts("Avoid the flying saucers.") == [("keep clear", ("flying", "saucers"))]
+    assert acts("Keep the ball from getting past you.") == [("get", ("ball",))]

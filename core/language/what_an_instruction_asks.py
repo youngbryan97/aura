@@ -100,12 +100,42 @@ def _words(clause: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", clause)
 
 
+#: Words that finish a verb when it is split from them by what it is done to: "knock the tops out", "pick the coins up".
+_PARTICLES: Final = frozenset({"out", "up", "down", "off", "away", "over", "in", "back"})
+
+
+def _as_said(word: str, before: str = "") -> set[str]:
+    """The plain forms a word may be of an act's verb: "knocking" is knock, "dodged" is dodge. A form that follows a
+    word like "the" describes a thing ("the flying saucers"), and is said only as itself."""
+    forms = {word}
+    if before in _DETERMINERS or word in _ENDS_A_THING:
+        return forms
+    for ending in ("ing", "ed"):
+        if word.endswith(ending) and len(word) > len(ending) + 2:
+            base = word[: -len(ending)]
+            forms |= {base, base + "e"}
+            if len(base) > 2 and base[-1] == base[-2]:
+                forms.add(base[:-1])                                            # running is run, stopped is stop
+    return forms
+
+
 def _act_at(words: list[str], index: int) -> tuple[str, int] | None:
+    """The act a clause names at ``index``, in any of its forms, and how many words of the clause it takes before what it
+    is done to: a verb whose last word is split from it ("knock the other tops out") takes only itself."""
     best: tuple[str, int] | None = None
+    forms = _as_said(words[index], words[index - 1] if index else "")
     for family, phrasings in ACT_FAMILIES.items():
         for phrase in phrasings:
-            if words[index : index + len(phrase)] == list(phrase) and (best is None or len(phrase) > best[1]):
-                best = (family, len(phrase))
+            if phrase[0] not in forms:
+                continue
+            if words[index + 1 : index + len(phrase)] == list(phrase[1:]):
+                taken = len(phrase)
+            elif len(phrase) == 2 and phrase[1] in _PARTICLES and phrase[1] in words[index + 2 : index + 8]:
+                taken = 1
+            else:
+                continue
+            if best is None or len(phrase) > best[1]:
+                best = (family, taken)
     return best
 
 
@@ -114,7 +144,7 @@ def _the_thing(words: list[str], start: int, stop: int | None = None) -> tuple[s
     for word in words[start : min(stop if stop is not None else len(words), start + 8)]:
         if len(word) == 1 and word.isalpha() and word not in _DETERMINERS:
             break                                                        # a letter here names the next act's key
-        if (word in _ENDS_A_THING or word in _NUMBERS or word.isdigit()) and thing:
+        if (word in _ENDS_A_THING or word in _PARTICLES or word in _NUMBERS or word.isdigit()) and thing:
             break
         if word in _NUMBERS or word.isdigit():
             continue
