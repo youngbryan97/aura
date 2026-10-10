@@ -92,8 +92,11 @@ class DebateCheck:
         # that throws it away: a person who built a trap that failed edits it (core/cognition/reading_the_rules.py).
         from core.cognition.reading_the_rules import keeps_the_work
 
-        built = bool(label) and any(getattr(can_do, "carried_to", {}).values())
-        keeps = keeps_the_work(label) if built else None
+        # Built in this pass, or before it: what she has put in place is kept on the guide across runs, and the screen
+        # after a failed test is the start of the next run (LIVE 2026-10-10 she chose "start over" there seven times).
+        built = bool(label or key) and (any(getattr(can_do, "carried_to", {}).values()) or bool(getattr(guide, "built", "")))
+        # Her own "start over", where a way to begin again is offered, is an option like a label that says so.
+        keeps = keeps_the_work(label or key) if built else None
         return tuple(float(f) for f in (1, named, way_on, serves, to_read, aside, mouse_only, boundary, quiet, noticed,
                                         fits, senseless, keeps is True, keeps is False))
 

@@ -238,3 +238,18 @@ def test_where_things_are_carried_follows_the_lesson_from_its_first_part_to_the_
     assert rules.carried_to() == "the end of another device's arrow"
     rules.tried("drag \"the shape at 30% across, 40% down\" to \"the end of another device's arrow\"", changed=True)
     assert rules.carried_to() == "the end of another device's arrow"            # the last that says, from then on
+
+
+def test_what_she_built_before_this_run_still_makes_keeping_it_worth_more_than_starting_over(monkeypatch):
+    from types import SimpleNamespace
+
+    import core.cognition.reading_the_rules as rules_module
+    from core.cognition.checking_the_debate import DebateCheck
+
+    monkeypatch.setattr(rules_module, "keeps_the_work",
+                        lambda label: {"EDIT THE TRAP": True, "start over": False}.get(label))
+    guide = Guide(place="a place of parts")
+    guide.built = "2 parts put in place, the last at 40% across and 50% down"
+    fresh = SimpleNamespace(carried_to={}, quiet_since=set())                 # a new run: nothing carried in it yet
+    weighed = DebateCheck().weigh({'click "EDIT THE TRAP"': 1.0, "start over": 1.0}, guide, fresh)
+    assert weighed['click "EDIT THE TRAP"'] > weighed["start over"]
