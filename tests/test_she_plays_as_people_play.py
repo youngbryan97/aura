@@ -164,3 +164,22 @@ def test_counsel_that_did_not_help_is_no_longer_read_by_play(monkeypatch):
     keep = {"counsel": "Watch the clock. Hold left."}
     stock.judge([{}, {"ended": "lost", "gains": 1, "took_s": 20.0}, {"ended": "lost", "gains": 2, "took_s": 25.0}], keep)
     assert keep["counsel"] == "Watch the clock."
+
+
+def test_a_place_its_guide_says_is_worked_with_the_mouse_alone_is_not_offered_keys_on_a_wordless_screen():
+    """LIVE 2026-10-10 "Going down", "Going left" in a boat game whose instructions said to move the mouse."""
+    from core.agency.what_i_can_do_here import WhatWorksHere, a_click_on
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    guide = Guide(place="a place")
+    guide.take_in(TOLD, ["Move the mouse to control your boat.", "Click the mouse button to hit enemies."])
+    assert set(guide.controls) == {"the pointer"}
+    token = THE_GUIDE.set(guide)
+    try:
+        here = WhatWorksHere(told=("up", "down", "left", "right"))
+        here.asked_for_by("")                               # a screen with no words
+        here.looked_at([a_click_on("CONTINUE")])
+        here.looked_at([a_click_on("CONTINUE")])
+        assert here.pointer_only and not {"up", "down", "left", "right"} & set(here.available())
+    finally:
+        THE_GUIDE.reset(token)

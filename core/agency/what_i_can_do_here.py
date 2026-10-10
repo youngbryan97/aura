@@ -261,6 +261,15 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         # said "click your mouse button to start", and on the game's wordless screen after them she pressed arrows.
         if keys or pointer:
             self.pointer_only = pointer and not keys
+        else:
+            # Where the screen names none, what the guide to the place holds of its controls: only the pointer, and no
+            # key, is a place worked with the mouse (LIVE 2026-10-10 "Going down", "Going left" in a boat game whose
+            # instructions said to move the mouse, on its wordless screens).
+            from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+            controls = getattr(THE_GUIDE.get(), "controls", None) or {}
+            if controls:
+                self.pointer_only = set(controls) == {"the pointer"}
 
     def looked_at(self, clickable: Sequence[str], says: str = "", looks: Mapping[str, tuple[float, ...]] | None = None,
                   where: Mapping[str, tuple[float, float]] | None = None) -> None:
