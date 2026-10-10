@@ -172,6 +172,7 @@ class WhatThisPlaceIs:
         last = self.now
         if last is not None:
             self.before.append(Reading(**{**last.__dict__, "roles": dict(last.roles)}))
+            del self.before[:-8]
         now = self.now = self.now or Reading(rests_on=reading.rests_on, at=reading.at)
         trust = _TRUST[reading.rests_on]
         was = (now.about, self.rests.get("about", NAME))
@@ -254,7 +255,7 @@ class WhatThisPlaceIs:
         elif how:
             parts.append(f"mostly by {how}")
         line = ": ".join(parts[:1]) + (": " + ", ".join(parts[1:]) if len(parts) > 1 else "")
-        return line + (f", to {_lower(reading.want).rstrip('.')}." if reading.want else ".")
+        return line + (f". What I want out of it: {_lower(reading.want).rstrip('.')}." if reading.want else ".")
 
     # -- using it ------------------------------------------------------------------------------------------------
 

@@ -32,7 +32,7 @@ logger = logging.getLogger("Aura.WhatASceneIs")
 #: How many screens of one place are glanced at, the most things kept from one glance, and how long a glance may take.
 GLANCES_A_PLACE = 3
 THINGS_KEPT = 6
-GLANCE_TIMEOUT_S = 20.0
+GLANCE_TIMEOUT_S = 45.0
 #: How wide the picture is made for her eyes.
 SEEN_WIDE = 768
 
@@ -69,9 +69,9 @@ def glance_from(answer: str) -> Glance | None:
 
 
 async def _her_eyes(prompt: str, image_b64: str) -> str:
-    from core.brain.llm.mlx_vision_client import get_vision_client
+    from core.perception.her_eyes import look_with_her_eyes
 
-    return await get_vision_client().see_async(prompt, image_b64, max_tokens=120, temp=0.0, timeout_s=GLANCE_TIMEOUT_S)
+    return await look_with_her_eyes(prompt, image_b64, max_tokens=120, timeout_s=GLANCE_TIMEOUT_S)
 
 
 def _as_jpeg(picture: Any) -> str:
@@ -108,7 +108,7 @@ def glance_beside(look: Callable[[], Awaitable[Any]], guide: Any, *, screen: str
                 return
             picture = seen[0] if isinstance(seen, tuple) else seen
             image = await asyncio.to_thread(_as_jpeg, picture)
-            answer = await asyncio.wait_for(see(_PROMPT, image), GLANCE_TIMEOUT_S + 5)
+            answer = await asyncio.wait_for(see(_PROMPT, image), 2 * GLANCE_TIMEOUT_S + 5)
         except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
             logger.info("her eyes could not take in the scene: %s", str(why)[:160])
             return

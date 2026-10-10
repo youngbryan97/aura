@@ -290,3 +290,34 @@ def test_what_play_measures_of_a_place_needs_no_model():
     from core.cognition.what_this_place_is import _what_play_showed
 
     assert "I'm one of 4 alike things" in _what_play_showed(guide.reading)       # what her model's reading must fit
+
+
+def test_her_eyes_take_one_look_at_a_time():
+    # LIVE 2026-10-09 a glance and a look at a thing started the vision worker at once; the second start was refused its
+    # lane and stopped the worker the first had brought up.
+    from core.perception import her_eyes
+
+    running: list[int] = []
+    overlapped: list[bool] = []
+
+    class _Eyes:
+        async def see_async(self, prompt, image, **_kw):
+            running.append(1)
+            overlapped.append(len(running) > 1)
+            await asyncio.sleep(0.01)
+            running.pop()
+            return '{"is": "slingshot"}'
+
+    import core.brain.llm.mlx_vision_client as client
+
+    original = client.get_vision_client
+    client.get_vision_client = lambda *a, **k: _Eyes()
+    try:
+        async def run():
+            return await asyncio.gather(*(her_eyes.look_with_her_eyes("p", "i", max_tokens=8, timeout_s=5) for _ in range(4)))
+
+        answers = asyncio.run(run())
+    finally:
+        client.get_vision_client = original
+    assert answers == ['{"is": "slingshot"}'] * 4 and not any(overlapped)
+    assert her_eyes.how_long_a_look_takes() > 0

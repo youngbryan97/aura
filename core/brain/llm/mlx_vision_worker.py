@@ -78,7 +78,7 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
         logger.info("Loading Vision Model: %s", model_path)
         model, processor = load(model_path)
         config = load_config(model_path)
-        logger.info("Vision Model loaded.")
+        logger.info("Vision Model loaded, on %s.", mlx.core.default_device())
         
         res_q.put({"status": "ok", "action": "init"})
     except (ImportError, AttributeError, RuntimeError) as e:

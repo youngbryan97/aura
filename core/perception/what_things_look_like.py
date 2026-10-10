@@ -45,9 +45,10 @@ EVERY_S = 8.0
 #: speck is no thing to name, and what covers the screen is the backdrop.
 LEAST_SIDE = 4.0
 MOST_SHARE = 0.6
-#: How wide the picture is made for her eyes, and how long a look may take before it is given up.
+#: How wide the picture is made for her eyes, and how long a look may take before it is given up: her eyes take
+#: their turn with every other look (core/perception/her_eyes.py), so a look waits as well as works.
 SEEN_WIDE = (640, 1024)
-LOOK_TIMEOUT_S = 20.0
+LOOK_TIMEOUT_S = 45.0
 #: After her eyes fail, how long before they are tried again.
 RESTED_S = 300.0
 
@@ -90,9 +91,9 @@ def sighting_from(answer: str, at: float = 0.0) -> Sighting | None:
 
 
 async def _her_eyes(prompt: str, image_b64: str) -> str:
-    from core.brain.llm.mlx_vision_client import get_vision_client
+    from core.perception.her_eyes import look_with_her_eyes
 
-    return await get_vision_client().see_async(prompt, image_b64, max_tokens=90, temp=0.0, timeout_s=LOOK_TIMEOUT_S)
+    return await look_with_her_eyes(prompt, image_b64, max_tokens=90, timeout_s=LOOK_TIMEOUT_S)
 
 
 @dataclass
@@ -157,7 +158,7 @@ class LookingAtThings:
         for kind, box in chosen:
             try:
                 colour, image = await asyncio.to_thread(_marked, frame, box, scale)
-                answer = await asyncio.wait_for(self.see(_PROMPT.format(colour=colour), image), LOOK_TIMEOUT_S + 5)
+                answer = await asyncio.wait_for(self.see(_PROMPT.format(colour=colour), image), 2 * LOOK_TIMEOUT_S + 5)
             except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
                 logger.info("her eyes could not say what a thing is: %s", str(why)[:160])
                 self._rested_until = time.monotonic() + RESTED_S
