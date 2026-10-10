@@ -177,12 +177,15 @@ def _the_lesson_first(valued: dict[str, float]) -> dict[str, float]:
     if rules is None or not valued:
         return valued
     best = max([1.0, *valued.values()])
-    nxt = rules.next_step()
+    # Her plan's steps (core/cognition/a_plan_to_an_end.py) lead as the lesson's do: the lesson says how the place is
+    # worked, the plan what she is using it for.
+    procedures = [p for p in (rules, getattr(guide, "plan", None)) if p is not None]
     out = {}
     for move, value in valued.items():
-        step = rules.step_of(move)
-        if step is not None:
-            value = max(value, best * (NEXT_STEP if step is nxt else 1.2))
+        for procedure in procedures:
+            step = procedure.step_of(move)
+            if step is not None:
+                value = max(value, best * (NEXT_STEP if step is procedure.next_step() else 1.2))
         out[move] = value * (FORBIDDEN if rules.forbids(move) or rules.passes_over_what_it_teaches(move) else 1.0)
     return out
 
@@ -214,10 +217,14 @@ def _as_checked(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
     if hasattr(can_do, "on_tried"):
         rules = getattr(the_guide(paced if isinstance(paced, dict) else None), "rules", None)
 
+        guide = the_guide(paced if isinstance(paced, dict) else None)
+
         def tried(act: str, answered: bool) -> None:
             check.learned(act, answered)
             if rules is not None:
                 rules.tried(act, answered)
+            if getattr(guide, "plan", None) is not None:
+                guide.plan.tried(act, answered)
 
         can_do.on_tried = tried
     return check.weigh(valued, the_guide(paced if isinstance(paced, dict) else None), can_do)

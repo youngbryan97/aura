@@ -934,6 +934,11 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
             # Its rules, as read, ask for things to be carried, and say where to.
             can_do.carrying_said = True
             can_do.place_named = guide.rules.carried_to().lower() or can_do.place_named
+        planned = guide.plan.next_step() if guide is not None and guide.plan is not None else None
+        if planned is not None and planned.act == "carry" and planned.where and hasattr(can_do, "carrying_said"):
+            # Her plan's next step carries something somewhere: there, first.
+            can_do.carrying_said = True
+            can_do.place_named = planned.where.lower()
     if not says or not narrate or paced is None:
         return
     words = set(says.lower().split())
@@ -972,6 +977,11 @@ def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool)
 
     read_the_rules_beside(guide, _her_model, then=lambda frames: [
         _tell(line) for line in rules_read(guide, frames) if narrate])
+    # And her plan from where things start to what she is there to do, made once there is an end and something to work
+    # with, and made again when a try says it was wrong (core/cognition/a_plan_to_an_end.py).
+    from core.cognition.a_plan_to_an_end import ask_for_a_plan
+
+    ask_for_a_plan(guide, _her_model, on_screen=[label for label in labels if label], tell=_tell if narrate else None)
     if narrate:
         # Said once it holds more than the screen itself says: the screen's words are read out on their own.
         if not guide.said and guide.sources - {SCREEN} and guide.says():

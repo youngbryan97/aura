@@ -494,6 +494,11 @@ async def _between_runs(goal: str, reflexes: Any, run: dict[str, Any], runs: lis
     # cost her, by name, where play came to keep clear of it: a person going again says what they will do differently.
     _tell((f"That one ended {run['words'][:80]!r}: {run['ended'] or 'unread'}. Again, with what I learned." if len(runs) == 1
            else f"Round {len(runs)}: {run['ended'] or 'over'}. Again.") + _what_i_do_differently(reflexes))
+    # A try that ended without the end reached says the plan was wrong somewhere: it is made again with what happened.
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+    from core.cognition.a_plan_to_an_end import plan_again
+
+    plan_again(THE_GUIDE.get(), f"it ended on “{run['words'][:120]}” ({run['ended'] or 'unread'})")
     stock = keep.get("stock")
     if stock is not None:
         stock.judge(runs)

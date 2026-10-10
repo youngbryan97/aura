@@ -181,6 +181,11 @@ class Guide:
     #: the reading under way (core/cognition/reading_the_code.py).
     from_its_code: list[str] = field(default_factory=list)
     reading_the_code: Any = None
+    #: Her plan from where things start to what she is there to do, the asking of it under way, and why it is to be
+    #: made again (core/cognition/a_plan_to_an_end.py).
+    plan: Any = None
+    planning: Any = None
+    plan_again_because: str = ""
     #: The place's sentences as she read them: what each asks, and its lesson as a procedure
     #: (core/cognition/reading_the_rules.py).
     rules: Rules = field(default_factory=Rules)
@@ -413,6 +418,7 @@ class Guide:
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
         lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(), self.rules.for_thinking(),
+                 self.plan.for_thinking() if self.plan is not None else "",
                  self._controls_said(),
                  "Goals: " + " | ".join(self.goals[:4]) if self.goals else "",
                  "Asked of me: " + " | ".join(e.says() for e in self.errands[-4:]) if self.errands else "",
