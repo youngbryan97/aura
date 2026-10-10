@@ -333,3 +333,40 @@ def test_what_a_place_says_it_is_for_overrules_what_her_model_supposed_and_is_sa
     assert any(line.startswith("It says itself what it's for: Tom needs your help to build a trap") for line in news)
     assert guide.goals[0].startswith("Tom needs your help") and guide.goals[-1].startswith("You play Tom")
     assert guide.reading.now.doing.startswith("Tom needs your help") and guide.reading.rests["doing"] == SAID
+
+
+def test_what_a_place_says_it_is_worked_by_outranks_a_key_its_program_named():
+    """LIVE 2026-10-10 her reading of a trap-building game, from its own words, was a puzzle of trap chains; its program
+    listened for the arrow keys, and her reflexes played its kitchen as a world to steer."""
+    from core.cognition.what_this_place_is import Reading, said_not_steered
+
+    guide = Guide(place="a place of devices")
+    guide.reading.take(Reading(about="a puzzle of trap chains", by="a chain", rests_on=SAID, at=1.0))
+    assert said_not_steered(guide) == "a chain"
+    supposed = Guide(place="a place of devices")
+    supposed.reading.take(Reading(about="a puzzle of trap chains", by="a chain", rests_on=NAME, at=1.0))
+    assert said_not_steered(supposed) == ""                                    # only its name: a key it names still counts
+    steered = Guide(place="a race")
+    steered.reading.take(Reading(about="a race", by="steer", rests_on=SAID, at=1.0))
+    assert said_not_steered(steered) == ""
+
+
+def test_a_passage_only_to_be_read_is_not_what_a_place_is_for():
+    from core.cognition.a_guide_to_a_place import rules_read
+    from core.cognition.reading_the_rules import Frame
+
+    guide = Guide(place="a game")
+    junk = Frame("Game won't load Black screen / crashes No sound Wrong game", act="read", is_what_it_is_for=True)
+    goal = Frame("Tom needs your help to build a trap to the cage that will catch Jerry!", act="a chain",
+                 is_what_it_is_for=True)
+    rules_read(guide, [junk, goal])
+    assert guide.goals[0].startswith("Tom needs your help") and not any("won't load" in g for g in guide.goals)
+
+
+def test_steering_keys_make_no_sense_where_the_place_said_it_is_worked_another_way():
+    from core.cognition.what_this_place_is import Reading, how_an_act_fits
+
+    guide = Guide(place="a place of devices")
+    guide.reading.take(Reading(about="a puzzle of trap chains", by="a chain", rests_on=SAID, at=1.0))
+    assert how_an_act_fits(guide, "", "up") == (False, True)
+    assert how_an_act_fits(guide, "", "space") == (False, False)

@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 __all__ = ["NAME", "PLAYED", "SAID", "SEEN", "Reading", "WhatThisPlaceIs", "ask_for_a_reading", "how_an_act_fits",
-           "not_steered", "played_shows_hers", "rests_on_for", "where_seen", "ways_it_is_played_by"]
+           "not_steered", "played_shows_hers", "rests_on_for", "said_not_steered", "where_seen", "ways_it_is_played_by"]
 
 logger = logging.getLogger("Aura.WhatThisPlaceIs")
 
@@ -353,6 +353,20 @@ def not_steered(guide: Any) -> str:
     return reading.by
 
 
+def said_not_steered(guide: Any) -> str:
+    """Where what the place says of itself, or what play showed, has it worked by a way that is not played as things
+    happen (putting parts in place, building a chain, making), that way; else "". This outranks a key a screen or its
+    program happened to name. LIVE 2026-10-10 her reading of a trap-building game said, from its own words, that it is a
+    puzzle of trap chains, and because its program listened for the arrow keys her reflexes played its kitchen as a world
+    to steer ("That's me: the yellow bar at the middle. Right moves it.")."""
+    keeping = getattr(guide, "reading", None)
+    reading = getattr(keeping, "now", None)
+    if reading is None or reading.by in ("", *_REFLEX):
+        return ""
+    rests = (getattr(keeping, "rests", None) or {}).get("by", reading.rests_on)
+    return reading.by if _TRUST.get(rests, 0) >= _TRUST[SAID] else ""
+
+
 def done_by_its_lesson(guide: Any) -> str:
     """Where the place's lesson, as read (core/cognition/reading_the_rules.py), asks only for acts that are not played
     as things happen (carrying parts into place, building a chain, making), the first of them; else "". Clicking is how
@@ -379,7 +393,9 @@ def how_an_act_fits(guide: Any, label: str, key: str) -> tuple[bool, bool]:
         return False, False
     if key:
         steering = key in _STEERING_KEYS
-        return steering and "steer" in (reading.by, *reading.makes_sense), steering and "steer" in reading.no_sense
+        # Steering makes no sense where the reading says so, or where the place has said it is worked another way.
+        return (steering and "steer" in (reading.by, *reading.makes_sense),
+                steering and ("steer" in reading.no_sense or bool(said_not_steered(guide))))
     said = _words(" ".join((reading.about, reading.doing, reading.want, reading.worked_with)))
     return bool(said & _words(label)), False
 

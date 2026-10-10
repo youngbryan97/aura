@@ -508,7 +508,11 @@ class PlayingAsItHappens:
 
         guide = THE_GUIDE.get()
         from core.cognition.a_guide_to_a_place import pointer_acts
-        from core.cognition.what_this_place_is import done_by_its_lesson, not_steered
+        from core.cognition.what_this_place_is import (
+            done_by_its_lesson,
+            not_steered,
+            said_not_steered,
+        )
 
         done_by = not_steered(guide) if guide is not None and not named and not pointer_first else ""
         if guide is not None and guide.rules.a_lesson_plays(self.labels_seen):
@@ -517,7 +521,7 @@ class PlayingAsItHappens:
             self.quiet_until = time.monotonic() + guide.rules.beat()
             return
         # What its lesson asks is said by the place itself, and outweighs a key a screen happened to name.
-        done_by = done_by or done_by_its_lesson(guide)
+        done_by = done_by or said_not_steered(guide) or done_by_its_lesson(guide)
         if done_by:
             # Nothing it says names a control for moving, and what it is says it is done by another way: what moves on
             # it is left moving, and the screen is acted on as a screen (core/cognition/what_this_place_is.py).

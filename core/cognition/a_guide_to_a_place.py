@@ -39,7 +39,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.cognition.locks_she_met import Locks
-from core.cognition.reading_the_rules import Frame, Rules
+from core.cognition.reading_the_rules import NOTHING, READ, Frame, Rules
 from core.cognition.what_she_notices import Notebook
 from core.cognition.what_things_are import WhatSheSees
 from core.cognition.what_this_place_is import WhatThisPlaceIs
@@ -762,7 +762,10 @@ _SAID_ELSEWHERE = frozenset({"steering", "menus", "information shown", "decorati
 def rules_read(guide: Guide, frames: list[Frame]) -> list[str]:
     """What the rules as read change in the guide: a sentence read as saying what the place is for is its goal, ahead
     of what her model supposed. What to say of it."""
-    said_for = list(dict.fromkeys(f.goal() for f in frames if f.is_what_it_is_for and f.goal() not in guide.goals))
+    # What a place is for is something to do: a passage read as only to be read (a page's help, its notices) is not it.
+    # LIVE 2026-10-10 an archive page's "Game won't load / Black screen / No sound" was said to be what a game was for.
+    said_for = list(dict.fromkeys(f.goal() for f in frames if f.is_what_it_is_for and f.act not in (READ, NOTHING)
+                                  and f.goal() not in guide.goals))
     if not said_for:
         return []
     guide.goals[:0] = said_for

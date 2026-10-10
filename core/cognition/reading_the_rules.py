@@ -285,7 +285,7 @@ class Rules:
 
     def what_it_is_for(self) -> list[str]:
         """The sentences that say what the place is for: as read, else as the learned surface decides."""
-        read = list(dict.fromkeys(f.goal() for f in self.in_order() if f.is_what_it_is_for))
+        read = list(dict.fromkeys(f.goal() for f in self.in_order() if f.is_what_it_is_for and f.act not in (READ, NOTHING)))
         return read or [s for s in self.unread() if _decided(SAYS_WHAT_IT_IS_FOR, s)]
 
     def in_order(self) -> list[Frame]:
