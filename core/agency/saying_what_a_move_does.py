@@ -189,7 +189,9 @@ def what_a_move_does(
     direction = str(action or "").strip()
     said_move = direction[:1].upper() + direction[1:] if direction else "That"
     if before is None or after is None or not hasattr(before, "cells"):
-        return f"{said_move} — {because}." if because else f"{said_move}."
+        # With no board read, a key's name alone says nothing a watcher can follow: LIVE 2026-10-10 "Up.", "Down.",
+        # "Left." read out over a game of devices dragged into a room. Said only with a reason.
+        return f"{said_move} — {because}." if because else ""
     parts: list[str] = []
     joined = _came_together(before, after)
     if joined:
