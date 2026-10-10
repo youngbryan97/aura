@@ -229,3 +229,33 @@ def test_changes_told_are_read_from_any_place_words():
     told = changes_told("You can now double jump! Your shield wore off. Welcome to level 3.")
     assert ("added", "jumping") in {(how, name) for how, name, _s in told}
     assert ("taken", "power-ups") in {(how, name) for how, name, _s in told}
+
+
+@pytest.mark.asyncio
+async def test_a_page_s_guide_is_made_from_its_words_and_the_program_it_loaded_and_kept_by_address():
+    import base64
+
+    from core.runtime.what_she_learned import named, recall
+    from core.skills.sovereign_browser_guide import guide_to_the_page
+    from core.skills.sovereign_browser_the_program import _FETCH_IT, _WHAT_IT_LOADED
+
+    fetched: list[str] = []
+
+    class Page:
+        async def evaluate(self, script, arg=None):
+            if script == _WHAT_IT_LOADED:
+                return [["https://example.org/thing/game.js", "script", len(A_PROGRAM)],
+                        ["https://www.google-analytics.com/analytics.js", "script", 5000]]
+            if script == _FETCH_IT:
+                fetched.append(arg[0])
+                return base64.b64encode(A_PROGRAM).decode()
+            return "Sign in | Upload | Donate\nUse the arrow keys to steer the cart and collect the coins.\nComments (12)"
+
+    guide = await guide_to_the_page(Page(), "a cart game")
+    assert fetched == ["https://example.org/thing/game.js"]
+    assert {"left", "right", "space"} <= set(guide.keys_for_play())
+    assert "signing in" not in guide.mechanics                     # the site's menus are not the thing's
+    assert guide.things.get("coins") == "meet" and "steering" in guide.mechanics
+    assert recall(named("a program read", "https://example.org/thing/game.js"))
+    again = await guide_to_the_page(Page(), "a cart game")         # read before: not fetched again
+    assert fetched == ["https://example.org/thing/game.js"] and set(again.keys_for_play()) >= {"left", "right", "space"}

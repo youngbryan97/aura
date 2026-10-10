@@ -329,12 +329,12 @@ class Guide:
         for sentence in sentences:
             if _A_GOAL.search(sentence) and len(sentence.split()) >= 3 and sentence not in self.goals:
                 self.goals.append(sentence[:200])
-            stance = stance_of(sentence)
-            if not stance:
-                continue
-            thing = _the_thing_spoken_of(sentence)
-            if thing:
-                self.things[thing] = stance
+            # Each thing by what its own clause says to do about it ("steer the cart and collect the coins": the coins
+            # are to get), else by what a caption beside it says ("Candy: gives you invincibility").
+            for verb, thing in _things_spoken_of(sentence):
+                stance = _STANCE_OF_A_VERB.get(verb.lower(), "") or stance_of(sentence)
+                if stance:
+                    self.things[thing] = stance
         del self.goals[:-8]
 
     def _readout_from(self, label: str) -> None:
@@ -458,7 +458,7 @@ def _the_act(sentence: str) -> str:
 
 
 #: The thing a caption speaks of: "Avoid the spikes", "Collect coins", "Candy: gives you invincibility".
-_SPOKEN_OF = re.compile(r"^\W*([A-Za-z][A-Za-z ]{1,24}?)\s*[:\-–]\s|\b(?:avoid|collect|catch|grab|get|destroy|shoot|"
+_SPOKEN_OF = re.compile(r"^\W*([A-Za-z][A-Za-z ]{1,24}?)\s*[:\-–]\s|\b(avoid|collect|catch|grab|get|destroy|shoot|"
                         r"dodge|stop|beware of|watch out for|keep away from|rescue|save|free)\s+(?:the |all |all the |"
                         r"any |every |your )?([a-z][a-z ]{1,24}?)(?=[.,!;]| to | and | or | before | while |$)", re.I)
 
@@ -469,14 +469,21 @@ _NOT_THINGS = frozenset("""to it its you your them him her this that there here 
     while when hint hints tip tips instructions""".split())
 
 
-def _the_thing_spoken_of(sentence: str) -> str:
-    found = _SPOKEN_OF.search(sentence or "")
-    if not found:
-        return ""
-    words = (found.group(1) or found.group(2) or "").strip().lower().split()
-    if not words or len(words) > 3 or words[0] in _NOT_THINGS or words[-1] in _NOT_THINGS or words[-1].endswith("ing"):
-        return ""
-    return " ".join(words)
+#: What a verb says to do about the thing it is said of.
+_STANCE_OF_A_VERB = {"avoid": "avoid", "dodge": "avoid", "beware of": "avoid", "watch out for": "avoid",
+                     "keep away from": "avoid", "collect": "meet", "catch": "meet", "grab": "meet", "get": "meet",
+                     "rescue": "meet", "save": "meet", "free": "meet", "destroy": "shoot", "shoot": "shoot", "stop": "shoot"}
+
+
+def _things_spoken_of(sentence: str) -> list[tuple[str, str]]:
+    """Each thing a sentence speaks of, with the verb said of it ("" for a caption's "Thing: what it does")."""
+    out: list[tuple[str, str]] = []
+    for found in _SPOKEN_OF.finditer(sentence or ""):
+        words = (found.group(1) or found.group(3) or "").strip().lower().split()
+        if not words or len(words) > 3 or words[0] in _NOT_THINGS or words[-1] in _NOT_THINGS or words[-1].endswith("ing"):
+            continue
+        out.append((found.group(2) or "", " ".join(words)))
+    return out
 
 
 def guide_of(keep: dict[str, Any], place: str = "") -> Guide:
