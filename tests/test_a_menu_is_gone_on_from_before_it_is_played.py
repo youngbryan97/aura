@@ -47,3 +47,28 @@ def test_a_menu_is_never_shot_at_and_a_shooter_aimed_with_the_mouse_is_no_world_
     # Rules in a sentence that says "let go" are not a way on.
     playing.read({"text": "Drag back and let go to putt", "layout": [{"text": "Drag back and let go to putt it into the hole"}]})
     assert not playing.way_on_shown
+
+
+@pytest.mark.unit
+def test_a_screen_that_says_it_is_being_made_ready_is_waited_out_before_anything_on_it_is_pressed(monkeypatch):
+    # LIVE 2026-10-09 an archive's "Downloading game metadata..." screen had its logo clicked to see what it did.
+    import asyncio
+
+    import core.skills.screen_pursuit_as_it_happens as reflexes_module
+    from core.language.a_way_on import says_it_is_being_made_ready
+
+    assert says_it_is_being_made_ready("INTERNET ARCHIVE Downloading game metadata...")
+    assert says_it_is_being_made_ready("Loading 40%") and not says_it_is_being_made_ready("Powering the treehouse is hard work")
+    monkeypatch.setattr(reflexes_module, "READY_LOOK_EVERY_S", 0.0)
+    monkeypatch.setattr(reflexes_module, "_said_while_playing", lambda line: None)
+    screens = iter([{"text": "INTERNET ARCHIVE Downloading game metadata..."}, {"text": "Launching emulator"},
+                    {"text": "Flight of the Hamsters PLAY", "layout": [{"text": "PLAY"}]}])
+
+    async def look():
+        return next(screens)
+
+    playing = PlayingAsItHappens(page=None, band=(0, 0, 1, 1), goal="", ends_at=0.0)
+    first = {"text": "INTERNET ARCHIVE Downloading game metadata..."}
+    playing.read(first)
+    seen = asyncio.run(reflexes_module._waited_out_while_made_ready(playing, look, first))
+    assert seen["text"].endswith("PLAY")

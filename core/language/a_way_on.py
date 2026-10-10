@@ -18,7 +18,8 @@ import re
 from core.language.learned_matcher import LearnedMatcher
 from core.language.model_features import model_hidden_features
 
-__all__ = ["asks_to_choose", "confirms", "how_much_it_leads_on", "offers_a_way_on", "says_it_is_paused"]
+__all__ = ["asks_to_choose", "confirms", "how_much_it_leads_on", "offers_a_way_on", "says_it_is_being_made_ready",
+           "says_it_is_paused"]
 
 #: Labels that go on, whole: a label that merely contains "play" ("Display")
 #: is not one.
@@ -129,6 +130,15 @@ def asks_to_choose(said: str) -> bool:
 
 #: A screen that says the thing is stopped and waits to be let go on: "PAUSED", "Game Paused", "Pause Menu".
 _PAUSED = re.compile(r"\b(?:paused|pause\s+menu)\b", re.I)
+#: Words that say a screen is still being made ready: what is on it is not yet the thing, and is waited out.
+_BEING_MADE_READY = re.compile(r"\b(?:loading|downloading|launching (?:the )?emulator|initiali[sz]ing|please wait|"
+                               r"buffering|starting up|one moment)\b", re.I)
+
+
+def says_it_is_being_made_ready(said: str) -> bool:
+    """Whether a screen's words say it is still being made ready ("Downloading game metadata...", "Loading 40%"), so
+    that nothing on it is pressed until it says otherwise."""
+    return bool(_BEING_MADE_READY.search(said or ""))
 
 
 def says_it_is_paused(said: str) -> bool:

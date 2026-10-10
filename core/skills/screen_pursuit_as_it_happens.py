@@ -750,6 +750,7 @@ async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
     if reflexes is None:
         return seen
     reflexes.read(seen)
+    seen = await _waited_out_while_made_ready(reflexes, look, seen)
     await reflexes.read_a_legend()
     # Held to a way that may still pay, she plays on with it: the pursuit is given the screen when the run is over, a
     # menu is up, or the way has had its turn and got nowhere (core/agency/the_way_it_is_played.py).
@@ -758,6 +759,35 @@ async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
         await reflexes.while_it_moves()
         seen = await look()
         reflexes.read(seen)
+    return seen
+
+
+#: The longest a screen that says it is still being made ready is waited out, and how often it is looked at meanwhile.
+READY_WAIT_S = 45.0
+READY_LOOK_EVERY_S = 1.5
+
+
+async def _waited_out_while_made_ready(reflexes: PlayingAsItHappens, look: Any, seen: dict[str, Any]) -> dict[str, Any]:
+    """A screen whose words say it is still being made ready (loading, downloading, launching), with no way on shown, is
+    looked at again until it says otherwise, for a while: what is on it is not yet the thing. LIVE 2026-10-09 an
+    archive's "Downloading game metadata..." screen had its logo clicked to see what it did."""
+    import asyncio
+
+    from core.language.a_way_on import says_it_is_being_made_ready
+
+    waited = 0.0
+    said_it = False
+    while (waited < READY_WAIT_S and not reflexes.way_on_shown
+           and says_it_is_being_made_ready(" ".join(str(seen.get("text") or "").split()))):
+        if not said_it:
+            said_it = True
+            _said_while_playing("It's still loading; waiting for it.")
+        await asyncio.sleep(READY_LOOK_EVERY_S)
+        waited += READY_LOOK_EVERY_S
+        seen = await look()
+        reflexes.read(seen)
+    if waited:
+        logger.info("waited %.1fs for a screen that said it was being made ready", waited)
     return seen
 
 
