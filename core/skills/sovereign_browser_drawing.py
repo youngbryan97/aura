@@ -559,7 +559,7 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
 async def _the_guide(page: Any, keep: dict[str, Any]) -> Any:
     """The guide to the thing on the page (core/cognition/a_guide_to_a_place.py): the one in hand, else what she kept of
     it before, else one made now from the page's words and its program."""
-    from core.cognition.a_guide_to_a_place import Guide
+    from core.cognition.a_guide_to_a_place import Guide, carry_over
     from core.runtime.what_she_learned import named, recall
     from core.skills.sovereign_browser_guide import guide_to_the_page
 
@@ -573,7 +573,7 @@ async def _the_guide(page: Any, keep: dict[str, Any]) -> Any:
     guide = await guide_to_the_page(page, thing)
     kept = recall(named("a guide", thing)) if thing else None
     if kept:
-        guide.carry_over(Guide.from_memory(kept, thing))
+        carry_over(guide, Guide.from_memory(kept, thing))
     keep["guide"] = guide
     return guide
 

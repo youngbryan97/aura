@@ -40,7 +40,7 @@ from typing import Any
 
 from core.cognition.what_she_notices import Notebook
 
-__all__ = ["MODEL", "THE_GUIDE", "Guide", "guide_for", "guide_of", "heard_in_play", "the_guide"]
+__all__ = ["MODEL", "THE_GUIDE", "Guide", "carry_over", "confirmed_by", "guide_for", "guide_of", "heard_in_play", "the_guide"]
 
 #: Sources, most trusted first. What her own model knows of a place is the least sure of what is said of it: it may be
 #: of places like it, and it is never taken for how the place is worked (its controls), only for what it is for.
@@ -221,35 +221,6 @@ class Guide:
         for name in getattr(read, "mechanics_found", []) or []:
             self._know(name, ["its program shows it"], PROGRAM, at)
         self.sources.add(PROGRAM)
-
-    def confirmed_by(self, stretch: dict[str, Any]) -> list[str]:
-        """What a stretch of play confirmed of the mechanics the guide holds, and the words this place used for them,
-        taught to what she knows of every place (core/agency/mechanics_she_knows.py ``LearnedSigns``): the words that
-        became signs anywhere."""
-        from core.agency.mechanics_she_knows import learned_signs
-
-        if not self.place:
-            return []
-        learned = learned_signs()
-        became: list[str] = []
-        moved_by = list(stretch.get("keys_that_move_her") or [])
-        if stretch.get("hers") and moved_by:
-            said = " ".join(self.named_in.get(key, "") for key in moved_by)
-            became += learned.confirmed("steering", _plain_words(said), self.place)
-        counters = [str(name) for name in (stretch.get("counters") or {})]
-        if int(stretch.get("gains") or 0) > 0 and counters:
-            became += learned.confirmed("score", _plain_words(" ".join(counters)), self.place)
-        return became
-
-    def carry_over(self, before: Guide) -> None:
-        """What play taught her of the place on an earlier visit: what she came to think, its names, and the tips that
-        held; never how it is worked, which the place itself says again."""
-        for note in before.notes.theories():
-            self.notes.notes.setdefault(note.key, note)
-        for part, names in before.names.items():
-            self.names.setdefault(part, [])
-            self.names[part] += [n for n in names if n not in self.names[part]]
-        self.tips += [t for t in before.tips if t not in self.tips][:6]
 
     def take_in_counsel(self, told: str, at: float | None = None) -> None:
         if told:
@@ -768,3 +739,34 @@ def guide_for(place: str) -> Guide:
     while len(_GUIDES) > MOST_GUIDES:
         del _GUIDES[next(iter(_GUIDES))]
     return guide
+
+
+def carry_over(guide: Guide, before: Guide) -> None:
+    """What play taught her of the place on an earlier visit: what she came to think, its names, and the tips that
+    held; never how it is worked, which the place itself says again."""
+    for note in before.notes.theories():
+        guide.notes.notes.setdefault(note.key, note)
+    for part, names in before.names.items():
+        guide.names.setdefault(part, [])
+        guide.names[part] += [n for n in names if n not in guide.names[part]]
+    guide.tips += [t for t in before.tips if t not in guide.tips][:6]
+
+
+def confirmed_by(guide: Guide, stretch: dict[str, Any]) -> list[str]:
+    """What a stretch of play confirmed of the mechanics the guide holds, and the words this place used for them,
+    taught to what she knows of every place (core/agency/mechanics_she_knows.py ``LearnedSigns``): the words that
+    became signs anywhere."""
+    from core.agency.mechanics_she_knows import learned_signs
+
+    if not guide.place:
+        return []
+    learned = learned_signs()
+    became: list[str] = []
+    moved_by = list(stretch.get("keys_that_move_her") or [])
+    if stretch.get("hers") and moved_by:
+        said = " ".join(guide.named_in.get(key, "") for key in moved_by)
+        became += learned.confirmed("steering", _plain_words(said), guide.place)
+    counters = [str(name) for name in (stretch.get("counters") or {})]
+    if int(stretch.get("gains") or 0) > 0 and counters:
+        became += learned.confirmed("score", _plain_words(" ".join(counters)), guide.place)
+    return became

@@ -265,9 +265,8 @@ class PlayingAsItHappens:
 
     def read(self, observation: dict[str, Any]) -> None:
         """What a look of the pursuit showed: the screen's words, and its ways back at the start."""
-        from core.skills.screen_pursuit_bearings import restart_controls
-
         from core.language.a_way_on import how_much_it_leads_on
+        from core.skills.screen_pursuit_bearings import restart_controls
 
         said = " ".join(str(observation.get("text") or "").split())
         labels = [" ".join(str(r.get("text") or "").split()) for r in observation.get("layout") or () if isinstance(r, dict)]
@@ -430,9 +429,8 @@ class PlayingAsItHappens:
             play_as_it_happens,
             the_world_moves_on_its_own,
         )
-        from core.perception.what_the_pixels_show import recognize_text
-
         from core.agency.the_way_it_is_played import SEND, ways_asked
+        from core.perception.what_the_pixels_show import recognize_text
 
         now = time.monotonic()
         held = self.held_to()
@@ -466,7 +464,7 @@ class PlayingAsItHappens:
         # And what the guide to the place holds of its controls: its page's words, its program, what she looked up
         # (core/cognition/a_guide_to_a_place.py), words before code.
         from core.cognition.a_guide_to_a_place import SCREEN as SCREEN_SAID
-        from core.cognition.a_guide_to_a_place import THE_GUIDE
+        from core.cognition.a_guide_to_a_place import THE_GUIDE, confirmed_by
 
         guide = THE_GUIDE.get()
         if guide is not None:
@@ -504,7 +502,7 @@ class PlayingAsItHappens:
             # What play read and confirmed, into the guide: what changed said, and what it learned of every place kept.
             for line in guide.take_in(SCREEN_SAID, stretch.get("words_seen") or [])[:1]:
                 _said_while_playing(line)
-            guide.confirmed_by(stretch)
+            confirmed_by(guide, stretch)
         if (stretch.get("runtime_checks") or {}).get("violations"):
             self.over_because = "runtime contract violated"
         _keep_what_she_learned(self.page, self.keep)
@@ -517,7 +515,13 @@ class PlayingAsItHappens:
         """Where the screen's words ask for what it shows to be followed: the arrows it draws pressed as keys, else the
         places it lights in turn clicked in their order (core/agency/doing_again_what_was_shown.py). Whether anything
         was done."""
-        from core.agency.doing_again_what_was_shown import Shown, arrows_in, asks_to_follow, do_again, lit_in_turn
+        from core.agency.doing_again_what_was_shown import (
+            Shown,
+            arrows_in,
+            asks_to_follow,
+            do_again,
+            lit_in_turn,
+        )
         from core.perception.what_the_pixels_show import recognize_text
 
         told = " ".join(self.words[-3:])
