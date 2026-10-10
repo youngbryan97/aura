@@ -15,7 +15,10 @@ from core.agency.what_i_can_do_here import WhatWorksHere, a_click_on
 
 pytestmark = pytest.mark.unit
 
-BOARD = (a_click_on("add a part"), a_click_on("Pipe"), a_click_on("attach here!"), a_click_on("SCORE"), a_click_on("next"))
+BOARD = (a_click_on("add a part"), a_click_on("Pipe"), a_click_on("the shape at 50% across, 55% down"), a_click_on("attach here!"),
+         a_click_on("SCORE"), a_click_on("next"))
+#: The piece is drawn; "Pipe" is written over it. What is drawn is carried; what is written is clicked.
+PIECE = "the shape at 50% across, 55% down"
 
 
 @pytest.mark.parametrize("words", [
@@ -63,10 +66,37 @@ def test_the_place_marked_as_the_one_comes_first_and_a_carry_that_did_nothing_is
     # Neither a readout nor a way on is carried; a way on is no thing to carry.
     assert not any(what_is_carried(move)[0] in ("SCORE", "next") for move in carries)
     assert not any(what_is_carried(move)[1] == "SCORE" for move in carries)
-    tried = a_carry_of("Pipe", "attach here!")
-    assert tried in carries
+    tried = a_carry_of(PIECE, "attach here!")
+    assert tried in carries and not any(what_is_carried(move)[0] in ("Pipe", "add a part") for move in carries)
     here.tried(tried, changed=False)
     assert tried not in here.carries(here.on_screen)
+
+
+def test_written_tabs_are_clicked_not_carried_and_carrying_rests_when_it_keeps_doing_nothing():
+    # LIVE 2026-10-10 she carried a device library's tabs ("HANGERS", "ROLLERS") onto one spot thirty-five times.
+    from core.agency.putting_things_in_place import RESTS_AFTER
+
+    library = (a_click_on("LAUNCHERS"), a_click_on("HANGERS"), a_click_on("ROLLERS"),
+               a_click_on("the shape at 20% across, 40% down"), a_click_on("the shape at 30% across, 40% down"),
+               a_click_on("the shape at 40% across, 40% down"), a_click_on("the one that stands out at 25% across, 70% down"))
+    here = WhatWorksHere()
+    here.looked_at(library)
+    here.looked_at(library)
+    here.asked_for_by("Place the device at + to the end of another device's arrow to make a connection. Drag it.", library)
+    carries = here.carries(here.on_screen)
+    assert carries and not any(what_is_carried(m)[0] in ("LAUNCHERS", "HANGERS", "ROLLERS") for m in carries)
+    for move in carries[:RESTS_AFTER]:
+        here.tried(move, changed=False)
+    assert here.carries(here.on_screen) == ()                                    # rests: clicks are what is left
+    opened = (*library, a_click_on("the shape at 60% across, 40% down"))
+    here.looked_at(opened)
+    here.looked_at(opened)
+    assert here.carries(here.on_screen)                                          # a changed screen is carried on afresh
+    words = WhatWorksHere()
+    words.looked_at(library)
+    words.looked_at(library)
+    words.asked_for_by("Drag the words into the gaps in the sentence.", library)
+    assert any(what_is_carried(m)[0] == "HANGERS" for m in words.carries(words.on_screen))
 
 
 def test_a_move_on_two_places_is_read_once_for_every_act():
@@ -131,6 +161,7 @@ def test_a_label_that_tells_the_place_to_do_something_is_pressed_not_carried():
 
     putting = PuttingInPlace()
     putting.told_of_carrying("Drag the device to the end of another device's arrow to make a connection.")
+    putting.pictures = {"anvil"}                                                   # a device her eyes named
     offered = putting.carries(['click "SKIP INSTRUCTIONS"', 'click "DELETE X"', 'click "TEST TRAP"', 'click "anvil"',
                                'click "the shape at the top"'])
     carried = [what_is_carried(move) for move in offered]

@@ -47,6 +47,15 @@ _A_BIN = re.compile(r"\b(?:delete|remove|trash|bin|discard|recycle)\b", re.IGNOR
 
 #: Words that mark a place as where things go ("attach here!", "drop here").
 _MARKS_A_PLACE = re.compile(r"\bhere\b", re.IGNORECASE)
+#: Words that say what is carried is writing (words to a gap, letters to a slot, names to a box): only there is a
+#: label carried. Everywhere else writing is a control to click (a category, a tab, a heading), and what is carried is
+#: a picture. LIVE 2026-10-10 she carried a device library's tabs ("HANGERS", "ROLLERS") to a spot in the room, thirty
+#: times, and the screen never changed.
+_WRITING_IS_CARRIED = re.compile(r"\b(?:drag|drop|move|put|place|carry)\s+(?:the\s+|each\s+|a\s+|your\s+)?"
+                                 r"(?:words?|letters?|labels?|names?|answers?|captions?|tiles?|cards?)\b", re.IGNORECASE)
+#: Carries in a row that changed nothing before carrying rests until the screen changes: as many as it takes to judge an
+#: input dead (core/agency/what_i_can_do_here.py ENOUGH_TO_JUDGE).
+RESTS_AFTER = 4
 
 
 def a_carry_of(thing: str, place: str) -> str:
@@ -77,10 +86,18 @@ class PuttingInPlace:
     chain_ends_at: tuple[float, float] | None = None
     #: The place the words say things are carried to ("the end of another device's arrow"), found by her eyes.
     place_named: str = ""
+    #: Whether the place's words say writing is what is carried (words to gaps, letters to slots).
+    writing_carried: bool = False
+    #: Carries made in a row that changed nothing, since the screen last changed; and what was on it then.
+    carries_unanswered: int = 0
+    screen_carried_on: tuple[str, ...] = ()
+    #: What the screen reading found drawn on the screen now, by what she calls each: pictures, not writing.
+    pictures: set[str] = field(default_factory=set)
 
     def told_of_carrying(self, words: str) -> None:
         """Words read at this place: once they speak of carrying, it is a place where things are carried."""
         self.carrying_said = self.carrying_said or speaks_of_carrying(words)
+        self.writing_carried = self.writing_carried or bool(_WRITING_IS_CARRIED.search(str(words or "")))
         from core.perception.where_the_words_point import the_place_named
 
         self.place_named = the_place_named(words) or self.place_named
@@ -93,9 +110,17 @@ class PuttingInPlace:
         from core.agency.what_i_can_do_here import _goes_on, _not_read_only, what_is_clicked
         from core.perception.shapes_that_look_pressable import STANDS_OUT
 
+        # Carrying rests once several carries in a row changed nothing on this screen: what does something here now is
+        # a click (a category opened, a part picked), and the screen it brings is carried on afresh.
+        screen = tuple(sorted(on_screen))
+        if screen != self.screen_carried_on:
+            self.screen_carried_on, self.carries_unanswered = screen, 0
+        if self.carries_unanswered >= RESTS_AFTER:
+            return ()
         worth = [move for move in on_screen if what_is_clicked(move) and _not_read_only(move)]
         things = [what_is_clicked(move) or "" for move in worth
-                  if not _goes_on(move) and not _A_COMMAND.search(what_is_clicked(move) or "")]
+                  if not _goes_on(move) and not _A_COMMAND.search(what_is_clicked(move) or "")
+                  and (self.writing_carried or _a_picture(what_is_clicked(move) or "", STANDS_OUT, self.pictures))]
         # A bin is somewhere a thing is carried to be got rid of, not to be used: it is offered last.
         places = [what_is_clicked(move) or "" for move in worth if not _A_COMMAND.search(what_is_clicked(move) or "")]
         places += [what_is_clicked(move) or "" for move in worth if _A_BIN.search(what_is_clicked(move) or "")]
@@ -120,6 +145,7 @@ class PuttingInPlace:
         found = what_is_carried(move)
         if found:
             self.carried_to[move] = changed
+            self.carries_unanswered = 0 if changed else self.carries_unanswered + 1
             if changed:
                 from core.perception.where_the_words_point import PLACES
 
@@ -127,6 +153,12 @@ class PuttingInPlace:
             at = getattr(self, "where", {}).get(found[1])
             if changed and at is not None:
                 self.chain_ends_at = at
+
+
+def _a_picture(name: str, stands_out: str, pictures: set[str]) -> bool:
+    """Whether a thing on the screen is a picture rather than writing: what the screen reading found drawn, by the name
+    it was given (where it is, or what her eyes saw it as)."""
+    return name in pictures or name.startswith(("the shape at", stands_out))
 
 
 #: How near, as a share of the screen, a place is to where the last part went to be that place, taken.

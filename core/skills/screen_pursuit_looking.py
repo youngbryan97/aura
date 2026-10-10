@@ -909,6 +909,10 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
 
     where = {move: at for move in clickable if (at := where_to_click(observation, _label_of(move))) is not None}
     can_do.looked_at(clickable, says, looks=looks, where=where)
+    if hasattr(can_do, "pictures"):
+        # What the screen reading found drawn, not written: the things that are carried (putting_things_in_place.py).
+        can_do.pictures = {" ".join(str(s.get("text") or "").split()) for s in observation.get("shapes") or ()
+                           if isinstance(s, dict) and s.get("text")}
     if hasattr(can_do, "asked_for_by"):
         from core.agency.what_i_can_do_here import what_is_clicked
 

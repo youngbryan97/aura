@@ -61,6 +61,7 @@ def test_a_carry_that_worked_is_where_the_chain_goes_on_from():
     here.asked_for_by("Drag each tube so the gumball rolls from the chute to the bucket: a chain reaction.", moves)
     here.looked_at(moves, where=where)
     here.looked_at(moves, where=where)
+    here.pictures = {"tube"}                                                      # the tube is drawn, and named by her eyes
     assert "chains" in here.mechanics_said
     here.carried(a_carry_of("tube", "the shape at 20% across, 10% down"), changed=True)
     carries = here.carries(here.on_screen)
