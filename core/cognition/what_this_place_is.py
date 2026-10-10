@@ -79,8 +79,9 @@ SEEN_AFTER = 2
 SEEN_FULLER = 5
 #: The most readings one place is asked for.
 MOST_READINGS = 5
-#: The most her model writes for a reading.
+#: The most her model writes for a reading, and how many readings may go unanswered before none is asked again.
 MOST_TOKENS = 600
+UNANSWERED_AT_MOST = 3
 
 _WORD = re.compile(r"[a-z]{3,}")
 _COMMON = frozenset("""the and with for that this you your are its it's their there what who into from about game play
@@ -158,6 +159,8 @@ class WhatThisPlaceIs:
     stood_out: list[str] = field(default_factory=list)
     glanced: list[str] = field(default_factory=list)
     glancing: Any = None
+    #: Readings asked for and not answered.
+    unanswered: int = 0
     #: What each part of the reading rests on now, by part ("about", "hers", "role <name>").
     rests: dict[str, str] = field(default_factory=dict)
     #: What play has measured of the place, by what each fact is about ("crowd", "view", "control", "counted").
@@ -446,6 +449,10 @@ def ask_for_a_reading(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, 
                                _what_it_says(guide) if rests_on == SAID else "",
                                _what_play_showed(reading), ask, scenes=reading.scenes[-3:])
         if got is None:
+            # Not answered: asked again when there is next more to go on, a few times at most.
+            reading.unanswered += 1
+            if reading.unanswered < UNANSWERED_AT_MOST and due in reading.asked:
+                reading.asked.remove(due)
             return
         line = reading.take(got)
         if line and tell is not None:
@@ -509,8 +516,11 @@ async def _a_reading(place: str, task: str, rests_on: str, seen: list[str], says
               "make sense there and which make none (" + ways + "); what they want out of it; and what each thing seen "
               "is to them. Where what it says of itself and what its name suggests differ, what it says is so. Be "
               "tentative where you are unsure.")
+    from core.cognition.what_things_are import asked_patiently
+
     try:
-        got = await ask(prompt, schema, MOST_TOKENS)
+        # Her thinking at each move holds her model; a question beside her work waits its turn and asks again.
+        got = await asked_patiently(ask, prompt, schema, MOST_TOKENS)
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("a reading of %r could not be asked: %s", place, str(why)[:160])
         return None

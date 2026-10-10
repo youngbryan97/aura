@@ -321,3 +321,15 @@ def test_her_eyes_take_one_look_at_a_time():
         client.get_vision_client = original
     assert answers == ['{"is": "slingshot"}'] * 4 and not any(overlapped)
     assert her_eyes.how_long_a_look_takes() > 0
+
+
+def test_what_a_place_says_it_is_for_overrules_what_her_model_supposed_and_is_said():
+    # LIVE 2026-10-10 her model took a game of traps built from devices for a side-scroller, and said so.
+    from core.cognition.a_guide_to_a_place import SCREEN
+
+    guide = Guide(place="a trap game")
+    guide.take_in_what_i_know({"goal": "You play Tom in a side-scrolling level, chasing Jerry before he escapes."})
+    news = guide.take_in(SCREEN, "Tom needs your help to build a trap to the cage that will catch Jerry!")
+    assert any(line.startswith("It says itself what it's for: Tom needs your help to build a trap") for line in news)
+    assert guide.goals[0].startswith("Tom needs your help") and guide.goals[-1].startswith("You play Tom")
+    assert guide.reading.now.doing.startswith("Tom needs your help") and guide.reading.rests["doing"] == SAID

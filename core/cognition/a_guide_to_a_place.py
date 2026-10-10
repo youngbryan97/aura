@@ -62,8 +62,9 @@ _A_TIP = re.compile(r"\b(?:tip|trick|best (?:way|to)|make sure|remember|be caref
 
 #: A sentence that sets a goal: what to do to win, or what not to let happen.
 _A_GOAL = re.compile(r"\b(?:your (?:goal|mission|job|task) is|the (?:goal|object|aim) (?:of the game )?is|try to|"
-                     r"you (?:need|have|must) to|help \w+(?: \w+)? (?:to )?(?:find|get|escape|save|rescue|stop|reach|"
-                     r"collect|enjoy|win)|get (?:all|as many|to the)|reach|collect|"
+                     r"you (?:need|have|must) to|needs? your help|help \w+(?: \w+)? (?:to )?(?:find|get|escape|save|"
+                     r"rescue|stop|reach|collect|enjoy|win|build|make|catch|trap|beat|finish)|get (?:all|as many|to the)|"
+                     r"reach|collect|"
                      r"guide|rescue|save|escape|survive|don'?t let|before (?:time|the timer)|as (?:many|far|long) as)\b",
                      re.I)
 #: A heading a sentence was read run into ("INSTRUCTIONS Use the arrow keys", "Winning Objective: Land safely"): the
@@ -173,6 +174,8 @@ class Guide:
     #: What the place is: what it is about, who she is in it, what she works it with and by what, what she wants out of
     #: it, and what makes sense there (core/cognition/what_this_place_is.py).
     reading: WhatThisPlaceIs = field(default_factory=WhatThisPlaceIs)
+    #: What her own model supposed the place is for, until the place says it itself.
+    supposed_goal: str = ""
 
     # -- taking things in ---------------------------------------------------------------------------------------
 
@@ -193,7 +196,10 @@ class Guide:
         if source != MODEL:
             self._controls_from(new, source, at)
             news += self._errands_from(new)
+        goals_before = list(self.goals)
         self._goals_and_things_from(new)
+        if source != MODEL:
+            news += said_for_itself(self, [g for g in self.goals if g not in goals_before])
         self._sections_from(new)
         if source != MODEL:
             # Names come from the place's own words and what is said of it, never from what her model supposes.
@@ -532,6 +538,7 @@ class Guide:
             if said and said.lower() not in ("unknown", "none", "n/a"):
                 filled += [part] if not kept else []
                 kept.append(said[:220])
+                self.supposed_goal = said[:220] if part == "goal" else self.supposed_goal
         for part, stance in (("get", "meet"), ("avoid", "avoid")):
             for thing in manual.get(part) or []:
                 thing = " ".join(str(thing).lower().split())[:40]
@@ -712,6 +719,27 @@ _SAID_ELSEWHERE = frozenset({"steering", "menus", "information shown", "decorati
                              "levels", "a clock", "clicking things", "choosing from options", "dialogs", "sound controls",
                              "pausing", "menus of a program", "links and pages", "focus and selection", "story",
                              "collecting", "reaching a place", "hazards", "lives", "health", "fuel", "typing"})
+
+
+def said_for_itself(guide: Guide, goals: list[str]) -> list[str]:
+    """What the place says itself it is for, put ahead of what her model supposed and into the reading of what the
+    place is (as the place's own word); where it parts from what her model supposed, said once. LIVE 2026-10-10
+    her model took a game of traps built from devices for a side-scroller, and said so, and the game's own words
+    that she was to build a trap to a cage changed nothing she said."""
+    from core.cognition.what_this_place_is import SAID, Reading, _alike_said
+
+    if not goals:
+        return []
+    guide.reading.take(Reading(doing=goals[0], rests_on=SAID))
+    supposed = guide.supposed_goal
+    if not supposed or supposed not in guide.goals:
+        return []
+    guide.goals.remove(supposed)
+    guide.goals.append(supposed)
+    if _alike_said(supposed, goals[0]):
+        return []
+    guide.supposed_goal = ""
+    return [f"It says itself what it's for: {_short(goals[0])} That isn't what I'd thought, so I'm going by it."]
 
 
 def _short(text: str, most: int = 150) -> str:
