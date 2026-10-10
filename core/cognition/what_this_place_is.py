@@ -356,7 +356,11 @@ def where_seen(guide: Any, moves: Any, *names: str) -> list[tuple[float, float]]
     reading = getattr(guide, "reading", None)
     if not isinstance(reading, WhatThisPlaceIs) or not getattr(moves, "things", None):
         return []
-    looks = [look for name in names if name for look in reading.looks.get(" ".join(name.lower().split()), [])]
+    from core.cognition.what_things_are import words_shared
+
+    # By the name it was seen as, or one sharing what it is ("giant slingshot" at a glance, "slingshot" in play).
+    looks = [look for name in names if name for seen_as, kept in reading.looks.items()
+             if seen_as == " ".join(name.lower().split()) or words_shared(seen_as, name) for look in kept]
     kinds = getattr(moves, "kinds", [])
     found = []
     for thing in moves.things.values():

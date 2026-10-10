@@ -195,3 +195,14 @@ def test_a_screen_taken_in_at_a_glance_gives_the_setting_a_reading_rests_on():
     assert "Its screens, at a glance: a basketball court in an arena" in asked[0] and "hoop" in asked[0]
     assert guide.reading.now.rests_on == SEEN and guide.reading.now.hers == "player in blue"
     assert GLANCES_A_PLACE >= 2
+
+
+def test_what_she_works_with_is_found_by_a_name_that_shares_what_it_is():
+    from core.perception.what_moves_in_the_picture import Kind
+
+    guide = Guide(place="a place")
+    guide.reading.saw("slingshot", (120, 80, 40), 30.0)
+    kinds = [Kind(0, None, 30.0, (122, 78, 44))]
+    moves = SimpleNamespace(things={1: SimpleNamespace(kind=0, x=40.0, y=150.0, w=20.0, h=40.0)}, kinds=kinds,
+                            share=lambda x, y: (x / 320, y / 240))
+    assert where_seen(guide, moves, "giant slingshot") == [(40 / 320, 150 / 240)]
