@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.agency.what_meeting_things_does import AVOID, MEET, SHOOT
+from core.perception.what_things_look_like import EVERY_S
 
 __all__ = ["SeeingInPlay", "a_pointer_seen", "a_stance_said", "colour_name", "describe", "i_go_where_the_mouse_goes", "named_for_its_part", "plural", "seen_in_play", "shape_name", "still_looking_at",
            "where_on_screen"]
@@ -96,13 +97,15 @@ def a_pointer_seen(kind: int) -> str:
     return seen if _A_POINTER.search(seen) else ""
 
 
-def still_looking_at(run: Any, kind: int | None, at: float) -> bool:
-    """Whether her eyes have been asked what a kind is a moment ago and have not said yet: what she is is said once,
-    so it waits a little for them."""
+def still_looking_at(run: Any, kind: int | None, at: float, mine: int | None = None) -> bool:
+    """Whether her eyes have been asked what a kind is a moment ago and have not said yet, or are yet to look at it
+    where she is (``mine``) after looking at another thing like her: what she is is said once, so it waits a little."""
     looking = getattr(getattr(run, "seeing", None), "looking", None)
-    if looking is None or kind is None or kind in looking.by_kind:
+    if looking is None or kind is None or looking.resting() or at - looking.asked_at >= WAIT_FOR_EYES_S + EVERY_S:
         return False
-    return kind in looking.asked and at - looking.asked_at < WAIT_FOR_EYES_S and not looking.resting()
+    if mine is not None and kind in looking.looked_on and looking.looked_on[kind] != mine:
+        return True
+    return kind not in looking.by_kind and kind in looking.asked and at - looking.asked_at < WAIT_FOR_EYES_S
 
 
 def i_go_where_the_mouse_goes(moves: Any, kind: int, mine: Any) -> str:

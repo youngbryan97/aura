@@ -134,6 +134,9 @@ class LookingAtThings:
     by_kind: dict[int, Sighting] = field(default_factory=dict)
     see: Callable[[str, str], Awaitable[str]] = _her_eyes
     asked: set[int] = field(default_factory=set)
+    #: The thing each kind was looked at on: her own kind is looked at again, once, where she is, if it was first looked
+    #: at on another thing of its look before play knew which was hers.
+    looked_on: dict[int, int] = field(default_factory=dict)
     _began: float | None = None
     _last: float = -math.inf
     #: When her eyes were last asked, in play's time.
@@ -178,18 +181,25 @@ class LookingAtThings:
         best: dict[int, Any] = {}
         for thing in (getattr(moves, "things", {}) or {}).values():
             kind = int(getattr(thing, "kind", -1))
-            if kind < 0 or kind in self.asked or kind in self.by_kind:
+            again = thing.number == mine and kind in self.looked_on and self.looked_on[kind] != mine
+            if kind < 0 or ((kind in self.asked or kind in self.by_kind) and not again):
                 continue
             if min(thing.w, thing.h) < LEAST_SIDE or (wide and thing.w > MOST_SHARE * wide) or (tall and thing.h > MOST_SHARE * tall):
                 continue
-            if kind not in best or thing.w * thing.h > best[kind].w * best[kind].h:
+            # Her own kind is looked at where she is, not at the biggest thing like her: LIVE 2026-10-10 the pointer's
+            # kind was looked at on a sign of its colour, and she said "That's me: the white sign".
+            if best.get(kind) is not None and best[kind].number == mine:
+                continue
+            if kind not in best or thing.number == mine or thing.w * thing.h > best[kind].w * best[kind].h:
                 best[kind] = thing
 
         def first(kind: int) -> tuple[int, int, int, float]:
             thing = best[kind]
             return (0 if thing.number == mine else 1, 0 if kind in met else 1, 0 if thing.moved else 1, -thing.w * thing.h)
 
-        return [(kind, best[kind].box()) for kind in sorted(best, key=first)[:AT_ONCE]]
+        chosen = sorted(best, key=first)[:AT_ONCE]
+        self.looked_on.update({kind: best[kind].number for kind in chosen})
+        return [(kind, best[kind].box()) for kind in chosen]
 
     async def _ask(self, frame: np.ndarray, chosen: list[tuple[int, tuple[float, ...]]], scale: float, at: float) -> None:
         for kind, box in chosen:

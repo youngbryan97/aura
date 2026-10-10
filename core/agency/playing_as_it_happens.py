@@ -1218,7 +1218,7 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         run.hers_description = run.hers_descriptions.most_common(1)[0][0]
     settled = all(hers.tried(k) >= 4 for k in run.keys) or at - run.began > 8.0
     if mine is not None and hers.kind is not None and hers.follows_pointer:
-        if not still_looking_at(run, hers.kind, at):
+        if not still_looking_at(run, hers.kind, at, hers.number):
             _say(run, say, i_go_where_the_mouse_goes(moves, hers.kind, mine), at, once="me")
     elif mine is not None and hers.kind is not None and keys and settled:
         how = " and ".join(keys)

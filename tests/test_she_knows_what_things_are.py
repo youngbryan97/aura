@@ -300,3 +300,26 @@ def test_a_thing_her_eyes_know_by_name_is_called_by_it():
         assert describe(moves, 0) == "Amy Rose"
     finally:
         THE_GUIDE.reset(token)
+
+
+def test_her_own_kind_is_looked_at_where_she_is_not_at_the_biggest_thing_like_her():
+    from core.perception.what_things_look_like import LookingAtThings
+
+    looking = LookingAtThings()
+    moves = _moves([_thing(5, 0, 50, 50, w=8, h=10), _thing(6, 0, 150, 80, w=40, h=30)], [(240, 240, 240)])
+    chosen = looking._to_look_at(moves, 5, set())
+    assert chosen and chosen[0][1] == moves.things[5].box()
+
+
+def test_her_kind_looked_at_before_she_was_known_is_looked_at_again_where_she_is():
+    from core.perception.what_things_look_like import LookingAtThings
+
+    looking = LookingAtThings()
+    moves = _moves([_thing(5, 0, 50, 50, w=8, h=10), _thing(6, 0, 150, 80, w=40, h=30)], [(240, 240, 240)])
+    first = looking._to_look_at(moves, None, set())
+    looking.asked |= {kind for kind, _box in first}
+    assert first[0][1] == moves.things[6].box()                       # before she is known: the biggest of the look
+    again = looking._to_look_at(moves, 5, set())
+    assert again and again[0][1] == moves.things[5].box()             # once she is: where she is
+    looking.asked |= {kind for kind, _box in again}
+    assert looking._to_look_at(moves, 5, set()) == []                 # and only once
