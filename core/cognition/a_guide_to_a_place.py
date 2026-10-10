@@ -187,8 +187,10 @@ class Guide:
     plan: Any = None
     planning: Any = None
     plan_again_because: str = ""
-    #: What she has found the things here do when acted on, a line each (core/agency/where_things_lead.py).
+    #: What she has found the things here do when acted on, a line each (core/agency/where_things_lead.py); and what she
+    #: has built here so far, in a line, for a plan made again after a test of it.
     found_to_do: list[str] = field(default_factory=list)
+    built: str = ""
     #: Ways here that would not open yet, what each wants, and what she has gained (core/cognition/locks_she_met.py).
     locks: Locks = field(default_factory=Locks)
     #: The place's sentences as she read them: what each asks, and its lesson as a procedure

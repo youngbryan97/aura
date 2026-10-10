@@ -106,3 +106,27 @@ def test_the_plans_next_step_leads_the_move_and_a_failed_try_makes_it_again():
 
 def test_no_plan_is_asked_for_without_an_end_to_aim_at():
     assert not ask_for_a_plan(Guide(place="somewhere"), _asker(PLAN, []), on_screen=ON_SCREEN)
+
+
+def test_what_she_has_built_is_part_of_what_the_plan_is_made_from():
+    from core.agency.what_i_can_do_here import WhatWorksHere
+    from core.skills.screen_pursuit_looking import _what_she_has_built
+
+    guide, asked = _guide(), []
+    here = WhatWorksHere()
+    here.carried_to = {'drag "the shape at 20% across, 70% down" to "any active square"': True,
+                       'drag "the shape at 30% across, 70% down" to "the shape at 10% across, 10% down"': False}
+    here.chain_ends_at = (0.62, 0.41)
+    token = THE_GUIDE.set(guide)
+    try:
+        _what_she_has_built(here)
+    finally:
+        THE_GUIDE.reset(token)
+    assert guide.built == "1 part put in place, the last at 62% across and 41% down"
+
+    async def run():
+        ask_for_a_plan(guide, _asker(PLAN, asked), on_screen=ON_SCREEN)
+        await guide.planning
+
+    asyncio.run(run())
+    assert "What they have built so far: 1 part put in place" in asked[0]

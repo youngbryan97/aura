@@ -119,6 +119,16 @@ _SPACE_A_KEY = re.compile(r"\bspace ?bar\b|\bspace\s*(?:key|button)\b|\b(?:press
 #: LIVE-shaped 2026-10-10: "navigating the dangers of outer space to secure a safe landing" is a place, not a key.
 
 
+#: "Arrows" said where keys are meant: the arrow keys, arrows used or pressed, arrows to move. A drawn arrow is not one:
+#: LIVE 2026-10-10 "place the device at the end of another device's arrow to make a connection" made up, down, left and
+#: right the keys of a game played with the mouse alone ("up, down, left and right to make").
+_ARROWS_AS_KEYS = re.compile(
+    r"\b(?:arrow|cursor|direction(?:al)?)\s*(?:keys?|buttons?|pad)\b"
+    r"|\b(?:use|press|hold|tap|hit|with|using)\s+(?:the\s+|your\s+)?(?:arrows?|directions?)\b"
+    r"|\b(?:arrows?|directions?)\s+(?:to|for)\s+(?:move|moving|steer|walk|run|go|control|turn|aim|jump|drive|fly|navigate)"
+    r"|(?:up|down|left|right)\s*(?:[,/&+-]|\band\b|\bor\b)?\s*(?:up|down|left|right)?\s*arrows?\b")
+
+
 def _space_is_a_key(lowered: str) -> bool:
     return bool(_SPACE_A_KEY.search(lowered))
 
@@ -149,7 +159,7 @@ def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "
         r"(?:arrows?\b|arrow\s+keys?\b|cursor\s+keys?\b)", lowered)
     keys: list[str] = []
     for names, meant in _NAMED_KEYS:
-        if meant == ("up", "down", "left", "right") and arrow_directions:
+        if meant == ("up", "down", "left", "right") and (arrow_directions or not _ARROWS_AS_KEYS.search(lowered)):
             continue
         if meant[0] in WAYS and len(meant) == 1:
             # A way said alone is a key only beside a word for keys or pressing: LIVE 2026-10-07 "when the hamster

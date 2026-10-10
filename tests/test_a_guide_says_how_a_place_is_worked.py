@@ -306,3 +306,18 @@ def test_what_one_word_alone_speaks_of_is_said_after_what_more_speak_of():
     guide.mechanics["shooting"] = Known(name="shooting", evidence=["says “shoot”", "says “Fire”"], sources={TOLD},
                                         in_play=True)
     assert [m.name for m in guide._the_mechanics_that_matter()][:1] == ["shooting"]
+
+
+@pytest.mark.parametrize("said, keys", [
+    ("Place the device at the end of another device's arrow to make a connection.", []),
+    ("Click the arrow to continue.", []),
+    ("Use the arrow keys to move.", ["up", "down", "left", "right"]),
+    ("Use the arrows to steer the boat.", ["up", "down", "left", "right"]),
+    ("The left and right arrows push you sideways.", ["left", "right"]),
+])
+def test_a_drawn_arrow_is_not_the_arrow_keys(said, keys):
+    """LIVE 2026-10-10 "the end of another device's arrow" made up, down, left and right the keys of a game played with
+    the mouse alone."""
+    from core.agency.the_controls_a_game_names import controls_named_in
+
+    assert controls_named_in(said, keys_without_words=())[0] == keys

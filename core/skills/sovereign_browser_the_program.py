@@ -27,7 +27,7 @@ logger = logging.getLogger("Skills.SovereignBrowser.TheProgram")
 MOST_BYTES = 40 * 1024 * 1024
 MOST_PROGRAMS = 6
 #: Which reading of programs a kept read was made by: one made by an earlier reader is read again.
-READER = 2
+READER = 3
 
 #: What a page loaded, from its own record, with the size the browser was given of each.
 _WHAT_IT_LOADED = """

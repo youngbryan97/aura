@@ -897,6 +897,7 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     clickable = _what_paused_it(observation, clickable, can_do, paced)
     clickable = _the_place_its_words_name(observation, clickable, can_do)
     leads = getattr(can_do, "leads", None)
+    _what_she_has_built(can_do)
     clickable = _as_the_guide_reads_it(clickable, says, paced, narrate,
                                        found=leads.what_things_do() if leads is not None else (),
                                        last_act=str(getattr(can_do, "last_tried", "") or ""))
@@ -952,6 +953,22 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     _tell(f"It says: {says}")
     if bearings.said():
         _tell(bearings.said())
+
+
+def _what_she_has_built(can_do: Any) -> None:
+    """What she has put in place here so far, said in a line to the guide, for a plan made again after the build is
+    tested (core/cognition/a_plan_to_an_end.py): the machine builders that turned what a test showed into the right edit
+    were the ones told the state of what they had built, not only that it failed (BesiegeField, 2025)."""
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    guide = THE_GUIDE.get()
+    placed = sum(1 for answered in (getattr(can_do, "carried_to", None) or {}).values() if answered)
+    end = getattr(can_do, "chain_ends_at", None)
+    if guide is None or not placed:
+        return
+    guide.built = (f"{placed} part{'s' if placed != 1 else ''} put in place"
+                   + (f", the last at {end[0]:.0%} across and {end[1]:.0%} down" if end else "")
+                   + (f", turned {can_do.turned_since_placed} time(s) since" if getattr(can_do, "turned_since_placed", 0) else ""))
 
 
 def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool, found: Any = (),

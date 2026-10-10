@@ -176,8 +176,10 @@ def _what_she_knows(guide: Any, on_screen: Sequence[str]) -> str:
     rules = getattr(guide, "rules", None)
     heard = " | ".join(getattr(rules, "heard", []) or [])
     found = list(getattr(guide, "found_to_do", None) or [])
+    built = str(getattr(guide, "built", "") or "")
     return "\n".join(p for p in (guide.for_thinking(), f"Its words, as shown: {heard}" if heard else "",
                                  "What they have found things here do: " + " | ".join(found) if found else "",
+                                 f"What they have built so far: {built}" if built else "",
                                  "On the screen now: " + ", ".join(on_screen[:40]) if on_screen else "") if p)[:MOST_KNOWN]
 
 
