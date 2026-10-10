@@ -15,7 +15,7 @@ from collections.abc import Sequence
 
 from core.agency.which_one_answers_to_her import WAYS
 
-__all__ = ["controls_named_in"]
+__all__ = ["a_legend_of_controls", "controls_named_in", "without_a_legend"]
 
 #: Words that say a game is played with the pointer.
 _POINTER_WORDS = ("mouse", "cursor", "pointer", "click", "drag", "aim", "trackpad")
@@ -168,3 +168,63 @@ def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "
     if not keys:
         keys = list(keys_without_words)
     return keys, pointer
+
+
+#: What a control is called by what it does, as legends name them beside pictures of keys, and the key that by custom
+#: does it where the picture cannot be read. Two words first: "turn left" before "left".
+_FUNCTIONS: tuple[tuple[str, str], ...] = (
+    ("turn left", "left"), ("turn right", "right"), ("steer left", "left"), ("steer right", "right"),
+    ("rotate left", "left"), ("rotate right", "right"), ("move left", "left"), ("move right", "right"),
+    ("move up", "up"), ("move down", "down"), ("go left", "left"), ("go right", "right"),
+    ("forward", "up"), ("forwards", "up"), ("accelerate", "up"), ("gas", "up"), ("thrust", "up"),
+    ("reverse", "down"), ("backward", "down"), ("backwards", "down"), ("brake", "down"),
+    ("left", "left"), ("right", "right"), ("up", "up"), ("down", "down"),
+    ("jump", ""), ("fire", ""), ("shoot", ""), ("action", ""), ("punch", ""), ("kick", ""), ("duck", ""),
+    ("pause", ""), ("quit", ""), ("menu", ""), ("help", ""), ("music on/off", ""), ("sound on/off", ""),
+    ("music", ""), ("sound", ""), ("mute", ""),
+)
+
+#: The fewest names in a row for them to be a legend of controls, not words of a sentence that happen to be such names.
+A_LEGEND_AT_LEAST = 3
+
+
+def _legend_runs(text: str) -> list[tuple[int, int, list[tuple[str, str]]]]:
+    """Each run of control names in ``text``: where it starts and ends (characters), and its names with their keys."""
+    lowered = str(text or "").lower()
+    runs: list[tuple[int, int, list[tuple[str, str]]]] = []
+    at, start, names = 0, None, []
+    while at < len(lowered):
+        while at < len(lowered) and lowered[at] in " ,·|/-":
+            at += 1
+        hit = next(((name, key) for name, key in _FUNCTIONS
+                    if lowered.startswith(name, at) and (at + len(name) == len(lowered) or not lowered[at + len(name)].isalpha())), None)
+        if hit is None:
+            if start is not None and len(names) >= A_LEGEND_AT_LEAST:
+                runs.append((start, at, names))
+            start, names = None, []
+            while at < len(lowered) and lowered[at] not in " ,·|/-":
+                at += 1
+            continue
+        start = at if start is None else start
+        names.append(hit)
+        at += len(hit[0])
+    if start is not None and len(names) >= A_LEGEND_AT_LEAST:
+        runs.append((start, len(lowered), names))
+    return runs
+
+
+def a_legend_of_controls(text: str) -> list[tuple[str, str]]:
+    """The controls a legend in ``text`` names by what they do ("Forward Reverse Turn left Turn right"), each with the
+    key that by custom does it ("" where custom says none): a screen draws the keys beside the names, and the names are
+    what can be read. LIVE 2026-10-10 a car game's legend was read as its goal, and no key was found to drive the car."""
+    return [pair for _start, _end, names in _legend_runs(text) for pair in names]
+
+
+def without_a_legend(text: str) -> str:
+    """``text`` with any legend of controls in it taken out: what is left is what the place says of itself."""
+    out, last = [], 0
+    for start, end, _names in _legend_runs(text):
+        out.append(str(text)[last:start])
+        last = end
+    out.append(str(text)[last:])
+    return " ".join(" ".join(out).split())

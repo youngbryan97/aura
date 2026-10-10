@@ -456,9 +456,14 @@ class Guide:
     # -- inside -----------------------------------------------------------------------------------------------------
 
     def _controls_from(self, sentences: list[str], source: str, at: float) -> None:
-        from core.agency.the_controls_a_game_names import controls_named_in
+        from core.agency.the_controls_a_game_names import a_legend_of_controls, controls_named_in
 
         for sentence in sentences:
+            # A legend names controls by what they do beside pictures of their keys: each is the key custom gives it.
+            for name, key in a_legend_of_controls(sentence):
+                if key and key not in self.controls:
+                    self.controls[key] = Control(key, name, source, at)
+                    self.named_in[key] = sentence[:200]
             keys, pointer = controls_named_in(sentence, keys_without_words=(), during_play=True)
             act, on = _the_act_and_what_on(sentence)
             for key in keys:
@@ -491,8 +496,12 @@ class Guide:
     def _goals_and_things_from(self, sentences: list[str]) -> None:
         from core.perception.what_a_legend_shows import stance_of
 
+        from core.agency.the_controls_a_game_names import without_a_legend
+
         for sentence in sentences:
-            sentence = _A_HEADING.sub("", sentence)
+            # A legend of controls is not what the place is for: LIVE 2026-10-10 "Forward Reverse Turn left Turn right
+            # Quit Music on/off" was taken for a game's goal.
+            sentence = without_a_legend(_A_HEADING.sub("", sentence))
             if _A_GOAL.search(sentence) and len(sentence.split()) >= 3 and sentence not in self.goals:
                 self.goals.append(sentence[:200])
             # Each thing by what its own clause says to do about it ("steer the cart and collect the coins": the coins
@@ -541,7 +550,9 @@ class Guide:
 
     def _sections_from(self, sentences: list[str]) -> None:
         """Each sentence that says how a round is won or lost, or how to do well, kept under that."""
-        for sentence in (_A_HEADING.sub("", s) for s in sentences):
+        from core.agency.the_controls_a_game_names import without_a_legend
+
+        for sentence in (without_a_legend(_A_HEADING.sub("", s)) for s in sentences):
             if len(sentence.split()) < 3:
                 continue
             # A sentence that says how the controls work says that, not how a round is won or lost: "Use the mouse to

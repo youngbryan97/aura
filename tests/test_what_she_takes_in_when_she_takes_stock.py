@@ -60,3 +60,18 @@ def test_an_act_is_read_in_any_of_its_forms_and_split_from_its_last_word():
     assert acts("Pick the coins up before they vanish.") == [("get", ("coins",))]
     assert acts("Avoid the flying saucers.") == [("keep clear", ("flying", "saucers"))]
     assert acts("Keep the ball from getting past you.") == [("get", ("ball",))]
+
+
+def test_a_legend_of_controls_is_read_as_controls_by_their_keys_and_not_as_what_the_place_is_for():
+    from core.agency.the_controls_a_game_names import a_legend_of_controls, without_a_legend
+    from core.cognition.a_guide_to_a_place import Guide
+
+    said = "Forward Reverse Turn left Turn right Quit Music on/off Bump into the cars and make them park before time runs out."
+    assert [key for _name, key in a_legend_of_controls(said) if key] == ["up", "down", "left", "right"]
+    assert without_a_legend(said).startswith("Bump into the cars")
+    assert a_legend_of_controls("Use the left and right arrow keys to move") == []
+    guide = Guide(place="a car park")
+    guide.take_in("what the screen says", [said])
+    assert {key: control.act for key, control in guide.controls.items()} == {
+        "up": "forward", "down": "reverse", "left": "turn left", "right": "turn right"}
+    assert all("Forward Reverse" not in line for line in [*guide.goals, *guide.win, *guide.lose])
