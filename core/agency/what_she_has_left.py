@@ -38,6 +38,12 @@ def what_a_bar_measures(bar: Any, regions: list[dict[str, Any]], wide: int, tall
         if before or over:
             near.append((abs(y - (top + bottom) / 2) + abs(x - left), said))
     label = min(near)[1] if near else ""
+    # Writing she could not make out does not name a bar: it is called by where it is. LIVE 2026-10-10 she said "The
+    # Bl, Eld n Eldy bar goes down" of a bar under a game's misread title.
+    from core.language.what_a_watcher_hears import LEGIBLE, legible_share, the_watcher
+
+    if label and legible_share(label, frozenset(the_watcher().names)) < LEGIBLE:
+        label = ""
     # A meter that fills while she holds, or empties while she uses what it holds (a charge, a glide), says how strong
     # or how long her next act can be, not what she has left: LIVE 2026-10-09 a charge meter filling and emptying with
     # every throw was read as her health going down.

@@ -75,3 +75,26 @@ def test_a_legend_of_controls_is_read_as_controls_by_their_keys_and_not_as_what_
     assert {key: control.act for key, control in guide.controls.items()} == {
         "up": "forward", "down": "reverse", "left": "turn left", "right": "turn right"}
     assert all("Forward Reverse" not in line for line in [*guide.goals, *guide.win, *guide.lose])
+
+
+def test_a_word_misread_into_another_word_is_mended_to_the_one_the_place_showed_before():
+    from core.language.what_a_watcher_hears import WhatAWatcherHears
+
+    watcher = WhatAWatcherHears()
+    assert watcher.heard("It says: YOU SAVED 1 ITEMS. YOUR SCORE: 120", now=0) == "It says: YOU SAVED 1 ITEMS. YOUR SCORE: 120"
+    assert watcher.heard("It says: YOU SAYED 3 ITEMS. YOUR SCORE: 300", now=1000) == "It says: YOU SAVED 3 ITEMS. YOUR SCORE: 300"
+
+
+def test_a_bar_is_not_named_by_writing_she_could_not_make_out():
+    from core.agency.what_she_has_left import what_a_bar_measures
+
+    class _Bar:
+        start, end, row = 200, 300, 10
+
+        def where(self, wide, tall):
+            return 0.6, 0.05, 0.9, 0.07
+
+    misread = [{"text": "Bl, Eld n Eldy", "center_x": 0.5, "center_y": 0.06}]
+    legible = [{"text": "Energy", "center_x": 0.5, "center_y": 0.06}]
+    assert what_a_bar_measures(_Bar(), misread, 320, 240)[0] == ""
+    assert what_a_bar_measures(_Bar(), legible, 320, 240)[0] == "Energy"

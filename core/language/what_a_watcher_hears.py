@@ -110,6 +110,15 @@ def _the_move_once(said: str) -> str:
     return said
 
 
+def _seen_before(plain: str, seen: frozenset[str]) -> str | None:
+    """A word this place showed before that ``plain`` is one letter from, of the same length: what it was misread
+    from. LIVE 2026-10-10 "YOU SAVED 1 ITEMS" was read, and then "YOU SAYED 3 ITEMS", which the language also spells."""
+    if len(plain) < 4 or plain in seen:
+        return None
+    near = [word for word in seen if len(word) == len(plain) and sum(a != b for a, b in zip(word, plain, strict=True)) == 1]
+    return near[0] if len(near) == 1 else None
+
+
 def _a_word(token: str, names: frozenset[str]) -> str | None:
     """The word ``token`` is: a name she was given, a short word of the language, or a word one misread letter away.
     A word joined by hyphens ("late-night") is a word where each of its parts is."""
@@ -141,7 +150,7 @@ def legible_share(text: str, names: frozenset[str] = frozenset()) -> float:
     return read / len(words)
 
 
-def _mended(text: str, names: frozenset[str]) -> str:
+def _mended(text: str, names: frozenset[str], seen: frozenset[str] = frozenset()) -> str:
     """``text`` with each near miss written as the word it is, and each word not made out left out as "…".
 
     In a reading that is plainly prose, a capitalised word the language does not have is a name ("Bloo"), and
@@ -160,7 +169,7 @@ def _mended(text: str, names: frozenset[str]) -> str:
         if not core or len(_plain(core)) <= 1 or core.isdigit() or _plain(core) in names:
             out.append(token)
             continue
-        word = _a_word(core, names)
+        word = _seen_before(_plain(core), seen) or _a_word(core, names)
         if word is None and prose and re.fullmatch(r"[A-Z][a-z]{2,}", core) and out and out[-1][-1:] not in ".!?":
             out.append(token)
             continue
@@ -189,6 +198,8 @@ class WhatAWatcherHears:
     """The lines a watcher has heard lately, and the names she was given."""
 
     names: set[str] = field(default_factory=set)
+    #: Words the place has shown her, read whole: what a later misreading of one of them is mended to.
+    seen: set[str] = field(default_factory=set)
     shapes: dict[str, float] = field(default_factory=dict)
     lines: dict[str, float] = field(default_factory=dict)
 
@@ -225,7 +236,9 @@ class WhatAWatcherHears:
             if legible_share(text, names) < LEGIBLE:
                 logger.info("not said, too little of it could be read: %r", said[:120])
                 return None
-            return reading.group("lead") + _mended(text, names)
+            mended = _mended(text, names, frozenset(self.seen))
+            self.seen.update(word for word in (_plain(w) for w in mended.split()) if len(word) >= 4 and the_word(word) == word)
+            return reading.group("lead") + mended
         said = _A_PLACE.sub(lambda m: f"{m.group(1)} at " + where_it_is(int(m.group(2)) / 100, int(m.group(3)) / 100), said)
         said = re.sub(r"\"((?:the shape|the one that stands out) at [^\"]+|the middle of the picture)\"", r"\1", said)
         for match in list(_QUOTED.finditer(said)):
