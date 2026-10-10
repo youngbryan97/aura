@@ -1219,7 +1219,8 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
             continue
         stance = meeting.stance(kind)
         if f"{kind} {stance}" not in run.said:
-            line = a_stance_said(run, moves, kind, stance, at)
+            kept = meeting.evidence.get(kind)
+            line = a_stance_said(run, moves, kind, stance, at, met=kept is not None and (kept.touched > 0 or kept.shot > 0))
             if line:
                 _say(run, say, line, at, once=f"{kind} {stance}")
     # How it stands, said when it changes: the score, what is left to win, what is left to lose.

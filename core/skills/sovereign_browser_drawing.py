@@ -174,6 +174,11 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
 
 #: Pages whose game was played to an end she said (won, its share of time up, not getting better), and that end.
 _PLAY_OVER: dict[str, str] = {}
+#: Pages whose drawing she has played in this sitting, how often she has gone back to playing each without asking her
+#: model, and the most times she does.
+_PLAYED_HERE: set[str] = set()
+_PLAYED_ON: dict[str, int] = {}
+PLAY_ON_AT_MOST = 3
 
 
 def _address(url: str) -> str:
@@ -197,6 +202,16 @@ def played_first(observation: Mapping[str, Any], goal: str, *, take: bool = True
     if ended:
         why = "Played, and won." if ended == "won" else f"Played; {ended}." if ended == NOTHING_TO_WIN else f"Played, and not won; {ended}."
         return {"done": True, "actions": [], "why": why}
+    # Her play here came back without a win or an end she said: a person goes on playing, and does not stop to think
+    # what else to do. LIVE 2026-10-10 her play paused for a game's instructions, her model was asked what next while
+    # busy reading the game's code, the answer was refused, and she closed the game.
+    address = _address(url)
+    if (what_the_task_needs(goal) == "run" and address in _PLAYED_HERE and not seen_running(url)
+            and _PLAYED_ON.get(address, 0) < PLAY_ON_AT_MOST):
+        if take:
+            _PLAYED_ON[address] = _PLAYED_ON.get(address, 0) + 1
+        return {"resolved_actions": [{"selector": DRAWING, "said": "I'll keep playing it."}], "why": "I'll keep playing it.",
+                "done": False}
     if what_the_task_needs(goal) != "run" or not seen_running(url):
         return None
     seen = seen_running(url, take=take)
@@ -263,6 +278,7 @@ async def _on_the_drawing(browser: Any, goal: str, observation: Mapping[str, Any
     if context is not None:
         context.on("page", closing.opened)
     try:
+        _PLAYED_HERE.add(_address(url))
         played = await _played(page, band, goal, url, {**step, "runtime_contract": observation.get("runtime_contract") or {}})
         # Play that ended for a reason she said, or won, ends what she was doing on this page too.
         if played.get("won") or played.get("stopped_because"):

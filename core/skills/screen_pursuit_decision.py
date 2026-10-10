@@ -45,6 +45,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.skills.fluid_executor import WAITING
 
 from .screen_pursuit_acting import carry_out_the_move
 from .screen_pursuit_bearings import (
@@ -677,7 +678,7 @@ async def decide_the_next_move(
 
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
     if await _the_screen_taken_in_while_a_lesson_plays(can_do, observation, drawn.get("where"), narrate, no_move):
-        return None
+        return WAITING
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
     answering, lattice = _decide_the_next_move_part_4(
         knows, lattice, move_keys, responds, skilled=skilled, world=world,

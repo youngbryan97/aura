@@ -49,14 +49,21 @@ WORDLESS = -1
 
 
 def screen_words(labels: Sequence[str], says: str = "") -> frozenset[str]:
-    """The words a screen is known by: those of its labels and of what it says, without numbers or readouts."""
+    """The words a screen is known by: those of its labels and of what it says, without numbers or readouts. A screen
+    with too few words to tell it by is known by where the shapes on it stand ("at 90 across 90 down"), as the explorers
+    of wordless games tell one state from another by how it looks."""
     words: set[str] = set()
+    places: set[str] = set()
     for text in [*labels, says]:
         text = str(text or "")
         if text.startswith(('click "the shape at', 'click "the one that stands out at')):
-            continue  # named by where it is, which is not a word on the screen
+            # Named by where it is, which is not a word on the screen; kept, to the nearest tenth, for a wordless one.
+            at = re.findall(r"(\d+)% (?:across|down)", text)
+            if len(at) == 2:
+                places.add(f"at {round(int(at[0]), -1)} across {round(int(at[1]), -1)} down")
+            continue
         words.update(w for w in re.findall(r"[a-z]+", text.lower()) if len(w) >= 3 and w != "click")
-    return frozenset(words)
+    return frozenset(words) if len(words) >= FEWEST_WORDS or len(places) < FEWEST_WORDS else frozenset(places)
 
 
 @dataclass

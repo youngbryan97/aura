@@ -58,6 +58,21 @@ class StepActionResult:
             raise TypeError("action assessment must be a VerificationResult")
 
 
+class _Waiting:
+    """What a decision gives when it chooses to wait: a lesson is playing, or the world is mid-way through something."""
+
+    def __repr__(self) -> str:
+        return "WAITING"
+
+
+#: Given by ``decide`` in place of a step where waiting is the choice. Not counted as a step that made no progress:
+#: LIVE 2026-10-10 she read a game's instructions as they played, pressing nothing, and the run was ended as having no
+#: move available three looks in. The run's clock still bounds it, and so many waits in a row are counted at last.
+WAITING: Any = _Waiting()
+#: How many waits in a row before they count as making no progress.
+MOST_WAITS = 60
+
+
 @dataclass
 class Step:
     """One unit of fluid action: do ``action``, then prove it with ``verify``."""
@@ -429,6 +444,7 @@ class FluidExecutor:
         started = time.monotonic()
         receipt = ExecutionReceipt(goal=goal, completed=False)
         consecutive_no_progress = 0
+        waits = 0
         cycles = max(1, int(max_cycles))
         deadline = started + max(0.1, float(max_seconds))
 
@@ -470,6 +486,13 @@ class FluidExecutor:
                     break
 
                 step = await decide(observation)
+                if step is WAITING:
+                    waits += 1
+                    if waits < MOST_WAITS:
+                        continue
+                    step, waits = None, 0
+                else:
+                    waits = 0
                 if step is None:
                     consecutive_no_progress += 1
                     if consecutive_no_progress >= self.stall_window:

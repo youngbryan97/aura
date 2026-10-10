@@ -141,7 +141,7 @@ STANCE_EVERY_S = 6.0
 MOST_STANCES_SAID = 5
 
 
-def a_stance_said(run: Any, moves: Any, kind: int, stance: str, at: float) -> str:
+def a_stance_said(run: Any, moves: Any, kind: int, stance: str, at: float, *, met: bool = True) -> str:
     """What to say of what meeting a kind has shown it is worth, or "" where it is not to be said now: a line a while
     after the last, a few a game, and never the opposite of what was said of a thing by the same name. LIVE 2026-10-10
     sixteen of them came in a minute of a crowded game, and "the red things cost me" was followed by "the red things are
@@ -156,10 +156,17 @@ def a_stance_said(run: Any, moves: Any, kind: int, stance: str, at: float) -> st
     if name in seeing.stances_said:
         return ""
     proper = name[:1].isupper()
-    line = ({MEET: f"{name} is worth getting to.", AVOID: f"{name} costs me. Keeping clear.",
-             SHOOT: f"{name} is worth shooting."} if proper else
-            {MEET: f"The {plural(name)} are worth getting to.", AVOID: f"The {plural(name)} cost me. Keeping clear of them.",
-             SHOOT: f"The {plural(name)} are worth shooting."}).get(stance, "")
+    them = name if proper else f"the {plural(name)}"
+    if stance == AVOID and not met:
+        # What she was told or supposes, not what has cost her, is said as what she means to do: LIVE 2026-10-10 "The
+        # traps cost me" a second into a game's first screen, of traps its words had named and nothing had touched.
+        line = f"I'll keep clear of {them}."
+    elif proper:
+        line = {MEET: f"{name} is worth getting to.", AVOID: f"{name} costs me. Keeping clear.",
+                SHOOT: f"{name} is worth shooting."}.get(stance, "")
+    else:
+        line = {MEET: f"The {plural(name)} are worth getting to.", AVOID: f"The {plural(name)} cost me. Keeping clear of them.",
+                SHOOT: f"The {plural(name)} are worth shooting."}.get(stance, "")
     if line:
         seeing.stances_said[name] = stance
         seeing.stance_said_at = at

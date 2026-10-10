@@ -285,6 +285,17 @@ def test_what_things_are_worth_is_said_a_few_times_a_game_paced_and_never_both_w
     assert len([line for line in said if line]) == MOST_STANCES_SAID - 1
 
 
+
+def test_what_she_was_told_to_keep_clear_of_is_not_said_to_have_cost_her():
+    """LIVE 2026-10-10 "The traps cost me" a second into a game's first screen, of traps nothing had touched."""
+    from core.agency.naming_what_she_sees import SeeingInPlay, a_stance_said
+    from core.agency.what_meeting_things_does import AVOID
+
+    moves = _moves([_thing(1, 0, 10, 10)], [(210, 40, 40)])
+    run = SimpleNamespace(seeing=SeeingInPlay())
+    assert a_stance_said(run, moves, 0, AVOID, 0.0, met=False) == "I'll keep clear of the red things."
+
+
 def test_a_thing_her_eyes_know_by_name_is_called_by_it():
     from core.agency.naming_what_she_sees import describe
     from core.perception.what_things_look_like import sighting_from

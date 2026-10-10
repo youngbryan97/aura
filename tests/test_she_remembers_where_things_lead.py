@@ -64,6 +64,11 @@ def test_a_screen_read_a_little_differently_is_the_same_screen():
     other = leads.which(screen_words([a_click_on("GAME OVER"), a_click_on("Play Again"), a_click_on("Main Menu")]))
     assert one == misread and other != one
     assert screen_words(['click "the shape at 90% across, 90% down"', 'click "0015250"']) == frozenset()
+    # A screen with no words to tell it by is told by where its shapes stand.
+    wordless = ['click "the shape at 12% across, 40% down"', 'click "the shape at 88% across, 41% down"']
+    moved = ['click "the shape at 12% across, 40% down"', 'click "the shape at 50% across, 80% down"']
+    assert screen_words(wordless) == frozenset({"at 10 across 40 down", "at 90 across 40 down"})
+    assert leads.which(screen_words(wordless)) != leads.which(screen_words(moved))
 
 
 def test_what_led_on_from_one_screen_is_tried_first_on_the_next():
