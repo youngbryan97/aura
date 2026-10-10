@@ -132,6 +132,20 @@ has seen, and how its runs end.
 - MADE: once, then what it shows at the end and the choices she made to get
   there.
 
+Each game is read for what it is before and while she plays it
+(core/cognition/what_this_place_is.py): what it is about, which thing on it is
+hers, what she works it with and by which of her ways, and what she wants out of
+it. The reading starts from what her perception measures with no model asked
+(a crowd of alike things going one way, the view going by, what answers her
+keys or the mouse, a counted distance), then her eyes name what is there and
+take in the setting at a glance, and her model says what such things usually
+mean. Each part keeps what it rests on: the name alone is the least sure, then
+what she sees, then what the game says of itself, and what play shows outranks
+all of it. She says the reading once ("From what it says of itself, it looks
+like it's about a hamster launching game…"), and says so where a later reading
+parts from it. It picks the way she plays first, where she sends from, and what
+she supposes of each thing until meeting it says otherwise.
+
 ## Demo 3: a clean-room reconstruction of Microsoft Word
 
 Type in her chat:
