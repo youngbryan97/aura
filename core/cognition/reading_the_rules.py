@@ -34,7 +34,8 @@ from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-__all__ = ["ASKS_TO_CARRY", "SAYS_WHAT_IT_IS_FOR", "Frame", "Rules", "read_the_rules_beside"]
+__all__ = ["ASKS_TO_CARRY", "KEEPS_THE_WORK", "SAYS_WHAT_IT_IS_FOR", "Frame", "Rules", "keeps_the_work",
+           "read_the_rules_beside"]
 
 logger = logging.getLogger("Aura.ReadingTheRules")
 
@@ -124,6 +125,22 @@ SAYS_WHAT_IT_IS_FOR = _surface(
     ("Click here to open the menu.", "Use the controls to rotate or delete the piece.", "Press P to pause.",
      "Loading 40%", "Score: 120"),
 )
+
+
+#: Whether an option keeps what was done (edit it, go on from it) rather than throwing it away (start over, a new one):
+#: after a try that failed, a person keeps what they built and changes the part that failed.
+KEEPS_THE_WORK = _surface(
+    "keeps_the_work",
+    ("Edit the design", "Keep editing", "Back to editing", "Continue from the last checkpoint", "Resume where you left off",
+     "Undo the last step", "Edit this drawing", "Try again from here"),
+    ("Start over", "New game", "Reset everything", "Clear all", "Quit to the main menu", "Restart from the beginning",
+     "Start a new project", "Delete all"),
+)
+
+
+def keeps_the_work(label: str) -> bool | None:
+    """Whether an option keeps what was done (True), throws it away (False), or neither is known (None)."""
+    return _decided(KEEPS_THE_WORK, label)
 
 
 def _decided(surface: Any, sentence: str) -> bool | None:

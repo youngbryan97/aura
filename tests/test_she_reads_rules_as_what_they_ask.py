@@ -99,3 +99,22 @@ def test_a_sentence_read_once_is_understood_again_at_once_anywhere():
     again = Rules()
     assert again.hear(["Drag a photo onto the canvas."]) == []                 # nothing left to read
     assert again.carried_to() == "the canvas"
+
+
+def test_once_something_is_built_an_option_that_keeps_it_outweighs_one_that_throws_it_away(monkeypatch):
+    # The player whose trap failed chose "Edit the trap", not "Start over"; a person keeps what they built.
+    from types import SimpleNamespace
+
+    import core.cognition.reading_the_rules as rules_module
+    from core.cognition.checking_the_debate import DebateCheck
+
+    monkeypatch.setattr(rules_module, "keeps_the_work",
+                        lambda label: {"EDIT THE TRAP": True, "START OVER": False}.get(label))
+    guide = Guide(place="a place of parts")
+    built = SimpleNamespace(carried_to={'drag "the shape at 20% across, 40% down" to "the end of the arrow"': True},
+                            quiet_since=set())
+    weighed = DebateCheck().weigh({'click "EDIT THE TRAP"': 1.0, 'click "START OVER"': 1.0}, guide, built)
+    assert weighed['click "EDIT THE TRAP"'] > weighed['click "START OVER"']
+    nothing = SimpleNamespace(carried_to={}, quiet_since=set())
+    weighed = DebateCheck().weigh({'click "EDIT THE TRAP"': 1.0, 'click "START OVER"': 1.0}, guide, nothing)
+    assert weighed['click "EDIT THE TRAP"'] == weighed['click "START OVER"']

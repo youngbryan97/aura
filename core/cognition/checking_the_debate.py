@@ -31,10 +31,10 @@ logger = logging.getLogger("Aura.CheckingTheDebate")
 #: What each fact about an act is, in order: the model's inputs.
 FACTS = ("always", "a control it names", "a way on", "serves a goal", "information to read", "not part of the task",
          "a key where the mouse works it", "past a boundary", "did nothing lately", "what I've noticed of it",
-         "fits what the place is", "makes no sense there")
+         "fits what the place is", "makes no sense there", "keeps what was built", "throws away what was built")
 
 #: What the facts mean before anything is learned: the weights she starts from.
-STARTING = (0.0, 1.0, 1.0, 0.8, -2.0, -1.5, -1.5, -3.0, -1.0, 1.0, 0.6, -1.2)
+STARTING = (0.0, 1.0, 1.0, 0.8, -2.0, -1.5, -1.5, -3.0, -1.0, 1.0, 0.6, -1.2, 0.8, -1.0)
 
 #: How far one outcome moves the weights, and how far learning may take a weight from where it started.
 LEARNING_RATE = 0.05
@@ -86,8 +86,14 @@ class DebateCheck:
 
         fits, senseless = how_an_act_fits(guide, label, key)
         senseless = senseless and not named
+        # Where she has built something here (a part carried and kept), an option that keeps it is worth more than one
+        # that throws it away: a person who built a trap that failed edits it (core/cognition/reading_the_rules.py).
+        from core.cognition.reading_the_rules import keeps_the_work
+
+        built = bool(label) and any(getattr(can_do, "carried_to", {}).values())
+        keeps = keeps_the_work(label) if built else None
         return tuple(float(f) for f in (1, named, way_on, serves, to_read, aside, mouse_only, boundary, quiet, noticed,
-                                        fits, senseless))
+                                        fits, senseless, keeps is True, keeps is False))
 
     def weigh(self, valued: Mapping[str, float], guide: Any, can_do: Any = None) -> dict[str, float]:
         """What her deliberation valued, each act scaled by how the check sees it; a parting of views logged."""
