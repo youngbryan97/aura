@@ -748,22 +748,41 @@ def _pursuit_account(result: dict) -> list[str]:
 
 
 def _how_many_as_asked(picked: Any) -> str:
-    """How many of several picked items ended the way they were asked to, in a sentence; "" for fewer than two."""
+    """How several picked items ended, in a sentence a listener can follow: won, played for a score as asked, not won in
+    the time each had, not found; "" for fewer than two.
+
+    LIVE 2026-10-10 "Of the four, one ended the way you asked; for one, what you asked could not apply, and one could
+    not be had anywhere": which was which, and the fourth, left to the listener.
+    """
     if not isinstance(picked, list) or len(picked) < 2:
         return ""
     had = [p for p in picked if isinstance(p, dict) and p.get("had")]
-    done = sum(1 for p in had if p.get("as_asked", p.get("completed")))
     words = {0: "none", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
-    of = words.get(len(picked), str(len(picked)))
-    said = f"Of the {of}, {words.get(done, str(done))} ended the way you asked" if done != len(picked) else f"All {of} ended the way you asked"
-    apart = []
-    could_not = sum(1 for p in had if p.get("could_not_apply"))
-    if could_not:
-        apart.append(f"for {words.get(could_not, str(could_not))}, what you asked could not apply")
+    nothing_to_win = [p for p in had if p.get("could_not_apply")]
+    done_so = [p for p in nothing_to_win if p.get("as_asked", p.get("completed"))]
+    won = [p for p in had if p not in nothing_to_win and p.get("as_asked", p.get("completed"))]
+    not_won = [p for p in had if p not in nothing_to_win and p not in won]
     missing = len(picked) - len(had)
+    of = words.get(len(picked), str(len(picked)))
+    if len(won) == len(picked):
+        return f"All {of} ended the way you asked: I won each."
+
+    def n(count: int) -> str:
+        return words.get(count, str(count))
+
+    parts = []
+    if won:
+        parts.append(f"I won {n(len(won))}")
+    if done_so:
+        parts.append(f"{n(len(done_so))} had nothing to win, and I did as you said for {'it' if len(done_so) == 1 else 'them'}")
+    if len(nothing_to_win) > len(done_so):
+        parts.append(f"{n(len(nothing_to_win) - len(done_so))} had nothing to win")
+    if not_won:
+        parts.append(f"{n(len(not_won))} I did not win in the time {'it' if len(not_won) == 1 else 'each'} had")
     if missing:
-        apart.append(f"{words.get(missing, str(missing))} could not be had anywhere")
-    return said + ("; " + ", and ".join(apart) if apart else "") + "."
+        parts.append(f"{n(missing)} I could not find anywhere")
+    said = parts[0] if len(parts) == 1 else "; ".join(parts[:-1]) + "; and " + parts[-1]
+    return f"Of the {of} picked: {said}."
 
 
 def _desktop_deliverable_text(result: Any) -> str:

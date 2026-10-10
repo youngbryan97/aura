@@ -190,6 +190,16 @@ def _how_it_ended(done: Mapping[str, Any]) -> str:
     return said[:1].lower() + said[1:].rstrip(".") if said else ""
 
 
+def _with_the_best(concluded: str, done: Mapping[str, Any]) -> str:
+    """How a pick ended, with its best score where it was played for one: LIVE 2026-10-10 "...and kept my best" said
+    nothing of what the best was."""
+    best = next((step.get("best_score") for step in reversed(done.get("steps") or [])
+                 if isinstance(step, Mapping) and step.get("best_score") is not None), None)
+    if best is None or "kept my best" not in concluded:
+        return concluded
+    return concluded.replace("kept my best", f"my best was {best}")
+
+
 def _ordinal(n: int) -> str:
     return {1: "first", 2: "second", 3: "third", 4: "fourth", 5: "fifth"}.get(n, f"number {n}")
 
@@ -305,7 +315,8 @@ async def picked_by_the_rule(skill: Any, browser: Any, url: str, goal: str, max_
                                           max_steps, action_context=action_context, said_before=said_before)
         done = done if isinstance(done, dict) else {}
         results.append({"number": pick.number, "item": pick.item, "url": item["href"], "had": True, "ok": bool(done.get("ok")),
-                        "completed": bool(done.get("completed")), "concluded": _how_it_ended(done), **_as_asked(done)})
+                        "completed": bool(done.get("completed")), "concluded": _with_the_best(_how_it_ended(done), done),
+                        **_as_asked(done)})
         if queue:
             skill._say_out_loud(f"That was “{pick.item}”. On to the next one the rule picks.")
     played = [r for r in results if r["had"]]
