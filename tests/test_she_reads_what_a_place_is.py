@@ -248,3 +248,11 @@ def test_her_eyes_generate_on_a_device_without_a_metal_working_set():
     finally:
         mx.set_default_device(device)
         vlm_generate.wired_limit = guard
+
+
+def test_a_name_with_a_colon_and_its_value_is_read_not_clicked():
+    # LIVE 2026-10-09 she clicked "TOTAL DISTANCE: 0" to see what it did.
+    from core.skills.screen_pursuit_bearings import _a_readout
+
+    assert _a_readout("TOTAL DISTANCE: 0") and _a_readout("Fuel: 75%") and _a_readout("Time left: 1:20")
+    assert not _a_readout("Play Again") and not _a_readout("Level 1") and not _a_readout("Note: click here")

@@ -141,9 +141,17 @@ def _a_readout(text: str) -> bool:
     padded one, or a count ("x4") is something to read.
     """
     plain = text.strip()
+    # A name, a colon and its value is something to read, whatever the name: LIVE 2026-10-09 she clicked "TOTAL
+    # DISTANCE: 0" to see what it did.
+    if _NAMED_VALUE.fullmatch(plain):
+        return True
     if re.search(r"[A-Za-z]{2,}", plain):
         return False
     return not re.fullmatch(r"[1-9]\d?", plain)
+
+
+#: A name, a colon, and a value with its unit: "TOTAL DISTANCE: 0", "Fuel: 75%", "Time left: 1:20", "Height: 12 ft.".
+_NAMED_VALUE = re.compile(r"[A-Za-z][A-Za-z .'-]{0,30}:\s*[-+$]?[\d][\d.,:/]*\s*(?:%|[A-Za-z]{1,6}\.?)?")
 
 
 def what_it_says(observation: dict[str, Any], drawn_where: Any) -> str:
