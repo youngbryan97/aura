@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Lander</title></head><body>
+<script src="world.js"></script>
+<script>
+// A lander falls under a steady pull. Up pushes it up, left and right push it sideways; let go, it goes on as it was
+// going. Onto the pad slowly is a landing; onto anything fast, or onto the ground, is a crash. Stars twinkle behind.
+const L = { w: 16, h: 14 };
+const game = {
+  title: "LANDER", lives: 5,
+  rules: ["Use the arrow keys to guide the lander safely onto the landing pad.", "Land slowly or you will crash."],
+  reset(world) {
+    this.pad = { x: 200 + Math.floor(world.rand() * 160), y: world.H - 60, w: 70, h: 6 };
+    this.stars = Array.from({ length: 30 }, () => ({ x: world.rand() * world.W, y: 30 + world.rand() * 200, t: world.rand() * 6 }));
+    this.landings = 0; this.crashes = 0; this.spawn(world);
+  },
+  spawn(world) {
+    this.me = { x: 40 + world.rand() * 380, y: 40, vx: (world.rand() - 0.5) * 40, vy: 0 };
+  },
+  step(dt, world) {
+    const me = this.me;
+    me.vy += 45 * dt;
+    if (world.held.has("ArrowUp")) me.vy -= 120 * dt;
+    if (world.held.has("ArrowLeft")) me.vx -= 80 * dt;
+    if (world.held.has("ArrowRight")) me.vx += 80 * dt;
+    me.x += me.vx * dt; me.y += me.vy * dt;
+    if (me.x < 0) { me.x = 0; me.vx = 0; }
+    if (me.x > world.W - L.w) { me.x = world.W - L.w; me.vx = 0; }
+    if (me.y < 30) { me.y = 30; me.vy = Math.max(0, me.vy); }
+    const box = { x: me.x, y: me.y, w: L.w, h: L.h };
+    if (hits(box, this.pad)) {
+      if (Math.abs(me.vy) < 70 && Math.abs(me.vx) < 45) { this.landings += 1; world.score = this.landings; }
+      else { this.crashes += 1; world.lose(); }
+      this.spawn(world);
+    } else if (me.y + L.h > world.H - 28) {
+      this.crashes += 1; world.lose(); this.spawn(world);
+    }
+    for (const s of this.stars) s.t += dt;
+    world.landings = this.landings; world.crashes = this.crashes;
+  },
+  backdrop(ctx, world) {
+    ctx.fillStyle = "#120a2e"; ctx.fillRect(0, 0, 480, 320);
+    for (const s of this.stars || []) {
+      ctx.fillStyle = Math.sin(s.t * 4) > 0 ? "#ffffff" : "#6a5fa8"; ctx.fillRect(s.x, s.y, 2, 2);
+    }
+    ctx.fillStyle = "#7a5a3a"; ctx.fillRect(0, 320 - 28, 480, 28);
+  },
+  draw(ctx) {
+    ctx.fillStyle = "#f2f2f2"; ctx.fillRect(this.pad.x, this.pad.y, this.pad.w, this.pad.h);
+    ctx.fillStyle = "#e8902a"; ctx.fillRect(this.me.x, this.me.y, L.w, L.h);
+  },
+  readouts(ctx, world) {
+    world.text("LANDINGS " + this.landings, 12, 22, 16, "#fff", "left");
+    world.text("LIVES " + world.lives, 468, 22, 16, "#fff", "right");
+  },
+};
+playWorld(game);
+</script></body></html>

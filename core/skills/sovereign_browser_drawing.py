@@ -532,7 +532,7 @@ async def _one_run(page: Any, band: tuple[float, float, float, float], goal: str
         from core.cognition.taking_stock import BEFORE
 
         await stock.take(BEFORE, goal, [], "", [], keep, deadline)
-    _what_the_guide_says(guide, keep)
+    _what_the_guide_says(guide, keep, goal)
     reflexes = PlayingAsItHappens(page=page, band=band, goal=goal, ends_at=deadline, keep=keep)
     held = HER_OWN_PAGE.set(on := OnAPage(page=page, name=HER_BROWSER))
     quick = AS_IT_HAPPENS.set(reflexes)
@@ -574,8 +574,12 @@ async def _the_guide(page: Any, keep: dict[str, Any]) -> Any:
     return guide
 
 
-def _what_the_guide_says(guide: Any, keep: dict[str, Any]) -> None:
-    """What was looked up taken into the guide, and what the guide holds said once, before she begins."""
+def _what_the_guide_says(guide: Any, keep: dict[str, Any], goal: str = "") -> None:
+    """What was looked up taken into the guide, and what the guide holds said once, before she begins; and what she
+    knows herself of the place asked of her model beside her play (core/cognition/what_i_know_of_a_place.py)."""
+    from core.cognition.what_i_know_of_a_place import ask_in_the_background
+    from core.rebuilding.her_model import ask_her_model
+
     stock = keep.get("stock")
     counsel = getattr(stock, "counsel", None)
     if counsel is not None and getattr(counsel, "told", ""):
@@ -583,6 +587,7 @@ def _what_the_guide_says(guide: Any, keep: dict[str, Any]) -> None:
     if not guide.said and guide.says():
         guide.said = True
         _tell(guide.says())
+    ask_in_the_background(guide, task=goal, said=" ".join(guide.goals[:2]), ask=ask_her_model, tell=_tell)
 
 
 def _keep_the_guide(guide: Any) -> None:

@@ -869,7 +869,7 @@ async def pursue_on_screen(
     # from outside and reported as "Completed 0/0 steps".
     began = time.monotonic()
     ends_at = min(began + float(max_seconds), float(deadline_at) if deadline_at > 0.0 else math.inf)
-    MOVES_SAID.set({"at": 0.0, "line": ""})
+    MOVES_SAID.set({"at": 0.0, "line": "", "goal": goal, "place": target_app or expect_page or open_page})
     _seam_early_response, awake_from_here = await _set_out(
         goal=goal, target_app=target_app, move_keys=move_keys, narrate=narrate, ends_at=ends_at,
     )

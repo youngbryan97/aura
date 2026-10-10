@@ -253,8 +253,10 @@ def _record_control_attribution(run: _Run, moves: Any, hers: WhichIsHers, at: fl
     run.control_attribution.append({"seconds": round(at - run.began, 3), "thing": state[0],
                                     "source": source, "keys": list(keys), "position": position})
 
-#: How far ahead, in seconds, she weighs each key for a thing of hers carried on by its own going.
+#: How far ahead, in seconds, she weighs each key for a thing of hers carried on by its own going; and, carried onto a
+#: still thing, the share of her going she comes onto it at where how fast is too fast is not yet known.
 CARRIED_AHEAD_S = 0.6
+GENTLE_SHARE = 0.25
 
 #: Words that say keys are pressed in turn and fast: "press left and right rapidly", "tap space repeatedly".
 _FAST = re.compile(r"\b(?:rapidly|repeatedly|quickly|as fast as|mash\w*|alternat\w*|in turn|over and over|again and again)\b",
@@ -715,9 +717,15 @@ class _Choosing:
             if gy is not None:
                 cost += abs(gy - y) / self.speed(1)
             if self.ahead_s and aim is not None and not aim.moved:
-                # Carried onto a still thing, she comes to it slowly: what lands hard on a thing breaks on it.
+                # Carried onto a still thing, she comes to it slowly: what lands hard on a thing breaks on it; and
+                # under the speed meeting it has been found to cost above, where that is known.
                 near = max(0.0, 1.0 - math.hypot(aim.x - x, aim.y - y) / (3 * max(float(mine.w), float(mine.h))))
-                cost += near * math.hypot(2 * way[0] - mine.vx, 2 * way[1] - mine.vy) / max(self.speed(0), self.speed(1))
+                arriving = math.hypot(2 * way[0] - mine.vx, 2 * way[1] - mine.vy)
+                limit = self.meeting.gentle_below(aim.kind) if hasattr(self.meeting, "gentle_below") else None
+                # Under the speed meeting it has cost above, or, before that is known, a gentle share of her going: to
+                # come on slowly is to arrive, not to hover over it.
+                limit = limit if limit is not None else GENTLE_SHARE * max(self.speed(0), self.speed(1))
+                cost += near * 3.0 * max(0.0, arriving - limit) / max(1.0, limit)
             cost += 3.0 * self.caution * self.danger(way)
             cost += 0.0 if key == held else self.next_picture_s * 0.1
             if cost < best_cost:
@@ -1318,6 +1326,9 @@ async def play_as_it_happens(
     run.pointer_trigger = rules is not None and rules.a_click_is_a_shot
     run.burst_keys = keys_pressed_fast(told)
     run.building_up = _builds_up(told)
+    from core.agency.what_meeting_things_does import says_to_come_gently
+
+    meeting.told_gently = meeting.told_gently or says_to_come_gently(told)
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
     run.clicks_pay = keep.get("where_clicks_pay")

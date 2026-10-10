@@ -82,6 +82,7 @@ def test_a_meter_filled_by_holding_is_not_what_she_has_left():
 def test_what_the_place_says_as_it_goes_changes_the_guide_and_each_change_is_kept_and_said():
     guide = Guide(place="a place", began=0.0)
     guide.take_in(SCREEN, "Use the arrow keys to move. Level 1. Collect the stars.", at=1.0)
+    guide.playing = True
     assert guide.stage == "level 1" and guide.in_play("collecting")
     news = guide.take_in(SCREEN, "Level 2. You can now double jump! Watch out for the new lasers.", at=30.0)
     assert any("level 2" in n for n in news)
@@ -108,7 +109,8 @@ def test_each_source_is_kept_and_said_and_nothing_tells_her_what_to_do():
     guide.take_in_program(read_program(A_PROGRAM))
     guide.take_in_counsel("Ease off the thrust before you touch down.")
     said, thinking = guide.says(), guide.for_thinking()
-    assert said.startswith("From ") and all(source in said for source in ("its page", "its program", "what I looked up"))
+    assert said.startswith("My guide") and all(source in said for source in ("its page", "its program", "what I looked up"))
+    assert "• Goal:" in said and "• Controls:" in said and "• Plan:" in said
     assert "thrust" in thinking and "fuel" in thinking
     assert guide.sources >= {PAGE, PROGRAM, COUNSEL}
     assert not re.search(r"\byou must\b|\bpress now\b", said + thinking, re.I)
@@ -200,7 +202,11 @@ def test_the_programs_a_page_runs_are_told_from_its_furniture():
               ["https://www.googletagmanager.com/gtag/js?id=1", "script", 90_000],
               ["https://example.org/css/site.css", "link", 3000],
               ["https://example.org/img/logo.png", "img", 3000]]
-    assert programs_of(loaded) == ["https://example.org/game/thing.swf", "https://example.org/js/main.js"]
+    assert programs_of(loaded) == ["https://example.org/game/thing.swf"]          # the thing played, not the site
+    assert programs_of(loaded[1:]) == ["https://example.org/js/main.js"]
+    site = [["https://archive.org/includes/build/js/emulation.min.js", "script", 9000],
+            ["https://archive.org/components/npm/webcomponents-bundle.js", "script", 9000]]
+    assert programs_of(site) == []
 
 
 def test_a_screen_taken_into_the_guide_offers_its_controls_and_not_what_is_to_be_read():
@@ -259,3 +265,31 @@ async def test_a_page_s_guide_is_made_from_its_words_and_the_program_it_loaded_a
     assert recall(named("a program read", "https://example.org/thing/game.js"))
     again = await guide_to_the_page(Page(), "a cart game")         # read before: not fetched again
     assert fetched == ["https://example.org/thing/game.js"] and set(again.keys_for_play()) >= {"left", "right", "space"}
+
+
+@pytest.mark.asyncio
+async def test_what_her_own_model_knows_fills_the_guide_beside_her_work_and_never_sets_its_controls():
+    import asyncio
+
+    from core.cognition.what_i_know_of_a_place import ask_in_the_background
+
+    asked: list[str] = []
+
+    async def her_model(prompt, schema, tokens):
+        asked.append(prompt)
+        await asyncio.sleep(0.01)
+        return schema(goal="Land the lander on the pad", lose="Touching down too fast crashes it",
+                      how="A steady pull drags you down; press space to thrust.",
+                      avoid=["rocks"], tips=["Get over the pad first, then come down slowly"])
+
+    said: list[str] = []
+    guide = Guide(place="a lander game")
+    guide.take_in(TOLD, "Use the arrow keys to guide the lander.")
+    assert ask_in_the_background(guide, task="play the game and win it", said="LANDER", ask=her_model, tell=said.append)
+    assert not ask_in_the_background(guide, task="again", said="", ask=her_model)      # asked once
+    await guide.asking_what_i_know
+    assert len(asked) == 1 and "a lander game" in asked[0] and "Do not name keys" in asked[0]
+    assert guide.lose and guide.tips and guide.things.get("rocks") == "avoid"
+    assert "space" not in guide.keys_for_play()                                         # a model's keys are not taken
+    assert said and said[0].startswith("From what I know of it:") and "crashes" in said[0]
+    assert "what I know of it" in guide.says()

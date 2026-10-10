@@ -210,6 +210,10 @@ def _look_apart(a: np.ndarray, b: np.ndarray) -> float:
     return float(0.5 * np.abs(a - b).sum())
 
 
+#: How many of a compact thing's reach a thin bar standing out from its floor may run and still be a thing.
+THIN_BAR_REACHES = 4
+
+
 def _without_what_stands_out(still: np.ndarray) -> np.ndarray:
     """The first backdrop, with the small things that stand out from their floor taken off it.
 
@@ -218,6 +222,8 @@ def _without_what_stands_out(still: np.ndarray) -> np.ndarray:
     it is small and unlike what is around it: the floor is what a wide median
     filter leaves, and anything compact that differs from that by a clear
     margin is put back to floor, so that it shows as a thing from the start.
+    So is a thin bar a few times as long: offline 2026-10-09 a landing pad that
+    never moved was part of the backdrop, and could be neither seen nor gone to.
     """
     from core.perception.picture_arithmetic import apart, median, pieces
 
@@ -229,7 +235,9 @@ def _without_what_stands_out(still: np.ndarray) -> np.ndarray:
     backdrop = still.astype(np.float32)
     for label in range(1, count):
         x, y, w, h, area = (int(v) for v in stats[label])
-        if area < SMALLEST or w > reach or h > reach:
+        # Compact, or a thin bar a few times as long (a pad to land on, a ledge, a goal line): a thing. A strip
+        # running much of the way across (a floor, a wall, the ground) is the place, not a thing in it.
+        if area < SMALLEST or min(w, h) > reach or max(w, h) > THIN_BAR_REACHES * reach:
             continue
         inside = labels == label
         backdrop[inside] = floor[inside]

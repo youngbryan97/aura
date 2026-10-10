@@ -76,10 +76,13 @@ MADE_EVERY = 0.3
 #: key's way before it is taken not to be hers: about a second.
 ANSWERING_OVER = 40
 
-#: A push is measured over a press of at least this many settled pictures, this many seconds apart first to last; and
+#: A push is measured over a press of at least this many settled pictures, this many seconds apart first to last (a key
+#: tried is held 0.45 s, of which what comes after it settles is a quarter of a second at most); and
 #: a push is as good as the speed it gives in this many seconds, for how much it moves her.
-PUSH_PICTURES = 5
-PUSH_OVER_S = 0.25
+#: How often whether her thing is carried is looked at again, in seconds.
+CARRIED_CHECKED_EVERY_S = 1.0
+PUSH_PICTURES = 4
+PUSH_OVER_S = 0.15
 PUSHED_FOR_S = 0.5
 
 @dataclass
@@ -415,8 +418,10 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         self._answered: dict[str, list[float]] = {}
         self._answered_by: int | None = None
         self._expecting: dict[str, tuple[float, float]] = {}
-        #: Whether her thing is carried on by its own going and pushed by her keys (see `_Speeds.pushes`).
+        #: Whether her thing is carried on by its own going and pushed by her keys (see `_Speeds.pushes`), and when that
+        #: was last looked at.
         self.carried = False
+        self._carried_checked = -math.inf
 
     # -- what she did ------------------------------------------------------
 
@@ -670,6 +675,11 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         self._what_follows_the_pointer(moves, at)
         if not self.follows_pointer:
             self._decide(moves, at)
+        # However she was found (a trial of her keys, her presses moving her kind alike, set back after a loss), whether
+        # she is carried by her own going is what her own pushes say, looked at again as they come in.
+        if self.number is not None and not self.carried and at - self._carried_checked >= CARRIED_CHECKED_EVERY_S:
+            self._carried_checked = at
+            self.carried = self._hers.carried()
         elif self.number not in moves.things:
             self.number = self._under_the_pointer(moves, at)
         self._remember_own_thing(moves, at)

@@ -43,7 +43,7 @@ def what_a_bar_measures(bar: Any, regions: list[dict[str, Any]], wide: int, tall
     # every throw was read as her health going down.
     from core.agency.mechanics_she_knows import what_a_label_measures
 
-    if label and what_a_label_measures(label) in ("charging", "holding to sustain"):
+    if label and (what_a_label_measures(label) in ("charging", "holding to sustain") or _a_button(label)):
         return label, "neither"
     return label, (_meaning(label) if label else "") or "down is bad"
 
@@ -69,3 +69,22 @@ def what_is_left(bars: Any) -> float:
     """The lowest of what she has left, as a share of its fullest: 1 where no bar says."""
     left = [bar.full for bar in bars.bars() if bar.meaning == "down is bad"]
     return min(left) if left else 1.0
+
+
+#: The words of a way on that a reading gets a letter wrong as often as not.
+_WAYS_ON = ("again", "retry", "start", "continue", "play", "menu", "next", "restart")
+
+
+def _a_button(label: str) -> bool:
+    """Whether the words on a strip make it a button (a way on, a way to start again), not a bar: LIVE 2026-10-09 an
+    end screen's "TRY AGAIN", read "TRY ADAÍN", was a bar going down."""
+    import re
+    import unicodedata
+
+    from core.language.a_way_on import _one_letter_off, offers_a_way_on
+    from core.language.how_a_game_ended import says_a_round_is_over
+
+    plain = unicodedata.normalize("NFKD", str(label or "")).encode("ascii", "ignore").decode("ascii").lower()
+    if says_a_round_is_over(plain) or offers_a_way_on(plain):
+        return True
+    return any(word == way or _one_letter_off(word, way) for word in re.findall(r"[a-z]{4,}", plain) for way in _WAYS_ON)

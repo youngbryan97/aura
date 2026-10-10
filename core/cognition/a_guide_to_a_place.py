@@ -38,11 +38,21 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["THE_GUIDE", "Guide", "guide_for", "guide_of", "heard_in_play", "the_guide"]
+__all__ = ["MODEL", "THE_GUIDE", "Guide", "guide_for", "guide_of", "heard_in_play", "the_guide"]
 
-#: Sources, most trusted first.
-SCREEN, TOLD, PAGE, COUNSEL, PROGRAM = "the screen", "its instructions", "its page", "what I looked up", "its program"
-_TRUST = {SCREEN: 5, TOLD: 4, PAGE: 3, COUNSEL: 2, PROGRAM: 1}
+#: Sources, most trusted first. What her own model knows of a place is the least sure of what is said of it: it may be
+#: of places like it, and it is never taken for how the place is worked (its controls), only for what it is for.
+SCREEN, TOLD, PAGE, COUNSEL, MODEL, PROGRAM = ("the screen", "its instructions", "its page", "what I looked up",
+                                               "what I know of it", "its program")
+_TRUST = {SCREEN: 5, TOLD: 4, PAGE: 3, COUNSEL: 2, MODEL: 1.5, PROGRAM: 1}
+
+#: Sentences that say how a round is won, how it is lost, and how to do well: a manual's other sections.
+_A_WIN = re.compile(r"\b(?:to win|you win|wins? (?:the|a|by|if|when)|beat (?:the|each|every|all)|complete (?:the|each|all)|"
+                    r"clear (?:the|each|all)|land (?:safely|softly|gently)|safe landing|victory|until you)\b", re.I)
+_A_LOSS = re.compile(r"\b(?:you lose|lose (?:a|one|all|the|your)|game over|crash\w*|you die|dies|killed|fail\w*|run out|"
+                     r"runs out|don'?t let|if you (?:touch|hit|fall|miss|crash|run)|too (?:fast|hard|slow))\b", re.I)
+_A_TIP = re.compile(r"\b(?:tip|trick|best (?:way|to)|make sure|remember|be careful|slowly|gently|first|strategy|it helps|"
+                    r"the key is|instead of|rather than|don'?t (?:waste|rush))\b", re.I)
 
 #: A sentence that sets a goal: what to do to win, or what not to let happen.
 _A_GOAL = re.compile(r"\b(?:your (?:goal|mission|job|task) is|the (?:goal|object|aim) (?:of the game )?is|try to|"
@@ -105,6 +115,10 @@ class Guide:
     pointer: dict[str, str] = field(default_factory=dict)
     mechanics: dict[str, Known] = field(default_factory=dict)
     goals: list[str] = field(default_factory=list)
+    #: How a round is won, how it is lost, and how to do well, as the sources say it.
+    win: list[str] = field(default_factory=list)
+    lose: list[str] = field(default_factory=list)
+    tips: list[str] = field(default_factory=list)
     #: A thing's words, and what to do about it: "meet", "avoid", "shoot".
     things: dict[str, str] = field(default_factory=dict)
     #: A label read off the screen, and the mechanic it measures.
@@ -119,8 +133,12 @@ class Guide:
     #: Sentences already taken in, so a screen read again is not news.
     _read: set[str] = field(default_factory=set)
     began: float = field(default_factory=time.monotonic)
-    #: Whether what it holds has been said to whoever is watching.
+    #: Whether what it holds has been said to whoever is watching, and whether play has begun.
     said: bool = False
+    playing: bool = False
+    #: Whether her own model has been asked what it knows of the place (core/cognition/what_i_know_of_a_place.py).
+    asked_what_i_know: bool = False
+    asking_what_i_know: Any = None
     #: The sentence each control was named in, for what play confirms of it.
     named_in: dict[str, str] = field(default_factory=dict)
 
@@ -140,12 +158,17 @@ class Guide:
         self.sources.add(source)
         text = " ".join(new)
         news: list[str] = []
-        self._controls_from(new, source, at)
+        if source != MODEL:
+            self._controls_from(new, source, at)
         self._goals_and_things_from(new)
-        for label in new:
-            self._readout_from(label)
+        self._sections_from(new)
+        if source == SCREEN:
+            # A label read off the screen with a value beside it; an instruction ("Watch your fuel") is not one.
+            for label in new:
+                self._readout_from(label)
         news += self._stage_from(text, at)
-        late = at - self.began > 2.0 and source in (SCREEN, TOLD) and bool(self.mechanics)
+        # New to play, not merely read first: what the place shows after play has begun that it had not shown before.
+        late = self.playing and source == SCREEN and bool(self.mechanics)
         for name, evidence in mechanics_in(text).items():
             news += self._know(name, evidence, source, at, late=late)
         for how, name, sentence in changes_told(text):
@@ -261,26 +284,67 @@ class Guide:
     # -- saying it -------------------------------------------------------------------------------------------------
 
     def says(self) -> str:
-        """In a few sentences, for whoever is watching: how it is worked, what it counts, what to get and keep clear of."""
-        parts: list[str] = []
+        """The guide as a person would give it before handing over: what it is for, how a round is won and lost, how it
+        is worked, how its mechanics behave, what to get and keep clear of, what to watch, and a plan; each part from
+        where it came. "" where it holds nothing worth saying."""
+        lines: list[str] = []
+        goal = self.goals[0] if self.goals else ""
+        if goal:
+            lines.append(f"• Goal: {_short(goal)}")
+        win = next((w for w in self.win if w != goal), "")
+        if win:
+            lines.append(f"• To win: {_short(win)}")
+        if self.lose:
+            lines.append(f"• What loses: {_short(self.lose[0])}")
         controls = self._controls_said()
         if controls:
-            parts.append(controls)
-        counted = [n for n in ("score", "lives", "health", "fuel", "a clock", "levels") if self.in_play(n)]
-        if counted:
-            parts.append("It keeps " + _listed(counted) + ".")
-        get = [w for w, s in self.things.items() if s == "meet"][:3]
-        avoid = [w for w, s in self.things.items() if s == "avoid"][:3]
-        if get:
-            parts.append(f"Worth getting: {_listed(get)}.")
-        if avoid:
-            parts.append(f"To keep clear of: {_listed(avoid)}.")
+            lines.append(f"• {controls}")
+        for mechanic in self._the_mechanics_that_matter()[:2]:
+            lines.append(f"• How it works ({mechanic.name}): {mechanic.what}; {mechanic.means}.")
+        get = [w for w, st in self.things.items() if st == "meet"][:3]
+        avoid = [w for w, st in self.things.items() if st == "avoid"][:3]
+        if get or avoid:
+            lines.append("• " + "; ".join(([f"worth getting: {_listed(get)}"] if get else [])
+                                          + ([f"keep clear of: {_listed(avoid)}"] if avoid else [])).capitalize() + ".")
+        watch = list(dict.fromkeys([*self.readouts, *(n for n in ("fuel", "health", "lives", "a clock") if self.in_play(n))]))
+        if watch:
+            lines.append(f"• Watch: {_listed(watch[:4])}.")
+        plan = self.tips[0] if self.tips else (self._the_mechanics_that_matter()[0].play if self._the_mechanics_that_matter() else "")
+        if plan:
+            lines.append(f"• Plan: {_short(re.sub(r'^(?:tips?|hint|strategy)\s*:\s*', '', plan, flags=re.I))}")
         if self.not_for_play:
             names = list(dict.fromkeys(c.split(" (")[0] for c in self.not_for_play))[:3]
-            parts.append(f"Its {_listed(names)} controls aren't part of play.")
-        sources = [s for s in (SCREEN, TOLD, PAGE, COUNSEL, PROGRAM) if s in self.sources]
-        lead = f"From {_listed(sources)}: " if sources else ""
-        return (lead + " ".join(parts)).strip() if parts else ""
+            lines.append(f"• Its {_listed(names)} controls aren't part of play.")
+        if len(lines) < 2:
+            return ""
+        sources = [x for x in (SCREEN, TOLD, PAGE, COUNSEL, MODEL, PROGRAM) if x in self.sources]
+        place = f" to {self.place}" if self.place and len(self.place) <= 60 else ""
+        return f"My guide{place}, from {_listed(sources)}:\n" + "\n".join(lines)
+
+    def _the_mechanics_that_matter(self) -> list[Any]:
+        """The mechanics in play that say most about how this place behaves, the ones its words speak of first."""
+        from core.agency.mechanics_she_knows import known
+
+        found = []
+        for name, kept in self.mechanics.items():
+            mechanic = known(name)
+            if mechanic is None or not self.in_play(name) or name in _SAID_ELSEWHERE or mechanic.kind not in _BEHAVES:
+                continue
+            worded = any(source != PROGRAM for source in kept.sources)
+            found.append((0 if worded else 1, _BEHAVES.index(mechanic.kind), -len(kept.evidence), mechanic))
+        return [mechanic for *_rank, mechanic in sorted(found, key=lambda row: row[:3])]
+
+    def in_brief(self) -> str:
+        """What a move is chosen with: what it is for, how it is worked, what to get and keep clear of, what is not part
+        of the task, and what changed lately; short, as it is read at every move."""
+        lines = [f"Place: {self.place}" if self.place else "",
+                 "Goal: " + _short(self.goals[0]) if self.goals else "",
+                 "What loses: " + _short(self.lose[0]) if self.lose else "",
+                 self._controls_said(),
+                 "Things: " + ", ".join(f"{w} ({s})" for w, s in list(self.things.items())[:6]) if self.things else "",
+                 "Not part of the task: " + ", ".join(self.not_for_play[:4]) if self.not_for_play else "",
+                 "Lately changed: " + " | ".join(what for _when, what in self.changes[-2:]) if self.changes else ""]
+        return "\n".join(line for line in lines if line)[:700]
 
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
@@ -296,6 +360,9 @@ class Guide:
                  "Not part of the task: " + ", ".join(self.not_for_play[:6]) if self.not_for_play else "",
                  f"Now: {self.stage}" if self.stage else "",
                  "Lately changed: " + " | ".join(what for _when, what in self.changes[-3:]) if self.changes else "",
+                 "To win: " + " | ".join(self.win[:2]) if self.win else "",
+                 "What loses: " + " | ".join(self.lose[:2]) if self.lose else "",
+                 "Tips: " + " | ".join(self.tips[:3]) if self.tips else "",
                  "Counsel: " + " ".join(self.strategy[:3]) if self.strategy else ""]
         from core.agency.mechanics_she_knows import known
 
@@ -336,6 +403,42 @@ class Guide:
                 if stance:
                     self.things[thing] = stance
         del self.goals[:-8]
+
+    def _sections_from(self, sentences: list[str]) -> None:
+        """Each sentence that says how a round is won or lost, or how to do well, kept under that."""
+        for sentence in sentences:
+            if len(sentence.split()) < 3:
+                continue
+            for kept, says in ((self.win, _A_WIN), (self.lose, _A_LOSS), (self.tips, _A_TIP)):
+                if says.search(sentence) and sentence not in kept:
+                    kept.append(sentence[:220])
+                    del kept[:-6]
+
+    def take_in_what_i_know(self, manual: dict[str, Any], at: float | None = None) -> list[str]:
+        """What her own model knows of the place, as a manual's sections: kept as the least sure source, never as its
+        controls. The sections it filled that were empty, said."""
+        filled: list[str] = []
+        for part, kept in (("goal", self.goals), ("win", self.win), ("lose", self.lose)):
+            said = " ".join(str(manual.get(part) or "").split())
+            if said and said.lower() not in ("unknown", "none", "n/a"):
+                filled += [part] if not kept else []
+                kept.append(said[:220])
+        for part, stance in (("get", "meet"), ("avoid", "avoid")):
+            for thing in manual.get(part) or []:
+                thing = " ".join(str(thing).lower().split())[:40]
+                if thing and thing not in self.things and thing not in ("unknown", "none"):
+                    self.things[thing] = stance
+                    filled.append(part)
+        tips = [" ".join(str(t).split())[:220] for t in manual.get("tips") or [] if str(t).strip()]
+        if tips:
+            filled += ["tips"] if not self.tips else []
+            self.tips += [t for t in tips if t not in self.tips]
+            del self.tips[:-8]
+        self.sources.add(MODEL)
+        how = " ".join(str(manual.get("how") or "").split())
+        if how:
+            self.take_in(MODEL, how, at)
+        return list(dict.fromkeys(filled))
 
     def _readout_from(self, label: str) -> None:
         match = _A_READOUT.match(label or "")
@@ -441,13 +544,27 @@ def _plain_words(text: str) -> list[str]:
     return [w for w in dict.fromkeys(re.findall(r"[a-z][a-z']{3,}", str(text or "").lower())) if w not in _PLAIN]
 
 
+#: The kinds of mechanic that say how a place behaves, in the order they matter to say; and those said in other parts of
+#: the guide, or too general to tell a place by.
+_BEHAVES = ("world", "control", "hazard", "resource", "structure", "goal")
+_SAID_ELSEWHERE = frozenset({"steering", "menus", "information shown", "decoration", "winning and losing", "score",
+                             "levels", "a clock", "clicking things", "choosing from options", "dialogs", "sound controls",
+                             "pausing", "menus of a program", "links and pages", "focus and selection", "story",
+                             "collecting", "reaching a place", "hazards", "lives", "health", "fuel", "typing"})
+
+
+def _short(text: str, most: int = 150) -> str:
+    said = " ".join(str(text or "").split()).rstrip(".")
+    return (said if len(said) <= most else said[: most - 1].rsplit(" ", 1)[0] + "…") + ("" if said.endswith(("!", "?")) else ".")
+
+
 def _listed(items: list[str]) -> str:
     items = [str(i) for i in items if i]
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1] if items else ""
 
 
 #: The act a sentence names its controls for: "to move", "to jump", "to aim and shoot".
-_TO_DO = re.compile(r"\bto ((?:move|walk|run|jump|shoot|fire|throw|aim|steer|drive|fly|glide|attack|stomp|punch|kick|"
+_TO_DO = re.compile(r"\bto ((?:move|walk|run|jump|shoot|fire|throw|aim|steer|guide|drive|fly|glide|attack|stomp|punch|kick|"
                     r"switch|swap|pause|start|launch|dodge|duck|crouch|block|boost|brake|thrust|turn|rotate|land|catch|"
                     r"pick up|use|select|play)(?: and (?:move|jump|shoot|fire|throw|aim|attack))?)\b", re.I)
 
@@ -516,7 +633,10 @@ def the_guide(run: dict[str, Any] | None = None, place: str = "") -> Guide:
 def heard_in_play(texts: Iterable[str], at: float | None = None) -> list[str]:
     """Writing read while play goes on, taken into the guide to where she is, if there is one: what it changed."""
     guide = THE_GUIDE.get()
-    return guide.take_in(SCREEN, [str(t) for t in texts if t], at) if guide is not None else []
+    if guide is None:
+        return []
+    guide.playing = True
+    return guide.take_in(SCREEN, [str(t) for t in texts if t], at)
 
 
 #: The guides to the places she has been lately, by place: a site, a program, a thing a page draws.

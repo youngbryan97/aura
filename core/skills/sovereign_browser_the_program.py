@@ -34,10 +34,14 @@ _WHAT_IT_LOADED = """
 
 #: A program the page runs, by its address: a Flash file, a script, a WebAssembly module.
 _A_PROGRAM = re.compile(r"\.(?:swf|js|mjs|wasm)(?:[?#]|$)", re.I)
-#: Scripts that are the page's furniture, not the thing it draws: analytics, advertising, frameworks of the site itself.
+#: Scripts that are the page's furniture, not the thing it draws: analytics, advertising, frameworks and players of the
+#: site itself.
 _FURNITURE = re.compile(r"google|doubleclick|analytics|gtag|tagmanager|facebook|twitter|hotjar|segment|sentry|"
                         r"cloudflare|recaptcha|hcaptcha|jquery|bootstrap|polyfill|wp-includes|wp-content/plugins|"
-                        r"cookie|consent|adsby|amazon-adsystem|newrelic|optimizely", re.I)
+                        r"cookie|consent|adsby|amazon-adsystem|newrelic|optimizely|/includes/|/components/|/npm/|"
+                        r"node_modules|vendor|webcomponents|topnav|ruffle|emulat", re.I)
+#: A file a player plays: the thing itself, where a page plays one.
+_PLAYED = re.compile(r"\.(?:swf|wasm)(?:[?#]|$)", re.I)
 
 _FETCH_IT = """
 async ([url, most]) => {
@@ -56,17 +60,19 @@ async ([url, most]) => {
 
 
 def programs_of(loaded: list[Any]) -> list[str]:
-    """The addresses among what a page loaded that are programs of the thing it shows, the Flash files first."""
-    found: list[tuple[int, str]] = []
+    """The addresses among what a page loaded that are programs of the thing it shows: the file a player plays where
+    there is one (the site's own scripts, its player and its menus included, are the page's, not the thing's), else
+    the scripts that are not the site's furniture."""
+    found: list[str] = []
     for entry in loaded or []:
         try:
             url, _kind, size = str(entry[0]), str(entry[1]), int(entry[2] or 0)
         except (IndexError, TypeError, ValueError):
             continue
-        if not _A_PROGRAM.search(url) or _FURNITURE.search(url) or size > MOST_BYTES:
-            continue
-        found.append((0 if re.search(r"\.swf", url, re.I) else 1, url))
-    return [url for _rank, url in sorted(dict.fromkeys(found), key=lambda pair: pair[0])][:MOST_PROGRAMS]
+        if _A_PROGRAM.search(url) and not _FURNITURE.search(url) and size <= MOST_BYTES and url not in found:
+            found.append(url)
+    played = [url for url in found if _PLAYED.search(url)]
+    return (played or found)[:MOST_PROGRAMS]
 
 
 async def read_what_the_page_runs(page: Any) -> Any:

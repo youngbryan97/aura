@@ -205,6 +205,26 @@ class _Evidence:
     passes_settled: int = 0
     #: Touches followed at once by a loss: a cost that is the meeting's own.
     immediate: int = 0
+    #: How fast she met it at each settled touch, and what came of it: what a meeting costs may be in how hard it was.
+    hard: list[tuple[float, float]] = field(default_factory=list)
+
+    def gentle_below(self, told_gently: bool = False) -> float | None:
+        """The speed under which meeting it is to be done, where its costs came only from meeting it fast: every loss
+        at a speed above every meeting that did not lose, or, where the place says to come onto things gently, every
+        loss so far. None where speed does not explain them.
+
+        LIVE 2026-10-09 a lander set down too fast on its pad crashed, the pad was learned as a thing that costs, and
+        it was kept clear of from then on: the one place it could land.
+        """
+        lost = sorted(speed for speed, came in self.hard if came < 0)
+        fine = sorted(speed for speed, came in self.hard if came >= 0)
+        if not lost:
+            return None
+        if fine and lost[0] > fine[-1]:
+            return (lost[0] + fine[-1]) / 2
+        if told_gently and not fine:
+            return GENTLER * lost[0]
+        return None
 
     @property
     def meet(self) -> float:
@@ -224,12 +244,28 @@ class _Evidence:
         return self.touches_settled + self.passes_settled
 
 
+#: Where the place says to come onto things gently and every meeting so far cost, how much slower than the slowest
+#: of them to come.
+GENTLER = 0.6
+
+#: Words that say a thing is to be come onto gently: landed on softly, docked slowly, not hit too fast.
+_GENTLY = re.compile(r"\b(?:safely|softly|gently|slowly|too (?:fast|hard)|soft landing|land (?:it )?(?:safe|soft))\w*",
+                     re.I)
+
+
+def says_to_come_gently(told: str) -> bool:
+    """Whether a place's words say to come onto things gently."""
+    return bool(_GENTLY.search(told or ""))
+
+
 class WhatMeetingDoes:
     """Keeps what came of each kind of thing meeting her, passing her, or being shot."""
 
     def __init__(self) -> None:
         self.readouts = Readouts()
         self.verdicts: list[dict[str, Any]] = []
+        #: Whether the place's words say to come onto things gently (``says_to_come_gently``).
+        self.told_gently = False
         self.since: float | None = None
         self._open: list[dict[str, Any]] = []
         self._touching: set[int] = set()
@@ -342,6 +378,9 @@ class WhatMeetingDoes:
             if event["what"] == "touched":
                 kept.touch_sum += better
                 kept.touches_settled += 1
+                if event.get("hard") is not None:
+                    kept.hard.append((float(event["hard"]), better))
+                    del kept.hard[:-40]
                 if any(v["what"] == "loss" and 0.0 <= v["at"] - event["at"] <= AT_ONCE_S for v in self.verdicts):
                     kept.immediate += 1
             elif event["what"] == "passed":
@@ -386,8 +425,11 @@ class WhatMeetingDoes:
             self._passes(moves, mine, hers, at, line)
         self._settle(at)
 
-    def _note(self, what: str, thing: Any, at: float) -> None:
-        self._open.append({"what": what, "kind": thing.kind, "at": at})
+    def _note(self, what: str, thing: Any, at: float, mine: Any = None) -> None:
+        # How hard she met it: her going against its, as they met.
+        hard = (math.hypot(float(mine.vx) - float(thing.vx), float(mine.vy) - float(thing.vy))
+                if mine is not None and what == "touched" else None)
+        self._open.append({"what": what, "kind": thing.kind, "at": at, "hard": hard})
         kept = self.evidence[thing.kind]
         if what == "touched":
             kept.touched += 1
@@ -424,14 +466,14 @@ class WhatMeetingDoes:
                 continue
             if _close(mine.box(), thing.box(), 0.0) or _turned(self._beside.get(thing.number), thing):
                 self._met[thing.number] = at
-                self._note("touched", thing, at)
+                self._note("touched", thing, at, mine)
             else:
                 self._beside.setdefault(thing.number, (thing.vx, thing.vy))
         for number in [n for n in self._beside if n not in now]:
             thing = moves.things.get(number)
             if thing is not None and number not in self._met and _turned(self._beside[number], thing):
                 self._met[number] = at
-                self._note("touched", thing, at)
+                self._note("touched", thing, at, mine)
             del self._beside[number]
         self._touching = now
         self._met = {n: when for n, when in self._met.items() if n in now or at - when < 1.0}
@@ -507,7 +549,7 @@ class WhatMeetingDoes:
             return MEET
         if kept.shoot >= 0.5:
             return SHOOT
-        if kept.meet <= -0.6 and _a_cost_shown(kept):
+        if kept.meet <= -0.6 and _a_cost_shown(kept) and kept.gentle_below(self.told_gently) is None:
             return AVOID
         if fixture and kept.touched >= 2 and kept.meet < 0.5:
             return IGNORE
@@ -526,6 +568,11 @@ class WhatMeetingDoes:
                  and max(abs(a - b) for a, b in zip(colour, self._looks[other][0], strict=True)) <= ALIKE_COLOUR
                  and max(size, self._looks[other][1]) / max(1e-6, min(size, self._looks[other][1])) < ALIKE_SIZE]
         return self.evidence[max(alike)[1]] if alike else None
+
+    def gentle_below(self, kind: int) -> float | None:
+        """The speed under which a kind is to be met, where meeting it fast is what cost (``_Evidence.gentle_below``)."""
+        kept = self.evidence.get(kind)
+        return kept.gentle_below(self.told_gently) if kept is not None else None
 
     def known(self, kind: int) -> bool:
         """Whether what she makes of a kind rests on enough to say it out loud.

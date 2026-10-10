@@ -928,15 +928,23 @@ def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool)
 
     from .screen_pursuit import _tell
 
-    guide = the_guide(paced if isinstance(paced, dict) else None)
+    run = paced if isinstance(paced, dict) else None
+    guide = the_guide(run, place=str((run or {}).get("place") or ""))
     labels = [what_is_clicked(move) or "" for move in clickable]
     news = guide.take_in(SCREEN, [says or "", *labels])
     if narrate:
-        if not guide.said and guide.says():
+        # Said once it holds more than the screen itself says: the screen's words are read out on their own.
+        if not guide.said and guide.sources - {SCREEN} and guide.says():
             guide.said = True
             _tell(guide.says())
         for line in news[:2]:
             _tell(line)
+    if run is not None and run.get("goal") and says:
+        # What she knows herself of where she is (a program, a site, a game), asked of her model beside her work.
+        from core.cognition.what_i_know_of_a_place import ask_in_the_background
+        from core.rebuilding.her_model import ask_her_model
+
+        ask_in_the_background(guide, task=str(run["goal"]), said=says, ask=ask_her_model, tell=_tell if narrate else None)
     return tuple(move for move, label in zip(clickable, labels, strict=True)
                  if not (label and guide.is_to_read(label) and how_much_it_leads_on(label) < 1.2))
 

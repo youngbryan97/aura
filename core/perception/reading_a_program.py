@@ -247,7 +247,7 @@ def merged(reads: list[ProgramRead]) -> ProgramRead:
     for read in reads:
         out.words += [w for w in read.words if w not in out.words]
         for key, purpose in read.keys.items():
-            out.keys[key] = out.keys.get(key) or purpose
+            out.keys.setdefault(key, purpose)
         out.keyed += [k for k in read.keyed if k not in out.keyed]
         out.pointer += [p for p in read.pointer if p not in out.pointer]
         out.buttons += [b for b in read.buttons if b not in out.buttons]

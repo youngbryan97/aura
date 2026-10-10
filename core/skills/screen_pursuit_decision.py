@@ -160,15 +160,17 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     return _as_checked(can_do, _go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued)))
 
 
-def _with_the_guide(learned: Any) -> list[str]:
+def _with_the_guide(learned: Any, *, brief: bool = False) -> list[str]:
     """What she has learned here, and what the guide to where she is holds (core/cognition/a_guide_to_a_place.py): how
-    it is worked, what it wants, what changed. Hers to reason with when settling on a line; it decides nothing."""
+    it is worked, what it wants, what changed. Hers to reason with when settling on a line, and, in brief, when choosing
+    a move; it decides nothing."""
     from core.cognition.a_guide_to_a_place import the_guide
 
     from .screen_pursuit_looking import MOVES_SAID
 
     paced = MOVES_SAID.get()
-    said = the_guide(paced if isinstance(paced, dict) else None).for_thinking()
+    guide = the_guide(paced if isinstance(paced, dict) else None)
+    said = guide.in_brief() if brief else guide.for_thinking()
     return [*list(learned or []), *([f"What I know of how this place works: {said}"] if said.count("\n") >= 1 else [])]
 
 
@@ -1497,7 +1499,7 @@ async def decide_the_next_move(
                 if asking
                 else None
             ),
-            knowledge=learned,
+            knowledge=_with_the_guide(learned, brief=True),
             history=history[-RECENT_ATTEMPTS:],
             stakes=stakes,
             control_point="screen_pursuit.next_move",

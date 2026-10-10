@@ -123,7 +123,8 @@ class Stocktaking:
             "my model": from_her_model(ask_her_model),
         }
         counsel = helped.without_what_did_not(await take_stock(situation, sources, seconds=seconds))
-        _tell(counsel.said())
+        # Before play what was found goes into the guide to the place, which says it whole; after, it is counsel.
+        _tell(counsel.gathered() if why == BEFORE else counsel.said())
         if not counsel:
             return False
         self.counsel, self.at_run, self.before = counsel, len(runs), list(runs[-3:])
