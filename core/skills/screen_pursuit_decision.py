@@ -189,12 +189,17 @@ def _the_lesson_first(valued: dict[str, float], leads: Any = None, can_do: Any =
     # worked, the plan what she is using it for.
     procedures = [p for p in (rules, getattr(guide, "plan", None)) if p is not None]
     reach = _reaching_what_the_next_step_needs(procedures, valued, leads, getattr(guide, "locks", None))
+    # A later step leads only where the next one can neither be done nor reached here: steps are done in their order.
+    # LIVE 2026-10-10 a trap's TEST TRAP, its lesson's last step, was pressed again and again before a part was placed.
+    stuck = {id(p): not reach and not any(p.step_of(m) is p.next_step() for m in valued) for p in procedures}
     out = {}
     for move, value in valued.items():
         for procedure in procedures:
             step = procedure.step_of(move)
-            if step is not None:
-                value = max(value, best * (NEXT_STEP if step is procedure.next_step() else 1.2))
+            if step is not None and step is procedure.next_step():
+                value = max(value, best * NEXT_STEP)
+            elif step is not None and stuck[id(procedure)]:
+                value = max(value, best * 1.2)
         if move in reach:
             value = max(value, best * REACHING * reach[move])
         out[move] = value * (FORBIDDEN if rules.forbids(move) or rules.passes_over_what_it_teaches(move) else 1.0)

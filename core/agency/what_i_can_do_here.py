@@ -376,8 +376,12 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
     def available(self) -> tuple[str, ...]:
         """What to offer her now, what led on from this screen before first (`core.agency.where_things_lead`)."""
         # A pair known to go together comes first: it is known to answer.
-        return (self.pairs(self.on_screen) + self.leads.in_order(self._available()) + self.uses(self.on_screen)
-                + self.carries(self.on_screen))
+        offered = (self.pairs(self.on_screen) + self.leads.in_order(self._available()) + self.uses(self.on_screen)
+                   + self.carries(self.on_screen))
+        # The place her eyes found for where things are carried is a place to carry to, not a thing to click: LIVE
+        # 2026-10-10 she clicked "at the end of another device's arrow" and "any active square" to see what they did.
+        place = a_click_on(self.place_named) if self.place_named else ""
+        return tuple(move for move in offered if move != place)
 
     def _available(self) -> tuple[str, ...]:
         """What to offer her now.

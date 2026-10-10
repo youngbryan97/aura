@@ -120,3 +120,34 @@ def test_through_her_whole_move_choice_the_act_that_brings_up_what_the_step_uses
     finally:
         THE_GUIDE.reset(token)
     assert max(valued, key=valued.get) == 'click "DEVICE LIBRARY"', valued
+
+
+def test_a_later_step_does_not_lead_while_the_next_can_be_done_or_reached():
+    from core.skills.screen_pursuit_decision import _the_lesson_first
+
+    leads = _a_map_that_has_opened_the_library_once()
+    guide = Guide(place="a place of devices")
+    plan = Plan()
+    plan.took([Frame("Put a roller at the end of the arrow", act="carry", thing="a roller", where="the end of the arrow"),
+               Frame("Test the trap", act="click things", thing="TEST TRAP")])
+    guide.plan = plan
+    token = THE_GUIDE.set(guide)
+    try:
+        valued = _the_lesson_first({'click "DEVICE LIBRARY"': 0.2, 'click "TEST TRAP"': 0.9}, leads)
+    finally:
+        THE_GUIDE.reset(token)
+    assert max(valued, key=valued.get) == 'click "DEVICE LIBRARY"', valued
+
+
+def test_the_place_things_are_carried_to_is_not_offered_as_a_click():
+    from core.agency.what_i_can_do_here import WhatWorksHere
+
+    here = WhatWorksHere()
+    here.place_named = "any active square"
+    here.carrying_said = True
+    screen = ['click "DEVICE LIBRARY"', 'click "any active square"', 'click "the shape at 20% across, 70% down"']
+    here.looked_at(screen, ROOM)
+    here.looked_at(screen, ROOM)
+    offered = here.available()
+    assert 'click "any active square"' not in offered
+    assert any('to "any active square"' in move for move in offered)
