@@ -75,6 +75,7 @@ from core.agency.which_one_answers_to_her import RESPONSE_S, WAYS, WhichIsHers, 
 from core.perception.how_things_move_here import HowThingsMoveHere
 from core.perception.what_changed_and_stayed import WhatChangedAndStayed
 from core.perception.what_moves_in_the_picture import TOLD_FROM_STANDING_PX, WhatMoves
+from core.perception.where_in_a_world import WhereInTheWorld
 
 logger = logging.getLogger("Aura.PlayingAsItHappens")
 
@@ -236,6 +237,8 @@ class _Run:
     losses: int = 0
     #: How the contest stands (core/agency/how_the_contest_stands.py), and the last of it she said.
     contest: ContestStands = field(default_factory=ContestStands)
+    #: Where the view going by has taken her, in a world bigger than it.
+    world: WhereInTheWorld = field(default_factory=WhereInTheWorld)
     contest_said: str = ""
     #: How it stood, and the counters, when she came in: what they were then is not news (LIVE 2026-10-07 "I have 0.").
     contest_first: str | None = None
@@ -1120,6 +1123,18 @@ def _nothing_answers(run: _Run, hers: WhichIsHers, meeting: WhatMeetingDoes, at:
     return "nothing here answers to me while it moves"
 
 
+def _where_she_has_come(run: _Run, moves: WhatMoves, hers: WhichIsHers, say: Any, at: float) -> None:
+    """Where the view going by has taken her in a world bigger than it (core/perception/where_in_a_world.py): a view
+    she had not been in is getting somewhere, and how far she has come is said each new view along."""
+    if not moves.view_over or moves.view_moved_at != at:
+        return
+    tall, wide = moves.shape
+    if run.world.saw(moves.view_moved, moves.view_over, tall, wide, hers.thing(moves)):
+        line = run.world.said()
+        if line:
+            _say(run, say, line, at, once=f"come {round(run.world.views_along())}")
+
+
 def _report(run: _Run, getting_somewhere: Callable[[str], Any] | None, at: float) -> None:
     """Tell whoever holds a deadline over this that it is still getting somewhere."""
     if getting_somewhere is None or at - run.reported_at < 5.0:
@@ -1349,6 +1364,7 @@ async def play_as_it_happens(
             run.picture_at = at
             run.pictures += 1
             happened = moves.see(picture, at)
+            _where_she_has_come(run, moves, hers, say, at)
             hers.saw(moves, happened, at)
             # A key named for a way moves her; it is taken to fire only where the game's words say it does: LIVE
             # 2026-10-07 in a shooter whose words said "SPACE press to fire", left, up and right were each said to fire,
@@ -1937,6 +1953,9 @@ def _what_it_came_to(run: _Run, moves: WhatMoves, hers: WhichIsHers, meeting: Wh
                           and kind not in run.avoided_before and meeting.stance(kind) == AVOID][:3],
         "gains": run.gains,
         "losses": run.losses,
+        # How far the view going by has taken her: views she had not been in, and how far along the way on.
+        "new_views": run.world.new_views,
+        "views_along": round(run.world.views_along(), 2),
         "counters": dict(meeting.readouts.values),
         "observations": dict(run.observation_sources),
         "input_key_downs": dict(run.input_key_downs),

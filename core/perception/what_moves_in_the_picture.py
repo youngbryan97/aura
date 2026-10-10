@@ -296,6 +296,9 @@ class WhatMoves:
         #: When the view last moved, and how: the view going by is still going by in a picture that repeats the last.
         self.view_moved_at = -math.inf
         self.view_going: Any = None
+        #: How many pictures drawn anew the view's last measure spans, where this picture was one (else 0): its going,
+        #: added up a picture at a time, is where the view has gone (core/perception/where_in_a_world.py).
+        self.view_over = 0
         #: The last few pictures that were drawn anew, with when: the view is measured against the oldest.
         self._drawn: deque = deque(maxlen=3)
         self._now = -math.inf
@@ -755,11 +758,14 @@ class WhatMoves:
             the_same_picture,
         )
 
+        self.view_over = 0
         if self._drawn and the_same_picture(self._drawn[-1][1], small):
             if self.view_is_moving:
                 return True
         else:
             self._drawn.append((self._now, small))
+            # A picture drawn anew: how many drawn pictures its measure spans, for whoever adds the view's going up.
+            self.view_over = len(self._drawn) - 1
         self.view_moved = STILL
         if len(self._drawn) < 2:
             return False

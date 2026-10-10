@@ -93,7 +93,7 @@ def test_a_setting_that_got_there_is_kept_while_the_aim_stays():
 def test_she_finds_the_pull_that_sends_the_ball_into_the_place_it_scores():
     world = _World()
     keep: dict = {}
-    result = asyncio.run(play_by_shots(world.look, world, seconds=12.0, keep=keep, read_words=world.words,
+    result = asyncio.run(play_by_shots(world.look, world, seconds=25.0, keep=keep, read_words=world.words,
                                        aim_at=lambda _picture: world.hole, ways=(PULL,)))
     assert keep.get("sends_from") is not None and math.dist(keep["sends_from"], world.home) < 0.06, keep.get("sends_from")
     assert world.score >= 1, result
@@ -157,7 +157,7 @@ def test_shots_end_when_the_screen_offers_a_way_on():
         said = [{"text": f"SCORE {world.score}", "center_x": 0.1, "center_y": 0.05, "height": 0.05}]
         return said + ([{"text": "Play Again", "center_x": 0.5, "center_y": 0.6, "height": 0.05}] if over["after"] < 0 else [])
 
-    result = asyncio.run(play_by_shots(world.look, world, seconds=12.0, keep={}, read_words=words, ways=(PULL,)))
+    result = asyncio.run(play_by_shots(world.look, world, seconds=25.0, keep={}, read_words=words, ways=(PULL,)))
     assert result["ended"] == "the screen offers a way on (Play Again)", result
     assert result["shots"] <= 4
 

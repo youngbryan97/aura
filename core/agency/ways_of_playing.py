@@ -87,6 +87,10 @@ WAYS: tuple[Way, ...] = (
     Way("a view going by", "a world that scrolls past, in layers",
         "core.perception.how_the_scenery_goes_by:how_the_view_moved", "core.perception.what_moves_in_the_picture",
         "tests/test_scenery_going_by_is_not_things.py"),
+    Way("a world bigger than the view", "where the view going by has taken her: how far she has come, which way the rest "
+        "of it lies, and a view she had not been in counted as getting somewhere",
+        "core.perception.where_in_a_world:WhereInTheWorld", "core.agency.playing_as_it_happens",
+        "tests/test_where_she_is_in_a_world_bigger_than_the_view.py"),
     Way("a board in turns", "a board, moves in turns, someone on the other side: looked ahead as far as there is time",
         "core.agency.looking_ahead:look_ahead", "core.skills.screen_pursuit_decision",
         "tests/test_looking_as_far_ahead_as_there_is_time_for.py"),

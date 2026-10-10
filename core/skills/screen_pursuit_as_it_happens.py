@@ -561,6 +561,8 @@ class PlayingAsItHappens:
             waits_for_her=self.under_her_hand,
         )
         self.stretches.append(stretch)
+        # A view of a bigger world she had not been in is somewhere new, as a screen she had not seen is.
+        self.new_screens += int(stretch.get("new_views") or 0)
         self._judge(AS_IT_HAPPENS_WAY, stretch)
         if guide is not None:
             # What play read and confirmed, into the guide: what changed said, and what it learned of every place kept.
@@ -570,7 +572,7 @@ class PlayingAsItHappens:
         if (stretch.get("runtime_checks") or {}).get("violations"):
             self.over_because = "runtime contract violated"
         _keep_what_she_learned(self.page, self.keep)
-        logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "keys_that_move_her", "pictures_a_second", "learned", "gains", "losses")})
+        logger.info("a stretch played as it happened: %s", {k: stretch.get(k) for k in ("seconds", "ended", "hers", "keys_that_move_her", "pictures_a_second", "learned", "gains", "losses", "new_views", "views_along")})
         if not stretch.get("hers") and not stretch.get("gains") and not stretch.get("losses"):
             self.quiet_until, self.quiet_on = time.monotonic() + LEAVE_A_MOVING_MENU_S, self.said_now
             self.under_her_hand = False

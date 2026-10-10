@@ -36,6 +36,7 @@ if any of them is not called from her live play or has no test.
 | time a press | press when something moving is at the right place, learned from what each press paid by where it was | `core/agency/when_a_press_pays.py` |
 | jump | clear what comes at her, or a gap, with a press whose effect plays out over the next moment: learned as a curve by watching, made when its whole path is clear | `core/agency/what_a_press_does.py` |
 | a view going by | a world that scrolls past | `core/perception/how_the_scenery_goes_by.py` |
+| a world bigger than the view | how far the view going by has taken her, and which way the rest lies | `core/perception/where_in_a_world.py` |
 | keys shown | press the keys a screen draws mid-play while it shows them, in turn and fast where several are lit by turns | `core/agency/pressing_what_is_shown.py` |
 | copy a sequence | do again, in order, what was shown | `core/agency/doing_again_what_was_shown.py` |
 | remember what was shown | remember what each place showed when turned over, and turn together two that showed alike | `core/agency/things_that_go_together.py` |
