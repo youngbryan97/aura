@@ -494,9 +494,8 @@ class Guide:
         return said
 
     def _goals_and_things_from(self, sentences: list[str]) -> None:
-        from core.perception.what_a_legend_shows import stance_of
-
         from core.agency.the_controls_a_game_names import without_a_legend
+        from core.perception.what_a_legend_shows import stance_of
 
         for sentence in sentences:
             # A legend of controls is not what the place is for: LIVE 2026-10-10 "Forward Reverse Turn left Turn right
