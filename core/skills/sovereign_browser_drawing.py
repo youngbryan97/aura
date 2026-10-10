@@ -349,6 +349,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             for stretch in reflexes.stretches if stretch.get("pictures")
         ]
         run["score"] = _the_score_of(run, reflexes)
+        # The counsel she played this round by, so that a round much worse than her best can go back to it.
+        run["counsel"] = str(keep.get("counsel") or "")
         runs.append(run)
         shape = MADE if reflexes.over_because == MADE_NOT_WON else _the_shape_of(reflexes, run)
         if shape == MADE and (terms.made_once or terms.tell_what_was_made):
@@ -499,13 +501,36 @@ async def _between_runs(goal: str, reflexes: Any, run: dict[str, Any], runs: lis
     from core.cognition.a_plan_to_an_end import plan_again
 
     plan_again(THE_GUIDE.get(), f"it ended on “{run['words'][:120]}” ({run['ended'] or 'unread'})")
+    _back_to_what_went_best(runs, keep)
     stock = keep.get("stock")
     if stock is not None:
-        stock.judge(runs)
+        stock.judge(runs, keep)
         why = stock.due(runs)
         if why:
             await stock.take(why, goal, list(reflexes.words), run["words"], runs, keep, deadline)
     begin_run(keep)
+
+
+def _how_well(run: Mapping[str, Any]) -> float:
+    """How well a round went, by its score where it has one, else by what it gained."""
+    score = run.get("score")
+    return float(score) if isinstance(score, (int, float)) else float(run.get("gains") or 0)
+
+
+def _back_to_what_went_best(runs: list[dict[str, Any]], keep: dict[str, Any]) -> None:
+    """Where the round just played went far worse than her best, the counsel she played her best round by, back in
+    force: what she changed since made it worse. As the agents that improve most over attempts at unfamiliar games do
+    (OmniGameArena, 2026): a revised way of playing that drops below half the best is rolled back to the best."""
+    if len(runs) < 2:
+        return
+    best = max(runs[:-1], key=_how_well)
+    if _how_well(best) <= 0 or _how_well(runs[-1]) >= 0.5 * _how_well(best):
+        return
+    if str(best.get("counsel") or "") == str(keep.get("counsel") or ""):
+        return
+    keep["counsel"] = str(best.get("counsel") or "")
+    _tell(f"That round went much worse than my best ({_scored(runs[-1])} against {_scored(best)}), so I'm going back to "
+          "how I played my best one.")
 
 
 def _what_i_do_differently(reflexes: Any) -> str:

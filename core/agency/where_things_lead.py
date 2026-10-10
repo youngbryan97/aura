@@ -16,6 +16,13 @@ changed (moved); or nothing at all. Kept with the rest of what
 she learns about a place, it is there the next time, and it orders what she
 tries on a screen she knows: what led on first, what did nothing last.
 
+It is also how she explores a place she does not know, as the explorers that do best at games no one has seen before
+do it (state-graph exploration, ARC-AGI-3, 2025): each screen a node, each act on it an edge to the screen it led
+to. On a screen she tries what she has not tried there before what she has, and what did nothing there last. Where
+everything on a screen has been tried, she takes the act that leads, by the edges she knows, nearest to a screen
+that still has something untried. LIVE 2026-10-10 she clicked and carried on one game's screens "to see what it
+does", the same acts again and again, while a tab of its device library was never opened.
+
 Nothing here knows what a menu, a level or a game is.
 """
 from __future__ import annotations
@@ -62,6 +69,9 @@ class WhereThingsLead:
     went: dict[str, dict[str, int]] = field(default_factory=dict)
     #: Screens where her keys moved things: where the playing is.
     played: set[int] = field(default_factory=set)
+    #: "screen|act" -> the screen it last led to; and what each screen offered to be done on it.
+    to: dict[str, int] = field(default_factory=dict)
+    offered: dict[int, frozenset[str]] = field(default_factory=dict)
     #: This sitting: the screens in the order she first came to them, and where she is.
     _been: list[int] = field(default_factory=list)
     _here: int | None = None
@@ -96,6 +106,8 @@ class WhereThingsLead:
             return
         before, after = self._before, self._here
         counts = self.went.setdefault(f"{before}|{act}", {})
+        if changed and after != before:
+            self.to[f"{before}|{act}"] = after
         if not changed:
             how = "nothing"
         elif after == before:
@@ -115,6 +127,7 @@ class WhereThingsLead:
         if self._here is None:
             return 1.0
         counts = self.went.get(f"{self._here}|{act}")
+        toward = self._toward_the_untried(act)
         if counts is None:
             # Not done on this screen yet: what it did on the others. The arrow
             # in a comic's corner that turned the first page turns the second
@@ -127,13 +140,17 @@ class WhereThingsLead:
         on, back, nothing, moved = (counts.get(k, 0) for k in ("on", "back", "nothing", "moved"))
         if on > back:
             return 1.0 + 1.5 * on / (on + back + nothing + 1)
+        if toward:
+            # Everything here has been tried: the way to where something has not been is worth taking.
+            return toward
         if back > on:
             # What took her back the way she came is not the way on: LIVE 2026-10-07 a level select's corner
             # icon took her to the title three times, and the level beside it was never clicked.
             return 0.6 ** (back - on)
         if nothing >= 2 and not (on or moved):
             return 0.5
-        return 1.0
+        # Tried here and nothing came of it, or only this screen changed: below what has not been tried here.
+        return 0.8 if nothing and not (on or moved) else 0.9
 
     def taken_here_to_no_end(self, act: str) -> int:
         """How many times ``act`` has been taken on this screen and led nowhere: nothing answered, or the screen stayed itself."""
@@ -143,8 +160,33 @@ class WhereThingsLead:
         return 0 if counts.get("on", 0) > counts.get("back", 0) else counts.get("nothing", 0) + counts.get("moved", 0)
 
     def in_order(self, acts: Sequence[str]) -> tuple[str, ...]:
-        """``acts``, what led on from this screen first and what did nothing here last, otherwise as they were."""
+        """``acts``, what led on from this screen first, then what has not been tried here, and what did nothing here
+        last, otherwise as they were (the order they were offered in says which stand out)."""
+        if self._here is not None and acts:
+            self.offered[self._here] = frozenset(acts) | self.offered.get(self._here, frozenset())
         return tuple(sorted(acts, key=lambda act: -self.how_it_led(act)))
+
+    def untried_on(self, screen: int) -> set[str]:
+        """What a screen offered that has not been done there."""
+        return {act for act in self.offered.get(screen, ()) if f"{screen}|{act}" not in self.went}
+
+    def _toward_the_untried(self, act: str) -> float:
+        """Where nothing on this screen is left untried, how much ``act`` leads toward a screen with something untried
+        on it, by the screens it is known to lead to: above one the nearer that is; 0 where it leads nowhere such."""
+        here = self._here
+        if here is None or here == WORDLESS or self.untried_on(here):
+            return 0.0
+        first = self.to.get(f"{here}|{act}")
+        if first is None or first == here:
+            return 0.0
+        seen, frontier, steps = {here, first}, [first], 0
+        while frontier and steps < 6:
+            if any(self.untried_on(screen) for screen in frontier):
+                return 1.0 + 0.6 / (1 + steps)
+            steps += 1
+            frontier = [nxt for screen in frontier for key, nxt in self.to.items()
+                        if key.split("|", 1)[0] == str(screen) and nxt not in seen and not seen.add(nxt)]
+        return 0.0
 
     def says(self) -> str:
         """What the map holds, for whoever has to answer for it."""
@@ -161,10 +203,14 @@ class WhereThingsLead:
             screen, act = key.split("|", 1)
             if int(screen) in renumber:
                 went[f"{renumber[int(screen)]}|{act}"] = dict(counts)
+        to = {f"{renumber[int(key.split('|', 1)[0])]}|{key.split('|', 1)[1]}": renumber[n] for key, n in self.to.items()
+              if int(key.split("|", 1)[0]) in renumber and n in renumber}
         return {
             "screens": [sorted(self.screens[n]) for n in kept],
             "went": went,
             "played": sorted(renumber[n] for n in self.played if n in renumber),
+            "to": to,
+            "offered": {str(renumber[n]): sorted(acts)[:40] for n, acts in self.offered.items() if n in renumber},
         }
 
     @classmethod
@@ -176,6 +222,8 @@ class WhereThingsLead:
                 screens=[frozenset(str(w) for w in words) for words in held.get("screens") or []],
                 went={str(k): {str(h): int(n) for h, n in v.items()} for k, v in (held.get("went") or {}).items()},
                 played={int(n) for n in held.get("played") or []},
+                to={str(k): int(v) for k, v in (held.get("to") or {}).items()},
+                offered={int(k): frozenset(str(a) for a in v) for k, v in (held.get("offered") or {}).items()},
             )
         except (TypeError, ValueError, AttributeError):
             return cls()

@@ -77,3 +77,39 @@ def test_what_led_on_from_one_screen_is_tried_first_on_the_next():
     leads.acted(arrow, True)
     leads.looked(page_two)
     assert leads.in_order(["up", a_click_on("LET'S ROLL"), arrow])[0] == arrow
+
+
+def test_on_a_screen_what_has_not_been_tried_comes_before_what_did_nothing_once():
+    """As the explorers that do best at games no one has seen before go about it: the untested act first."""
+    leads = WhereThingsLead()
+    leads.looked(_LEVELS)
+    leads.looked(_LEVELS)
+    leads.acted(a_click_on("LEVEL SELECT"), False)
+    leads.looked(_LEVELS)
+    order = leads.in_order([a_click_on("LEVEL SELECT"), a_click_on("Road Rage")])
+    assert order == (a_click_on("Road Rage"), a_click_on("LEVEL SELECT"))
+
+
+def test_where_everything_here_is_tried_she_takes_the_way_to_a_screen_with_something_untried():
+    """A screen worked through: the act known to lead to a screen with untried things on it is taken, though it led
+    back the way she came, before the one that only ever did nothing (LIVE 2026-10-10, one game's screens clicked over
+    and over while a tab of its library sat unopened)."""
+    leads = WhereThingsLead()
+    library = [a_click_on("DEVICE LIBRARY"), a_click_on("LAUNCHERS"), a_click_on("HANGERS"), a_click_on("CLOSE")]
+    room = [a_click_on("TEST TRAP"), a_click_on("EDIT THE TRAP PLEASE")]
+    leads.looked(library)
+    leads.in_order(library)
+    leads.looked(room)                                  # CLOSE goes on to the room
+    leads.acted(a_click_on("CLOSE"), True)
+    leads.in_order(room)
+    leads.looked(room)
+    leads.acted(a_click_on("TEST TRAP"), False)
+    leads.looked(library)                               # EDIT THE TRAP PLEASE goes back to the library
+    leads.acted(a_click_on("EDIT THE TRAP PLEASE"), True)
+    leads.looked(room)
+    leads.acted(a_click_on("CLOSE"), True)
+    assert leads.untried_on(leads.which(screen_words(room))) == set()
+    assert leads.how_it_led(a_click_on("EDIT THE TRAP PLEASE")) > 1.0 > leads.how_it_led(a_click_on("TEST TRAP"))
+    assert leads.in_order(room)[0] == a_click_on("EDIT THE TRAP PLEASE")
+    again = WhereThingsLead.from_memory(leads.as_memory())
+    assert again.to and again.offered

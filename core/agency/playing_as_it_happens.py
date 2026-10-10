@@ -897,6 +897,11 @@ def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves
     def place(x: float, y: float) -> str:
         return where_on_screen(moves, x * moves.shape[1], y * moves.shape[0]) if moves.shape[0] else "middle"
 
+    # A bar with no name going down before anything on the screen answers her may be a story playing out or a thing
+    # loading: counted, but not said to be what she has left (LIVE 2026-10-10 "The bar at the bottom left goes down: it's
+    # what I have left." over an opening scene).
+    answering = (getattr(hers, "kind", None) is not None or getattr(hers, "follows_pointer", False)
+                 or (run.presses is not None and run.presses.moves_anything(4.0)))
     for verdict in bars_read(run.bars, picture, at, run.regions_read, place):
         meeting._verdict(verdict)
         if verdict["what"] == "gain":
@@ -906,8 +911,9 @@ def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves
         _lost_from_a_distance(run, meeting, hers.thing(moves), moves, verdict)
         hit = any(0.0 <= at - when <= 1.0 for when in meeting._met.values())
         named = verdict["counter"]
-        _say(run, say, f"{named[0].upper()}{named[1:]} goes down{' as I am hit' if hit else ''}: it's what I have left.", at,
-             once=f"bar {named}")
+        if answering or not named.startswith("the bar"):
+            _say(run, say, f"{named[0].upper()}{named[1:]} goes down{' as I am hit' if hit else ''}: it's what I have left.",
+                 at, once=f"bar {named}")
     run.vitals = meeting.vitals = what_is_left(run.bars)
 
 

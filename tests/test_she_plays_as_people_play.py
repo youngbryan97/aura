@@ -133,3 +133,34 @@ def test_catching_someone_is_no_catching_of_what_falls():
             "CONNECTION. TEST TRAP")
     found = [c.name for c in crafts_for(said) if not c.foundational]
     assert "getting under what to catch" not in found and found[0] == "building a way through", found
+
+
+def test_a_round_far_worse_than_her_best_goes_back_to_how_she_played_her_best(monkeypatch):
+    """As the agents that improve most over attempts do: a revised way of playing that drops below half the best is
+    rolled back to the best."""
+    import core.skills.sovereign_browser_drawing as drawing
+
+    said = []
+    monkeypatch.setattr(drawing, "_tell", said.append)
+    keep = {"counsel": "Stay low and jump late."}
+    runs = [{"score": 400, "counsel": "Jump early."}, {"score": 900, "counsel": "Stay low."},
+            {"score": 300, "counsel": "Stay low and jump late."}]
+    drawing._back_to_what_went_best(runs, keep)
+    assert keep["counsel"] == "Stay low." and "going back to how I played my best one" in said[0]
+    keep = {"counsel": "Stay low."}
+    drawing._back_to_what_went_best([{"score": 900, "counsel": "Stay low."}, {"score": 600, "counsel": "Stay low."}], keep)
+    assert keep["counsel"] == "Stay low." and len(said) == 1          # not much worse: nothing rolled back
+
+
+def test_counsel_that_did_not_help_is_no_longer_read_by_play(monkeypatch):
+    import core.skills.sovereign_browser_taking_stock as stocktaking
+
+    monkeypatch.setattr(stocktaking, "_tell", lambda line: None)
+    monkeypatch.setattr("core.cognition.taking_stock.WhatHelped.of", lambda thing: type("H", (), {
+        "came_of": lambda self, *a: None})())
+    stock = stocktaking.Stocktaking(thing="a game")
+    stock.counsel = type("C", (), {"told": "Hold left."})()
+    stock.at_run, stock.before, stock.counsel_before = 1, [{"ended": "lost", "gains": 5, "took_s": 30.0}], "Watch the clock."
+    keep = {"counsel": "Watch the clock. Hold left."}
+    stock.judge([{}, {"ended": "lost", "gains": 1, "took_s": 20.0}, {"ended": "lost", "gains": 2, "took_s": 25.0}], keep)
+    assert keep["counsel"] == "Watch the clock."

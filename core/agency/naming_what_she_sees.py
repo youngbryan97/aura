@@ -305,6 +305,8 @@ def _make_of(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any, hers: Any, 
 #: took for her is taken for her where nothing has answered.
 AVATAR_ASKED_AFTER_S = 2.0
 AVATAR_TAKEN_AFTER_S = 8.0
+#: How far, in working pixels, a press must move something the same way each time for the screen to answer her.
+ANSWERED_BY_PX = 4.0
 
 
 def _who_i_am_to_my_eyes(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any, hers: Any, meeting: Any, picture: Any,
@@ -351,7 +353,12 @@ def _who_i_am_to_my_eyes(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any,
             logger.info("her eyes took %s for hers; play has her as %s", what, hers.number)
     keys = list(getattr(run, "keys", []) or [])
     tried = getattr(run, "trying", 0) >= 2 * max(1, len(keys))
-    if not known and tried and at - seeing.began >= AVATAR_TAKEN_AFTER_S and not hers.follows_pointer:
+    # Taken for her only where her presses are seen to move something: in a story playing out, or a screen of its
+    # lesson, nothing answers her keys at all, and a figure in it is no body of hers (LIVE 2026-10-10, over a game's
+    # opening scene: "That looks like me: Tom", then "Tom is worth getting to", "the traps cost me").
+    presses = getattr(run, "presses", None)
+    answered = presses is not None and presses.moves_anything(ANSWERED_BY_PX)
+    if not known and tried and answered and at - seeing.began >= AVATAR_TAKEN_AFTER_S and not hers.follows_pointer:
         hers.seen_to_be_her(thing, at, what)
 
 

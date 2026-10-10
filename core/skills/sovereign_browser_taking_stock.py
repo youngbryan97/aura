@@ -75,6 +75,8 @@ class Stocktaking:
     counsel: Any = None
     at_run: int = 0
     before: list[dict[str, Any]] = field(default_factory=list)
+    #: What play was going by before the counsel in force was added: put back if that counsel does not help.
+    counsel_before: str = ""
 
     def remembered(self) -> bool:
         """Whether she has gone by counsel here before that helped: then she begins with it, not by asking again."""
@@ -138,12 +140,14 @@ class Stocktaking:
         if not counsel:
             return False
         self.counsel, self.at_run, self.before = counsel, len(runs), list(runs[-3:])
+        self.counsel_before = str(keep.get("counsel") or "")
         # Read with the screen's own words from the next run on; what was found before is kept beside it.
         keep["counsel"] = " ".join(t for t in dict.fromkeys([str(keep.get("counsel") or ""), counsel.told]) if t)
         return True
 
-    def judge(self, runs: list[dict[str, Any]]) -> None:
-        """Once the counsel has had its runs, whether it helped: said, and kept for next time."""
+    def judge(self, runs: list[dict[str, Any]], keep: dict[str, Any] | None = None) -> None:
+        """Once the counsel has had its runs, whether it helped: said, and kept for next time. Counsel that did not help
+        is no longer read by play: what was in force before it is put back."""
         from core.cognition.taking_stock import WhatHelped
 
         if self.counsel is None or len(runs) - self.at_run < JUDGED_AFTER and not any(r.get("ended") == "won" for r in runs[self.at_run:]):
@@ -156,6 +160,8 @@ class Stocktaking:
         helped = _better(after, self.before)
         WhatHelped.of(self.thing).came_of(self.thing, self.counsel, helped)
         _tell("That helped; I'll remember it." if helped else "Going by that didn't help, so I won't count on it again.")
+        if not helped and keep is not None:
+            keep["counsel"] = self.counsel_before
         logger.info("counsel for %r %s: %s", self.thing, "helped" if helped else "did not help", self.counsel.told[:200])
         self.counsel = None
 
