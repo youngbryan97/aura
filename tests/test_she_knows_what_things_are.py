@@ -61,9 +61,9 @@ def test_her_eyes_are_asked_of_each_kind_once_hers_first_and_never_of_a_speck_or
                                                                             (0, 0, 0), (40, 40, 40)])
         picture = np.zeros((200, 300, 3), dtype=np.uint8)
         assert not looking.look(picture, moves, 0.0, mine=5)          # play has only begun
-        assert looking.look(picture, moves, 2.0, mine=5)
+        assert looking.look(picture, moves, 4.0, mine=5)
         await looking._asking
-        assert not looking.look(picture, moves, 3.0, mine=5)          # not again so soon, and nothing new to ask of
+        assert not looking.look(picture, moves, 5.0, mine=5)          # not again so soon, and nothing new to ask of
         return looking
 
     looking = asyncio.run(play())

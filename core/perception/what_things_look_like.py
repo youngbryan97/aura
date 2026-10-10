@@ -37,9 +37,9 @@ logger = logging.getLogger("Aura.WhatThingsLookLike")
 
 #: How many kinds are looked at in one go, how many in one game at most, how soon play must have gone on before the
 #: first look, and how long between two goes.
-AT_ONCE = 4
+AT_ONCE = 3
 MOST_A_GAME = 14
-FIRST_AFTER_S = 1.0
+FIRST_AFTER_S = 3.0
 EVERY_S = 8.0
 #: The least a thing must cover to be named (working pixels a side), and the most of the picture (by share a side): a
 #: speck is no thing to name, and what covers the screen is the backdrop.
@@ -144,6 +144,7 @@ class LookingAtThings:
     _asking: Any = None
     _new: list[tuple[int, Sighting]] = field(default_factory=list)
     _rested_until: float = -math.inf
+    _done_at: float = -math.inf
 
     def look(self, picture: Any, moves: Any, at: float, *, mine: int | None = None, met: Any = ()) -> bool:
         """Ask what the kinds in ``picture`` not yet named are, where it is time to: hers (``mine``, a thing's number)
@@ -151,7 +152,10 @@ class LookingAtThings:
         self._began = at if self._began is None else self._began
         if (self._asking is not None and not self._asking.done()) or len(self.asked) >= MOST_A_GAME:
             return False
-        if at - self._began < FIRST_AFTER_S or at - self._last < EVERY_S or time.monotonic() < self._rested_until:
+        # The time between goes from when the last looks were done, not begun: LIVE 2026-10-10 fifteen looks in thirty
+        # seconds, as play was finding which thing was hers.
+        if (at - self._began < FIRST_AFTER_S or at - self._last < EVERY_S or time.monotonic() < self._rested_until
+                or time.monotonic() - self._done_at < EVERY_S):
             return False
         chosen = self._to_look_at(moves, mine, set(met or ()))
         if not chosen:
@@ -202,6 +206,13 @@ class LookingAtThings:
         return [(kind, best[kind].box()) for kind in chosen]
 
     async def _ask(self, frame: np.ndarray, chosen: list[tuple[int, tuple[float, ...]]], scale: float, at: float) -> None:
+        try:
+            await self._ask_each(frame, chosen, scale, at)
+        finally:
+            self._done_at = time.monotonic()
+
+    async def _ask_each(self, frame: np.ndarray, chosen: list[tuple[int, tuple[float, ...]]], scale: float,
+                        at: float) -> None:
         for kind, box in chosen:
             try:
                 colour, image = await asyncio.to_thread(_marked, frame, box, scale)
