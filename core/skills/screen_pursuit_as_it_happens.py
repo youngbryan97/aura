@@ -471,7 +471,9 @@ class PlayingAsItHappens:
         guide = THE_GUIDE.get()
         if guide is not None:
             named = list(dict.fromkeys([*named, *guide.keys_for_play()]))
-            pointer_first = pointer_first or guide.pointer_named()
+            # Where keys move her and the pointer only aims, her body is looked for by the keys: what follows the
+            # pointer then is where she aims.
+            pointer_first = (pointer_first or guide.pointer_named()) and not guide.pointer_aims()
         # The game's controls are every key any of its screens has named, not
         # only this screen's: LIVE 2026-10-04 a run begun from the end screen
         # ("Press SPACE to play again") was played with space alone, and the

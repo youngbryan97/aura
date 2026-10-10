@@ -57,7 +57,7 @@ def test_words_outrank_code_and_the_screen_outranks_what_was_read_before():
     assert any("pause" in c for c in guide.not_for_play)
     guide.take_in(TOLD, "Use WASD to move. Click to throw.")
     assert set(guide.keys_for_play()) == {"space", "w", "a", "s", "d"}   # its words name how she moves now
-    assert guide.pointer_named()
+    assert not guide.pointer_named()                                       # the keys move her; the pointer throws
     assert guide.controls["w"].source == TOLD
 
 

@@ -84,6 +84,9 @@ _PLAY_ACTS = ("jump", "fire", "shoot", "throw", "attack", "punch", "kick", "stom
               "accelerat", "rotate", "duck", "crouch", "block", "dash", "switch", "swap")
 #: What a control may be for that stops, silences or leaves play: not part of the task while it goes on.
 _INTERRUPTS = ("pause", "mute", "sound", "quit", "menu", "help")
+#: What the pointer may be named for where keys move her: aiming and what is done at what is aimed at.
+_AIMS = ("aim", "shoot", "fire", "throw", "aim and shoot", "aim and fire", "aim and throw", "click", "attack", "launch",
+         "select", "use")
 #: The keys a body is moved by.
 _MOVING = frozenset({"up", "down", "left", "right", *"wasdijklefzq"})
 #: What a key kept for something other than play is for: the menu's keys, not play's.
@@ -279,11 +282,23 @@ class Guide:
                 and (not (len(c.key) == 1 and c.key.isalpha()) or c.key in clusters or c.act in _PLAY_ACTS)]
 
     def pointer_named(self) -> bool:
-        """Whether the place is worked with the pointer, by words; or by its program where no word names any control."""
-        if any(c.key == "the pointer" for c in self.controls.values()):
+        """Whether the place is worked with the pointer, by words; or by its program where no word names any control.
+        Where keys move her and the pointer aims or shoots ("WASD to move, mouse to aim"), it is worked by the keys,
+        the pointer only aiming: LIVE 2026-10-09 the reticle that followed the mouse was taken for her, and the body
+        her keys moved was never found."""
+        pointer = self.controls.get("the pointer")
+        if self.pointer_aims():
+            return False
+        if pointer is not None:
             return True
         worded = any(c.source != PROGRAM for c in self.controls.values())
         return not worded and any(use in ("steers", "aims", "drags") for use in self.pointer)
+
+    def pointer_aims(self) -> bool:
+        """Whether keys move her and the pointer only aims or shoots: her body is found by the keys, not the pointer."""
+        pointer = self.controls.get("the pointer")
+        return (pointer is not None and pointer.act in _AIMS
+                and any(key in _MOVING for key in self.keys_for_play()))
 
     def in_play(self, name: str) -> bool:
         known = self.mechanics.get(name)
@@ -618,7 +633,10 @@ _NAMING = (
 )
 #: Words that are no name for a thing.
 _NOT_A_NAME = frozenset("""the a an your you it its them they this that these those what which keys key arrow arrows mouse
-    button buttons space spacebar time way ground game screen level points score as many all every each other own""".split())
+    button buttons space spacebar time way ground game screen level points score as many all every each other own
+    is are was were be been being will can could would should may might must do does did has have had he she his her
+    him we us our my me i who whom whose there here then than so too very just also not no yes up down left right
+    in on at of to by for from with into onto out off over under again more most less""".split())
 
 
 def _a_name(said: str) -> str:
@@ -626,7 +644,8 @@ def _a_name(said: str) -> str:
     lander; "" where it is no name ("the arrow keys", "it")."""
     words = re.sub(r"^[A-Za-z]+'s\s+", "", str(said or "").strip()).split()
     words = [w for w in words if w.lower() not in ("the", "your", "a", "an")]
-    if not words or any(w.lower() in _NOT_A_NAME for w in words[-1:]) or len(words) > 4:
+    if (not words or len(words) > 4 or words[-1].lower() in _NOT_A_NAME or len(words[-1]) < 3
+            or not any(w.lower() not in _NOT_A_NAME for w in words)):
         return ""
     return " ".join(w.lower() for w in words[-3:])
 

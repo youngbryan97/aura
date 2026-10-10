@@ -101,7 +101,8 @@ class NoticingInPlay:
         self.outcomes += 1
         recent = {act for when_done, act in self.acts if 0.0 <= when - when_done <= FOLLOWS_WITHIN_S}
         if not recent and what == "gain" and counter:
-            self._said(notebook.notice(f"by itself {counter}", f"my {counter} goes up with nothing I did beside it", at,
+            whose = counter if counter.lower().startswith(("the ", "my ")) else f"my {counter}"
+            self._said(notebook.notice(f"by itself {counter}", f"{whose} goes up with nothing I did beside it", at,
                                        kind="by itself", about=counter, pays=1), say)
         for act in recent:
             self.followed[(act, what)] += 1
