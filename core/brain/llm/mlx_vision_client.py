@@ -781,6 +781,9 @@ class MLXVisionClient:
                 )
             except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
                 logger.exception("Vision model-lane owner release failed")
+        # The next start claims under a name of its own: a look cancelled while its worker was starting left the old
+        # owner committed, and every start after it was refused as "owner_id_already_committed" (LIVE 2026-10-10).
+        self._lane_owner_id = f"mlx-vision:{os.getpid()}:{uuid.uuid4()}"
         logger.info("Vision worker stopped.")
 
     async def stop_async(self, *, reason: str = "vision_worker_stopped") -> None:

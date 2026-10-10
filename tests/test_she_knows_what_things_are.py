@@ -221,3 +221,43 @@ def test_a_busy_model_is_asked_again_after_a_wait_rather_than_left_unasked(monke
         return "answered"
 
     assert asyncio.run(things.asked_patiently(ask, "?", None, 10)) == "answered" and len(tries) == 3
+
+
+def test_a_name_that_says_what_anything_is_and_an_odd_look_that_is_only_how_it_is_drawn_are_not_kept():
+    """LIVE 2026-10-10 her eyes called things "object" and "character", and said a bare "yes" or "cartoonish" for odd."""
+    from core.perception.what_things_look_like import sighting_from
+
+    assert sighting_from('{"is": "object", "odd": ""}') is None
+    assert sighting_from('{"is": "emoji", "odd": "yes"}').odd == ""
+    assert sighting_from('{"is": "barrel", "odd": "a cartoonish, stylized object in a game setting"}').odd == ""
+    assert sighting_from('{"is": "apple", "odd": "has a cartoon face with wide eyes"}').odd.startswith("has a cartoon face")
+
+
+def test_who_she_is_is_said_once_play_has_held_it_and_not_for_a_cursor():
+    """LIVE 2026-10-10 play's guess went back and forth, and each change was said."""
+    from core.agency.naming_what_she_sees import HERS_HELD_S, SeeingInPlay, _read_the_place
+
+    guide = Guide(place="a place")
+    said: list[str] = []
+    calls: list[int] = []
+    import core.cognition.what_this_place_is as place
+
+    original = place.played_shows_hers
+    place.played_shows_hers = lambda g, kind: calls.append(kind) or f"I'm the {kind}."
+    original_ask = place.ask_for_a_reading
+    place.ask_for_a_reading = lambda *a, **k: None
+    try:
+        seeing = SeeingInPlay()
+        for at, kind in ((0.0, 1), (3.0, 2), (5.0, 1), (5.0 + HERS_HELD_S, 1), (30.0, 2), (30.0 + HERS_HELD_S, 2)):
+            _read_the_place(guide, seeing, SimpleNamespace(number=9, kind=kind, follows_pointer=False), at, None,
+                            lambda line, once: said.append(line))
+        assert said == ["I'm the 1."]                                   # once held, and once a game
+        guide.seen.saw(4, "cursor")
+        seeing = SeeingInPlay()
+        for at in (0.0, HERS_HELD_S + 1):
+            _read_the_place(guide, seeing, SimpleNamespace(number=9, kind=4, follows_pointer=True), at, None,
+                            lambda line, once: said.append(line))
+        assert said == ["I'm the 1."]                                   # a cursor is not who she is
+    finally:
+        place.played_shows_hers = original
+        place.ask_for_a_reading = original_ask

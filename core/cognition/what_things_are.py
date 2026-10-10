@@ -189,7 +189,7 @@ async def _asked_of_her_model(names: list[str], ask: Callable[..., Awaitable[Any
 
 #: How long to wait before asking her model again, each time it was busy with what she is doing (her thinking at each
 #: move holds it; a question beside her work waits its turn rather than going unasked, LIVE 2026-10-10).
-WAITS_S = (8.0, 15.0, 25.0, 40.0)
+WAITS_S = (10.0, 20.0, 30.0, 45.0, 60.0, 90.0)
 
 
 async def asked_patiently(ask: Callable[..., Awaitable[Any]], prompt: str, schema: Any, most: int) -> Any:

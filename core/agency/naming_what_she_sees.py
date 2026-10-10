@@ -173,6 +173,10 @@ class SeeingInPlay:
     said_at: float = -1e9
     said: int = 0
     wondered: int = 0
+    #: Her kind as play last had it and since when; and whether who she is has been put right aloud this game.
+    hers_kind: Any = None
+    hers_since: float = 0.0
+    hers_shown: bool = False
 
 
 def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at: float,
@@ -195,8 +199,9 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
         # What the place's own words name (its robot dogs, its gems) says something too, before any is seen.
         seeing.asked_names = True
         named = [n for part in ("avoid", "get", "shoot", "goal", "friend") for n in guide.names.get(part, [])]
+        # Not the place's characters: who they are is the cast's (its what and its side), not what such things are.
         if ask is not None:
-            store.ask_about([*named, *guide.seen.cast], ask)
+            store.ask_about(named, ask)
     seeing.looking.look(picture, moves, at, mine=hers.number, met=list(meeting.evidence))
     for kind, sighting in seeing.looking.newly():
         who = guide.seen.saw(kind, sighting.what, sighting.odd)
@@ -212,7 +217,7 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
         seeing.pending[kind] = at
         if sighting.odd:
             _wonder_at(guide, seeing, who or sighting.what, sighting.odd, at, ask)
-    _read_the_place(guide, hers, ask, tell)
+    _read_the_place(guide, seeing, hers, at, ask, tell)
     for kind, since in sorted(seeing.pending.items()):
         what = guide.seen.as_seen(kind)
         cast = guide.seen.cast.get(guide.seen.who.get(kind, ""), {})
@@ -251,14 +256,27 @@ def _make_of(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any, hers: Any, 
     tell(line, f"seen {what}")
 
 
-def _read_the_place(guide: Any, hers: Any, ask: Any, tell: Callable[[str, str], Any]) -> None:
+#: How long play must have held the same thing to be hers before that is who she is, over any reading.
+HERS_HELD_S = 8.0
+
+
+def _read_the_place(guide: Any, seeing: SeeingInPlay, hers: Any, at: float, ask: Any,
+                    tell: Callable[[str, str], Any]) -> None:
     """What she sees, put to the reading of what the place is (core/cognition/what_this_place_is.py): read again, beside
-    her play, where there is more to go on; and the thing her keys move, once play has found it and it has been seen as
-    something, kept as who she is there over any reading."""
+    her play, where there is more to go on; and the thing her keys move, once play has held it for a while and it has
+    been seen as something, kept as who she is there over any reading. Who she is is put right aloud once a game: LIVE
+    2026-10-10 play's guess went from one thing to another and back, and each change was said ("I'd taken myself for the
+    letter, but what my keys move is the barrel", then the other way). A cursor she points with is not who she is."""
     from core.cognition.what_this_place_is import ask_for_a_reading, played_shows_hers
 
-    said = played_shows_hers(guide, getattr(hers, "kind", None)) if getattr(hers, "number", None) is not None else ""
-    if said:
+    kind = getattr(hers, "kind", None) if getattr(hers, "number", None) is not None else None
+    if kind != seeing.hers_kind:
+        seeing.hers_kind, seeing.hers_since = kind, at
+    held = kind is not None and at - seeing.hers_since >= HERS_HELD_S
+    pointer = bool(getattr(hers, "follows_pointer", False) and _A_POINTER.search(guide.seen.by_kind.get(kind, "")))
+    said = played_shows_hers(guide, kind) if held and not pointer else ""
+    if said and not seeing.hers_shown:
+        seeing.hers_shown = True
         tell(said, f"who I am: {said[:80]}")
     ask_for_a_reading(guide, ask, task=" ".join(guide.goals[:1]), tell=lambda line: tell(line, f"what this place is: {line[:80]}"))
 

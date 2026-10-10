@@ -47,20 +47,33 @@ LEAST_SIDE = 4.0
 MOST_SHARE = 0.6
 #: How wide the picture is made for her eyes, and how long a look may take before it is given up: her eyes take
 #: their turn with every other look (core/perception/her_eyes.py), so a look waits as well as works.
-SEEN_WIDE = (640, 1024)
+SEEN_WIDE = (768, 1024)
 LOOK_TIMEOUT_S = 45.0
 #: After her eyes fail, how long before they are tried again.
 RESTED_S = 300.0
 
-_PROMPT = ("This is a picture of a screen, from a game, a website or a program. One thing in it is marked with a "
-           "{colour} box. What is the thing in the box, in a word or a few, as a person would name it (\"unclear\" if "
-           "you cannot tell)? Does anything about it look unlike how such a thing usually looks in the real world? Say "
-           "what in a few words, or leave it empty. Answer with JSON only: {{\"is\": \"...\", \"odd\": \"\"}}")
+_PROMPT = ("This is part of a screen from a game, a website or a program. One thing in it is marked with a {colour} "
+           "box. Answer with JSON only, filled in: {{\"is\": \"<the most specific everyday name for the thing in the "
+           "box, in a word or a few, as a person would name it; not 'object', 'item', 'thing' or 'character'; "
+           "'unclear' if you cannot tell>\", \"odd\": \"<what about the thing itself, not its setting or how it is "
+           "drawn, is unlike such a thing in the real world (a face, a weapon, a strange colour, two things in one), "
+           "in a few words; empty if nothing>\"}}")
 
-#: Answers that say nothing is odd, or that nothing could be told.
-_NOTHING = re.compile(r"^\W*(?:no|none|nothing|n/?a|not really|normal|no\W.*|nothing (?:odd|unusual).*|it looks normal.*)\W*$",
-                      re.I)
+#: Answers that say nothing is odd, or that nothing could be told; a bare yes is no saying what.
+_NOTHING = re.compile(r"^\W*(?:no|none|nothing|n/?a|not really|normal|yes|true|false|no\W.*|nothing (?:odd|unusual).*|"
+                      r"it looks normal.*)\W*$", re.I)
 _UNCLEAR = re.compile(r"^\W*(?:unclear|unknown|unsure|cannot tell|can't tell|not sure|nothing|none|n/?a)\W*$", re.I)
+#: Names that say what anything is: no name for a thing.
+_NO_NAME = frozenset("""object objects item items thing things character characters shape shapes icon icons symbol symbols
+    element elements graphic graphics image images sprite sprites figure figures picture pictures stuff entity""".split())
+#: An odd look that is only of where a thing is or how it is drawn (every thing in a cartoon is cartoonish), unless it
+#: names something about the thing itself.
+_ONLY_HOW_DRAWN = re.compile(r"\b(?:setting|background|scene|environment|context|cartoon\w*|styli[sz]ed|digital|"
+                             r"pixel\w*|drawn|animated|realistic|interface|game)\b", re.I)
+_OF_THE_THING = re.compile(r"\b(?:face|eyes?|mouth|smil\w*|arms?|legs?|hands?|weapon|sword|gun|knife|axe|club|bat|crown|"
+                           r"glow\w*|stitch\w*|half|halves|two|split|mixed|colou?r\w*|shape\w*|size|giant|huge|tiny|"
+                           r"wings?|horns?|fangs?|teeth|blood\w*|scar\w*|mask\w*|hat|wearing|holding|carrying|"
+                           r"twisted|broken|melting|burning|floating|flying|talking|angry|evil)\b", re.I)
 
 
 @dataclass
@@ -87,7 +100,11 @@ def sighting_from(answer: str, at: float = 0.0) -> Sighting | None:
     if not what or _UNCLEAR.match(what) or len(what.split()) > 5:
         return None
     what = re.sub(r"^(?:a|an|the)\s+", "", what)
-    return Sighting(what=what, odd="" if not odd or _NOTHING.match(odd) else odd[:160], at=at)
+    if what in _NO_NAME:
+        return None
+    if not odd or _NOTHING.match(odd) or (_ONLY_HOW_DRAWN.search(odd) and not _OF_THE_THING.search(odd)):
+        odd = ""
+    return Sighting(what=what, odd=odd.rstrip(".")[:160], at=at)
 
 
 async def _her_eyes(prompt: str, image_b64: str) -> str:
