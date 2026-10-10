@@ -105,3 +105,13 @@ def test_writing_that_says_the_round_is_over_ends_the_stretch_and_is_not_a_word_
     begun_on_one = _Run(keys=["up"], began=0.0)
     begun_on_one.words_read = [(0.5, "play again"), (6.0, "play again")]        # the last round's end, still up
     assert not _said_it_is_over(begun_on_one)
+
+
+def test_the_end_screen_a_stretch_begins_on_is_not_its_end_however_long_the_first_reading_takes():
+    """LIVE 2026-10-09 a stretch begun under an end screen still up read its "TRY AGAIN" first at 2.5 s, took it for
+    the round's end, and ended at once, round after round."""
+    from core.agency.playing_as_it_happens import _Run, _said_it_is_over
+
+    run = _Run(keys=["up"], began=0.0)
+    run.words_read = [(2.5, "landings: 1"), (2.5, "try again"), (5.0, "try again")]
+    assert not _said_it_is_over(run)

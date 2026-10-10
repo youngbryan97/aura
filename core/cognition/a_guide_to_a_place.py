@@ -62,6 +62,10 @@ _A_GOAL = re.compile(r"\b(?:your (?:goal|mission|job|task) is|the (?:goal|object
                      r"collect|enjoy|win)|get (?:all|as many|to the)|reach|collect|"
                      r"guide|rescue|save|escape|survive|don'?t let|before (?:time|the timer)|as (?:many|far|long) as)\b",
                      re.I)
+#: A heading a sentence was read run into ("INSTRUCTIONS Use the arrow keys", "Winning Objective: Land safely"): the
+#: section's name, not what it says.
+_A_HEADING = re.compile(r"^\s*(?:(?:[A-Z]{3,}\s+){1,3}(?=[A-Z][a-z])|(?:[A-Z][A-Za-z]*\s+){0,2}(?i:objective|goal|controls?|"
+                        r"instructions|how to play|rules|tips?|strategy|hint)\s*:\s*)")
 #: A short label shown with a value: what is read off the screen, not pressed.
 _A_READOUT = re.compile(r"^\W*([A-Za-z][A-Za-z .'-]{1,24}?)\s*[:=]?\s*(?:[\d.,/%]+|\.\.\.|…)?\W*$")
 #: Writing that says which stage she is on.
@@ -147,6 +151,8 @@ class Guide:
     #: name each thing she sees has been given, by the part it plays and what it looks like.
     names: dict[str, list[str]] = field(default_factory=dict)
     given: dict[tuple[str, str], str] = field(default_factory=dict)
+    #: Things her model supposed the place has, not the place's own words: never names for what she sees.
+    _supposed: set[str] = field(default_factory=set)
     #: What she notices there, and the theories it grew into (core/cognition/what_she_notices.py).
     notes: Notebook = field(default_factory=Notebook)
 
@@ -170,7 +176,9 @@ class Guide:
             self._controls_from(new, source, at)
         self._goals_and_things_from(new)
         self._sections_from(new)
-        self._names_from(new)
+        if source != MODEL:
+            # Names come from the place's own words and what is said of it, never from what her model supposes.
+            self._names_from(new)
         if source == SCREEN:
             # A label read off the screen with a value beside it; an instruction ("Watch your fuel") is not one.
             for label in new:
@@ -229,6 +237,16 @@ class Guide:
         if int(stretch.get("gains") or 0) > 0 and counters:
             became += learned.confirmed("score", _plain_words(" ".join(counters)), self.place)
         return became
+
+    def carry_over(self, before: Guide) -> None:
+        """What play taught her of the place on an earlier visit: what she came to think, its names, and the tips that
+        held; never how it is worked, which the place itself says again."""
+        for note in before.notes.theories():
+            self.notes.notes.setdefault(note.key, note)
+        for part, names in before.names.items():
+            self.names.setdefault(part, [])
+            self.names[part] += [n for n in names if n not in self.names[part]]
+        self.tips += [t for t in before.tips if t not in self.tips][:6]
 
     def take_in_counsel(self, told: str, at: float | None = None) -> None:
         if told:
@@ -318,7 +336,10 @@ class Guide:
         watch = list(dict.fromkeys([*self.readouts, *(n for n in ("fuel", "health", "lives", "a clock") if self.in_play(n))]))
         if watch:
             lines.append(f"• Watch: {_listed(watch[:4])}.")
-        plan = self.tips[0] if self.tips else (self._the_mechanics_that_matter()[0].play if self._the_mechanics_that_matter() else "")
+        # A plan from what helped or was told, else from how its controls behave (a control's mechanic before the
+        # world's).
+        mattering = sorted(self._the_mechanics_that_matter(), key=lambda m: m.kind != "control")
+        plan = self.tips[0] if self.tips else (mattering[0].play if mattering else "")
         if plan:
             lines.append(f"• Plan: {_short(re.sub(r'^(?:tips?|hint|strategy)\s*:\s*', '', plan, flags=re.I))}")
         if self.not_for_play:
@@ -406,6 +427,7 @@ class Guide:
         from core.perception.what_a_legend_shows import stance_of
 
         for sentence in sentences:
+            sentence = _A_HEADING.sub("", sentence)
             if _A_GOAL.search(sentence) and len(sentence.split()) >= 3 and sentence not in self.goals:
                 self.goals.append(sentence[:200])
             # Each thing by what its own clause says to do about it ("steer the cart and collect the coins": the coins
@@ -426,6 +448,8 @@ class Guide:
                     if name and name not in self.names.setdefault(part, []):
                         self.names[part].append(name)
         for thing, stance in self.things.items():
+            if thing in self._supposed:
+                continue
             part = {"meet": "get", "avoid": "avoid", "shoot": "shoot"}.get(stance, "")
             name = _a_name(thing)
             if part and name and name not in self.names.setdefault(part, []):
@@ -447,7 +471,7 @@ class Guide:
 
     def _sections_from(self, sentences: list[str]) -> None:
         """Each sentence that says how a round is won or lost, or how to do well, kept under that."""
-        for sentence in sentences:
+        for sentence in (_A_HEADING.sub("", s) for s in sentences):
             if len(sentence.split()) < 3:
                 continue
             for kept, says in ((self.win, _A_WIN), (self.lose, _A_LOSS), (self.tips, _A_TIP)):
@@ -469,6 +493,7 @@ class Guide:
                 thing = " ".join(str(thing).lower().split())[:40]
                 if thing and thing not in self.things and thing not in ("unknown", "none"):
                     self.things[thing] = stance
+                    self._supposed.add(thing)
                     filled.append(part)
         tips = [" ".join(str(t).split())[:220] for t in manual.get("tips") or [] if str(t).strip()]
         if tips:

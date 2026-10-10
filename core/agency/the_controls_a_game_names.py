@@ -110,6 +110,17 @@ def _letter_keys(text: str, *, during_play: bool = False) -> list[str]:
     return keys
 
 
+#: "space" said where a key is meant: the space bar, a key word or a press beside it, or what it is for after it ("Space:
+#: jump", "space to fire"). LIVE 2026-10-09 "through treacherous space hazards" made space a key of a lander game.
+_SPACE_A_KEY = re.compile(r"\bspace ?bar\b|\bspace\s*(?:key|button)\b|\b(?:press|hit|tap|hold|push|use)\s+(?:the\s+)?space\b|"
+                          r"\bspace\s*(?::|=|-|to\s+\w+|for\s+\w+|and\s+(?:the\s+)?(?:arrow|left|right|up|down|enter|shift))|"
+                          r"(?:,|and|or)\s+space\b|^\s*space\b")
+
+
+def _space_is_a_key(lowered: str) -> bool:
+    return bool(_SPACE_A_KEY.search(lowered))
+
+
 def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "down", "left", "right", "space"),
                       during_play: bool = False) -> tuple[list[str], bool]:
     """The keys a game's own words name, and whether they name the pointer.
@@ -144,6 +155,8 @@ def controls_named_in(text: str, *, keys_without_words: Sequence[str] = ("up", "
             qualified = meant[0] in re.findall(r"up|down|left|right", " ".join(arrow_directions))
             if qualified or re.search(rf"\b{meant[0]}\b(?!-?\s?click)", lowered) and _a_key_is_meant(lowered, meant[0]):
                 keys.extend(key for key in meant if key not in keys)
+            continue
+        if meant == ("space",) and not _space_is_a_key(lowered):
             continue
         if any((name in words) if " " not in name else (name in lowered) for name in names):
             keys.extend(key for key in meant if key not in keys)

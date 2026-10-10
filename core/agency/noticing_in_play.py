@@ -152,12 +152,13 @@ class NoticingInPlay:
     def _what_is_new(self, moves: Any, at: float, notebook: Any, name: Any) -> None:
         for thing in list((getattr(moves, "things", {}) or {}).values()):
             kind = int(thing.kind)
-            if kind in self.kinds_seen:
+            # What goes about: a still thing turning up is the screen being drawn afresh as often as anything new.
+            if kind in self.kinds_seen or not getattr(thing, "moved", False):
                 continue
             self.kinds_seen.add(kind)
             if at - (self.began or at) >= NEW_AFTER_S:
                 called = name(kind, thing, "") if name is not None else "thing"
-                notebook.notice(f"new {kind}", f"that's new: a {called} showed up", at, kind="new", about=str(kind))
+                notebook.notice(f"new {called}", f"that's new: a {called} showed up", at, kind="new", about=str(kind))
 
     @staticmethod
     def _said(became: Any, say: Any) -> None:

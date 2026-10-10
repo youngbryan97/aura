@@ -1930,9 +1930,12 @@ def _said_it_is_over(run: _Run) -> str:
     minute."""
     from core.language.how_a_game_ended import says_a_round_is_over
 
-    there = {said for when, said in run.words_read if when < run.began + OVER_READ_AFTER_S}
+    # What the first reading of the stretch found was there as it began, however long that reading took.
+    first = min((when for when, _said in run.words_read), default=run.began)
+    began = max(run.began + OVER_READ_AFTER_S, first + 0.5)
+    there = {said for when, said in run.words_read if when < began}
     for when, said in run.words_read[-12:]:
-        if when >= run.began + OVER_READ_AFTER_S and said not in there and says_a_round_is_over(said):
+        if when >= began and said not in there and says_a_round_is_over(said):
             run.over_read_at = min(run.over_read_at, when)
             return SAID_IT_IS_OVER
     return ""

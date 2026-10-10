@@ -568,8 +568,12 @@ async def _the_guide(page: Any, keep: dict[str, Any]) -> Any:
         return guide
     stock = keep.get("stock")
     thing = str(getattr(stock, "thing", "") or "")
+    # Made afresh from the page and its program every visit (what a page says of itself can change); what play taught
+    # her of it before (what she came to think, its names, what helped) is carried over.
+    guide = await guide_to_the_page(page, thing)
     kept = recall(named("a guide", thing)) if thing else None
-    guide = Guide.from_memory(kept, thing) if kept else await guide_to_the_page(page, thing)
+    if kept:
+        guide.carry_over(Guide.from_memory(kept, thing))
     keep["guide"] = guide
     return guide
 
