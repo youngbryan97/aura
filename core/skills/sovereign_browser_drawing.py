@@ -752,11 +752,17 @@ def _the_best_of(runs: list[dict[str, Any]]) -> str:
     scored = [(r["score"], i) for i, r in enumerate(runs, 1) if r.get("score") is not None]
     if scored:
         best, which = max(scored)
-        return f"That's {len(runs)} runs. My best was run {which}, with {best}" + (
-            f"; the others: {', '.join(str(r.get('score')) for r in runs if r.get('score') is not None and r is not runs[which - 1])}."
-            if len(scored) > 1 else ".")
+        others = [str(r.get("score")) for r in runs if r.get("score") is not None and r is not runs[which - 1]]
+        # Every run is accounted for: LIVE 2026-10-10 "That's 3 runs ... the others: 466", the third begun again
+        # before it showed a score and left out.
+        unscored = len(runs) - len(scored)
+        if unscored:
+            others.append("one with no score shown" if unscored == 1 else f"{unscored} with no score shown")
+        return f"That's {len(runs)} run{'s' if len(runs) != 1 else ''}. My best was run {which}, with {best}" + (
+            f"; the others: {', '.join(others[:-1]) + ' and ' + others[-1] if len(others) > 1 else others[0]}."
+            if others else ".")
     longest = max(range(len(runs)), key=lambda i: float(runs[i].get("took_s") or 0.0))
-    return f"That's {len(runs)} runs. No score was shown; my longest was run {longest + 1}, at {float(runs[longest].get('took_s') or 0.0):.0f} seconds."
+    return f"That's {len(runs)} run{'s' if len(runs) != 1 else ''}. No score was shown; my longest was run {longest + 1}, at {float(runs[longest].get('took_s') or 0.0):.0f} seconds."
 
 
 def _what_it_is_for(words: list[str]) -> str:
