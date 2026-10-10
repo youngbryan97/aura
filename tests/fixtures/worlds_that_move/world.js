@@ -41,8 +41,10 @@
       if (x >= button.x && x <= button.x + button.w && y >= button.y && y <= button.y + button.h) world.begin();
       return;
     }
+    held.add("Mouse");
     if (world.game.click) world.game.click(x, y);
   });
+  addEventListener("mouseup", () => held.delete("Mouse"));
   canvas.addEventListener("mousemove", (e) => {
     const r = canvas.getBoundingClientRect();
     world.pointer = { x: ((e.clientX - r.left) * W) / r.width, y: ((e.clientY - r.top) * H) / r.height };

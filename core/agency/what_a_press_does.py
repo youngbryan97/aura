@@ -88,8 +88,21 @@ class WhatAPressDoes:
         self._pressed_at[key] = at
         self.watching = [w for w in self.watching if w.key != key]
         for thing in list(things)[:WATCHED]:
+            # A thing seen too few times to know how it goes on is not watched: its own going would be read as the
+            # press's (LIVE-like 2026-10-10, a block just come on at the edge, sliding at the runner, read as moved by
+            # every press, and taken for hers).
+            born = getattr(thing, "born", None)
+            new = born is not None and at - float(born) < NEW_FOR_S
+            if len(getattr(thing, "path", ()) or ()) < KNOWN_AFTER and (
+                    new or math.hypot(float(thing.vx), float(thing.vy)) > GOING_PX_S):
+                continue
+            # Likewise one going along whose course cannot be told (its speed unsteady as read): taken as still, its own
+            # going would be the press's.
+            drift = _going_on(thing)
+            if drift == (0.0, 0.0) and math.hypot(float(thing.vx), float(thing.vy)) > GOING_PX_S:
+                continue
             self.watching.append(_Watch(key, int(thing.number), int(thing.kind), at, float(thing.x), float(thing.y),
-                                        _going_on(thing), max(float(thing.w), float(thing.h), 1.0),
+                                        drift, max(float(thing.w), float(thing.h), 1.0),
                                         hers=hers is not None and int(thing.number) == hers))
 
     def released(self, key: str, at: float) -> None:
@@ -214,6 +227,14 @@ def _enough(curves: list[list[tuple[float, float, float]]]) -> bool:
     first, second = ([_where(curve, t) for t in times] for curve in curves[:2])
     reach = max(max(math.hypot(*point) for point in first), max(math.hypot(*point) for point in second), 1.0)
     return max(math.dist(a, b) for a, b in zip(first, second, strict=True)) <= AGREE * reach
+
+
+#: How many pictures a thing must have been seen in for how it goes on to be known; and above what speed, in working
+#: pixels a second, a thing is going along.
+KNOWN_AFTER = 4
+GOING_PX_S = 8.0
+#: How long, in seconds, a thing that has just turned up is new: how it goes on is not yet seen.
+NEW_FOR_S = 0.4
 
 
 def _going_on(thing: Any) -> tuple[float, float]:

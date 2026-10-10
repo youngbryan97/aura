@@ -260,6 +260,8 @@ class WhatSheSees:
     cast: dict[str, dict[str, str]] = field(default_factory=dict)
     #: Kinds seen as one of the cast, by the name.
     who: dict[int, str] = field(default_factory=dict)
+    #: The kind her eyes took for the player's own, and what it looked like (core/perception/where_i_am_on_screen.py).
+    mine: tuple[int, str] | None = None
 
     def saw(self, kind: int, what: str, odd: str = "", who: str = "") -> str:
         """A kind seen as ``what`` (and known by name as ``who``, where her eyes knew it): the place's character it is,

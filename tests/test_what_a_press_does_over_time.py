@@ -24,7 +24,9 @@ def _thing(number: int, kind: int, x: float, y: float, vx: float = 0.0, vy: floa
 
 def _pressed(presses: WhatAPressDoes, key: str, began: float, heights, hers: int | None = 1, step: float = 0.05) -> None:
     """One press of ``key`` at ``began``: thing 1 (kind 3) goes up and down by ``heights`` (pixels up, per picture)."""
-    presses.pressed(key, began, [_thing(1, 3, 50.0, 100.0), _thing(2, 4, 200.0, 100.0, vx=-80.0)], hers)
+    # Thing 2 has been going by at its own pace for a while: how it goes on is known, and taken out of what the press did.
+    going = [(began - 0.05 * k, 200.0 + 80.0 * 0.05 * k, 100.0) for k in range(5, 0, -1)]
+    presses.pressed(key, began, [_thing(1, 3, 50.0, 100.0), _thing(2, 4, 200.0, 100.0, vx=-80.0, path=going)], hers)
     for index, height in enumerate(heights, 1):
         at = began + index * step
         if index == 4:

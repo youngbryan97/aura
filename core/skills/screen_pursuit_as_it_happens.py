@@ -221,13 +221,24 @@ class PlayingAsItHappens:
             logger.info("the browser knows no key %r; passed over", key)
 
     async def down(self, key: str) -> None:
+        if key == MOUSE_BUTTON:
+            await self.page.mouse.move(*await self._at(*_WHERE_A_BUTTON_PRESS_GOES))
+            await self.page.mouse.down()
+            self._focused = True
+            return
         await self._focus()
         await self._keyed(self.page.keyboard.down, key)
 
     async def up(self, key: str) -> None:
+        if key == MOUSE_BUTTON:
+            await self.page.mouse.up()
+            return
         await self._keyed(self.page.keyboard.up, key)
 
     async def tap(self, key: str) -> None:
+        if key == MOUSE_BUTTON:
+            await self.click(*_WHERE_A_BUTTON_PRESS_GOES)
+            return
         await self._focus()
         await self._keyed(self.page.keyboard.press, key)
 
@@ -481,6 +492,7 @@ class PlayingAsItHappens:
         from core.cognition.a_guide_to_a_place import THE_GUIDE, confirmed_by
 
         guide = THE_GUIDE.get()
+        from core.cognition.a_guide_to_a_place import pointer_acts
         from core.cognition.what_this_place_is import not_steered
 
         done_by = not_steered(guide) if guide is not None and not named and not pointer_first else ""
@@ -490,11 +502,18 @@ class PlayingAsItHappens:
             logger.info("it moves on its own, but it is done by %s, not steered: leaving it to be acted on", done_by)
             self.quiet_until = time.monotonic() + LEAVE_A_MOVING_MENU_S
             return
+        acts = pointer_acts(guide)
         if guide is not None:
             named = list(dict.fromkeys([*named, *guide.keys_for_play()]))
             # Where keys move her and the pointer only aims, her body is looked for by the keys: what follows the
             # pointer then is where she aims.
             pointer_first = (pointer_first or guide.pointer_named()) and not guide.pointer_aims()
+        if acts:
+            # The pointer pressed is an act of hers ("click to jump"): its button is a key, tried and timed as any key
+            # is, and what follows the mouse is the cursor, not her.
+            logger.info("the pointer is pressed to %s: its button is one of her keys", acts)
+            named = [*named, MOUSE_BUTTON]
+            pointer_first = False
         # The game's controls are every key any of its screens has named, not
         # only this screen's: LIVE 2026-10-04 a run begun from the end screen
         # ("Press SPACE to play again") was played with space alone, and the
@@ -509,7 +528,7 @@ class PlayingAsItHappens:
         # walked. Where nothing named moves her (no arrows, no WASD, no pointer), the arrows are tried too.
         if not pointer_first and not {"up", "down", "left", "right", "w", "a", "s", "d"} & set(keys):
             keys = [*keys, "left", "right", "up", "down"]
-        pointer_first = pointer_first or bool(self.keep.get("pointer_named"))
+        pointer_first = (pointer_first or bool(self.keep.get("pointer_named"))) and not acts
         self.keep["named_keys"], self.keep["pointer_named"] = keys, pointer_first
         logger.info("it moves on its own: playing it as it happens with %s%s", keys, " and the pointer" if pointer_first else "")
         stretch = await play_as_it_happens(
@@ -636,6 +655,12 @@ class PlayingAsItHappens:
         if self.over_because:
             parts.append(f"the run is over: {self.over_because}")
         return "; ".join(part for part in parts if part)
+
+
+#: The mouse button pressed as a key, and where over the game it is pressed: the middle, a little low, clear of the
+#: corners where a game keeps its pause and sound.
+MOUSE_BUTTON = "mouse"
+_WHERE_A_BUTTON_PRESS_GOES = (0.5, 0.6)
 
 
 def _without_labels(said: str, labels: set) -> str:

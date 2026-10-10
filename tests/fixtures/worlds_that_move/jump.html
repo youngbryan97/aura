@@ -7,17 +7,21 @@
 // costs a life; each one cleared is a point.
 const params = new URLSearchParams(location.search);
 const GAPS = params.get("gaps") === "1";
+// With ?click=1 the mouse button lifts her, not space, and the game draws its own cursor where the mouse is: a thing
+// that follows the mouse and is not her.
+const CLICK = params.get("click") === "1";
 const GROUND = 260, SIZE = 22, SPEED = 170, LIFT = 430, PULL = 1100;
 const game = {
-  title: "JUMP", rules: ["Press SPACE to jump.", GAPS ? "Do not fall in the holes." : "Do not run into the blocks."],
+  title: "JUMP", rules: [CLICK ? "Click to jump." : "Press SPACE to jump.", GAPS ? "Do not fall in the holes." : "Do not run into the blocks."],
   reset(world) {
     this.me = { x: 90, y: GROUND - SIZE, vy: 0, w: SIZE, h: SIZE };
     this.coming = []; this.next = 1.6; this.cleared = 0; this.hits = 0;
   },
   step(dt, world) {
+    this.pointer = world.pointer;
     const me = this.me;
     const standing = me.y >= GROUND - SIZE - 0.5 && !this.overHole();
-    if (standing && world.held.has(" ")) me.vy = -LIFT;
+    if (standing && world.held.has(CLICK ? "Mouse" : " ")) me.vy = -LIFT;
     me.vy += PULL * dt; me.y += me.vy * dt;
     // Once down in a hole she cannot step back out of it.
     if (me.y >= GROUND - SIZE && me.y <= GROUND - SIZE + 6 && !this.overHole()) { me.y = GROUND - SIZE; me.vy = 0; }
@@ -52,6 +56,11 @@ const game = {
       else { ctx.fillStyle = "#c03030"; ctx.fillRect(c.x, GROUND - c.h, c.w, c.h); }
     }
     ctx.fillStyle = "#f0e040"; ctx.fillRect(this.me.x, this.me.y, SIZE, SIZE);
+    if (CLICK && this.pointer) {
+      const p = this.pointer;
+      ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x, p.y + 16); ctx.lineTo(p.x + 11, p.y + 11);
+      ctx.closePath(); ctx.fill();
+    }
   },
   readouts(ctx, world) { scoreAndLives(ctx, world); },
 };

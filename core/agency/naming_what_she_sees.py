@@ -21,6 +21,8 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
+
 from core.agency.what_meeting_things_does import AVOID, MEET, SHOOT
 from core.perception.what_things_look_like import EVERY_S
 
@@ -213,6 +215,12 @@ class SeeingInPlay:
     #: What each thing, by the name it is said by, has been said to be worth, and when the last such line was said.
     stances_said: dict[str, str] = field(default_factory=dict)
     stance_said_at: float = -1e9
+    #: Which thing her eyes took for the player's own (core/perception/where_i_am_on_screen.py): the look, its answer,
+    #: when play began, and whether it has been said.
+    avatar_asking: Any = None
+    avatar: Any = None
+    began: float | None = None
+    avatar_said: bool = False
 
 
 def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at: float,
@@ -239,6 +247,7 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
         if ask is not None:
             store.ask_about(named, ask)
     seeing.looking.look(picture, moves, at, mine=hers.number, met=list(meeting.evidence))
+    _who_i_am_to_my_eyes(run, seeing, guide, moves, hers, meeting, picture, at, tell)
     for kind, sighting in seeing.looking.newly():
         who = guide.seen.saw(kind, sighting.what, sighting.odd, getattr(sighting, "who", ""))
         colour = colour_name(moves.kinds[kind].colour) if kind < len(moves.kinds) else ""
@@ -290,6 +299,64 @@ def _make_of(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any, hers: Any, 
     seeing.said += 1
     seeing.said_at = at
     tell(line, f"seen {what}")
+
+
+#: How long into play her eyes are asked which thing is hers, and how long her keys are tried before what her eyes
+#: took for her is taken for her where nothing has answered.
+AVATAR_ASKED_AFTER_S = 2.0
+AVATAR_TAKEN_AFTER_S = 8.0
+
+
+def _who_i_am_to_my_eyes(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any, hers: Any, meeting: Any, picture: Any,
+                         at: float, tell: Callable[[str, str], Any]) -> None:
+    """Her eyes asked once a game which thing is the player's own, told what the place calls her; what they point at
+    said, kept for her keys to be tried on, and taken for her where her trials have found nothing that answers."""
+    import asyncio
+
+    from core.perception.where_i_am_on_screen import where_the_avatar_is, which_thing_is_shown
+
+    seeing.began = at if seeing.began is None else seeing.began
+    if seeing.avatar_asking is None and at - seeing.began >= AVATAR_ASKED_AFTER_S and getattr(moves, "things", None):
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        names = [*guide.names.get("me", [])[:2],
+                 *[name for name, said in guide.seen.cast.items() if said.get("side") == "you"][:1]]
+        frame = np.array(picture)[..., :3]
+
+        async def looked() -> None:
+            seeing.avatar = await where_the_avatar_is(frame, names)
+
+        seeing.avatar_asking = loop.create_task(looked())
+        return
+    if seeing.avatar is None:
+        return
+    thing = which_thing_is_shown(seeing.avatar, moves)
+    if thing is None:
+        return
+    what = seeing.avatar.what
+    # What costs her when met is no body of hers, whatever it looks like.
+    if meeting.stance(thing.kind) == AVOID and meeting.known(thing.kind):
+        return
+    known = getattr(hers, "number", None) is not None
+    if not seeing.avatar_said:
+        seeing.avatar_said = True
+        guide.seen.mine = (thing.kind, what)
+        # A first guess is said only while it is one: where play has found her already, what her eyes took is kept, not
+        # said over what play showed.
+        if not known:
+            tell(f"That looks like me: {_the(what)}. I'll see if it answers to me.", "looks like me")
+        else:
+            logger.info("her eyes took %s for hers; play has her as %s", what, hers.number)
+    keys = list(getattr(run, "keys", []) or [])
+    tried = getattr(run, "trying", 0) >= 2 * max(1, len(keys))
+    if not known and tried and at - seeing.began >= AVATAR_TAKEN_AFTER_S and not hers.follows_pointer:
+        hers.seen_to_be_her(thing, at, what)
+
+
+def _the(what: str) -> str:
+    return what if what[:1].isupper() else f"the {re.sub(r'^(?:a|an|the)\s+', '', what)}"
 
 
 #: How long play must have held the same thing to be hers before that is who she is, over any reading.

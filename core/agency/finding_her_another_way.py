@@ -77,3 +77,20 @@ class FoundAnotherWay:
         self.identification.receipts.append({"epoch": self.identification.epoch, "reason": "moved alike by every press",
                                              "selected": thing.number})
         logger.info("her thing is %s: her presses move its kind alike every time", thing.number)
+
+    def seen_to_be_her(self, thing: Any, at: float, what: str = "") -> None:
+        """``thing`` is what her eyes took for the player's own (core/perception/where_i_am_on_screen.py), and no trial
+        of her keys has found anything that answers to her: it is taken for hers, until something answers otherwise.
+
+        A person knows which one they are before pressing anything; LIVE 2026-10-10 a runner whose fruit jumped at a
+        click, a lander that fell before her keys were tried and a car she found only in the second round were each
+        played for minutes without knowing which one was her.
+        """
+        if self.number is not None or thing.number in self.not_mine:
+            return
+        self.number, self.kind = thing.number, thing.kind
+        self.identification.receipts.append({"epoch": self.identification.epoch,
+                                             "reason": f"her eyes took it for the player's own ({what})",
+                                             "selected": thing.number})
+        logger.info("her thing is %s: her eyes took it for the player's own (%s)", thing.number, what)
+

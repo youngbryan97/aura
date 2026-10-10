@@ -621,9 +621,10 @@ class Guide:
 #: is to be brought ("onto the landing platform", "reach the exit"), and what to get, keep clear of and shoot.
 _A_NOUN = r"((?:[A-Za-z]+'s\s+)?(?:the\s+|your\s+|a\s+|an\s+)?[A-Za-z][A-Za-z -]{1,32}?)"
 _ENDS = (r"(?=\s+(?:onto|to|into|through|around|across|safely|slowly|and|with|by|using|past|so|while|before|without|from|"
+         r"back|forth|about|along|over|up|down|left|right|"
          r"in|on|at|as|escape|find|get|reach|save|stop|enjoy|catch|collect|win|land|fly|jump|run)\b|[.,!;:)]|$)")
 _NAMING = (
-    ("me", re.compile(r"\b(?:guide|control|steer|drive|park|ride|fly|pilot|move|help|lead|play as|you are|you're|you play)\s+"
+    ("me", re.compile(r"\b(?:guide|control|steer|drive|park|ride|fly|pilot|move|help|lead|play as|playing as:?|you are|you're|you play)\s+"
                       + _A_NOUN + _ENDS, re.I)),
     ("goal", re.compile(r"\b(?:onto|land on|reach|get to|into|bring (?:it|them) to)\s+" + _A_NOUN + _ENDS, re.I)),
     ("get", re.compile(r"\b(?:collect|grab|catch|pick up|gather)\s+(?:all\s+|every\s+|as many\s+)?" + _A_NOUN + _ENDS, re.I)),
@@ -723,6 +724,23 @@ def _things_spoken_of(sentence: str) -> list[tuple[str, str]]:
             continue
         out.append((found.group(2) or "", " ".join(words)))
     return out
+
+
+#: What a press of the pointer may do to her that is no moving of her and no aiming: the mouse button pressed as a key.
+_A_BODY_ACT = ("jump", "flap", "hop", "dash", "boost", "duck", "slide", "flip", "glide", "float", "dive", "kick", "punch",
+               "swing", "strike", "flap your wings", "fly up", "rise", "thrust")
+#: The name of the mouse button pressed as a key (core/skills/screen_pursuit_as_it_happens.py presses it so).
+MOUSE_BUTTON = "mouse"
+
+
+def pointer_acts(guide: Any) -> str:
+    """What a press of the pointer does to her, where it is an act and not the moving or aiming of her ("click to jump",
+    "the pointer to jump"): the mouse button is then a key like any other, and what follows the mouse is no body of
+    hers. LIVE 2026-10-10 a runner whose fruit jumped at a click had her take the cursor for herself, three games over;
+    "" where the pointer moves or aims her, or is not named."""
+    pointer = getattr(guide, "controls", {}).get("the pointer") if guide is not None else None
+    act = str(getattr(pointer, "act", "") or "").lower()
+    return act if act and any(act == a or act.startswith(a + " ") for a in _A_BODY_ACT) else ""
 
 
 def guide_of(keep: dict[str, Any], place: str = "") -> Guide:

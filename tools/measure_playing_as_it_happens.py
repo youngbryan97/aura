@@ -62,12 +62,23 @@ class _Page:
         return (picture, at) if picture is not None else None
 
     async def down(self, key):
+        if key == "mouse":
+            # As her hands press the mouse button as a key (core/skills/screen_pursuit_as_it_happens.py).
+            await self.point(0.5, 0.6)
+            await self.page.mouse.down()
+            return
         await self.page.keyboard.down(_KEY.get(key, key))
 
     async def up(self, key):
+        if key == "mouse":
+            await self.page.mouse.up()
+            return
         await self.page.keyboard.up(_KEY.get(key, key))
 
     async def tap(self, key):
+        if key == "mouse":
+            await self.click(0.5, 0.6)
+            return
         await self.page.keyboard.press(_KEY.get(key, key))
 
     async def click(self, x, y):
@@ -99,7 +110,9 @@ async def _one(browser, world, seed, seconds, player, observations="pixels"):
     from core.perception.what_the_pixels_show import recognize_text
 
     page = await browser.new_page(viewport={"width": 800, "height": 600})
-    await page.goto(f"file://{WORLDS / (world + '.html')}?start=1&seed={seed}")
+    # A world may carry its own settings after its name: "jump&click=1".
+    name, _, extra = world.partition("&")
+    await page.goto(f"file://{WORLDS / (name + '.html')}?start=1&seed={seed}" + (f"&{extra}" if extra else ""))
     await asyncio.sleep(0.3)
     box = await page.evaluate(
         "(() => { const r = document.querySelector('canvas').getBoundingClientRect();"
@@ -111,6 +124,15 @@ async def _one(browser, world, seed, seconds, player, observations="pixels"):
 
     rules = " ".join(await page.evaluate("__world.game.rules"))
     keys, pointer_first = controls_named_in(rules)
+    # And as the guide to the place reads its words (core/skills/screen_pursuit_as_it_happens.py): where the pointer is
+    # pressed to act ("click to jump"), its button is one of her keys and what follows the mouse is not her.
+    from core.cognition.a_guide_to_a_place import THE_GUIDE, TOLD, Guide, pointer_acts
+
+    guide = Guide(place=world)
+    guide.take_in(TOLD, rules)
+    THE_GUIDE.set(guide)
+    if pointer_acts(guide):
+        keys, pointer_first = [*keys, "mouse"], False
     began = time.monotonic()
     stretches, keep = [], {}
     while time.monotonic() - began < seconds:
