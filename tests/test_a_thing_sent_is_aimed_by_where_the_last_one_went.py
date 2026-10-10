@@ -145,3 +145,18 @@ def test_a_world_whose_words_say_to_pull_and_let_go_is_played_by_shots_on_her_pa
     asyncio.run(playing._by_shots(time.monotonic()))
     assert playing.keep["by_shots"].get("sends_from") is not None
     assert playing.stretches and playing.stretches[-1]["by_shots"]["shots"] >= 2
+
+
+def test_shots_end_when_the_screen_offers_a_way_on():
+    # LIVE 2026-10-09 a game's clock ran out three shots in, and forty more were let go at "Game Over, Play Again".
+    world = _World()
+    over = {"after": 3}
+
+    def words(picture):
+        over["after"] -= 1
+        said = [{"text": f"SCORE {world.score}", "center_x": 0.1, "center_y": 0.05, "height": 0.05}]
+        return said + ([{"text": "Play Again", "center_x": 0.5, "center_y": 0.6, "height": 0.05}] if over["after"] < 0 else [])
+
+    result = asyncio.run(play_by_shots(world.look, world, seconds=12.0, keep={}, read_words=words, ways=(PULL,)))
+    assert result["ended"] == "the screen offers a way on (Play Again)", result
+    assert result["shots"] <= 4

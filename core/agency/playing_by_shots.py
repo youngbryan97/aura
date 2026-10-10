@@ -125,6 +125,23 @@ async def _where_it_went(look: Callable[[], Awaitable[Any]], moves: Any, let_go_
     return last, gained
 
 
+def _a_way_on_shown(picture: Any, read_words: Callable[[Any], list[dict[str, Any]]] | None) -> str:
+    """A label on the picture that goes on (Play Again, Next, Continue), or '': a screen that offers one is past the play.
+
+    LIVE 2026-10-09 a game's clock ran out three shots into a stretch, and she let go of forty more at its "Game Over,
+    Play Again" screen.
+    """
+    if read_words is None or picture is None:
+        return ""
+    from core.language.a_way_on import how_much_it_leads_on
+
+    for piece in read_words(picture):
+        label = " ".join(str(piece.get("text") or "").split())
+        if 0 < len(label) <= 40 and how_much_it_leads_on(label) > 1.0:
+            return label
+    return ""
+
+
 def _places_to_send_from(picture: Any, keep: dict[str, Any]) -> list[tuple[float, float]]:
     """Where a press might send something from: where it did before, else what stands out on the picture, largest first."""
     from core.perception.shapes_that_look_pressable import pressable_shapes
@@ -231,5 +248,10 @@ async def play_by_shots(
             tell("Pressing there and letting go sends it; now finding how hard and which way.")
         if shot.got_there:
             tell("That's the measure of it.")
+        after = await look()
+        way_on = _a_way_on_shown(after[0] if after else None, read_words)
+        if way_on:
+            ended = f"the screen offers a way on ({way_on})"
+            break
     return {"shots": taken, "gains": gains, "ended": ended, "sends_from": keep.get("sends_from"),
             "how_it_goes": {way: shots.how_it_goes() for way, shots in shots_by_way.items()}}
