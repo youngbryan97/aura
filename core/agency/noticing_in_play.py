@@ -110,7 +110,10 @@ class NoticingInPlay:
         counter = re.sub(r"\s+at\s+[0-9.]+(?:\s*,\s*[0-9.]+)?$", "", str(verdict.get("counter") or "").strip())
         self.outcomes += 1
         recent = [(when_done, act) for when_done, act in self.acts if 0.0 <= when - when_done <= FOLLOWS_WITHIN_S]
-        if not recent and what == "gain" and counter:
+        # A bar's level is what she has left or what fills, read by how bars are read (core/agency/what_she_has_left.py);
+        # its flicker is no count going up by itself: LIVE 2026-10-10 "the bar at the top goes down: it's what I have
+        # left" was followed by "the bar at the top goes up with nothing I did beside it".
+        if not recent and what == "gain" and counter and not re.search(r"\bbar\b", counter, re.I):
             whose = counter if counter.lower().startswith(("the ", "my ")) else f"my {counter}"
             self._said(notebook.notice(f"by itself {counter}", f"{whose} goes up with nothing I did beside it", at,
                                        kind="by itself", about=counter, pays=1), say, at)
