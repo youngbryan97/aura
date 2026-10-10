@@ -43,6 +43,13 @@ from core.agency.the_controls_a_game_names import controls_named_in
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
 from core.agency.what_she_has_left import CAREFUL_BELOW
 from core.agency.what_the_rules_said import WhatTheRulesSaid
+from core.agency.whether_it_goes_by_itself import HELD_TO_SEE_S as HELD_TO_SEE_S
+from core.agency.whether_it_goes_by_itself import THE_PRESS_S as THE_PRESS_S
+from core.agency.whether_it_goes_by_itself import goes_somewhere
+from core.agency.whether_it_goes_by_itself import it_goes_while_held as it_goes_while_held
+from core.agency.whether_it_goes_by_itself import (
+    the_world_moves_on_its_own as the_world_moves_on_its_own,
+)
 from core.agency.which_one_answers_to_her import RESPONSE_S, WAYS, WhichIsHers, ways_carried
 from core.perception.how_things_move_here import HowThingsMoveHere
 from core.perception.what_changed_and_stayed import WhatChangedAndStayed
@@ -480,7 +487,7 @@ class _Choosing:
             return AVOID
         # What only moves in place (a flag waving, stars twinkling, a figure idling) is judged as what stands still is:
         # touched and found to count for nothing, it is decoration, left alone.
-        return self.meeting.stance(thing.kind, fixture=not thing.moved or not _goes_somewhere(thing))
+        return self.meeting.stance(thing.kind, fixture=not thing.moved or not goes_somewhere(thing))
 
     def speed(self, axis: int) -> float:
         if self.pointing:
@@ -571,7 +578,7 @@ class _Choosing:
             for _ in range(3):
                 px, py = thing.where_at(when)
                 when = math.hypot(px - mine.x, py - mine.y) / speed
-            curious = (not thing.moved or not _goes_somewhere(thing)) and not self.meeting.known(thing.kind)
+            curious = (not thing.moved or not goes_somewhere(thing)) and not self.meeting.known(thing.kind)
             rank = when * (2.0 if curious else 1.0)
             if best is None or rank < best[0]:
                 best = (rank, thing.where_at(when), thing)
@@ -735,92 +742,6 @@ class _Choosing:
 # -- the loop -----------------------------------------------------------------
 
 
-async def the_world_moves_on_its_own(look: Callable[[], Awaitable[Any]], *, seconds: float = 0.8, longest: float = 3.0) -> bool:
-    """Whether things go somewhere in the picture while she does nothing.
-
-    Moving in place is not going anywhere. LIVE 2026-10-06 a checkers game's
-    figures swayed beside a board that waited for her move, and she played it
-    with the arrow keys for five minutes as if it were an action game. A thing
-    goes somewhere when it travels further than half its own size, mostly one
-    way, or faster than two of its sizes a second; where things move and none
-    has gone anywhere yet, she watches a while longer before saying the world
-    waits for her. Measured on the pictures' own clock.
-    """
-    moves = WhatMoves()
-    began: float | None = None
-    while True:
-        seen = await look()
-        if seen is None:
-            return False
-        picture, at = seen
-        began = at if began is None else began
-        moves.see(picture, at)
-        if moves.pictures <= 4:
-            continue
-        moving = moves.moving(faster_than=8.0)
-        if any(_goes_somewhere(thing) for thing in moving):
-            return True
-        if at - began >= (longest if moving else seconds) + 0.6:
-            return False
-
-
-#: How long she holds a key down to see what it does, and how long after it goes down the jump at the press is over.
-HELD_TO_SEE_S = 0.45
-THE_PRESS_S = 0.1
-
-
-async def it_goes_while_held(look: Callable[[], Awaitable[Any]], hands: Any, key: str, *, held: float = HELD_TO_SEE_S) -> bool:
-    """``key`` pressed the way a person presses one to see what it does, held a moment while she watches: whether something goes on going while it is down.
-
-    A world that stands still until she moves in it is played as it happens all
-    the same: LIVE 2026-10-07 a top-down shooter's room held still, it was
-    taken for a screen to be stepped through, and each tap of an arrow moved
-    its hero a few pixels, which she took for nothing; for three hours she
-    clicked the words on its scoreboard. A menu's highlight jumps once as the
-    key goes down and is still for the rest of the hold; a thing she steers
-    keeps going for as long as the key is down. So what moved in the first
-    tenth of a second is not counted, and a thing goes on going when it is seen
-    in three pictures after that and has travelled half its own size between
-    them. She looks before she presses, so what is there already is known.
-    Measured on the pictures' own clock. The key goes down once, so to whatever
-    counts presses it is one press.
-    """
-    moves = WhatMoves()
-    began: float | None = None
-    while not moves.has_looked:
-        seen = await look()
-        if seen is None:
-            return False
-        began = seen[1] if began is None else began
-        moves.see(*seen)
-        if seen[1] - began > 3 * held:
-            break
-    await hands.down(key)
-    first: float | None = None
-    try:
-        while True:
-            seen = await look()
-            if seen is None:
-                return False
-            picture, at = seen
-            moves.see(picture, at)
-            first = at if first is None else first
-            if at - first >= held:
-                break
-    finally:
-        await hands.up(key)
-    since = first + THE_PRESS_S
-    return any(_went_on(thing, since) for thing in moves.things.values())
-
-
-def _went_on(thing: Any, since: float) -> bool:
-    points = [(at, x, y) for at, x, y in thing.path if at >= since]
-    if len(points) < 3:
-        return False
-    size = max(float(thing.w), float(thing.h), 1.0)
-    return math.dist(points[0][1:], points[-1][1:]) > 0.5 * size
-
-
 #: How long her thing stays put under a way held before what lies that way is taken to be out of her reach.
 OUT_OF_REACH_S = 0.6
 
@@ -873,19 +794,6 @@ def _out_of_her_reach(run: _Run, choosing: _Choosing, at: float) -> None:
             run.barred.add((ahead, across) if along == 0 else (across, ahead))
         ahead += step
     run.stuck = None
-
-
-def _goes_somewhere(thing: Any) -> bool:
-    """Whether a moving thing travels rather than moving in place, by its path and its speed against its own size."""
-    size = max(float(thing.w), float(thing.h), 1.0)
-    if math.hypot(thing.vx, thing.vy) > 2.0 * size:
-        return True
-    points = [(x, y) for _at, x, y in thing.path]
-    if len(points) < 3:
-        return False
-    xs, ys = [x for x, _y in points], [y for _x, y in points]
-    extent = math.hypot(max(xs) - min(xs), max(ys) - min(ys))
-    return extent > 0.5 * size and math.dist(points[0], points[-1]) > 0.5 * extent
 
 
 #: How long a line once said is not said again, word for word, in the same game: a watcher heard it.
