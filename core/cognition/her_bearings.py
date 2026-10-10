@@ -43,9 +43,25 @@ _TELLS = re.compile(
 
 
 def instructions_in(says: str) -> list[str]:
-    """The sentences of a place's words that tell a person what to do."""
+    """The sentences of a place's words that tell a person what to do: those with a verb of telling, and any clause that
+    opens with a word and then what it is done to ("Park the red car", "Rescue all the puppies"), after whatever the
+    screen's furniture put before it (LIVE 2026-10-10 "LEVEL 1 Park the red car" was not read as asking anything)."""
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", " ".join(str(says or "").split())) if len(s.split()) >= 3]
-    return [s for s in sentences if _TELLS.search(s)]
+    told = [s for s in sentences if _TELLS.search(s)]
+    for sentence in sentences:
+        if sentence in told:
+            continue
+        opened = _OPENS_ON_WHAT_IS_DONE.search(sentence)
+        if opened:
+            told.append(opened.group(1).strip())
+    return told
+
+
+#: A clause that opens with a word and then what it is done to: an instruction whatever its verb. What a screen puts
+#: before it (a level's number, a heading in capitals) is passed over.
+_OPENS_ON_WHAT_IS_DONE = re.compile(
+    r"(?:^|\b(?:LEVEL|STAGE|ROUND|WAVE|MISSION|PART)\s+\d+\s+|[.!?:]\s+)"
+    r"((?!(?:Level|Stage|Round|Wave|Score|Time|Lives|Hits|Mission)\b)[A-Z][a-z]{2,}\s+(?:the|all|every|each|your|as many|both|a|an)\s+[^.!?]{2,80})")
 
 
 def leads_away(label: str, asked: str = "") -> bool:

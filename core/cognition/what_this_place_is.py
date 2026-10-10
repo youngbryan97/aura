@@ -434,11 +434,44 @@ def _seen(guide: Any) -> list[str]:
     return [n for n in dict.fromkeys(" ".join(str(n).lower().split()) for n in names) if n][:14]
 
 
+#: What a person is told to drive, steer or fly is the thing they are there: "Park the red car", "Guide the boat home".
+_STEERED = re.compile(
+    r"\b(?:park|drive|steer|guide|fly|pilot|ride|land|roll|race|sail|skate|swim)\s+(?:the|your|a|an)\s+"
+    r"((?:[a-z][a-z'-]*\s+){0,3}?[a-z][a-z'-]*?)(?=\s+(?:to|into|in|on|onto|through|around|past|across|and|with|before|"
+    r"while|until|so|as|without|from|at)\b|\s*[.,!;:]|\s*$)", re.I)
+
+
+def hers_named_by(says: str, seen: Sequence[str] = ()) -> str:
+    """The thing a place's own words tell a person to drive, steer or fly, by the name it was seen as where one shares its
+    words ("Park the red car" and a red car seen), else as the words name it; "" where they name none."""
+    found = _STEERED.search(" ".join(str(says or "").split()))
+    if found is None:
+        return ""
+    named = found.group(1).lower()
+    wanted = set(re.findall(r"[a-z]{3,}", named))
+    best = max(seen, key=lambda name: len(wanted & set(re.findall(r"[a-z]{3,}", name.lower()))), default="")
+    return best if best and wanted & set(re.findall(r"[a-z]{3,}", best.lower())) else named
+
+
+def _hers_from_its_words(guide: Any, reading: WhatThisPlaceIs) -> str:
+    """Her thing as the place's own words name it, taken in at once, with nothing asked of her model: LIVE 2026-10-10 a
+    game said "Park the red car" and her reading of it left blank whose the car was. What to say, "" for nothing new."""
+    named = hers_named_by(_what_it_says(guide), _seen(guide))
+    if not named or reading.shown.get("hers") or (reading.now is not None and reading.now.hers == named):
+        return ""
+    return reading.take(Reading(hers=named, rests_on=SAID))
+
+
 def ask_for_a_reading(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, task: str = "",
                       tell: Callable[[str], Any] | None = None) -> bool:
     """Ask her model for a reading of the place on what it can rest on now, beside her work, where one on that has not
-    been asked; taken into the guide's reading when it comes, and what it says said. Whether asked."""
+    been asked; taken into the guide's reading when it comes, and what it says said. Whether asked. What the place's own
+    words settle (which thing is hers) is taken in first, without asking."""
     reading = getattr(guide, "reading", None)
+    if isinstance(reading, WhatThisPlaceIs) and getattr(guide, "place", ""):
+        line = _hers_from_its_words(guide, reading)
+        if line and tell is not None:
+            tell(line)
     if ask is None or not isinstance(reading, WhatThisPlaceIs) or not getattr(guide, "place", ""):
         return False
     if reading.asking is not None and not reading.asking.done():

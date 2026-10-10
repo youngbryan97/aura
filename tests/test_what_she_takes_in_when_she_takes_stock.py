@@ -1,0 +1,49 @@
+"""What she takes in when she takes stock, and from the place's own words: an instruction whatever its verb, a question
+about doing what it asks in general beside one about the thing by name, the time her model needs while the thing waits,
+and the thing she is told to drive taken for hers. Nothing here is a game."""
+from __future__ import annotations
+
+import pytest
+
+from core.cognition.her_bearings import instructions_in
+from core.cognition.taking_stock import BEFORE, FAILING, HELPED_BEFORE, Heard, Situation, questions_for, what_to_take
+from core.cognition.what_this_place_is import hers_named_by
+
+pytestmark = pytest.mark.unit
+
+
+def test_an_instruction_is_read_whatever_its_verb_after_the_screens_furniture():
+    assert instructions_in("LEVEL 1 Park the red car") == ["Park the red car"]
+    assert instructions_in("Rescue all the puppies before time runs out!") == ["Rescue all the puppies before time runs out"]
+    assert instructions_in("TIME 01:11 PARKED 0/1 HITS LEFT 99 LEVEL 1") == []
+    assert instructions_in("Mojo Jojo has kidnapped all the dogs of Townsville.") == []
+
+
+def test_she_asks_how_what_the_place_asks_is_done_in_general_beside_the_thing_by_name():
+    failing = Situation("Some Old Game", "play it until you win", ("LEVEL 1 Park the red car",), "TRY AGAIN?", FAILING, kind="game")
+    asked = questions_for(failing)
+    assert asked[0] == "how to win Some Old Game" and "how to park the red car in a game" in asked
+    before = questions_for(Situation("Some Old Game", "play it", ("Park the red car",), "", BEFORE, kind="game"))
+    assert "how to park the red car in a game" in before
+
+
+def test_what_helped_before_comes_first_whatever_else_matches_the_questions_better():
+    situation = Situation("Some Old Game", "play it", ("Use the arrow keys to steer the boat.",), "", FAILING, kind="game")
+    heard = [Heard("the web", "", "Use the arrow keys to steer the boat and catch every firefly before dawn."),
+             Heard(HELPED_BEFORE, "", "Press left and right in turn, fast, when caught.")]
+    assert what_to_take(heard, situation, questions_for(situation))[0].source == HELPED_BEFORE
+
+
+def test_what_she_is_told_to_drive_is_hers_by_the_name_it_was_seen_as():
+    assert hers_named_by("LEVEL 1 Park the red car", ["the red car", "a green car", "a sign"]) == "the red car"
+    assert hers_named_by("Steer your ship through the asteroids", ["ship", "asteroid"]) == "ship"
+    assert hers_named_by("Park the red car") == "red car"
+    assert hers_named_by("Use the arrow keys to move") == ""
+
+
+def test_the_web_asked_by_programs_includes_the_encyclopedias_own_search():
+    from core.skills.looking_it_up import ENGINES, _wikipedia
+
+    assert ENGINES[0][0] == "wikipedia"
+    hits = _wikipedia('{"query": {"search": [{"title": "Parallel parking"}]}}')
+    assert hits == [("Parallel parking", "https://en.wikipedia.org/wiki/Parallel_parking")]

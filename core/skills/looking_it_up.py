@@ -79,6 +79,18 @@ def _marginalia(text: str) -> list[tuple[str, str]]:
             if str(r.get("url") or "").startswith("http") and r.get("title")]
 
 
+def _wikipedia(text: str) -> list[tuple[str, str]]:
+    """Each article the encyclopedia's own search interface for programs found: its title, and its address."""
+    import json
+
+    try:
+        found = json.loads(text).get("query", {}).get("search") or []
+    except (ValueError, AttributeError):
+        return []
+    return [(str(hit.get("title")), "https://en.wikipedia.org/wiki/" + urllib.parse.quote(str(hit.get("title")).replace(" ", "_")))
+            for hit in found if hit.get("title")]
+
+
 def _bing(text: str) -> list[tuple[str, str]]:
     from core.capabilities.browser_controller import _bing_results_in
 
@@ -87,6 +99,9 @@ def _bing(text: str) -> list[tuple[str, str]]:
 
 #: Where to search, in turn: the address with the query in it, and how to read the results.
 ENGINES: tuple[tuple[str, str, Callable[[str], list[tuple[str, str]]]], ...] = (
+    # The encyclopedia's search, made for programs: LIVE 2026-10-10 every general engine asked from this network refused
+    # it or answered by a query's first word, and a question of how a thing is done in general was heard by none.
+    ("wikipedia", "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=5&srsearch={q}", _wikipedia),
     # An index of the independent web with an interface open to programs; LIVE 2026-10-10 it found a game that two
     # engines would not search for from here and a third answered with a talking-cat app.
     ("marginalia", "https://api.marginalia.nu/public/search/{q}?count=10", _marginalia),

@@ -119,6 +119,8 @@ class Situation:
     ended: str = ""
     #: Why she is taking stock (STUCK, FAILING, QUESTION, BEFORE).
     why: str = STUCK
+    #: What kind of thing it is, as the person or the place says ("game", "form"), for asking about such things.
+    kind: str = ""
 
 
 #: The verb of a task, for the question of how it is done: "Play this game and win it" asks how to win.
@@ -158,13 +160,33 @@ def _unfamiliar_terms(said: Sequence[str], thing: str) -> list[str]:
     return list(dict.fromkeys(found))[:2]
 
 
+def _its_instructions(said: Sequence[str]) -> list[str]:
+    from core.cognition.her_bearings import instructions_in
+
+    found: list[str] = []
+    for text in said:
+        found += [told.rstrip(".!") for told in instructions_in(text)]
+    return list(dict.fromkeys(found))
+
+
+def _lowered(sentence: str) -> str:
+    """A sentence as it goes after "how to": its first letter small, unless the word is a name all in capitals."""
+    return sentence[:1].lower() + sentence[1:] if sentence[:2] != sentence[:2].upper() else sentence.lower()
+
+
 def questions_for(situation: Situation) -> list[str]:
     """The few questions a person in her place would ask, in the order they matter. Before beginning, a manual's: how it
     is played and worked, how it is won, and how to do well at it."""
     thing, aim = situation.thing.strip(), _the_aim(situation.task)
+    # What the place asks, as anyone anywhere asks it: what is known of doing that in general answers where nothing is
+    # written of this one (LIVE 2026-10-10 nothing was found of one game by its name, and the web knows how cars are
+    # parked in games).
+    kind = situation.kind or "game"
+    in_general = [f"how to {_lowered(told)} in a {kind}" for told in _its_instructions(situation.said)[:1]]
     if situation.why == BEFORE:
-        return [f"{thing} how to play controls instructions", f"how to {aim} {thing}", f"{thing} tips strategy"]
-    asked = [f"how to {aim} {thing}"]
+        return list(dict.fromkeys([f"{thing} how to play controls instructions", f"how to {aim} {thing}", *in_general,
+                                   f"{thing} tips strategy"]))[:MOST_QUESTIONS]
+    asked = [f"how to {aim} {thing}", *in_general]
     happened = _what_ended_it(situation.ended, thing)
     if happened and situation.why in (FAILING, STUCK):
         asked.append(f"{thing} what to do when {happened}")
@@ -293,8 +315,9 @@ def what_to_take(heard: Sequence[Heard], situation: Situation, questions: Sequen
     for _score, one, cues in candidates:
         for cue in cues:
             by_cue.setdefault(cue, set()).add(one.source)
+    # What helped her before here comes first, whatever else is said: it was tried, and it worked.
     ranked = sorted(((score + 1.5 * sum(len(by_cue[c]) - 1 for c in cues), one) for score, one, cues in candidates),
-                    key=lambda pair: -pair[0])
+                    key=lambda pair: (pair[1].source != HELPED_BEFORE, -pair[0]))
     kept: list[Heard] = []
     before = situation.why == BEFORE
     most, from_one = (MOST_KEPT_BEFORE, FROM_ONE_PAGE_BEFORE) if before else (MOST_KEPT, 1)
@@ -443,10 +466,16 @@ def from_the_web(search_and_read: Reader, *, thing: str = "", names_it: Callable
         found: list[Heard] = []
         per = max(4.0, seconds / max(1, len(questions[:2])))
         for question in questions[:2]:
+            # A question asked of the thing by its name reads pages about it; one asked of what it asks in general
+            # (how a car is parked in a game) reads pages about that, which never name the thing.
+            of_the_thing = bool(thing) and _words(thing) <= _words(question)
             for title, where, text in await search_and_read(as_searched(question, thing, kind), per) or []:
-                if on_its_page is not None and thing and not on_its_page(thing, title, text):
+                if not of_the_thing:
+                    if len(_words(question) & _words(f"{title} {text[:2000]}")) < 2:
+                        continue
+                elif on_its_page is not None and not on_its_page(thing, title, text):
                     continue
-                if on_its_page is None and names_it is not None and thing and not names_it(thing, title):
+                elif on_its_page is None and names_it is not None and not names_it(thing, title):
                     continue
                 site = re.sub(r"^https?://(www\.)?", "", where).split("/")[0]
                 found.append(Heard("the web", f"“{_short(title, 70)}” on {site}", text))
