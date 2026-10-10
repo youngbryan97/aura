@@ -160,6 +160,12 @@ def _decide_the_next_move_part_12(
     #
     # So a carried record has to turn up again before it counts,
     # which is the same rule the places she remembers are held to.
+    # A number the screen showed before she moved is not one she made: only what rises above the biggest of the first
+    # reading is. LIVE 2026-10-10 a music maker's "28" was said as "I have a 28 on the board" before she had done
+    # anything there, and as where she stood.
+    furthest.setdefault("at_first", made)
+    if made <= furthest["at_first"]:
+        return "", 0.0
     furthest["again"] = max(furthest["again"], made)
     beaten = (
         furthest["here"] if furthest["again"] >= furthest["here"] else furthest["again"]
