@@ -42,6 +42,10 @@ def test_the_words_say_which_way_first():
     ("Use the mouse to aim and toss Bloo", True),
     ("Move your mouse to aim, then click to release your top", True),
     ("Pull back and let go to launch the hamster", True),
+    # A word for sending is one where a word begins: "fling" is not in "shuffling", nor "release" in "unreleased".
+    ("Keep shuffling the cards until a pair turns up", False),
+    ("Three unreleased levels wait at the end", False),
+    ("Fling the bird at the towers", True),
 ])
 def test_a_throw_a_click_makes_is_not_a_throw_held_and_let_go(words, sent):
     assert sends_by_letting_go(words) is sent

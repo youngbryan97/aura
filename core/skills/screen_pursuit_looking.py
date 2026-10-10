@@ -13,6 +13,7 @@ import asyncio
 import contextvars
 import logging
 import math
+import re
 import time
 from collections.abc import Callable, Sequence
 from typing import Any
@@ -1291,7 +1292,8 @@ def _where_it_asks(observation: dict[str, Any]) -> float | None:
     """How far down the question sits, when something is asking one."""
     for region in observation.get("layout") or []:
         text = str(region.get("text") or "").strip().lower()
-        if any(phrase in text for phrase in ASKING_TO_CONFIRM):
+        # Where a word begins: "confirm" is not in "unconfirmed".
+        if any(re.search(rf"\b{re.escape(phrase)}", text) for phrase in ASKING_TO_CONFIRM):
             try:
                 return float(region.get("center_y", region.get("y")))
             except (TypeError, ValueError) as why:

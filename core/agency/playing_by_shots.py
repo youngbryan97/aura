@@ -74,7 +74,9 @@ def sends_by_letting_go(told: str) -> bool:
         # "click again to launch the hamster" is a click that sends, made at once; "pull back and release to launch"
         # is a press let go.
         clicked = _A_CLICK_THROWS.search(sentence)
-        if any(word in sentence for word in _SENDING_WORDS if not (clicked and word in ("launch", "fling"))):
+        # Where a word begins: "fling" is not in "shuffling", nor "release" in "unreleased".
+        if any(re.search(rf"\b{re.escape(word)}", sentence) for word in _SENDING_WORDS
+               if not (clicked and word in ("launch", "fling"))):
             return True
         if _HELD.search(sentence) and _HELD_TO_SEND.search(sentence):
             return True

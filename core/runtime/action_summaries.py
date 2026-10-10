@@ -30,6 +30,8 @@ def safe_action_summary(action_name: str, params: Mapping[str, Any]) -> str:
     summarized: dict[str, Any] = {}
     for key, value in params.items():
         key_text = str(key)
+        # Substring, deliberately: a redaction key is compounded (`api_token`, `x-auth-secret`), and word
+        # matching would stop seeing it.
         if any(marker in key_text.casefold() for marker in SENSITIVE_PARAM_MARKERS):
             summarized[key_text] = "[REDACTED]"
         elif key_text in {"content", "payload", "script", "text"}:
@@ -63,6 +65,8 @@ def safe_sequence_summary(value: Any) -> list[Any]:
         if lowered.startswith(("http://", "https://")):
             summarized.append(safe_url_summary(item))
             continue
+        # Substring, deliberately: a redaction key is compounded (`api_token`, `x-auth-secret`), and word
+        # matching would stop seeing it.
         if any(marker in lowered for marker in SENSITIVE_PARAM_MARKERS):
             if "=" in item:
                 summarized.append(item.split("=", 1)[0][:80] + "=[REDACTED]")
@@ -81,6 +85,8 @@ def safe_nested_mapping_summary(value: Mapping[Any, Any]) -> dict[str, Any]:
     for raw_key, raw_value in list(value.items())[:32]:
         key = str(raw_key)[:80]
         lowered = key.casefold()
+        # Substring, deliberately: a redaction key is compounded (`api_token`, `x-auth-secret`), and word
+        # matching would stop seeing it.
         if lowered == "value" or any(
             marker in lowered for marker in SENSITIVE_PARAM_MARKERS
         ):
