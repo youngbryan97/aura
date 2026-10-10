@@ -348,7 +348,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     moves: list[Any] = []
     result: dict[str, Any] = {}
     while time.monotonic() < deadline and len(runs) < limit:
-        started = time.monotonic()
+        started, steps_before = time.monotonic(), _steps_done(keep)
         # Played to be won, a round is looked at every few minutes: still getting somewhere, it goes on.
         round_ends = min(deadline, started + ROUND_S) if until_won else deadline
         result, reflexes = await _one_run(page, band, goal, url, round_ends, keep)
@@ -402,7 +402,8 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
         # break, could never be reached, and a game was left after four minutes with nothing said.
         if (until_won and run["ended"] != "won" and not reflexes.over_because
                 and time.monotonic() - started >= ROUND_S - 20.0 and time.monotonic() < deadline):
-            if run["gains"] > 0 or reflexes.new_screens or await _stopped_to_take_stock(STUCK_HERE, goal, reflexes, run, runs, keep, deadline):
+            if (run["gains"] > 0 or reflexes.new_screens or _steps_done(keep) > steps_before
+                    or await _stopped_to_take_stock(STUCK_HERE, goal, reflexes, run, runs, keep, deadline)):
                 runs.pop()  # the same round, still getting somewhere, or with something new to go by: played on
                 continue
             if terms.until_the_end and shape != MEASURE:
@@ -525,6 +526,14 @@ async def _between_runs(goal: str, reflexes: Any, run: dict[str, Any], runs: lis
         if why:
             await stock.take(why, goal, list(reflexes.words), run["words"], runs, keep, deadline)
     begin_run(keep)
+
+
+def _steps_done(keep: dict[str, Any]) -> int:
+    """How many steps of the place's lesson and of her plan are behind her: a round in which more are is getting somewhere,
+    though nothing was scored. LIVE 2026-10-10 a trap-building game, where what is gained is the build, was begun again
+    from the top every four minutes for gaining nothing."""
+    guide = keep.get("guide")
+    return sum(len(getattr(p, "done", ()) or ()) for p in (getattr(guide, "rules", None), getattr(guide, "plan", None)) if p)
 
 
 def _how_well(run: Mapping[str, Any]) -> float:
