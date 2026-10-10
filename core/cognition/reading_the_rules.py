@@ -192,12 +192,12 @@ class Rules:
             frame = Frame(**{**asdict(frame), "order": self.heard.index(frame.sentence)})
             self.frames[frame.sentence] = frame
             taken.append(frame)
-            _keep(frame)
             for surface, holds in ((ASKS_TO_CARRY, frame.act == "carry"), (SAYS_WHAT_IT_IS_FOR, frame.is_what_it_is_for)):
                 try:
                     surface.observe(frame.sentence, holds=holds)
                 except (RuntimeError, OSError, ValueError, TypeError) as why:
                     logger.debug("a learned surface could not take an example: %s", why)
+        _keep(taken)
         return taken
 
     def asks_to_carry(self) -> bool:
@@ -387,15 +387,33 @@ def _kept() -> dict[str, dict[str, Any]]:
         return _KEPT[where]
 
 
-def _keep(frame: Frame) -> None:
-    from core.runtime.what_she_learned import named, remember
-
+def _keep(frames: Sequence[Frame]) -> None:
+    """Frames read, kept for every place: put in the store at once, and written once, off the loop where there is one.
+    A write at each frame on the loop would hold her play still while it waits on the disk."""
+    if not frames:
+        return
     store = _kept()
     with _KEEPING:
-        store[_key(frame.sentence)] = frame.as_memory()
+        for frame in frames:
+            store[_key(frame.sentence)] = frame.as_memory()
         while len(store) > MOST_KEPT:
             del store[next(iter(store))]
         held = {"frames": dict(store)}
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _write(held)
+        return
+    _WRITING.add(task := loop.create_task(asyncio.to_thread(_write, held)))
+    task.add_done_callback(_WRITING.discard)
+
+
+_WRITING: set[Any] = set()
+
+
+def _write(held: dict[str, Any]) -> None:
+    from core.runtime.what_she_learned import named, remember
+
     try:
         remember(named("what holds everywhere", "rules read"), held)
     except (RuntimeError, OSError, ValueError, TypeError) as why:

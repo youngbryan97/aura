@@ -61,6 +61,17 @@ _STOPWORDS = re.compile(
     re.IGNORECASE,
 )
 
+# A web address in the request says where the thing to play is. LIVE
+# 2026-10-10 "Go to https://…/toms-trap-o-matic and play that game" put a
+# video from Downloads in the chat, because "game" was taken for a title.
+_AN_ADDRESS = re.compile(r"\bhttps?://\S+|\bwww\.\S+", re.IGNORECASE)
+# A definite or pointing word before a bare lowercase noun ("that game", "the
+# video", "this one") refers to a thing already in view or under discussion.
+# A title is a name: "the Beatles", "the wedding toast video".
+_A_KIND_POINTED_AT = re.compile(
+    r"^\s*(?:me\s+)?(?:that|this|these|those|the)\s+[a-z][a-z-]*\s*[.!?]?\s*$"
+)
+
 _VIDEO_HINT = re.compile(r"\b(?:video|movie|film|clip|watch)\b", re.IGNORECASE)
 _AUDIO_HINT = re.compile(r"\b(?:song|track|album|music|listen|tune|playlist)\b", re.IGNORECASE)
 
@@ -112,7 +123,7 @@ def parse_play_request(message: str) -> tuple[str, str]:
     if not text:
         return "", ""
     match = _PLAY_REQUEST.search(text)
-    if not match:
+    if not match or _AN_ADDRESS.search(text):
         return "", ""
 
     kind = ""
@@ -132,6 +143,8 @@ def parse_play_request(message: str) -> tuple[str, str]:
     what = re.split(r"(?<=[.!?])\s+|\s+[—–]\s+|\n", what)[0]
     # Strip trailing clauses: "play Kind of Blue and turn the lights down".
     what = re.split(r"\b(?:and then|and also|,? then\b|and turn|and set)\b", what)[0]
+    if _A_KIND_POINTED_AT.match(what):
+        return "", ""
     previous = None
     while previous != what:
         previous = what

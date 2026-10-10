@@ -102,3 +102,22 @@ def test_most_of_the_query_has_to_be_present(monkeypatch, tmp_path):
     assert [item.title for item in shelf.search("aura demo cognitive")] == [
         "Aura Demo - 01 (Cognitive Engine)"
     ]
+
+
+def test_a_game_at_an_address_is_not_a_video_in_downloads():
+    """LIVE 2026-10-10 the request to play a game at a web address played "Nostalgia Games _ The Envelopes, Please!"
+    from Downloads: "that game" was stripped to "game" and searched for as a title."""
+    assert parse_play_request(
+        "Go to https://www.webdesignmuseum.org/flash-game-exhibitions/toms-trap-o-matic-in-2005 and play that game. "
+        "If it can be won, keep playing it until you win."
+    ) == ("", "")
+
+
+@pytest.mark.parametrize("pointed", ["play that game", "play the video", "watch this clip", "play the game."])
+def test_a_kind_pointed_at_is_not_a_title(pointed):
+    assert parse_play_request(pointed) == ("", "")
+
+
+def test_a_name_after_a_pointing_word_is_still_a_title():
+    assert parse_play_request("play the Beatles")[0] == "Beatles"
+    assert parse_play_request("play the wedding toast video")[0] == "wedding toast"
