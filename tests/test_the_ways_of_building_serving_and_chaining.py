@@ -81,3 +81,13 @@ def test_each_is_given_what_it_asks_for_first():
     assert "serving" in here.mechanics_said
     uses = here.uses(here.on_screen)
     assert uses[0] == a_use_of("burger", "customer two")
+
+
+def test_writing_there_to_be_read_is_never_taken_or_used():
+    """LIVE 2026-10-10 "LEVEL" was taken off a game's bar and used on "HITS LEFT"."""
+    from core.agency.what_i_can_do_here import WhatWorksHere, a_click_on
+
+    here = WhatWorksHere()
+    moves = (a_click_on("LEVEL"), a_click_on("HITS LEFT"), a_click_on("key"))
+    here.taken["LEVEL"] = "LEVEL"
+    assert not here.uses(moves)

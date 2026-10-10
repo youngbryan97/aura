@@ -76,8 +76,12 @@ class TakingAndUsing:
 
         clicked, before = self.clicked_last, set(self.labels_at_click)
         self.clicked_last = ""
+        from core.agency.what_i_can_do_here import _not_read_only
+
         label = what_is_clicked(clicked) if clicked else None
-        if label is None or not self.click_changed:
+        # Writing there to be read is not a thing taken, whatever changed as it was clicked: LIVE 2026-10-10 "LEVEL" was
+        # taken off a game's bar and used on "HITS LEFT".
+        if label is None or not self.click_changed or not _not_read_only(clicked):
             return
         came = [move for move in now if move not in before]
         if clicked not in now and len(came) == 1:
@@ -100,7 +104,7 @@ class TakingAndUsing:
 
         offered: list[str] = []
         for held in reversed(list(self.taken.values())):
-            if a_click_on(held) not in on_screen:
+            if a_click_on(held) not in on_screen or not _not_read_only(a_click_on(held)):
                 continue
             for move in on_screen:
                 target = what_is_clicked(move)

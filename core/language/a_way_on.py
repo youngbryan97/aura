@@ -33,7 +33,8 @@ _GOES_ON = re.compile(
 )
 
 #: Labels that are read, not pressed: numbers, scores, measures.
-_IS_READ = re.compile(r"^[\d\s.,:/%+-]+(?:pts?|points?)?$|^(?:score|time(?:\s+left)?|lives?|level|speed|health|energy|hi-?score)\b", re.IGNORECASE)
+_IS_READ = re.compile(r"^[\d\s.,:/%+-]+(?:pts?|points?)?$|^(?:score|time(?:\s+left)?|lives?|level|speed|health|energy|hi-?score)\b"
+                      r"|^[a-z]+s\s+left\b", re.IGNORECASE)
 
 #: A measure as a game draws it: a number and its unit ("= 0 ft.", "120 m", "3 sec"), its noughts read as letters
 #: as often as not; and the caption of a gauge ("Launch Meter", "Glide Meter").
