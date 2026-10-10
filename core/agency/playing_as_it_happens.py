@@ -261,6 +261,8 @@ class _Run:
     building_up: bool = False
     #: How far each kind reaches: the distance and side at which it has cost her untouched (how_far_a_thing_reaches.py).
     reach: Any = None
+    #: The tells of each kind of thing, learned from what followed each change in it (core/agency/warning_signs.py).
+    signs: Any = None
     #: Each press of a key that strikes without sending anything out, and how far it has paid (how_far_her_blow_reaches.py).
     blows: HerBlows = field(default_factory=HerBlows)
     #: A key held to build something up and let go to use it, and how long a hold has paid (holding_to_charge.py).
@@ -418,6 +420,10 @@ def _measure_response(run: _Run, mine: Any, at: float) -> None:
 class _Choosing:
     """The arithmetic of one decision, from what she has measured so far."""
 
+    #: The tells she has learned and the time of the picture it is choosing on (core/agency/warning_signs.py).
+    signs: Any = None
+    at: float | None = None
+
     #: How much wider a berth what costs her is given than usual: more as what she has left runs low.
     caution: float = 1.0
     #: How far her blow reaches, in her own sizes, where she has one worth standing her ground for; else None.
@@ -486,6 +492,11 @@ class _Choosing:
     def stance(self, thing: Any) -> str:
         # A kind that has cost her from a distance is kept clear of, whatever meeting it has done.
         if self.reach is not None and self.reach.reach(int(thing.kind)) is not None:
+            return AVOID
+        # A thing showing its kind's tell, or one not yet known closing faster than she answers (core/agency/warning_signs.py).
+        if self.signs is not None and self.at is not None and self.mine is not None and (self.signs.showing(thing, self.at) or (
+                not self.meeting.known(thing.kind)
+                and self.signs.closing_in(thing, self.mine, max(2 * self.response_s, 3 * self.next_picture_s)))):
             return AVOID
         # What only moves in place (a flag waving, stars twinkling, a figure idling) is judged as what stands still is:
         # touched and found to count for nothing, it is decoration, left alone.
@@ -680,8 +691,11 @@ class _Choosing:
         """How soon and how often her thing, taken along ``path`` (seconds to displacement), meets what to keep clear of,
         looked at ``times`` seconds ahead."""
         mine = self.mine
-        threats = [t for t in self.others()
+        threats = [(t, 0.0) for t in self.others()
                    if (self.stance(t) in (AVOID,) or self.stance(t) == SHOOT) and not self._struck_first(t)]
+        # What to keep clear of that went out of sight is still where its going was taking it (what_moves_in_the_picture).
+        threats += [(t, self.at - when) for t, when in getattr(self.moves, "out_of_sight", {}).values()
+                    if self.at is not None and self.meeting.stance(t.kind) == AVOID]
         if not threats:
             return 0.0
         tall, wide = self.moves.shape
@@ -693,8 +707,8 @@ class _Choosing:
             x = min(max(mine.x + dx, low_x), high_x) if high_x >= low_x else mine.x
             y = min(max(mine.y + dy, low_y), high_y) if high_y >= low_y else mine.y
             box = _moved_box(mine.box(), x - mine.x, y - mine.y, 2.0)
-            for thing in threats:
-                tx, ty = thing.where_at(after)
+            for thing, away in threats:
+                tx, ty = thing.where_at(after + away)
                 if (_boxes_meet(box, _moved_box(thing.box(), tx - thing.x, ty - thing.y, 2.0))
                         or (self.reach is not None and self.reach.within(thing, x, y, (tx, ty)))):
                     total += 1.0 / (after + 0.1)
@@ -1345,6 +1359,9 @@ async def play_as_it_happens(
     from core.agency.how_far_a_thing_reaches import HowFarThingsReach
 
     run.reach = keep.get("reach") or HowFarThingsReach()
+    from core.agency.warning_signs import WarningSigns, read_the_signs
+
+    run.signs = keep.get("signs") or WarningSigns()
     if keep.get("meeting_with"):
         run.meeting_with = {float(part): list(counts) for part, counts in keep["meeting_with"].items()}
     ended = ""
@@ -1392,6 +1409,7 @@ async def play_as_it_happens(
                                  covered=(run.covered | run.barred, run.cell) if goes_over and run.cell else None,
                                  barred=(run.barred, run.cell) if run.cell else None, presses=run.presses,
                                  reach=run.reach)
+            choosing.signs, choosing.at = run.signs, at
             if rules is not None:
                 choosing.strikes = run.blows.stands_ground(run.blows.keys(rules.fire_keys, hers.makes))
             choosing.going_to = a_place_to_go(run, moves, hers, at, lambda line, once, at=at: _say(run, say, line, at, once=once))
@@ -1403,6 +1421,8 @@ async def play_as_it_happens(
             _found_by_her_presses(run, moves, hers, at)
             await _let_go_of_presses(hands, run, at)
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
+            read_the_signs(run.signs, moves, choosing.mine, meeting.verdicts, at,
+                           lambda line, at=at: _say(run, say, line, at, once=line))
             noticed(run, moves, meeting, at, say, _named)
             seen_in_play(run, moves, hers, meeting, picture, at, lambda line, once, at=at: _say(run, say, line, at, once=once))
             measured_in_play(run, moves, hers, meeting, at)
@@ -1438,7 +1458,7 @@ async def play_as_it_happens(
         keep["keys_never_absent"] = run.shown.done()
     keep.update({"hers": hers, "meeting": meeting, "kinds": moves.kinds, "physics": physics, "meeting_with": run.meeting_with,
                  "contest": run.contest, "situation_known": run.situation_known, "said_lately": run.lately,
-                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach, "noticing": run.noticing, "seeing": run.seeing, "using": run.using,
+                 "where_clicks_pay": run.clicks_pay, "presses": run.presses, "timing": run.timing, "reach": run.reach, "signs": run.signs, "noticing": run.noticing, "seeing": run.seeing, "using": run.using,
                  "said_once": run.said})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),

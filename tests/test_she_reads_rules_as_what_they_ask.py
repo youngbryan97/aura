@@ -225,3 +225,16 @@ def test_a_screen_read_again_a_little_differently_is_understood_at_once():
     again = Rules()
     assert again.hear(["PICK a ROOM AND TRY TO CATCH JERRY! THE THE LIVING THE KITCHEN ROOM"]) == []
     assert again.in_order()[0].act == "click things" and again.in_order()[0].thing == "ROOM"
+
+
+def test_where_things_are_carried_follows_the_lesson_from_its_first_part_to_the_rest():
+    rules = Rules()
+    lesson = ["Place the device on any active square.", "Place the device at the end of another device's arrow."]
+    rules.hear(lesson)
+    rules.took([Frame(lesson[0], act="carry", thing="the device", where="any active square"),
+                Frame(lesson[1], act="carry", thing="the device", where="the end of another device's arrow")])
+    assert rules.carried_to() == "any active square"
+    rules.tried('drag "the shape at 20% across, 40% down" to "any active square"', changed=True)
+    assert rules.carried_to() == "the end of another device's arrow"
+    rules.tried("drag \"the shape at 30% across, 40% down\" to \"the end of another device's arrow\"", changed=True)
+    assert rules.carried_to() == "the end of another device's arrow"            # the last that says, from then on

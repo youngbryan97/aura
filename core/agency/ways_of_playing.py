@@ -155,4 +155,22 @@ WAYS: tuple[Way, ...] = (
     Way("take stock", "read the rules; ask what she knows when stuck, failing, unsure or before she begins",
         "core.cognition.taking_stock:take_stock", "core.skills.sovereign_browser_taking_stock",
         "tests/test_she_takes_stock_when_she_keeps_failing.py"),
+    Way("a plan to an end", "plan from where things start to what she is there to do, as uses of what the place gives her "
+        "(what each thing does, what it works with), each step held to what it was to show, and the plan made again "
+        "when steps or a try say it was wrong",
+        "core.cognition.a_plan_to_an_end:ask_for_a_plan", "core.skills.screen_pursuit_looking",
+        "tests/test_she_plans_from_the_start_to_the_end.py"),
+    Way("reach what a step needs", "where what a step uses is not on the screen, take the act she has found brings it up, "
+        "or the one that leads by the screens she knows toward where it was",
+        "core.skills.screen_pursuit_decision:_reaching_what_the_next_step_needs", "core.skills.screen_pursuit_decision",
+        "tests/test_she_reaches_what_a_step_needs.py"),
+    Way("read the signs", "learn what each kind of thing does just before it hurts her (it stops, grows, rushes, turns "
+        "toward her) and get clear when she sees it; keep clear of what she does not know closing faster than she can "
+        "answer",
+        "core.agency.warning_signs:WarningSigns", "core.agency.playing_as_it_happens",
+        "tests/test_she_reads_the_signs_before_harm.py"),
+    Way("turn what was placed", "turn a part put into a chain until what it sends out points on toward where the chain "
+        "must go, by her eyes on where its output ends and where the goal is",
+        "core.agency.aiming_what_was_placed:a_turn_wanted", "core.skills.screen_pursuit_decision",
+        "tests/test_a_part_put_down_is_turned_toward_where_the_chain_goes.py"),
 )

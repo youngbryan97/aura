@@ -91,6 +91,12 @@ def _not_read_only(move: str) -> bool:
     return label is None or how_much_it_leads_on(label) > 0.7
 
 
+def _turns(label: str) -> bool:
+    from core.agency.aiming_what_was_placed import turns_a_thing
+
+    return turns_a_thing(label)
+
+
 def what_is_clicked(move: str) -> str | None:
     """What a click move clicks, or None when the move is not a click."""
     name = str(move or "").strip()
@@ -214,6 +220,8 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
     quiet_since: set[str] = field(default_factory=set)
     #: The screens of this place and where each act on them led, across sittings.
     leads: WhereThingsLead = field(default_factory=WhereThingsLead)
+    #: The input she gave last, for what the screen said after it (a way that would not open).
+    last_tried: str = ""
     #: Whether the screen in front of her asks her to choose, and whether she has chosen on it: one choice is enough,
     #: and then what goes on is wanted (core/skills/screen_pursuit_decision.py `_first_what_goes_on`).
     choosing_here: bool = False
@@ -312,6 +320,13 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
         self.paired(name)
         self.carried(name, changed)
         self.leads.acted(name, changed)
+        self.last_tried = name
+        if changed and what_is_clicked(name) and _turns(what_is_clicked(name) or ""):
+            # The part put down last was turned: where its output ends is looked for again (aiming_what_was_placed).
+            from core.perception.where_the_words_point import PLACES
+
+            self.turned_since_placed += 1
+            PLACES.moved()
         if self.on_tried is not None:
             self.on_tried(name, changed)
         if changed:

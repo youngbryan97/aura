@@ -18,6 +18,14 @@ place has shown or said. Nothing is invented. The steps become a procedure as a 
 nothing is passed over, and the plan is part of what she reasons with and says aloud as uses ("using the anvil to
 drop onto the cage"). When a try ends without the end reached, the plan is made again with what happened.
 
+Each step also says what will show once it is done, and what the screen shows next is held to it, as the robots that
+plan in words check each step's success before the next (Inner Monologue, 2022) and the agents that play unseen games
+abort a plan whose step did not do what was expected (explore, verify, plan: ARC-AGI-3, 2026). A step that did not show
+what it should is not done, what it was to show and what showed instead are kept, and a second such miss has the plan
+made again with them, described, as the planners that explain a failure before replanning do (DEPS, 2023; REFLECT,
+2023). And what she has found each thing on the screens does (core/agency/where_things_lead.py) is part of what the plan
+is made from: what the place lets her use, and in what ways.
+
 Nothing here knows a place.
 """
 from __future__ import annotations
@@ -31,7 +39,7 @@ from typing import Any
 
 from core.cognition.reading_the_rules import Frame, Rules
 
-__all__ = ["Means", "Plan", "ask_for_a_plan", "plan_again"]
+__all__ = ["Means", "Plan", "ask_for_a_plan", "plan_again", "the_screen_answered"]
 
 logger = logging.getLogger("Aura.APlanToAnEnd")
 
@@ -71,6 +79,13 @@ class Plan(Rules):
     start: str = ""
     means: list[Means] = field(default_factory=list)
     because: str = ""
+    #: What each step (by its key) is to show once done; the step done last and awaiting the screen's answer; and what
+    #: steps showed instead of what they were to.
+    expects: dict[str, str] = field(default_factory=dict)
+    awaiting: str = ""
+    missed: list[str] = field(default_factory=list)
+    #: Whether a step could not be done as written, for the plan to be made again around it.
+    stuck: bool = False
 
     def took(self, frames: Sequence[Frame]) -> list[Frame]:
         taken = []
@@ -81,6 +96,38 @@ class Plan(Rules):
             self.frames[frame.key] = frame
             taken.append(frame)
         return taken
+
+    def tried(self, move: str, changed: bool) -> None:
+        """A move made: the step it does done as a lesson's is, and, where it says what will show, awaiting the screen. A
+        step tried until it is passed over is a step that could not be done as written: said, for the plan to be made
+        again around it or broken down (ADaPT, 2023: a task is decomposed when doing it fails)."""
+        from core.cognition.reading_the_rules import PASSED_OVER_AFTER
+
+        frame = self.step_of(move)
+        super().tried(move, changed)
+        if frame is not None and changed and self.expects.get(frame.key):
+            self.awaiting = frame.key
+        if frame is not None and not changed and self.unanswered_steps.get(frame.key, 0) == PASSED_OVER_AFTER:
+            self.missed.append(f"“{frame.sentence}” did nothing when tried ({move})")
+            del self.missed[:-4]
+            self.stuck = True
+
+    def saw(self, shown: str) -> bool:
+        """What the screen shows after a step that said what would: the step stands where most of what it was to show
+        is there, and is not done where it is not, with what showed kept. Whether the plan is to be made again: a second
+        step in a row that did not show what it should."""
+        key, self.awaiting = self.awaiting, ""
+        frame, expected = self.frames.get(key), self.expects.get(key, "")
+        wanted = _words(expected)
+        if frame is None or not wanted:
+            return False
+        if len(wanted & _words(shown)) * 2 >= len(wanted):
+            self.missed.clear()
+            return False
+        self.done.discard(key)
+        self.missed.append(f"“{frame.sentence}” was to show {expected}; the screen showed: {' '.join(shown.split())[:160]}")
+        del self.missed[:-4]
+        return len(self.missed) >= 2
 
     def as_uses(self) -> list[str]:
         """Its steps as uses, as she says them: "using the anvil to drop onto the cage"."""
@@ -128,7 +175,9 @@ def _shown(part: str, known: set[str]) -> str:
 def _what_she_knows(guide: Any, on_screen: Sequence[str]) -> str:
     rules = getattr(guide, "rules", None)
     heard = " | ".join(getattr(rules, "heard", []) or [])
+    found = list(getattr(guide, "found_to_do", None) or [])
     return "\n".join(p for p in (guide.for_thinking(), f"Its words, as shown: {heard}" if heard else "",
+                                 "What they have found things here do: " + " | ".join(found) if found else "",
                                  "On the screen now: " + ", ".join(on_screen[:40]) if on_screen else "") if p)[:MOST_KNOWN]
 
 
@@ -156,6 +205,7 @@ async def _a_plan(guide: Any, on_screen: Sequence[str], happened: str, ask: Call
         using: str = Field(default="", max_length=60, description="the control it is done with, by its name there")
         for_what: str = Field(default="", max_length=100, description="what this step achieves toward the end")
         again: bool = Field(default=False, description="true where it is done again and again until something")
+        expect: str = Field(default="", max_length=100, description="what will show on the screen once it is done")
 
     class _Plan(BaseModel):
         end: str = Field(default="", max_length=160, description="what has to be true when it is done")
@@ -170,7 +220,8 @@ async def _a_plan(guide: Any, on_screen: Sequence[str], happened: str, ask: Call
               + "Make their plan: what has to be true at the end, where things start, what the place gives them to work "
               "with (what each does, what it connects to or is used with, whether it works on its own), and the steps "
               f"from the start to the end, in order, each one of these ways ({ways}), naming what is used, where, with "
-              "which control, and what it achieves toward the end. Name only things the place shows or says."
+              "which control, what it achieves toward the end, and what will show once it is done. Name only things "
+              "the place shows or says."
               + (" Change what the last try showed was wrong." if happened else ""))
     try:
         got = await asked_patiently(ask, prompt, _Plan, MOST_TOKENS, matters=THE_PLACE)
@@ -197,6 +248,7 @@ def _held_to_the_place(said: dict[str, Any], known: set[str], happened: str) -> 
         frames.append(Frame(sentence=" ".join(str(one.get("step") or "").split()) or f"{one['act']} {thing}",
                             act=str(one.get("act") or ""), thing=thing, where=where, using=using,
                             for_what=str(one.get("for_what") or ""), again=bool(one.get("again"))))
+        plan.expects[frames[-1].key] = " ".join(str(one.get("expect") or "").split())
     plan.took(frames)
     return plan
 
@@ -233,6 +285,16 @@ def ask_for_a_plan(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, on_
 
     guide.planning = loop.create_task(asked())
     return True
+
+
+def the_screen_answered(guide: Any, shown: str) -> None:
+    """What the screen shows now, held to what her plan's last step was to show: a second step in a row that did not show
+    it has the plan made again, with what each was to show and what showed instead."""
+    plan = getattr(guide, "plan", None)
+    if plan is not None and (plan.awaiting and plan.saw(shown) or plan.stuck):
+        plan.stuck = False
+        logger.info("her plan's steps did not do what they were to: %s", plan.missed)
+        guide.plan_again_because = " ".join(plan.missed)
 
 
 def plan_again(guide: Any, happened: str) -> None:

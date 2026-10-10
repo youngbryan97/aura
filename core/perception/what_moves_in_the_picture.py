@@ -86,6 +86,11 @@ LEFT_BEHIND_S = 0.25
 
 #: A thing missing this long, and not found by its look, has gone.
 GONE_AFTER_S = 0.25
+#: How long a moving thing that went out of sight is kept, with where its going was taking it, so that a thing of its
+#: kind coming back into sight near there is that thing again: a figure that walks behind a pillar and out the other
+#: side, a ball under a cup. Infants expect a hidden thing to come out where its path leads (Baillargeon's
+#: violation-of-expectation studies); the models of it track a thing through occlusion (ADEPT, Smith et al., 2019).
+OUT_OF_SIGHT_S = 4.0
 
 
 @dataclass
@@ -149,6 +154,8 @@ class Thing:
     least: float = math.inf
     #: Whether anyone has been told it appeared: while the view moves, not until it has shown it is not scenery.
     announced: bool = True
+    #: Whether it is a thing that went out of sight and came back into it (OUT_OF_SIGHT_S).
+    again: bool = False
 
     @property
     def size(self) -> float:
@@ -244,10 +251,30 @@ def _without_what_stands_out(still: np.ndarray) -> np.ndarray:
     return backdrop
 
 
+def _back_in_sight(moves: WhatMoves, thing: Thing, at: float) -> Thing | None:
+    """The moving thing of this one's kind that went out of sight lately and was headed for about where this one has
+    come into it, the nearest such; None where none was."""
+    best, nearest = None, math.inf
+    for number, (gone, when) in list(moves.out_of_sight.items()):
+        away = at - when
+        if away > OUT_OF_SIGHT_S:
+            del moves.out_of_sight[number]
+            continue
+        if gone.kind != thing.kind or number in moves.things or number in moves.pending:
+            continue
+        x, y = gone.x + gone.vx * away, gone.y + gone.vy * away
+        off = math.hypot(thing.x - x, thing.y - y)
+        # Its own size twice over, and half of how far it would have gone: a thing hidden longer may have turned.
+        if off <= 2 * max(gone.w, gone.h) + 0.5 * math.hypot(gone.vx, gone.vy) * away and off < nearest:
+            best, nearest = number, off
+    return moves.out_of_sight.pop(best)[0] if best is not None else None
+
+
 def what_happened(kind: str, thing: Thing, at: float) -> dict[str, Any]:
     return {"what": kind, "thing": thing.number, "kind": thing.kind, "x": thing.x, "y": thing.y,
             "vx": thing.vx, "vy": thing.vy, "width": thing.w, "height": thing.h, "at": at,
-            "last_visible": list(_measured(thing)), "last_seen_at": thing.seen, "moved": thing.moved}
+            "last_visible": list(_measured(thing)), "last_seen_at": thing.seen, "moved": thing.moved,
+            "again": bool(getattr(thing, "again", False))}
 
 
 def _boxes_overlap(a: tuple, b: tuple) -> bool:
@@ -290,6 +317,9 @@ class WhatMoves:
         self.screens = 0
         #: Where each thing that went was last seen, for whoever asks what it went beside.
         self.last_box: dict[int, tuple[float, float, float, float]] = {}
+        #: Moving things gone out of sight lately, with when: a thing of the kind coming back near where its going was
+        #: taking it is the same thing (OUT_OF_SIGHT_S).
+        self.out_of_sight: dict[int, tuple[Thing, float]] = {}
         #: How the view itself last moved (core/perception/how_the_scenery_goes_by.py), and what turns its layers'
         #: shifts into pixels a second.
         self.view_moved: Any = None
@@ -686,6 +716,11 @@ class WhatMoves:
             blob["colour"], blob["patch"], born=at, seen=at,
         )
         thing.kind = self._kind_for(thing.look, thing.size, thing.colour)
+        before = _back_in_sight(self, thing, at)
+        if before is not None:
+            # The same thing, come back into sight where its going was taking it: its number, its path and its way.
+            thing.number, thing.path, thing.born, thing.moved = before.number, before.path, before.born, True
+            thing.vx, thing.vy, thing.again = before.vx, before.vy, True
         thing.path.append((at, thing.x, thing.y))
         thing.least = thing.size  # as it first stands out, before it has left anything behind
         thing.announced = not self.view_is_moving
@@ -709,6 +744,7 @@ class WhatMoves:
             self.last_box.update({number: thing.box() for number, thing in self.things.items()})
             self.things.clear()
             self.pending.clear()
+            self.out_of_sight.clear()
         dt = at - self._last_at if self._last is not None else 0.0
         # How long each pixel has stood unchanged, picture to picture.
         if self._last is not None and self._last.shape == small.shape:
@@ -840,6 +876,8 @@ class WhatMoves:
                 if thing.announced:
                     happened.append(what_happened("gone", thing, at))
                     self.last_box[number] = thing.box()
+                    if thing.moved:
+                        self.out_of_sight[number] = (thing, at)
                 del kept[number]
                 continue
             # Not seen, and not gone yet: where its speed has taken it. A

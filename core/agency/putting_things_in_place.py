@@ -93,6 +93,8 @@ class PuttingInPlace:
     screen_carried_on: tuple[str, ...] = ()
     #: What the screen reading found drawn on the screen now, by what she calls each: pictures, not writing.
     pictures: set[str] = field(default_factory=set)
+    #: Turns given the part put down last (core/agency/aiming_what_was_placed.py).
+    turned_since_placed: int = 0
 
     def told_of_carrying(self, words: str) -> None:
         """Words read at this place: once they speak of carrying, it is a place where things are carried."""
@@ -150,6 +152,7 @@ class PuttingInPlace:
                 from core.perception.where_the_words_point import PLACES
 
                 PLACES.moved()
+                self.turned_since_placed = 0
             at = getattr(self, "where", {}).get(found[1])
             if changed and at is not None:
                 self.chain_ends_at = at

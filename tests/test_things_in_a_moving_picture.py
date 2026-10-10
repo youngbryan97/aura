@@ -101,3 +101,26 @@ def test_an_equal_area_object_with_another_shape_does_not_inherit_a_controls_ide
     for n in range(20):
         moves.see(replacement, (35 + n) * 0.03)
     assert control.number not in moves.things
+
+
+def test_a_thing_that_goes_behind_something_and_comes_out_is_the_same_thing():
+    """A figure walking behind a pillar and out the other side is the one that went in, not a new one."""
+    pillar = (90, 20, 30, 80, (90, 90, 90))
+    def at(n: int) -> list:
+        x = 10 + 3 * n
+        hidden = 84 <= x <= 120                                  # behind the pillar: not drawn
+        return [pillar] if hidden else [pillar, (x, 50, 6, 6, (250, 250, 250))]
+    moves, happened = _watch([_picture(at(n)) for n in range(55)])
+    walker = [t for t in moves.things.values() if t.colour == (250, 250, 250)]
+    assert len(walker) == 1 and walker[0].again and walker[0].vx > 50
+    first = next(h["thing"] for h in happened if h["what"] == "appeared" and h["thing"] == walker[0].number)
+    assert first == walker[0].number
+    assert any(h["what"] == "appeared" and h["again"] for h in happened)
+
+
+def test_a_thing_of_another_kind_coming_into_sight_is_not_the_one_that_went():
+    going = [_picture([(10 + 3 * n, 50, 6, 6, (250, 250, 250))]) for n in range(20)]
+    gap = [_picture([]) for _ in range(15)]
+    other = [_picture([(120 + 3 * n, 50, 6, 6, (40, 40, 250))]) for n in range(15)]
+    moves, _ = _watch(going + gap + other)
+    assert not any(t.again for t in moves.things.values())

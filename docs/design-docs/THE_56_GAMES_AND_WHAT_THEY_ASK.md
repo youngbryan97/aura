@@ -63,6 +63,10 @@ if any of them is not called from her live play or has no test.
 | take stock | read the rules; ask what she knows when stuck | `core/cognition/taking_stock.py` |
 | follow the lesson | read each sentence a place shows for what it asks, by her own model held to her ways and to the sentence's words, and follow its lesson as a procedure, the next step not yet done first | `core/cognition/reading_the_rules.py` |
 | what a place is | read what a place is about, who she is in it, what she works it with and by which way, what she wants out of it and what makes sense there: from its name, what she sees, what it says and what play shows, the surer outranking the less sure | `core/cognition/what_this_place_is.py` |
+| a plan to an end | plan from where things start to what she is there to do, as uses of what the place gives her, each step held to what it was to show, made again when it is shown wrong | `core/cognition/a_plan_to_an_end.py` |
+| reach what a step needs | where what a step uses is not on the screen, take the act found to bring it up, or the one leading toward where it was | `core/agency/where_things_lead.py` |
+| read the signs | learn what each kind does just before it hurts her and get clear when she sees it; keep clear of what she does not know closing faster than she can answer | `core/agency/warning_signs.py` |
+| turn what was placed | turn a part put into a chain until what it sends out points on toward where the chain must go | `core/agency/aiming_what_was_placed.py` |
 
 ## The games
 

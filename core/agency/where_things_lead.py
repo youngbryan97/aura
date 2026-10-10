@@ -23,6 +23,15 @@ everything on a screen has been tried, she takes the act that leads, by the edge
 that still has something untried. LIVE 2026-10-10 she clicked and carried on one game's screens "to see what it
 does", the same acts again and again, while a tab of its device library was never opened.
 
+It is also what she has found each thing does, as the agents that learn an app by using it write down what each of
+its controls did (AppAgent, 2023: a picture before and after each act, the change kept as that control's entry): after
+every act that answered, what came up on the screen that was not there and what went (``did``). And it is how she
+reaches what she needs, as a planner chains an act's effects back to what a goal wants (goal-oriented action planning,
+F.E.A.R., 2005; means-ends analysis, Newell and Simon): a step needs a thing that is not on the screen, so she takes the
+act she has found brings it up, or the one that leads, by the screens she knows, toward where it was (``toward``).
+LIVE 2026-10-10 her plan said to use a roller from the device library, and the rollers were behind a tab she had opened
+once: she clicked the shapes on the page instead.
+
 Nothing here knows what a menu, a level or a game is.
 """
 from __future__ import annotations
@@ -46,6 +55,22 @@ MOST_SCREENS = 60
 
 #: Where a screen with nothing to read is kept.
 WORDLESS = -1
+
+#: The most of what one act brought up or took away that is kept, and how far a way to what is needed is looked for.
+MOST_SHOWN = 12
+FURTHEST = 6
+_A_CLICK = re.compile(r'^click "(.*)"$')
+_PLAIN = frozenset("the and you your for with from that this into onto any each other another one all its".split())
+
+
+def _label(act: str) -> str:
+    found = _A_CLICK.match(str(act or ""))
+    return found.group(1) if found else str(act or "")
+
+
+def _named(text: str) -> set[str]:
+    """The words a thing is named by, for telling whether a label names it ("ROLLERS" and "a roller")."""
+    return {w.rstrip("s") for w in re.findall(r"[a-z]{3,}", str(text or "").lower()) if w not in _PLAIN}
 
 
 def screen_words(labels: Sequence[str], says: str = "") -> frozenset[str]:
@@ -79,10 +104,14 @@ class WhereThingsLead:
     #: "screen|act" -> the screen it last led to; and what each screen offered to be done on it.
     to: dict[str, int] = field(default_factory=dict)
     offered: dict[int, frozenset[str]] = field(default_factory=dict)
+    #: "screen|act" -> what the act last brought up on the screen ("shows") and took away ("hides"), by their labels.
+    did: dict[str, dict[str, list[str]]] = field(default_factory=dict)
     #: This sitting: the screens in the order she first came to them, and where she is.
     _been: list[int] = field(default_factory=list)
     _here: int | None = None
     _before: int | None = None
+    _labels_before: frozenset[str] = frozenset()
+    _labels_now: frozenset[str] = frozenset()
 
     def which(self, words: frozenset[str]) -> int:
         """The number of the screen these words are, a new one if no screen she knows is it."""
@@ -104,6 +133,7 @@ class WhereThingsLead:
         """She looked at a screen: where she is now, and where she was before it."""
         here = self.which(screen_words(labels, says))
         self._before, self._here = self._here, here
+        self._labels_before, self._labels_now = self._labels_now, frozenset(_label(label) for label in labels)
         if here not in self._been:
             self._been.append(here)
 
@@ -115,6 +145,13 @@ class WhereThingsLead:
         counts = self.went.setdefault(f"{before}|{act}", {})
         if changed and after != before:
             self.to[f"{before}|{act}"] = after
+        if changed:
+            shows, hides = self._labels_now - self._labels_before, self._labels_before - self._labels_now
+            if shows or hides:
+                self.did.pop(f"{before}|{act}", None)              # the latest last: what_things_do reads the newest
+                self.did[f"{before}|{act}"] = {"shows": sorted(shows)[:MOST_SHOWN], "hides": sorted(hides)[:MOST_SHOWN]}
+                while len(self.did) > MOST_SCREENS * 8:
+                    del self.did[next(iter(self.did))]
         if not changed:
             how = "nothing"
         elif after == before:
@@ -195,6 +232,60 @@ class WhereThingsLead:
                         if key.split("|", 1)[0] == str(screen) and nxt not in seen and not seen.add(nxt)]
         return 0.0
 
+    def toward(self, needed: str) -> dict[str, float]:
+        """For a thing a step needs that is not on the screen: the acts here worth taking to get it, above one the more,
+        as she has found them: an act that brings it up here; else one that leads, by the screens she knows, toward a
+        screen where it was offered or an act brings it up, the nearer the more. Empty where it is here, or where she
+        has never come across it (finding it is exploring's)."""
+        want, here = _named(needed), self._here
+        if not want or here is None or any(want & _named(label) for label in self._labels_now):
+            return {}
+
+        def names(labels: Sequence[str]) -> bool:
+            return any(want & _named(_label(label)) for label in labels)
+
+        out: dict[str, float] = {}
+        targets = {screen for screen, acts in self.offered.items() if names(sorted(acts))}
+        for key, done in self.did.items():
+            screen, act = key.split("|", 1)
+            if names(done.get("shows") or ()):
+                targets.add(int(screen))
+                if int(screen) == here:
+                    out[act] = 2.0                                     # this brings it up, here
+        if out:
+            return out
+        for key, first in self.to.items():
+            screen, act = key.split("|", 1)
+            steps = self._steps_to(first, targets - {here}) if int(screen) == here else None
+            if steps is not None:
+                out[act] = 1.0 + 0.8 / (1 + steps)
+        return out
+
+    def _steps_to(self, start: int, targets: set[int]) -> int | None:
+        """How many acts from ``start`` to the nearest of ``targets`` by the screens she knows; None where none is."""
+        seen, frontier, steps = {start}, [start], 0
+        while frontier and steps <= FURTHEST:
+            if targets & set(frontier):
+                return steps
+            steps += 1
+            frontier = [nxt for screen in frontier for key, nxt in self.to.items()
+                        if key.split("|", 1)[0] == str(screen) and nxt not in seen and not seen.add(nxt)]
+        return None
+
+    def what_things_do(self, most: int = 12) -> list[str]:
+        """What she has found the things here do, a line each: what an act brought up, took away, or where it led."""
+        lines: list[str] = []
+        for key, done in list(self.did.items())[-most:]:
+            act = _label(key.split("|", 1)[1])
+            shows = [s for s in done.get("shows") or () if not s.startswith(("the shape at", "the one that stands out"))]
+            drawn = len(done.get("shows") or ()) - len(shows)
+            parts = [("brings up " + ", ".join(shows[:6])) if shows else "", f"{drawn} drawn things appear" if drawn else "",
+                     ("takes away " + ", ".join(done.get("hides", [])[:4])) if done.get("hides") else ""]
+            said = "; ".join(p for p in parts if p)
+            if said:
+                lines.append(f"{act}: {said}")
+        return lines
+
     def says(self) -> str:
         """What the map holds, for whoever has to answer for it."""
         led_on = sum(1 for counts in self.went.values() if counts.get("on", 0) > counts.get("back", 0))
@@ -218,6 +309,8 @@ class WhereThingsLead:
             "played": sorted(renumber[n] for n in self.played if n in renumber),
             "to": to,
             "offered": {str(renumber[n]): sorted(acts)[:40] for n, acts in self.offered.items() if n in renumber},
+            "did": {f"{renumber[int(key.split('|', 1)[0])]}|{key.split('|', 1)[1]}": done for key, done in self.did.items()
+                    if int(key.split("|", 1)[0]) in renumber},
         }
 
     @classmethod
@@ -231,6 +324,8 @@ class WhereThingsLead:
                 played={int(n) for n in held.get("played") or []},
                 to={str(k): int(v) for k, v in (held.get("to") or {}).items()},
                 offered={int(k): frozenset(str(a) for a in v) for k, v in (held.get("offered") or {}).items()},
+                did={str(k): {h: [str(x) for x in v.get(h) or []] for h in ("shows", "hides")}
+                     for k, v in (held.get("did") or {}).items() if isinstance(v, dict)},
             )
         except (TypeError, ValueError, AttributeError):
             return cls()

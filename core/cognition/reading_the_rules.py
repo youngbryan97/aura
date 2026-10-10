@@ -277,8 +277,11 @@ class Rules:
             _decided(ASKS_TO_CARRY, s) for s in self.unread())
 
     def carried_to(self) -> str:
-        """Where the rules say things are carried to, the first that says."""
-        return next((f.where for f in self.in_order() if f.act == "carry" and f.where and not f.never), "")
+        """Where the rules say things are carried to now: the earliest carry step not behind her that says, else the last
+        that says. A lesson may put the first part on "any active square" and every one after "at the end of another's
+        arrow"."""
+        saying = [f for f in self.in_order() if f.act == "carry" and f.where and not f.never]
+        return next((f.where for f in saying if not self.passed(f)), saying[-1].where if saying else "")
 
     def what_it_is_for(self) -> list[str]:
         """The sentences that say what the place is for: as read, else as the learned surface decides."""

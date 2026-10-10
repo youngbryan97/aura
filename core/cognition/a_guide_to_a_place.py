@@ -38,6 +38,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.cognition.locks_she_met import Locks
 from core.cognition.reading_the_rules import Frame, Rules
 from core.cognition.what_she_notices import Notebook
 from core.cognition.what_things_are import WhatSheSees
@@ -186,6 +187,10 @@ class Guide:
     plan: Any = None
     planning: Any = None
     plan_again_because: str = ""
+    #: What she has found the things here do when acted on, a line each (core/agency/where_things_lead.py).
+    found_to_do: list[str] = field(default_factory=list)
+    #: Ways here that would not open yet, what each wants, and what she has gained (core/cognition/locks_she_met.py).
+    locks: Locks = field(default_factory=Locks)
     #: The place's sentences as she read them: what each asks, and its lesson as a procedure
     #: (core/cognition/reading_the_rules.py).
     rules: Rules = field(default_factory=Rules)
@@ -418,7 +423,7 @@ class Guide:
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
         lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(), self.rules.for_thinking(),
-                 self.plan.for_thinking() if self.plan is not None else "",
+                 self.plan.for_thinking() if self.plan is not None else "", self.locks.for_thinking(),
                  self._controls_said(),
                  "Goals: " + " | ".join(self.goals[:4]) if self.goals else "",
                  "Asked of me: " + " | ".join(e.says() for e in self.errands[-4:]) if self.errands else "",

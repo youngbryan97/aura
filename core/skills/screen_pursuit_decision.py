@@ -158,19 +158,26 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
               / (1 + again(name))
               for name, value in (telling or {}).items()}
-    return _as_checked(can_do, _the_lesson_first(_go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued))))
+    return _as_checked(can_do, _the_lesson_first(_go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued)), held,
+                                                 can_do))
 
 
 #: How much more a move that does the lesson's next step is worth than the best of the rest, and how much less a move
 #: its rules forbid is.
 NEXT_STEP, FORBIDDEN = 1.5, 0.1
+#: An act that gets what the next step needs, against doing a step itself: below doing the next step, above the rest.
+REACHING = 1.35
 
 
-def _the_lesson_first(valued: dict[str, float]) -> dict[str, float]:
+def _the_lesson_first(valued: dict[str, float], leads: Any = None, can_do: Any = None) -> dict[str, float]:
     """The place's lesson followed in its order: a move that does its earliest step not yet done, with that step's
     control on the screen, before anything else; a move its rules forbid, hardly at all
     (core/cognition/reading_the_rules.py). LIVE 2026-10-10 a game's lesson said to open the library, choose a type and
-    drag a device to the end of another's arrow, and she carried its tab names about instead."""
+    drag a device to the end of another's arrow, and she carried its tab names about instead.
+
+    Where nothing on the screen does the next step, because what it uses is not on the screen, the act she has found
+    brings that up, or leads toward where it was, comes next (``leads``, core/agency/where_things_lead.py): a step needs
+    a thing, and getting the thing is the step before it."""
     from core.cognition.a_guide_to_a_place import THE_GUIDE
 
     guide = THE_GUIDE.get()
@@ -181,14 +188,52 @@ def _the_lesson_first(valued: dict[str, float]) -> dict[str, float]:
     # Her plan's steps (core/cognition/a_plan_to_an_end.py) lead as the lesson's do: the lesson says how the place is
     # worked, the plan what she is using it for.
     procedures = [p for p in (rules, getattr(guide, "plan", None)) if p is not None]
+    reach = _reaching_what_the_next_step_needs(procedures, valued, leads, getattr(guide, "locks", None))
     out = {}
     for move, value in valued.items():
         for procedure in procedures:
             step = procedure.step_of(move)
             if step is not None:
                 value = max(value, best * (NEXT_STEP if step is procedure.next_step() else 1.2))
+        if move in reach:
+            value = max(value, best * REACHING * reach[move])
         out[move] = value * (FORBIDDEN if rules.forbids(move) or rules.passes_over_what_it_teaches(move) else 1.0)
+    # The part put down last, pointing away from where the chain must go, is turned before the next is added
+    # (core/agency/aiming_what_was_placed.py).
+    from core.agency.aiming_what_was_placed import a_turn_wanted
+
+    turn = a_turn_wanted(can_do, guide, list(out)) if can_do is not None else ""
+    if turn:
+        out[turn] = max(out[turn], best * NEXT_STEP * 1.1)
     return out
+
+
+def _reaching_what_the_next_step_needs(procedures: list[Any], valued: dict[str, float], leads: Any,
+                                       locks: Any = None) -> dict[str, float]:
+    """For each procedure whose next step nothing offered does: the acts that get what that step uses, as she has found
+    them, scaled so the surest is one. And for each way that would not open whose want has turned up
+    (core/cognition/locks_she_met.py): the act on it, where it is here, else the acts that lead toward it."""
+    from core.agency.what_i_can_do_here import what_is_clicked
+
+    toward = getattr(leads, "toward", None)
+    if toward is None:
+        return {}
+    reach: dict[str, float] = {}
+    for lock in (locks.open_to_try() if locks is not None else ()):
+        here = [move for move in valued if what_is_clicked(move) == lock.at]
+        for act, worth in ({move: 2.0 for move in here} if here else toward(lock.at)).items():
+            if act in valued:
+                reach[act] = max(reach.get(act, 0.0), worth)
+    for procedure in procedures:
+        nxt = procedure.next_step()
+        if nxt is None or any(procedure.step_of(move) is nxt for move in valued):
+            continue
+        for needed in (nxt.thing, nxt.using, nxt.where):
+            for act, worth in (toward(needed) if needed else {}).items():
+                if act in valued:
+                    reach[act] = max(reach.get(act, 0.0), worth)
+    top = max(reach.values(), default=0.0)
+    return {act: worth / top for act, worth in reach.items()} if top else {}
 
 
 async def _the_screen_taken_in_while_a_lesson_plays(can_do: Any, observation: dict[str, Any], drawn_where: Any,
@@ -241,9 +286,8 @@ def _as_checked(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
     paced = MOVES_SAID.get()
     check = the_check()
     if hasattr(can_do, "on_tried"):
-        rules = getattr(the_guide(paced if isinstance(paced, dict) else None), "rules", None)
-
         guide = the_guide(paced if isinstance(paced, dict) else None)
+        rules = getattr(guide, "rules", None)
 
         def tried(act: str, answered: bool) -> None:
             check.learned(act, answered)
@@ -251,6 +295,8 @@ def _as_checked(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
                 rules.tried(act, answered)
             if getattr(guide, "plan", None) is not None:
                 guide.plan.tried(act, answered)
+            if getattr(guide, "locks", None) is not None:
+                guide.locks.tried(act, answered)
 
         can_do.on_tried = tried
     return check.weigh(valued, the_guide(paced if isinstance(paced, dict) else None), can_do)

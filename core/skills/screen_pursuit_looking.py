@@ -896,7 +896,10 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     clickable = _where_the_way_on_was(observation, clickable, says, paced)
     clickable = _what_paused_it(observation, clickable, can_do, paced)
     clickable = _the_place_its_words_name(observation, clickable, can_do)
-    clickable = _as_the_guide_reads_it(clickable, says, paced, narrate)
+    leads = getattr(can_do, "leads", None)
+    clickable = _as_the_guide_reads_it(clickable, says, paced, narrate,
+                                       found=leads.what_things_do() if leads is not None else (),
+                                       last_act=str(getattr(can_do, "last_tried", "") or ""))
     # Her bearings here (core/cognition/her_bearings.py): what tells her what to do, what stands out, and what would
     # take her away from the thing, which is not offered at all.
     bearings = _her_bearings(observation, clickable, says, can_do)
@@ -951,7 +954,8 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
         _tell(bearings.said())
 
 
-def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool) -> Any:
+def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool, found: Any = (),
+                           last_act: str = "") -> Any:
     """The screen taken into the guide to where she is (core/cognition/a_guide_to_a_place.py), what it changed said;
     and what it is to read (a count, a meter, a clock) not offered to be pressed.
 
@@ -978,9 +982,18 @@ def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool)
     read_the_rules_beside(guide, _her_model, then=lambda frames: [
         _tell(line) for line in rules_read(guide, frames) if narrate])
     # And her plan from where things start to what she is there to do, made once there is an end and something to work
-    # with, and made again when a try says it was wrong (core/cognition/a_plan_to_an_end.py).
-    from core.cognition.a_plan_to_an_end import ask_for_a_plan
+    # with, and made again when a try says it was wrong: a run that ended, or steps that did not show what they were to
+    # (core/cognition/a_plan_to_an_end.py). What she has found things here do is part of what it is made from.
+    from core.cognition.a_plan_to_an_end import ask_for_a_plan, the_screen_answered
 
+    if found:
+        guide.found_to_do = list(found)
+    the_screen_answered(guide, " ".join([says or "", *labels]))
+    # A way that would not open, kept with what it wants; a gain that names it, a way to go back to
+    # (core/cognition/locks_she_met.py).
+    from core.cognition.locks_she_met import heard_on_a_screen
+
+    news = [*heard_on_a_screen(guide, says, [label for label in labels if label], last_act), *news]
     ask_for_a_plan(guide, _her_model, on_screen=[label for label in labels if label], tell=_tell if narrate else None)
     if narrate:
         # Said once it holds more than the screen itself says: the screen's words are read out on their own.
