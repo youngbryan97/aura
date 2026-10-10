@@ -60,6 +60,7 @@ if any of them is not called from her live play or has no test.
 | checked against the guide | each act she weighs scaled by what the guide says of it, learned from what acts did | `core/cognition/checking_the_debate.py` |
 | read the program | read the program a page runs, where it can be had, for how it is worked; nothing that would spoil it | `core/perception/reading_a_program.py` |
 | take stock | read the rules; ask what she knows when stuck | `core/cognition/taking_stock.py` |
+| follow the lesson | read each sentence a place shows for what it asks, by her own model held to her ways and to the sentence's words, and follow its lesson as a procedure, the next step not yet done first | `core/cognition/reading_the_rules.py` |
 | what a place is | read what a place is about, who she is in it, what she works it with and by which way, what she wants out of it and what makes sense there: from its name, what she sees, what it says and what play shows, the surer outranking the less sure | `core/cognition/what_this_place_is.py` |
 
 ## The games

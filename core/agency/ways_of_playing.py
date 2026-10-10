@@ -131,6 +131,10 @@ WAYS: tuple[Way, ...] = (
         "what she looked up, kept up to date as it changes, and said",
         "core.cognition.a_guide_to_a_place:the_guide", "core.skills.screen_pursuit_looking",
         "tests/test_a_guide_says_how_a_place_is_worked.py"),
+    Way("follow the lesson", "read each sentence a place shows for what it asks (an act of hers, done to what, where to, with "
+        "what, when, or never) and follow its lesson as a procedure, its next step not yet done first",
+        "core.cognition.reading_the_rules:read_the_rules_beside", "core.skills.screen_pursuit_looking",
+        "tests/test_she_reads_rules_as_what_they_ask.py"),
     Way("what a place is", "read what a place is about, who she is in it, what she works it with and by which way, what "
         "she wants out of it and what makes sense there, from its name, what she sees, what it says and what play shows; "
         "the surer evidence outranking the less sure, and play outranking all",

@@ -157,7 +157,34 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
               / (1 + again(name))
               for name, value in (telling or {}).items()}
-    return _as_checked(can_do, _go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued)))
+    return _as_checked(can_do, _the_lesson_first(_go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued))))
+
+
+#: How much more a move that does the lesson's next step is worth than the best of the rest, and how much less a move
+#: its rules forbid is.
+NEXT_STEP, FORBIDDEN = 1.5, 0.1
+
+
+def _the_lesson_first(valued: dict[str, float]) -> dict[str, float]:
+    """The place's lesson followed in its order: a move that does its earliest step not yet done, with that step's
+    control on the screen, before anything else; a move its rules forbid, hardly at all
+    (core/cognition/reading_the_rules.py). LIVE 2026-10-10 a game's lesson said to open the library, choose a type and
+    drag a device to the end of another's arrow, and she carried its tab names about instead."""
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    guide = THE_GUIDE.get()
+    rules = getattr(guide, "rules", None)
+    if rules is None or not valued:
+        return valued
+    best = max([1.0, *valued.values()])
+    nxt = rules.next_step()
+    out = {}
+    for move, value in valued.items():
+        step = rules.step_of(move)
+        if step is not None:
+            value = max(value, best * (NEXT_STEP if step is nxt else 1.2))
+        out[move] = value * (FORBIDDEN if rules.forbids(move) else 1.0)
+    return out
 
 
 def _with_the_guide(learned: Any, *, brief: bool = False) -> list[str]:
@@ -185,7 +212,14 @@ def _as_checked(can_do: Any, valued: dict[str, float]) -> dict[str, float]:
     paced = MOVES_SAID.get()
     check = the_check()
     if hasattr(can_do, "on_tried"):
-        can_do.on_tried = check.learned
+        rules = getattr(the_guide(paced if isinstance(paced, dict) else None), "rules", None)
+
+        def tried(act: str, answered: bool) -> None:
+            check.learned(act, answered)
+            if rules is not None:
+                rules.tried(act, answered)
+
+        can_do.on_tried = tried
     return check.weigh(valued, the_guide(paced if isinstance(paced, dict) else None), can_do)
 
 

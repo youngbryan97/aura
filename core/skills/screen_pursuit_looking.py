@@ -930,6 +930,10 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
         guide = THE_GUIDE.get()
         if guide is not None and "carry" in guide.reading.acts() and hasattr(can_do, "carrying_said"):
             can_do.carrying_said = True
+        if guide is not None and hasattr(can_do, "carrying_said") and guide.rules.asks_to_carry():
+            # Its rules, as read, ask for things to be carried, and say where to.
+            can_do.carrying_said = True
+            can_do.place_named = guide.rules.carried_to().lower() or can_do.place_named
     if not says or not narrate or paced is None:
         return
     words = set(says.lower().split())
@@ -959,6 +963,13 @@ def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool)
     guide = the_guide(run, place=str((run or {}).get("place") or ""))
     labels = [what_is_clicked(move) or "" for move in clickable]
     news = guide.take_in(SCREEN, [says or "", *labels])
+    # What its sentences ask, read by her model beside her work (core/cognition/reading_the_rules.py).
+    from core.cognition.a_guide_to_a_place import rules_read
+    from core.cognition.reading_the_rules import read_the_rules_beside
+    from core.rebuilding.her_model import ask_her_model as _her_model
+
+    read_the_rules_beside(guide, _her_model, then=lambda frames: [
+        _tell(line) for line in rules_read(guide, frames) if narrate])
     if narrate:
         # Said once it holds more than the screen itself says: the screen's words are read out on their own.
         if not guide.said and guide.sources - {SCREEN} and guide.says():

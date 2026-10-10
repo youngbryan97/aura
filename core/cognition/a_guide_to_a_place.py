@@ -38,6 +38,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.cognition.reading_the_rules import Frame, Rules
 from core.cognition.what_she_notices import Notebook
 from core.cognition.what_things_are import WhatSheSees
 from core.cognition.what_this_place_is import WhatThisPlaceIs
@@ -176,6 +177,9 @@ class Guide:
     reading: WhatThisPlaceIs = field(default_factory=WhatThisPlaceIs)
     #: What her own model supposed the place is for, until the place says it itself.
     supposed_goal: str = ""
+    #: The place's sentences as she read them: what each asks, and its lesson as a procedure
+    #: (core/cognition/reading_the_rules.py).
+    rules: Rules = field(default_factory=Rules)
 
     # -- taking things in ---------------------------------------------------------------------------------------
 
@@ -200,6 +204,9 @@ class Guide:
         self._goals_and_things_from(new)
         if source != MODEL:
             news += said_for_itself(self, [g for g in self.goals if g not in goals_before])
+            # Every sentence the place says is read for what it asks; one read before is understood at once.
+            self.rules.hear(new)
+            news += rules_read(self, self.rules.in_order())
         self._sections_from(new)
         if source != MODEL:
             # Names come from the place's own words and what is said of it, never from what her model supposes.
@@ -383,7 +390,7 @@ class Guide:
     def in_brief(self) -> str:
         """What a move is chosen with: what it is for, how it is worked, what to get and keep clear of, what is not part
         of the task, and what changed lately; short, as it is read at every move."""
-        lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(),
+        lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(), self.rules.for_thinking(),
                  "Goal: " + _short(self.goals[0]) if self.goals else "",
                  "What loses: " + _short(self.lose[0]) if self.lose else "",
                  self._controls_said(),
@@ -397,7 +404,8 @@ class Guide:
 
     def for_thinking(self) -> str:
         """Everything it holds, plainly, for reasoning with: what she is told, never what she must do."""
-        lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(), self._controls_said(),
+        lines = [f"Place: {self.place}" if self.place else "", self.reading.for_thinking(), self.rules.for_thinking(),
+                 self._controls_said(),
                  "Goals: " + " | ".join(self.goals[:4]) if self.goals else "",
                  "Asked of me: " + " | ".join(e.says() for e in self.errands[-4:]) if self.errands else "",
                  "Mechanics in play: " + ", ".join(n for n in self.mechanics if self.in_play(n))
@@ -719,6 +727,17 @@ _SAID_ELSEWHERE = frozenset({"steering", "menus", "information shown", "decorati
                              "levels", "a clock", "clicking things", "choosing from options", "dialogs", "sound controls",
                              "pausing", "menus of a program", "links and pages", "focus and selection", "story",
                              "collecting", "reaching a place", "hazards", "lives", "health", "fuel", "typing"})
+
+
+def rules_read(guide: Guide, frames: list[Frame]) -> list[str]:
+    """What the rules as read change in the guide: a sentence read as saying what the place is for is its goal, ahead
+    of what her model supposed. What to say of it."""
+    said_for = [f.sentence for f in frames if f.is_what_it_is_for and f.sentence not in guide.goals]
+    if not said_for:
+        return []
+    guide.goals[:0] = said_for
+    del guide.goals[8:]
+    return said_for_itself(guide, said_for)
 
 
 def said_for_itself(guide: Guide, goals: list[str]) -> list[str]:

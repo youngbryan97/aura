@@ -135,7 +135,7 @@ def test_every_way_of_playing_has_the_mechanics_that_say_what_it_means_and_every
         assert mechanic.what and mechanic.means and mechanic.play
     played = {way for m in MECHANICS for way in m.ways}
     acting = names - {"play as told", "a legend", "take stock", "counters", "bars", "pause", "carried", "a guide",
-                      "checked against the guide", "read the program", "make", "what a place is"}
+                      "checked against the guide", "read the program", "make", "what a place is", "follow the lesson"}
     assert acting <= played | {"make"}, acting - played
 
 
