@@ -28,6 +28,8 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
+
 __all__ = ["BEARS", "WhatAThingIs", "WhatSheSees", "WhatThingsAre", "asked_patiently", "first_guess", "what_things_are",
            "words_shared"]
 
@@ -223,7 +225,7 @@ async def asked_patiently(ask: Callable[..., Awaitable[Any]], prompt: str, schem
 
 
 _ALL: dict[str, WhatThingsAre] = {}
-_LOADING = threading.Lock()
+_LOADING = checked_lock("what_things_are.loading")
 
 
 def what_things_are() -> WhatThingsAre:

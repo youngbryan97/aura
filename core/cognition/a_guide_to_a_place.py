@@ -177,6 +177,10 @@ class Guide:
     reading: WhatThisPlaceIs = field(default_factory=WhatThisPlaceIs)
     #: What her own model supposed the place is for, until the place says it itself.
     supposed_goal: str = ""
+    #: A player's manual of the place, as her model read it from the code of its program, as lines to reason with; and
+    #: the reading under way (core/cognition/reading_the_code.py).
+    from_its_code: list[str] = field(default_factory=list)
+    reading_the_code: Any = None
     #: The place's sentences as she read them: what each asks, and its lesson as a procedure
     #: (core/cognition/reading_the_rules.py).
     rules: Rules = field(default_factory=Rules)
@@ -236,8 +240,8 @@ class Guide:
         at = time.monotonic() if at is None else at
         # The instructions a program holds are what it tells its player, as a manual does: its instructions.
         words = [str(w) for w in getattr(read, "words", []) or [] if w]
-        # A program's words are the pieces of its screens, one text at a time: its rules are read from them together.
-        self.take_in(TOLD, words, at, passages=[" / ".join(words)] if words else [])
+        # A program's words are its screens' sentences, their lines joined (core/perception/reading_a_program.py).
+        self.take_in(TOLD, words, at, passages=words)
         for key, purpose in (getattr(read, "keys", {}) or {}).items():
             if key not in self.controls:
                 self.controls[key] = Control(key, purpose or "", PROGRAM, at)
@@ -425,7 +429,8 @@ class Guide:
                  "To win: " + " | ".join(self.win[:2]) if self.win else "",
                  "What loses: " + " | ".join(self.lose[:2]) if self.lose else "",
                  "Tips: " + " | ".join(self.tips[:3]) if self.tips else "",
-                 "Counsel: " + " ".join(self.strategy[:3]) if self.strategy else ""]
+                 "Counsel: " + " ".join(self.strategy[:3]) if self.strategy else "",
+                 *(f"From its code — {line}" for line in self.from_its_code)]
         from core.agency.mechanics_she_knows import known
         from core.agency.the_craft_of_play import PRINCIPLES
 

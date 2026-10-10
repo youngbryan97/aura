@@ -43,7 +43,14 @@ async def guide_to_the_page(page: Any, thing: str) -> Any:
     text = text if isinstance(text, str) else ""
     sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+|\n", text) if 3 <= len(s.split()) <= 60]
     guide.take_in(PAGE, [s for s in sentences if says_how_it_is_worked(s)])
-    guide.take_in_program(await read_what_the_page_runs(page))
+    read = await read_what_the_page_runs(page)
+    guide.take_in_program(read)
+    # And what its code says of how it is played, read by her model beside her work (core/cognition/reading_the_code.py).
+    from core.cognition.reading_the_code import read_the_code_beside
+    from core.rebuilding.her_model import ask_her_model
+    from core.skills.screen_pursuit import _tell
+
+    read_the_code_beside(guide, read, ask_her_model, tell=_tell)
     logger.info("a guide to %r in %.1fs: %s", thing, time.monotonic() - began, guide.for_thinking()[:600])
     return guide
 

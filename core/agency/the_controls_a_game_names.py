@@ -113,8 +113,10 @@ def _letter_keys(text: str, *, during_play: bool = False) -> list[str]:
 #: "space" said where a key is meant: the space bar, a key word or a press beside it, or what it is for after it ("Space:
 #: jump", "space to fire"). LIVE 2026-10-09 "through treacherous space hazards" made space a key of a lander game.
 _SPACE_A_KEY = re.compile(r"\bspace ?bar\b|\bspace\s*(?:key|button)\b|\b(?:press|hit|tap|hold|push|use)\s+(?:the\s+)?space\b|"
+                          r"(?<!outer )(?<!deep )(?<!open )(?<!empty )(?<!free )(?<!of )(?<!into )(?<!through )"
                           r"\bspace\s*(?::|=|-|to\s+\w+|for\s+\w+|and\s+(?:the\s+)?(?:arrow|left|right|up|down|enter|shift))|"
                           r"(?:,|and|or)\s+space\b|^\s*space\b")
+#: LIVE-shaped 2026-10-10: "navigating the dangers of outer space to secure a safe landing" is a place, not a key.
 
 
 def _space_is_a_key(lowered: str) -> bool:

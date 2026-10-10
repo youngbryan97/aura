@@ -29,10 +29,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import threading
 from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["ASKS_TO_CARRY", "KEEPS_THE_WORK", "SAYS_WHAT_IT_IS_FOR", "SKIPS_THE_TEACHING", "Frame", "Rules",
            "keeps_the_work", "read_the_rules_beside", "skips_the_teaching"]
@@ -451,7 +452,7 @@ async def _read(sentences: list[str], place: str, ask: Callable[..., Awaitable[A
 # -- kept for every place -------------------------------------------------------------------------------------------
 
 _KEPT: dict[str, dict[str, Any]] = {}
-_KEEPING = threading.Lock()
+_KEEPING = checked_lock("reading_the_rules.kept")
 
 
 _FRAME_FIELDS = frozenset(f.name for f in fields(Frame))

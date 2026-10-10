@@ -11,21 +11,24 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from typing import Any
 
 __all__ = ["look_with_her_eyes", "how_long_a_look_takes"]
 
 logger = logging.getLogger("Aura.HerEyes")
 
-_TURN: dict[int, asyncio.Lock] = {}
+_TURN: dict[int, Any] = {}
 _TOOK: list[float] = []
 
 
-def _turn() -> asyncio.Lock:
+def _turn() -> Any:
     """The one turn at her eyes for the running event loop."""
+    from core.runtime.lockdep import checked_async_lock
+
     loop = asyncio.get_running_loop()
     lock = _TURN.get(id(loop))
     if lock is None:
-        lock = _TURN[id(loop)] = asyncio.Lock()
+        lock = _TURN[id(loop)] = checked_async_lock("her_eyes.turn")
     return lock
 
 

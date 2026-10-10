@@ -20,15 +20,15 @@ had.
 """
 from __future__ import annotations
 
-import threading
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock
 
 #: The entailment model, by its Hugging Face name.
 READER = "cross-encoder/nli-deberta-v3-base"
 
-_LOCK = threading.Lock()
+_LOCK = checked_lock("how_her_words_stand.loaded")
 _LOADED: dict[str, Any] = {}
 
 

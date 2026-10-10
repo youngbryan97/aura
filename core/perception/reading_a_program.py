@@ -103,6 +103,8 @@ class ProgramRead:
     kind: str = ""
     #: The mechanics its text showed, where it was read before and only that was kept.
     mechanics_found: list[str] = field(default_factory=list)
+    #: Its code as statements, as written (core/cognition/reading_the_code.py reads it for how the thing is played).
+    code: list[str] = field(default_factory=list)
 
     def __bool__(self) -> bool:
         return bool(self.text or self.keys or self.words or self.pointer or self.mechanics_found)
@@ -201,6 +203,21 @@ def says_how_it_is_worked(sentence: str) -> bool:
     return bool(_HOW_IT_IS_WORKED.search(sentence or "")) and not _SPOILS.search(sentence or "")
 
 
+def _runs(texts: list[str]) -> list[str]:
+    """A program's texts in order, as its user reads them: the lines of one sentence joined, and split where a sentence
+    ends. LIVE 2026-10-10 a game's lesson was held as twenty-nine lines ("choose the", "type of device", "you wish to
+    use"), and each line was judged alone: six were kept, and the steps between them were lost. A piece of one letter
+    (a title drawn a letter at a time) and a line said twice running are no part of a sentence."""
+    lines: list[str] = []
+    for text in texts:
+        said = " ".join(re.sub(r"<[^>]+>", " ", str(text or "")).split())
+        if len(re.findall(r"[A-Za-z0-9]", said)) < 2 or (lines and lines[-1] == said):
+            continue
+        lines.append(said)
+    joined = re.sub(r"\.\.\.\s+\.\.\.", " … ", " ".join(lines))
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[^.\s])", joined) if s.strip()]
+
+
 def _prose(texts: list[str]) -> list[str]:
     """The writing among a program's strings meant for its user that says how it is worked: words, not names or markup,
     and not what would spoil it."""
@@ -222,13 +239,15 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
             got = read_flash(data)
         except (ValueError, EOFError, OSError, MemoryError):
             return ProgramRead()
-        code = "\n".join(got["code"])
+        statements = [str(line) for line in got["code"]]
+        code = "\n".join(statements)
         names = list(dict.fromkeys([*got["symbols"], *got["instances"], *got["fields"], *got["as3_names"]]))
         texts = [*got["texts"], *(s for s in got["as3_strings"] if " " in s)]
         kind = "flash (AS3)" if got["as3_names"] else "flash"
         labels = list(dict.fromkeys(got["labels"]))
     else:
         code = data[:MOST_TEXT].decode("utf-8", "replace")
+        statements = [line.strip() for line in code.splitlines() if line.strip()]
         names = list(dict.fromkeys(re.findall(r"\b([A-Za-z_$][\w$]*(?:Btn|Button|_btn|_button))\b", code)))
         texts = re.findall(r"(?:\"([^\"\n]{12,240})\"|'([^'\n]{12,240})'|>([^<>\n]{12,240})<)", code)
         texts = [next(t for t in group if t) for group in texts]
@@ -236,9 +255,12 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
     text = "\n".join([code, *texts, " ".join(names), " ".join(labels)])[:MOST_TEXT].lower()
     pointer = [way for way, sign in _POINTER.items() if sign.search(text)]
     keys = {key: purpose for key, purpose in _keys_in(text, names).items() if purpose != "cheat"}
-    return ProgramRead(words=_prose(texts)[:80], keys=keys, keyed=_acts_keyed(names), pointer=pointer,
+    # A Flash file's texts are the lines its screens draw, read as runs; a script's strings are each whole already.
+    prose = _prose(_runs(texts) if kind.startswith("flash") else texts)
+    return ProgramRead(words=prose[:80], keys=keys, keyed=_acts_keyed(names), pointer=pointer,
                        buttons=_buttons_in(names),
-                       names=[n for n in names if 3 <= len(n) <= 32][:600], labels=labels[:200], text=text, kind=kind)
+                       names=[n for n in names if 3 <= len(n) <= 32][:600], labels=labels[:200], text=text, kind=kind,
+                       code=statements[:40_000])
 
 
 def merged(reads: list[ProgramRead]) -> ProgramRead:
@@ -255,5 +277,6 @@ def merged(reads: list[ProgramRead]) -> ProgramRead:
         out.labels += read.labels
         out.text += "\n" + read.text
         out.mechanics_found += [m for m in read.mechanics_found if m not in out.mechanics_found]
+        out.code += read.code
     return out
 

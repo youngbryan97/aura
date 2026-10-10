@@ -28,6 +28,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
+
 __all__ = ["MECHANICS", "LearnedSigns", "Mechanic", "changes_told", "learned_signs", "mechanics_in", "what_a_label_measures"]
 
 #: Kinds of mechanic: how she is to treat what it names. A boundary is what is not hers to do: it is handed to the
@@ -692,7 +694,7 @@ class LearnedSigns:
 
 
 _LEARNED: dict[str, LearnedSigns] = {}
-_LOADING = threading.Lock()
+_LOADING = checked_lock("mechanics_she_knows.loading")
 
 
 def learned_signs() -> LearnedSigns:

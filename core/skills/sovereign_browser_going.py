@@ -81,6 +81,15 @@ def _alike(name: str, title: str) -> float:
     return len(wanted & set(_words(title))) / max(1, len(wanted))
 
 
+def _as_a_series(name: str) -> str:
+    """A name that says whose a thing is ("Tom's Trap-o-Matic") read as a series and its own name ("Tom: Trap-o-Matic"):
+    LIVE 2026-10-10 a page titled "Trap-o-Matic", about Tom and Jerry, was taken for another thing."""
+    if ":" in name:
+        return name
+    owner = re.match(r"^\s*([A-Z][\w.-]*(?:\s+[A-Z][\w.-]*){0,2})['’]s\s+(\S.*)$", name)
+    return f"{owner.group(1)}: {owner.group(2)}" if owner else name
+
+
 def _names_it(name: str, title: str) -> bool:
     """Whether ``title`` names the thing: every word of its own part (after a series name and a colon), and most of the rest.
 
@@ -90,7 +99,8 @@ def _names_it(name: str, title: str) -> bool:
     the series, the same own name may be another thing ("Tunnel Rush" is not
     "Toonami: Tunnel Rush").
     """
-    own, there = set(_words(str(name).split(":")[-1])), set(_words(title))
+    name = _as_a_series(str(name))
+    own, there = set(_words(name.split(":")[-1])), set(_words(title))
     if not own <= there:
         return False
     series = set(_words(":".join(str(name).split(":")[:-1])))
@@ -110,7 +120,8 @@ def _named_on_its_page(name: str, heading: str, text: str) -> bool:
     is still another thing."""
     if _names_it(name, heading):
         return True
-    series = set(_words(":".join(str(name).split(":")[:-1])))
+    name = _as_a_series(str(name))
+    series = set(_words(":".join(name.split(":")[:-1])))
     return bool(series) and _own_name_in(name, heading) and bool(series & set(_words(text)))
 
 

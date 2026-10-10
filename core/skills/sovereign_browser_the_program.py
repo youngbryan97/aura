@@ -26,6 +26,8 @@ logger = logging.getLogger("Skills.SovereignBrowser.TheProgram")
 #: The largest program fetched, in bytes, and the most programs read for one page.
 MOST_BYTES = 40 * 1024 * 1024
 MOST_PROGRAMS = 6
+#: Which reading of programs a kept read was made by: one made by an earlier reader is read again.
+READER = 2
 
 #: What a page loaded, from its own record, with the size the browser was given of each.
 _WHAT_IT_LOADED = """
@@ -87,7 +89,8 @@ async def read_what_the_page_runs(page: Any) -> Any:
     reads: list[ProgramRead] = []
     for url in programs_of(list(loaded) if isinstance(loaded, list) else []):
         kept = recall(named("a program read", url))
-        if isinstance(kept, dict) and kept.get("read"):
+        # A read kept by an older reader is read again: what it found was less than what is found now.
+        if isinstance(kept, dict) and kept.get("read") and kept.get("reader") == READER:
             reads.append(_from_kept(kept["read"]))
             continue
         try:
@@ -102,7 +105,7 @@ async def read_what_the_page_runs(page: Any) -> Any:
             continue
         if read:
             logger.info("read the program at %s: %s, keys %s, pointer %s", url[:120], read.kind, read.keys, read.pointer)
-            remember(named("a program read", url), {"read": _kept(read)})
+            remember(named("a program read", url), {"read": _kept(read), "reader": READER})
             reads.append(read)
     return merged(reads) if reads else ProgramRead()
 

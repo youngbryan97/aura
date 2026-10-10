@@ -100,18 +100,21 @@ class Stocktaking:
             from_her_memory,
             from_her_model,
             from_the_web,
+            from_what_others_wrote,
             questions_for,
             take_stock,
         )
         from core.rebuilding.her_model import ask_her_model
         from core.skills.looking_it_up import search_and_read
-        from core.skills.sovereign_browser_going import _names_it
+        from core.skills.sovereign_browser_going import _named_on_its_page, _names_it
+        from core.skills.what_others_wrote import what_others_wrote
 
         seconds = min(TAKING_STOCK_S, max(0.0, deadline - time.monotonic()) * AT_MOST_OF_WHAT_IS_LEFT)
         if seconds < 8.0 or not self.thing:
             return False
         self.taken += 1
         situation = Situation(self.thing, goal, tuple(words[-6:]), ended, why)
+        kind = "game" if re.search(r"\b(?:games?|play)\b", goal, re.I) else ""
         helped = WhatHelped.of(self.thing)
         # Said as a person says it, not as a search is typed.
         _tell(f"Before I begin, I'm looking up how {self.thing} is played." if why == BEFORE
@@ -120,8 +123,11 @@ class Stocktaking:
             "what helped me before": helped.source(),
             "what I remember": from_her_memory(),
             "my own copy of Wikipedia": from_her_corpus(thing=self.thing, names_it=_names_it),
-            "the web": from_the_web(search_and_read, thing=self.thing, names_it=_names_it,
-                                    kind="game" if re.search(r"\b(?:games?|play)\b", goal, re.I) else ""),
+            "the web": from_the_web(search_and_read, thing=self.thing, names_it=_names_it, kind=kind,
+                                    on_its_page=_named_on_its_page),
+            # And where people wrote of it: its record where it is kept, its fans' wiki, players' questions.
+            "what others wrote": from_what_others_wrote(lambda seconds: what_others_wrote(
+                self.thing, seconds, kind=kind, on_its_page=_named_on_its_page)),
             "my model": from_her_model(ask_her_model),
         }
         counsel = helped.without_what_did_not(await take_stock(situation, sources, seconds=seconds))

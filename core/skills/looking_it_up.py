@@ -67,6 +67,18 @@ def _duckduckgo(text: str) -> list[tuple[str, str]]:
     return found
 
 
+def _marginalia(text: str) -> list[tuple[str, str]]:
+    """Each result of an open search interface made for programs: its title, and where it is."""
+    import json
+
+    try:
+        results = json.loads(text).get("results") or []
+    except (ValueError, AttributeError):
+        return []                                    # not an answer: a limit reached, said as a page
+    return [(str(r.get("title") or ""), str(r.get("url") or "")) for r in results
+            if str(r.get("url") or "").startswith("http") and r.get("title")]
+
+
 def _bing(text: str) -> list[tuple[str, str]]:
     from core.capabilities.browser_controller import _bing_results_in
 
@@ -75,6 +87,9 @@ def _bing(text: str) -> list[tuple[str, str]]:
 
 #: Where to search, in turn: the address with the query in it, and how to read the results.
 ENGINES: tuple[tuple[str, str, Callable[[str], list[tuple[str, str]]]], ...] = (
+    # An index of the independent web with an interface open to programs; LIVE 2026-10-10 it found a game that two
+    # engines would not search for from here and a third answered with a talking-cat app.
+    ("marginalia", "https://api.marginalia.nu/public/search/{q}?count=10", _marginalia),
     ("duckduckgo", "https://html.duckduckgo.com/html/?q={q}", _duckduckgo),
     ("yahoo", "https://search.yahoo.com/search?p={q}", _yahoo),
     ("bing", "https://www.bing.com/search?q={q}&setlang=en-US", _bing),

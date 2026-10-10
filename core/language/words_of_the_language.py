@@ -12,9 +12,10 @@ a long word) is that word; anything else is not a word.
 from __future__ import annotations
 
 import re
-import threading
 from functools import cache
 from pathlib import Path
+
+from core.runtime.lockdep import checked_lock
 
 __all__ = ["as_said_inside", "the_word", "words_of"]
 
@@ -51,7 +52,7 @@ def _is_known(word: str, known: frozenset[str]) -> bool:
 
 
 #: One question at a time to the spelling checker, which is not made to be asked from many threads at once.
-_ASKING = threading.Lock()
+_ASKING = checked_lock("words_of_the_language.asking")
 
 
 @cache

@@ -39,7 +39,8 @@ from typing import Any
 
 __all__ = [
     "BEFORE", "FAILING", "QUESTION", "STUCK", "Counsel", "Heard", "Situation", "WhatHelped",
-    "HELPED_BEFORE", "as_searched", "from_her_corpus", "from_her_memory", "from_her_model", "from_the_web", "questions_for",
+    "HELPED_BEFORE", "as_searched", "from_her_corpus", "from_her_memory", "from_her_model", "from_the_web",
+    "from_what_others_wrote", "questions_for",
     "take_stock",
     "what_to_take",
 ]
@@ -85,9 +86,9 @@ _MANUAL = {
     "goal": re.compile(r"\b(?:goal|objective|object of|aim of|your (?:mission|job|task)|you (?:must|need to|have to)|try to|"
                        r"help \w+ (?:to )?\w+|guide|get (?:to|all|as many)|reach the|rescue|escape)\b", re.I),
     "win": re.compile(r"\b(?:to win|you win|win by|beat (?:the|each|all)|complete (?:the|each|all)|clear (?:the|each|all)|"
-                      r"land (?:safely|softly|gently))\b", re.I),
+                      r"land (?:safely|softly|gently)|result(?:s|ing)? in a win|wins? the game)\b", re.I),
     "lose": re.compile(r"\b(?:you lose|lose (?:a|one|the|all|your)|game over|crash\w*|die|dies|killed|fail\w*|run out|"
-                       r"don'?t let|if you (?:touch|hit|fall|miss))\b", re.I),
+                       r"don'?t let|if you (?:touch|hit|fall|miss)|result(?:s|ing)? in a loss|loses? the game)\b", re.I),
     "scoring": re.compile(r"\b(?:points?|score|bonus|combo|multiplier|high score)\b", re.I),
     "things": re.compile(r"\b(?:collect|grab|pick up|catch|avoid|dodge|watch out for|beware|power-?ups?|enemies|obstacles)\b",
                          re.I),
@@ -97,7 +98,7 @@ _MANUAL = {
 
 #: Before play, what a manual would say is asked for, and as much of it kept as says something.
 MOST_KEPT_BEFORE = 8
-FROM_ONE_PAGE_BEFORE = 3
+FROM_ONE_PAGE_BEFORE = 5
 
 
 def _words(text: str) -> set[str]:
@@ -433,19 +434,36 @@ def as_searched(question: str, thing: str, kind: str = "") -> str:
 
 
 def from_the_web(search_and_read: Reader, *, thing: str = "", names_it: Callable[[str, str], bool] | None = None,
-                 kind: str = "") -> Source:
+                 kind: str = "", on_its_page: Callable[[str, str, str], bool] | None = None) -> Source:
     """The web: each question searched as a person types it (``as_searched``), and the pages read whose titles name the
-    thing (a page about something else, whatever it says, is not about this)."""
+    thing, or whose title holds its own name and whose words name what it is part of (``on_its_page``): a page about
+    something else, whatever it says, is not about this."""
 
     async def ask(questions: list[str], seconds: float) -> list[Heard]:
         found: list[Heard] = []
         per = max(4.0, seconds / max(1, len(questions[:2])))
         for question in questions[:2]:
             for title, where, text in await search_and_read(as_searched(question, thing, kind), per) or []:
-                if names_it is not None and thing and not names_it(thing, title):
+                if on_its_page is not None and thing and not on_its_page(thing, title, text):
+                    continue
+                if on_its_page is None and names_it is not None and thing and not names_it(thing, title):
                     continue
                 site = re.sub(r"^https?://(www\.)?", "", where).split("/")[0]
                 found.append(Heard("the web", f"“{_short(title, 70)}” on {site}", text))
+        return found
+
+    return ask
+
+
+def from_what_others_wrote(read: Callable[[float], Awaitable[list[tuple[str, str, str, str]]]]) -> Source:
+    """What others wrote of the thing (the record where it is kept and its visitors' reviews, its fans' wiki, players'
+    questions and the answers they got: core/skills/what_others_wrote.py), each said as whose it is."""
+
+    async def ask(_questions: list[str], seconds: float) -> list[Heard]:
+        found = []
+        for who, title, where, text in await read(seconds) or []:
+            site = re.sub(r"^https?://(www\.)?", "", where).split("/")[0]
+            found.append(Heard(who, f"“{_short(title, 70)}” on {site}", text))
         return found
 
     return ask

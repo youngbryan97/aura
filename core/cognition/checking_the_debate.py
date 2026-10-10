@@ -24,6 +24,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime.lockdep import checked_lock
+
 __all__ = ["DebateCheck", "the_check"]
 
 logger = logging.getLogger("Aura.CheckingTheDebate")
@@ -145,7 +147,7 @@ def _past_a_boundary(label: str, guide: Any) -> bool:
 
 
 _CHECKS: dict[str, DebateCheck] = {}
-_MADE = threading.Lock()
+_MADE = checked_lock("checking_the_debate.made")
 
 
 def the_check() -> DebateCheck:
