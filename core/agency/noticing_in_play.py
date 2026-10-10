@@ -20,11 +20,12 @@ Nothing here knows a game.
 from __future__ import annotations
 
 import math
+import re
 from collections import Counter, deque
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["NoticingInPlay", "noticed"]
+__all__ = ["NoticingInPlay", "a_key_that_pays", "noticed"]
 
 #: How soon after an act an outcome is put down to it, in seconds; and how many of an act before it is judged.
 FOLLOWS_WITHIN_S = 1.5
@@ -105,7 +106,8 @@ class NoticingInPlay:
     def _came_of(self, verdict: dict[str, Any], at: float, notebook: Any, say: Any) -> None:
         what = "gain" if verdict.get("what") == "gain" else "lose"
         when = float(verdict.get("at", at))
-        counter = str(verdict.get("counter") or "").strip()
+        # A count by its own name, not where on the screen it was read ("the score at 0.46").
+        counter = re.sub(r"\s+at\s+0?\.\d+$", "", str(verdict.get("counter") or "").strip())
         self.outcomes += 1
         recent = [(when_done, act) for when_done, act in self.acts if 0.0 <= when - when_done <= FOLLOWS_WITHIN_S]
         if not recent and what == "gain" and counter:
@@ -204,3 +206,11 @@ def noticed(run: Any, moves: Any, meeting: Any, at: float, say: Any, named: Any)
         return named(moves, kind, thing, parts.get(meeting.stance(kind), ""))
 
     run.noticing.saw(run, moves, meeting, at, guide.notes, name, say)
+
+
+def a_key_that_pays(keys: Any) -> str:
+    """A key of hers she has come to think pays, from the notes of the guide to where she is; "" where none."""
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    guide = THE_GUIDE.get()
+    return next((key for key in keys if guide is not None and guide.notes.paying(key) > 0), "")

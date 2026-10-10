@@ -190,7 +190,10 @@ class ContestStands:
     def says(self) -> str:
         """How it stands, in a line for a person watching."""
         parts = []
-        if self.mine is not None and self.theirs is not None:
+        # Two counts a thousand times apart are not two sides of one contest: one of them was misread or is another
+        # count (LIVE 2026-10-09 "1–94332035, I'm behind by 94332034").
+        if (self.mine is not None and self.theirs is not None
+                and max(self.mine, self.theirs) <= 1000 * max(1, min(self.mine, self.theirs))):
             standing = self.standing()
             parts.append(f"{self.mine}–{self.theirs}, " + ("level" if standing == "level" else f"I'm {standing}"))
         elif self.mine is not None:

@@ -39,7 +39,7 @@ from core.agency.building_up import builds_up
 from core.agency.holding_to_charge import Charging
 from core.agency.how_far_her_blow_reaches import BLOW_EVERY_S, HerBlows
 from core.agency.how_the_contest_stands import ContestStands
-from core.agency.noticing_in_play import noticed
+from core.agency.noticing_in_play import a_key_that_pays, noticed
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.the_controls_a_game_names import controls_named_in
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
@@ -328,6 +328,10 @@ def _named(moves: WhatMoves, kind: int, thing: Any = None, part: str = "") -> st
     looks = describe(moves, kind, thing)
     guide = THE_GUIDE.get()
     if guide is None or not part or looks == "other":
+        return looks
+    # What follows the pointer is the place's character only where the mouse is said to move it; else a cursor.
+    pointer = guide.controls.get("the pointer")
+    if part == "me" and pointer is not None and pointer.act not in ("move", "steer", "guide", "drive", "fly", "walk", "run"):
         return looks
     # Still, a thing to get to is where she is to be brought; going about, a thing to get.
     still = thing is not None and not getattr(thing, "moved", True)
@@ -1529,7 +1533,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
                 and await _press_in_time(hands, run, moves, at, say)):
             return
         # A key she has come to think pays (core/cognition/what_she_notices.py), used while nothing of hers is found.
-        paying = _a_key_that_pays(run)
+        paying = a_key_that_pays(run.keys)
         timing = run.timing is not None and run.timing.has_something_to_time(moves.things.values())
         if paying and not timing and at - run.tried_at >= TRY_A_KEY_S and hasattr(hands, "tap"):
             await hands.tap(paying)
@@ -1628,14 +1632,6 @@ def _found_by_her_presses(run: _Run, moves: WhatMoves, hers: WhichIsHers, at: fl
     candidates = [thing for thing in moves.things.values() if thing.kind in kinds]
     if len(candidates) == 1:
         hers.moved_by_her_presses(candidates[0], at)
-
-
-def _a_key_that_pays(run: _Run) -> str:
-    """A key of hers she has come to think pays, from the notes of the guide to where she is; "" where none."""
-    from core.cognition.a_guide_to_a_place import THE_GUIDE
-
-    guide = THE_GUIDE.get()
-    return next((key for key in run.keys if guide is not None and guide.notes.paying(key) > 0), "")
 
 
 async def _press_in_time(hands: Any, run: _Run, moves: WhatMoves, at: float, say: Any) -> bool:
