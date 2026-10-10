@@ -194,6 +194,22 @@ def _spread_along(went: np.ndarray, tells: np.ndarray, axis: int) -> bool:
     return sum(bool(part.any()) for part in parts) >= SPREAD * SPREAD_OVER
 
 
+def _changed_along_a_band(old: np.ndarray, new: np.ndarray) -> bool:
+    """Whether any band changed all along its length, as a view going by changes it: where only things moved, a band
+    changed in a place or two, and the layers are not measured at all. LIVE 2026-10-10 measuring them on every
+    picture of a still screen took play from 17 pictures a second to 10."""
+    changed = np.abs(new - old) > REDRAWN
+    everywhere = np.ones_like(changed)
+    for axis in (0, 1):
+        length = changed.shape[axis]
+        edges = np.linspace(0, length, BANDS + 1).astype(int)
+        for a, b in zip(edges[:-1], edges[1:], strict=True):
+            band = changed[a:b] if axis == 0 else changed[:, a:b]
+            if band.any() and _spread_along(band, everywhere[a:b] if axis == 0 else everywhere[:, a:b], axis):
+                return True
+    return False
+
+
 def _between(inside: np.ndarray, outside: np.ndarray, axis: int) -> np.ndarray:
     """Pixels with a pixel of ``inside`` on either side of them along ``axis``, within ``ACROSS_A_THING`` pixels,
     and no pixel of ``outside`` between."""
@@ -224,6 +240,8 @@ def how_the_view_moved(before: np.ndarray | None, now: np.ndarray) -> ViewMoved:
     old, new = _grey(before), _grey(now)
     tall, wide = new.shape
     if tall <= 4 * MOST or wide <= 4 * MOST:
+        return STILL
+    if not _changed_along_a_band(old, new):
         return STILL
     shifts = _shifts()
     # Each pixel alone, and each with its neighbours: the neighbours tell which way a pixel went, and the pixel
