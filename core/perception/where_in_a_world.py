@@ -57,7 +57,9 @@ class WhereInTheWorld:
         self.furthest["left"] = max(self.furthest["left"], -self.across)
         self.furthest["down"] = max(self.furthest["down"], self.down)
         self.furthest["up"] = max(self.furthest["up"], -self.down)
-        view = (int(self.across // max(1, wide)), int(self.down // max(1, tall)))
+        # Views a whole view apart, centred on where she began: a few pixels' going either way of the start is the view she
+        # began in (LIVE 2026-10-10 a still game's jitter of a pixel to the left was counted a new view).
+        view = (int((self.across + max(1, wide) / 2) // max(1, wide)), int((self.down + max(1, tall) / 2) // max(1, tall)))
         if view in self.been:
             return False
         self.been.add(view)

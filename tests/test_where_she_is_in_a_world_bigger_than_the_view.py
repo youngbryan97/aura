@@ -49,3 +49,13 @@ def test_the_view_going_by_adds_up_to_how_far_she_has_come_and_which_way():
 def test_a_view_that_stands_still_takes_her_nowhere():
     world = _travelled(3.0, 0.0, 0.0)
     assert world.views_along() == 0.0 and world.the_way_on == "" and world.said() == ""
+
+
+def test_a_few_pixels_either_way_of_the_start_is_the_view_she_began_in():
+    from core.perception.how_the_scenery_goes_by import ViewMoved
+
+    world = WhereInTheWorld()
+    jitter = ViewMoved(across=((1,),))
+    for _ in range(10):
+        world.saw(jitter, 2, 180, 240)
+    assert world.new_views == 0 and world.views_along() < 0.1
