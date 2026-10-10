@@ -105,6 +105,8 @@ class LookingAtThings:
     asked: set[int] = field(default_factory=set)
     _began: float | None = None
     _last: float = -math.inf
+    #: When her eyes were last asked, in play's time.
+    asked_at: float = -math.inf
     _asking: Any = None
     _new: list[tuple[int, Sighting]] = field(default_factory=list)
     _rested_until: float = -math.inf
@@ -124,12 +126,16 @@ class LookingAtThings:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return False
-        self._last = at
+        self._last = self.asked_at = at
         self.asked |= {kind for kind, _box in chosen}
         frame = np.array(picture)[..., :3]
         scale = float(getattr(moves, "scale", 1.0) or 1.0)
         self._asking = loop.create_task(self._ask(frame, chosen, scale, at))
         return True
+
+    def resting(self) -> bool:
+        """Whether her eyes failed lately and are let rest before they are asked again."""
+        return time.monotonic() < self._rested_until
 
     def newly(self) -> list[tuple[int, Sighting]]:
         """The kinds named since this was last asked, with what each was seen as."""

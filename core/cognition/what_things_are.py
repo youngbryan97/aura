@@ -28,7 +28,8 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["BEARS", "WhatAThingIs", "WhatSheSees", "WhatThingsAre", "first_guess", "what_things_are", "words_shared"]
+__all__ = ["BEARS", "WhatAThingIs", "WhatSheSees", "WhatThingsAre", "asked_patiently", "first_guess", "what_things_are",
+           "words_shared"]
 
 logger = logging.getLogger("Aura.WhatThingsAre")
 
@@ -173,7 +174,7 @@ async def _asked_of_her_model(names: list[str], ask: Callable[..., Awaitable[Any
               "unsure); one short sentence a person might think on seeing one, tentatively (\"probably\", \"maybe\"); "
               "and how one usually looks. Leave a part empty where you are not fairly sure.")
     try:
-        got = await ask(prompt, _All, MOST_TOKENS)
+        got = await asked_patiently(ask, prompt, _All, MOST_TOKENS)
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("what things are could not be asked: %s", str(why)[:160])
         return []
@@ -184,6 +185,24 @@ async def _asked_of_her_model(names: list[str], ask: Callable[..., Awaitable[Any
             out.append(WhatAThingIs(name=key, usually=one.usually.strip(), bears=one.bears, thought=one.thought.strip(),
                                     looks=one.looks.strip(), source="her model"))
     return out
+
+
+#: How long to wait before asking her model again, each time it was busy with what she is doing (her thinking at each
+#: move holds it; a question beside her work waits its turn rather than going unasked, LIVE 2026-10-10).
+WAITS_S = (8.0, 15.0, 25.0, 40.0)
+
+
+async def asked_patiently(ask: Callable[..., Awaitable[Any]], prompt: str, schema: Any, most: int) -> Any:
+    """Her model's answer, asked again after a wait each time it was busy; what the last try raised, where none
+    answered."""
+    for wait in (*WAITS_S, None):
+        try:
+            return await ask(prompt, schema, most)
+        except RuntimeError:
+            if wait is None:
+                raise
+            await asyncio.sleep(wait)
+    return None
 
 
 _ALL: dict[str, WhatThingsAre] = {}

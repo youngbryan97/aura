@@ -188,3 +188,36 @@ def test_what_meeting_a_thing_shows_outranks_what_she_supposed_of_it():
     kept = meeting.evidence[4]
     kept.touch_sum, kept.touches_settled, kept.touched = 2.0, 2, 2       # met twice, and it paid both times
     assert meeting.stance(4) == MEET
+
+
+def test_what_goes_where_the_mouse_goes_is_her_pointer_where_her_eyes_see_a_cursor_and_herself_otherwise():
+    """LIVE 2026-10-10 a game's own cursor followed the mouse and she said "That's me: the white thing"."""
+    from core.agency.naming_what_she_sees import i_go_where_the_mouse_goes
+
+    guide = Guide(place="a place")
+    token = THE_GUIDE.set(guide)
+    try:
+        moves = _moves([_thing(5, 0, 150, 100), _thing(6, 1, 40, 40)], [(240, 240, 240), (240, 140, 30)])
+        guide.seen.saw(0, "white arrow cursor")
+        assert i_go_where_the_mouse_goes(moves, 0, moves.things[5]).startswith(
+            "The white arrow cursor at the middle is my pointer")
+        guide.seen.saw(1, "orange with a face")
+        assert i_go_where_the_mouse_goes(moves, 1, moves.things[6]).startswith("That's me: the orange with a face")
+    finally:
+        THE_GUIDE.reset(token)
+
+
+def test_a_busy_model_is_asked_again_after_a_wait_rather_than_left_unasked(monkeypatch):
+    """LIVE 2026-10-10 her model was busy with her thinking at each move, and what things are came back empty."""
+    import core.cognition.what_things_are as things
+
+    monkeypatch.setattr(things, "WAITS_S", (0.0, 0.0))
+    tries: list[int] = []
+
+    async def ask(prompt, schema, most):
+        tries.append(1)
+        if len(tries) < 3:
+            raise RuntimeError("an empty answer")
+        return "answered"
+
+    assert asyncio.run(things.asked_patiently(ask, "?", None, 10)) == "answered" and len(tries) == 3

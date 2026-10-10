@@ -16,13 +16,14 @@ Nothing here knows a game.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.agency.what_meeting_things_does import AVOID, MEET
 
-__all__ = ["SeeingInPlay", "colour_name", "describe", "named_for_its_part", "plural", "seen_in_play", "shape_name",
+__all__ = ["SeeingInPlay", "a_pointer_seen", "colour_name", "describe", "i_go_where_the_mouse_goes", "named_for_its_part", "plural", "seen_in_play", "shape_name", "still_looking_at",
            "where_on_screen"]
 
 logger = logging.getLogger("Aura.NamingWhatSheSees")
@@ -84,6 +85,35 @@ def named_for_its_part(moves: Any, kind: int, thing: Any = None, part: str = "")
     return guide.name_for("goal" if part == "get" and still else part, looks.split()[0], alternatives=alternatives) or looks
 
 
+#: What a thing that goes where the mouse goes is called when it is the pointer itself, not a character it moves.
+_A_POINTER = re.compile(r"\b(?:cursor|pointer|mouse|arrow|crosshairs?|cross-hairs?|reticle|hand)\b", re.I)
+
+
+def a_pointer_seen(kind: int) -> str:
+    """What her eyes saw a kind as, where that is the pointer itself (a cursor, a crosshair, a hand); else ""."""
+    guide = _the_guide()
+    seen = guide.seen.by_kind.get(kind, "") if guide is not None else ""
+    return seen if _A_POINTER.search(seen) else ""
+
+
+def still_looking_at(run: Any, kind: int | None, at: float) -> bool:
+    """Whether her eyes have been asked what a kind is a moment ago and have not said yet: what she is is said once,
+    so it waits a little for them."""
+    looking = getattr(getattr(run, "seeing", None), "looking", None)
+    if looking is None or kind is None or kind in looking.by_kind:
+        return False
+    return kind in looking.asked and at - looking.asked_at < WAIT_FOR_EYES_S and not looking.resting()
+
+
+def i_go_where_the_mouse_goes(moves: Any, kind: int, mine: Any) -> str:
+    """What she says of the thing that goes where the mouse goes: her pointer, where her eyes see one; else herself."""
+    where = where_on_screen(moves, mine.x, mine.y)
+    pointer = a_pointer_seen(kind)
+    if pointer:
+        return f"The {pointer} at the {where} is my pointer: it goes where the mouse goes."
+    return f"That's me: the {named_for_its_part(moves, kind, mine, 'me')} at the {where}. It goes where the mouse goes."
+
+
 def where_on_screen(moves: Any, x: float, y: float) -> str:
     sx, sy = moves.share(x, y)
     across = "left" if sx < 0.33 else "right" if sx > 0.67 else ""
@@ -120,8 +150,10 @@ _WORTH_SAYING = frozenset({"danger", "to get", "to use", "to stand on", "to reac
 SAY_EVERY_S = 6.0
 MOST_SAID = 5
 MOST_WONDERED = 3
-#: How long what a thing usually is waits on her model before a first guess is gone with.
+#: How long what a thing usually is waits on her model before a first guess is gone with; and how long what she is
+#: waits on her eyes.
 WAIT_FOR_HER_MODEL_S = 30.0
+WAIT_FOR_EYES_S = 6.0
 #: What she thinks of a thing by how it bears, where her model gave no thought of its own.
 _THOUGHT_OF = {"danger": "Probably trouble; I'll keep clear of it until I know better.",
                "to get": "Probably worth getting.", "to use": "Maybe something I can use.",
@@ -249,7 +281,7 @@ def _wonder_at(guide: Any, seeing: SeeingInPlay, what: str, odd: str, at: float,
     class _Maybe(BaseModel):
         maybe: str = Field(default="", max_length=200, description="one short, tentative sentence; empty if nothing")
 
-    from core.cognition.what_things_are import what_things_are
+    from core.cognition.what_things_are import asked_patiently, what_things_are
 
     known = what_things_are().of(what)
     prompt = (f"In “{guide.place or 'a place on a screen'}”, something looks like {_a(what)}, but: {odd}."
@@ -259,7 +291,7 @@ def _wonder_at(guide: Any, seeing: SeeingInPlay, what: str, odd: str, at: float,
 
     async def asked() -> None:
         try:
-            got = await ask(prompt, _Maybe, 120)
+            got = await asked_patiently(ask, prompt, _Maybe, 120)
         except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
             logger.info("what an odd look suggests could not be asked: %s", str(why)[:120])
             return

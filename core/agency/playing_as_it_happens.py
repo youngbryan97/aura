@@ -43,7 +43,9 @@ from core.agency.naming_what_she_sees import (
     SeeingInPlay,
     colour_name,
     describe,
+    i_go_where_the_mouse_goes,
     seen_in_play,
+    still_looking_at,
     where_on_screen,
 )
 from core.agency.naming_what_she_sees import named_for_its_part as _named
@@ -1215,7 +1217,8 @@ def _what_she_says(run: _Run, say: Any, moves: WhatMoves, hers: WhichIsHers, mee
         run.hers_description = run.hers_descriptions.most_common(1)[0][0]
     settled = all(hers.tried(k) >= 4 for k in run.keys) or at - run.began > 8.0
     if mine is not None and hers.kind is not None and hers.follows_pointer:
-        _say(run, say, f"That's me: the {_named(moves, hers.kind, mine, 'me')} at the {where_on_screen(moves, mine.x, mine.y)}. It goes where the mouse goes.", at, once="me")
+        if not still_looking_at(run, hers.kind, at):
+            _say(run, say, i_go_where_the_mouse_goes(moves, hers.kind, mine), at, once="me")
     elif mine is not None and hers.kind is not None and keys and settled:
         how = " and ".join(keys)
         verb = "moves" if len(keys) == 1 else "move"

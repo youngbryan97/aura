@@ -112,8 +112,12 @@ def in_a_sentence(moves: Any, hers: Any, meeting: Any, physics: Any, keys: list[
     mine = hers.thing(moves)
     if mine is None:
         return ""
-    parts = [f"I'm the {me or describe(moves, mine.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}"]
-    if hers.follows_pointer:
+    from core.agency.naming_what_she_sees import a_pointer_seen
+
+    pointer = a_pointer_seen(mine.kind) if hers.follows_pointer else ""
+    parts = [f"my pointer is the {pointer} at the {where_on_screen(moves, mine.x, mine.y)}" if pointer else
+             f"I'm the {me or describe(moves, mine.kind, mine)} at the {where_on_screen(moves, mine.x, mine.y)}"]
+    if hers.follows_pointer and not pointer:
         parts[0] += ", and I go where the mouse goes"
     else:
         moving = sorted(hers.keys_that_move_her(keys))
