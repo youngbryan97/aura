@@ -256,3 +256,37 @@ def test_a_name_with_a_colon_and_its_value_is_read_not_clicked():
 
     assert _a_readout("TOTAL DISTANCE: 0") and _a_readout("Fuel: 75%") and _a_readout("Time left: 1:20")
     assert not _a_readout("Play Again") and not _a_readout("Level 1") and not _a_readout("Note: click here")
+
+
+def test_each_part_of_a_reading_keeps_its_own_evidence():
+    place = WhatThisPlaceIs()
+    place.take(Reading(about="a fable told for its moral", rests_on=NAME))
+    place.take(Reading(want="to go as far as it will go", rests_on=SAID))       # one part, the place's own word
+    assert place.now.about.startswith("a fable") and place.rests["about"] == NAME and place.rests["want"] == SAID
+    place.take(Reading(about="an adventure fighting monsters with swords", want="to beat the demons", rests_on=SEEN))
+    assert place.now.about.startswith("an adventure")                        # what she sees outranks the name
+    assert place.now.want == "to go as far as it will go"                     # but not what the place said
+
+
+def test_what_play_measures_of_a_place_needs_no_model():
+    from core.agency.what_play_measures_of_a_place import measured_in_play, what_play_measures
+
+    racers = {n: SimpleNamespace(number=n, kind=2, vx=40.0 + n, vy=1.0, x=10.0 * n, y=50.0) for n in range(1, 5)}
+    moves = SimpleNamespace(things=racers, view_is_moving=True)
+    hers = SimpleNamespace(number=1, kind=2, follows_pointer=False, carried=False)
+    meeting = SimpleNamespace(readouts=SimpleNamespace(values={"TOTAL DISTANCE": 0, "x3": 3}))
+    facts = what_play_measures(moves, hers, meeting)
+    assert facts["crowd"] == "I'm one of 4 alike things, all going the same way"
+    assert "the view goes by" in facts["view"] and facts["control"] == "my keys move one thing"
+    assert facts["counted"] == "it counts TOTAL DISTANCE"
+    guide = Guide(place="a place")
+    token = THE_GUIDE.set(guide)
+    try:
+        measured_in_play(SimpleNamespace(), moves, hers, meeting, at=10.0)
+    finally:
+        THE_GUIDE.reset(token)
+    assert guide.reading.measured["crowd"].startswith("I'm one of 4")
+    assert guide.reading.now.want == "to go as far as it will go" and guide.reading.rests["want"] == SAID
+    from core.cognition.what_this_place_is import _what_play_showed
+
+    assert "I'm one of 4 alike things" in _what_play_showed(guide.reading)       # what her model's reading must fit

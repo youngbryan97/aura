@@ -52,6 +52,7 @@ from core.agency.noticing_in_play import a_key_that_pays, noticed
 from core.agency.pressing_what_is_shown import PRESSED_FOR_S
 from core.agency.the_controls_a_game_names import controls_named_in
 from core.agency.what_meeting_things_does import AVOID, CLICK, IGNORE, MEET, SHOOT, WhatMeetingDoes
+from core.agency.what_play_measures_of_a_place import measured_in_play
 from core.agency.what_she_has_left import CAREFUL_BELOW
 from core.agency.what_the_rules_said import WhatTheRulesSaid
 from core.agency.whether_it_goes_by_itself import HELD_TO_SEE_S as HELD_TO_SEE_S
@@ -1391,6 +1392,7 @@ async def play_as_it_happens(
             meeting.saw(moves, hers, happened, at, choosing.line() if choosing.mine is not None else None)
             noticed(run, moves, meeting, at, say, _named)
             seen_in_play(run, moves, hers, meeting, picture, at, lambda line, once, at=at: _say(run, say, line, at, once=once))
+            measured_in_play(run, moves, hers, meeting, at)
             if getattr(picture, "drawing_scene", None) is None:
                 _counters_without_reading(run, moves, hers, meeting, at)
             await _keep_reading(run, meeting, hers, moves, picture, at, read_words, say=say)

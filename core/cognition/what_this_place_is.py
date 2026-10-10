@@ -158,29 +158,46 @@ class WhatThisPlaceIs:
     stood_out: list[str] = field(default_factory=list)
     glanced: list[str] = field(default_factory=list)
     glancing: Any = None
+    #: What each part of the reading rests on now, by part ("about", "hers", "role <name>").
+    rests: dict[str, str] = field(default_factory=dict)
+    #: What play has measured of the place, by what each fact is about ("crowd", "view", "control", "counted").
+    measured: dict[str, str] = field(default_factory=dict)
 
     # -- taking a reading in -------------------------------------------------------------------------------------
 
     def take(self, reading: Reading) -> str:
-        """A new reading: kept where it rests on at least what the one it follows did (else only what that one left
-        empty is filled), with what play showed laid over it. What to say of it, "" for nothing new."""
+        """A new reading, part by part: each part it has is kept where it rests on at least what that part rested on
+        before, never on less; what play showed laid over all. What to say of it, "" for nothing new."""
         reading.at = reading.at or time.monotonic()
         last = self.now
-        if last is None:
-            self.now = reading
-            line = self._first_said()
-        elif _TRUST[reading.rests_on] >= _TRUST[last.rests_on]:
-            differs = bool(last.about and reading.about and not _alike_said(last.about, reading.about))
-            self.before.append(last)
-            self.now = _over(reading, last)
-            line = (f"From {last.rests_on} I'd taken it to be about {_lower(last.about)}; from {reading.rests_on} it's "
-                    f"more likely about {_lower(reading.about)}, so I'm going by that." if differs else "")
-        else:
-            self.now = _over(last, reading)
-            line = ""
+        if last is not None:
+            self.before.append(Reading(**{**last.__dict__, "roles": dict(last.roles)}))
+        now = self.now = self.now or Reading(rests_on=reading.rests_on, at=reading.at)
+        trust = _TRUST[reading.rests_on]
+        was = (now.about, self.rests.get("about", NAME))
+        for part in _PARTS:
+            value = getattr(reading, part)
+            if value in ("", (), None) or trust < _TRUST[self.rests.get(part, NAME)] and getattr(now, part):
+                continue
+            setattr(now, part, value)
+            self.rests[part] = reading.rests_on
+        for name, role in reading.roles.items():
+            if trust >= _TRUST[self.rests.get(f"role {name}", NAME)] or name not in now.roles:
+                now.roles[name] = role
+                self.rests[f"role {name}"] = reading.rests_on
+        now.rests_on, now.at = self.rests.get("about", reading.rests_on), reading.at
         self._lay_shown_over()
-        logger.info("what this place is (%s): %s", self.now.rests_on, self.now.as_memory())
-        return self._once(line)
+        logger.info("what this place is (%s): %s", now.rests_on, now.as_memory())
+        if not was[0] and now.about:
+            return self._once(self._first_said())
+        if was[0] and now.about != was[0] and not _alike_said(was[0], now.about):
+            return self._once(f"From {was[1]} I'd taken it to be about {_lower(was[0])}; from {now.rests_on} it's more "
+                              f"likely about {_lower(now.about)}, so I'm going by that.")
+        return ""
+
+    def measure(self, facts: dict[str, str]) -> None:
+        """What play measures of the place (core/agency/what_play_measures_of_a_place.py), as it stands now."""
+        self.measured = dict(facts)
 
     def show(self, part: str, value: str) -> str:
         """Play showed one part of what the place is (``hers``: the thing her keys move, by its seen name; ``by``: the
@@ -285,10 +302,13 @@ class WhatThisPlaceIs:
         others = [f"{name} ({role})" for name, role in list(reading.roles.items())[:6] if role not in ("me", "scenery")]
         if others:
             parts.append("what things are to me here: " + ", ".join(others))
+        if self.measured:
+            parts.append("what play measures: " + "; ".join(self.measured.values()))
         return "; ".join(parts) + "."
 
     def as_memory(self) -> dict[str, Any]:
-        return {"now": self.now.as_memory() if self.now is not None else None, "shown": dict(self.shown)}
+        return {"now": self.now.as_memory() if self.now is not None else None, "shown": dict(self.shown),
+                "rests": dict(self.rests)}
 
     @classmethod
     def from_memory(cls, held: Any) -> WhatThisPlaceIs:
@@ -296,15 +316,13 @@ class WhatThisPlaceIs:
         if isinstance(held, dict):
             place.now = Reading.from_memory(held.get("now"))
             place.shown = {str(k): str(v) for k, v in (held.get("shown") or {}).items()}
+            place.rests = {str(k): str(v) for k, v in (held.get("rests") or {}).items() if str(v) in _TRUST}
             place._lay_shown_over()
         return place
 
 
-def _over(top: Reading, under: Reading) -> Reading:
-    """``top`` with what it left empty taken from ``under``."""
-    merged = Reading(**{**under.__dict__, **{k: v for k, v in top.__dict__.items() if v not in ("", (), {}, None)}})
-    merged.roles = {**under.roles, **top.roles}
-    return merged
+#: The parts of a reading, each kept with what it rests on.
+_PARTS = ("about", "doing", "hers", "worked_with", "by", "want", "makes_sense", "no_sense")
 
 
 def _lower(text: str) -> str:
@@ -445,6 +463,8 @@ def _what_play_showed(reading: WhatThisPlaceIs) -> str:
         parts.append(f"the thing the person's keys move is the {reading.shown['hers']}")
     if reading.shown.get("by"):
         parts.append(f"what has worked is {_SAID_AS.get(reading.shown['by'], reading.shown['by'])}")
+    # And what its screen does, as play measured it: the reading must fit these.
+    parts += list(reading.measured.values())
     return "; ".join(parts)
 
 
