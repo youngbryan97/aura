@@ -228,6 +228,13 @@ async def whether_it_serves(page: Any, task: str, *, look_for_s: float = 2.5) ->
         return Serves(False, [f"the page itself answered {tools.status}"])
     try:
         seen = await page.evaluate(_EMBEDS)
+        waited = 0.0
+        while needs == "run" and not seen["runs"] and waited < STARTS_WITHIN_S and not await page.evaluate(_WHAT_STARTS_IT):
+            # A page's player is made by its own scripts after it opens: given the time it takes before anything is
+            # said of it.
+            await asyncio.sleep(0.5)
+            waited += 0.5
+            seen = await page.evaluate(_EMBEDS)
         if needs == "run" and not seen["runs"]:
             start = await page.evaluate(_WHAT_STARTS_IT)
             if start:

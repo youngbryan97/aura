@@ -217,6 +217,24 @@ async def where_the_page_points(skill: object, browser: object, name: str, *, ta
     return await _the_first_that_serves(skill, browser, name, task, candidates, not_at or here) if candidates else ""
 
 
+async def _something_runs_within(page: Any) -> bool:
+    """Whether something that runs (a canvas, a player, an embed) is on the page, given the time a page's own scripts
+    take to make their player: LIVE 2026-10-10 an archive's copy of a game was left three seconds after it opened,
+    its player not yet made, and the game was played in place of by another."""
+    import asyncio
+
+    from core.skills.whether_a_page_serves import STARTS_WITHIN_S
+
+    waited = 0.0
+    while True:
+        if await page.evaluate(_SOMETHING_RUNS):
+            return True
+        if waited >= STARTS_WITHIN_S:
+            return False
+        await asyncio.sleep(0.5)
+        waited += 0.5
+
+
 async def _the_first_that_serves(skill: object, browser: object, name: str, task: str, candidates: list[Any], not_at: str) -> str:
     """Of ``candidates`` that name the thing, the first opened and seen to serve the task; else the first that cannot yet be
     told; else ''."""
@@ -244,7 +262,7 @@ async def _the_first_that_serves(skill: object, browser: object, name: str, task
         heading = await page.evaluate("(() => { const h = document.querySelector('h1'); return h ? h.innerText : ''; })()")
         if refused(title, text) or not _named_on_its_page(name, f"{title} {heading}", text):
             continue
-        if runs and not await page.evaluate(_SOMETHING_RUNS):
+        if runs and not await _something_runs_within(page):
             continue
         verdict = await whether_it_serves(page, task) if what_the_task_needs(task) else None
         where = Where(str(page.url))

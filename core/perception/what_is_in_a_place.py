@@ -124,6 +124,9 @@ async def what_is_here(picture: Any, speaks_of: Sequence[str] = (), *,
         logger.info("her eyes could not say what is in this place: %s", str(why)[:160])
         return []
     seen = landmarks_from(answer)
+    if not seen:
+        # What her eyes said, where none of it could be taken as a thing in its place: the answer, to be read.
+        logger.info("her eyes answered what is in this place, and none of it was a thing placed: %r", str(answer or "")[:400])
     try:
         seen = await asyncio.to_thread(placed, picture, seen)
     except (ValueError, TypeError, MemoryError) as why:
