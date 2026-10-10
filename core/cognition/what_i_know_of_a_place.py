@@ -63,9 +63,10 @@ async def what_i_know_of(place: str, task: str, said: str, ask: Callable[..., Aw
               "characters, named things): what each is, how each usually looks, and whose side each is on. Leave out "
               "what you are not fairly sure of. Do not name keys or buttons: what it shows them says how it is worked.")
     try:
+        from core.cognition.asking_in_turn import THE_PLACE
         from core.cognition.what_things_are import asked_patiently
 
-        got = await asked_patiently(ask, prompt, _Manual, MOST_TOKENS)
+        got = await asked_patiently(ask, prompt, _Manual, MOST_TOKENS, matters=THE_PLACE)
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("what I know of %r could not be asked: %s", place, str(why)[:160])
         return None

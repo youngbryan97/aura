@@ -185,7 +185,9 @@ async def _asked_of_her_model(names: list[str], ask: Callable[..., Awaitable[Any
               "unsure); one short sentence a person might think on seeing one, tentatively (\"probably\", \"maybe\"); "
               "and how one usually looks. Leave a part empty where you are not fairly sure.")
     try:
-        got = await asked_patiently(ask, prompt, _All, MOST_TOKENS)
+        from core.cognition.asking_in_turn import THINGS
+
+        got = await asked_patiently(ask, prompt, _All, MOST_TOKENS, matters=THINGS)
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("what things are could not be asked: %s", str(why)[:160])
         return []
@@ -203,16 +205,20 @@ async def _asked_of_her_model(names: list[str], ask: Callable[..., Awaitable[Any
 WAITS_S = (10.0, 20.0, 30.0, 45.0, 60.0, 90.0)
 
 
-async def asked_patiently(ask: Callable[..., Awaitable[Any]], prompt: str, schema: Any, most: int) -> Any:
-    """Her model's answer, asked again after a wait each time it was busy; what the last try raised, where none
-    answered."""
-    for wait in (*WAITS_S, None):
-        try:
-            return await ask(prompt, schema, most)
-        except RuntimeError:
-            if wait is None:
-                raise
-            await asyncio.sleep(wait)
+async def asked_patiently(ask: Callable[..., Awaitable[Any]], prompt: str, schema: Any, most: int, *,
+                          matters: int) -> Any:
+    """Her model's answer, once it is this question's turn among hers (core/cognition/asking_in_turn.py), asked again
+    after a wait each time it was busy; what the last try raised, where none answered."""
+    from core.cognition.asking_in_turn import in_turn
+
+    async with in_turn(matters):
+        for wait in (*WAITS_S, None):
+            try:
+                return await ask(prompt, schema, most)
+            except RuntimeError:
+                if wait is None:
+                    raise
+                await asyncio.sleep(wait)
     return None
 
 

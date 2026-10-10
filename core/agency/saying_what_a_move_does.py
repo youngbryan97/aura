@@ -211,6 +211,8 @@ def what_a_move_does(
     if 1 <= free <= 2 and not joined:
         parts.append(f"only {free} place{'' if free == 1 else 's'} left")
     if not parts:
-        return f"{said_move}."
+        # A key's name alone tells a watcher nothing they did not see: LIVE 2026-10-10 "Right." was said over a
+        # game's title, where a board had been read.
+        return ""
     sentence = parts[0] if len(parts) == 1 else "; ".join(parts[:-1]) + ", and " + parts[-1]
     return f"{said_move} — {sentence}."

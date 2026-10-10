@@ -183,8 +183,10 @@ class Guide:
 
     # -- taking things in ---------------------------------------------------------------------------------------
 
-    def take_in(self, source: str, said: str | Iterable[str], at: float | None = None) -> list[str]:
-        """Writing from one source: its controls, goals, things, readouts and mechanics; what it changed, said."""
+    def take_in(self, source: str, said: str | Iterable[str], at: float | None = None, *,
+                passages: Iterable[str] | None = None) -> list[str]:
+        """Writing from one source: its controls, goals, things, readouts and mechanics; what it changed, said.
+        ``passages`` are what its rules are read from, where its sentences are not: a screen's words read whole."""
         from core.agency.mechanics_she_knows import changes_told, mechanics_in
 
         at = time.monotonic() if at is None else at
@@ -204,8 +206,8 @@ class Guide:
         self._goals_and_things_from(new)
         if source != MODEL:
             news += said_for_itself(self, [g for g in self.goals if g not in goals_before])
-            # Every sentence the place says is read for what it asks; one read before is understood at once.
-            self.rules.hear(new)
+            # Every passage the place shows is read for what it asks; one read before is understood at once.
+            self.rules.hear(new if passages is None else passages)
             news += rules_read(self, self.rules.in_order())
         self._sections_from(new)
         if source != MODEL:
@@ -233,7 +235,9 @@ class Guide:
             return
         at = time.monotonic() if at is None else at
         # The instructions a program holds are what it tells its player, as a manual does: its instructions.
-        self.take_in(TOLD, getattr(read, "words", []) or [], at)
+        words = [str(w) for w in getattr(read, "words", []) or [] if w]
+        # A program's words are the pieces of its screens, one text at a time: its rules are read from them together.
+        self.take_in(TOLD, words, at, passages=[" / ".join(words)] if words else [])
         for key, purpose in (getattr(read, "keys", {}) or {}).items():
             if key not in self.controls:
                 self.controls[key] = Control(key, purpose or "", PROGRAM, at)
@@ -732,7 +736,7 @@ _SAID_ELSEWHERE = frozenset({"steering", "menus", "information shown", "decorati
 def rules_read(guide: Guide, frames: list[Frame]) -> list[str]:
     """What the rules as read change in the guide: a sentence read as saying what the place is for is its goal, ahead
     of what her model supposed. What to say of it."""
-    said_for = [f.sentence for f in frames if f.is_what_it_is_for and f.sentence not in guide.goals]
+    said_for = list(dict.fromkeys(f.goal() for f in frames if f.is_what_it_is_for and f.goal() not in guide.goals))
     if not said_for:
         return []
     guide.goals[:0] = said_for

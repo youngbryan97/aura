@@ -220,7 +220,7 @@ def test_a_busy_model_is_asked_again_after_a_wait_rather_than_left_unasked(monke
             raise RuntimeError("an empty answer")
         return "answered"
 
-    assert asyncio.run(things.asked_patiently(ask, "?", None, 10)) == "answered" and len(tries) == 3
+    assert asyncio.run(things.asked_patiently(ask, "?", None, 10, matters=0)) == "answered" and len(tries) == 3
 
 
 def test_a_name_that_says_what_anything_is_and_an_odd_look_that_is_only_how_it_is_drawn_are_not_kept():

@@ -402,6 +402,7 @@ def _wonder_at(guide: Any, seeing: SeeingInPlay, what: str, odd: str, at: float,
     class _Maybe(BaseModel):
         maybe: str = Field(default="", max_length=200, description="one short, tentative sentence; empty if nothing")
 
+    from core.cognition.asking_in_turn import A_LOOK
     from core.cognition.what_things_are import asked_patiently, what_things_are
 
     known = what_things_are().of(what)
@@ -412,7 +413,7 @@ def _wonder_at(guide: Any, seeing: SeeingInPlay, what: str, odd: str, at: float,
 
     async def asked() -> None:
         try:
-            got = await asked_patiently(ask, prompt, _Maybe, 120)
+            got = await asked_patiently(ask, prompt, _Maybe, 120, matters=A_LOOK)
         except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
             logger.info("what an odd look suggests could not be asked: %s", str(why)[:120])
             return

@@ -962,7 +962,9 @@ def _as_the_guide_reads_it(clickable: Any, says: str, paced: Any, narrate: bool)
     run = paced if isinstance(paced, dict) else None
     guide = the_guide(run, place=str((run or {}).get("place") or ""))
     labels = [what_is_clicked(move) or "" for move in clickable]
-    news = guide.take_in(SCREEN, [says or "", *labels])
+    # What the screen asks is read from its words as a whole, not from its labels one by one: the pieces of a lesson
+    # laid out around what they point at are one passage (core/cognition/reading_the_rules.py).
+    news = guide.take_in(SCREEN, [says or "", *labels], passages=[says] if says else [])
     # What its sentences ask, read by her model beside her work (core/cognition/reading_the_rules.py).
     from core.cognition.a_guide_to_a_place import rules_read
     from core.cognition.reading_the_rules import read_the_rules_beside

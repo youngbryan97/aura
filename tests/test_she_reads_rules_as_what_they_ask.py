@@ -53,7 +53,7 @@ def test_a_lesson_is_read_into_steps_held_to_her_ways_and_to_its_own_words():
     asyncio.run(run())
     rules = guide.rules
     assert "a place of devices" in asked[0] and "1. Click here to open the device library." in asked[0]
-    assert rules.frames[LESSON[2]].where == ""                                  # what is not in a sentence is not read
+    assert rules.read_as(LESSON[2])[0].where == ""                              # what is not in a sentence is not read
     assert rules.carried_to() == "the end of another device's arrow"
     assert rules.next_step().sentence == LESSON[0]
     assert rules.step_of('click "DEVICE LIBRARY"').sentence == LESSON[0]
@@ -118,3 +118,92 @@ def test_once_something_is_built_an_option_that_keeps_it_outweighs_one_that_thro
     nothing = SimpleNamespace(carried_to={}, quiet_since=set())
     weighed = DebateCheck().weigh({'click "EDIT THE TRAP"': 1.0, 'click "START OVER"': 1.0}, guide, nothing)
     assert weighed['click "EDIT THE TRAP"'] == weighed['click "START OVER"']
+
+
+def test_a_step_done_again_and_again_holds_until_she_goes_on_to_the_next():
+    # The player in the video added device after device to the arrow's end, and tested the trap only once it reached.
+    rules = Rules()
+    lesson = ["Drag a device to the end of another device's arrow.",
+              "Continue adding devices until you are ready to test the trap.", "Click Test Trap to see if it works."]
+    rules.hear(lesson)
+    rules.took([Frame(lesson[0], act="carry", thing="a device", where="the end of another device's arrow"),
+                Frame(lesson[1], act="carry", thing="devices", again=True, when="you are ready to test the trap"),
+                Frame(lesson[2], act="click things", thing="Test Trap")])
+    carry = 'drag "the shape at 20% across, 40% down" to "the end of another device\'s arrow"'
+    rules.tried(carry, changed=True)
+    assert rules.next_step().sentence == lesson[1]
+    for _ in range(3):
+        rules.tried('drag "the shape at 30% across, 40% down" to "devices"', changed=True)
+    assert rules.next_step().sentence == lesson[1]                              # still adding
+    rules.tried('click "TEST TRAP"', changed=True)
+    assert rules.next_step() is None and "again and again" in rules.for_thinking()
+
+
+def test_on_a_first_visit_she_reads_what_a_place_teaches_rather_than_skip_it():
+    from core.skills.screen_pursuit_decision import _the_lesson_first
+
+    guide = Guide(place="a place of devices")
+    token = THE_GUIDE.set(guide)
+    try:
+        valued = _the_lesson_first({'click "SKIP INSTRUCTIONS"': 0.709, 'click "the shape at 75% across, 5% down"': 0.644})
+        assert max(valued, key=valued.get) == 'click "the shape at 75% across, 5% down"'
+        guide.rules.hear(["Drag a device to the room."])
+        guide.rules.took([Frame("Drag a device to the room.", act="carry", thing="a device", where="the room")])
+        valued = _the_lesson_first({'click "SKIP INSTRUCTIONS"': 0.709, 'click "the shape at 75% across, 5% down"': 0.644})
+        assert valued['click "SKIP INSTRUCTIONS"'] == 0.709                     # once she knows the lesson, skip is fine
+    finally:
+        THE_GUIDE.reset(token)
+
+
+def test_a_screen_whose_lesson_is_laid_out_around_its_controls_is_read_whole_into_its_steps():
+    """LIVE 2026-10-10 a lesson's callouts read off the screen as one run of words with button names between them:
+    "PLaCE THE DEViCE aT + TURN → THE END OF ANOTHER DELETE X DEVICE'S aRROW TO MAKE A CONNECTION". Its labels, and her
+    own names for the shapes drawn on it, had been read as rules one by one."""
+    guide = Guide(place="a place of devices")
+    screen = "PLaCE THE DEViCE aT + TURN → THE END OF ANOTHER DELETE X DEVICE'S aRROW TO MAKE A CONNECTION"
+    guide.take_in(SCREEN, [screen, "TURN", "DELETE X", "the shape at 50% across, 80% down"], passages=[screen])
+    assert guide.rules.heard == [screen]
+    ask, _asked = _reader([
+        {"number": 1, "act": "carry", "thing": "THE DEViCE", "where": "THE END OF ANOTHER DEVICE'S aRROW"},
+        {"number": 1, "act": "click things", "thing": "THE DEViCE", "using": "TURN"},
+        {"number": 1, "act": "click things", "thing": "THE DEViCE", "using": "the rotate dial"},   # not its words
+    ])
+
+    async def run():
+        assert read_the_rules_beside(guide, ask)
+        await guide.rules.asking
+
+    asyncio.run(run())
+    steps = guide.rules.read_as(screen)
+    assert [f.act for f in steps] == ["carry", "click things", "click things"]
+    assert guide.rules.carried_to() == "THE END OF ANOTHER DEVICE'S aRROW"
+    assert steps[2].using == ""
+    guide.rules.hear(["DEVICE'S aRROW TO MAKE A CONNECTION"])                   # a piece of what was heard
+    assert guide.rules.heard == [screen]
+
+
+def test_a_place_whose_lesson_asks_only_to_build_is_not_played_as_it_happens():
+    from core.cognition.what_this_place_is import done_by_its_lesson
+
+    guide = Guide(place="a place of devices")
+    lesson = ["Click here to open the device library.", "Drag a device to the end of another device's arrow."]
+    guide.rules.hear(lesson)
+    guide.rules.took([Frame(lesson[0], act="click things", thing="the device library"),
+                      Frame(lesson[1], act="carry", thing="a device", where="the end of another device's arrow")])
+    assert done_by_its_lesson(guide) == "carry"
+    racer = Guide(place="a race")
+    racer.rules.hear(["Steer the car around the track with the arrows.", "Drag the sticker onto the car."])
+    racer.rules.took([Frame("Steer the car around the track with the arrows.", act="steer", thing="the car"),
+                      Frame("Drag the sticker onto the car.", act="carry", thing="the sticker", where="the car")])
+    assert done_by_its_lesson(racer) == ""                                       # it is steered, too
+    assert done_by_its_lesson(Guide(place="unread")) == ""
+
+
+def test_a_screen_read_again_a_little_differently_is_understood_at_once():
+    first = Rules()
+    seen = "PiCK a ROOM aND TRY TO CaTCH JERRY! THE KITCHEN THE LIVING ROOM"
+    first.hear([seen])
+    first.took([Frame(seen, act="click things", thing="ROOM", is_what_it_is_for=True)])
+    again = Rules()
+    assert again.hear(["PICK a ROOM AND TRY TO CATCH JERRY! THE THE LIVING THE KITCHEN ROOM"]) == []
+    assert again.in_order()[0].act == "click things" and again.in_order()[0].thing == "ROOM"

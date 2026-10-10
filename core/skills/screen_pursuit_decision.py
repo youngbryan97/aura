@@ -183,7 +183,7 @@ def _the_lesson_first(valued: dict[str, float]) -> dict[str, float]:
         step = rules.step_of(move)
         if step is not None:
             value = max(value, best * (NEXT_STEP if step is nxt else 1.2))
-        out[move] = value * (FORBIDDEN if rules.forbids(move) else 1.0)
+        out[move] = value * (FORBIDDEN if rules.forbids(move) or rules.passes_over_what_it_teaches(move) else 1.0)
     return out
 
 

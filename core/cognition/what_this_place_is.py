@@ -353,6 +353,19 @@ def not_steered(guide: Any) -> str:
     return reading.by
 
 
+def done_by_its_lesson(guide: Any) -> str:
+    """Where the place's lesson, as read (core/cognition/reading_the_rules.py), asks only for acts that are not played
+    as things happen (carrying parts into place, building a chain, making), the first of them; else "". Clicking is how
+    any screen is worked and says nothing either way. LIVE 2026-10-10 a game of devices dragged into a room was played
+    as it happened, because its title moved and a key was named: "The traps cost me. Keeping clear of them."."""
+    rules = getattr(guide, "rules", None)
+    steps = rules.steps() if rules is not None else []
+    acts = [f.act for f in steps if f.act != "click things"]
+    if not acts or any(act in _REFLEX for act in acts):
+        return ""
+    return acts[0]
+
+
 #: Keys that move a body about: steering.
 _STEERING_KEYS = frozenset({"up", "down", "left", "right", *"wasd"})
 
@@ -516,11 +529,12 @@ async def _a_reading(place: str, task: str, rests_on: str, seen: list[str], says
               "make sense there and which make none (" + ways + "); what they want out of it; and what each thing seen "
               "is to them. Where what it says of itself and what its name suggests differ, what it says is so. Be "
               "tentative where you are unsure.")
+    from core.cognition.asking_in_turn import THE_PLACE
     from core.cognition.what_things_are import asked_patiently
 
     try:
         # Her thinking at each move holds her model; a question beside her work waits its turn and asks again.
-        got = await asked_patiently(ask, prompt, schema, MOST_TOKENS)
+        got = await asked_patiently(ask, prompt, schema, MOST_TOKENS, matters=THE_PLACE)
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("a reading of %r could not be asked: %s", place, str(why)[:160])
         return None

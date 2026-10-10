@@ -31,24 +31,29 @@ import logging
 import re
 import threading
 from collections.abc import Awaitable, Callable, Iterable, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any
 
-__all__ = ["ASKS_TO_CARRY", "KEEPS_THE_WORK", "SAYS_WHAT_IT_IS_FOR", "Frame", "Rules", "keeps_the_work",
-           "read_the_rules_beside"]
+__all__ = ["ASKS_TO_CARRY", "KEEPS_THE_WORK", "SAYS_WHAT_IT_IS_FOR", "SKIPS_THE_TEACHING", "Frame", "Rules",
+           "keeps_the_work", "read_the_rules_beside", "skips_the_teaching"]
 
 logger = logging.getLogger("Aura.ReadingTheRules")
 
 #: Acts a sentence may ask for beyond her ways of playing: something only to read, or nothing of hers.
 READ, NOTHING = "read", "nothing"
-#: How many sentences are read at one ask, the most her model writes for them, the most frames kept for every place,
-#: and the fewest words a sentence has to be read as a rule.
+#: How many passages are read at one ask and the most of their words, the most her model writes for them, the most
+#: passages kept for every place, the fewest words a passage has to be read as a rule, and the most steps one asks.
 AT_ONCE = 8
+MOST_CHARS_AT_ONCE = 1600
 MOST_TOKENS = 1100
 MOST_KEPT = 600
 FEWEST_WORDS = 3
+STEPS_A_PASSAGE = 6
+#: The most of a passage taken in: a screen of words is read whole, but not a page of them.
+MOST_CHARS = 600
 
 _WORD = re.compile(r"[a-z]{3,}")
+_TOKEN = re.compile(r"[a-z0-9']+")
 #: Tries of a step that went unanswered before it is passed over.
 PASSED_OVER_AFTER = 2
 #: Words two names share without being one thing.
@@ -57,8 +62,10 @@ _COMMON = frozenset("the and you your for with from that this into onto any each
 
 @dataclass(frozen=True)
 class Frame:
-    """What one sentence asks: an act of hers, done to what, where to, with what control, when, never, and what for;
-    whether it says what the place is for; and where it stands in its lesson."""
+    """What one step a passage asks: an act of hers, done to what, where to, with what control, when, never, and what
+    for; whether it says what the place is for; and where it stands in its lesson. A passage is a sentence of prose, or
+    a screen's words in reading order, whose pieces may be laid out around what they point at; ``part`` is which of
+    its steps this is."""
 
     sentence: str
     act: str = NOTHING
@@ -69,12 +76,24 @@ class Frame:
     never: bool = False
     for_what: str = ""
     is_what_it_is_for: bool = False
+    again: bool = False
+    part: int = 0
     order: int = 0
+
+    @property
+    def key(self) -> str:
+        return f"{self.sentence}#{self.part}"
 
     def as_memory(self) -> dict[str, Any]:
         held = asdict(self)
         held.pop("order", None)
         return held
+
+    def goal(self) -> str:
+        """What the place is for, as this step says it: the sentence itself where it is one, else its own parts."""
+        if len(re.split(r"(?<=[.!?])\s+", self.sentence.strip())) == 1 and len(self.sentence) <= 160:
+            return self.sentence
+        return " ".join(p for p in (self.thing, self.where, self.for_what) if p) or self.sentence[:160]
 
     def said(self) -> str:
         """The frame as a step, in a few words."""
@@ -83,7 +102,8 @@ class Frame:
         how = _SAID_AS.get(self.act, self.act)
         parts = [("never " if self.never else "") + how]
         parts += [f"({self.thing})" if self.thing else "", f"to {self.where}" if self.where else "",
-                  f"with {self.using}" if self.using else "", f"when {self.when}" if self.when else ""]
+                  f"with {self.using}" if self.using else "", f"when {self.when}" if self.when else "",
+                  "again and again" if self.again else ""]
         return " ".join(p for p in parts if p)
 
 
@@ -138,6 +158,27 @@ KEEPS_THE_WORK = _surface(
 )
 
 
+#: Whether an option passes over a place's teaching (its instructions, tutorial, lesson): a person new to a place reads
+#: what it teaches before skipping it. LIVE 2026-10-10 she pressed a game's "SKIP INSTRUCTIONS" on her first visit and
+#: never saw its lesson.
+SKIPS_THE_TEACHING = _surface(
+    "skips_the_teaching",
+    ("Skip instructions", "Skip the tutorial", "Skip tour", "I already know how to play", "Skip lesson",
+     "Skip the walkthrough", "Skip training", "No thanks, skip the guide"),
+    ("Skip intro", "Skip cutscene", "Skip ad", "Instructions", "How to play", "Next", "Play", "Start the tutorial",
+     "Continue", "Show me how"),
+)
+#: What stands for the surface until it decides: a skip of something that teaches.
+_SKIPS_TEACHING = re.compile(r"\bskip\b.{0,24}\b(?:instructions?|tutorials?|lessons?|help|how to play|training|tour|"
+                             r"guide|walkthrough)\b", re.IGNORECASE)
+
+
+def skips_the_teaching(label: str) -> bool:
+    """Whether an option passes over what a place teaches: as the learned surface decides, else as its floor reads."""
+    decided = _decided(SKIPS_THE_TEACHING, label)
+    return bool(_SKIPS_TEACHING.search(str(label or ""))) if decided is None else decided
+
+
 def keeps_the_work(label: str) -> bool | None:
     """Whether an option keeps what was done (True), throws it away (False), or neither is known (None)."""
     return _decided(KEEPS_THE_WORK, label)
@@ -166,35 +207,56 @@ class Rules:
     asking: Any = None
     unanswered: int = 0
 
-    def hear(self, sentences: Iterable[str]) -> list[str]:
-        """Sentences the place said, in order: kept, and read at once where a sentence like it was read before.
-        The sentences not yet read."""
+    def hear(self, passages: Iterable[str]) -> list[str]:
+        """Passages the place showed, in order: kept, and read at once where one like it was read before; a passage
+        whose words were all in one heard already is not heard again. The passages not yet read."""
         store = _kept()
-        for sentence in sentences:
-            text = " ".join(str(sentence or "").split())
-            if len(text.split()) < FEWEST_WORDS or text in self.heard:
+        for passage in passages:
+            text = " ".join(str(passage or "").split())[:MOST_CHARS]
+            if len(text.split()) < FEWEST_WORDS or text in self.heard or self._within_one_heard(text):
                 continue
             self.heard.append(text)
-            known = store.get(_key(text))
+            known = store.get(_key(text)) or _like(store, text)
             if known is not None:
-                self.frames[text] = Frame(**{**known, "sentence": text, "order": self.heard.index(text)})
+                at = len(self.heard) - 1
+                for part, held in enumerate((known if isinstance(known, list) else [known])[:STEPS_A_PASSAGE]):
+                    frame = Frame(**{**_held_to(text, _as_fields(held)), "sentence": text, "part": part,
+                                     "order": at * STEPS_A_PASSAGE + part})
+                    self.frames[frame.key] = frame
         return self.unread()
 
+    def _within_one_heard(self, text: str) -> bool:
+        words = _words(text)
+        return bool(words) and any(words <= _words(before) for before in self.heard)
+
     def unread(self) -> list[str]:
-        return [s for s in self.heard if s not in self.frames]
+        read = {f.sentence for f in self.frames.values()}
+        return [s for s in self.heard if s not in read]
+
+    def read_as(self, passage: str) -> list[Frame]:
+        """The steps a passage was read as, in order."""
+        return [f for f in self.in_order() if f.sentence == passage]
 
     def took(self, frames: Sequence[Frame]) -> list[Frame]:
-        """Frames her model read: kept for this place and every place, and taught to the learned surfaces."""
-        taken = []
+        """Frames her model read, each passage's steps in order: kept for this place and every place, and taught to the
+        learned surfaces."""
+        by_passage: dict[str, list[Frame]] = {}
         for frame in frames:
-            if frame.sentence not in self.heard:
-                continue
-            frame = Frame(**{**asdict(frame), "order": self.heard.index(frame.sentence)})
-            self.frames[frame.sentence] = frame
-            taken.append(frame)
-            for surface, holds in ((ASKS_TO_CARRY, frame.act == "carry"), (SAYS_WHAT_IT_IS_FOR, frame.is_what_it_is_for)):
+            if frame.sentence in self.heard:
+                by_passage.setdefault(frame.sentence, []).append(frame)
+        taken = []
+        for passage, steps in by_passage.items():
+            at = self.heard.index(passage)
+            for key in [k for k, f in self.frames.items() if f.sentence == passage]:
+                del self.frames[key]
+            for part, frame in enumerate(steps[:STEPS_A_PASSAGE]):
+                frame = replace(frame, part=part, order=at * STEPS_A_PASSAGE + part)
+                self.frames[frame.key] = frame
+                taken.append(frame)
+            for surface, holds in ((ASKS_TO_CARRY, any(f.act == "carry" for f in steps)),
+                                   (SAYS_WHAT_IT_IS_FOR, any(f.is_what_it_is_for for f in steps))):
                 try:
-                    surface.observe(frame.sentence, holds=holds)
+                    surface.observe(passage, holds=holds)
                 except (RuntimeError, OSError, ValueError, TypeError) as why:
                     logger.debug("a learned surface could not take an example: %s", why)
         _keep(taken)
@@ -211,7 +273,7 @@ class Rules:
 
     def what_it_is_for(self) -> list[str]:
         """The sentences that say what the place is for: as read, else as the learned surface decides."""
-        read = [f.sentence for f in self.in_order() if f.is_what_it_is_for]
+        read = list(dict.fromkeys(f.goal() for f in self.in_order() if f.is_what_it_is_for))
         return read or [s for s in self.unread() if _decided(SAYS_WHAT_IT_IS_FOR, s)]
 
     def in_order(self) -> list[Frame]:
@@ -220,11 +282,18 @@ class Rules:
     def steps(self) -> list[Frame]:
         """The lesson as a procedure: what the rules ask to be done, in their order, less the steps passed over."""
         return [f for f in self.in_order() if f.act not in (READ, NOTHING) and not f.never
-                and self.unanswered_steps.get(f.sentence, 0) < PASSED_OVER_AFTER]
+                and self.unanswered_steps.get(f.key, 0) < PASSED_OVER_AFTER]
+
+    def passed(self, frame: Frame) -> bool:
+        """Whether a step is behind her: done, or a step after it is. A step done again and again ("continue adding
+        devices until you are ready to test") is never done by doing it once; it is behind her once she goes on."""
+        if frame.key in self.done and not frame.again:
+            return True
+        return any(f.order > frame.order and f.key in self.done for f in self.frames.values())
 
     def next_step(self) -> Frame | None:
-        """The earliest step not yet done."""
-        return next((f for f in self.steps() if f.sentence not in self.done), None)
+        """The earliest step not behind her."""
+        return next((f for f in self.steps() if not self.passed(f)), None)
 
     def step_of(self, move: str) -> Frame | None:
         """The earliest step not yet done that a move does: a click on what a step names, a carry of what it names to
@@ -234,7 +303,7 @@ class Rules:
 
         clicked, two = what_is_clicked(move), two_places_of(move)
         for frame in self.steps():
-            if frame.sentence in self.done:
+            if self.passed(frame):
                 continue
             named = " ".join((frame.thing, frame.using))
             if clicked and frame.act != "carry" and names_it(named, clicked):
@@ -243,6 +312,13 @@ class Rules:
                     names_it(frame.where, two.other) or names_it(frame.thing, two.one)):
                 return frame
         return None
+
+    def passes_over_what_it_teaches(self, move: str) -> bool:
+        """Whether a move skips the place's teaching while she has no lesson of it: she reads what it teaches first."""
+        from core.agency.what_i_can_do_here import what_is_clicked
+
+        clicked = what_is_clicked(move)
+        return bool(clicked) and not self.steps() and skips_the_teaching(clicked)
 
     def forbids(self, move: str) -> bool:
         """Whether a rule says never to do what a move does."""
@@ -257,9 +333,9 @@ class Rules:
         if frame is None:
             return
         if changed:
-            self.done.add(frame.sentence)
+            self.done.add(frame.key)
         else:
-            self.unanswered_steps[frame.sentence] = self.unanswered_steps.get(frame.sentence, 0) + 1
+            self.unanswered_steps[frame.key] = self.unanswered_steps.get(frame.key, 0) + 1
 
     def for_thinking(self) -> str:
         """The lesson as she has read it, for reasoning with: its steps in order, the next marked."""
@@ -267,7 +343,7 @@ class Rules:
         if not steps:
             return ""
         nxt = self.next_step()
-        said = [("→ " if f is nxt else "✓ " if f.sentence in self.done else "") + f.said() for f in steps[:8]]
+        said = [("→ " if f is nxt else "✓ " if self.passed(f) else "") + f.said() for f in steps[:8]]
         never = [f.said() for f in self.in_order() if f.never][:3]
         return "The rules, as I read them, in order: " + "; ".join(said) + (". Never: " + "; ".join(never) if never else "")
 
@@ -284,7 +360,11 @@ def read_the_rules_beside(guide: Any, ask: Callable[..., Awaitable[Any]] | None,
     rules: Rules | None = getattr(guide, "rules", None)
     if rules is None or ask is None or (rules.asking is not None and not rules.asking.done()) or rules.unanswered >= 3:
         return False
-    sentences = rules.unread()[:AT_ONCE]
+    sentences: list[str] = []
+    for passage in rules.unread()[:AT_ONCE]:
+        if sentences and sum(map(len, sentences)) + len(passage) > MOST_CHARS_AT_ONCE:
+            break
+        sentences.append(passage)
     if not sentences:
         return False
     try:
@@ -296,6 +376,7 @@ def read_the_rules_beside(guide: Any, ask: Callable[..., Awaitable[Any]] | None,
         frames = await _read(sentences, getattr(guide, "place", ""), ask)
         if not frames:
             rules.unanswered += 1
+            logger.info("her model gave no reading of the rules (%d time(s))", rules.unanswered)
             return
         taken = rules.took(frames)
         logger.info("the rules, as she read them: %s", [(f.sentence[:60], f.act, f.thing, f.where) for f in taken])
@@ -313,32 +394,37 @@ async def _read(sentences: list[str], place: str, ask: Callable[..., Awaitable[A
     from pydantic import BaseModel, Field, create_model
 
     from core.agency.ways_of_playing import WAYS
+    from core.cognition.asking_in_turn import RULES
     from core.cognition.what_things_are import asked_patiently
     from core.cognition.what_this_place_is import _ACTS
 
     acts = (*_ACTS, READ, NOTHING)
     one: type[BaseModel] = create_model(
         "_Frame",
-        number=(int, Field(description="the sentence's number")),
+        number=(int, Field(description="the number of the item that asks this step")),
         act=(Literal[acts], Field(description="what it asks the reader to do, as one of the ways listed")),  # type: ignore[valid-type]
-        thing=(str, Field(default="", max_length=60, description="what it is done to, in the sentence's own words")),
+        thing=(str, Field(default="", max_length=60, description="what it is done to, in the item's own words")),
         where=(str, Field(default="", max_length=60, description="where it is done to or carried to, in its own words")),
         using=(str, Field(default="", max_length=60, description="the control or button it is done with, in its own words")),
         when=(str, Field(default="", max_length=60, description="when, if it says")),
         never=(bool, Field(default=False, description="true where it says not to do it")),
         for_what=(str, Field(default="", max_length=60, description="what it is for, if it says")),
         is_what_it_is_for=(bool, Field(default=False, description="true where it says what the whole place is for")),
+        again=(bool, Field(default=False, description="true where it says to do it again and again, or until something")),
     )
-    schema = create_model("_Frames", frames=(list[one], Field(default_factory=list, max_length=AT_ONCE)))  # type: ignore[valid-type]
+    schema = create_model("_Frames", frames=(list[one], Field(default_factory=list, max_length=2 * AT_ONCE)))  # type: ignore[valid-type]
     ways = "; ".join(f"{w.name}: {w.asks}" for w in WAYS if w.name in _ACTS)
     numbered = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(sentences))
-    prompt = (f"These sentences are shown, in this order, by “{place or 'a place on a screen'}” to whoever uses it:\n"
-              f"{numbered}\nFor each, what it asks the reader to do, as one of these ways ({ways}; {READ}: only to be "
-              f"read; {NOTHING}: asks nothing), what it is done to, where to, with which control, when, whether it says "
-              "not to, what for, and whether it says what the whole place is for. Use the sentence's own words for the "
+    prompt = (f"These are shown, in this order, by “{place or 'a place on a screen'}” to whoever uses it. Each item "
+              "is a sentence, or the words of one screen in reading order, whose pieces may be laid out around what they "
+              f"point at:\n{numbered}\nFor each item, the steps it asks the reader to take, in order, one entry per step "
+              f"with the item's number: as one of these ways ({ways}; {READ}: only to be read; {NOTHING}: asks nothing), "
+              "what it is done to, where to, with which control, when, whether it says not to, what for, whether it is "
+              "done again and again, and whether it says what the whole place is for. Use the item's own words for the "
               "parts, and leave a part empty where it does not say.")
     try:
-        got = await asked_patiently(ask, prompt, schema, MOST_TOKENS)
+        logger.info("reading %d of the sentences of %r for what they ask", len(sentences), place)
+        got = await asked_patiently(ask, prompt, schema, MOST_TOKENS, matters=RULES)
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("the rules could not be read: %s", str(why)[:160])
         return []
@@ -351,27 +437,61 @@ async def _read(sentences: list[str], place: str, ask: Callable[..., Awaitable[A
         sentence = sentences[at]
 
         def own(part: str, sentence: str = sentence, said: dict[str, Any] = said) -> str:
-            # A part is the sentence's own words or nothing: what is not in it was not read from it.
+            # A part is the item's own words or nothing: what is not in it was not read from it. Its words, not one run
+            # of them, since a screen's pieces of one sentence may have a button's name between them.
             text = " ".join(str(said.get(part) or "").split())
-            return text if text and text.lower() in sentence.lower() else ""
+            return text if text and set(_TOKEN.findall(text.lower())) <= set(_TOKEN.findall(sentence.lower())) else ""
 
         out.append(Frame(sentence=sentence, act=str(said.get("act") or NOTHING), thing=own("thing"), where=own("where"),
                          using=own("using"), when=own("when"), never=bool(said.get("never")), for_what=own("for_what"),
-                         is_what_it_is_for=bool(said.get("is_what_it_is_for"))))
+                         is_what_it_is_for=bool(said.get("is_what_it_is_for")), again=bool(said.get("again"))))
     return out
 
 
 # -- kept for every place -------------------------------------------------------------------------------------------
 
-_KEPT: dict[str, dict[str, dict[str, Any]]] = {}
+_KEPT: dict[str, dict[str, Any]] = {}
 _KEEPING = threading.Lock()
+
+
+_FRAME_FIELDS = frozenset(f.name for f in fields(Frame))
+
+
+def _as_fields(held: Any) -> dict[str, Any]:
+    return {k: v for k, v in (held if isinstance(held, dict) else {}).items() if k in _FRAME_FIELDS}
+
+
+def _like(store: dict[str, Any], text: str) -> Any:
+    """What was read of a passage most like this one, where they share most of their words: a screen read again comes
+    back a little differently ("PiCK a ROOM", "PICK a ROOM", "PiCK & ROOM")."""
+    from core.agency.where_things_lead import SAME_SCREEN
+
+    words = _words(text)
+    if not words:
+        return None
+    best, kept = 0.0, None
+    for key, held in store.items():
+        theirs = _words(key)
+        share = len(words & theirs) / len(words | theirs) if theirs else 0.0
+        if share > best:
+            best, kept = share, held
+    return kept if best >= SAME_SCREEN else None
+
+
+def _held_to(text: str, held: dict[str, Any]) -> dict[str, Any]:
+    """A frame read from another passage, its parts kept only where they are words of this one."""
+    own = set(_TOKEN.findall(text.lower()))
+    return {k: (v if k not in _PARTS or set(_TOKEN.findall(str(v).lower())) <= own else "") for k, v in held.items()}
+
+
+_PARTS = frozenset({"thing", "where", "using", "when", "for_what"})
 
 
 def _key(sentence: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9' ]", " ", str(sentence or "").lower()).split())
 
 
-def _kept() -> dict[str, dict[str, Any]]:
+def _kept() -> dict[str, Any]:
     """Every sentence read before, by its words: one store for her, kept between sittings."""
     from core.runtime.what_she_learned import _kept_in, named, recall
 
@@ -383,7 +503,7 @@ def _kept() -> dict[str, dict[str, Any]]:
             except (RuntimeError, OSError, ValueError, TypeError) as why:
                 logger.info("the rules read before could not be recalled: %s", why)
                 held = {}
-            _KEPT[where] = {k: v for k, v in (held.get("frames") or {}).items() if isinstance(v, dict)}
+            _KEPT[where] = {k: v for k, v in (held.get("frames") or {}).items() if isinstance(v, (dict, list))}
         return _KEPT[where]
 
 
@@ -393,9 +513,11 @@ def _keep(frames: Sequence[Frame]) -> None:
     if not frames:
         return
     store = _kept()
+    by_passage: dict[str, list[dict[str, Any]]] = {}
+    for frame in sorted(frames, key=lambda f: f.order):
+        by_passage.setdefault(_key(frame.sentence), []).append(frame.as_memory())
     with _KEEPING:
-        for frame in frames:
-            store[_key(frame.sentence)] = frame.as_memory()
+        store.update(by_passage)
         while len(store) > MOST_KEPT:
             del store[next(iter(store))]
         held = {"frames": dict(store)}

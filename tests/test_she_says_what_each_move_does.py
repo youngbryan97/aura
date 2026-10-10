@@ -48,9 +48,9 @@ def test_a_move_that_joins_nothing_says_why_it_was_chosen():
     assert line == "Right — it keeps things more in order than up would."
 
 
-def test_nothing_to_say_but_the_move_is_just_the_move():
+def test_a_move_with_nothing_to_say_is_not_said():
     before = _board([2, 4, 0, 0] + [0] * 12)
-    assert what_a_move_does(before, "down", shifted_and_combined(before, "down")) == "Down."
+    assert what_a_move_does(before, "down", shifted_and_combined(before, "down")) == ""
 
 
 def test_a_nearly_full_board_says_how_little_room_is_left():
