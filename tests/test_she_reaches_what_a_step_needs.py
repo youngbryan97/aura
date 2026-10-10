@@ -151,3 +151,17 @@ def test_the_place_things_are_carried_to_is_not_offered_as_a_click():
     offered = here.available()
     assert 'click "any active square"' not in offered
     assert any('to "any active square"' in move for move in offered)
+
+
+def test_what_a_step_was_to_show_is_held_to_the_screen_in_the_places_own_words():
+    """LIVE 2026-10-10 "A list or grid of device types appears, each with a 'choose' option" was judged not shown on a
+    screen that read "CHOOSE A TYPE OF DEVICE LAUNCHERS HANGERS ROLLERS CUTTERS"."""
+    guide = Guide(place="a place of devices")
+    plan = Plan(vocabulary={"device", "library", "type", "choose", "launcher", "cage", "jerry", "trap", "test"})
+    step = Frame("Open the device library", act="click things", thing="DEVICE LIBRARY")
+    plan.took([step])
+    plan.expects[step.key] = "A list or grid of device types appears, each with a 'choose' option"
+    guide.plan = plan
+    plan.tried('click "DEVICE LIBRARY"', changed=True)
+    the_screen_answered(guide, "CLOSE X DEVICE LIBRARY CHOOSE A TYPE OF DEVICE LAUNCHERS HANGERS ROLLERS CUTTERS")
+    assert plan.passed(plan.frames[step.key]) and not plan.missed

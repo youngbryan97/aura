@@ -86,6 +86,8 @@ class Plan(Rules):
     missed: list[str] = field(default_factory=list)
     #: Whether a step could not be done as written, for the plan to be made again around it.
     stuck: bool = False
+    #: The words the place had used when the plan was made: what a step was to show is held to the screen in these.
+    vocabulary: set[str] = field(default_factory=set)
 
     def took(self, frames: Sequence[Frame]) -> list[Frame]:
         taken = []
@@ -118,7 +120,9 @@ class Plan(Rules):
         step in a row that did not show what it should."""
         key, self.awaiting = self.awaiting, ""
         frame, expected = self.frames.get(key), self.expects.get(key, "")
-        wanted = _words(expected)
+        # Only the words of it the place itself uses: "a list or grid of device types appears" is held to the screen
+        # by "device" and "type", which a screen can show, not by "list", "grid" or "appears", which none does.
+        wanted = _words(expected) & self.vocabulary if self.vocabulary else _words(expected)
         if frame is None or not wanted:
             return False
         if len(wanted & _words(shown)) * 2 >= len(wanted):
@@ -237,7 +241,7 @@ async def _a_plan(guide: Any, on_screen: Sequence[str], happened: str, ask: Call
 
 def _held_to_the_place(said: dict[str, Any], known: set[str], happened: str) -> Plan:
     """The plan her model made, with each thing it names held to what the place has shown or said."""
-    plan = Plan(end=str(said.get("end") or ""), start=str(said.get("start") or ""), because=happened)
+    plan = Plan(end=str(said.get("end") or ""), start=str(said.get("start") or ""), because=happened, vocabulary=known)
     for one in said.get("means") or []:
         if _shown(one.get("name") or "", known):
             plan.means.append(Means(one["name"], one.get("does") or "", _shown(one.get("works_with") or "", known),
