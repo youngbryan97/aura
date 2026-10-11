@@ -858,6 +858,17 @@ def _the_place_its_words_name(observation: dict[str, Any], clickable: Any, can_d
     from core.perception.where_the_words_point import PLACES
 
     place = str(getattr(can_do, "place_named", "") or "")
+    paced = MOVES_SAID.get()
+    PLACES.set_context(surface=str(observation.get("surface_id") or observation.get("scoped_to") or ""),
+                       episode=str((paced or {}).get("episode") or ""),
+                       viewport=tuple(observation.get("bounds") or ()))
+    snapshot = getattr(observation, "picture_snapshot", None)
+    if snapshot is not None and (observation.get("settled") is True or observation.get("still_but_unread")):
+        import numpy as np
+
+        # This consumer runs on the task loop. The IPC reader works in a
+        # thread and cannot cancel that loop's in-flight localization tasks.
+        PLACES.remember(np.frombuffer(snapshot.data, dtype=np.uint8).reshape(snapshot.height, snapshot.width, snapshot.channels))
     at = PLACES.where(place) if place and getattr(can_do, "carrying_said", False) else None
     if at is None or a_click_on(place) in clickable:
         return clickable
@@ -897,6 +908,8 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     clickable = _what_paused_it(observation, clickable, can_do, paced)
     clickable = _the_place_its_words_name(observation, clickable, can_do)
     leads = getattr(can_do, "leads", None)
+    if hasattr(can_do, "observe_placements"):
+        can_do.observe_placements(observation)
     _what_she_has_built(can_do)
     clickable = _as_the_guide_reads_it(clickable, says, paced, narrate,
                                        found=leads.what_things_do() if leads is not None else (),
@@ -962,9 +975,19 @@ def _what_she_has_built(can_do: Any) -> None:
     from core.cognition.a_guide_to_a_place import THE_GUIDE
 
     guide = THE_GUIDE.get()
-    placed = sum(1 for answered in (getattr(can_do, "carried_to", None) or {}).values() if answered)
+    placed = can_do.placed_count() if hasattr(can_do, "placed_count") else 0
     end = getattr(can_do, "chain_ends_at", None)
-    if guide is None or not placed:
+    if guide is None:
+        return
+    if not placed:
+        from core.runtime.skill_contract import PredicateState
+
+        states = getattr(can_do, "placement_states", {})
+        if (any(state is PredicateState.UNKNOWN for state in states.values())
+                or not states and guide.built):
+            guide.built = "Previously placed work needs another look before its current state is known."
+        else:
+            guide.built = ""
         return
     guide.built = (f"{placed} part{'s' if placed != 1 else ''} put in place"
                    + (f", the last at {end[0]:.0%} across and {end[1]:.0%} down" if end else "")

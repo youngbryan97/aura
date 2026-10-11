@@ -31,9 +31,9 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 from core.agency.acts_on_two_places import two_places_of
 from core.agency.putting_things_in_place import PuttingInPlace
@@ -302,14 +302,17 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
 
     # ── finding out ──────────────────────────────────────────────────────
 
-    def tried(self, key: str, changed: bool) -> None:
+    def tried(self, key: str, changed: bool, *, before: Mapping[str, Any] | None = None,
+              after: Mapping[str, Any] | None = None, transfer: Any = None) -> None:
         """One input, and whether the world answered it."""
         name = str(key or "").strip()
         name = name if what_is_clicked(name) is not None or two_places_of(name) else name.lower()
         if not name:
             return
         if what_is_clicked(name) is not None:
-            self.clicked_on(name, self.seen_before, changed)
+            self.clicked_on(name, before.get("clickable", ()) if before is not None else self.seen_before, changed)
+            if after is not None:
+                self.noticed_taking(after.get("clickable", ()))
             self.turned_over(what_is_clicked(name) or "")
             from core.language.a_way_on import confirms
 
@@ -318,7 +321,7 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
             if changed and self.paused_here and not self._was_paused:
                 self.paused_by = name
         self.paired(name)
-        self.carried(name, changed)
+        self.carried(name, changed, receipt=transfer)
         self.leads.acted(name, changed)
         self.last_tried = name
         if changed and what_is_clicked(name) and _turns(what_is_clicked(name) or ""):
@@ -461,10 +464,11 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
             "did_something": dict(self.did_something),
             "did_nothing": dict(self.did_nothing),
             "leads": self.leads.as_memory(),
+            "placements": [receipt.as_memory() for receipt in self.placement_receipts.values()],
         }
 
     @classmethod
-    def from_memory(cls, held: object, told: Sequence[str] = ()) -> "WhatWorksHere":
+    def from_memory(cls, held: object, told: Sequence[str] = ()) -> WhatWorksHere:
         """What worked here last time, as a starting point rather than a fact."""
         named = tuple(str(key or "").strip().lower() for key in told)
         if not isinstance(held, dict):
@@ -483,9 +487,20 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
                 if isinstance(times, (int, float)) and what_is_clicked(str(key)) is None
             }
 
-        return cls(
+        current = cls(
             told=named or tuple(str(key) for key in (held.get("told") or ())),
             did_something=counts(held.get("did_something")),
             did_nothing=counts(held.get("did_nothing")),
             leads=WhereThingsLead.from_memory(held.get("leads")),
         )
+        from core.perception.observed_transfer import TransferReceipt
+        from core.runtime.skill_contract import PredicateState
+
+        placements = held.get("placements")
+        if isinstance(placements, list):
+            for value in placements[-64:]:
+                receipt = TransferReceipt.from_memory(value)
+                if receipt is not None and receipt.state is PredicateState.SATISFIED:
+                    current.placement_receipts[receipt.attempt_id] = receipt
+                    current.placement_states[receipt.attempt_id] = PredicateState.UNKNOWN
+        return current

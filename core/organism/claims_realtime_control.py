@@ -13,6 +13,7 @@ def install_realtime_control_claims(suite: Any) -> None:
         _emissions_require_distinct_input_receipts,
         _fresh_control_experiment_forgets_old_rejections,
     )
+    from core.cognition.reading_the_rules import _procedure_completion_is_measured
     from core.organism.model_validation import (
         Claim,
         Evidence,
@@ -20,9 +21,39 @@ def install_realtime_control_claims(suite: Any) -> None:
         ValidationTest,
         boolean_score,
     )
+    from core.perception.eyes_of_their_own import _child_capture_custody_invariant
+    from core.perception.observed_transfer import _transfer_receipts_require_evidence
     from core.perception.the_drawing_as_objects import _scene_requires_a_matching_complete_frame
+    from core.perception.where_the_words_point import _named_places_invariant
     from core.runtime.executors import _interactive_and_receipt_workers_are_separate
     from core.runtime.what_she_learned import _indexed_knowledge_invariant
+
+    for name, owner, fixture, probe, statement in (
+        ("procedures_require_owned_effects", "core/cognition/reading_the_rules.py",
+         "tests/test_procedure_steps_need_their_own_evidence.py", _procedure_completion_is_measured,
+         "Procedure completion requires the selected step's own observed effect and preserves unresolved prerequisites."),
+        ("named_places_require_current_scene", "core/perception/where_the_words_point.py",
+         "tests/test_named_places_keep_their_scene.py", lambda: _named_places_invariant() == (),
+         "Named visual destinations belong to the current surface, episode, viewport and image revision."),
+        ("transfers_require_measured_occupancy", "core/perception/observed_transfer.py",
+         "tests/test_observed_transfer.py", lambda: _transfer_receipts_require_evidence() == (),
+         "Transfer verification requires fresh measured pixels showing unique new occupancy at the bound destination."),
+        ("child_pixels_keep_capture_custody", "core/perception/eyes_of_their_own.py",
+         "tests/test_other_process_pixels_keep_their_capture.py", lambda: _child_capture_custody_invariant() == (),
+         "Other-process screen readings preserve the exact final captured pixels and reject mismatched capture metadata."),
+    ):
+        suite.add_test(ValidationTest(
+            name=name, description=statement, required_capability="",
+            observation=Observation(name, True, fixture),
+            predict=lambda _model, check=probe: check(),
+            score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+            owner=owner,
+        ))
+        suite.add_claim(Claim(
+            statement=statement, test=name, owner=owner, asserted_in=owner,
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note="Offline causal and unknown-state regressions; ordinary live demo performance remains independently unproved.",
+        ))
 
     name = "emissions_require_distinct_input_receipts"
     owner = "core/agency/which_one_answers_to_her.py"

@@ -58,6 +58,7 @@ async def look_at_a_page(
     )
 
     began = time.monotonic()
+    surface = f"page:{id(page)}:{name}:{getattr(page, 'url', '')}"
     wide, tall = await the_page_size(page)
     left, top, right, bottom = over if over is not None else (0.0, 0.0, 1.0, 1.0)
     clip = {
@@ -66,6 +67,7 @@ async def look_at_a_page(
         "width": max(1.0, (min(1.0, right) - max(0.0, left)) * wide),
         "height": max(1.0, (min(1.0, bottom) - max(0.0, top)) * tall),
     }
+    bounds = [int(clip["x"]), int(clip["y"]), int(clip["width"]), int(clip["height"])]
 
     async def take() -> Any:
         from core.perception.a_picture_of_her_page import picture_of
@@ -80,14 +82,19 @@ async def look_at_a_page(
         wait_for_stillness,
         _STILL_WITHIN_S if still_within_s is None else still_within_s,
         began,
+        surface=surface,
+        viewport=tuple(bounds),
     )
     if settled is None:
         return None
     reading, still, at_rest_but_unread, pictures, _shape, looked_took = settled
+    if surface != f"page:{id(page)}:{name}:{getattr(page, 'url', '')}":
+        # Navigation during the read cannot certify either page's geometry.
+        return None
     reading.update(
         {
             "scoped_to": name,
-            "bounds": [int(clip["x"]), int(clip["y"]), int(clip["width"]), int(clip["height"])],
+            "bounds": bounds,
             "read_within": "the part" if over is not None else "the page",
             # Her own page is in front of her own browser whatever the screen shows.
             "in_front_then": name,

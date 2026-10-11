@@ -12,6 +12,7 @@ from core.agency.where_things_lead import WhereThingsLead
 from core.cognition.a_guide_to_a_place import THE_GUIDE, Guide
 from core.cognition.a_plan_to_an_end import Plan, the_screen_answered
 from core.cognition.reading_the_rules import Frame
+from core.runtime.skill_contract import PredicateOperator, PredicateState, SemanticPredicate
 
 pytestmark = pytest.mark.unit
 
@@ -75,14 +76,23 @@ def test_a_step_is_held_to_what_it_was_to_show_and_two_misses_make_the_plan_agai
     plan.expects.update({steps[0].key: "the device library opens with types of device",
                          steps[1].key: "the cage drops on Jerry", steps[2].key: "the cage drops on Jerry"})
     guide.plan = plan
+    plan.begin('click "DEVICE LIBRARY"', {"text": ROOM, "controls": CLOSED}, effects=(
+        SemanticPredicate("library offers types", "after.controls_added", PredicateOperator.MIN_COUNT, 1),))
     plan.tried('click "DEVICE LIBRARY"', changed=True)
-    the_screen_answered(guide, "DEVICE LIBRARY CHOOSE A TYPE OF DEVICE LAUNCHERS ROLLERS")
+    the_screen_answered(guide, {"text": "DEVICE LIBRARY CHOOSE A TYPE OF DEVICE LAUNCHERS ROLLERS",
+                                "controls_added": sorted(set(OPEN) - set(CLOSED))})
     assert plan.passed(plan.frames[steps[0].key]) and not plan.missed     # it showed what it was to
+    caught = SemanticPredicate("catch confirmed", "after.outcome", PredicateOperator.EQUALS, "caught")
+    plan.begin('click "TEST TRAP"', {"text": ROOM}, effects=(caught,))
     plan.tried('click "TEST TRAP"', changed=True)
-    the_screen_answered(guide, "RATS EDIT THE TRAP REPLAY THE TRAP START OVER")
+    result = {"text": "RATS EDIT THE TRAP REPLAY THE TRAP START OVER", "outcome": "missed"}
+    the_screen_answered(guide, result)
     assert not plan.passed(plan.frames[steps[1].key]) and plan.missed and not guide.plan_again_because
-    plan.tried('click "REPLAY"', changed=True)
-    the_screen_answered(guide, "RATS EDIT THE TRAP REPLAY THE TRAP START OVER")
+    assert plan.receipts[-1].state == PredicateState.UNSATISFIED
+    assert plan.the_step_to_do(['click "REPLAY"']) is None
+    plan.begin('click "TEST TRAP"', {"text": ROOM}, effects=(caught,))
+    plan.tried('click "TEST TRAP"', changed=True)
+    the_screen_answered(guide, result)
     assert "“Test the trap” was to show the cage drops on Jerry; the screen showed: RATS" in guide.plan_again_because
 
 
@@ -153,7 +163,7 @@ def test_the_place_things_are_carried_to_is_not_offered_as_a_click():
     assert any('to "any active square"' in move for move in offered)
 
 
-def test_what_a_step_was_to_show_is_held_to_the_screen_in_the_places_own_words():
+def test_an_expected_description_uses_declared_effects_instead_of_shared_nouns():
     """LIVE 2026-10-10 "A list or grid of device types appears, each with a 'choose' option" was judged not shown on a
     screen that read "CHOOSE A TYPE OF DEVICE LAUNCHERS HANGERS ROLLERS CUTTERS"."""
     guide = Guide(place="a place of devices")
@@ -162,6 +172,13 @@ def test_what_a_step_was_to_show_is_held_to_the_screen_in_the_places_own_words()
     plan.took([step])
     plan.expects[step.key] = "A list or grid of device types appears, each with a 'choose' option"
     guide.plan = plan
+    before = {"text": "DEVICE LIBRARY", "controls": ["DEVICE LIBRARY"]}
+    after = {"text": "CLOSE X DEVICE LIBRARY CHOOSE A TYPE OF DEVICE LAUNCHERS HANGERS ROLLERS CUTTERS",
+             "controls": ["DEVICE LIBRARY", "LAUNCHERS", "HANGERS", "ROLLERS", "CUTTERS"]}
+    after["controls_added"] = sorted(set(after["controls"]) - set(before["controls"]))
+    plan.begin('click "DEVICE LIBRARY"', before, effects=(
+        SemanticPredicate("types appeared", "after.controls_added", PredicateOperator.MIN_COUNT, 1),))
     plan.tried('click "DEVICE LIBRARY"', changed=True)
-    the_screen_answered(guide, "CLOSE X DEVICE LIBRARY CHOOSE A TYPE OF DEVICE LAUNCHERS HANGERS ROLLERS CUTTERS")
+    the_screen_answered(guide, after)
     assert plan.passed(plan.frames[step.key]) and not plan.missed
+    assert plan.receipts[-1].state == PredicateState.SATISFIED

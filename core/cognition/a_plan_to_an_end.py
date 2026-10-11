@@ -14,30 +14,40 @@ So she asks her own model for the plan, from all the guide holds (what the place
 the manual made from its code, what others wrote, what she has seen), with what is on the screen now and what the last
 try came to. What comes back is held to the place: a thing a step uses, or a means it names, must be something the
 place has shown or said. Nothing is invented. The steps become a procedure as a lesson's are
-(core/cognition/reading_the_rules.py): the next one not behind her leads her choice of move, a step that keeps doing
-nothing is passed over, and the plan is part of what she reasons with and says aloud as uses ("using the anvil to
+(core/cognition/reading_the_rules.py): the next unresolved requirement leads her choice of move, a step that keeps
+doing nothing requires local repair, and the plan is part of what she reasons with and says aloud as uses ("using the anvil to
 drop onto the cage"). When a try ends without the end reached, the plan is made again with what happened.
 
-Each step also says what will show once it is done, and what the screen shows next is held to it, as the robots that
-plan in words check each step's success before the next (Inner Monologue, 2022) and the agents that play unseen games
-abort a plan whose step did not do what was expected (explore, verify, plan: ARC-AGI-3, 2026). A step that did not show
-what it should is not done, what it was to show and what showed instead are kept, and a second such miss has the plan
-made again with them, described, as the planners that explain a failure before replanning do (DEPS, 2023; REFLECT,
-2023). And what she has found each thing on the screens does (core/agency/where_things_lead.py) is part of what the plan
-is made from: what the place lets her use, and in what ways.
+Each attempt holds its requirement and observations by value. Delivery and a changed screen leave an expected effect
+unresolved until its predicates are measured. Plain expected text requires the phrase to appear after the act, with
+its polarity intact; absent observations remain unknown. A measured miss keeps the requirement in the plan, and
+repeated misses or unavailable measurements request repair. What she has found controls do
+(core/agency/where_things_lead.py) remains part of the plan's evidence.
 
 Nothing here knows a place.
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
-from core.cognition.reading_the_rules import Frame, Rules
+from core.cognition.reading_the_rules import (
+    EvidenceSnapshot,
+    Frame,
+    Rules,
+    StepReceipt,
+    _step_state,
+)
+from core.runtime.skill_contract import (
+    PredicateState,
+    SemanticPredicate,
+    semantic_predicate_from_mapping,
+)
 
 __all__ = ["Means", "Plan", "ask_for_a_plan", "plan_again", "the_screen_answered"]
 
@@ -88,6 +98,7 @@ class Plan(Rules):
     stuck: bool = False
     #: The words the place had used when the plan was made: what a step was to show is held to the screen in these.
     vocabulary: set[str] = field(default_factory=set)
+    _pending_changed: bool | None = None
 
     def took(self, frames: Sequence[Frame]) -> list[Frame]:
         taken = []
@@ -99,39 +110,67 @@ class Plan(Rules):
             taken.append(frame)
         return taken
 
-    def tried(self, move: str, changed: bool) -> None:
-        """A move made: the step it does done as a lesson's is, and, where it says what will show, awaiting the screen. A
-        step tried until it is passed over is a step that could not be done as written: said, for the plan to be made
-        again around it or broken down (ADaPT, 2023: a task is decomposed when doing it fails)."""
+    def tried(self, move: str, changed: bool | None, *, before: Any = None, after: Any = None,
+              step_key: str | None = None,
+              effects: Sequence[SemanticPredicate | Mapping[str, Any]] = ()) -> StepReceipt | None:
+        """Delivery and causal change do not complete a step whose expected effect is still unmeasured."""
+        attempt = self.pending_step
+        if attempt is not None and attempt.move != move:
+            raise RuntimeError("the observed act differs from the pending plan step")
+        if attempt is None:
+            attempt = self.begin(move, before, step_key=step_key, effects=effects)
+        if attempt is None:
+            return None
+        self._pending_changed = changed
+        if after is None and (attempt.expected or attempt.predicates != "[]") and changed is not False:
+            self.awaiting = attempt.step_key
+            (self.repeat_states if attempt.optional else self.states)[attempt.step_key] = PredicateState.UNKNOWN
+            return None
+        return super().tried(move, changed, before=before, after=after, step_key=step_key, effects=effects)
+
+    def _settled(self, receipt: StepReceipt) -> StepReceipt:
         from core.cognition.reading_the_rules import PASSED_OVER_AFTER
 
-        frame = self.step_of(move)
-        super().tried(move, changed)
-        if frame is not None and changed and self.expects.get(frame.key):
-            self.awaiting = frame.key
-        if frame is not None and not changed and self.unanswered_steps.get(frame.key, 0) == PASSED_OVER_AFTER:
-            self.missed.append(f"“{frame.sentence}” did nothing when tried ({move})")
-            del self.missed[:-4]
-            self.stuck = True
-
-    def saw(self, shown: str) -> bool:
-        """What the screen shows after a step that said what would: the step stands where most of what it was to show
-        is there, and is not done where it is not, with what showed kept. Whether the plan is to be made again: a second
-        step in a row that did not show what it should."""
-        key, self.awaiting = self.awaiting, ""
-        frame, expected = self.frames.get(key), self.expects.get(key, "")
-        # Only the words of it the place itself uses: "a list or grid of device types appears" is held to the screen
-        # by "device" and "type", which a screen can show, not by "list", "grid" or "appears", which none does.
-        wanted = _words(expected) & self.vocabulary if self.vocabulary else _words(expected)
-        if frame is None or not wanted:
-            return False
-        if len(wanted & _words(shown)) * 2 >= len(wanted):
+        super()._settled(receipt)
+        self.awaiting = ""
+        self._pending_changed = None
+        if receipt.attempt.optional:
+            return receipt
+        frame = self.frames.get(receipt.step_key)
+        if receipt.state == PredicateState.SATISFIED:
             self.missed.clear()
-            return False
-        self.done.discard(key)
-        self.missed.append(f"“{frame.sentence}” was to show {expected}; the screen showed: {' '.join(shown.split())[:160]}")
-        del self.missed[:-4]
-        return len(self.missed) >= 2
+            self.stuck = False
+            return receipt
+        if frame is not None:
+            expected = receipt.attempt.expected
+            if receipt.changed is False:
+                said = f"“{frame.sentence}” did nothing when tried ({receipt.move})"
+            else:
+                said = (f"“{frame.sentence}” was to show {expected or 'its required effects'}; "
+                        f"the screen showed: {' '.join(receipt.after.text.split())[:160]} ({receipt.reason})")
+            self.missed.append(said)
+            del self.missed[:-4]
+        self.stuck = bool(receipt.step_key in self.failed_steps
+                          or self.unknown_steps.get(receipt.step_key, 0) >= PASSED_OVER_AFTER)
+        return receipt
+
+    def saw(self, shown: Any, *, before: Any = None, changed: bool | None = None,
+            effects: Sequence[SemanticPredicate | Mapping[str, Any]] = ()) -> bool:
+        """Settle the pending step with its owned result. Missing measurements leave the requirement unresolved."""
+        attempt = self.pending_step
+        if attempt is None:
+            return self.stuck
+        if before is not None and attempt.before.encoded == "null":
+            attempt = replace(attempt, before=EvidenceSnapshot.of(before))
+        if effects:
+            attempt = replace(attempt, predicates=json.dumps([
+                p.to_dict() if isinstance(p, SemanticPredicate) else semantic_predicate_from_mapping(p).to_dict()
+                for p in effects], sort_keys=True, allow_nan=False))
+        snapshot = EvidenceSnapshot.of(shown)
+        measured_change = self._pending_changed if changed is None else changed
+        state, reason = _step_state(attempt, snapshot, measured_change)
+        self._settled(StepReceipt(attempt, snapshot, state, measured_change, reason))
+        return self.stuck
 
     def as_uses(self) -> list[str]:
         """Its steps as uses, as she says them: "using the anvil to drop onto the cage"."""
@@ -293,11 +332,12 @@ def ask_for_a_plan(guide: Any, ask: Callable[..., Awaitable[Any]] | None, *, on_
     return True
 
 
-def the_screen_answered(guide: Any, shown: str) -> None:
-    """What the screen shows now, held to what her plan's last step was to show: a second step in a row that did not show
-    it has the plan made again, with what each was to show and what showed instead."""
+def the_screen_answered(guide: Any, shown: Any, *, before: Any = None, changed: bool | None = None,
+                        effects: Sequence[SemanticPredicate | Mapping[str, Any]] = ()) -> None:
+    """Resolve the bound step before choosing another; repeated misses or missing measurements request repair."""
     plan = getattr(guide, "plan", None)
-    if plan is not None and (plan.awaiting and plan.saw(shown) or plan.stuck):
+    if plan is not None and (plan.pending_step is not None and plan.saw(
+            shown, before=before, changed=changed, effects=effects) or plan.stuck):
         plan.stuck = False
         logger.info("her plan's steps did not do what they were to: %s", plan.missed)
         guide.plan_again_because = " ".join(plan.missed)

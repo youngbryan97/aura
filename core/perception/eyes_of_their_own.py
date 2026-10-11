@@ -18,19 +18,22 @@ module Aura is started from boots Aura.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
 import threading
 from typing import Any
 
-from core.runtime.flags import FlagKind, declare
-
 from core.governance_context import GovernanceViolation
+from core.runtime.flags import FlagKind, declare
 from core.runtime.lockdep import checked_lock
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from core.verify.invariants import invariant
 
 logger = logging.getLogger("Aura.EyesOfTheirOwn")
 
@@ -52,6 +55,11 @@ _LONG_ENOUGH_S = 2.0
 
 #: How long the child has to come up before she gives up on it for this run.
 _TO_START_S = 20.0
+
+#: The private wire payload is bounded before it is parsed or decoded. Picture
+#: bytes are removed from the mapping before an observation reaches a caller.
+_MAX_IPC_BYTES = 8 * 1024 * 1024
+_PIXEL_ENVELOPE = "_captured_pixels"
 
 _LOCK = checked_lock("perception.eyes_of_their_own")
 _CHILD: Any = None
@@ -130,11 +138,23 @@ def _ask(child: Any, job: dict[str, Any], wait_s: float) -> dict[str, Any] | Non
     answer: dict[str, Any] = {}
 
     def read_it() -> None:
-        line = child.stdout.readline() if child.stdout is not None else ""
+        if child.stdout is None:
+            return
+        try:
+            line = child.stdout.readline(_MAX_IPC_BYTES + 1)
+        except TypeError:
+            # Older stream adapters expose only readline(); real process pipes
+            # use the bounded read above. Their answers are still size checked.
+            line = child.stdout.readline()
+        if len(line) > _MAX_IPC_BYTES or len(line.encode("utf-8")) > _MAX_IPC_BYTES:
+            return
         if line:
             try:
-                answer.update(json.loads(line))
-            except ValueError:
+                decoded = json.loads(line)
+                if not isinstance(decoded, dict):
+                    raise ValueError("a reading is a mapping")
+                answer.update(decoded)
+            except (TypeError, ValueError):
                 answer["ok"] = False
                 answer["error"] = "the answer was not a reading"
 
@@ -203,7 +223,126 @@ def look_through_them(
     if reading.get("ok") is False:
         logger.info("they could not read it (%s); reading here", reading.get("error"))
         return None
-    return reading
+    try:
+        return _restore_reading(reading)
+    except (TypeError, ValueError) as why:
+        logger.info("their captured picture was not usable (%s); reading here", why)
+        return None
+
+
+def _capture_identity(reading: dict[str, Any]) -> tuple[float, str]:
+    """Only metadata supplied by the final take can identify its pixels."""
+    captured = reading.get("capture_at")
+    epoch = reading.get("_capture_epoch")
+    if (not isinstance(captured, (int, float)) or isinstance(captured, bool)
+            or not math.isfinite(captured) or captured <= 0
+            or not isinstance(epoch, str) or not 1 <= len(epoch) <= 128):
+        raise ValueError("the captured picture has no bounded capture identity")
+    return float(captured), epoch
+
+
+def _picture_to_send(picture: Any, reading: dict[str, Any]) -> dict[str, Any]:
+    """An explicit private envelope for immutable pixels from the final reading."""
+    from core.perception.observed_transfer import make_snapshot
+
+    snapshot = make_snapshot(picture)
+    if snapshot is None:
+        raise ValueError("the captured picture is unsupported")
+    captured, epoch = _capture_identity(reading)
+    return {
+        "version": 1,
+        "height": snapshot.height,
+        "width": snapshot.width,
+        "channels": snapshot.channels,
+        "data": base64.b64encode(snapshot.data).decode("ascii"),
+        "capture_at": captured,
+        "capture_epoch": epoch,
+    }
+
+
+def _restore_reading(reading: dict[str, Any]) -> dict[str, Any]:
+    """Consume private wire pixels; public dictionary serialization keeps only words."""
+    from core.perception.observed_transfer import MAX_EDGE, PixelSnapshot, ScreenReading
+
+    public = dict(reading)
+    if _PIXEL_ENVELOPE not in public:
+        # Old readers can still supply words. Their missing pixels remain unknown
+        # evidence and never borrow a picture from a previous capture.
+        return ScreenReading(public)
+    envelope = public.pop(_PIXEL_ENVELOPE)
+    fields = {"version", "height", "width", "channels", "data", "capture_at", "capture_epoch"}
+    if not isinstance(envelope, dict) or set(envelope) != fields:
+        raise ValueError("the private picture envelope has unexpected fields")
+    if type(envelope["version"]) is not int or envelope["version"] != 1:
+        raise ValueError("the private picture envelope has an unsupported version")
+    height, width, channels = (envelope[key] for key in ("height", "width", "channels"))
+    if (any(type(value) is not int for value in (height, width, channels))
+            or not 1 <= height <= MAX_EDGE or not 1 <= width <= MAX_EDGE or channels != 3):
+        raise ValueError("the private picture dimensions are invalid")
+    encoded = envelope["data"]
+    expected_size = height * width * channels
+    if not isinstance(encoded, str) or len(encoded) != 4 * ((expected_size + 2) // 3):
+        raise ValueError("the private picture bytes have an invalid length")
+    captured, epoch = _capture_identity(public)
+    envelope_capture, envelope_epoch = _capture_identity({
+        "capture_at": envelope["capture_at"], "_capture_epoch": envelope["capture_epoch"],
+    })
+    if captured != envelope_capture or epoch != envelope_epoch:
+        raise ValueError("the private pixels belong to a different capture")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as why:
+        raise ValueError("the private picture is not valid base64") from why
+    snapshot = PixelSnapshot(data, height, width, channels)
+    result = ScreenReading(public, picture_snapshot=snapshot)
+    return result
+
+
+def _reading_to_send(picture: Any, reading: dict[str, Any], *, window: Any,
+                     over: Any, still: bool, wait: bool, looked_took: float) -> dict[str, Any]:
+    """Finish every feature and the private evidence from one final captured frame."""
+    public = dict(reading)
+    public[_PIXEL_ENVELOPE] = _picture_to_send(picture, public)
+    public["_shape"] = [int(picture.shape[1]), int(picture.shape[0])]
+    public["_settled"] = bool(still)
+    public["_looked_took"] = round(looked_took, 3)
+    public["surface_id"] = f"window:{window.owner}:{window.number}"
+    left, top, wide, tall = window.bounds
+    bounds = [left, top, wide, tall]
+    if over is not None:
+        crop_left, crop_top, crop_right, crop_bottom = over
+        bounds = [left + int(crop_left * wide), top + int(crop_top * tall),
+                  max(1, int((crop_right - crop_left) * wide)),
+                  max(1, int((crop_bottom - crop_top) * tall))]
+    public["bounds"] = bounds
+    if wait and (still or public.get("_still_but_unread") is True):
+        from core.perception.how_a_place_looks import look_of
+        from core.perception.keys_drawn_on_screen import keys_drawn
+        from core.perception.shapes_that_look_pressable import pressable_shapes
+
+        public["shapes"] = pressable_shapes(picture, apart_from=public.get("layout") or ())
+        for region in public["shapes"]:
+            region["look"] = look_of(picture, region)
+        public["keys_drawn"] = keys_drawn(picture)
+    return public
+
+
+@invariant("perception.child_pixels_keep_capture_custody", scope="perception",
+           owner="core/perception/eyes_of_their_own.py", observational=False)
+def _child_capture_custody_invariant() -> tuple:
+    import numpy as np
+
+    reading = {"text": "visible", "capture_at": 1.0, "_capture_epoch": "one", "_settled": False}
+    wire = {**reading, _PIXEL_ENVELOPE: _picture_to_send(np.zeros((2, 3, 3), dtype=np.uint8), reading)}
+    restored = _restore_reading(wire)
+    assert restored.picture_snapshot is not None, "a child's exact pixels were discarded"
+    assert _PIXEL_ENVELOPE not in restored and "data" not in json.loads(json.dumps(restored)), "pixels escaped into public evidence"
+    wire["_capture_epoch"] = "two"
+    try:
+        _restore_reading(wire)
+    except ValueError:
+        return ()
+    raise AssertionError("pixels crossed capture identities")
 
 
 class _WhatTheyNoticed(logging.Handler):
@@ -307,13 +446,17 @@ def _serve() -> None:  # pragma: no cover - runs in the other process
             if picture is None or reading is None:
                 print(json.dumps({"ok": False, "error": "no picture of that window"}), flush=True)
                 continue
-            reading["_shape"] = [int(picture.shape[1]), int(picture.shape[0])]
-            reading["_settled"] = bool(still)
-            reading["_looked_took"] = round(time.monotonic() - began, 3)
+            reading = _reading_to_send(
+                picture, reading, window=window, over=over, still=still,
+                wait=bool(job.get("wait_for_stillness", True)), looked_took=time.monotonic() - began,
+            )
             said = noticed.taken()
             if said:
                 reading["_noticed"] = said
-            print(json.dumps(reading, default=float), flush=True)
+            answer = json.dumps(reading, default=float)
+            if len(answer.encode("utf-8")) > _MAX_IPC_BYTES:
+                raise ValueError("the bounded reading is too large for its private pipe")
+            print(answer, flush=True)
         except Exception as why:  # noqa: BLE001 - the parent reads it instead
             print(json.dumps({"ok": False, "error": f"{type(why).__name__}: {why}"}), flush=True)
 

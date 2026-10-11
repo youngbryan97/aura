@@ -869,7 +869,10 @@ async def pursue_on_screen(
     # from outside and reported as "Completed 0/0 steps".
     began = time.monotonic()
     ends_at = min(began + float(max_seconds), float(deadline_at) if deadline_at > 0.0 else math.inf)
-    MOVES_SAID.set({"at": 0.0, "line": "", "goal": goal, "place": target_app or expect_page or open_page})
+    from uuid import uuid4
+
+    MOVES_SAID.set({"at": 0.0, "line": "", "goal": goal, "place": target_app or expect_page or open_page,
+                    "episode": uuid4().hex})
     _seam_early_response, awake_from_here = await _set_out(
         goal=goal, target_app=target_app, move_keys=move_keys, narrate=narrate, ends_at=ends_at,
     )
@@ -944,6 +947,7 @@ async def pursue_on_screen(
     pending: dict[str, Any] = {
         "deliberation": None,
         "before": "",
+        "observed_before": {},
         "arranged": None,
         # The whole reading, uncropped. The shape of the NEXT reading is held
         # against this one — a board whose top row is empty has no top row to

@@ -27,16 +27,25 @@ Nothing here knows a place.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable, Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
+from core.runtime.skill_contract import (
+    PredicateState,
+    SemanticPredicate,
+    _evaluate_semantic_predicate,
+    semantic_predicate_from_mapping,
+)
+from core.verify import invariant
 
 __all__ = ["ASKS_TO_CARRY", "KEEPS_THE_WORK", "SAYS_WHAT_IT_IS_FOR", "SKIPS_THE_TEACHING", "Frame", "Rules",
+           "EvidenceSnapshot", "StepAttempt", "StepReceipt",
            "keeps_the_work", "read_the_rules_beside", "skips_the_teaching"]
 
 logger = logging.getLogger("Aura.ReadingTheRules")
@@ -56,8 +65,9 @@ MOST_CHARS = 600
 
 _WORD = re.compile(r"[a-z]{3,}")
 _TOKEN = re.compile(r"[a-z0-9']+")
-#: Tries of a step that went unanswered before it is passed over.
+#: Measured misses before a step needs repair. Its requirement remains unresolved.
 PASSED_OVER_AFTER = 2
+LABEL_WORDS = 4
 #: Words two names share without being one thing.
 _COMMON = frozenset("the and you your for with from that this into onto any each other another one all".split())
 
@@ -107,6 +117,125 @@ class Frame:
                   f"with {self.using}" if self.using else "", f"when {self.when}" if self.when else "",
                   "again and again" if self.again else ""]
         return " ".join(p for p in parts if p)
+
+
+@dataclass(frozen=True)
+class EvidenceSnapshot:
+    """An observation held by value. Reading its evidence returns a fresh copy."""
+
+    encoded: str
+
+    @classmethod
+    def of(cls, value: Any) -> EvidenceSnapshot:
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            value = {"text": value}
+        if value is not None and not isinstance(value, Mapping):
+            raise TypeError("step evidence must be text or a mapping")
+        return cls(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False))
+
+    @property
+    def evidence(self) -> dict[str, Any]:
+        return json.loads(self.encoded) or {}
+
+    @property
+    def text(self) -> str:
+        evidence = self.evidence
+        return str(evidence.get("text") or evidence.get("says") or "")
+
+
+@dataclass(frozen=True)
+class StepAttempt:
+    """One dispatched act, bound to its requirement and the observation before it."""
+
+    attempt_id: int
+    step_key: str
+    move: str
+    before: EvidenceSnapshot
+    expected: str = ""
+    predicates: str = "[]"
+    optional: bool = False
+
+
+@dataclass(frozen=True)
+class StepReceipt:
+    """What the owned observations establish about one attempted requirement."""
+
+    attempt: StepAttempt
+    after: EvidenceSnapshot
+    state: PredicateState
+    changed: bool | None
+    reason: str
+
+    @property
+    def step_key(self) -> str:
+        return self.attempt.step_key
+
+    @property
+    def before(self) -> EvidenceSnapshot:
+        return self.attempt.before
+
+    @property
+    def move(self) -> str:
+        return self.attempt.move
+
+
+def _bound_name(name: str, label: str) -> bool:
+    """A whole distinctive name binds; a shared word in conflicting names does not."""
+    wanted, shown = _words(name), _words(label)
+    return bool(wanted and shown) and (wanted <= shown or shown <= wanted)
+
+
+def _drawn_name(name: str) -> bool:
+    return str(name).startswith(("the shape at", "the one that stands out"))
+
+
+def _phrase_in(expected: str, shown: str) -> bool:
+    wanted, seen = _TOKEN.findall(expected.casefold()), _TOKEN.findall(shown.casefold())
+    if not wanted:
+        return False
+    negatives = {"not", "never", "no", "without", "cannot", "can't", "don't", "doesn't", "isn't"}
+    for at in range(len(seen) - len(wanted) + 1):
+        if seen[at:at + len(wanted)] == wanted:
+            if negatives & set(seen[max(0, at - 3):at]) and not negatives & set(wanted):
+                continue
+            return True
+    return False
+
+
+def _step_state(attempt: StepAttempt, after: EvidenceSnapshot, changed: bool | None) -> tuple[PredicateState, str]:
+    before_data, after_data = attempt.before.evidence, after.evidence
+    if attempt.before.encoded == "null" or after.encoded == "null":
+        return PredicateState.UNKNOWN, "an owned observation is missing"
+    for context in ("surface_id", "context_id"):
+        if context in before_data and context in after_data and before_data[context] != after_data[context]:
+            return PredicateState.UNKNOWN, "the observations belong to different surfaces"
+    if changed is not True:
+        return (PredicateState.UNSATISFIED, "the act had no measured answer") if changed is False else (
+            PredicateState.UNKNOWN, "whether the act was answered is unmeasured")
+    predicates = [semantic_predicate_from_mapping(item) for item in json.loads(attempt.predicates)]
+    if predicates:
+        evidence = {**after_data, "before": before_data, "after": after_data, "changed": changed}
+        outcomes = [_evaluate_semantic_predicate(p, evidence) for p in predicates if p.required]
+        if not outcomes:
+            return PredicateState.UNKNOWN, "no required effect was measured"
+        if any(o.state == PredicateState.UNSATISFIED for o in outcomes):
+            return PredicateState.UNSATISFIED, "a required effect was not shown"
+        if any(o.state == PredicateState.UNKNOWN for o in outcomes):
+            return PredicateState.UNKNOWN, "a required effect could not be measured"
+        return PredicateState.SATISFIED, "the required effects were observed"
+    if attempt.expected:
+        if not _TOKEN.findall(attempt.expected):
+            return PredicateState.UNKNOWN, "the expected effect has no observable phrase"
+        if not after.text:
+            return PredicateState.UNKNOWN, "the screen supplied no text for the expected effect"
+        if not _phrase_in(attempt.expected, after.text):
+            return PredicateState.UNSATISFIED, "the expected phrase was not shown"
+        if _phrase_in(attempt.expected, attempt.before.text):
+            return PredicateState.UNKNOWN, "the expected phrase was already present before the act"
+        return PredicateState.SATISFIED, "the expected phrase appeared after the act"
+    return PredicateState.SATISFIED, "the navigation act was causally answered"
 
 
 def _words(said: str) -> set[str]:
@@ -203,9 +332,17 @@ class Rules:
     heard: list[str] = field(default_factory=list)
     frames: dict[str, Frame] = field(default_factory=dict)
     done: set[str] = field(default_factory=set)
-    #: How often a move doing each step went unanswered: a step tried this often to no effect is passed over, so a
-    #: sentence read wrongly, or a control that does nothing yet, never holds her (PASSED_OVER_AFTER).
+    #: Measured misses require repair, while the unmet requirement stays in the procedure.
     unanswered_steps: dict[str, int] = field(default_factory=dict)
+    failed_steps: set[str] = field(default_factory=set)
+    unknown_steps: dict[str, int] = field(default_factory=dict)
+    states: dict[str, PredicateState] = field(default_factory=dict)
+    #: A completed repeat stays available, but its subsequent attempts do not reopen its proved obligation.
+    repeat_states: dict[str, PredicateState] = field(default_factory=dict)
+    effects: dict[str, Sequence[SemanticPredicate | Mapping[str, Any]]] = field(default_factory=dict)
+    pending_step: StepAttempt | None = None
+    receipts: list[StepReceipt] = field(default_factory=list)
+    _attempt_number: int = 0
     asking: Any = None
     unanswered: int = 0
     #: The passages understood on an earlier visit (recalled, not read now), and when each new passage was heard.
@@ -292,38 +429,104 @@ class Rules:
         return sorted(self.frames.values(), key=lambda f: f.order)
 
     def steps(self) -> list[Frame]:
-        """The lesson as a procedure: what the rules ask to be done, in their order, less the steps passed over."""
-        return [f for f in self.in_order() if f.act not in (READ, NOTHING) and not f.never
-                and self.unanswered_steps.get(f.key, 0) < PASSED_OVER_AFTER]
+        """The requirements in order, including those an attempt could not satisfy."""
+        return [f for f in self.in_order() if f.act not in (READ, NOTHING) and not f.never]
 
     def passed(self, frame: Frame) -> bool:
-        """Whether a step is behind her: done, or a step after it is. A step done again and again ("continue adding
-        devices until you are ready to test") is never done by doing it once; it is behind her once she goes on."""
-        if frame.key in self.done and not frame.again:
-            return True
-        return any(f.order > frame.order and f.key in self.done for f in self.frames.values())
+        """Its mandatory obligation has its own confirmed effect, including any declared termination predicate."""
+        return frame.key in self.done
 
     def next_step(self) -> Frame | None:
         """The earliest step not behind her."""
         return next((f for f in self.steps() if not self.passed(f)), None)
 
     def step_of(self, move: str) -> Frame | None:
-        """The earliest step not yet done that a move does: a click on what a step names, a carry of what it names to
-        where it says."""
+        """Bind unresolved requirements first, then an available repetition of a confirmed step."""
+        matching = self._matching_steps(move)
+        return next((f for f in matching if not self.passed(f)),
+                    next((f for f in matching if f.again), None))
+
+    def repeat_opportunities(self, offered: Sequence[str]) -> list[Frame]:
+        """Confirmed repetitions offered here, independently of the next mandatory requirement."""
+        available = {f.key for move in offered for f in self._matching_steps(move)}
+        return [f for f in self.steps() if f.again and self.passed(f) and f.key in available]
+
+    def _matching_steps(self, move: str) -> list[Frame]:
+        """Bind the action kind and every named endpoint; short unnamed controls bind by their own words."""
         from core.agency.acts_on_two_places import CARRY, two_places_of
         from core.agency.what_i_can_do_here import what_is_clicked
 
         clicked, two = what_is_clicked(move), two_places_of(move)
+        matching = []
         for frame in self.steps():
-            if self.passed(frame):
-                continue
-            named = " ".join((frame.thing, frame.using))
-            if clicked and frame.act != "carry" and names_it(named, clicked):
-                return frame
-            if two is not None and two.act == CARRY and frame.act == "carry" and (
-                    names_it(frame.where, two.other) or names_it(frame.thing, two.one)):
-                return frame
-        return None
+            control = frame.using if _words(frame.using) - {"here", "control", "button", "mouse", "pointer"} else ""
+            named = control or frame.thing or (frame.sentence if len(frame.sentence.split()) <= LABEL_WORDS else "")
+            if clicked and frame.act in ("click things", "switch", "time a press") and _bound_name(named, clicked):
+                matching.append(frame)
+            if two is not None and (two.act == CARRY and frame.act == "carry"
+                                    or two.act == "use" and frame.act == "use things"
+                                    or two.act == "match" and frame.act == "remember what was shown"):
+                destination = not frame.where or _bound_name(frame.where, two.other)
+                source = not frame.thing or _bound_name(frame.thing, two.one)
+                # A shape named only by position has no semantic identity yet. Its known destination can bind the act;
+                # a source explicitly named as another thing cannot.
+                source = source or bool(frame.where and destination and _drawn_name(two.one))
+                if source and destination:
+                    matching.append(frame)
+            if not clicked and two is None and frame.act in ("steer", "shoot", "strike", "jump", "charge", "keys shown",
+                                                               "time a press") and _bound_name(frame.using, move):
+                matching.append(frame)
+        return matching
+
+    def the_step_to_do(self, offered: Sequence[str], reaching: bool = False) -> Frame | None:
+        """The earliest requirement, when offered. Missing prerequisites do not authorize later requirements."""
+        if self.pending_step is not None:
+            return None
+        nxt = self.next_step()
+        return nxt if nxt is not None and any(self.step_of(move) is nxt for move in offered) else None
+
+    def begin(self, move: str, before: Any, *, step_key: str | None = None,
+              effects: Sequence[SemanticPredicate | Mapping[str, Any]] = ()) -> StepAttempt | None:
+        """Bind an act before dispatch. A pending act must be settled before another requirement is attempted."""
+        if self.pending_step is not None:
+            raise RuntimeError("a procedure step is still awaiting its owned observation")
+        frame = self.frames.get(step_key) if step_key is not None else self.step_of(move)
+        if frame is None or self.passed(frame) and not frame.again:
+            return None
+        predicates = [*self.effects.get(frame.key, ()), *effects]
+        encoded = json.dumps([(p.to_dict() if isinstance(p, SemanticPredicate) else
+                               semantic_predicate_from_mapping(p).to_dict()) for p in predicates],
+                             sort_keys=True, allow_nan=False)
+        self._attempt_number += 1
+        self.pending_step = StepAttempt(self._attempt_number, frame.key, str(move), EvidenceSnapshot.of(before),
+                                        str(getattr(self, "expects", {}).get(frame.key) or ""), encoded,
+                                        optional=self.passed(frame))
+        return self.pending_step
+
+    def _settled(self, receipt: StepReceipt) -> StepReceipt:
+        self.receipts.append(receipt)
+        del self.receipts[:-128]
+        key = receipt.step_key
+        if receipt.attempt.optional:
+            self.repeat_states[key] = receipt.state
+            self.pending_step = None
+            return receipt
+        self.states[key] = receipt.state
+        if receipt.state == PredicateState.SATISFIED:
+            self.done.add(key)
+            self.failed_steps.discard(key)
+            self.unanswered_steps.pop(key, None)
+            self.unknown_steps.pop(key, None)
+        else:
+            self.done.discard(key)
+            if receipt.state == PredicateState.UNSATISFIED:
+                self.unanswered_steps[key] = self.unanswered_steps.get(key, 0) + 1
+                if self.unanswered_steps[key] >= PASSED_OVER_AFTER:
+                    self.failed_steps.add(key)
+            else:
+                self.unknown_steps[key] = self.unknown_steps.get(key, 0) + 1
+        self.pending_step = None
+        return receipt
 
     def seen_before(self) -> bool:
         """Whether everything this place has shown her she had understood on an earlier visit: a lesson she has seen."""
@@ -363,15 +566,24 @@ class Rules:
         clicked = what_is_clicked(move) or str(move)
         return any(f.never and names_it(" ".join((f.thing, f.using)), clicked) for f in self.frames.values())
 
-    def tried(self, move: str, changed: bool) -> None:
-        """A move made, and whether the screen answered it: a step it does is done once it is answered."""
-        frame = self.step_of(move)
-        if frame is None:
-            return
-        if changed:
-            self.done.add(frame.key)
+    def tried(self, move: str, changed: bool | None, *, before: Any = None, after: Any = None,
+              step_key: str | None = None, effects: Sequence[SemanticPredicate | Mapping[str, Any]] = ()) -> StepReceipt | None:
+        """Settle the act against its own evidence. Bare causal acknowledgements remain usable for navigation."""
+        attempt = self.pending_step
+        if attempt is not None and attempt.move != move:
+            raise RuntimeError("the observed act differs from the pending procedure step")
+        if attempt is None:
+            attempt = self.begin(move, before, step_key=step_key, effects=effects)
+        if attempt is None:
+            return None
+        snapshot = EvidenceSnapshot.of(after)
+        if after is None and (changed is False or not attempt.expected and attempt.predicates == "[]"):
+            state = PredicateState.SATISFIED if changed is True else (
+                PredicateState.UNSATISFIED if changed is False else PredicateState.UNKNOWN)
+            reason = "legacy causal navigation acknowledgement"
         else:
-            self.unanswered_steps[frame.key] = self.unanswered_steps.get(frame.key, 0) + 1
+            state, reason = _step_state(attempt, snapshot, changed)
+        return self._settled(StepReceipt(attempt, snapshot, state, changed, reason))
 
     def for_thinking(self) -> str:
         """The lesson as she has read it, for reasoning with: its steps in order, the next marked."""
@@ -385,6 +597,32 @@ class Rules:
 
     def as_memory(self) -> dict[str, Any]:
         return {"heard": self.heard[-40:], "done": sorted(self.done)[:40]}
+
+
+def _procedure_completion_is_measured() -> bool:
+    first = Frame("Open the panel", act="click things", thing="panel")
+    last = Frame("Submit", act="click things", thing="Submit", order=1)
+    rules = Rules(frames={f.key: f for f in (first, last)})
+    rules.tried('click "Submit"', True)
+    if rules.passed(first):
+        return False
+    for _ in range(PASSED_OVER_AFTER):
+        rules.tried('click "panel"', False)
+    if first not in rules.steps() or first.key not in rules.failed_steps:
+        return False
+    attempt = StepAttempt(1, first.key, 'click "panel"', EvidenceSnapshot.of("panel ready"), "panel ready")
+    state, _ = _step_state(attempt, EvidenceSnapshot.of("panel ready"), True)
+    repeat = Frame("Add a sample", act="carry", thing="sample", where="tray", again=True)
+    repeated = Rules(frames={f.key: f for f in (repeat, last)})
+    repeated.tried('drag "sample" to "tray"', True)
+    return state == PredicateState.UNKNOWN and repeated.next_step() is last and repeated.passed(repeat)
+
+
+@invariant("cognition.procedure_completion_requires_its_own_evidence", scope="cognition",
+           owner="core/cognition/reading_the_rules.py", observational=False)
+def _procedure_evidence_invariant() -> tuple:
+    assert _procedure_completion_is_measured(), "a procedure advanced without its requirement's evidence"
+    return ()
 
 
 # -- reading them, beside her work ------------------------------------------------------------------------------------

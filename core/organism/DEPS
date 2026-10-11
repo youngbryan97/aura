@@ -10,7 +10,7 @@
 # Everything else below is the closed-world list the generator wrote: what
 # this package imports today, and nothing else.
 
-description = "core.organism: may import only what it already imports; every new edge is an edit here."
+description = "core.organism: measured claims may exercise the named perception custody canaries; other imports remain closed."
 
 include_rules = [
     # The registered knowledge-revision canary exercises the canonical store.
@@ -21,6 +21,10 @@ include_rules = [
     "+core.reasoning.arithmetic_on_the_floor",
     # The registered scene claim measures only the observation contract.
     "+core.perception.the_drawing_as_objects",
+    # Pure offline canaries for capture, geometry and observed transfer evidence.
+    "+core.perception.eyes_of_their_own",
+    "+core.perception.observed_transfer",
+    "+core.perception.where_the_words_point",
     "+core.organism",
 
     # What this package reaches for today.

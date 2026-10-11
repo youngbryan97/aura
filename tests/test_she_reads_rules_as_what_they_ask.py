@@ -13,6 +13,7 @@ import pytest
 
 from core.cognition.a_guide_to_a_place import SCREEN, THE_GUIDE, Guide
 from core.cognition.reading_the_rules import Frame, Rules, read_the_rules_beside
+from core.runtime.skill_contract import PredicateOperator, SemanticPredicate
 
 pytestmark = pytest.mark.unit
 
@@ -64,14 +65,19 @@ def test_a_lesson_is_read_into_steps_held_to_her_ways_and_to_its_own_words():
     assert "The rules, as I read them, in order: ✓ clicking things" in guide.for_thinking()
 
 
-def test_a_step_that_never_answers_is_passed_over_and_holds_her_nowhere():
+def test_a_step_that_never_answers_stays_required_for_local_repair():
     rules = Rules()
     rules.hear(["Click here to open the device library.", "Drag a device to the room."])
     rules.took([Frame(LESSON[0], act="click things", thing="the device library"),
                 Frame("Drag a device to the room.", act="carry", thing="a device", where="the room")])
     for _ in range(2):
         rules.tried('click "DEVICE LIBRARY"', changed=False)
-    assert rules.next_step().sentence == "Drag a device to the room."
+    failed = rules.next_step()
+    assert failed.sentence == LESSON[0]
+    assert failed.key in rules.failed_steps
+    assert not rules.passed(failed)
+    assert len(rules.steps()) == 2
+    assert rules.the_step_to_do(['drag "a device" to "the room"']) is None
 
 
 def test_the_lessons_next_step_leads_the_move_choice_and_what_it_forbids_falls():
@@ -89,7 +95,7 @@ def test_the_lessons_next_step_leads_the_move_choice_and_what_it_forbids_falls()
     finally:
         THE_GUIDE.reset(token)
     assert max(valued, key=valued.get) == 'click "New"'
-    assert valued['click "Delete All"'] < 0.1
+    assert 'click "Delete All"' not in valued
 
 
 def test_a_sentence_read_once_is_understood_again_at_once_anywhere():
@@ -120,7 +126,7 @@ def test_once_something_is_built_an_option_that_keeps_it_outweighs_one_that_thro
     assert weighed['click "EDIT THE TRAP"'] == weighed['click "START OVER"']
 
 
-def test_a_step_done_again_and_again_holds_until_she_goes_on_to_the_next():
+def test_a_repeated_step_holds_until_its_own_readiness_effect_is_confirmed():
     # The player in the video added device after device to the arrow's end, and tested the trap only once it reached.
     rules = Rules()
     lesson = ["Drag a device to the end of another device's arrow.",
@@ -132,9 +138,17 @@ def test_a_step_done_again_and_again_holds_until_she_goes_on_to_the_next():
     carry = 'drag "the shape at 20% across, 40% down" to "the end of another device\'s arrow"'
     rules.tried(carry, changed=True)
     assert rules.next_step().sentence == lesson[1]
-    for _ in range(3):
-        rules.tried('drag "the shape at 30% across, 40% down" to "devices"', changed=True)
-    assert rules.next_step().sentence == lesson[1]                              # still adding
+    adding = rules.next_step()
+    repeat = 'drag "devices" to "the end of another device\'s arrow"'
+    ready = SemanticPredicate("ready to test", "after.ready", PredicateOperator.EQUALS, True)
+    rules.effects[adding.key] = (ready,)
+    for _ in range(2):
+        rules.tried(repeat, changed=True, before={"ready": False}, after={"ready": False})
+        assert rules.next_step().sentence == lesson[1]                          # its termination is not confirmed
+    rules.tried(repeat, changed=True, before={"ready": False}, after={"ready": True})
+    assert rules.passed(adding)
+    assert rules.next_step().sentence == lesson[2]
+    assert rules.repeat_opportunities([repeat]) == [adding]
     rules.tried('click "TEST TRAP"', changed=True)
     assert rules.next_step() is None and "again and again" in rules.for_thinking()
 

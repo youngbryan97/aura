@@ -95,6 +95,9 @@ class PuttingInPlace:
     pictures: set[str] = field(default_factory=set)
     #: Turns given the part put down last (core/agency/aiming_what_was_placed.py).
     turned_since_placed: int = 0
+    #: Delivered transfers and their independently observed current effects.
+    placement_receipts: dict[str, Any] = field(default_factory=dict)
+    placement_states: dict[str, Any] = field(default_factory=dict)
 
     def told_of_carrying(self, words: str) -> None:
         """Words read at this place: once they speak of carrying, it is a place where things are carried."""
@@ -142,20 +145,66 @@ class PuttingInPlace:
             offered = served_first(offered, getattr(self, "looked", {}), what_is_carried)
         return tuple(offered[:CARRIES_OFFERED])
 
-    def carried(self, move: str, changed: bool) -> None:
-        """A carry made, and whether the screen answered it; one that answered extends the chain built so far."""
+    def carried(self, move: str, changed: bool, *, receipt: Any = None) -> None:
+        """Response teaches responsiveness; only a bound observed effect extends the build."""
         found = what_is_carried(move)
         if found:
-            self.carried_to[move] = changed
-            self.carries_unanswered = 0 if changed else self.carries_unanswered + 1
-            if changed:
+            from core.runtime.skill_contract import PredicateState
+
+            verified = (receipt is not None and receipt.move == move
+                        and receipt.state is PredicateState.SATISFIED)
+            if receipt is not None and receipt.move == move:
+                if receipt.attempt_id in self.placement_receipts:
+                    return  # a receipt cannot earn another part on a later pass
+                if len(self.placement_receipts) >= 64:
+                    oldest = next(iter(self.placement_receipts))
+                    self.placement_receipts.pop(oldest)
+                    self.placement_states.pop(oldest, None)
+                self.placement_receipts[receipt.attempt_id] = receipt
+                self.placement_states[receipt.attempt_id] = receipt.state
+            # An unknown effect stays eligible for a bounded new observation or
+            # repair. A measured unchanged input is remembered as unresponsive.
+            if verified:
+                self.carried_to[move] = True
+            elif not changed and self.carried_to.get(move) is not True:
+                self.carried_to[move] = False
+            self.carries_unanswered = 0 if verified else self.carries_unanswered + 1
+            if verified:
                 from core.perception.where_the_words_point import PLACES
 
                 PLACES.moved()
                 self.turned_since_placed = 0
-            at = getattr(self, "where", {}).get(found[1])
-            if changed and at is not None:
-                self.chain_ends_at = at
+                self.chain_ends_at = receipt.destination_at
+
+    def observe_placements(self, observation: dict[str, Any]) -> None:
+        """Revalidate retained occupants; an edit or reset cannot leave stale build credit."""
+        from core.perception.observed_transfer import revalidate_placement
+
+        epoch = str(observation.get("_capture_epoch") or "")
+        for attempt_id, receipt in self.placement_receipts.items():
+            if epoch and epoch == receipt.after_epoch:
+                self.placement_states[attempt_id] = receipt.state
+            else:
+                self.placement_states[attempt_id] = revalidate_placement(receipt, observation)
+        from core.runtime.skill_contract import PredicateState
+
+        self.chain_ends_at = next((receipt.destination_at for attempt_id, receipt
+                                  in reversed(tuple(self.placement_receipts.items()))
+                                  if self.placement_states.get(attempt_id) is PredicateState.SATISFIED), None)
+
+    def placed_count(self) -> int:
+        """Count measured current occupants, not move strings or replayed receipts."""
+        from core.runtime.skill_contract import PredicateState
+
+        boxes: list[tuple[float, ...]] = []
+        for attempt_id, receipt in self.placement_receipts.items():
+            box = receipt.effect_bbox
+            if self.placement_states.get(attempt_id) is not PredicateState.SATISFIED or box is None:
+                continue
+            if any(abs(box[0] - other[0]) + abs(box[1] - other[1]) < 0.025 for other in boxes):
+                continue
+            boxes.append(box)
+        return len(boxes)
 
 
 def _a_picture(name: str, stands_out: str, pictures: set[str]) -> bool:

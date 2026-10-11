@@ -8,6 +8,7 @@ cage, added the next, tested the whole and mended the link that broke.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
 import pytest
 
@@ -110,12 +111,14 @@ def test_no_plan_is_asked_for_without_an_end_to_aim_at():
 
 def test_what_she_has_built_is_part_of_what_the_plan_is_made_from():
     from core.agency.what_i_can_do_here import WhatWorksHere
+    from core.runtime.skill_contract import PredicateState
     from core.skills.screen_pursuit_looking import _what_she_has_built
 
     guide, asked = _guide(), []
     here = WhatWorksHere()
-    here.carried_to = {'drag "the shape at 20% across, 70% down" to "any active square"': True,
-                       'drag "the shape at 30% across, 70% down" to "the shape at 10% across, 10% down"': False}
+    # The guide consumes current measured occupancy, not a screen-change flag.
+    here.placement_receipts = {"placed": SimpleNamespace(effect_bbox=(0.62, 0.41, 0.04, 0.06))}
+    here.placement_states = {"placed": PredicateState.SATISFIED}
     here.chain_ends_at = (0.62, 0.41)
     token = THE_GUIDE.set(guide)
     try:

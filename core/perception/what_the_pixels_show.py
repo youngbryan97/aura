@@ -1099,9 +1099,13 @@ def settled_reading(
     """
     import time  # noqa: PLC0415
 
+    import numpy as np
+
     picture = take()
+    captured_at = time.time()
     if picture is None:
         return None, None, False
+    picture = np.array(picture, copy=True)
     # Learned from only once the picture is known to be of a world at rest.
     reading = looker.read(picture, learn=not wait)
     said, looks = what_a_reading_says(reading), looker.last_looks
@@ -1111,9 +1115,11 @@ def settled_reading(
     agreed = False
     while not still and time.monotonic() - began < within_s:
         again = take()
+        taken_at = time.time()
         if again is None:
             break
-        picture = again
+        picture = np.array(again, copy=True)
+        captured_at = taken_at
         pictures += 1
         reading_again = looker.read(picture, learn=False)
         said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
@@ -1132,6 +1138,10 @@ def settled_reading(
     # already at rest, more is one still moving. The caller's wait is set
     # from this rather than from the clock.
     if isinstance(reading, dict):
+        from uuid import uuid4
+
+        reading["capture_at"] = captured_at
+        reading["_capture_epoch"] = uuid4().hex
         reading["_pictures"] = pictures
         reading["_still_but_unread"] = still_but_unread(still, agreed, unread)
     if wait and (still or still_but_unread(still, agreed, unread)):
@@ -1347,6 +1357,9 @@ async def _read_until_settled(
     wait_for_stillness: bool,
     still_within_s: float,
     began: float,
+    *,
+    surface: str = "",
+    viewport: tuple[float, ...] = (),
 ) -> tuple[dict[str, Any], bool, bool, int, tuple[int, int], float] | None:
     """Pictures from ``take`` read until two agree, whatever the pictures are of.
 
@@ -1359,9 +1372,16 @@ async def _read_until_settled(
     import asyncio  # noqa: PLC0415
     import time  # noqa: PLC0415
 
+    import numpy as np
+
+    from core.perception.observed_transfer import ScreenReading, make_snapshot
+
     picture = await take()
+    captured_at = time.time()
     if picture is None:
         return None
+    picture = np.array(picture, copy=True)
+    snapshot = await asyncio.to_thread(make_snapshot, picture)
     reading = await asyncio.to_thread(looker.read, picture, learn=not wait_for_stillness)
     said, looks = what_a_reading_says(reading), looker.last_looks
     unread = _places_unread(reading)
@@ -1370,9 +1390,12 @@ async def _read_until_settled(
     agreed = False
     while not still and time.monotonic() - began < still_within_s:
         again = await take()
+        taken_at = time.time()
         if again is None:
             break
-        picture = again
+        picture = np.array(again, copy=True)
+        captured_at = taken_at
+        snapshot = await asyncio.to_thread(make_snapshot, picture)
         pictures += 1
         reading_again = await asyncio.to_thread(looker.read, picture, learn=False)
         said_again, looks_again = what_a_reading_says(reading_again), looker.last_looks
@@ -1402,7 +1425,7 @@ async def _read_until_settled(
         # The screen standing still, for her eyes to find a place its words name (core/perception/where_the_words_point.py).
         from core.perception.where_the_words_point import remember_the_still_picture
 
-        remember_the_still_picture(picture)
+        remember_the_still_picture(picture, surface=surface or None, viewport=viewport or None)
         # How each looks, so what a place showed can be told alike or not from what another did (how_a_place_looks.py).
         from core.perception.how_a_place_looks import look_of
 
@@ -1412,6 +1435,15 @@ async def _read_until_settled(
         from core.perception.keys_drawn_on_screen import keys_drawn
 
         reading["keys_drawn"] = await asyncio.to_thread(keys_drawn, picture)
+    if isinstance(reading, dict):
+        from uuid import uuid4
+
+        # Evidence belongs to the pixels actually captured, before OCR completed.
+        # Bounded immutable bytes are private to the observation, never a global image.
+        reading = ScreenReading(reading, picture_snapshot=snapshot)
+        reading["capture_at"] = captured_at
+        reading["_capture_epoch"] = uuid4().hex
+        reading["surface_id"] = surface
     shape = (int(picture.shape[1]), int(picture.shape[0]))
     return reading, still, at_rest_but_unread, pictures, shape, looked_took
 
@@ -1456,6 +1488,12 @@ async def look_at_window(
             "refused_because": str(admission.reason),
         }
     began = time.monotonic()
+    left, top, wide, tall = window.bounds
+    bounds = [left, top, wide, tall]
+    if over is not None:
+        left_share, top_share, right_share, bottom_share = over
+        bounds = [left + int(left_share * wide), top + int(top_share * tall),
+                  max(1, int((right_share - left_share) * wide)), max(1, int((bottom_share - top_share) * tall))]
     # Somewhere else if they will have it: a reading is mostly Python holding
     # the interpreter, and in her own process it waits behind everything else
     # she is doing — an eighth of a second of work took nearly a second while
@@ -1466,6 +1504,9 @@ async def look_at_window(
         look_through_them, window, over, wait_for_stillness, still_within_s
     )
     if elsewhere is not None:
+        captured_bounds = elsewhere.get("bounds")
+        if isinstance(captured_bounds, (list, tuple)) and len(captured_bounds) == 4:
+            bounds = list(captured_bounds)
         picture_shape = tuple(elsewhere.pop("_shape", ()) or ())
         still = bool(elsewhere.pop("_settled", True))
         reading = elsewhere
@@ -1477,17 +1518,14 @@ async def look_at_window(
             return _crop(await _the_pixels_of(window), over)
 
         settled = await _read_until_settled(
-            looker_for(window.owner), take, wait_for_stillness, still_within_s, began
+            looker_for(window.owner), take, wait_for_stillness, still_within_s, began,
+            surface=f"window:{window.owner}:{window.number}",
+            viewport=tuple(bounds),
         )
         if settled is None:
             return None
         reading, still, at_rest_but_unread, pictures, picture_shape, looked_took = settled
     front = await asyncio.to_thread(window_server.front_owner)
-    left, top, wide, tall = window.bounds
-    bounds = [left, top, wide, tall]
-    if over is not None:
-        l, t, r, b = over
-        bounds = [left + int(l * wide), top + int(t * tall), max(1, int((r - l) * wide)), max(1, int((b - t) * tall))]
     if window.owner not in _LOOKED_AT:
         _LOOKED_AT.add(window.owner)
         grids_seen = [(g["rows"], g["columns"]) for g in reading.get("grids") or []]
