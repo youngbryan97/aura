@@ -1151,6 +1151,44 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_owner_stop_reaches_worker_without_recording_an_unexpected_failure(self):
         await self._assert_owner_stop(acknowledged=True)
 
+    async def test_public_generation_owner_stop_reaches_the_worker_and_releases_the_lane(self):
+        from core.runtime.what_stops_it import AnExecutionContext, under
+
+        client = MLXLocalClient(model_path=TEST_MODEL)
+        client._process = ProcessProbe(alive=True)
+        client._init_done = True
+        self._attach_local_ipc_queues(client)
+        client._set_lane_state("ready")
+        entered = asyncio.Event()
+        owner = AnExecutionContext(doing="ordinary desktop request")
+
+        async def wait_for_result(*args, **kwargs):
+            entered.set()
+            await asyncio.Event().wait()
+
+        degraded = SyncCallProbe()
+        with ReplaceAttr(client, "_ensure_worker_alive", AsyncCallProbe(return_value=True)), \
+             ReplaceAttr(client, "_wait_for_generation_result", wait_for_result), \
+             ReplaceAttr(client, "_soft_cancel_acknowledged", AsyncCallProbe(return_value=True)), \
+             ReplaceAttr(client, "_record_degraded_event", degraded):
+            with under(owner):
+                operation = asyncio.create_task(client.generate("owned work", schema={}))
+            await asyncio.wait_for(entered.wait(), 1.)
+            request_id = client._current_request_id
+            request_seq = client._current_request_seq
+            self.assertTrue(client._request_lock.locked())
+            owner.stopping.stop("user_requested_stop")
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(operation, 1.)
+
+        self.assertEqual(client._cancel_seq.value, request_seq)
+        self.assertEqual(client._soft_cancel_target["req_id"], request_id)
+        self.assertEqual(client._soft_cancel_target["reason"], "generation_caller_cancelled")
+        self.assertFalse(client._request_lock.locked())
+        self.assertEqual(client._active_generations, 0)
+        client._process.assert_not_killed()
+        degraded.assert_not_called()
+
     async def test_owner_stop_without_worker_acknowledgement_requests_recovery(self):
         await self._assert_owner_stop(acknowledged=False)
 

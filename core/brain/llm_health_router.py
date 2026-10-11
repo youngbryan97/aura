@@ -76,6 +76,7 @@ from core.runtime.proof_policy import (
     proof_run_active,
 )
 from core.runtime.turn_analysis import analyze_turn
+from core.runtime.what_stops_it import interruptible_operation
 from core.utils.concurrency import RobustLock
 from core.utils.task_tracker import (
     get_task_tracker,  # noqa: F401  (read at call time by the lifted module)
@@ -1840,6 +1841,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
         
         return text
 
+    @interruptible_operation
     async def generate_with_metadata(
         self,
         prompt: str,

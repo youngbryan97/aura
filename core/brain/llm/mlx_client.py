@@ -73,6 +73,7 @@ from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import (
     get_subprocess_gateway,
 )
+from core.runtime.what_stops_it import interruptible_operation
 from core.utils.concurrency import run_io_bound
 from core.utils.deadlines import (  # noqa: F401  (read at call time by the lifted module)
     Deadline,
@@ -9886,6 +9887,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
 
 
+    @interruptible_operation
     async def generate(self, prompt: str, **kwargs) -> str | None:
         """High-level generation endpoint with unified deadlines.
 

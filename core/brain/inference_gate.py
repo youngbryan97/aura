@@ -8467,11 +8467,14 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         # separately, and nothing wrote it down.
         entered_token = _GENERATE_ENTERED_AT.set(time.monotonic())
         try:
-            return await self._generate_with_metadata_sink(
-                prompt,
-                context=context,
-                timeout=timeout,
-            )
+            from core.runtime.what_stops_it import current, interruptible
+
+            with interruptible(current(whose="inference_gate.in_flight")):
+                return await self._generate_with_metadata_sink(
+                    prompt,
+                    context=context,
+                    timeout=timeout,
+                )
         finally:
             sink_slot.reset(sink_token)
             _GENERATE_ENTERED_AT.reset(entered_token)

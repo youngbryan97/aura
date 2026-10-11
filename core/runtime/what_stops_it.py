@@ -33,9 +33,10 @@ import contextvars
 import logging
 import threading
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import wraps
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
@@ -49,6 +50,7 @@ __all__ = [
     "Stopping",
     "current",
     "interruptible",
+    "interruptible_operation",
     "stopping_with",
     "under",
     "what_is_not_threaded_yet",
@@ -323,6 +325,16 @@ def _stop_listener_lifetime_invariant() -> tuple:
     assert called == ["turn ended"] and second.stopped
     assert not second._when_stopped
     return ()
+
+
+def interruptible_operation[**P, R](operation: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
+    """Carry the current owner through a complete async API, including admission."""
+    @wraps(operation)
+    async def owned(*args: P.args, **kwargs: P.kwargs) -> R:
+        with interruptible(current(whose=f"{operation.__module__}.{operation.__qualname__}")):
+            return await operation(*args, **kwargs)
+
+    return owned
 
 
 @contextmanager
