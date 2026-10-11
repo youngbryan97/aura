@@ -28,6 +28,7 @@ which those are.
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import logging
 import threading
@@ -36,7 +37,9 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
+
 from core.runtime.lockdep import checked_lock
+from core.verify.invariants import invariant
 
 logger = logging.getLogger("Aura.WhatStopsIt")
 
@@ -45,6 +48,7 @@ __all__ = [
     "Stopped",
     "Stopping",
     "current",
+    "interruptible",
     "stopping_with",
     "under",
     "what_is_not_threaded_yet",
@@ -93,6 +97,7 @@ class Stopping:
             self._at = time.monotonic()
             children = list(self._children)
             callbacks = list(self._when_stopped)
+            self._when_stopped.clear()
             self._event.set()
         for child in children:
             child.stop(why)
@@ -124,20 +129,26 @@ class Stopping:
 
         return self._event.wait(timeout)
 
-    def when_stopped(self, called: Callable[[str], None]) -> None:
-        """Run this when the stop arrives, or now if it already has."""
+    def when_stopped(self, called: Callable[[str], None]) -> Callable[[], None]:
+        """Run this when the stop arrives; return a way to detach the listener."""
+
+        def detach() -> None:
+            with self._lock:
+                if called in self._when_stopped:
+                    self._when_stopped.remove(called)
 
         with self._lock:
             if not self._event.is_set():
                 self._when_stopped.append(called)
-                return
+                return detach
             why = self._why
         try:
             called(why)
         except Exception as exc:  # noqa: BLE001
             logger.debug("a stop listener raised: %s", exc)
+        return detach
 
-    def child(self, name: str = "") -> "Stopping":
+    def child(self, name: str = "") -> Stopping:
         """A token that dies with this one and can also die alone.
 
         The direction is the whole design. A subagent stopping does not stop
@@ -194,7 +205,7 @@ class AnExecutionContext:
         if self.out_of_time:
             raise Stopped(f"out of time after {self.doing or 'this work'}")
 
-    def under(self, doing: str, *, seconds: float = 0.0) -> "AnExecutionContext":
+    def under(self, doing: str, *, seconds: float = 0.0) -> AnExecutionContext:
         """A narrower context for a subcall: its own token, its own deadline.
 
         The deadline never widens. A subcall given ten seconds inside a turn
@@ -254,6 +265,64 @@ def under(context: AnExecutionContext) -> Iterator[AnExecutionContext]:
         yield context
     finally:
         _HERE.reset(token)
+
+
+@contextmanager
+def interruptible(context: AnExecutionContext) -> Iterator[AnExecutionContext]:
+    """Bind a running async operation to its owner's stop, even across shields.
+
+    Token cancellation cancels the task executing this scope, rather than only
+    the task waiting for it. The listener is removed when the operation leaves;
+    a later stop cannot cancel unrelated work reusing the same task.
+    """
+    loop = asyncio.get_running_loop()
+    task = asyncio.current_task()
+    if task is None:
+        raise RuntimeError("interruptible work must belong to an asyncio task")
+    if context.stopping.stopped:
+        raise asyncio.CancelledError(context.stopping.why)
+    context.check()
+    active = True
+
+    def cancel(why: str) -> None:
+        def deliver() -> None:
+            if active and not task.done() and not task.cancelling():
+                task.cancel(why)
+
+        if not loop.is_closed():
+            loop.call_soon_threadsafe(deliver)
+
+    detach = context.stopping.when_stopped(cancel)
+    try:
+        with under(context):
+            yield context
+            # A callee may swallow task cancellation. The token remains stopped.
+            context.check()
+    except Stopped:
+        if context.stopping.stopped:
+            raise asyncio.CancelledError(context.stopping.why) from None
+        raise
+    finally:
+        active = False
+        detach()
+
+
+@invariant("runtime.stop_listeners_have_scoped_lifetimes", scope="runtime",
+           owner="core/runtime/what_stops_it.py", observational=False)
+def _stop_listener_lifetime_invariant() -> tuple:
+    parent = Stopping("turn")
+    first, second = parent.child("one"), parent.child("two")
+    called = []
+    detach = first.when_stopped(lambda why: called.append(why))
+    detach()
+    detach()
+    first.stop("one ended")
+    assert not called and not parent.stopped and not second.stopped
+    second.when_stopped(lambda why: called.append(why))
+    parent.stop("turn ended")
+    assert called == ["turn ended"] and second.stopped
+    assert not second._when_stopped
+    return ()
 
 
 @contextmanager

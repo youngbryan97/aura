@@ -25,6 +25,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime.what_stops_it import current
+
 __all__ = ["HER_OWN_PAGE", "OnAPage", "it_was_answered", "on_her_page"]
 
 #: Where keys go when a page is the surface: the pursuit's names to the
@@ -136,12 +138,15 @@ class OnAPage:
             self._focused = False
 
     async def press(self, key: str) -> bool:
+        context = current(whose="page_input.press")
+        context.check()
         from core.skills.screen_pursuit_surface import PRESSABLE_KEYS
 
         name = str(key or "").strip().lower()
         if name not in PRESSABLE_KEYS:
             return False
         await self._focus()
+        context.check()
         from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
 
         reflexes = AS_IT_HAPPENS.get()
@@ -167,6 +172,8 @@ class OnAPage:
 
     async def click(self, x: float, y: float, bounds: Sequence[int] | None) -> bool:
         """A click at shares of ``bounds``, in the page's own pixels; never outside them."""
+        context = current(whose="page_input.click")
+        context.check()
         if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
             return False
         if bounds and len(bounds) >= 4:
@@ -177,6 +184,7 @@ class OnAPage:
             wide, tall = await the_page_size(self.page)
             left = top = 0.0
         try:
+            context.check()
             await self.page.mouse.click(left + x * wide, top + y * tall)
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False
@@ -195,6 +203,9 @@ class OnAPage:
         """A press at ``start`` carried with the button held to ``end`` and let go, at shares of ``bounds``."""
         import asyncio
 
+        context = current(whose="page_input.carry")
+        context.check()
+
         if not all(0.0 <= v <= 1.0 for v in (*start, *end)):
             return False
         if bounds and len(bounds) >= 4:
@@ -206,10 +217,13 @@ class OnAPage:
             left = top = 0.0
         (x0, y0), (x1, y1) = ((left + x * wide, top + y * tall) for x, y in (start, end))
         try:
+            context.check()
             await self.page.mouse.move(x0, y0)
+            context.check()
             await self.page.mouse.down()
             try:
                 for step in range(1, self.CARRY_STEPS + 1):
+                    context.check()
                     share = step / self.CARRY_STEPS
                     await self.page.mouse.move(x0 + (x1 - x0) * share, y0 + (y1 - y0) * share)
                     await asyncio.sleep(self.CARRY_STEP_S)

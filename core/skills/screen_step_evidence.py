@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from core.runtime.skill_contract import PredicateOperator, PredicateState, SemanticPredicate
+from core.verify.invariants import invariant
 
 
 def screen_evidence(observation: dict[str, Any], clickable: Any = ()) -> dict[str, Any]:
@@ -83,18 +84,58 @@ def abandon_bound_step(pending: dict[str, Any], move: str) -> None:
         pending["step_settled"] = True
 
 
-def admissible_step(move: str, *, reaching: Any = ()) -> bool:
+def artifact_ready_for(move: str, can_do: Any = None) -> bool:
+    """A construction task's execution controls need currently measured work, including unmatched controls."""
+    from core.agency.what_i_can_do_here import what_is_clicked
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+    from core.cognition.procedure_binding import consumes_artifact
+
+    label = what_is_clicked(move)
+    guide = THE_GUIDE.get()
+    procedures = [procedure for procedure in (getattr(guide, "rules", None), getattr(guide, "plan", None))
+                  if procedure is not None]
+    constructing = any(frame.act == "carry" for procedure in procedures for frame in procedure.steps())
+    if not constructing or not label or not consumes_artifact(label):
+        return True
+    measured = getattr(can_do, "placed_count", None)
+    return callable(measured) and measured() > 0
+
+
+@invariant("agency.construction_execution_requires_current_placement", scope="agency",
+           owner="core/skills/screen_step_evidence.py", observational=False)
+def _construction_readiness_invariant() -> tuple:
+    from core.agency.what_i_can_do_here import WhatWorksHere
+    from core.cognition.a_guide_to_a_place import THE_GUIDE, Guide
+    from core.cognition.reading_the_rules import Frame, Rules
+
+    step = Frame("Place a component in the workspace", act="carry", thing="component", where="workspace")
+    guide = Guide(rules=Rules(frames={step.key: step}), built="An old account says it was built")
+    can_do = WhatWorksHere(carried_to={'drag "component" to "workspace"': True})
+    token = THE_GUIDE.set(guide)
+    try:
+        assert not artifact_ready_for('click "Run"', can_do)
+        assert not artifact_ready_for('click "Test circuit"', can_do)
+        assert artifact_ready_for('click "Library"', can_do)
+    finally:
+        THE_GUIDE.reset(token)
+    return ()
+
+
+def admissible_step(move: str, *, reaching: Any = (), can_do: Any = None) -> bool:
     """Known later requirements wait for their prerequisites, independent of scores."""
     from core.cognition.a_guide_to_a_place import THE_GUIDE
 
     guide = THE_GUIDE.get()
+    if not artifact_ready_for(move, can_do):
+        return False
     for procedure in (getattr(guide, "rules", None), getattr(guide, "plan", None)):
         if procedure is None:
             continue
         if procedure.pending_step is not None:
             return False
         step, needed = procedure.step_of(move), procedure.next_step()
-        if step is not None and needed is not None and step.order > needed.order and move not in reaching:
+        if (step is not None and needed is not None and step.order > needed.order and move not in reaching
+                and not procedure.reaches_next(move)):
             return False
     return True
 

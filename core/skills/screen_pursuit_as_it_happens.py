@@ -26,6 +26,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime.what_stops_it import current
+
 logger = logging.getLogger("Aura.ScreenPursuit.AsItHappens")
 
 __all__ = ["AS_IT_HAPPENS", "PlayingAsItHappens", "a_handed_over_run_is_over", "looked_at_as_it_happens"]
@@ -231,12 +233,16 @@ class PlayingAsItHappens:
             logger.info("the browser knows no key %r; passed over", key)
 
     async def down(self, key: str) -> None:
+        context = current(whose="realtime_input.down")
+        context.check()
         if key == MOUSE_BUTTON:
             await self.page.mouse.move(*await self._at(*_WHERE_A_BUTTON_PRESS_GOES))
+            context.check()
             await self.page.mouse.down()
             self._focused = True
             return
         await self._focus()
+        context.check()
         await self._keyed(self.page.keyboard.down, key)
 
     async def up(self, key: str) -> None:
@@ -246,10 +252,13 @@ class PlayingAsItHappens:
         await self._keyed(self.page.keyboard.up, key)
 
     async def tap(self, key: str) -> None:
+        context = current(whose="realtime_input.tap")
+        context.check()
         if key == MOUSE_BUTTON:
             await self.click(*_WHERE_A_BUTTON_PRESS_GOES)
             return
         await self._focus()
+        context.check()
         await self._keyed(self.page.keyboard.press, key)
 
     async def pressed(self, key: str) -> None:
@@ -265,15 +274,28 @@ class PlayingAsItHappens:
         return clip["x"] + min(1.0, max(0.0, x)) * clip["width"], clip["y"] + min(1.0, max(0.0, y)) * clip["height"]
 
     async def click(self, x: float, y: float) -> None:
-        await self.page.mouse.click(*await self._at(x, y))
+        context = current(whose="realtime_input.click")
+        context.check()
+        at = await self._at(x, y)
+        context.check()
+        await self.page.mouse.click(*at)
         self._focused = True
 
     async def point(self, x: float, y: float) -> None:
-        await self.page.mouse.move(*await self._at(x, y))
+        context = current(whose="realtime_input.point")
+        context.check()
+        at = await self._at(x, y)
+        context.check()
+        await self.page.mouse.move(*at)
 
     async def press(self, x: float, y: float) -> None:
         """The button pressed at a place and kept down, for a pull or a hold (core/agency/playing_by_shots.py)."""
-        await self.page.mouse.move(*await self._at(x, y))
+        context = current(whose="realtime_input.press")
+        context.check()
+        at = await self._at(x, y)
+        context.check()
+        await self.page.mouse.move(*at)
+        context.check()
         await self.page.mouse.down()
         self._focused = True
 

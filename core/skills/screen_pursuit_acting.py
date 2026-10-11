@@ -271,7 +271,7 @@ async def carry_out_the_move(
         _say_intent(step, reason, out_loud=aloud, following_on=position > 0)
     from .screen_step_evidence import abandon_bound_step, admissible_step, bind_step
 
-    if not admissible_step(key, reaching=pending.get("reaching_moves", ())):
+    if not admissible_step(key, reaching=pending.get("reaching_moves", ()), can_do=getattr(run, "can_do", None)):
         pending["deliberation"] = None
         expected["after"], expected["took"] = None, 0
         return False

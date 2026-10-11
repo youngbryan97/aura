@@ -13,6 +13,7 @@ def install_realtime_control_claims(suite: Any) -> None:
         _emissions_require_distinct_input_receipts,
         _fresh_control_experiment_forgets_old_rejections,
     )
+    from core.cognition.procedure_binding import _choice_binding_invariant
     from core.cognition.reading_the_rules import _procedure_completion_is_measured
     from core.organism.model_validation import (
         Claim,
@@ -30,8 +31,19 @@ def install_realtime_control_claims(suite: Any) -> None:
         _indexed_knowledge_invariant,
         _retained_structure_invariant,
     )
+    from core.runtime.what_stops_it import _stop_listener_lifetime_invariant
+    from core.skills.screen_step_evidence import _construction_readiness_invariant
 
     for name, owner, fixture, probe, statement in (
+        ("choices_require_current_observed_controls", "core/cognition/procedure_binding.py",
+         "tests/test_procedure_bindings_follow_observed_controls.py", lambda: _choice_binding_invariant() == (),
+         "Choice bindings require an observed selector effect and currently visible choices in its capture context."),
+        ("construction_controls_require_current_work", "core/skills/screen_step_evidence.py",
+         "tests/test_procedure_bindings_follow_observed_controls.py", lambda: _construction_readiness_invariant() == (),
+         "Construction execution controls cannot use narrative or historical drag records as current readiness."),
+        ("stop_listeners_have_scoped_lifetimes", "core/runtime/what_stops_it.py",
+         "tests/test_stopped_execution_cannot_keep_acting.py", lambda: _stop_listener_lifetime_invariant() == (),
+         "Cancellation listeners detach without stopping sibling work and retain the parent's stop direction."),
         ("procedures_require_owned_effects", "core/cognition/reading_the_rules.py",
          "tests/test_procedure_steps_need_their_own_evidence.py", _procedure_completion_is_measured,
          "Procedure completion requires the selected step's own observed effect and preserves unresolved prerequisites."),

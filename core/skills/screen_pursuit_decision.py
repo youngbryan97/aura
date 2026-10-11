@@ -192,13 +192,17 @@ def _the_lesson_first(valued: dict[str, float], leads: Any = None, can_do: Any =
     to_do = {id(p): p.the_step_to_do(list(valued), reaching=bool(reach)) for p in procedures}
     out = {}
     for move, value in valued.items():
+        from .screen_step_evidence import artifact_ready_for
+
+        if not artifact_ready_for(move, can_do):
+            continue
         blocked = False
         for procedure in procedures:
             step = procedure.step_of(move)
             if step is not None and step is to_do[id(procedure)]:
                 value = max(value, best * NEXT_STEP)
             elif (step is not None and procedure.next_step() is not None
-                  and step.order > procedure.next_step().order and move not in reach):
+                  and step.order > procedure.next_step().order and move not in reach and not procedure.reaches_next(move)):
                 # Dependence is a requirement, including when this is the sole
                 # candidate or its exploration score overwhelms all alternatives.
                 blocked = True
@@ -225,9 +229,12 @@ def _reaching_what_the_next_step_needs(procedures: list[Any], valued: dict[str, 
     from core.agency.what_i_can_do_here import what_is_clicked
 
     toward = getattr(leads, "toward", None)
-    if toward is None:
-        return {}
+    toward = toward or (lambda _needed: {})
     reach: dict[str, float] = {}
+    for procedure in procedures:
+        for move in valued:
+            if procedure.reaches_next(move):
+                reach[move] = 1.0
     for lock in (locks.open_to_try() if locks is not None else ()):
         here = [move for move in valued if what_is_clicked(move) == lock.at]
         for act, worth in ({move: 2.0 for move in here} if here else toward(lock.at)).items():
@@ -1505,7 +1512,7 @@ async def decide_the_next_move(
         reach = _reaching_what_the_next_step_needs(procedures, {option.name: 1.0 for option in available},
                                                 can_do.leads, getattr(guide, "locks", None))
         pending["reaching_moves"] = tuple(reach)
-        available = [option for option in available if admissible_step(option.name, reaching=reach)]
+        available = [option for option in available if admissible_step(option.name, reaching=reach, can_do=can_do)]
         ahead = {name: forecast for name, forecast in (ahead or {}).items()
                  if any(option.name == name for option in available)}
         telling = {name: value for name, value in telling.items() if any(option.name == name for option in available)}

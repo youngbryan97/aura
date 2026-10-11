@@ -35,6 +35,14 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields, replace
 from typing import Any
 
+from core.cognition.procedure_binding import (
+    RevealedChoices,
+    choice_slot,
+    control_of,
+    input_method_only,
+    opens_choices,
+    selector_for,
+)
 from core.runtime.lockdep import checked_lock
 from core.runtime.skill_contract import (
     PredicateState,
@@ -350,6 +358,9 @@ class Rules:
     heard_times: list[float] = field(default_factory=list)
     #: Whether watching a lesson play has been said.
     said_watching: bool = False
+    #: Choice values exposed by an owned panel-opening effect, checked against each current observation.
+    revealed_choices: RevealedChoices | None = None
+    binding_context: EvidenceSnapshot = field(default_factory=lambda: EvidenceSnapshot.of({}))
 
     def hear(self, passages: Iterable[str]) -> list[str]:
         """Passages the place showed, in order: kept, and read at once where one like it was read before; a passage
@@ -457,12 +468,16 @@ class Rules:
         from core.agency.what_i_can_do_here import what_is_clicked
 
         clicked, two = what_is_clicked(move), two_places_of(move)
-        matching = []
+        matching, contextual = [], []
         for frame in self.steps():
-            control = frame.using if _words(frame.using) - {"here", "control", "button", "mouse", "pointer"} else ""
+            control = control_of(frame)
             named = control or frame.thing or (frame.sentence if len(frame.sentence.split()) <= LABEL_WORDS else "")
             if clicked and frame.act in ("click things", "switch", "time a press") and _bound_name(named, clicked):
                 matching.append(frame)
+            elif clicked and frame is self.next_step() and (input_method_only(frame) or
+                    choice_slot(frame) and self.revealed_choices is not None
+                    and self.revealed_choices.offers(move, self.binding_context.evidence, frame.key)):
+                contextual.append(frame)
             if two is not None and (two.act == CARRY and frame.act == "carry"
                                     or two.act == "use" and frame.act == "use things"
                                     or two.act == "match" and frame.act == "remember what was shown"):
@@ -476,7 +491,19 @@ class Rules:
             if not clicked and two is None and frame.act in ("steer", "shoot", "strike", "jump", "charge", "keys shown",
                                                                "time a press") and _bound_name(frame.using, move):
                 matching.append(frame)
-        return matching
+        return matching or contextual
+
+    def observe_context(self, observation: Mapping[str, Any]) -> None:
+        """A choice cannot use controls that disappeared or belong to another surface."""
+        self.binding_context = EvidenceSnapshot.of(observation)
+
+    def reaches_next(self, move: str) -> bool:
+        """Opening a selector reaches an unbound choice, even when the prose listed the choice first."""
+        needed = self.next_step()
+        frame = next((frame for frame in self._matching_steps(move) if opens_choices(frame)), None)
+        return bool(needed is not None and choice_slot(needed) and frame is not None and selector_for(frame, needed)
+                    and (self.revealed_choices is None or not self.revealed_choices.moves &
+                         set(self.binding_context.evidence.get("clickable") or ())))
 
     def the_step_to_do(self, offered: Sequence[str], reaching: bool = False) -> Frame | None:
         """The earliest requirement, when offered. Missing prerequisites do not authorize later requirements."""
@@ -517,6 +544,11 @@ class Rules:
             self.failed_steps.discard(key)
             self.unanswered_steps.pop(key, None)
             self.unknown_steps.pop(key, None)
+            frame = self.frames.get(key)
+            needed = self.next_step()
+            if frame is not None and needed is not None and selector_for(frame, needed):
+                self.revealed_choices = RevealedChoices.from_effect(receipt.before.evidence, receipt.after.evidence, key, needed.key)
+                self.observe_context(receipt.after.evidence)
         else:
             self.done.discard(key)
             if receipt.state == PredicateState.UNSATISFIED:

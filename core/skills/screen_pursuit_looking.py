@@ -907,6 +907,14 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
     clickable = _where_the_way_on_was(observation, clickable, says, paced)
     clickable = _what_paused_it(observation, clickable, can_do, paced)
     clickable = _the_place_its_words_name(observation, clickable, can_do)
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    from .screen_step_evidence import screen_evidence
+
+    guide = THE_GUIDE.get()
+    for procedure in (getattr(guide, "rules", None), getattr(guide, "plan", None)):
+        if procedure is not None:
+            procedure.observe_context(screen_evidence(observation, clickable))
     leads = getattr(can_do, "leads", None)
     if hasattr(can_do, "observe_placements"):
         can_do.observe_placements(observation)

@@ -1463,12 +1463,15 @@ async def _invoke_effect_handler(
     handler_context["report_progress"] = report_progress
 
     async def invoke() -> Mapping[str, Any]:
-        if inspect.iscoroutinefunction(handler):
-            value = await handler(dict(handler_context))
-        else:
-            value = await asyncio.to_thread(handler, dict(handler_context))
-            if inspect.isawaitable(value):
-                value = await value
+        from core.runtime.what_stops_it import current, interruptible
+
+        with interruptible(current(whose="action_executor.effect")):
+            if inspect.iscoroutinefunction(handler):
+                value = await handler(dict(handler_context))
+            else:
+                value = await asyncio.to_thread(handler, dict(handler_context))
+                if inspect.isawaitable(value):
+                    value = await value
         if not isinstance(value, Mapping):
             raise TypeError("effect handler must return a mapping")
         return value

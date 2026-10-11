@@ -1304,6 +1304,30 @@ async def play_as_it_happens(
     told: str = "",
     waits_for_her: bool = False,
 ) -> dict[str, Any]:
+    from core.runtime.what_stops_it import current, interruptible
+
+    with interruptible(current(whose="play_as_it_happens")):
+        return await _play_as_it_happens(
+            look, hands, keys=keys, seconds=seconds, say=say, read_words=read_words,
+            keep=keep, pointer_first=pointer_first, getting_somewhere=getting_somewhere,
+            told=told, waits_for_her=waits_for_her,
+        )
+
+
+async def _play_as_it_happens(
+    look: Callable[[], Awaitable[Any]],
+    hands: Any,
+    *,
+    keys: Sequence[str],
+    seconds: float,
+    say: Callable[[str], Any] | None = None,
+    read_words: Callable[[Any], list[dict[str, Any]]] | None = None,
+    keep: dict[str, Any] | None = None,
+    pointer_first: bool = False,
+    getting_somewhere: Callable[[str], Any] | None = None,
+    told: str = "",
+    waits_for_her: bool = False,
+) -> dict[str, Any]:
     """Play what ``look`` shows through ``hands`` until it stops moving or ``seconds`` pass.
 
     ``look`` returns an RGB picture and when it was taken, or None. ``hands``
@@ -1313,6 +1337,9 @@ async def play_as_it_happens(
     ``waits_for_her`` says the world stood still until she moved in it
     (``it_goes_while_held``): with nothing to go to, she goes where she has not been.
     """
+    from core.runtime.what_stops_it import current
+
+    context = current(whose="play_as_it_happens.frames")
     began = time.monotonic()
     keep = keep if keep is not None else {}
     from core.agency.when_motion_breaks_a_rule import MotionChecks
@@ -1367,10 +1394,12 @@ async def play_as_it_happens(
     ended = ""
     try:
         while not ended:
+            context.check()
             if time.monotonic() - began >= seconds:
                 ended = "out of time"
                 break
             seen = await look()
+            context.check()
             if seen is None:
                 ended = "the picture could not be taken"
                 break
@@ -1435,7 +1464,9 @@ async def play_as_it_happens(
                 ended = "runtime contract violated"
                 _say(run, say, "This still behaves incorrectly: " + violations[0]["finding"] + ". I need to check the repair.", at, once="runtime_fault")
                 break
+            context.check()
             await _act(hands, run, moves, hers, meeting, choosing, at, say=say, rules=rules)
+            context.check()
             await use_controls_on_things(hands, run, moves, hers, happened, at,
                                          lambda line, once, at=at: _say(run, say, line, at, once=once), picture)
             _out_of_her_reach(run, choosing, at)

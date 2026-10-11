@@ -25,12 +25,13 @@ import asyncio
 import inspect
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from core.capabilities.post_action_verifier import VerificationOutcome, VerificationResult
 from core.runtime.errors import record_degradation
+from core.runtime.what_stops_it import AnExecutionContext, current, interruptible
 from core.verify.invariants import invariant
 
 logger = logging.getLogger("Aura.FluidExecutor")
@@ -326,10 +327,17 @@ class FluidExecutor:
             )
             return False, f"action gateway error: {exc}"
 
-    async def run_step(self, step: Step) -> StepResult:
+    async def run_step(self, step: Step, *, execution_context: AnExecutionContext | None = None) -> StepResult:
+        context = execution_context or current(whose="fluid_executor.run_step")
+        with interruptible(context):
+            return await self._run_step(step, context)
+
+    async def _run_step(self, step: Step, context: AnExecutionContext) -> StepResult:
         """Govern → act → verify → (recover+retry). Returns the step outcome."""
         began = time.monotonic()
+        context.check()
         approved, reason = await self._approved(step)
+        context.check()
         if not approved:
             logger.info("🛡️ [Fluid] step '%s' blocked by governance: %s", step.name, reason)
             return StepResult(
@@ -342,16 +350,20 @@ class FluidExecutor:
         action_completed = False
         verification_outcome = ""
         for attempt in range(1, step.max_retries + 2):
+            context.check()
             if attempt > 1 and step.recovery is not None:
                 try:
                     await step.recovery(StepResult(step.name, ok=False, attempts=attempt - 1, detail=last_detail))
+                    context.check()
                     recovered = True
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                     record_degradation("fluid_executor", exc)
             try:
+                context.check()
                 action_completed = False
                 verification_outcome = ""
                 action_result = await step.action()
+                context.check()
                 if isinstance(action_result, StepActionResult) and not action_result.completed:
                     last_detail = action_result.detail or "action did not complete"
                     await self._sleep(step.backoff_base_s * attempt)
@@ -414,6 +426,27 @@ class FluidExecutor:
         max_cycles: int = 200,
         max_seconds: float = 600.0,
         perception_reason: str = "",
+        execution_context: AnExecutionContext | None = None,
+    ) -> ExecutionReceipt:
+        context = execution_context or current(whose="fluid_executor.pursue")
+        with interruptible(context):
+            return await self._pursue(
+                goal, observe=observe, decide=decide, is_satisfied=is_satisfied,
+                max_cycles=max_cycles, max_seconds=max_seconds,
+                perception_reason=perception_reason, execution_context=context,
+            )
+
+    async def _pursue(
+        self,
+        goal: str,
+        *,
+        observe: Callable[[], Awaitable[Any]],
+        decide: Callable[[Any], Awaitable[Step | None]],
+        is_satisfied: Callable[[Any], Awaitable[bool]] | Callable[[Any], bool],
+        max_cycles: int = 200,
+        max_seconds: float = 600.0,
+        perception_reason: str = "",
+        execution_context: AnExecutionContext,
     ) -> ExecutionReceipt:
         """Pursue a goal by looking, deciding, acting and looking again.
 
@@ -468,6 +501,7 @@ class FluidExecutor:
 
         try:
             for _ in range(cycles):
+                execution_context.check()
                 receipt.cycles += 1
                 if time.monotonic() >= deadline:
                     receipt.outcome = "out_of_time"
@@ -476,16 +510,19 @@ class FluidExecutor:
                     renew_perception(token)
 
                 observation = await observe()
+                execution_context.check()
 
                 satisfied = is_satisfied(observation)
                 if inspect.isawaitable(satisfied):
                     satisfied = await satisfied
+                execution_context.check()
                 if satisfied:
                     receipt.completed = True
                     receipt.outcome = "goal_reached"
                     break
 
                 step = await decide(observation)
+                execution_context.check()
                 if step is WAITING:
                     waits += 1
                     if waits < MOST_WAITS:
@@ -501,7 +538,7 @@ class FluidExecutor:
                         break
                     continue
 
-                result = await self.run_step(step)
+                result = await self.run_step(step, execution_context=execution_context)
                 receipt.steps.append(result)
                 if result.ok:
                     receipt.verified_progress += int(result.verified)
@@ -537,13 +574,19 @@ class FluidExecutor:
         receipt.elapsed_s = time.monotonic() - started
         return receipt
 
-    async def run(self, goal: str, steps: list[Step]) -> ExecutionReceipt:
+    async def run(self, goal: str, steps: list[Step], *, execution_context: AnExecutionContext | None = None) -> ExecutionReceipt:
+        context = execution_context or current(whose="fluid_executor.run")
+        with interruptible(context):
+            return await self._run(goal, steps, context)
+
+    async def _run(self, goal: str, steps: list[Step], context: AnExecutionContext) -> ExecutionReceipt:
         """Execute a sequence, aborting on a stall, returning a full receipt."""
         started = time.monotonic()
         receipt = ExecutionReceipt(goal=goal, completed=False)
         consecutive_no_progress = 0
         for step in steps:
-            result = await self.run_step(step)
+            context.check()
+            result = await self.run_step(step, execution_context=context)
             receipt.steps.append(result)
             if result.ok:
                 receipt.verified_progress += int(result.verified)
