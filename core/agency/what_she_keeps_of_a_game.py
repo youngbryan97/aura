@@ -29,6 +29,21 @@ INDEXED_TABLES = ({
         ["physics", "*", "meetings"], ["physics", "*", "edges", "*", "3"],
         ["physics", "*", "edges", "*", "4"],
     ],
+    "structures": [
+        {"path": ["kinds", "*"], "type": "mapping", "required_fields": ["colour", "size"]},
+        {"path": ["kinds", "*", "colour"], "length": 3, "required": True},
+        {"path": ["evidence", "*"], "length": 9},
+        {"path": ["physics", "*"], "type": "mapping"},
+        {"path": ["physics", "*", "accelerations"], "type": "list"},
+        {"path": ["physics", "*", "accelerations", "*"], "length": 2},
+        {"path": ["physics", "*", "speeds"], "type": "list"},
+        {"path": ["physics", "*", "edges"], "type": "mapping"},
+        {"path": ["physics", "*", "edges", "*"], "length": 5},
+        {"path": ["physics", "*", "edges", "*", "3"], "type": "list", "required": True},
+        {"path": ["physics", "*", "edges", "*", "4"], "type": "list", "required": True},
+        {"path": ["physics", "*", "meetings"], "type": "list"},
+        {"path": ["physics", "*", "meetings", "*"], "length": 3},
+    ],
 },)
 
 

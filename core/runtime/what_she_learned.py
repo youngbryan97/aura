@@ -61,17 +61,51 @@ _MISSING = object()
 
 
 @dataclass(frozen=True)
+class _Structure:
+    path: tuple[str, ...]
+    kind: str = "list"
+    length: int | None = None
+    required: bool = False
+    required_fields: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class _IndexedTable:
     table: tuple[str, ...]
     keyed_by: tuple[tuple[str, ...], ...] = ()
     references: tuple[tuple[str, ...], ...] = ()
     histories: tuple[tuple[str, ...], ...] = ()
+    structures: tuple[_Structure, ...] = ()
 
 
 def _path(value: Any) -> tuple[str, ...]:
     if not isinstance(value, (list, tuple)) or not value or not all(isinstance(p, str) and p for p in value):
         raise ValueError("an indexed-state path must contain field names")
     return tuple(value)
+
+
+def _structure(value: Any) -> _Structure:
+    if not isinstance(value, dict) or set(value) - {"path", "type", "length", "required", "required_fields"}:
+        raise ValueError("a structure declaration must contain supported fields")
+    kind = value.get("type", "list")
+    if kind not in ("list", "mapping"):
+        raise ValueError("a structure must declare a list or mapping")
+    length = value.get("length")
+    if "length" in value and (type(length) is not int or length < 0 or kind != "list"):
+        raise ValueError("a fixed structure length must be a nonnegative integer for a list")
+    required = value.get("required", False)
+    if type(required) is not bool:
+        raise ValueError("structure presence must be declared as a boolean")
+    fields = value.get("required_fields", [])
+    if (not isinstance(fields, list) or any(not isinstance(field, str) or not field for field in fields)
+            or len(set(fields)) != len(fields) or (fields and kind != "mapping")):
+        raise ValueError("required structure fields must name distinct mapping fields")
+    return _Structure(_path(value.get("path")), kind, length, required, tuple(fields))
+
+
+def _patterns_overlap(first: tuple[str, ...], second: tuple[str, ...]) -> bool:
+    return len(first) == len(second) and all(a == b or a == "*" or b == "*"
+                                           for a, b in zip(first, second, strict=True))
 
 
 def _relations(what: Mapping[str, Any]) -> tuple[_IndexedTable, ...]:
@@ -88,6 +122,7 @@ def _relations(what: Mapping[str, Any]) -> tuple[_IndexedTable, ...]:
             tuple(_path(p) for p in item.get("keyed_by", [])),
             tuple(_path(p) for p in item.get("references", [])),
             tuple(_path(p) for p in item.get("histories", [])),
+            tuple(_structure(value) for value in item.get("structures", [])),
         )
         paths = (relation.table, *relation.keyed_by, *relation.references)
         for path in paths:
@@ -98,9 +133,18 @@ def _relations(what: Mapping[str, Any]) -> tuple[_IndexedTable, ...]:
             occupied.add(path)
         found.append(relation)
     for relation in found:
+        roots = (relation.table, *relation.keyed_by, *relation.references)
+        for order, structure in enumerate(relation.structures):
+            if not any(len(structure.path) > len(root) and structure.path[:len(root)] == root for root in roots):
+                raise ValueError("a structure must lie strictly inside its own indexed-state closure")
+            if any(_patterns_overlap(structure.path, other.path) for other in relation.structures[:order]):
+                raise ValueError("structure declarations overlap at the same node")
+            if any(_patterns_overlap(structure.path, history)
+                   for history in relation.histories if structure.kind == "mapping" or structure.length is not None):
+                raise ValueError("a fixed structure cannot also be a trimmable history")
         for pattern in relation.histories:
             owned = any(len(pattern) > len(root) and pattern[:len(root)] == root
-                        for root in (relation.table, *relation.keyed_by, *relation.references))
+                        for root in roots)
             if not owned:
                 raise ValueError("a history must lie strictly inside its own indexed-state closure")
             if any(len(pattern) <= len(other.table)
@@ -145,6 +189,50 @@ def _index(value: Any) -> int:
     return int(value)
 
 
+def _check_structure(what: dict, relation: _IndexedTable, structure: _Structure) -> None:
+    root = next(root for root in (relation.table, *relation.keyed_by, *relation.references)
+                if len(structure.path) > len(root) and structure.path[:len(root)] == root)
+    value = _at(what, root, default=_MISSING)
+    # An absent optional group has no positional records to reconstruct.
+    if value is _MISSING or value is None:
+        return
+
+    def check(node: Any, remaining: tuple[str, ...], path: tuple[str, ...]) -> None:
+        if not remaining:
+            expected = list if structure.kind == "list" else dict
+            if not isinstance(node, expected):
+                raise ValueError(f"retained structure at {'.'.join(path)} must be a {structure.kind}")
+            if structure.length is not None and len(node) != structure.length:
+                raise ValueError(f"retained structure at {'.'.join(path)} has the wrong fixed length")
+            if structure.required_fields and any(field not in node for field in structure.required_fields):
+                raise ValueError(f"retained structure at {'.'.join(path)} has missing required fields")
+            return
+        field, rest = remaining[0], remaining[1:]
+        if field == "*":
+            if isinstance(node, dict):
+                children = node.items()
+            elif isinstance(node, list):
+                children = enumerate(node)
+            else:
+                raise ValueError(f"retained wildcard container at {'.'.join(path)} must be a list or mapping")
+            for key, child in children:
+                check(child, rest, (*path, str(key)))
+            return
+        if isinstance(node, dict):
+            child = node.get(field, _MISSING)
+        elif isinstance(node, list) and re.fullmatch(r"0|[1-9][0-9]*", field):
+            child = node[int(field)] if int(field) < len(node) else _MISSING
+        else:
+            raise ValueError(f"retained structure path at {'.'.join(path)} has a malformed container")
+        if child is _MISSING:
+            if structure.required:
+                raise ValueError(f"retained structure at {'.'.join((*path, field))} is required")
+            return
+        check(child, rest, (*path, field))
+
+    check(value, structure.path[len(root):], root)
+
+
 def _check_relation(what: dict, relation: _IndexedTable) -> None:
     table = _at(what, relation.table)
     if table is None:
@@ -165,6 +253,8 @@ def _check_relation(what: dict, relation: _IndexedTable) -> None:
         reference = _at(what, path)
         if reference is not None and _index(reference) >= len(table):
             raise ValueError("an indexed-state scalar reference lies outside its table")
+    for structure in relation.structures:
+        _check_structure(what, relation, structure)
 
 
 def validate_indexed_state(what: Mapping[str, Any], *, indexed_tables: Sequence[Mapping[str, Any]] = ()) -> dict[str, Any]:
@@ -173,15 +263,21 @@ def validate_indexed_state(what: Mapping[str, Any], *, indexed_tables: Sequence[
     Callers can declare older records' tables without rewriting their files.
     Once any reference is outside a table, its in-range references cannot be
     assumed sound either: an older writer may have removed the table's prefix.
+    A caller's current declaration replaces every stored declaration for the
+    same concrete table. Retired paths remain unvalidated independent data;
+    their former association is neither carried forward nor inferred.
     """
     held = json.loads(json.dumps(what))
-    if indexed_tables:
-        declared = json.loads(json.dumps(list(indexed_tables)))
-        existing = held.get(_INDEXED_TABLES, [])
-        if isinstance(existing, list):
-            declared.extend(item for item in existing if item not in declared)
-        held[_INDEXED_TABLES] = declared
     try:
+        if indexed_tables:
+            declared = json.loads(json.dumps(list(indexed_tables)))
+            existing = held.get(_INDEXED_TABLES, [])
+            if isinstance(existing, list):
+                tables = {_path(item.get("table")) for item in declared if isinstance(item, dict)}
+                declared.extend(item for item in existing
+                                if not isinstance(item, dict) or not isinstance(item.get("table"), (list, tuple))
+                                or tuple(item["table"]) not in tables)
+            held[_INDEXED_TABLES] = declared
         relations = _relations(held)
     except (TypeError, ValueError) as why:
         record_degradation("what_she_learned", why, severity="info", action="rejected knowledge with an invalid indexed-state declaration")
@@ -237,6 +333,12 @@ def _history(path: tuple[str, ...], relations: tuple[_IndexedTable, ...]) -> boo
                for relation in relations for pattern in relation.histories)
 
 
+def _fixed_structure(path: tuple[str, ...], relations: tuple[_IndexedTable, ...]) -> bool:
+    return any(structure.length is not None and len(path) == len(structure.path)
+               and all(a == b or a == "*" for a, b in zip(structure.path, path, strict=True))
+               for relation in relations for structure in relation.structures)
+
+
 def _protected(path: tuple[str, ...], relations: tuple[_IndexedTable, ...]) -> bool:
     if path[:1] == (_INDEXED_TABLES,):
         return True
@@ -249,7 +351,7 @@ def _the_longest_list(value: Any, path: tuple[str, ...] = (), *,
     """The longest history that can be shortened without changing structure."""
     best: tuple[tuple[str, ...], list] | None = None
     if isinstance(value, list):
-        if not _protected(path, relations) or _history(path, relations):
+        if not _fixed_structure(path, relations) and (not _protected(path, relations) or _history(path, relations)):
             best = (path, value)
         items = enumerate(value)
     elif isinstance(value, dict):
@@ -375,6 +477,23 @@ def _indexed_knowledge_invariant() -> tuple:
     assert fitted["symbols"][fitted["selected"]]["name"] == "object 29", "a selected symbol changed identity"
     for index, finding in fitted["findings"].items():
         assert len(finding) == 9 and fitted["symbols"][int(index)]["name"] == f"object {finding[0]}", "a finding changed its subject or shape"
+    return ()
+
+
+@invariant("runtime.retained_structures_reject_damaged_closures", scope="runtime",
+           owner="core/runtime/what_she_learned.py", observational=False)
+def _retained_structure_invariant() -> tuple:
+    schema = [{"table": ["sensors"], "keyed_by": [["calibration"]],
+               "structures": [{"path": ["sensors", "*", "axes"], "length": 3, "required": True},
+                              {"path": ["calibration", "*"], "length": 6}]},
+              {"table": ["documents"], "keyed_by": [["layouts"]],
+               "structures": [{"path": ["layouts", "*"], "length": 4}]}]
+    source = {"sensors": [{"axes": [1, 2]}], "calibration": {"0": [0] * 6},
+              "documents": ["a measured page"], "layouts": {"0": [10, 20, 30, 40]}, "note": "independent"}
+    held = validate_indexed_state(source, indexed_tables=schema)
+    assert "sensors" not in held and "calibration" not in held, "a damaged positional vector reached its reader"
+    assert held["documents"] == source["documents"] and held["layouts"] == source["layouts"], "an unrelated closure was lost"
+    assert held["note"] == source["note"] and source["sensors"][0]["axes"] == [1, 2], "validation changed its source"
     return ()
 
 

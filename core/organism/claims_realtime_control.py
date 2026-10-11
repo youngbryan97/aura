@@ -26,7 +26,10 @@ def install_realtime_control_claims(suite: Any) -> None:
     from core.perception.the_drawing_as_objects import _scene_requires_a_matching_complete_frame
     from core.perception.where_the_words_point import _named_places_invariant
     from core.runtime.executors import _interactive_and_receipt_workers_are_separate
-    from core.runtime.what_she_learned import _indexed_knowledge_invariant
+    from core.runtime.what_she_learned import (
+        _indexed_knowledge_invariant,
+        _retained_structure_invariant,
+    )
 
     for name, owner, fixture, probe, statement in (
         ("procedures_require_owned_effects", "core/cognition/reading_the_rules.py",
@@ -69,6 +72,22 @@ def install_realtime_control_claims(suite: Any) -> None:
         statement="Emission learning accepts effects during input delivery and requires distinct unambiguous trials.",
         test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
         evidence_note="Delivery windows, repeated births, ambiguity and failed fresh trials measured; live gameplay requires separate evidence.",
+    ))
+
+    name = "retained_structures_reject_damaged_closures"
+    owner = "core/runtime/what_she_learned.py"
+    suite.add_test(ValidationTest(
+        name=name, description="damaged declared positional structures exclude their closure and preserve independent knowledge",
+        required_capability="", observation=Observation("damaged_structures_excluded", True,
+                "tests/test_retained_positional_structures_keep_their_shape.py"),
+        predict=lambda _model: _retained_structure_invariant() == (),
+        score=lambda value, observation, subject=name: boolean_score(value, expected=observation.value, subject=subject),
+        owner=owner,
+    ))
+    suite.add_claim(Claim(
+        statement="Declared retained positional structures are validated before reuse, excluding damaged closures while preserving independent knowledge.",
+        test=name, owner=owner, asserted_in=owner, evidence=Evidence.MEASURED_SYNTHETIC,
+        evidence_note="Fixed records, vectors, schema evolution and bounded roundtrips measured in independent synthetic domains; live use requires separate evidence.",
     ))
 
     name = "indexed_knowledge_keeps_relationships"
