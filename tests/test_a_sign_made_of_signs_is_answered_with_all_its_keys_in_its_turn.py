@@ -139,7 +139,7 @@ class _Hands:
 
 
 async def _played(strip: _Strip, seconds: float, signs: SignsComing | None = None) -> SignsComing:
-    moves, signs, hands = WhatMoves(), signs or SignsComing(), _Hands(strip)
+    moves, signs, hands = WhatMoves(), signs or SignsComing(told=True), _Hands(strip)     # a place that asks for signs
     while strip.now < seconds:
         picture, at = await strip.look()
         moves.see(picture, at)
@@ -166,7 +166,7 @@ def test_a_line_known_before_is_answered_from_its_first_sign_pairs_and_all():
     first = _Strip(seed=3)
     learned = asyncio.run(_played(first, 30.0))
     second = _Strip(seed=11, pairs_from=0)
-    asyncio.run(_played(second, 25.0, SignsComing(learned.known())))
+    asyncio.run(_played(second, 25.0, SignsComing(learned.known(), told=True)))
     assert second.wrong <= 2 and second.good >= 25, (second.good, second.wrong)
     assert second.good_pairs >= second.pairs - 2, (second.good_pairs, second.pairs)
 
@@ -336,3 +336,21 @@ def test_a_sign_passing_over_a_part_of_the_strip_that_is_nearly_its_own_colour_i
     asyncio.run(_played(strip, 26.0, SignsComing(dict(LINE), told=True)))
     assert strip.pairs >= 6 and strip.wrong <= 1, (strip.good, strip.wrong, strip.pairs, strip.good_pairs)
     assert strip.good_pairs >= strip.pairs - 4            # all but those still on the strip at the end
+
+
+def test_things_going_together_down_a_line_where_nothing_asks_for_signs_are_not_read_as_a_line_of_signs():
+    """Offline 2026-10-12: eggs falling in a game of catching them were read whole as a line of signs at every look
+    of its play, in a place that had asked for none."""
+    strip = _Strip(seed=3)
+
+    async def watched() -> SignsComing:
+        moves, signs = WhatMoves(), SignsComing()
+        while strip.now < 8.0:
+            picture, at = await strip.look()
+            moves.see(picture, at)
+            signs.see(moves, picture, at)
+        return signs
+
+    signs = asyncio.run(watched())
+    assert signs.going is not None and signs.strip is None
+    assert "ink" not in (signs.known() or {}) or SignsComing(signs.known()).strip is None

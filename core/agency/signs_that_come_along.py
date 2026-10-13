@@ -112,7 +112,7 @@ class SignsComing:
         self._stays_before = known.get("stays") if isinstance(known, dict) else None
         if isinstance(known, dict):
             self.going, self.on_line = tuple(known["going"]), tuple(known["on_line"])
-            if known.get("ink") is not None and known.get("size"):
+            if told and known.get("ink") is not None and known.get("size"):
                 self._read_the_strip_whole(tuple(known["ink"]), float(known["size"]), known.get("shapes") or {})
         elif known:
             self.going, self.on_line = (tuple(known[0]), tuple(known[1]))
@@ -161,7 +161,11 @@ class SignsComing:
         self.front = True if front is not None else None
         self.asked = (front["is"] or _mostly(front["read"])) if front is not None else ""
         self.asked_keys = frozenset({self.asked}) if self.asked else frozenset()
-        agreed = self._ink_and_size() if self.going is not None and self.signs_read >= SIGNS_READ_AT_LEAST else None
+        # The line is read whole only where the place has asked for signs to be followed: things going together down
+        # a line in a place that asks nothing of the kind (eggs falling, a rank of marchers) are watched as things
+        # are, and a reading of them as a line of signs, at every look, was time spent on nothing (2026-10-12).
+        agreed = (self._ink_and_size() if self.told and self.going is not None and self.signs_read >= SIGNS_READ_AT_LEAST
+                  else None)
         if agreed is not None:
             self._read_the_strip_whole(agreed[0], agreed[1], {})
 
