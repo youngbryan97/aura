@@ -44,3 +44,31 @@ this checkpoint changes no over-limit module or class. Governance still
 reports 123 existing regressions, with none in this checkpoint's changed
 modules. No baseline was changed. Governance log:
 `/private/tmp/codex-steer/rigid-patch-governance-1014.log`.
+
+## Browser repeat at b3cac84af
+
+The clean frozen worktree at `b3cac84af89e7407356e7bab964a051ea99b761f`
+repeated the assigned game 9 measurement through the browser entry. It
+took 193.626 seconds and reported a loss followed by an unread run. It did
+not win. Of 1,024 facing-binding decisions, 31 carried a body attribution;
+none qualified an optical heading. Median picture age was 0.19123 seconds.
+
+The candidate log contained 13 current candidates matching those body
+attributions; eight had point-supported angular phases. The controller
+changed between visual numbers 27 and 265, resetting its experiment, and
+then lost sight. These are unverified attributions to observed pieces,
+not independent proof of the controlled vehicle. No readiness claim follows.
+
+The public-renderer audit confirmed WebGL 2 instancing on the assigned page.
+The existing direct paint observer handles simple Canvas 2D geometry.
+The instanced audit captured two initial-surface draws and compiled shader
+interfaces. It did not start active play or decode actor geometry. No
+renderer geometry decoder is implemented or qualified by that audit.
+API references were the [Khronos WebGL specifications](https://registry.khronos.org/webgl/specs/latest/2.0/)
+and [SpectorJS's documented capture interface](https://github.com/BabylonJS/Spector.js/blob/master/documentation/apis.md).
+The audit used original hooks on public drawing calls, with no game-private
+variables supplied to the controller.
+
+- Browser repeat: `/private/tmp/codex-steer/candidates-after-rigid-texture-original9-1014/results.json`
+- Current candidates: `/private/tmp/codex-steer/candidates-after-rigid-texture-original9-1014/candidate-measurements.jsonl`
+- Public renderer audit: `/private/tmp/codex-steer/actual-instanced-renderer-public-metadata-1014/public-renderer-metadata.json`

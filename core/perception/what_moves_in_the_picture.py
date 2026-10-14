@@ -1072,7 +1072,12 @@ class WhatMoves:
         for number, (_lost, born) in self.on_things.see(self.points.points, self.things, at).items():
             thing = self.things.get(number)
             if thing is not None and born < thing.born:
+                previous_birth = thing.born
                 thing.born = born
+                pose = getattr(thing, 'point_pose', None)
+                if (pose is not None and thing.seen == at and pose.at == at and pose.born == previous_birth
+                        and pose.reference_at is not None and previous_birth <= pose.reference_at <= at):
+                    pose.born = born
         for number, thing in self.things.items():
             thing.closing_s = self.on_things.closing_s(number)
 
@@ -1246,4 +1251,25 @@ def _missing_points_invariant() -> tuple:
     assert not math.isfinite(moves._cost(body, patch, 1.1))
     patch["look"] = look
     assert math.isfinite(moves._cost(body, patch, 1.1))
+    return ()
+
+
+@invariant('perception.a_current_point_pose_keeps_its_objects_restored_birth', scope='perception',
+           owner='core/perception/what_moves_in_the_picture.py', observational=False)
+def _point_pose_birth_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    from core.perception.position_from_the_same_points import PointPose
+
+    pose = PointPose(1., 1., (2., 2.), {}, (2., 2.), reference_at=1., angular_reference_at=1.)
+    thing = SimpleNamespace(born=1., seen=1., point_pose=pose)
+    eyes = WhatMoves()
+    eyes.things = {2: thing}
+    eyes.points = SimpleNamespace(points=())
+    eyes.on_things = SimpleNamespace(see=lambda *_a: {2: (1, 0.)}, closing_s=lambda *_a: None)
+    eyes._what_the_points_say(1.)
+    assert thing.born == pose.born == 0. and pose.angular_reference_at == 1.
+    pose.born, pose.at, thing.born = 1., .9, 1.
+    eyes._what_the_points_say(1.)
+    assert pose.born == 1.
     return ()

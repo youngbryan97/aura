@@ -642,7 +642,10 @@ def _visual_motion_claims() -> tuple:
     )
     from core.perception.the_whole_patch_around_a_visible_corner import _whole_patch_invariant
     from core.perception.translation_from_visible_support import _translation_support_invariant
-    from core.perception.what_moves_in_the_picture import _missing_points_invariant
+    from core.perception.what_moves_in_the_picture import (
+        _missing_points_invariant,
+        _point_pose_birth_invariant,
+    )
     from core.perception.what_the_points_on_a_thing_say import _point_meaning_invariant
     from core.skills.a_new_attempt_must_be_seen import _new_attempt_invariant
 
@@ -803,6 +806,9 @@ def _visual_motion_claims() -> tuple:
         ("missing_points_do_not_relax_object_identity", "core/perception/what_moves_in_the_picture.py",
          "tests/test_points_keep_their_observed_motion.py", lambda: _missing_points_invariant() == (),
          "Missing point support cannot relax measured shape and appearance continuity or lend an identity through a shared kind."),
+        ("current_point_pose_keeps_restored_object_lifetime", "core/perception/what_moves_in_the_picture.py",
+         "tests/test_a_continuing_point_pose_keeps_its_objects_birth.py", lambda: _point_pose_birth_invariant() == (),
+         "A current point pose shares its object's restored lifetime while retaining its own angle basis; stale or unrelated poses cannot inherit that tag."),
         ("point_meaning_requires_current_owned_support", "core/perception/what_the_points_on_a_thing_say.py",
          "tests/test_the_points_on_a_thing_say_how_soon_it_arrives.py", lambda: _point_meaning_invariant() == (),
          "Point-derived approach and identity require current owned pixels; absent support and ambiguous or expired owners remain unknown."),
