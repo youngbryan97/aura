@@ -32,6 +32,8 @@ class PositionProgram:
     structures: tuple[tuple[str, tuple[tuple[str, ShaderType], ...]], ...]
     inputs: tuple[tuple[str, ShaderType], ...]
     blocks: tuple[tuple[str, str | None], ...] = ()
+    outputs: tuple[tuple[str, Expression], ...] = ()
+    input_qualifiers: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 _TOKEN = re.compile(r"[A-Za-z_][A-Za-z_0-9]*|(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?[uUfF]?|[{}()\[\].,;=+*/%-]")
@@ -39,7 +41,8 @@ _QUALIFIERS = frozenset({"in", "out", "uniform", "const", "smooth", "flat", "cen
 _NUMERIC = frozenset({"float", "int", "uint", "bool"} | {prefix + str(i) for prefix in ("vec", "ivec", "uvec", "bvec")
                       for i in (2, 3, 4)} | {"mat" + str(i) for i in (2, 3, 4)}
                      | {f"mat{c}x{r}" for c in (2, 3, 4) for r in (2, 3, 4)})
-_PURE_CALLS = frozenset({"clamp", "min", "max", "abs", "sin", "cos", "sqrt"})
+_OPAQUE = frozenset({"sampler2D"})
+_PURE_CALLS = frozenset({"clamp", "min", "max", "abs", "sin", "cos", "sqrt", "texture"})
 
 
 def _tokens(source: str) -> tuple[str, ...]:
@@ -69,7 +72,9 @@ class _Parser:
         self.tokens, self.cursor = _tokens(source), 0
         self.structures: dict[str, tuple[tuple[str, ShaderType], ...]] = {}
         self.blocks: dict[str, str | None] = {}
-        self.inputs = {"gl_InstanceID": ShaderType("int"), "gl_VertexID": ShaderType("int")}
+        self.inputs = {"gl_InstanceID": ShaderType("int"), "gl_VertexID": ShaderType("int"), "gl_FragCoord": ShaderType("vec4")}
+        self.output_names: list[str] = []
+        self.input_qualifiers: dict[str, tuple[str, ...]] = {}
         self.variables = {name: Expression("input", (name, kind)) for name, kind in self.inputs.items()}
         self.variables["gl_Position"] = Expression("unknown", ("unassigned_position",))
         self.variables["gl_PointSize"] = Expression("unknown", ("unassigned_point_size",))
@@ -193,7 +198,7 @@ class _Parser:
                     self.declare(instance, self.array_type(kind), None, True)
                 self.take(";")
                 continue
-            if kind not in _NUMERIC and kind not in self.structures:
+            if kind not in _NUMERIC and kind not in self.structures and kind not in _OPAQUE:
                 raise UnsupportedPositionError("global_type")
             name = self.identifier()
             declared = self.array_type(kind)
@@ -204,9 +209,15 @@ class _Parser:
             self.take(";")
             external = "in" in qualifiers or "uniform" in qualifiers
             self.declare(name, declared, expression, external)
+            if external:
+                self.input_qualifiers[name] = qualifiers
+            if "out" in qualifiers:
+                self.output_names.append(name)
         if not self.main_seen:
             raise UnsupportedPositionError("missing_main")
-        return PositionProgram(self.variables["gl_Position"], tuple(self.structures.items()), tuple(self.inputs.items()), tuple(self.blocks.items()))
+        return PositionProgram(self.variables["gl_Position"], tuple(self.structures.items()), tuple(self.inputs.items()),
+                               tuple(self.blocks.items()), tuple((n, self.variables[n]) for n in self.output_names),
+                               tuple(self.input_qualifiers.items()))
 
     def body(self) -> None:
         self.take("{")

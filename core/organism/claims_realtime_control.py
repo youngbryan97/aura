@@ -605,6 +605,7 @@ def _visual_motion_claims() -> tuple:
     )
     from core.perception.a_reading_before_more_detail import _finished_reading_invariant
     from core.perception.a_reference_kept_by_visible_support import _reference_bridge_invariant
+    from core.perception.a_texture_copied_by_its_shader import _texture_copy_invariant
     from core.perception.activity_in_the_picture import _picture_activity_invariant
     from core.perception.background_visible_beside_a_patch import _exposed_background_invariant
     from core.perception.boundary_support_for_translation import _visible_boundary_invariant
@@ -671,6 +672,9 @@ def _visual_motion_claims() -> tuple:
         ("uniform_bytes_keep_resource_versions", "core/perception/shader_uniforms_from_buffer_bytes.py",
          "tests/test_shader_uniforms_from_buffer_bytes.py", lambda: _uniform_resource_invariant() == (),
          "Uniform fields use declared names, reflected layouts and matching captured buffer generations; missing or reused bytes remain unknown."),
+        ("texture_copy_requires_unchanged_dataflow", "core/perception/a_texture_copied_by_its_shader.py",
+         "tests/test_a_texture_copied_by_its_shader.py", lambda: _texture_copy_invariant() == (),
+         "An admitted fragment copy requires one unchanged texture sample and declared smooth coordinates; altered color, coordinates and multiple outputs stay unknown."),
         ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
          "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),
