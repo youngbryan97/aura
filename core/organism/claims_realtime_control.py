@@ -423,7 +423,9 @@ def _travel_turn_claims() -> tuple:
     )
     from core.agency.a_trial_has_a_physical_end import _physical_trial_deadline_invariant
     from core.agency.calibration_for_a_current_body import _current_body_calibration_invariant
-    from core.agency.direction_linked_to_observed_pose import _pose_direction_invariant
+    from core.agency.direction_linked_to_observed_pose import (
+        _pose_direction_invariant,
+    )
     from core.agency.facing_seen_under_its_input import _fresh_heading_invariant
     from core.agency.response_in_the_body_frame import _body_heading_invariant
     from core.agency.steering_from_a_model import (
@@ -580,6 +582,7 @@ def _visual_motion_claims() -> tuple:
     )
     from core.agency.arriving_by_her_pushes import _arrival_braking_invariant
     from core.agency.controls_that_take_time_to_build import _stored_response_invariant
+    from core.agency.direction_linked_to_observed_pose import _pose_coverage_invariant
     from core.agency.finding_her_another_way import _current_body_motion_invariant
     from core.agency.following_a_prepared_path import _prepared_path_invariant
     from core.agency.how_a_game_works import _parsed_body_trial_invariant, _picture_checks_invariant
@@ -628,6 +631,7 @@ def _visual_motion_claims() -> tuple:
     )
     from core.perception.points_before_the_picture_is_reduced import (
         _source_point_geometry_invariant,
+        _source_point_precision_invariant,
     )
     from core.perception.points_shared_with_changing_regions import _point_capacity_invariant
     from core.perception.points_that_keep_their_motion import _point_identity_invariant
@@ -655,6 +659,12 @@ def _visual_motion_claims() -> tuple:
         ("source_marks_return_to_one_working_geometry", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_source_points_keep_their_visible_detail.py", lambda: _source_point_geometry_invariant() == (),
          "Source-resolution marks retain their identities and observation times when mapped to working coordinates; changed geometry breaks their correspondence."),
+        ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
+         "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
+         "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),
+        ("pose_calibration_keeps_measured_phase_coverage", "core/agency/direction_linked_to_observed_pose.py",
+         "tests/test_direction_calibration_keeps_measured_phase_coverage.py", lambda: _pose_coverage_invariant() == (),
+         "A bounded direction calibration retains measured phase coverage and the latest disagreement; repeated nearby observations cannot remove all excitation or hide a contradictory pair."),
         ("prepared_motion_releases_only_its_owned_input_set", "core/agency/acting_on_a_prepared_motion.py",
          "tests/test_prepared_motion_keeps_its_input_set.py", lambda: _prepared_input_set_invariant() == (),
          "A prepared model action owns its acknowledged key set and finite physical hold; interruption releases its own inputs without advancing an incomplete path."),

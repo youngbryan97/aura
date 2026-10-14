@@ -37,7 +37,9 @@ def current_angular_phase(thing: Any, at: float) -> AngularPhase | None:
 
 def _phase_of_pose(pose: PointPose) -> AngularPhase | None:
     reference_at = getattr(pose, 'angular_reference_at', None)
-    if (reference_at is None or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+    if (reference_at is None or not isinstance(pose.pixel_size, (int, float)) or isinstance(pose.pixel_size, bool)
+            or not math.isfinite(pose.pixel_size) or pose.pixel_size <= 0.
+            or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
                                       for v in (reference_at, pose.born, pose.at, pose.angular_offset, pose.angular_error))
             or not pose.born <= reference_at <= pose.at or not 0. <= pose.angular_error <= .12
             or not isinstance(pose.anchors, dict) or not isinstance(getattr(pose, 'visible_marks', None), dict)):
@@ -64,8 +66,9 @@ def _phase_of_pose(pose: PointPose) -> AngularPhase | None:
                        for v in pose.position)):
         return None
     return AngularPhase(pose.at, reference_at, (fitted.angle+pose.angular_offset+math.pi) % (2.*math.pi)-math.pi,
-                        math.hypot(pose.angular_error, angular_uncertainty(starts, ends, fitted)),
-                        pose.position, .25+fitted.error)
+                        math.hypot(pose.angular_error, angular_uncertainty(starts, ends, fitted,
+                            resolution=.25*pose.pixel_size)),
+                        pose.position, .25*pose.pixel_size+fitted.error)
 
 
 @invariant('perception.angular_phase_requires_current_owned_material_marks', scope='perception',

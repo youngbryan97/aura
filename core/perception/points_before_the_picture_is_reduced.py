@@ -8,6 +8,8 @@ measured in both directions before a point keeps its name.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
+from typing import Any
 
 import numpy as np
 from scipy import ndimage
@@ -122,6 +124,15 @@ class PointsBeforeReduction(FollowingPoints):
         self._native_points, self._colours, self._geometry = (), None, None
         self._activity = None
 
+    def motion_of(self, thing: Any, at: float) -> Any:
+        """Publish the tracked grid's cell size in the same units as its coordinates."""
+        motion = super().motion_of(thing, at)
+        if motion is None or self._geometry is None:
+            return motion
+        _original, tracked, working = self._geometry
+        size = max(working[axis]/tracked[axis] for axis in (0, 1))
+        return replace(motion, pixel_size=size)
+
     def see_source(self, source: np.ndarray, working: np.ndarray, at: float) -> tuple[SeenPoint, ...]:
         """A source and its reduced view must belong to this one capture and geometry."""
         if (source.ndim != 3 or working.ndim != 3 or min(source.shape[:2]) < 16
@@ -216,4 +227,21 @@ def _source_point_geometry_invariant() -> tuple:
                         point.at, point.error, point.pictures)
     assert (exposed.x, exposed.y, exposed.old_x, exposed.old_y) == (15., 15., 14.5, 14.)
     assert exposed.number == point.number and exposed.before == point.before and exposed.at == point.at
+    return ()
+
+
+@invariant('perception.point_resolution_keeps_the_tracked_grids_units', scope='perception',
+           owner='core/perception/points_before_the_picture_is_reduced.py', observational=False)
+def _source_point_precision_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    image = np.full((120, 160, 3), 25, np.uint8)
+    image[35:65, 40:64] = np.random.default_rng(47).integers(35, 240, (30, 24, 3), dtype=np.uint8)
+    observer = PointsBeforeReduction(limit=96)
+    working = image[::2, ::2].copy()
+    observer.see_source(image, working, 1.)
+    observer.see_source(image, working, 1.1)
+    body = SimpleNamespace(x=26., y=25., w=12., h=15., seen=1., support=np.ones((15, 12), bool))
+    motion = observer.motion_of(body, 1.1)
+    assert motion is not None and motion.pixel_size == .5
     return ()

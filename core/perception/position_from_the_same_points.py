@@ -29,6 +29,7 @@ class PointPose:
     angular_reference_at: float | None = None
     angular_offset: float = 0.
     angular_error: float = 0.
+    pixel_size: float = 1.
 
 
 def measured_position(thing: Any) -> tuple[float, float]:
@@ -55,8 +56,11 @@ def position_from_points(thing: Any, blob: dict, motion: Any, at: float) -> tupl
         return None
     origin = float(blob["x"]), float(blob["y"])
     seed = PointPose(thing.born, at, origin, current, origin, reference_at=at,
-                     visible_marks=dict(current), angular_reference_at=at)
-    if previous is None or previous.born != thing.born or previous.at != thing.seen:
+                     visible_marks=dict(current), angular_reference_at=at,
+                     pixel_size=getattr(motion, 'pixel_size', 1.))
+    if (previous is None or previous.born != thing.born or previous.at != thing.seen
+            or not isinstance(previous.pixel_size, (int, float)) or isinstance(previous.pixel_size, bool)
+            or not math.isfinite(previous.pixel_size) or previous.pixel_size <= 0.):
         thing.point_pose = seed
         return None
     names = previous.anchors.keys() & current.keys()
@@ -92,6 +96,7 @@ def _continue_rotating_marks(thing: Any, previous: PointPose, current: dict, nam
     before = previous.position
     previous.anchors, previous.position, previous.at = anchors, position, at
     previous.visible_marks = dict(current)
+    previous.pixel_size = max(previous.pixel_size, seed.pixel_size)
     thing.point_pose = previous
     return before, position
 
@@ -112,17 +117,22 @@ def _bridge_angular_basis(previous: PointPose, current: PointPose) -> None:
     fitted = rigid_motion(starts, ends)
     if fitted is None:
         return
-    error = math.hypot(phase.uncertainty, angular_uncertainty(starts, ends, fitted))
+    error = math.hypot(phase.uncertainty, angular_uncertainty(starts, ends, fitted,
+        resolution=.25*max(previous.pixel_size, current.pixel_size)))
     if error > .12:
         return
     current.angular_reference_at = phase.reference_at
     current.angular_offset = (phase.angle+fitted.angle+math.pi) % (2.*math.pi)-math.pi
     current.angular_error = error
+    current.pixel_size = max(previous.pixel_size, current.pixel_size)
 
 
 def _owned_marks(thing: Any, blob: dict, motion: Any, at: float) -> dict | None:
     """The current motion must name unique marks inside current observed support."""
     if getattr(motion, 'rigid', None) is not None and not motion.has_rigid_pose():
+        return None
+    size = getattr(motion, 'pixel_size', 1.)
+    if not isinstance(size, (int, float)) or isinstance(size, bool) or not math.isfinite(size) or size <= 0.:
         return None
     if (motion is None or motion.before != thing.seen or motion.at != at
             or not all(math.isfinite(v) for v in (at, thing.seen, thing.born, motion.dx, motion.dy))

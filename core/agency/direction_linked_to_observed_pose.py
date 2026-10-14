@@ -57,7 +57,7 @@ class DirectionFromPose:
             if (not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
                         for v in (sampled, error)) or not 0. <= error <= .12):
                 return
-            self.samples.append(_Pair(sampled, direction, error))
+            self._keep_sample(_Pair(sampled, direction, error))
         if len(self.samples) < 3:
             return
         phases = [sample.phase for sample in self.samples]
@@ -69,6 +69,24 @@ class DirectionFromPose:
                for sample, value in zip(self.samples, offsets, strict=True)):
             return
         self.current = _wrap(phase+offset)
+
+    def _keep_sample(self, sample: _Pair) -> None:
+        """Keep measured phase coverage; repeated nearby poses cannot crowd it out.
+
+        The latest observation always stays, including a contradiction. A
+        replacement removes no more than one older sample from the fixed
+        budget. The existing agreement test still checks every retained pair.
+        """
+        values = [*self.samples, sample]
+        if len(values) > self.samples.maxlen:
+            def coverage_without(index):
+                remaining = [p for i, p in enumerate(values) if i != index]
+                spread = max(abs(_wrap(a.phase-b.phase)) for a in remaining for b in remaining)
+                return spread, values[index].uncertainty, -index
+            remove = max(range(len(values)-1), key=coverage_without)
+            del values[remove]
+        self.samples.clear()
+        self.samples.extend(values)
 
 
 @invariant('agency.a_pose_direction_requires_observed_travel_agreement', scope='agency',
@@ -83,4 +101,16 @@ def _pose_direction_invariant() -> tuple:
     assert math.isclose(relation.current, 1.5)
     relation.observe('new-body', 5., 1.3, .01, direction=None)
     assert relation.current is None
+    return ()
+
+
+@invariant('agency.pose_calibration_keeps_measured_phase_coverage', scope='agency',
+           owner='core/agency/direction_linked_to_observed_pose.py', observational=False)
+def _pose_coverage_invariant() -> tuple:
+    relation = DirectionFromPose()
+    for i, phase in enumerate((0., .6, 1., *([.9]*32))):
+        relation.observe('body', 1.+i, phase, .01, direction=phase+.3)
+    assert len(relation.samples) == 16 and math.isclose(relation.current, 1.2)
+    relation.observe('body', 40., .9, .01, direction=2.2)
+    assert relation.current is None and relation.samples[-1].direction == 2.2
     return ()

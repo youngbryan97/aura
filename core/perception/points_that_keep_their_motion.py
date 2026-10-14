@@ -46,10 +46,13 @@ class PointMotion:
     points: tuple[int, ...] = ()
     locations: tuple[tuple[float, float], ...] = ()
     rigid: RigidMotion | None = None
+    pixel_size: float = 1.
 
     def has_rigid_pose(self) -> bool:
         pose = self.rigid
         return (pose is not None and len(pose.offset) == 2
+                and isinstance(self.pixel_size, (int, float)) and not isinstance(self.pixel_size, bool)
+                and math.isfinite(self.pixel_size) and self.pixel_size > 0.
                 and all(math.isfinite(v) for v in (pose.angle, *pose.offset, pose.error))
                 and 0. <= pose.error <= .75 and self.support >= 3 and self.support == len(self.points) == len(self.locations)
                 and len(set(self.points)) == self.support

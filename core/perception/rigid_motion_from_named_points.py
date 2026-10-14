@@ -35,17 +35,20 @@ def _fit(starts: np.ndarray, ends: np.ndarray) -> RigidMotion:
     return RigidMotion(angle, tuple(float(v) for v in offset), (), 0.)
 
 
-def angular_uncertainty(starts: np.ndarray, ends: np.ndarray, fitted: RigidMotion) -> float:
+def angular_uncertainty(starts: np.ndarray, ends: np.ndarray, fitted: RigidMotion, *, resolution: float = .25) -> float:
     """Estimate angular RMS error from the measured consensus and quarter-pixel resolution.
 
     This estimate does not bound correlated correspondence errors or drift.
     """
+    if (not isinstance(resolution, (int, float)) or isinstance(resolution, bool)
+            or not math.isfinite(resolution) or resolution <= 0.):
+        return math.inf
     inside = np.asarray(starts)[list(fitted.inliers)]
     observed = np.asarray(ends)[list(fitted.inliers)]
     span = float(np.sqrt(np.mean(np.sum((inside-inside.mean(axis=0))**2, axis=1))))
     residual = fitted.apply(inside)-observed
     error = float(np.sqrt(np.mean(np.sum(residual**2, axis=1))))
-    return math.atan2(.25+error, span)
+    return math.atan2(resolution+error, span)
 
 
 def rigid_motion(starts: np.ndarray, ends: np.ndarray, *, error: float = .75) -> RigidMotion | None:
