@@ -58,3 +58,22 @@ dependency consistency, compile, lint and smoke. Global size debt remains
 class remains at 22 methods against 20. Governance reports 123 existing
 regressions. No changed module is a listed governance offender and no
 baseline changed. Log: `/private/tmp/codex-steer/point-unit-gates-1014.log`.
+
+## Browser measurement at 642ce99e0
+
+The clean frozen checkout at `642ce99e0775e461f1963b743edc8c44ebb0d00c`
+ran assigned game 9 for 193.466 seconds. It reported a loss followed by an
+unread run, with no win. None of 938 recorded decisions had a body
+attribution, current owned pose or optical heading. Median picture age was
+0.20452 seconds. The steering changes therefore have no demonstrated gain
+through this entry. No resident runtime or exclusive G09 job was restarted
+or stopped, and visual model requests remained refused by the owned lane.
+
+The two preceding app-path measurements differ in body attribution, so the
+304 attributed decisions at the preceding checkpoint have not demonstrated
+reliable discovery. The current upstream failure needs further observation;
+the unit and pixel-world results cannot close it.
+
+- Result: `/private/tmp/codex-steer/point-unit-and-coverage-original9-1014/results.json`
+- Recorded choices: `/private/tmp/codex-steer/point-unit-and-coverage-original9-1014/facing-receipts.jsonl`
+- Point and object records: `/private/tmp/codex-steer/point-unit-and-coverage-original9-1014/candidate-measurements.jsonl`
