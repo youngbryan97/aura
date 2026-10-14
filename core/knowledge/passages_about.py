@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -84,9 +85,13 @@ def _terms(text: str) -> set[str]:
 def _article_for(store: Any, name: str, deadline_s: float) -> Any:
     from core.knowledge.corpus_grounding import _title_distance
 
-    hit = store.by_title(name)
+    started = time.monotonic()
+    hit = store.by_title(name, deadline_s=deadline_s)
     if hit is not None:
         return hit
+    deadline_s -= time.monotonic() - started
+    if deadline_s <= 0:
+        return None
     titled = store.search_titles(name, limit=10, deadline_s=deadline_s) if hasattr(store, "search_titles") else []
     if titled:
         return min(titled, key=lambda candidate: _title_distance(name, candidate.title))
@@ -111,6 +116,9 @@ def passages_about(question: str, *, store: Any = None, limit: int | None = None
     her conversational grounding fetches for the passages it carries, and the
     pool is ordered by meaning before ``limit`` are taken: an answer is often
     worded otherwise than its question.
+
+    ``deadline_s`` bounds the whole lookup, not each search: a name not
+    reached in time is not looked up, and what was found by then is returned.
     """
     from core.knowledge.corpus_grounding import _CANDIDATE_POOL_FACTOR, DEFAULT_LIMIT
     from core.knowledge.local_corpus import SEARCH_DEADLINE_S
@@ -121,14 +129,20 @@ def passages_about(question: str, *, store: Any = None, limit: int | None = None
         store = LocalCorpusStore()
     limit = DEFAULT_LIMIT if limit is None else limit
     deadline_s = SEARCH_DEADLINE_S if deadline_s is None else deadline_s
+    expires = time.monotonic() + max(0.0, float(deadline_s))
     asked = _terms(question)
     articles: list[Any] = []
     for name in named_spans(question):
-        article = _article_for(store, name, deadline_s)
+        left = expires - time.monotonic()
+        if left <= 0:
+            break
+        article = _article_for(store, name, left)
         if article is not None and all(a.doc_id != article.doc_id for a in articles):
             articles.append(article)
     scored: list[tuple[float, int, str, str]] = []
     for order, article in enumerate(articles):
+        if order and time.monotonic() > expires:
+            break
         # The whole article: an answer is often well past its opening.
         paragraphs = list(_paragraphs(store.body(article.doc_id, max_chars=10**7)))
         held = [asked & _terms(p) for p in paragraphs]

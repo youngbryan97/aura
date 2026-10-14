@@ -407,8 +407,8 @@ class LocalCorpusStore:
         finally:
             conn.close()
 
-    def by_title(self, title: str) -> CorpusHit | None:
-        """The document with exactly this title, when there is one."""
+    def by_title(self, title: str, *, deadline_s: float = SEARCH_DEADLINE_S) -> CorpusHit | None:
+        """The document with exactly this title, when there is one, found within ``deadline_s``."""
         wanted = " ".join(str(title or "").split())
         if not wanted or not self.db_path.exists():
             return None
@@ -420,6 +420,8 @@ class LocalCorpusStore:
         # column of the full-text index answers in under 100ms, and the exact
         # comparison keeps a phrase match from standing in for the title.
         phrase = '"' + wanted.replace('"', '""') + '"'
+        expires_at = time.monotonic() + max(0.01, float(deadline_s))
+        conn.set_progress_handler(lambda: 1 if time.monotonic() > expires_at else 0, 2000)
         try:
             row = conn.execute(
                 "SELECT d.id, d.title, d.source, d.ingested_at FROM docs_fts AS f JOIN docs AS d ON d.id = f.rowid "

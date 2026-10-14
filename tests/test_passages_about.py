@@ -67,3 +67,24 @@ def test_with_her_embedder_the_pool_is_ordered_by_meaning(tmp_path: Path) -> Non
     # Reranking orders the words' candidates; a paragraph sharing only the subject's name is not one.
     assert all("died" not in p for _t, p in passages_about(question, store=store, limit=4,
                                                            rerank=lambda a, ps: [float("died" in x) for x in ps]))
+
+
+def test_a_question_about_named_things_is_asked_of_the_corpus_and_a_remark_to_her_is_not() -> None:
+    from core.knowledge.corpus_grounding import asks_about_named_things
+
+    assert asks_about_named_things("In what year did conductor David Randolph marry Mildred Greenberg?")
+    assert asks_about_named_things("Which school did Lucas Radebe attend")
+    for turn in ("Can you play Pong with me?", "Bryan here, did the new build work for you?",
+                 "Is it going to rain in Seattle tomorrow?", "How was your conversation with Claude earlier?",
+                 "open my notes", "hey Aura, how are you?", "what is it?"):
+        assert not asks_about_named_things(turn), turn
+
+
+def test_her_chat_falls_back_to_the_careful_lookup_when_its_own_search_finds_nothing(tmp_path: Path) -> None:
+    from core.knowledge.corpus_grounding import corpus_grounding_for
+
+    store = _store(tmp_path)
+    grounding = corpus_grounding_for("In what years did William Butts Ittner serve as president of the "
+                                     "Architectural League of America?", store=store)
+    assert grounding.grounded and any("1903 to 1904" in text for _title, text in grounding.passages)
+    assert not corpus_grounding_for("Can you play Pong with me?", store=store).grounded
