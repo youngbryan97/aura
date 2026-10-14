@@ -106,3 +106,50 @@ is `/private/tmp/codex-steer/graphics-map-gates-1014.log`.
 
 Ordinary Aura prompt submission, current visible-body discovery and a
 witnessed original-game success remain unproved. Presentation is not ready.
+
+## Paired capture follow-up
+
+The first paired diagnostic run, `paired-presentation-public-graphics-original9-1014`,
+completed in 105.158877 seconds at the frozen `642ce99e0` play revision. It
+made 526 decisions with zero body discoveries and saved no usable graphics
+receipt. This was a failed acquisition, not a passing graphics measurement.
+
+The collector had armed only until the next animation callback. A small
+independent WebGL probe verified its clear, blit, sampler and pixel-pairing
+hooks. Acquisition was then bounded by the first observed default-framebuffer
+presentation, or a 250 ms timeout, instead of assuming the next callback
+would contain a draw. Empty and failed snapshots now also receive status
+records. Those are private diagnostic changes, not production hooks.
+
+The follow-up `presentation-bounded-by-copy-original9-1014` completed in
+106.051560 seconds, exit 0, without timeout. It saved five public captures
+with 22, 24, 190, 187 and 187 draws respectively, all without recorded
+collector exceptions. Each includes a PNG read immediately after its
+recorded default-framebuffer blit. The last three show active play, including
+the rotated vehicle and the HUD. These are observed canvas pixels from the
+same synchronous presentation hook; they are not a native Aura prompt demo.
+
+Backing dimensions are 2560 by 1522. The measured CSS content rectangle is
+`x=0,y=28.5,width=1280,height=761`, with no CSS transform. PNG export costs
+19.3, 22.5, 22.3, 22.0 and 22.2 ms in the source clock. This diagnostic cost
+must not be mistaken for production capture throughput.
+
+The bound sampler overrides the texture object's parameters: its magnification
+is nearest, its minification is nearest with nearest mip selection, and both
+wrap axes clamp to edge. The observed texture base and maximum levels are
+zero. Presentation blending is enabled. The copy recognizer therefore still
+needs current sampler, alpha/raster and image-version custody before producing
+a proven presentation edge; object visibility cannot be assumed from geometry.
+
+The controller made 533 decisions with zero body discoveries, median recorded
+observation age 0.207545695 seconds, and no win. Candidate diagnostics show
+21,566 observations classified as changed appearance, against 4,761 from
+points, measured motion or support. Only 1,808 candidate observations retained
+material marks. The strongest F ratio with material marks had negligible
+velocity contrast; another candidate had a 20.201548 contrast but F 1.359776.
+These do not constitute a qualified control witness. No threshold was relaxed.
+
+The paired PNGs and capture status are under the follow-up directory in
+`/private/tmp/codex-steer/`. They supply the missing active-frame evidence for
+the next observation-provider stage. Production capture, draw-input decoding,
+pixel reconciliation and ordinary live control remain open.
