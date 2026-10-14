@@ -250,6 +250,8 @@ def main() -> int:
     left_out = {k for k in args.excluded.split(",") if k}
     kinds = [k for k in (every_kind() if args.kinds == "all" else args.kinds.split(",")) if k not in left_out]
     truths: dict[str, Any] = {}
+    # A key names its kind only for some benchmarks (a BBH key is "word_sorting:87"), so each is noted.
+    kind_of: dict[str, str] = {}
     families: dict[str, list[SolvedExample]] = {}
     graders = {kind: grader_for(kind) for kind in kinds}
     unconfirmable: dict[str, int] = {}
@@ -265,13 +267,15 @@ def main() -> int:
                 # agree with it and it cannot count as known.
                 unconfirmable[kind] = unconfirmable.get(kind, 0) + 1
                 continue
+            if kind_of.setdefault(row["key"], kind) != kind:
+                raise SystemExit(f"{row['key']} is a problem of both {kind_of[row['key']]} and {kind}")
             truths[row["key"]] = row["truth"]
             families[kind].append(SolvedExample(row["key"], row["problem"], answer))
     if unconfirmable:
         print(json.dumps({"left_out_as_unconfirmable": unconfirmable}), flush=True)
 
     def agree(returned: str, example: SolvedExample) -> bool:
-        return bool(graders[example.key.split(":")[0]](returned, truths[example.key]))
+        return bool(graders[kind_of[example.key]](returned, truths[example.key]))
 
     round_counter = {"n": 0}
 

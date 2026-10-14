@@ -54,3 +54,27 @@ def test_every_dm_module_and_bbh_task_splits_into_disjoint_halves_graded_by_its_
     assert framed["key"].startswith("word_sorting:") and framed["problem"].rstrip().endswith("Let's think step by step.")
     option = next(r for r in problems("bbh_date_understanding", "development") if r["truth"].startswith("("))
     assert grader_for("bbh_date_understanding")(option["truth"].strip("()"), option["truth"])
+
+
+@pytest.mark.skipif(not (BENCH / "bbh-src/bbh/word_sorting.json").exists(),
+                    reason="the BBH files are not on this host")
+def test_a_bbh_procedure_is_checked_by_its_own_grader_though_its_keys_do_not_name_the_kind(tmp_path: Path,
+                                                                                           monkeypatch) -> None:
+    import json
+    import sys
+
+    from tools import induce_g09_procedures
+
+    # Sorts the words of the last "List:"; BBH's grader must agree with it on every known answer.
+    code = ("```python\ndef solve(problem):\n"
+            "    words = problem.rsplit('List:', 1)[1].split('\\n')[0].split()\n"
+            "    return ' '.join(sorted(words))\n```")
+    replies = tmp_path / "replies.json"
+    replies.write_text(json.dumps([code]), encoding="utf-8")
+    out = tmp_path / "out"
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "state"))
+    monkeypatch.setattr(sys, "argv", ["induce_g09_procedures.py", "--kinds", "bbh_word_sorting", "--lines", "1",
+                                      "--rounds", "1", "--fake-proposer", str(replies), "--output", str(out)])
+    assert induce_g09_procedures.main() == 0
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))["bbh_word_sorting"]
+    assert summary["admitted"] == 1 and summary["best"][0] == summary["best"][1] == summary["development"]
