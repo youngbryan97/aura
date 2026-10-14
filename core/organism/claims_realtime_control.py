@@ -613,6 +613,7 @@ def _visual_motion_claims() -> tuple:
         _frame_session_invariant,
         _frame_time_invariant,
     )
+    from core.perception.graphics_presented_on_canvas import _presentation_custody_invariant
     from core.perception.learned_tracking.contracts import _tracking_visibility_invariant
     from core.perception.learned_tracking.corrections_while_points_keep_moving import (
         _capture_batch_invariant,
@@ -659,6 +660,9 @@ def _visual_motion_claims() -> tuple:
         ("source_marks_return_to_one_working_geometry", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_source_points_keep_their_visible_detail.py", lambda: _source_point_geometry_invariant() == (),
          "Source-resolution marks retain their identities and observation times when mapped to working coordinates; changed geometry breaks their correspondence."),
+        ("graphics_hints_require_current_presentation", "core/perception/graphics_presented_on_canvas.py",
+         "tests/test_graphics_presented_on_canvas.py", lambda: _presentation_custody_invariant() == (),
+         "Geometric search hints follow recorded image versions and ordered public copies to a measured current canvas; visibility and object identity remain unverified."),
         ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
          "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),
