@@ -170,6 +170,23 @@ def _area(polygon: Polygon) -> float:
                    for a, b in zip(polygon, polygon[1:] + polygon[:1], strict=True))) / 2
 
 
+def project_polygon(vertices: tuple, viewport: Rect) -> Polygon | None:
+    """Project one convex homogeneous polygon, preserving partial clipping."""
+    if (type(vertices) is not tuple or not 3 <= len(vertices) <= 16
+            or type(viewport) is not tuple or len(viewport) != 4
+            or not all(_finite(v) for v in viewport) or min(viewport[2:]) <= 0
+            or any(type(p) is not tuple or len(p) != 4 or not all(_finite(v) for v in p) for p in vertices)):
+        return None
+    polygon = vertices
+    for axis in range(3):
+        for sign in (-1, 1):
+            polygon = _clip(polygon, lambda p, a=axis, s=sign: p[3] + s * p[a])
+    if any(p[3] <= 1e-12 for p in polygon) or len(polygon) > 16:
+        return None
+    x, y, w, h = viewport
+    return tuple((x + (p[0] / p[3] + 1) * w / 2, y + (p[1] / p[3] + 1) * h / 2) for p in polygon)
+
+
 def _copied(polygons: tuple[Polygon, ...], copy: FramebufferCopy) -> tuple[Polygon, ...]:
     sx0, sy0, sx1, sy1 = copy.source_rect
     dx0, dy0, dx1, dy1 = copy.destination_rect
@@ -191,6 +208,8 @@ def _copied(polygons: tuple[Polygon, ...], copy: FramebufferCopy) -> tuple[Polyg
 def presented_hints(polygons: tuple[Polygon, ...], source: ImageVersion, draw_sequence: int,
                     copies: Iterable[FramebufferCopy], canvas: PresentedCanvas) -> GeometryResult:
     """Follow one current, ordered, unambiguous copy route to captured pixels."""
+    from core.perception.texture_coordinates_to_a_surface import TextureProjection
+
     if (not source.valid() or not canvas.valid() or source.context != canvas.image.context
             or source.epoch != canvas.image.epoch or type(draw_sequence) is not int
             or not 0 <= draw_sequence <= canvas.sequence):
@@ -204,7 +223,7 @@ def presented_hints(polygons: tuple[Polygon, ...], source: ImageVersion, draw_se
     for edge in copies:
         if len(edges) >= 64:
             return GeometryResult(None, "copy_budget")
-        if not isinstance(edge, FramebufferCopy) or not edge.valid():
+        if not isinstance(edge, (FramebufferCopy, TextureProjection)) or not edge.valid():
             return GeometryResult(None, "unsupported_copy")
         edges.append(edge)
     at, image, route = draw_sequence, source, []
@@ -219,7 +238,9 @@ def presented_hints(polygons: tuple[Polygon, ...], source: ImageVersion, draw_se
         if len(route) >= 16:
             return GeometryResult(None, "presentation_hop_budget")
         edge = options[0]
-        polygons = _copied(polygons, edge)
+        polygons = _copied(polygons, edge) if isinstance(edge, FramebufferCopy) else edge.mapped(polygons)
+        if polygons is None:
+            return GeometryResult(None, "unsupported_texture_projection")
         image, at = edge.destination, edge.sequence
         route.append(at)
     return GeometryResult(None, "presentation_hop_budget")

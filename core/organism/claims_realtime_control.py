@@ -647,6 +647,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.shader_attributes_from_buffer_bytes import _attribute_addressing_invariant
     from core.perception.shader_position_math import _shader_position_invariant
     from core.perception.shader_uniforms_from_buffer_bytes import _uniform_resource_invariant
+    from core.perception.texture_coordinates_to_a_surface import _texture_projection_invariant
     from core.perception.texture_that_continues_when_outlines_join import (
         _continuing_texture_invariant,
     )
@@ -683,6 +684,9 @@ def _visual_motion_claims() -> tuple:
         ("draw_triangles_keep_assembly_and_versions", "core/perception/triangles_from_public_draws.py",
          "tests/test_triangles_from_public_draws.py", lambda: _triangle_assembly_invariant() == (),
          "Admitted triangle assembly preserves winding, first vertex and fixed restart within captured current element ranges; unsupported draws stay unknown."),
+        ("texture_regions_use_measured_projective_coordinates", "core/perception/texture_coordinates_to_a_surface.py",
+         "tests/test_texture_coordinates_to_a_surface.py", lambda: _texture_projection_invariant() == (),
+         "Texture search regions follow measured smooth UV and homogeneous positions through clipping; unknown sampling and degenerate coordinates stay unknown."),
         ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
          "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),
