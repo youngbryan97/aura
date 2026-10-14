@@ -133,3 +133,12 @@ readiness remain open.
 - Pose and material records: `/private/tmp/codex-steer/material-and-trail-original9-1014/candidate-measurements.jsonl`
 - Reference readout: `/private/tmp/codex-steer/material-and-trail-original9-1014/heading-reference-readout.json`
 - Final governance: `/private/tmp/codex-steer/material-combined-governance-1014.log` (123 existing regressions; no owned offender).
+
+The binding replay reproduced the legacy facing values exactly for its 39
+path calls. Of 212 phase observations, 61 were neutral and 112 had no current
+direction sign. Nine calls produced direction pairs, all above the existing
+0.12-radian estimated-error limit. The smallest listed pair errors were near
+0.149 radians. Short reference windows are therefore one constraint among
+several. The quarter-pixel source-unit question is supported by this replay
+but has not been resolved or used to loosen a threshold. Replay:
+`/private/tmp/codex-steer/material-and-trail-original9-1014/binding-replay.json`.
