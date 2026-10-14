@@ -644,6 +644,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.reading_again_after_loss import _reading_renewal_invariant
     from core.perception.rigid_motion_from_named_points import _rigid_motion_invariant
     from core.perception.sampling_the_drawings_pace import _drawing_cadence_invariant
+    from core.perception.shader_attributes_from_buffer_bytes import _attribute_addressing_invariant
     from core.perception.shader_position_math import _shader_position_invariant
     from core.perception.shader_uniforms_from_buffer_bytes import _uniform_resource_invariant
     from core.perception.texture_that_continues_when_outlines_join import (
@@ -675,6 +676,9 @@ def _visual_motion_claims() -> tuple:
         ("texture_copy_requires_unchanged_dataflow", "core/perception/a_texture_copied_by_its_shader.py",
          "tests/test_a_texture_copied_by_its_shader.py", lambda: _texture_copy_invariant() == (),
          "An admitted fragment copy requires one unchanged texture sample and declared smooth coordinates; altered color, coordinates and multiple outputs stay unknown."),
+        ("vertex_bytes_keep_draw_addressing", "core/perception/shader_attributes_from_buffer_bytes.py",
+         "tests/test_shader_attributes_from_buffer_bytes.py", lambda: _attribute_addressing_invariant() == (),
+         "Vertex values retain current buffer versions, stride, offset, normalization and instance divisor; missing bytes and unsupported formats remain unknown."),
         ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
          "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),

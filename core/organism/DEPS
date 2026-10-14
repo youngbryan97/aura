@@ -57,6 +57,7 @@ include_rules = [
     "+core.perception.shader_position_math", # Pure check of bounded declared position arithmetic.
     "+core.perception.shader_uniforms_from_buffer_bytes", # Pure check of reflected fields keeping resource versions.
     "+core.perception.a_texture_copied_by_its_shader", # Pure check of unchanged texture-copy dataflow.
+    "+core.perception.shader_attributes_from_buffer_bytes", # Pure check of current vertex addressing.
     "+core.perception.reading_again_after_loss", # Pure checks of measured loss and bounded request renewal.
     "+core.perception.rigid_motion_from_named_points", # Pure canary for bounded rigid correspondence geometry.
     "+core.perception.the_whole_patch_around_a_visible_corner", # Pure check of connected support around initial foreground seeds.
