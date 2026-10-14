@@ -652,6 +652,7 @@ def _visual_motion_claims() -> tuple:
     )
     from core.perception.the_whole_patch_around_a_visible_corner import _whole_patch_invariant
     from core.perception.translation_from_visible_support import _translation_support_invariant
+    from core.perception.triangles_from_public_draws import _triangle_assembly_invariant
     from core.perception.what_moves_in_the_picture import (
         _material_trail_invariant,
         _missing_points_invariant,
@@ -679,6 +680,9 @@ def _visual_motion_claims() -> tuple:
         ("vertex_bytes_keep_draw_addressing", "core/perception/shader_attributes_from_buffer_bytes.py",
          "tests/test_shader_attributes_from_buffer_bytes.py", lambda: _attribute_addressing_invariant() == (),
          "Vertex values retain current buffer versions, stride, offset, normalization and instance divisor; missing bytes and unsupported formats remain unknown."),
+        ("draw_triangles_keep_assembly_and_versions", "core/perception/triangles_from_public_draws.py",
+         "tests/test_triangles_from_public_draws.py", lambda: _triangle_assembly_invariant() == (),
+         "Admitted triangle assembly preserves winding, first vertex and fixed restart within captured current element ranges; unsupported draws stay unknown."),
         ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
          "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),
