@@ -54,6 +54,7 @@ include_rules = [
     "+core.perception.position_from_the_same_points", # Pure check of original marks supporting a measured path.
     "+core.perception.continuing_material_before_outlines", # Pure check of unambiguous material correspondence.
     "+core.perception.graphics_presented_on_canvas", # Pure check of current public copy provenance.
+    "+core.perception.shader_position_math", # Pure check of bounded declared position arithmetic.
     "+core.perception.reading_again_after_loss", # Pure checks of measured loss and bounded request renewal.
     "+core.perception.rigid_motion_from_named_points", # Pure canary for bounded rigid correspondence geometry.
     "+core.perception.the_whole_patch_around_a_visible_corner", # Pure check of connected support around initial foreground seeds.

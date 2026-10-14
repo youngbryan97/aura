@@ -643,6 +643,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.reading_again_after_loss import _reading_renewal_invariant
     from core.perception.rigid_motion_from_named_points import _rigid_motion_invariant
     from core.perception.sampling_the_drawings_pace import _drawing_cadence_invariant
+    from core.perception.shader_position_math import _shader_position_invariant
     from core.perception.texture_that_continues_when_outlines_join import (
         _continuing_texture_invariant,
     )
@@ -663,6 +664,9 @@ def _visual_motion_claims() -> tuple:
         ("graphics_hints_require_current_presentation", "core/perception/graphics_presented_on_canvas.py",
          "tests/test_graphics_presented_on_canvas.py", lambda: _presentation_custody_invariant() == (),
          "Geometric search hints follow recorded image versions and ordered public copies to a measured current canvas; visibility and object identity remain unverified."),
+        ("shader_positions_use_declared_operations", "core/perception/shader_position_math.py",
+         "tests/test_shader_position_math.py", lambda: _shader_position_invariant() == (),
+         "The admitted position subset follows declared arithmetic and simultaneous swizzle writes; missing and unsupported dependencies return unknown."),
         ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
          "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),
