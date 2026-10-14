@@ -364,6 +364,14 @@ def _behind_it(thing: Thing, area: tuple[slice, slice], shape: tuple[int, int]) 
     of it) or its own size is not known. A basket's body is never behind its own leading edge by more than its length,
     whether it waits or goes, and whatever falls into it; a painter's paint soon is."""
     path = list(thing.path)
+    pose = getattr(thing, 'point_pose', None)
+    if (pose is not None and pose.at == thing.seen and pose.born == thing.born
+            and getattr(thing, 'motion_measured_at', None) == thing.seen
+            and getattr(thing, 'motion_position', None) == pose.position):
+        path = list(thing.motion_path)
+        if (not path or path[-1][0] != thing.seen or not all(math.isfinite(v) for p in path for v in p)
+                or any(b[0] <= a[0] for a, b in zip(path, path[1:], strict=False))):
+            return None
     dims = thing.steady or thing.least_dims
     if not dims or len(path) < 2:
         return None
@@ -786,6 +794,8 @@ class WhatMoves:
     def _match(self, blobs: list[dict[str, Any]], at: float) -> tuple[dict[int, int], list[int]]:
         from scipy.spatial import cKDTree
 
+        from core.perception.continuing_material_before_outlines import material_matches
+
         if not blobs:
             return {}, []
         places = cKDTree([(blob["x"], blob["y"]) for blob in blobs])
@@ -820,6 +830,10 @@ class WhatMoves:
                 continue
             matched[number] = index
             taken.add(index)
+        for number, index in material_matches({**self.things, **self.pending}, blobs, self._point_motion, at).items():
+            if number not in matched and index not in taken:
+                matched[number] = index
+                taken.add(index)
         # A thing that set off faster than it was going is still itself: what went from here and what came there
         # look the same. LIVE-like 2026-10-09 a body standing still that jumped went 15 working pixels between
         # pictures against a reach of 11, was taken for a new thing at every jump, and no press was ever seen to move it.
@@ -1272,4 +1286,22 @@ def _point_pose_birth_invariant() -> tuple:
     pose.born, pose.at, thing.born = 1., .9, 1.
     eyes._what_the_points_say(1.)
     assert pose.born == 1.
+    return ()
+
+
+@invariant('perception.trail_cleanup_requires_material_travel_when_it_is_measured', scope='perception',
+           owner='core/perception/what_moves_in_the_picture.py', observational=False)
+def _material_trail_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    from core.perception.position_from_the_same_points import PointPose
+
+    body = SimpleNamespace(path=[(.5, 40., 40.), (1., 40., 64.)],
+        motion_path=[(.5, 40., 40.), (1., 40., 40.)], seen=1., born=0.,
+        point_pose=PointPose(0., 1., (40., 40.), {}, (40., 40.)),
+        motion_measured_at=1., motion_position=(40., 40.), steady=(12., 12.), least_dims=(12., 12.))
+    area = slice(30, 90), slice(30, 50)
+    assert _behind_it(body, area, (60, 20)) is None
+    body.motion_path = [(.5, 40., 40.), (.9, 40., 40.)]
+    assert _behind_it(body, area, (60, 20)) is None
     return ()

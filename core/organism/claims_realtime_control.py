@@ -605,6 +605,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.activity_in_the_picture import _picture_activity_invariant
     from core.perception.background_visible_beside_a_patch import _exposed_background_invariant
     from core.perception.boundary_support_for_translation import _visible_boundary_invariant
+    from core.perception.continuing_material_before_outlines import _material_identity_invariant
     from core.perception.frames_as_they_are_drawn import (
         _frame_session_invariant,
         _frame_time_invariant,
@@ -643,6 +644,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.the_whole_patch_around_a_visible_corner import _whole_patch_invariant
     from core.perception.translation_from_visible_support import _translation_support_invariant
     from core.perception.what_moves_in_the_picture import (
+        _material_trail_invariant,
         _missing_points_invariant,
         _point_pose_birth_invariant,
     )
@@ -809,6 +811,12 @@ def _visual_motion_claims() -> tuple:
         ("current_point_pose_keeps_restored_object_lifetime", "core/perception/what_moves_in_the_picture.py",
          "tests/test_a_continuing_point_pose_keeps_its_objects_birth.py", lambda: _point_pose_birth_invariant() == (),
          "A current point pose shares its object's restored lifetime while retaining its own angle basis; stale or unrelated poses cannot inherit that tag."),
+        ("material_identity_requires_unique_current_geometry", "core/perception/continuing_material_before_outlines.py",
+         "tests/test_continuing_material_survives_a_changed_outline.py", lambda: _material_identity_invariant() == (),
+         "Continuing owned points can preserve observation identity through outline changes only with current rigid geometry and a unique match on both sides; no control authority is supplied."),
+        ("trail_cleanup_uses_current_material_travel", "core/perception/what_moves_in_the_picture.py",
+         "tests/test_material_motion_keeps_a_stopped_body_visible.py", lambda: _material_trail_invariant() == (),
+         "A current material pose uses its measured path for trail cleanup; outline deformation cannot supply physical travel and an invalid material path supplies none."),
         ("point_meaning_requires_current_owned_support", "core/perception/what_the_points_on_a_thing_say.py",
          "tests/test_the_points_on_a_thing_say_how_soon_it_arrives.py", lambda: _point_meaning_invariant() == (),
          "Point-derived approach and identity require current owned pixels; absent support and ambiguous or expired owners remain unknown."),
