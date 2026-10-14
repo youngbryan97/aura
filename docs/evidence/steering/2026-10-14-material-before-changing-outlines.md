@@ -98,3 +98,38 @@ tests with one skip in 42.32 seconds. The global size gate still reports the
 same 194-line aggregate debt and `ResponseGenerationPhase` method debt;
 neither owned module exceeds its cap. Log:
 `/private/tmp/codex-steer/material-match-gates-1014.log`.
+
+## Fresh browser result at ca168c257
+
+The clean frozen checkout at `ca168c257fdb4e120721bff4222bc0689b22a7cc`
+ran assigned game 9 for 193.529 seconds. It reported a loss followed by an
+unread run, with no win. Of 969 recorded decisions, 304 had a body
+attribution: 44 on number 27, 188 on 83, and 72 on 89. Of those, 212 had a
+current angular pose. No optical heading qualified; the largest recorded
+calibration sample count was zero. Median picture age was 0.20084 seconds.
+The preceding complete measurement at `42e1db888` had no body attribution.
+This is progress in attributed observations, not proof of their physical
+role or sustained successful steering.
+
+The angle records span 31 reference bases, with a median of three captures
+per basis. Some bases last much longer: the longest spans 4.502 seconds and
+11.798 working pixels. A short-lived basis alone therefore does not explain
+all missing direction samples. Input ownership, settling, direction sign,
+window travel and estimated error must be traced through the actual binding.
+The angular RMS estimate and positional resolution currently include a
+quarter of a working pixel, although the default tracker measures a bounded
+source grid before mapping coordinates. The scale of that resolution term
+is an open metrology question; it must not be reduced merely to pass a gate.
+
+Native computer-use observation witnessed the intro and active board, with
+no extra inputs added. This was the normal browser playing entry, not a
+prompt submitted through the resident Aura app. Optional visual model
+requests were refused by the exclusive G09 lane. That job and the resident
+runtime were not stopped or restarted. Native-app proof and presentation
+readiness remain open.
+
+- Result: `/private/tmp/codex-steer/material-and-trail-original9-1014/results.json`
+- Decisions: `/private/tmp/codex-steer/material-and-trail-original9-1014/facing-receipts.jsonl`
+- Pose and material records: `/private/tmp/codex-steer/material-and-trail-original9-1014/candidate-measurements.jsonl`
+- Reference readout: `/private/tmp/codex-steer/material-and-trail-original9-1014/heading-reference-readout.json`
+- Final governance: `/private/tmp/codex-steer/material-combined-governance-1014.log` (123 existing regressions; no owned offender).
