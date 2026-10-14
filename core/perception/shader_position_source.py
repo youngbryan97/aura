@@ -31,6 +31,7 @@ class PositionProgram:
     position: Expression
     structures: tuple[tuple[str, tuple[tuple[str, ShaderType], ...]], ...]
     inputs: tuple[tuple[str, ShaderType], ...]
+    blocks: tuple[tuple[str, str | None], ...] = ()
 
 
 _TOKEN = re.compile(r"[A-Za-z_][A-Za-z_0-9]*|(?:\d+\.\d*|\.\d+|\d+)(?:[eE][+-]?\d+)?[uUfF]?|[{}()\[\].,;=+*/%-]")
@@ -67,6 +68,7 @@ class _Parser:
     def __init__(self, source: str) -> None:
         self.tokens, self.cursor = _tokens(source), 0
         self.structures: dict[str, tuple[tuple[str, ShaderType], ...]] = {}
+        self.blocks: dict[str, str | None] = {}
         self.inputs = {"gl_InstanceID": ShaderType("int"), "gl_VertexID": ShaderType("int")}
         self.variables = {name: Expression("input", (name, kind)) for name, kind in self.inputs.items()}
         self.variables["gl_Position"] = Expression("unknown", ("unassigned_position",))
@@ -175,12 +177,16 @@ class _Parser:
             if self.peek() == "{":
                 if "uniform" not in qualifiers:
                     raise UnsupportedPositionError("interface_block")
+                if kind in self.blocks or len(self.blocks) >= 32:
+                    raise UnsupportedPositionError("block_budget_or_shadowing")
                 fields = self.fields()
                 if self.peek() == ";":
+                    self.blocks[kind] = None
                     for name, field_type in fields:
                         self.declare(name, field_type, None, True)
                 else:
                     instance = self.identifier()
+                    self.blocks[kind] = instance
                     if kind in self.structures:
                         raise UnsupportedPositionError("block_shadowing")
                     self.structures[kind] = fields
@@ -200,7 +206,7 @@ class _Parser:
             self.declare(name, declared, expression, external)
         if not self.main_seen:
             raise UnsupportedPositionError("missing_main")
-        return PositionProgram(self.variables["gl_Position"], tuple(self.structures.items()), tuple(self.inputs.items()))
+        return PositionProgram(self.variables["gl_Position"], tuple(self.structures.items()), tuple(self.inputs.items()), tuple(self.blocks.items()))
 
     def body(self) -> None:
         self.take("{")

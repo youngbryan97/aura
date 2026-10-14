@@ -644,6 +644,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.rigid_motion_from_named_points import _rigid_motion_invariant
     from core.perception.sampling_the_drawings_pace import _drawing_cadence_invariant
     from core.perception.shader_position_math import _shader_position_invariant
+    from core.perception.shader_uniforms_from_buffer_bytes import _uniform_resource_invariant
     from core.perception.texture_that_continues_when_outlines_join import (
         _continuing_texture_invariant,
     )
@@ -667,6 +668,9 @@ def _visual_motion_claims() -> tuple:
         ("shader_positions_use_declared_operations", "core/perception/shader_position_math.py",
          "tests/test_shader_position_math.py", lambda: _shader_position_invariant() == (),
          "The admitted position subset follows declared arithmetic and simultaneous swizzle writes; missing and unsupported dependencies return unknown."),
+        ("uniform_bytes_keep_resource_versions", "core/perception/shader_uniforms_from_buffer_bytes.py",
+         "tests/test_shader_uniforms_from_buffer_bytes.py", lambda: _uniform_resource_invariant() == (),
+         "Uniform fields use declared names, reflected layouts and matching captured buffer generations; missing or reused bytes remain unknown."),
         ("point_resolution_keeps_tracked_grid_units", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_point_precision_keeps_the_tracked_grids_units.py", lambda: _source_point_precision_invariant() == (),
          "Point coordinates and their resolution term use the same tracked grid mapping; unknown resolution retains the working-grid default and invalid resolution supplies no pose."),
