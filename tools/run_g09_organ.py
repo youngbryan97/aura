@@ -647,6 +647,8 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--batch", type=int, default=1,
                         help="drafts decoded together (tools/g12_batched.py); the organ always runs one at a time")
+    parser.add_argument("--carry", action="store_true",
+                        help="a group below half full hands its unfinished sequences to the next (tools/g12_batched.py)")
     parser.add_argument("--budget", choices=("allowance", "turn"), default="allowance",
                         help="allowance: each planned candidate may use the draft's token allowance at the "
                              "draft's measured rate; turn: what a live turn's ceiling leaves after the draft")
@@ -772,7 +774,7 @@ def main() -> int:
                 print(json.dumps({"ordinary_written": pending[index]["id"]}), flush=True)
 
             decode_stream(model, tokenizer, [[{"role": "user", "content": task["request"]}] for task in pending],
-                          max_tokens=args.max_tokens, width=args.batch, on_record=write_draft)
+                          max_tokens=args.max_tokens, width=args.batch, on_record=write_draft, carry=args.carry)
 
         for done, task in enumerate(tasks, 1):
             name = row_name(task)

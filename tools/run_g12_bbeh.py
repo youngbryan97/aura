@@ -105,6 +105,8 @@ def main() -> int:
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--batch", type=int, default=1)
+    parser.add_argument("--carry", action="store_true",
+                        help="a group below half full hands its unfinished sequences to the next (tools/g12_batched.py)")
     parser.add_argument("--only-tasks", default="",
                         help="comma-separated task names: answer only these now; a later run without it does the rest")
     args = parser.parse_args()
@@ -162,7 +164,7 @@ def main() -> int:
                 write(example, decode_public(model, tokenizer, conversation, max_tokens=args.max_tokens))
         else:
             decode_stream(model, tokenizer, conversations, max_tokens=args.max_tokens, width=args.batch,
-                          on_record=lambda index, decoded: write(pending[index], decoded))
+                          on_record=lambda index, decoded: write(pending[index], decoded), carry=args.carry)
     return 0
 
 

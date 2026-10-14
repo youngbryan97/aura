@@ -100,6 +100,8 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0, help="the first N problems only")
     parser.add_argument("--batch", type=int, default=1,
                         help="problems decoded together (tools/g12_batched.py); 1 decodes one at a time")
+    parser.add_argument("--carry", action="store_true",
+                        help="a group below half full hands its unfinished sequences to the next (tools/g12_batched.py)")
     args = parser.parse_args()
     if args.batch < 1:
         raise SystemExit("--batch is at least 1")
@@ -157,7 +159,7 @@ def main() -> int:
                 write(problem, decode_public(model, tokenizer, conversation, max_tokens=args.max_tokens))
         else:
             decode_stream(model, tokenizer, conversations, max_tokens=args.max_tokens, width=args.batch,
-                          on_record=lambda index, decoded: write(pending[index], decoded))
+                          on_record=lambda index, decoded: write(pending[index], decoded), carry=args.carry)
     return 0
 
 

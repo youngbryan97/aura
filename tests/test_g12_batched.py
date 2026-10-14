@@ -330,3 +330,64 @@ def test_a_sampled_stream_hands_its_sampler_to_each_group_and_seeds_each_group(m
                                      on_finish=lambda index, *_: finished.append(index), sampler=marker, seed=7)
     assert seen["samplers"] == [marker] * 3 and seen["seeds"] == [7_000_021, 7_000_023, 7_000_025]
     assert sorted(finished) == [0, 1, 2, 3, 4]
+
+
+def test_a_group_below_half_full_hands_its_long_sequences_to_the_next_group_whole(monkeypatch) -> None:
+    import sys
+    import types
+
+    from tools import g12_batched
+
+    groups: list[list[list[int]]] = []
+
+    class FakeGenerator:
+        """Each prompt's first token is how many tokens it generates in all; a carried prompt has read some."""
+
+        def __init__(self, model, *, stop_tokens, completion_batch_size, prefill_batch_size, sampler=None):
+            self.left: dict[int, int] = {}
+            self.made: dict[int, int] = {}
+
+        def insert(self, prompts, max_tokens):
+            groups.append([list(p) for p in prompts])
+            uids = list(range(len(prompts)))
+            for uid, prompt, bound in zip(uids, prompts, max_tokens, strict=True):
+                self.left[uid] = min(prompt[0] - (len(prompt) - 1), bound)
+                self.made[uid] = len(prompt) - 1
+            return uids
+
+        def next_generated(self):
+            out = []
+            for uid in list(self.left):
+                self.left[uid] -= 1
+                self.made[uid] += 1
+                done = self.left[uid] == 0
+                out.append(types.SimpleNamespace(uid=uid, token=100 + self.made[uid],
+                                                 finish_reason="length" if done else None))
+                if done:
+                    del self.left[uid]
+            return out
+
+        def close(self):
+            pass
+
+    fake_mx = types.SimpleNamespace(random=types.SimpleNamespace(seed=lambda s: None),
+                                    synchronize=lambda: None, clear_cache=lambda: None)
+    monkeypatch.setitem(sys.modules, "mlx.core", fake_mx)
+    monkeypatch.setitem(sys.modules, "mlx", types.SimpleNamespace(core=fake_mx))
+    monkeypatch.setitem(sys.modules, "mlx_lm.generate", types.SimpleNamespace(BatchGenerator=FakeGenerator))
+    monkeypatch.setattr(g12_batched, "_evaluate_cache_metadata", lambda generator: None)
+    finished: dict[int, list[int]] = {}
+    g12_batched._decode_token_groups(None, types.SimpleNamespace(eos_token_ids=[1]), [[3], [9], [2], [2], [2]],
+                                     max_tokens=50, width=2, carry=True,
+                                     on_finish=lambda index, tokens, *_: finished.setdefault(index, list(tokens)))
+    assert {i: len(t) for i, t in finished.items()} == {0: 3, 1: 9, 2: 2, 3: 2, 4: 2}
+    assert finished[1] == [101 + k for k in range(9)]
+    # The long sequence left its first group once that group was half full, its tokens so far read as prompt.
+    assert groups[1][0] == [9, 101, 102, 103]
+
+    groups.clear()
+    finished.clear()
+    g12_batched._decode_token_groups(None, types.SimpleNamespace(eos_token_ids=[1]), [[3], [9], [2], [2], [2]],
+                                     max_tokens=50, width=2,
+                                     on_finish=lambda index, tokens, *_: finished.setdefault(index, list(tokens)))
+    assert [len(g) for g in groups] == [2, 2, 1] and groups[0] == [[3], [9]] and len(finished[1]) == 9

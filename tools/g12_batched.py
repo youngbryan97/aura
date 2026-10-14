@@ -84,7 +84,8 @@ def render_tokens(tokenizer: Any, conversation: list, *, thinking: bool = True) 
 
 
 def _decode_token_groups(model: Any, tokenizer: Any, prompts: Sequence[list[int]], *, max_tokens: int | Sequence[int],
-                         width: int, on_finish: Any, sampler: Any = None, seed: int | None = None) -> None:
+                         width: int, on_finish: Any, sampler: Any = None, seed: int | None = None,
+                         carry: bool = False) -> None:
     """Decodes of token prompts in fixed groups of ``width``: greedy, or by ``sampler`` from ``seed``.
 
     Each group gets its own generator, prefilled once before any of it
@@ -99,25 +100,41 @@ def _decode_token_groups(model: Any, tokenizer: Any, prompts: Sequence[list[int]
     generated token. A sampled run seeds MLX's generator once per group from
     ``seed`` and the group's first index, so a resumed run draws the same.
     ``max_tokens`` is one bound for all, or one per prompt.
+
+    With ``carry``, a full group that falls to half its width or fewer while
+    prompts are still waiting is ended there, and its unfinished sequences
+    go first into the next group, their prompt followed by what they have
+    generated so far, with what is left of their bound. A group otherwise
+    spends its last stretch with one or two sequences on a device built for
+    eight: measured occupancy of the G09 induction rounds ran from 0.57 to
+    0.94. Nothing is ever added to a generating batch, so the panic-free
+    shape holds; the cost is reading each carried sequence again as a prompt.
     """
     import gc
 
     import mlx.core as mx
     from mlx_lm.generate import BatchGenerator
 
-    for first in range(0, len(prompts), max(1, width)):
-        group = list(range(first, min(first + max(1, width), len(prompts))))
+    bounds_all = [int(max_tokens)] * len(prompts) if isinstance(max_tokens, int) else [int(b) for b in max_tokens]
+    # (index, tokens to read, generated so far, bound left, first generated at)
+    pending = [(i, list(prompts[i]), [], bounds_all[i], None) for i in range(len(prompts))]
+    width = max(1, width)
+    first_of_group = 0
+    while pending:
+        group, pending = pending[:width], pending[width:]
         if sampler is not None and seed is not None:
-            mx.random.seed(int(seed) * 1_000_003 + first)
+            mx.random.seed(int(seed) * 1_000_003 + first_of_group)
+        first_of_group += len(group)
         # A greedy run calls the generator exactly as before samplers existed here.
         sampling = {"sampler": sampler} if sampler is not None else {}
         generator = BatchGenerator(model, stop_tokens=[[token] for token in tokenizer.eos_token_ids],
                                    completion_batch_size=len(group), prefill_batch_size=len(group), **sampling)
-        bounds = [int(max_tokens)] * len(group) if isinstance(max_tokens, int) else [int(max_tokens[i]) for i in group]
-        uids = generator.insert([list(prompts[index]) for index in group], bounds)
-        index_of = {uid: index for uid, index in zip(uids, group, strict=True)}
-        tokens: dict[int, list[int]] = {uid: [] for uid in uids}
-        started: dict[int, float] = {}
+        uids = generator.insert([item[1] for item in group], [item[3] for item in group])
+        item_of = dict(zip(uids, group, strict=True))
+        tokens: dict[int, list[int]] = {uid: list(item_of[uid][2]) for uid in uids}
+        started: dict[int, float] = {uid: item_of[uid][4] for uid in uids if item_of[uid][4] is not None}
+        active = set(uids)
+        carried: list[tuple] = []
         try:
             for responses in _generation_steps(generator):
                 for response in responses:
@@ -127,15 +144,23 @@ def _decode_token_groups(model: Any, tokenizer: Any, prompts: Sequence[list[int]
                         tokens[uid].append(int(response.token))
                     if response.finish_reason is None:
                         continue
-                    on_finish(index_of[uid], tokens[uid], response.finish_reason,
+                    active.discard(uid)
+                    on_finish(item_of[uid][0], tokens[uid], response.finish_reason,
                               round(time.monotonic() - started[uid], 3), len(group))
                     tokens[uid] = []
+                if carry and pending and len(group) == width and active and len(active) <= width // 2:
+                    for uid in sorted(active, key=lambda u: item_of[u][0]):
+                        index, read, before, bound, _ = item_of[uid]
+                        new = tokens[uid][len(before):]
+                        carried.append((index, read + new, tokens[uid], bound - len(new), started.get(uid)))
+                    break
         finally:
             generator.close()
             del generator
             mx.synchronize()
             gc.collect()
             mx.clear_cache()
+        pending = carried + pending
 
 
 def decode_stream(
@@ -149,6 +174,7 @@ def decode_stream(
     thinking: bool = True,
     sampler: Any = None,
     seed: int | None = None,
+    carry: bool = False,
 ) -> None:
     """Decode every conversation in fixed groups of ``width``, handing each record over as it finishes.
 
@@ -171,11 +197,11 @@ def decode_stream(
             "termination": finish if channels.boundary_closed else "native_thinking_incomplete",
             "seconds": seconds,
             "batch_size": group_size,
-            "batching": "fixed_groups",
+            "batching": "fixed_groups_carrying" if carry else "fixed_groups",
         })
 
     _decode_token_groups(model, tokenizer, prompts, max_tokens=max_tokens, width=width, on_finish=finished,
-                         sampler=sampler, seed=seed)
+                         sampler=sampler, seed=seed, carry=carry)
 
 
 #: What her chat template writes to close the private channel (chat_template.jinja).
