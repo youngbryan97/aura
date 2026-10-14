@@ -130,3 +130,23 @@ Also part of the 10:50 amendment: the 18 kinds no longer induced join the
 book as signatures only, as attempt 2's 16 do, computed from their
 development halves, so a BBEH Mini request is not answered by a procedure
 for a different kind that resembles it.
+
+## Amendment, 14 October 2026, 17:10, after the prefill's first round was decoded, before anything was kept
+
+At 16:50 the prefill stopped with a KeyError as it began to check round 0's
+82 proposals, all of them decoded. The induction found a kind's grader by the
+prefix of a problem's key, and a BBH key ("word_sorting:87") lacks the bbh_
+that names its kind. No proposal had been checked and none kept. The run
+resumed at 16:54 at 641cdf08b, which is 39b35e323 with that one fix (on main
+as 9c27d78cc): it read every round-0 proposal back from its log, decoded none
+again, and checked them. A dry run through the induction's main on all 82
+kinds with a stand-in proposal now gets through checking, and a test runs a
+correct BBH procedure through main and sees it kept.
+
+Two other events, neither touching what was decoded. From 16:33 to 16:34 the
+run was paused (SIGSTOP) while the Mac was on battery. The failed exit sent
+the queue on to G12, as it was written to; G12's BBEH run was stopped at
+16:52, about a minute in, and no G12 number was read. G12 resumes from its own
+directory after attempt 3.
+
+Rounds, lines, decoding, requests and the claims are unchanged.
