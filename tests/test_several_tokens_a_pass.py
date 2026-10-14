@@ -98,3 +98,24 @@ def test_sampled_tokens_follow_her_distribution_exactly(on_cpu) -> None:
         chi = sum((a[c] - b[c]) ** 2 / (a[c] + b[c]) for c in cells if a[c] + b[c])
         critical = {1: 10.83, 2: 13.82, 3: 16.27, 4: 18.47}[max(1, len(cells) - 1)]
         assert chi < critical, (position, a, b, chi)
+
+
+def test_a_steering_hook_on_her_blocks_acts_on_the_checking_pass_as_on_any_other(on_cpu) -> None:
+    from core.brain.llm.several_tokens_a_pass import Drafts, several_tokens_a_pass
+    from core.brain.llm.two_tokens_a_step import plain_greedy
+
+    model = _tiny(vocab=7, seed=9)
+    prompt = [1, 3, 0, 2, 4, 1, 3, 0, 2, 5, 6, 1, 3]
+    unsteered = plain_greedy(model, prompt, 80)
+    # Affective steering swaps a block's class for one whose call adds a vector to its output.
+    block = model.language_model.model.layers[5]
+    vector = mx.random.normal((32,)) * 3.0
+
+    class Steered(block.__class__):
+        def __call__(self, x, *args, **kwargs):
+            return super().__call__(x, *args, **kwargs) + vector
+
+    block.__class__ = Steered
+    steered = plain_greedy(model, prompt, 80)
+    assert steered != unsteered
+    assert list(several_tokens_a_pass(model, prompt, 80, drafts=Drafts(depth=5))) == steered

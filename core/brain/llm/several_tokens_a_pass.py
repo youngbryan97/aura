@@ -22,7 +22,11 @@ A rejected draft must leave the caches as if it had never been read.
 Full-attention caches are trimmed. Her gated delta net layers keep a running
 state that cannot be trimmed, so during the checking pass each records its
 state after every position, and a rejection puts back the state after the
-last token kept.
+last token kept. The checking pass is her model's own forward call, so
+whatever wraps her blocks (affective steering wraps their calls and adds its
+vector) acts on it as on any other pass; only a gated delta net layer whose
+cache asks for its states computes them position by position, which is the
+same arithmetic.
 
 One sequence at a time; the drafts, the checking pass and the acceptance
 rule are exact for greedy decoding and for her samplers' temperature, top-p,
@@ -156,25 +160,42 @@ def _linear_reading(attn: Any, inputs: mx.array, mask: Any, cache: Any) -> tuple
     return attn.out_proj(out.reshape(batch, steps, -1)), saved
 
 
-def _read(text: Any, tokens: mx.array, cache: list) -> tuple[mx.array, list]:
-    """Her final hidden states for the tokens, and each linear layer's state after every token but the last."""
-    from mlx_lm.models.base import create_attention_mask, create_ssm_mask
+_PATCHED: dict = {}
 
-    inner = text.model
-    h = inner.embed_tokens(tokens)
-    fa_mask = create_attention_mask(h, cache[inner.fa_idx])
-    ssm_mask = create_ssm_mask(h, cache[inner.ssm_idx])
-    saved_by_layer: list = []
-    for layer, c in zip(inner.layers, cache, strict=True):
-        if layer.is_linear:
-            r, saved = _linear_reading(layer.linear_attn, layer.input_layernorm(h), ssm_mask, c)
-            saved_by_layer.append(saved)
-        else:
-            r = layer.self_attn(layer.input_layernorm(h), fa_mask, c)
-            saved_by_layer.append(None)
-        h = h + r
-        h = h + layer.mlp(layer.post_attention_layernorm(h))
-    return inner.norm(h), saved_by_layer
+
+def _let_linear_layers_keep_their_states() -> None:
+    """Once: a gated delta net layer whose cache has ``keep_states`` set records them; any other runs as before."""
+    if _PATCHED:
+        return
+    from mlx_lm.models.qwen3_5 import GatedDeltaNet
+
+    original = GatedDeltaNet.__call__
+
+    def call(self, inputs, mask=None, cache=None):
+        if cache is None or not getattr(cache, "keep_states", False):
+            return original(self, inputs, mask, cache)
+        out, cache.kept_states = _linear_reading(self, inputs, mask, cache)
+        return out
+
+    GatedDeltaNet.__call__ = call
+    _PATCHED["GatedDeltaNet"] = original
+
+
+def _read(text: Any, tokens: mx.array, cache: list) -> tuple[mx.array, list]:
+    """Her final hidden states for the tokens through her model's own forward call, and each linear layer's
+    state after every token but the last."""
+    _let_linear_layers_keep_their_states()
+    linear = [c for c, layer in zip(cache, text.model.layers, strict=True) if layer.is_linear]
+    for c in linear:
+        c.keep_states, c.kept_states = True, []
+    try:
+        hidden = text.model(tokens, cache)
+    finally:
+        for c in linear:
+            c.keep_states = False
+    saved_by_layer = [c.kept_states if layer.is_linear else None
+                      for c, layer in zip(cache, text.model.layers, strict=True)]
+    return hidden, saved_by_layer
 
 
 def _unread(cache: list, saved_by_layer: list, read: int, kept: int) -> None:
