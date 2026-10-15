@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
-from core.perception.position_from_the_same_points import last_observed_outline
+from core.perception.position_from_the_same_points import PointPose, last_observed_outline
 from core.perception.rigid_motion_from_named_points import RigidMotion, rigid_motion
 from core.verify import invariant
 
@@ -281,6 +281,8 @@ class FollowingPoints:
             return None
         points = [p for p in points if 0 <= (x := int(round(p.old_x - left))) < mask.shape[1]
                   and 0 <= (y := int(round(p.old_y - top))) < mask.shape[0] and mask[y, x]]
+        if isinstance(getattr(thing, 'point_pose', None), PointPose):
+            return _motion_of_retained_marks(thing, points, center, at)
         if len(points) < 3:
             return None
         differences = np.array([(p.x - p.old_x, p.y - p.old_y) for p in points])
@@ -305,6 +307,63 @@ class FollowingPoints:
         return PointMotion(float(middle[0]), float(middle[1]), max(p.error for p in support),
                            len(support), thing.seen, at, tuple(p.number for p in support),
                            tuple((p.x, p.y) for p in support), rigid)
+
+
+def _motion_of_retained_marks(thing: Any, points: list[SeenPoint], center: tuple, at: float) -> PointMotion | None:
+    """Previously owned marks choose the motion before a joined outline can add other pixels."""
+    pose = thing.point_pose
+    if (pose.at != thing.seen or pose.born != thing.born or not 0 < at-thing.seen <= NAMED_POINT_GAP_S
+            or not isinstance(pose.anchors, dict) or not 3 <= len(pose.anchors) <= 256
+            or not isinstance(pose.visible_marks, dict)):
+        return None
+    owned = [p for p in points if p.number in pose.anchors and p.number in pose.visible_marks
+             and math.dist((p.old_x, p.old_y), pose.visible_marks[p.number]) <= 1e-6]
+    if (len(owned) < max(3, math.ceil(.6*len(pose.anchors)))
+            or len({p.number for p in owned}) != len(owned)):
+        return None
+    starts = np.asarray([(p.old_x, p.old_y) for p in owned])
+    ends = np.asarray([(p.x, p.y) for p in owned])
+    fitted = rigid_motion(starts, ends)
+    if fitted is None:
+        return None
+    # Other corners can join only through this observed transform. A larger
+    # stationary consensus elsewhere in the outline cannot replace it.
+    predicted = fitted.apply(np.asarray([(p.old_x, p.old_y) for p in points]))
+    coherent = np.linalg.norm(predicted-np.asarray([(p.x, p.y) for p in points]), axis=1) <= .75
+    continuing = [p for p, agrees in zip(points, coherent, strict=True) if agrees and p.number in pose.anchors]
+    extra = [p for p, agrees in zip(points, coherent, strict=True) if agrees and p.number not in pose.anchors]
+    used = continuing + extra[:256-len(continuing)]
+    retained = set(pose.anchors) & {p.number for p in used}
+    if len(retained) < max(3, math.ceil(.6*len(pose.anchors))):
+        return None
+    measured = rigid_motion(np.asarray([(p.old_x, p.old_y) for p in used]),
+                            np.asarray([(p.x, p.y) for p in used]))
+    if measured is None or np.max(np.linalg.norm(measured.apply(starts)-fitted.apply(starts), axis=1)) > .75:
+        return None
+    support = [used[index] for index in measured.inliers]
+    if (len(set(pose.anchors) & {p.number for p in support}) < max(3, math.ceil(.6*len(pose.anchors)))
+            or len({p.number for p in support}) != len(support)):
+        return None
+    shift = measured.apply(center)-center
+    return PointMotion(float(shift[0]), float(shift[1]), max(p.error for p in support), len(support),
+                       thing.seen, at, tuple(p.number for p in support), tuple((p.x, p.y) for p in support), measured)
+
+
+@invariant('perception.retained_material_precedes_a_joined_outline_majority', scope='perception',
+           owner='core/perception/points_that_keep_their_motion.py', observational=False)
+def _owned_material_motion_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    marks = dict(enumerate(((15., 15.), (25., 15.), (15., 25.), (25., 25.))))
+    pose = PointPose(0., 1., (20., 20.), marks.copy(), (20., 20.), visible_marks=marks.copy())
+    body = SimpleNamespace(point_pose=pose, born=0., seen=1.)
+    points = [SeenPoint(n, x+4., y, x, y, 0., 1., 1.1, .01, 3) for n, (x, y) in marks.items()]
+    points.extend(SeenPoint(n, x, y, x, y, 0., 1., 1.1, .01, 3)
+                  for n, (x, y) in enumerate(((x, y) for x in (35., 45., 55.) for y in (35., 45., 55.)), 4))
+    measured = _motion_of_retained_marks(body, points, (30., 30.), 1.1)
+    assert measured is not None and abs(measured.dx-4.) < 1e-9 and set(measured.points) == set(marks)
+    assert _motion_of_retained_marks(body, points[2:], (30., 30.), 1.1) is None
+    return ()
 
 
 @invariant('perception.a_missing_outline_requires_continuous_observed_marks', scope='perception',

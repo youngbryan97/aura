@@ -745,6 +745,7 @@ def _visual_motion_claims() -> tuple:
     )
     from core.perception.points_shared_with_changing_regions import _point_capacity_invariant
     from core.perception.points_that_keep_their_motion import (
+        _owned_material_motion_invariant,
         _point_history_invariant,
         _point_identity_invariant,
     )
@@ -774,6 +775,9 @@ def _visual_motion_claims() -> tuple:
     from core.skills.a_new_attempt_must_be_seen import _new_attempt_invariant
 
     return (
+        ("retained_material_precedes_a_joined_outline_majority", "core/perception/points_that_keep_their_motion.py",
+         "tests/test_owned_marks_survive_a_stationary_majority.py", lambda: _owned_material_motion_invariant() == (),
+         "A continuing body's retained named marks establish its current motion before admitting coherent new marks; stationary texture in a larger joined outline cannot replace that measured motion."),
         ("browser_picture_requests_have_a_finite_budget", "core/perception/a_browser_picture_has_a_deadline.py",
          "tests/test_a_stalled_browser_cannot_own_the_picture_wait.py", lambda: _picture_request_budget_invariant() == (),
          "Stream startup, frame acknowledgements, resampling, direct canvas reads and screenshot requests have finite browser waits; an unanswered request supplies no fresh picture."),
