@@ -11,7 +11,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
-def check_bundle(directory: Path) -> dict:
+def check_bundle(directory: Path, *, case_ids: set[int] | None = None) -> dict:
     manifest = json.loads((directory / "manifest.json").read_text())
     if manifest.get("schema_version") != 1 or not isinstance(manifest.get("cases"), list):
         raise ValueError("unsupported bundle manifest")
@@ -22,6 +22,8 @@ def check_bundle(directory: Path) -> dict:
             raise ValueError("duplicate or invalid case identity")
         seen.add(number)
         if case.get("status") != "asset_verified":
+            continue
+        if case_ids is not None and number not in case_ids:
             continue
         actual = hashlib.sha256((directory / "programs" / f"{number}.swf").read_bytes()).hexdigest()
         if actual != case["program"]["sha256"]:

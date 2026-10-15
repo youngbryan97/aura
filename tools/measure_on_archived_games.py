@@ -9,11 +9,11 @@ drawing handed to her screen pursuit and its reflexes, asked to win. What is
 offline is only her language: with no model loaded, the moments the screen
 pursuit would think in words are decided without them.
 
-    python tools/measure_on_archived_games.py --games 16 2 9 --minutes 6
+    python tools/measure_on_archived_games.py --games 16 2 --minutes 6 --out pass.json
     python tools/measure_on_archived_games.py --all --minutes 4 --out report.json
-    python tools/measure_on_archived_games.py --games 6 --minutes 5 --trace /tmp/traces
-    python tools/measure_on_archived_games.py --bundle ~/.aura/flash-campaign/offline-bundle --all --trace /tmp/traces
-    python tools/measure_on_archived_games.py --bundle ~/.aura/flash-campaign/offline-bundle --random 3 --minutes 6
+    python tools/measure_on_archived_games.py --games 6 --minutes 5 --trace traces --out pass.json
+    python tools/measure_on_archived_games.py --bundle ~/.aura/flash-campaign/offline-bundle --all --trace traces --out pass.json
+    python tools/measure_on_archived_games.py --bundle ~/.aura/flash-campaign/offline-bundle --random 3 --seed 42 --out pass.json
 
 With ``--bundle`` the games are the offline bundle's (tools/prepare_offline_flash_bundle.py): each original program,
 kept with its hash, played by the pinned emulator from a server on this machine, so no game's copy can change or go
@@ -26,8 +26,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
+import math
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -109,7 +112,7 @@ async def _pictured(browser: object, trace: Path, number: int, began: float) -> 
             continue
 
 
-def _served(bundle: Path) -> dict[int, str]:
+def _served(bundle: Path, case_ids: set[int] | None = None) -> dict[int, str]:
     """The offline bundle served on a loopback port for the rest of this run; where each of its games is played."""
     import functools
     import threading
@@ -118,7 +121,7 @@ def _served(bundle: Path) -> dict[int, str]:
     from tools.serve_offline_flash_bundle import BundleHandler, check_bundle
 
     directory = bundle.expanduser().resolve()
-    check_bundle(directory)
+    check_bundle(directory, case_ids=case_ids)
     server = ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(BundleHandler, directory=str(directory)))
     threading.Thread(target=server.serve_forever, daemon=True).start()
     origin = f"http://127.0.0.1:{server.server_port}"
@@ -126,7 +129,8 @@ def _served(bundle: Path) -> dict[int, str]:
     os.environ["AURA_BROWSER_LOOPBACK_ORIGINS"] = origin
     os.environ["AURA_WEB_FETCH_ALLOW_HTTP"] = "1"
     manifest = json.loads((directory / "manifest.json").read_text())
-    return {case["id"]: f"{origin}/{case['url']}" for case in manifest["cases"] if case.get("status") == "asset_verified"}
+    return {case["id"]: f"{origin}/{case['url']}" for case in manifest["cases"]
+            if case.get("status") == "asset_verified" and (case_ids is None or case['id'] in case_ids)}
 
 
 async def _one(number: int, address: str, minutes: float, visible: bool, trace: Path | None = None,
@@ -239,7 +243,7 @@ def _her_model_from(address: str) -> None:
     ServiceContainer.register_instance("llm_router", HerModelOverTheWire(address))
 
 
-async def main(argv: list[str]) -> list[dict]:
+def _arguments(argv: list[str]):
     parser = argparse.ArgumentParser()
     parser.add_argument("--games", nargs="*", type=int, default=[])
     parser.add_argument("--all", action="store_true")
@@ -251,9 +255,39 @@ async def main(argv: list[str]) -> list[dict]:
     parser.add_argument("--her-model", default="", help="where her model answers (tools/her_model_server.py), as live")
     parser.add_argument("--random", type=int, default=0, help="this many games drawn at random, as the demo draws them")
     parser.add_argument("--seed", type=int, default=None, help="what draws them, to draw the same ones again")
+    parser.add_argument("--exclude", nargs="*", type=int, default=[], help="case identities this run must leave alone")
+    parser.add_argument("--held-out", type=Path, default=Path('~/.aura/flash-campaign/held_out.json').expanduser())
+    parser.add_argument("--evaluate-held-out", action="store_true", help="explicitly open held-out cases for evaluation")
+    parser.add_argument("--resume", action="store_true", help="continue a settled campaign checkpoint at --out.state.json")
+    parser.add_argument("--plan-only", action="store_true", help="save the case plan without reading programs or starting play")
     args = parser.parse_args(argv)
-    if args.her_model:
-        _her_model_from(args.her_model)
+    if not math.isfinite(args.minutes) or not 0 < args.minutes <= 60 or args.random < 0:
+        parser.error('minutes must be finite, positive and at most sixty; random must be nonnegative')
+    if not args.out:
+        parser.error('--out is required to retain attempted and pending cases')
+    if args.resume and args.random and args.seed is None:
+        parser.error('a random campaign needs its recorded --seed to resume')
+    args.out = Path(args.out).expanduser()
+    args.trace = Path(args.trace).expanduser() if args.trace else None
+    return args, parser, args.out.with_name(args.out.name + '.state.json')
+
+
+async def main(argv: list[str]) -> list[dict]:
+    args, parser, checkpoint = _arguments(argv)
+    from tools.play_campaign_checkpoint import campaign_lease
+
+    async with campaign_lease(checkpoint):
+        return await _campaign(args, parser, checkpoint)
+
+
+def _prepare_campaign(args, parser, checkpoint: Path):
+    if checkpoint.exists() != args.resume:
+        parser.error('use a fresh --out or --resume with its existing checkpoint')
+    if args.out.exists() and not args.resume:
+        parser.error('the output already exists; use a fresh --out')
+    excluded = set(args.exclude)
+    if args.held_out.exists() and not args.evaluate_held_out:
+        excluded.update(json.loads(args.held_out.read_text())['held_out'])
     os.environ.setdefault("AURA_BROWSER_STEALTH", "0")
     # What her live process refuses to load is refused here too: on 11 October her seeing of a well asked for OpenCV,
     # every run of this tool passed, and live it ended every game she opened.
@@ -261,27 +295,66 @@ async def main(argv: list[str]) -> list[dict]:
 
     install_main_process_cv2_guard()
     places = dict(ARCHIVED)
+    manifest_bytes = b''
     if args.bundle:
-        places = _served(Path(args.bundle))
+        manifest_bytes = (Path(args.bundle).expanduser() / 'manifest.json').read_bytes()
+        places = {c['id']: c.get('url', '') for c in json.loads(manifest_bytes)['cases']}
     numbers = sorted(places) if args.all else args.games
     if args.random:
         import random
 
         seed = args.seed if args.seed is not None else int(time.time())
-        numbers = sorted(random.Random(seed).sample(sorted(places), min(args.random, len(places))))
+        available = sorted(set(places) - excluded)
+        numbers = sorted(random.Random(seed).sample(available, min(args.random, len(available))))
         print(json.dumps({"drawn": numbers, "seed": seed}), flush=True)
-    results = []
-    for number in numbers:
+    from tools.play_campaign_checkpoint import campaign_plan, resume_campaign
+
+    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    changed = subprocess.check_output(['git', 'diff', 'HEAD', '--', 'core', 'tools'], cwd=ROOT)
+    identity = {'commit': revision, 'tracked_diff_sha256': hashlib.sha256(changed).hexdigest(),
+                'manifest_sha256': hashlib.sha256(manifest_bytes).hexdigest(), 'model_endpoint': args.her_model,
+                'visible': args.visible, 'trace': str(args.trace.resolve()) if args.trace else ''}
+    record = campaign_plan(numbers, excluded=excluded, identity=identity, seconds=args.minutes * 60)
+    if args.resume:
+        record = resume_campaign(json.loads(checkpoint.read_text()), record)
+    return record, places
+
+
+async def _campaign(args, parser, checkpoint: Path) -> list[dict]:
+    from tools.play_campaign_checkpoint import run_campaign
+
+    record, places = await asyncio.to_thread(_prepare_campaign, args, parser, checkpoint)
+
+    async def save(value):
+        from core.governance_context import local_internal_governed_scope
+        from core.runtime.file_write_gateway import get_file_write_gateway
+
+        with local_internal_governed_scope('play_campaign_checkpoint'):
+            gateway = get_file_write_gateway()
+            await gateway.ensure_directory_async(checkpoint.parent, source='play_campaign_checkpoint')
+            await gateway.write_text_async(checkpoint, json.dumps(value, indent=2), source='play_campaign_checkpoint')
+            results = [c['result'] for c in value['cases'] if c['state'] == 'recorded']
+            await gateway.write_text_async(args.out, json.dumps(results, indent=2),
+                                           source='play_campaign_checkpoint')
+
+    await save(record)
+    if args.plan_only:
+        return [c['result'] for c in record['cases'] if c['state'] == 'recorded']
+    active = {c['case'] for c in record['cases'] if c['state'] == 'pending'}
+    if args.bundle and active:
+        places = await asyncio.to_thread(_served, Path(args.bundle), active)
+    if args.her_model and active:
+        _her_model_from(args.her_model)
+
+    async def play(number):
         if number not in places:
-            print(json.dumps({"game": number, "error": "no copy that plays here"}), flush=True)
-            continue
-        result = await _one(number, places[number], args.minutes, args.visible, Path(args.trace) if args.trace else None)
-        results.append(result)
-        print(json.dumps({k: result[k] for k in ("game", "minutes", "runs", "won", "error", "last_seen")}), flush=True)
-    return results
+            return {'game': number, 'error': 'no copy that plays here'}
+        result = await _one(number, places[number], args.minutes, args.visible, args.trace)
+        print(json.dumps({k: result.get(k) for k in ('game', 'minutes', 'runs', 'won', 'error', 'last_seen')}), flush=True)
+        return result
+
+    return await run_campaign(record, play=play, save=save)
 
 
 if __name__ == "__main__":
-    _results = asyncio.run(main(sys.argv[1:]))
-    if "--out" in sys.argv:
-        Path(sys.argv[sys.argv.index("--out") + 1]).write_text(json.dumps(_results, indent=1))
+    asyncio.run(main(sys.argv[1:]))
