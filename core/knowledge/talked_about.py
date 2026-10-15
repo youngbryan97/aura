@@ -177,14 +177,22 @@ def subjects(turn: str, before: Sequence[Turn], *, store: Any, deadline_s: float
 
 
 def said_about(turn: str, before: Sequence[Turn] = (), *, store: Any = None, limit: int, deadline_s: float,
-               rerank: Rerank | None = None, speakers: Sequence[str] = ()) -> list[tuple[str, str]]:
-    """(title, paragraph) for the subjects of the conversation: each one's opening, then the turn's nearest."""
-    from core.knowledge.passages_about import _paragraphs, _terms
+               rerank: Rerank | None = None, speakers: Sequence[str] = (),
+               everywhere: Any = None) -> list[tuple[str, str]]:
+    """(title, paragraph) for the subjects of the conversation: each one's opening, then the turn's nearest.
+
+    With ``everywhere`` (core/knowledge/passage_index.PassageIndex), the
+    paragraphs of the whole corpus that best match the turn's rarer words join
+    the subjects' own: what is said about a subject often names others it
+    does not mention, as a ranking of players names the one above them.
+    """
+    from core.knowledge.passages_about import _paragraphs
 
     if store is None:
         from core.knowledge.local_corpus import LocalCorpusStore
 
         store = LocalCorpusStore()
+    expires = time.monotonic() + max(0.0, deadline_s)
     found = subjects(turn, before, store=store, deadline_s=deadline_s, most=max(1, limit), speakers=speakers)
     if not found:
         return []
@@ -198,20 +206,39 @@ def said_about(turn: str, before: Sequence[Turn] = (), *, store: Any = None, lim
     openings = [(hit.title, split[hit.doc_id][0]) for hit in found][:max(1, limit)]
     rest = [(hit.title, p) for hit in found for p in split[hit.doc_id][1:]]
     room = max(0, limit - len(openings))
-    if not room or not rest:
+    beyond: list[tuple[str, str]] = []
+    if room and everywhere is not None and time.monotonic() < expires:
+        from core.knowledge.corpus_grounding import _CANDIDATE_POOL_FACTOR
+
+        beyond = [(p.title, p.paragraph) for p in everywhere.search(said, limit=limit * _CANDIDATE_POOL_FACTOR,
+                                                                    deadline_s=expires - time.monotonic())
+                  if (p.title, p.paragraph) not in openings]
+    if not room or not (rest or beyond):
         return openings
     if rerank is not None:
         # The subjects named, then what was said: "he" in the turn is the subject carried here.
+        pool = rest + [item for item in beyond if item not in rest]
         query = "; ".join(title for title, _ in openings) + ": " + said
-        similarity = list(rerank(query, [f"{title}: {paragraph}" for title, paragraph in rest]))
-        order = sorted(range(len(rest)), key=lambda i: -similarity[i])
-        return openings + [rest[i] for i in order[:room]]
+        similarity = list(rerank(query, [f"{title}: {paragraph}" for title, paragraph in pool]))
+        order = sorted(range(len(pool)), key=lambda i: -similarity[i])
+        return openings + [pool[i] for i in order[:room]]
+    if beyond:
+        from core.knowledge.passage_index import fused
+
+        return openings + fused([_by_words(turn, rest), beyond], limit=room)
+    return openings + _by_words(turn, rest)[:room]
+
+
+def _by_words(turn: str, paragraphs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """The paragraphs holding the turn's words, rarer words counting for more among these paragraphs."""
+    from core.knowledge.passages_about import _terms
+
     asked = _terms(turn)
-    held = [asked & _terms(p) for _t, p in rest]
+    held = [asked & _terms(p) for _t, p in paragraphs]
     df = {term: sum(term in h for h in held) for term in asked}
-    weights = [sum(math.log(len(rest) / df[t]) for t in h) for h in held]
-    order = sorted((i for i in range(len(rest)) if weights[i] > 0), key=lambda i: -weights[i])
-    return openings + [rest[i] for i in order[:room]]
+    weights = [sum(math.log(len(paragraphs) / df[t]) for t in h) for h in held]
+    order = sorted((i for i in range(len(paragraphs)) if weights[i] > 0), key=lambda i: -weights[i])
+    return [paragraphs[i] for i in order]
 
 
 __all__ = ["mentions", "said_about", "subjects"]

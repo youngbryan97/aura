@@ -220,10 +220,19 @@ def corpus_grounding_for(
                 from core.knowledge.talked_about import said_about
 
                 found = said_about(query, conversation, store=store, limit=limit, deadline_s=left, rerank=rerank,
-                                   speakers=speakers)
+                                   speakers=speakers, everywhere=_paragraph_index_beside(store))
             except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
                 found = []
     return CorpusGrounding(query=query, passages=tuple(found))
+
+
+def _paragraph_index_beside(store: Any) -> Any:
+    """The index of every paragraph built from this corpus (core/knowledge/passage_index.py), or None."""
+    from core.knowledge.passage_index import PassageIndex
+
+    corpus = getattr(store, "db_path", None)
+    index = PassageIndex(corpus.with_name("passages.db"), corpus) if corpus is not None else PassageIndex()
+    return index if index.available() else None
 
 
 def _for_a_question(query: str, *, limit: int, deadline_s: float, store: Any) -> list[tuple[str, str]]:

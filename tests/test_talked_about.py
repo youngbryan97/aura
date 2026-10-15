@@ -21,6 +21,9 @@ ARTICLES = [
     ("Mercury", "Mercury may refer to:\n\nMercury (planet), the planet nearest the Sun\n\nMercury (element)"),
     ("Mercury (planet)", "Mercury is the first planet from the Sun and the smallest in the Solar System.\n\n"
                          "A year on Mercury lasts 88 Earth days."),
+    ("List of NBA single-game scoring leaders", "This is a list of the highest point totals in a single game.\n\n"
+                                                "The record for points in a single game is 100, scored by Wilt "
+                                                "Chamberlain against the New York Knicks in 1962."),
 ]
 
 
@@ -88,3 +91,16 @@ def test_chat_grounds_a_statement_about_a_person_only_when_it_gives_the_conversa
     assert grounded.grounded and grounded.passages[0][0] == "Kobe Bryant"
     # An action asked of her is not about the world, conversation or not.
     assert not corpus_grounding_for("Open Kobe Bryant's page", store=store, conversation=[]).grounded
+
+
+def test_paragraphs_from_articles_the_conversation_does_not_name_join_its_subjects(tmp_path: Path) -> None:
+    from core.knowledge.passage_index import build
+
+    store = _store(tmp_path)
+    build(tmp_path / "corpus.db", tmp_path / "passages.db")
+    said = "Kobe Bryant's 81 was huge, though the record for points in a single game is someone else's"
+    grounding = corpus_grounding_for(said, store=store, conversation=[], limit=3)
+    titles = [title for title, _text in grounding.passages]
+    assert titles[0] == "Kobe Bryant"
+    # The record is in an article the turn never names.
+    assert any("Wilt Chamberlain" in text for _title, text in grounding.passages), grounding.passages

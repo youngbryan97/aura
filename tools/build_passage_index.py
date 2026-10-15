@@ -5,7 +5,7 @@ Reads corpus.db read-only and writes passages.db beside it. Started again, it
 resumes after the last article it recorded.
 
 Usage:
-    build_passage_index.py [--corpus DB] [--output DB] [--until DOC_ID]
+    build_passage_index.py [--corpus DB] [--output DB] [--until DOC_ID] [--optimize]
 """
 
 from __future__ import annotations
@@ -22,12 +22,13 @@ if str(ROOT) not in sys.path:
 
 def main() -> int:
     from core.knowledge.local_corpus import default_corpus_db_path
-    from core.knowledge.passage_index import build, default_passage_db_path
+    from core.knowledge.passage_index import build, default_passage_db_path, optimize
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--corpus", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--until", type=int, default=None)
+    parser.add_argument("--optimize", action="store_true", help="merge the index into one segment once built")
     args = parser.parse_args()
     corpus = (args.corpus or default_corpus_db_path()).expanduser()
     output = (args.output or default_passage_db_path()).expanduser()
@@ -35,6 +36,8 @@ def main() -> int:
         raise SystemExit(f"no corpus at {corpus}")
     summary = build(corpus, output, until=args.until, on_progress=lambda p: print(json.dumps(p), flush=True))
     print(json.dumps(summary), flush=True)
+    if args.optimize:
+        print(json.dumps({"optimized_seconds": optimize(output)}), flush=True)
     return 0
 
 

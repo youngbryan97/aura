@@ -45,6 +45,36 @@ def default_passage_db_path() -> Path:
     return default_corpus_db_path().with_name("passages.db")
 
 
+#: How many paragraphs BM25 scores a second here, replaced by what each search measures. The first
+#: value is the rate measured on this host on 15 October 2026 (0.74 million a second, while the index
+#: was still being written).
+_SCORING = {"rows_per_s": 740_000.0}
+
+
+def _paragraphs_holding(conn: sqlite3.Connection, words: list[str]) -> dict[str, int]:
+    """For each word, how many paragraphs hold it, by the index's own stemming; a word it does not hold is left out.
+
+    Each word is tokenized by a scratch table with the index's tokenizer, so
+    its stem is the index's, and the count is read from the index's
+    vocabulary.
+    """
+    conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS temp.asked USING fts5(word, tokenize='porter unicode61')")
+    conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS temp.asked_stems USING fts5vocab(temp, asked, 'instance')")
+    conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS temp.held USING fts5vocab(main, passages_fts, 'row')")
+    conn.execute("DELETE FROM temp.asked")
+    conn.executemany("INSERT INTO temp.asked(rowid, word) VALUES (?, ?)", list(enumerate(words, start=1)))
+    stems = {int(doc): str(term) for term, doc in conn.execute("SELECT term, doc FROM temp.asked_stems")}
+    counts: dict[str, int] = {}
+    for rowid, word in enumerate(words, start=1):
+        stem = stems.get(rowid)
+        if stem is None:
+            continue
+        row = conn.execute("SELECT doc FROM temp.held WHERE term = ?", (stem,)).fetchone()
+        if row:
+            counts[word] = int(row[0])
+    return counts
+
+
 @dataclass(frozen=True)
 class Passage:
     title: str
@@ -123,6 +153,22 @@ def build(corpus_db: Path, passage_db: Path, *, until: int | None = None, commit
             "seconds": round(time.monotonic() - started, 1)}
 
 
+def optimize(passage_db: Path) -> float:
+    """Merge the index's segments into one, so a lookup reads one b-tree instead of every segment; seconds taken.
+
+    A build leaves the index in many segments, and FTS5 consults each of
+    them for every word looked up. Merging rewrites the whole index once.
+    """
+    started = time.monotonic()
+    conn = sqlite3.connect(str(passage_db))
+    try:
+        with conn:
+            conn.execute("INSERT INTO passages_fts(passages_fts) VALUES ('optimize')")
+    finally:
+        conn.close()
+    return round(time.monotonic() - started, 1)
+
+
 class PassageIndex:
     """BM25 over every paragraph; text read back from corpus.db."""
 
@@ -136,19 +182,40 @@ class PassageIndex:
         return self.passage_db.exists() and self.corpus_db.exists()
 
     def search(self, question: str, *, limit: int, deadline_s: float) -> list[Passage]:
-        """The paragraphs whose words best match the question's own, best first; [] past the deadline."""
+        """The paragraphs whose words best match the question's rarer words, best first; [] past the deadline.
+
+        BM25 scores every paragraph holding any word asked for, and a common
+        word is in millions of them. So the words go in rarest first, while
+        the paragraphs they reach can still be scored in the time left at the
+        rate searches here have been scoring; a word too common to fit, and
+        every commoner one, is left out.
+        """
         from core.knowledge.passages_about import _terms
 
         terms = sorted(_terms(question))
         if not terms or not self.available():
             return []
-        match = " OR ".join(f'"{t}"' for t in terms)
         conn = sqlite3.connect(f"file:{self.passage_db}?mode=ro", uri=True, timeout=10.0)
         expires = time.monotonic() + max(0.01, float(deadline_s))
         conn.set_progress_handler(lambda: 1 if time.monotonic() > expires else 0, 2000)
         try:
+            counts = _paragraphs_holding(conn, terms)
+            budget = max(0.0, expires - time.monotonic()) * _SCORING["rows_per_s"]
+            chosen, reached = [], 0
+            for word, held in sorted(counts.items(), key=lambda item: item[1]):
+                if reached + held > budget:
+                    break
+                chosen.append(word)
+                reached += held
+            if not chosen:
+                return []
+            match = " OR ".join('"' + w.replace('"', '""') + '"' for w in chosen)
+            started = time.monotonic()
             rows = conn.execute("SELECT rowid, bm25(passages_fts) FROM passages_fts WHERE passages_fts MATCH ? "
                                 "ORDER BY bm25(passages_fts) LIMIT ?", (match, max(1, int(limit)))).fetchall()
+            took = time.monotonic() - started
+            if reached and took > 0:
+                _SCORING["rows_per_s"] = reached / took
         except sqlite3.OperationalError as exc:
             # Interrupted at the deadline, or no index yet: a miss, as the corpus store treats it.
             logger.debug("Passage search returned nothing: %s", exc)
@@ -192,5 +259,5 @@ def fused(rankings: list[list[tuple[str, str]]], *, limit: int) -> list[tuple[st
     return sorted(score, key=lambda item: -score[item])[:max(1, limit)]
 
 
-__all__ = ["POSITION_BITS", "Passage", "PassageIndex", "build", "default_passage_db_path", "fused"]
+__all__ = ["POSITION_BITS", "Passage", "PassageIndex", "build", "default_passage_db_path", "fused", "optimize"]
 
