@@ -155,6 +155,8 @@ class Guide:
     #: Its world as its code makes it: her body's physics, the ground, the clock
     #: (core/perception/a_world_as_its_code_makes_it.py), where its code was read.
     world_its_code_makes: Any = None
+    #: Current source declarations only; they give no observed names or control identity.
+    program_visual_assets: tuple[Any, ...] = ()
     #: Where the thing that draws it lies in her picture of play (left, top, width, height, as shares of the picture);
     #: None for the whole picture.
     stage_in_her_picture: Any = None
@@ -301,6 +303,8 @@ class Guide:
 
         take_in_how_it_plays(self, getattr(read, "plays", None), at)
         self.world_its_code_makes = getattr(read, "world", None) or self.world_its_code_makes
+        self.program_visual_assets = tuple(dict.fromkeys(
+            (*self.program_visual_assets, *(getattr(read, 'visual_assets', ()) or ()))))
 
     def take_in_counsel(self, told: str, at: float | None = None) -> None:
         if told:

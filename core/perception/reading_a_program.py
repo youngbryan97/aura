@@ -113,9 +113,11 @@ class ProgramRead:
     world: Any = None
     #: Exact immutable instruction sources are available while this program read is current.
     action_sources: Any = None
+    #: Source-namespaced visual declarations, without a current screen or task role.
+    visual_assets: tuple[Any, ...] = ()
 
     def __bool__(self) -> bool:
-        return bool(self.text or self.keys or self.words or self.pointer or self.mechanics_found or self.world)
+        return bool(self.text or self.keys or self.words or self.pointer or self.mechanics_found or self.world or self.visual_assets)
 
 
 def key_named(name: str) -> str:
@@ -277,6 +279,9 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
         )
 
         action_sources = read_flash_action_streams(data)
+        from core.perception.visual_assets_in_a_flash_file import read_flash_visual_assets
+
+        visual_assets = (read_flash_visual_assets(data),)
         plays.source_motion = (motion_in_source_methods(statements, plays.keys, got.get('frames_a_second'),
                                                         source=action_sources.source) if action_sources.complete else
                                SourceMethodMotion(unknown=('bytecode source is incomplete',), source=action_sources.source))
@@ -295,6 +300,7 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
         texts = [next(t for t in group if t) for group in texts]
         kind, labels = "script" if not re.search(r"<html|<body", code[:4000], re.I) else "page", []
         plays = world = action_sources = None
+        visual_assets = ()
     text = "\n".join([code, *texts, " ".join(names), " ".join(labels)])[:MOST_TEXT].lower()
     pointer = [way for way, sign in _POINTER.items() if sign.search(text)]
     keys = {key: purpose for key, purpose in _keys_in(text, names).items() if purpose != "cheat"}
@@ -304,7 +310,7 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
                        buttons=_buttons_in(names),
                        names=[n for n in names if 3 <= len(n) <= 32][:600], labels=labels[:200], text=text, kind=kind,
                        code=statements[:40_000], plays=plays or None, world=world or None,
-                       action_sources=action_sources)
+                       action_sources=action_sources, visual_assets=visual_assets)
 
 
 def merged(reads: list[ProgramRead]) -> ProgramRead:
@@ -325,5 +331,6 @@ def merged(reads: list[ProgramRead]) -> ProgramRead:
         out.plays = out.plays or read.plays
         out.world = out.world or read.world
         out.action_sources = out.action_sources or read.action_sources
+        out.visual_assets = tuple(dict.fromkeys((*out.visual_assets, *read.visual_assets)))
     return out
 

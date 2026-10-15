@@ -78,8 +78,12 @@ def _task_grounding_claims() -> tuple:
     from core.agency.reading_while_playing import _current_directions_invariant
     from core.language.how_a_game_ended import _damaged_repeat_invariant
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
+    from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
 
-    return (('current_directions_follow_capture_order', 'core/agency/reading_while_playing.py',
+    return (('visual_asset_names_keep_source_dictionary_custody', 'core/perception/visual_assets_in_a_flash_file.py',
+             'tests/test_visual_assets_keep_their_program_and_declaration.py', lambda: _visual_asset_custody_invariant() == (),
+             'Exported visual names retain their program digest, dictionary character and declaration addresses; incomplete or conflicting metadata supplies no unique asset, observed object or task role.'),
+            ('current_directions_follow_capture_order', 'core/agency/reading_while_playing.py',
              'tests/test_new_motion_directions_reach_the_running_actor.py', lambda: _current_directions_invariant() == (),
              'New explicit spatial directions reach the running meeting state in capture order, even when their wording was heard earlier; counters and stale or invalid capture times cannot replace them.'),
             ('reference_appearance_is_not_temporal_identity', 'core/perception/a_visual_reference_in_the_picture.py',
