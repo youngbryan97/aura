@@ -427,3 +427,13 @@ promote the reference match into body identity.
 The first continuation fired while this chat was active and was deleted
 through the app tool. The later 5:11:40 PM Pacific continuation remains.
 G09 PID 4559 and the excluded original 9/holdouts remain untouched.
+
+The source-effect reader now retains reaching conditions, assumptions and an
+immutable invocation on each call/write. An unspecified free callback keeps
+symbolic `this`; it no longer becomes its own receiver. See
+`docs/evidence/steering/2026-10-15-source-effects-keep-their-own-guards.md`.
+Its 72 focused checks, 165 smoke checks (one skipped), compile, Ruff,
+layering, dependency and writing gates passed. Case 18 still exhausts 64
+paths and stops at `Delete`, so neither complete source semantics nor an
+exact source controller is qualified. These new records are not wired into
+task-role binding or used to replace pixels.

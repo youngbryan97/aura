@@ -1,11 +1,13 @@
 """Actual byte-addressed branch paths, not names, select the arithmetic."""
 import struct
+from dataclasses import replace
 
 import pytest
 
 from core.perception.flash_actions_with_source import parse_action_stream
 from core.perception.symbolic_motion_in_flash_methods import (
     Arithmetic,
+    _source_effect_prefix_invariant,
     bind_flash_methods,
     read_flash_method,
 )
@@ -191,3 +193,88 @@ def test_a_nonfinite_argument_is_not_replaced_by_undefined():
     reading = read_flash_method(_binding(_push('arg') + b'\x1c\x3e', ('arg',)), (float('nan'),))
     assert not reading.complete
     assert reading.issues == ('nonfinite source number is unsupported',)
+
+
+def _notify():
+    return _push(0, 'notify')+b'\x3d\x17'
+
+
+def test_a_later_branch_cannot_guard_an_earlier_write():
+    body = _assemble([_write(2), _push('blocked')+b'\x1c', (0x9D, 'end'),
+                      _write(3), ('label', 'end'), b'\0'])
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and len(reading.paths) == 2
+    for path in reading.paths:
+        assert len(path.conditions) == 1 and path.writes[0].conditions == ()
+        if len(path.writes) == 2:
+            assert path.writes[1].conditions == path.conditions
+    assert _source_effect_prefix_invariant() == ()
+
+
+def test_a_call_keeps_only_the_guards_that_reached_it():
+    body = _assemble([_push('available')+b'\x1c\x12', (0x9D, 'end'),
+                      _notify(), _push('later')+b'\x1c', (0x9D, 'end'),
+                      _write(3), ('label', 'end'), b'\0'])
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and not reading.effects_composed
+    reached = [path for path in reading.paths if path.calls]
+    assert len(reached) == 2
+    assert all(len(path.conditions) == 2 and len(path.calls[0].conditions) == 1 for path in reached)
+    assert reached[0].calls[0] == reached[1].calls[0]
+
+
+def test_later_numeric_assumptions_do_not_rewrite_the_earlier_effect_context():
+    body = _push('this')+b'\x1c'+_push('pending', 'speed')+b'\x1c\x4f'
+    body += _notify()+_push('later')+b'\x1c\x17\0'
+    reading = read_flash_method(_binding(body), constants={'speed': 3., 'later': 8.})
+    assert reading.complete and not reading.effects_composed
+    path = reading.paths[0]
+    assert path.assumptions == (('later', 8.), ('speed', 3.))
+    assert path.writes[0].assumptions == path.calls[0].assumptions == (('speed', 3.),)
+
+
+def test_known_key_and_parameter_context_travels_with_each_effect():
+    body = _assemble([_push(38, 1, 'Key')+b'\x1c'+_push('isDown')+b'\x52\x12',
+                      (0x9D, 'end'), _write(2), _notify(), ('label', 'end'), b'\0'])
+    binding = _binding(body, ('amount',))
+    pressed = read_flash_method(binding, (7,), held_codes=frozenset({38}))
+    resting = read_flash_method(binding, (7,), held_codes=frozenset())
+    assert pressed.complete and resting.complete
+    assert pressed.invocation.held_codes == frozenset({38}) and resting.invocation.held_codes == frozenset()
+    assert pressed.invocation.parameters == (('amount', Arithmetic('number', (7.,))),)
+    path = pressed.paths[0]
+    assert path.writes[0].invocation == path.calls[0].invocation == pressed.invocation
+    assert not resting.paths[0].writes and not resting.paths[0].calls
+
+
+@pytest.mark.parametrize('keys', [{38}, frozenset({True}), frozenset({300}), frozenset({'up'})])
+def test_mutable_or_invalid_input_context_cannot_enter_an_effect_receipt(keys):
+    reading = read_flash_method(_binding(_write(2)+b'\0'), held_codes=keys)
+    assert not reading.complete and not reading.paths
+
+
+def test_guarded_prefix_survives_an_unread_tail_without_qualifying_the_method():
+    body = _assemble([_push('available')+b'\x1c\x12', (0x9D, 'end'),
+                      _notify(), b'\x07', ('label', 'end'), b'\0'])
+    reading = read_flash_method(_binding(body))
+    assert not reading.complete and not reading.effects_composed
+    path = next(path for path in reading.paths if path.calls)
+    assert path.issues and path.calls[0].conditions == path.conditions
+
+
+def test_a_free_callback_does_not_become_its_own_receiver():
+    binding = replace(_binding(_write(2)+b'\0'), target='callback')
+    unbound = read_flash_method(binding)
+    supplied = read_flash_method(binding, receiver='vehicle')
+    assert unbound.complete and supplied.complete
+    assert unbound.paths[0].writes[0].target == 'this.pending'
+    assert supplied.paths[0].writes[0].target == 'vehicle.pending'
+    assert unbound.invocation.receiver_source == 'unresolved'
+    assert supplied.invocation.receiver_source == 'caller supplied'
+    assert supplied.paths[0].writes[0].invocation == supplied.invocation
+
+
+@pytest.mark.parametrize('receiver', ['', 'object[2]', 'object;script()', 'a..b', True, 'x'*257])
+def test_dynamic_or_unbounded_receiver_paths_remain_unread(receiver):
+    reading = read_flash_method(_binding(_write(2)+b'\0'), receiver=receiver)
+    assert not reading.complete and not reading.paths

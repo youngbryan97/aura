@@ -19,6 +19,7 @@ from core.perception.flash_actions_with_source import (
     ActionInstruction,
     ActionStream,
 )
+from core.verify import invariant
 
 MAX_PATHS = 64
 MAX_STEPS = 4096
@@ -42,11 +43,23 @@ class BranchEvidence:
 
 
 @dataclass(frozen=True)
+class SourceInvocation:
+    target: str
+    receiver: Arithmetic
+    receiver_source: str
+    parameters: tuple[tuple[str, Arithmetic], ...]
+    held_codes: frozenset[int] | None
+
+
+@dataclass(frozen=True)
 class SourceWrite:
     target: str
     value: Arithmetic
     source: str
     offset: int
+    conditions: tuple[BranchEvidence, ...] = ()
+    assumptions: tuple[tuple[str, float], ...] = ()
+    invocation: SourceInvocation | None = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +68,9 @@ class SourceCall:
     arguments: tuple[Arithmetic, ...]
     source: str
     offset: int
+    conditions: tuple[BranchEvidence, ...] = ()
+    assumptions: tuple[tuple[str, float], ...] = ()
+    invocation: SourceInvocation | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +95,7 @@ class FlashMethodReading:
     target: str
     paths: tuple[MethodPath, ...]
     issues: tuple[str, ...] = ()
+    invocation: SourceInvocation | None = None
 
     @property
     def complete(self) -> bool:
@@ -256,6 +273,7 @@ class _State:
     steps: int = 0
     assumptions: dict[str, float] = field(default_factory=dict)
     local_names: set[str] = field(default_factory=set)
+    invocation: SourceInvocation | None = None
 
     def copy(self) -> _State:
         return replace(self, stack=list(self.stack), names=dict(self.names), registers=dict(self.registers),
@@ -330,7 +348,8 @@ def _call(target: str, arguments: tuple[Arithmetic, ...], state: _State,
         if code is None or int(code) != code:
             raise _CannotReadError('keyboard code is unknown')
         return _literal(int(code) in held_codes)
-    state.calls.append(SourceCall(target, arguments, source, instruction.offset))
+    state.calls.append(SourceCall(target, arguments, source, instruction.offset, state.conditions,
+                                  tuple(sorted(state.assumptions.items())), state.invocation))
     return Arithmetic('call', (target, *arguments))
 
 
@@ -342,7 +361,8 @@ def _write(state: _State, path: str, value: Arithmetic, instruction: ActionInstr
         raise _CannotReadError('symbolic expression budget exceeded')
     state.names[path] = value
     if not local:
-        state.writes.append(SourceWrite(path, value, source, instruction.offset))
+        state.writes.append(SourceWrite(path, value, source, instruction.offset, state.conditions,
+                                        tuple(sorted(state.assumptions.items())), state.invocation))
 
 
 def _instruction(state: _State, instruction: ActionInstruction, source: str,
@@ -431,13 +451,20 @@ def _instruction(state: _State, instruction: ActionInstruction, source: str,
 
 def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = (), *,
                       constants: Mapping[str, float] | None = None,
-                      held_codes: frozenset[int] | None = None) -> FlashMethodReading:
+                      held_codes: frozenset[int] | None = None, receiver: str | None = None) -> FlashMethodReading:
     """Lift one method's supported paths; unknown guards remain explicit.
 
     Arguments may be literals or ``Arithmetic`` references. Calls to other
     source methods are recorded rather than executed. Their effects therefore
     still require separate composition before claiming a complete controller.
+    Each effect keeps its reaching guards and input context. Later branches
+    and later constant reads do not become conditions of an earlier effect.
+    An explicit receiver describes this invocation only. A free function's
+    absent receiver remains the symbolic "this", never its own method name.
     """
+    if held_codes is not None and (not isinstance(held_codes, frozenset)
+            or any(type(code) is not int or not 0 <= code <= 255 for code in held_codes)):
+        return FlashMethodReading(binding.target, (), ('immutable finite keyboard codes are required',))
     function = binding.function
     if not function.body.complete or len(arguments) != len(function.parameters):
         return FlashMethodReading(binding.target, (), ('incomplete method or mismatched arguments',))
@@ -445,7 +472,10 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
         return FlashMethodReading(binding.target, (), ('empty method body',))
     if any(isinstance(argument, Arithmetic) and not _expression_is_bounded(argument) for argument in arguments):
         return FlashMethodReading(binding.target, (), ('argument expression budget exceeded',))
-    owner = binding.target.rsplit('.', 1)[0]
+    if receiver is not None and (not isinstance(receiver, str) or len(receiver) > 256
+            or any(_IDENTIFIER.fullmatch(part) is None for part in receiver.split('.'))):
+        return FlashMethodReading(binding.target, (), ('bounded literal receiver path is required',))
+    owner = receiver if receiver is not None else binding.target.rsplit('.', 1)[0] if '.' in binding.target else 'this'
     names = {'this': Arithmetic('reference', (owner,))}
     try:
         names.update({name: value if isinstance(value, Arithmetic) else _literal(value)
@@ -458,8 +488,11 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
     unsupported_preloads = function.flags & (0x4 | 0x10 | 0x40 | 0x80 | 0x100)
     if unsupported_preloads:
         return FlashMethodReading(binding.target, (), ('unsupported preloaded method environment',))
+    invocation = SourceInvocation(binding.target, names['this'],
+                                  'caller supplied' if receiver is not None else 'declaration owner' if '.' in binding.target else 'unresolved',
+                                  tuple((name, names[name]) for name in function.parameters), held_codes)
     first = _State(function.body.instructions[0].offset, names=names, registers=registers,
-                   pool=binding.constant_pool, local_names=set(function.parameters))
+                   pool=binding.constant_pool, local_names=set(function.parameters), invocation=invocation)
     pending = deque([first])
     instructions = {instruction.offset: instruction for instruction in function.body.instructions}
     paths = []
@@ -517,4 +550,24 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
                                         assumptions=tuple(sorted(state.assumptions.items()))))
             else:
                 issues.append('method path left its owned instruction addresses')
-    return FlashMethodReading(binding.target, tuple(paths), tuple(dict.fromkeys(issues)))
+    return FlashMethodReading(binding.target, tuple(paths), tuple(dict.fromkeys(issues)), invocation)
+
+
+@invariant('perception.source_effects_keep_their_reaching_prefix', scope='perception',
+           owner='core/perception/symbolic_motion_in_flash_methods.py', observational=False)
+def _source_effect_prefix_invariant() -> tuple:
+    invocation = SourceInvocation('method', Arithmetic('reference', ('body',)), 'caller supplied', (), frozenset({37}))
+    state = _State(0, invocation=invocation)
+    instruction = ActionInstruction(0, 1, 1, 1, 0x1D, 'SetVariable', (), b'')
+    _write(state, 'body.x', _literal(1), instruction, 'source')
+    guard = BranchEvidence('source', 8, Arithmetic('reference', ('blocked',)), False)
+    state.conditions += (guard,)
+    state.assumptions['ceiling'] = 10.
+    _call('notify', (), state, instruction, 'source', invocation.held_codes)
+    assert state.writes[0].conditions == () and state.writes[0].assumptions == ()
+    assert state.calls[0].conditions == (guard,) and state.calls[0].assumptions == (('ceiling', 10.),)
+    assert state.calls[0].invocation == state.writes[0].invocation == invocation
+    state.conditions = ()
+    state.assumptions.clear()
+    assert state.calls[0].conditions == (guard,) and state.calls[0].assumptions == (('ceiling', 10.),)
+    return ()

@@ -78,9 +78,13 @@ def _task_grounding_claims() -> tuple:
     from core.agency.reading_while_playing import _current_directions_invariant
     from core.language.how_a_game_ended import _damaged_repeat_invariant
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
+    from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
 
-    return (('visual_asset_names_keep_source_dictionary_custody', 'core/perception/visual_assets_in_a_flash_file.py',
+    return (('source_effects_keep_their_reaching_prefix', 'core/perception/symbolic_motion_in_flash_methods.py',
+             'tests/test_symbolic_motion_in_flash_methods.py', lambda: _source_effect_prefix_invariant() == (),
+             'Each supported bytecode call or write retains its own reaching guards, numeric assumptions and supplied input context; later branches cannot retroactively guard an earlier effect.'),
+            ('visual_asset_names_keep_source_dictionary_custody', 'core/perception/visual_assets_in_a_flash_file.py',
              'tests/test_visual_assets_keep_their_program_and_declaration.py', lambda: _visual_asset_custody_invariant() == (),
              'Exported visual names retain their program digest, dictionary character and declaration addresses; incomplete or conflicting metadata supplies no unique asset, observed object or task role.'),
             ('current_directions_follow_capture_order', 'core/agency/reading_while_playing.py',
