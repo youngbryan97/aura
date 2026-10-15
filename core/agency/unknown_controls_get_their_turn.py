@@ -126,4 +126,10 @@ def _unknown_control_fairness_invariant() -> tuple:
     hers.keys_known, hers.way_of = lambda _keys: False, lambda _key: None
     assert unknown_control_trials_finished(run, hers)
     assert not body_probe_is_active(run, hers, pointer_steps=0, at=2.)
+    run.trying = 4*len(run.keys)
+    hers.identification.epoch += 1
+    assert body_probe_is_active(run, hers, pointer_steps=0, at=2.)
+    for _ in range(PRESSES_PER_CONTROL*len(run.keys)):
+        assert next_unknown_control(run, hers, mine, run.keys) is not None
+    assert not body_probe_is_active(run, hers, pointer_steps=0, at=2.)
     return ()

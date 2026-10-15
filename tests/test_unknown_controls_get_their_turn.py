@@ -290,3 +290,66 @@ async def test_exhausted_unknown_control_exits_body_probe_and_reaches_ordinary_p
     choosing = SimpleNamespace(mine=mine)
     await play._act(object(), run, moves, hers, None, choosing, 3.)
     assert progressed == ['ordinary planning']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('changed', ['epoch', 'number', 'birth'])
+async def test_the_actual_actor_gives_a_new_owner_its_trials_after_old_discovery_is_spent(monkeypatch, changed):
+    from core.agency import playing_as_it_happens as play
+    from core.agency import steering_from_a_model as steering
+    from core.agency.inputs_while_measuring_control import body_probe_is_active
+
+    keys, delivered, planned = ['opaque-a', 'opaque-b', 'opaque-c'], [], []
+    run = _Run(keys=keys, began=time.monotonic(), trying=4*len(keys), tried_at=-math.inf)
+    run.counter_trial = CounteringMotion(done=True)
+    hers = WhichIsHers()
+    hers.number, hers.kind = 7, 1
+    mine = SimpleNamespace(number=7, born=1.)
+    for _ in range(PRESSES_PER_CONTROL*len(keys)):
+        assert next_unknown_control(run, hers, mine, keys) is not None
+    old_owner = next(iter(run._unknown_control_trials))
+    if changed == 'epoch':
+        hers.identification.epoch += 1
+    elif changed == 'number':
+        hers.number = mine.number = 8
+    else:
+        mine.born = 2.
+    moves = SimpleNamespace(things={mine.number:mine}, seeing=True)
+    run.things = moves.things
+    choosing = SimpleNamespace(mine=mine)
+    assert body_probe_is_active(run, hers, pointer_steps=0, at=time.monotonic())
+    async def prepared(*_args, **_kwargs):
+        return False
+    async def planning(*_args, **_kwargs):
+        planned.append(True)
+        return True
+    async def short_trial(hands, run, hers, at, moves):
+        await try_controls(hands, run, hers, at, moves, hold=hold_control, seconds=.01)
+    async def down(key):
+        delivered.append(('down',key))
+    async def up(key):
+        delivered.append(('up',key))
+    monkeypatch.setattr(play, 'act_on_prepared_motion', prepared)
+    monkeypatch.setattr(play, '_try_the_keys', short_trial)
+    monkeypatch.setattr(steering, 'steer_with_a_model', planning)
+    hands = SimpleNamespace(down=down,up=up)
+    try:
+        for _ in range(PRESSES_PER_CONTROL*len(keys)):
+            await play._act(hands, run, moves, hers, None, choosing, time.monotonic())
+            assert run.held in keys and not planned
+            await asyncio.wait_for(run._trial_input_deadline, 1.)
+            rest = run.body_trial
+            assert not run.held and rest.key == ''
+            await play._act(hands, run, moves, hers, None, choosing, rest.began)
+            assert not planned and run.body_trial is rest
+            await asyncio.sleep(max(0.,rest.until-time.monotonic())+.001)
+        assert Counter(key for kind,key in delivered if kind=='down') == Counter({key:2 for key in keys})
+        assert set(run._unknown_control_trials[old_owner].issued.values()) == {PRESSES_PER_CONTROL}
+        assert not hers.keys_known(keys) and not hers._hers.by_press
+        assert not body_probe_is_active(run, hers, pointer_steps=0, at=time.monotonic())
+        await play._act(hands, run, moves, hers, None, choosing, time.monotonic())
+        assert planned == [True]
+    finally:
+        cancel_trial_deadline(run)
+        if run.held:
+            await hold_control(hands, run, hers, '', time.monotonic())

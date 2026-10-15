@@ -35,10 +35,16 @@ def body_probe_is_active(run: Any, hers: Any, *, pointer_steps: int, at: float |
     keys = getattr(run, 'keys', ())
     trying = getattr(run, 'trying', None)
     if getattr(hers, 'number', None) is not None:
+        from core.agency.calibration_for_a_current_body import calibration_owner
         from core.agency.unknown_controls_get_their_turn import unknown_control_trials_finished
 
         if unknown_control_trials_finished(run, hers):
             return False
+        mine = getattr(run, 'things', {}).get(hers.number)
+        if calibration_owner(hers, mine) is not None:
+            # Discovery before this owner was found cannot spend its finite
+            # allowance for measuring the controls it has not learned yet.
+            return bool(keys and type(trying) is int and trying >= 0 and not hers.keys_known(keys))
     return bool(keys and type(trying) is int and 0 <= trying < 4 * len(keys)
                 and (hers.number is None or not hers.keys_known(keys)))
 

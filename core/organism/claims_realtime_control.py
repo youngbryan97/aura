@@ -630,7 +630,7 @@ def _control_discovery_claims() -> tuple:
     return (
         ("unknown_controls_share_a_finite_current_body_budget", "core/agency/unknown_controls_get_their_turn.py",
          "tests/test_unknown_controls_get_their_turn.py", lambda: _unknown_control_fairness_invariant() == (),
-         "Unknown controls share bounded issued trials for the current body; reordered inputs and unavailable outcomes cannot starve the other controls or renew an exhausted budget."),
+         "Unknown controls share bounded issued trials for the current body; old discovery counts cannot spend a new owner's allowance, and reordered inputs or unavailable outcomes cannot renew it."),
         ("cold_translation_trials_keep_current_source_channels", "core/agency/how_a_game_works.py",
          "tests/test_pixel_search_follows_unresolved_body_trials.py", lambda: _cold_translation_controls_invariant() == (),
          "Cold pixel experiments prioritize current nonzero translation channels before turning inputs; key names and obsolete controls cannot supply that priority."),
