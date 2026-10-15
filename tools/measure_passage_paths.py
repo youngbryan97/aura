@@ -52,7 +52,7 @@ def main() -> int:
     store = LocalCorpusStore()
     index = PassageIndex()
     if not index.available():
-        raise SystemExit(f"no passage index at {index.passage_db}")
+        raise SystemExit(f"no passage index at {index.index_dir}")
 
     def holds(passages: list[tuple[str, str]], gold: str) -> bool:
         text = set(_words(" ".join(f"{t} {p}" for t, p in passages)))

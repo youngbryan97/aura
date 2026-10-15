@@ -231,7 +231,7 @@ def _paragraph_index_beside(store: Any) -> Any:
     from core.knowledge.passage_index import PassageIndex
 
     corpus = getattr(store, "db_path", None)
-    index = PassageIndex(corpus.with_name("passages.db"), corpus) if corpus is not None else PassageIndex()
+    index = PassageIndex(corpus.with_name("paragraphs.tantivy"), corpus) if corpus is not None else PassageIndex()
     return index if index.available() else None
 
 

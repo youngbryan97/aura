@@ -97,7 +97,7 @@ def test_paragraphs_from_articles_the_conversation_does_not_name_join_its_subjec
     from core.knowledge.passage_index import build
 
     store = _store(tmp_path)
-    build(tmp_path / "corpus.db", tmp_path / "passages.db")
+    build(tmp_path / "corpus.db", tmp_path / "paragraphs.tantivy", threads=1, heap_bytes=50_000_000)
     said = "Kobe Bryant's 81 was huge, though the record for points in a single game is someone else's"
     grounding = corpus_grounding_for(said, store=store, conversation=[], limit=3)
     titles = [title for title, _text in grounding.passages]

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Build (or resume building) the index of every paragraph in her corpus (core/knowledge/passage_index.py).
 
-Reads corpus.db read-only and writes passages.db beside it. Started again, it
-resumes after the last article it recorded.
+Reads corpus.db read-only and writes the Tantivy index beside it
+(paragraphs.tantivy). Started again, it resumes after the last article it
+committed.
 
 Usage:
-    build_passage_index.py [--corpus DB] [--output DB] [--until DOC_ID] [--optimize]
+    build_passage_index.py [--corpus DB] [--output DIR] [--until DOC_ID] [--threads N]
 """
 
 from __future__ import annotations
@@ -22,22 +23,21 @@ if str(ROOT) not in sys.path:
 
 def main() -> int:
     from core.knowledge.local_corpus import default_corpus_db_path
-    from core.knowledge.passage_index import build, default_passage_db_path, optimize
+    from core.knowledge.passage_index import build, default_passage_index_path
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--corpus", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--until", type=int, default=None)
-    parser.add_argument("--optimize", action="store_true", help="merge the index into one segment once built")
+    parser.add_argument("--threads", type=int, default=4, help="indexing threads")
     args = parser.parse_args()
     corpus = (args.corpus or default_corpus_db_path()).expanduser()
-    output = (args.output or default_passage_db_path()).expanduser()
+    output = (args.output or default_passage_index_path()).expanduser()
     if not corpus.exists():
         raise SystemExit(f"no corpus at {corpus}")
-    summary = build(corpus, output, until=args.until, on_progress=lambda p: print(json.dumps(p), flush=True))
+    summary = build(corpus, output, until=args.until, threads=args.threads,
+                    on_progress=lambda p: print(json.dumps(p), flush=True))
     print(json.dumps(summary), flush=True)
-    if args.optimize:
-        print(json.dumps({"optimized_seconds": optimize(output)}), flush=True)
     return 0
 
 
