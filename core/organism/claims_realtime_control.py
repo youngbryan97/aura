@@ -718,6 +718,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.frames_as_they_are_drawn import (
         _frame_session_invariant,
         _frame_time_invariant,
+        _lossless_frame_invariant,
     )
     from core.perception.graphics_presented_on_canvas import _presentation_custody_invariant
     from core.perception.learned_tracking.contracts import _tracking_visibility_invariant
@@ -772,6 +773,9 @@ def _visual_motion_claims() -> tuple:
     from core.skills.a_new_attempt_must_be_seen import _new_attempt_invariant
 
     return (
+        ("local_frame_encoding_keeps_colour_samples", "core/perception/frames_as_they_are_drawn.py",
+         "tests/test_local_capture_preserves_colour_samples.py", lambda: _lossless_frame_invariant() == (),
+         "Local stream and direct canvas capture use lossless encoding; fine colour samples survive decoding and cropping at the chosen capture extent."),
         ("shared_motion_arithmetic_keeps_its_owned_state", "core/perception/motion_kept_between_pictures.py",
          "tests/test_motion_prediction_reuses_its_arithmetic.py", lambda: _shared_motion_arithmetic_invariant() == (),
          "Motion estimates share bounded immutable time-step matrices while each object's state remains owned; diagonal mixture arithmetic retains the full covariance reference's reported estimates."),

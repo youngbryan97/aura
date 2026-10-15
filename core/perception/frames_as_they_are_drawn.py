@@ -36,6 +36,30 @@ __all__ = ["CanvasFrameTime", "CanvasFrames", "PageFrames"]
 STILL_AFTER_S = 0.25
 
 
+def _stream_options(wide: int, tall: int, every_nth: int) -> dict[str, Any]:
+    """Local correspondence needs the compositor's colour samples without JPEG changes."""
+    return dict(format='png', everyNthFrame=every_nth, maxWidth=wide, maxHeight=tall)
+
+
+@invariant('perception.local_frame_encoding_keeps_colour_samples', scope='perception',
+           owner='core/perception/frames_as_they_are_drawn.py', observational=False)
+def _lossless_frame_invariant() -> tuple:
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    options = _stream_options(23, 17, 2)
+    assert options['format'] == 'png' and 'quality' not in options
+    pixels = (np.arange(17*23*3) % 251).astype(np.uint8).reshape(17, 23, 3)
+    encoded = io.BytesIO()
+    Image.fromarray(pixels).save(encoded, format=options['format'])
+    result = _cropped(base64.b64encode(encoded.getvalue()).decode(), {'deviceWidth': 23},
+                      dict(x=3, y=2, width=13, height=11))
+    assert np.array_equal(result, pixels[2:13, 3:16])
+    return ()
+
+
 class PageFrames:
     """Frames of one page, streamed; started on the first look, stopped on close."""
 
@@ -92,10 +116,7 @@ class PageFrames:
             wide, tall = await self.page.evaluate("[innerWidth, innerHeight]")
             if not self._owns_session(session, generation):
                 return False
-            self._options = {
-                "format": "jpeg", "quality": 80, "everyNthFrame": self.every_nth_frame,
-                "maxWidth": int(wide), "maxHeight": int(tall),
-            }
+            self._options = _stream_options(int(wide), int(tall), self.every_nth_frame)
             await session.send("Page.startScreencast", self._options)
         except Exception as why:  # noqa: BLE001 - any engine without a screencast: screenshots instead
             logger.info("frames cannot be streamed from this page (%s); taking screenshots", why)
@@ -328,7 +349,7 @@ _THE_CANVAS_NOW = """
   } catch (_) { capture = null; }
   try {
     const source_at = performance.now() / 1000;
-    const pixels = canvas.toDataURL('image/jpeg', 0.8);
+    const pixels = canvas.toDataURL('image/png');
     if (capture) capture.source_at = source_at;
     return {pixels, capture,
     scene:window.__auraDrawingObservation?.snapshot(canvas) ?? null,
