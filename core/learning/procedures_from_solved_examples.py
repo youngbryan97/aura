@@ -137,6 +137,36 @@ def signature_of(pool: Sequence[SolvedExample], sealed: Sequence[SolvedExample])
     return Signature(weights=weights, nearest_required=nearest)
 
 
+def distinct_signatures(families: dict[str, tuple[Sequence[SolvedExample], Sequence[SolvedExample]]]
+                        ) -> dict[str, Signature]:
+    """Each kind's signature with every word weighted by how few kinds use it, and its bar taken again.
+
+    A word share alone lets a template that many kinds share outweigh the
+    words that tell them apart: every DeepMind module's request ends "Please
+    reason step by step, and put your final answer within boxed", and one
+    module's problem cleared four modules' bars within a hundredth (15
+    October). Each word is weighted by the logarithm of how many kinds there
+    are over how many use it (inverse document frequency across kinds), so a
+    word every kind uses counts for nothing, and each bar is again the least
+    typical sealed problem's similarity, as signature_of takes it.
+    """
+    shares: dict[str, dict[str, float]] = {}
+    for name, (pool, _sealed) in families.items():
+        counts: Counter[str] = Counter()
+        for example in pool:
+            counts.update(_words(example.problem))
+        shares[name] = {word: count / len(pool) for word, count in counts.items()} if pool else {}
+    kinds = len(shares)
+    used_by = Counter(word for share in shares.values() for word in share)
+    out: dict[str, Signature] = {}
+    for name, share in shares.items():
+        weights = {word: value * math.log(kinds / used_by[word]) for word, value in share.items()
+                   if used_by[word] < kinds}
+        nearest = min((_cosine(_words(e.problem), weights) for e in families[name][1]), default=1.0)
+        out[name] = Signature(weights=weights, nearest_required=nearest)
+    return out
+
+
 def split_examples(examples: Sequence[SolvedExample]) -> tuple[list[SolvedExample], list[SolvedExample]]:
     """The pool her model may see and the sealed half it never does, by key hash."""
     ordered = sorted(examples, key=lambda e: hashlib.sha256(e.key.encode()).hexdigest())
@@ -570,15 +600,50 @@ class ProcedureBook:
 
         return nearest_kind(query, self.meanings)
 
+    def near_enough(self, problem: str) -> list[tuple[float, str]]:
+        """Every kind the problem is at least as near as that kind's least typical sealed problem, nearest first."""
+        scored = ((signature.similarity(problem), name) for name, signature in self.signatures.items())
+        return sorted(((similarity, name) for similarity, name in scored
+                       if similarity >= self.signatures[name].nearest_required), reverse=True)
+
     def answer(self, problem: str) -> dict[str, Any]:
-        """The kept procedures' answer when they apply and agree; otherwise a reason there is none."""
-        family, similarity = self.route(problem)
+        """The kept procedures' answer when they apply and agree; otherwise a reason there is none.
+
+        A problem near enough to one kind is that kind's. Near enough to
+        several, its words do not say which kind it is: kinds whose problems
+        share a template (every DeepMind module's "Calculate ... Please
+        reason step by step") clear each other's bars by thousandths. Then
+        each of those kinds' procedures answers, and the answer stands only if
+        they all agree; when one of the kinds keeps no procedure, or they
+        disagree, none is given and the draft stands.
+        """
+        near = self.near_enough(problem)
+        if not near:
+            family, similarity = self.route(problem)
+            return {"schema": SOLVED_EXAMPLE_PROCEDURES_SCHEMA, "family": None, "similarity": round(similarity, 4),
+                    "answer": None, "form": "words", "declined": "no_kind_near_enough"}
+        similarity, family = near[0]
         receipt: dict[str, Any] = {"schema": SOLVED_EXAMPLE_PROCEDURES_SCHEMA, "family": family,
                                    "similarity": round(similarity, 4), "answer": None, "form": "words"}
-        if family is None:
-            receipt["declined"] = "no_kind_near_enough"
+        if len(near) == 1:
+            return self._run_kind(family, problem, receipt)
+        kinds = [name for _similarity, name in near]
+        receipt["near_enough"] = kinds
+        if any(not self.procedures.get(name) for name in kinds):
+            receipt["declined"] = "a_kind_near_enough_keeps_no_procedure"
             return receipt
-        return self._run_kind(family, problem, receipt)
+        answers = [self._run_kind(name, problem, {"family": name}) for name in kinds]
+        receipt["agreed_known"] = min(int(a.get("agreed_known") or 0) for a in answers)
+        receipt["confidence"] = min(float(a.get("confidence") or 0.0) for a in answers)
+        receipt["procedures"] = [p for a in answers for p in a.get("procedures", [])]
+        values = [a.get("answer") for a in answers]
+        if any(v is None for v in values):
+            receipt["declined"] = "a_kind_near_enough_did_not_answer"
+        elif any(not answers_agree(v, values[0]) for v in values[1:]):
+            receipt["declined"] = "kinds_near_enough_disagree"
+        else:
+            receipt["answer"] = values[0]
+        return receipt
 
     def answer_restated(self, family: str, restated: str) -> dict[str, Any]:
         """The answer of ``family``'s procedures to a request restated in that kind's own form.

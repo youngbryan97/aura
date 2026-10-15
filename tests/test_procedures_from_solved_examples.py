@@ -274,3 +274,41 @@ def test_books_that_share_kinds_combine_with_every_kept_procedure_of_each_kind()
     assert book.procedures == {"a": ["A1", "A2"], "b": ["B1"]} and book.agreed == {"a": 50, "b": 30}
     assert book.signatures["a"].nearest_required == 0.9 and book.signatures["b"].nearest_required == 0.7
     assert book.meanings["b"].nearest_required == 0.5 and book.examples["b"][0]["answer"] == "x"
+
+
+def _template(op: str, a: int, b: int) -> str:
+    return f"Calculate {a} {op} {b}.\n\nPlease reason step by step, and put your final answer within boxed."
+
+
+def test_words_every_kind_shares_count_for_nothing_so_kinds_sharing_a_template_part() -> None:
+    from core.learning.procedures_from_solved_examples import SolvedExample, distinct_signatures
+
+    def family(word: str, op: str) -> tuple[list[SolvedExample], list[SolvedExample]]:
+        examples = [SolvedExample(f"{word}:{i}", _template(op, i, i + 1).replace("Calculate", f"Calculate the {word} of"),
+                                  "0") for i in range(8)]
+        return examples[0::2], examples[1::2]
+
+    signatures = distinct_signatures({"sum": family("sum", "+"), "product": family("product", "*"),
+                                      "quotient": family("quotient", "/")})
+    assert "please" not in signatures["sum"].weights and signatures["sum"].weights["sum"] > 0
+    asked = _template("+", 3, 4).replace("Calculate", "Calculate the sum of")
+    assert signatures["sum"].similarity(asked) > signatures["product"].similarity(asked)
+
+
+@needs_boundary
+def test_a_problem_near_enough_to_several_kinds_is_answered_only_when_their_procedures_agree() -> None:
+    from core.learning.procedures_from_solved_examples import ProcedureBook, Signature
+
+    same = Signature({"calculate": 1.0}, 0.5)
+    adds = "def solve(problem):\n    return '7'\n"
+    multiplies = "def solve(problem):\n    return '12'\n"
+    alone = ProcedureBook({"sum": same}, {"sum": [adds]}, {"sum": 10})
+    assert alone.answer("Calculate 3 and 4")["answer"] == "7"
+    disagree = ProcedureBook({"sum": same, "product": same}, {"sum": [adds], "product": [multiplies]},
+                             {"sum": 10, "product": 10})
+    receipt = disagree.answer("Calculate 3 and 4")
+    assert receipt["answer"] is None and receipt["declined"] == "kinds_near_enough_disagree"
+    agree = ProcedureBook({"sum": same, "plus": same}, {"sum": [adds], "plus": [adds]}, {"sum": 10, "plus": 10})
+    assert agree.answer("Calculate 3 and 4")["answer"] == "7"
+    unkept = ProcedureBook({"sum": same, "other": same}, {"sum": [adds]}, {"sum": 10})
+    assert unkept.answer("Calculate 3 and 4")["declined"] == "a_kind_near_enough_keeps_no_procedure"
