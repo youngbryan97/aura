@@ -117,3 +117,38 @@ async def test_unmeasured_frame_cannot_start_a_physical_intervention():
         context=SimpleNamespace(check=lambda: None), picture=np.zeros((40, 60, 3), np.uint8),
         at=1., deadline=float("inf"))
     assert not run._pixel_search.attempted
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('intervals,expected', [([.1] * 6, .22), ([.18] * 6, .38), ([], None), ([.3] * 6, None)])
+async def test_actor_selects_one_bounded_exposure_from_prior_measured_cadence(monkeypatch, intervals, expected):
+    import time
+
+    from core.agency import searching_before_a_body_is_known as search
+    from core.agency.collecting_independent_pixel_trials import PixelCollectionResult
+    from core.perception.frames_as_they_are_drawn import CanvasFrameTime
+
+    run, hers, moves = state()
+    run.intervals = intervals
+    wrapped = search_inputs(object(), run, hers)
+    requests = []
+
+    async def collect(_experiment, **options):
+        requests.append(options)
+        # Delivery is not simulated here; this test checks actor configuration.
+        return PixelCollectionResult('measurement unavailable in this wiring test', 0, True)
+
+    monkeypatch.setattr(search, 'collect_independent_pixel_trials', collect)
+    now = time.monotonic()
+    at = CanvasFrameTime(now - .01, lower=now - .01, upper=now - .005, arrived=now - .003,
+                         source='canvas-bracket', source_at=None, epoch=1, surface='owned', sequence=1)
+    result = await search_after_unresolved_body(wrapped, run, hers, moves, look=None,
+        context=SimpleNamespace(check=lambda: None), picture=np.zeros((40, 60, 3), np.uint8),
+        at=at, deadline=now + 40.)
+    if expected is None:
+        assert not result and not requests and not run._pixel_search.attempted
+    else:
+        assert result and len(requests) == 1
+        assert requests[0]['settle_s'] == pytest.approx(expected)
+        assert 0 < requests[0]['total_s'] <= 30.
+        assert run._pixel_search.settle_s == pytest.approx(expected)

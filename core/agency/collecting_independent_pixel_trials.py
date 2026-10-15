@@ -27,6 +27,7 @@ from core.agency.pixels_inside_control_trials import (
     RandomizedPixelExperiment,
     freeze_frame,
 )
+from core.verify import invariant
 
 logger = logging.getLogger(__name__)
 
@@ -232,9 +233,29 @@ async def _captured(look: Callable[[], Awaitable[Any]], seconds: float, *, not_b
         frame = freeze_frame(*captured)
         if frame is None or frame.arrived > time.monotonic():
             raise _LostEvidenceError("unmeasured_capture")
-        if frame.lower >= not_before:
+        if capture_starts_after(frame, not_before):
             return frame
     raise _LostEvidenceError("queued_capture_budget")
+
+
+def capture_starts_after(frame: FrozenPixelFrame, not_before: float) -> bool:
+    """A selected settling time constrains capture, rather than the time it is delivered."""
+    return (isinstance(frame, FrozenPixelFrame) and frame.valid() and math.isfinite(not_before)
+            and frame.lower >= not_before)
+
+
+@invariant('agency.pixel_exposure_keeps_its_selected_capture_start', scope='agency',
+           owner='core/agency/collecting_independent_pixel_trials.py', observational=False)
+def _settled_pixel_capture_invariant() -> tuple:
+    import hashlib
+
+    pixels = bytes(24 * 24 * 3)
+    frame = FrozenPixelFrame('owned', 1, 1, 10.03, 10.04, 10.3, 'canvas-bracket',
+                             24, 24, pixels, hashlib.sha256(pixels).hexdigest())
+    assert capture_starts_after(frame, 10.02)
+    assert not capture_starts_after(frame, 10.2), 'late delivery erased the requested settling interval'
+    assert not capture_starts_after(frame, math.nan)
+    return ()
 
 
 async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperimentInputs,
@@ -246,7 +267,7 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
     epoch = inputs.hers.identification.epoch
     _guard(inputs, interference, receipts, epoch)
     await asyncio.sleep(neutral_s)
-    before = await _captured(look, capture_s, not_before=neutral_began)
+    before = await _captured(look, capture_s, not_before=neutral_began + neutral_s)
     _guard(inputs, interference, receipts, epoch)
     if before.lower < neutral_began or time.monotonic() - before.upper > .75:
         raise _LostEvidenceError("before_outside_neutral")
@@ -255,7 +276,7 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
         raise _LostEvidenceError("input_interrupted")
     receipts, held = inputs._receipts(), inputs._owned_press
     await asyncio.sleep(settle_s)
-    after = await _captured(look, capture_s, not_before=down_ack + .02)
+    after = await _captured(look, capture_s, not_before=down_ack + settle_s)
     _guard(inputs, interference, receipts, epoch, held=held)
     release = await inputs._release(ack_s)
     if inputs._interference != interference or inputs.hers.identification.epoch != epoch:
@@ -287,8 +308,8 @@ async def collect_independent_pixel_trials(experiment: RandomizedPixelExperiment
     if (not callable(look) or after_press is not None and not callable(after_press)
             or any(type(v) not in (int, float) or not math.isfinite(v)
                                  for v in (neutral_s, settle_s, capture_s, ack_s, total_s))
-            or not .02 <= neutral_s <= .2 or not .02 <= settle_s <= .2
-            or not .01 <= capture_s <= .4 or not .01 <= ack_s <= .4 or not 0 < total_s <= 20.):
+            or not .02 <= neutral_s <= .2 or not .02 <= settle_s <= .5
+            or not .01 <= capture_s <= .4 or not .01 <= ack_s <= .4 or not 0 < total_s <= 30.):
         raise ValueError("pixel collection needs finite observation and delivery budgets")
     if inputs._collector is not None:
         experiment.retire("collector_already_active")

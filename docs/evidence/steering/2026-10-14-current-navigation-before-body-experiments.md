@@ -52,3 +52,29 @@ in 44.01 seconds. The existing aggregate module-size excess of 194 lines,
 response-generation method excess and 123 governance regressions remain.
 No baseline was changed. The gate log is
 `/private/tmp/codex-steer/navigation-gates-1014.log`.
+
+## Original-game run from 1b8a88bd3
+
+The assigned original game 9 ran for 105.199846 seconds, exit 0, without a
+wrapper timeout. Artifacts are in
+`/private/tmp/codex-steer/current-navigation-original9-1014`.
+
+The first fast stretch returned with `a current navigation control is shown`
+after 24.6 seconds. The ordinary path clicked Play about 32 seconds after
+launch, then selected Beginner. Another Play action followed while the
+transition was in progress. The game nevertheless entered active play;
+paired captures show its timer and cars. The run ended with zero parked
+cars, 423 decisions, zero assigned-body decisions and median picture age
+0.264681393 seconds. A single run cannot establish the new path's effect
+on body discovery or its repeatability.
+
+The independent fallback completed all 24 acknowledged up/down presses and
+released them, but supplied no qualified region or sampling hint. Most
+presses lasted 0.051 to 0.083 seconds; the after captures began 0.024 to
+0.066 seconds after acknowledgement. Several recorded zero matched motion;
+others recorded few moving marks and weak pooled translation. The next
+change addresses acquisition exposure before reconsidering spatial pooling.
+
+The handoff mechanism reached the original-game loop. Menu entry is still
+too slow, body discovery remains unreliable, and there is no game win or
+native-app presentation proof.

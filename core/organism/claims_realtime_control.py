@@ -489,6 +489,7 @@ def _travel_turn_claims() -> tuple:
 
 
 def _bounded_pixel_claims() -> tuple:
+    from core.agency.collecting_independent_pixel_trials import _settled_pixel_capture_invariant
     from core.agency.discovering_control_in_current_pixels import _pixel_discovery_invariant
     from core.agency.navigation_before_body_experiments import _current_navigation_invariant
     from core.agency.pixels_inside_control_trials import _pixel_trial_custody_invariant
@@ -513,6 +514,9 @@ def _bounded_pixel_claims() -> tuple:
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("pixel_exposure_keeps_its_selected_capture_start", "core/agency/collecting_independent_pixel_trials.py",
+         "tests/test_collecting_independent_pixel_trials.py", lambda: _settled_pixel_capture_invariant() == (),
+         "Paired pixel trials require captures after their selected neutral and settled input intervals; late arrival of an earlier capture cannot supply that exposure."),
         ("current_navigation_precedes_body_experiments", "core/agency/navigation_before_body_experiments.py",
          "tests/test_current_navigation_precedes_body_experiments.py", lambda: _current_navigation_invariant() == (),
          "Current owned word pixels can return an unassigned body task to navigation before control experiments; old words, changed surfaces and unavailable captures cannot."),

@@ -18,6 +18,7 @@ from core.agency.collecting_independent_pixel_trials import (
 )
 from core.agency.discovering_control_in_current_pixels import PixelResponseDiscovery
 from core.agency.pixels_inside_control_trials import RandomizedPixelExperiment, freeze_frame
+from core.agency.time_to_observe_a_control import observed_response_seconds
 from core.perception.a_search_hint_for_these_pixels import make_search_hint, sampling_hint_matches
 from core.perception.pixel_motion_before_object_identity import pixel_motion_signature
 from core.runtime.executors import run_interactive_cpu
@@ -37,6 +38,7 @@ class PixelSearchState:
     reference: str | None = None
     region: tuple | None = None
     keys: tuple[str, ...] = ()
+    settle_s: float | None = None
 
 
 def search_inputs(hands: Any, run: Any, hers: Any) -> PixelExperimentInputs:
@@ -78,6 +80,11 @@ async def search_after_unresolved_body(hands: Any, run: Any, hers: Any, moves: A
     if pair is None or not isinstance(hands, PixelExperimentInputs) or origin is None:
         return False
     state = run._pixel_search
+    state.settle_s = observed_response_seconds(getattr(run, 'intervals', ()), least_s=.09, settle_s=.02,
+                                               samples=2, span_s=.04, longest_s=.5)
+    if state.settle_s is None:
+        state.status = 'observation cadence outside pixel trial budget'
+        return False
     state.attempted, state.active = True, True
     state.keys = pair
     owner_task = asyncio.current_task()
@@ -110,8 +117,8 @@ async def search_after_unresolved_body(hands: Any, run: Any, hers: Any, moves: A
         return discovery.accept_last_press(press, signature)
     try:
         result = await collect_independent_pixel_trials(experiment, look=capture, inputs=hands, after_press=measure,
-                                                        capture_s=.4, ack_s=.4,
-                                                        total_s=min(20., deadline - time.monotonic() - 1.))
+                                                        settle_s=state.settle_s, capture_s=.4, ack_s=.4,
+                                                        total_s=min(30., deadline - time.monotonic() - 1.))
         state.status, state.trials, state.release_confirmed = result.status, result.trials, result.release_confirmed
         if not result.release_confirmed:
             raise RuntimeError("pixel search has an unconfirmed physical input release")

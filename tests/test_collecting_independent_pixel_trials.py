@@ -18,6 +18,10 @@ from core.perception.frames_as_they_are_drawn import CanvasFrameTime
 pytestmark = pytest.mark.unit
 
 
+def test_selected_settling_has_a_capture_contract():
+    assert collecting._settled_pixel_capture_invariant() == ()
+
+
 class _Clock:
     def __init__(self):
         self.at = 10.
@@ -265,6 +269,28 @@ async def test_queued_pre_action_frame_is_skipped_within_the_capture_budget(lane
     result = await collecting.collect_independent_pixel_trials(experiment, look=look, inputs=lane.inputs)
     assert result.status == 'complete' and result.trials == 24 and result.release_confirmed
     assert queued and len(lane.captures) == 48
+
+
+@pytest.mark.asyncio
+async def test_a_post_action_frame_before_the_selected_settle_is_still_queued(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    queued = False
+
+    async def look():
+        nonlocal queued
+        if lane.run.held and not queued:
+            queued = True
+            early = lane.run.held_since + .03
+            return lane.source, CanvasFrameTime(early, lower=early, upper=early + .001,
+                arrived=lane.clock.at, source='canvas-bracket', source_at=None, epoch=2,
+                surface='actual-document/canvas', sequence=len(lane.captures) + 1)
+        return await lane.look()
+
+    result = await collecting.collect_independent_pixel_trials(experiment, look=look, inputs=lane.inputs,
+                                                               settle_s=.2)
+    assert result.status == 'complete' and result.trials == 24 and result.release_confirmed
+    assert queued and all(press.after.lower >= press.down_ack + .2 for press in experiment.trials)
+    assert all(press.before.lower >= press.neutral_began + .04 for press in experiment.trials)
 
 
 @pytest.mark.asyncio
