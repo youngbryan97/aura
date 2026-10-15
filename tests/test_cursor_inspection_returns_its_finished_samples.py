@@ -92,6 +92,27 @@ async def test_a_stalled_sample_capture_spends_the_existing_sweep_budget(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_a_partial_physical_sweep_covers_the_view_and_keeps_results_in_requested_order():
+    class Page:
+        def __init__(self):
+            self.moves = []
+            self.mouse = SimpleNamespace(move=self.move)
+
+        async def move(self, x, y):
+            self.moves.append((x, y))
+
+        async def evaluate(self, script, point):
+            return str(tuple(point))
+
+    page = Page()
+    cursor._NEEDS_THE_MOUSE.add(page)
+    points = [(x, y) for y in (0., 1., 2., 50., 99., 100.) for x in (0., 1., 2., 50., 99., 100.)]
+    result = await cursor._shown_at_each(page, points)
+    assert set(page.moves[:4]) == {(0., 0.), (100., 0.), (0., 100.), (100., 100.)}
+    assert result == [str(point) for point in points]
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('change', ['viewport', 'address'])
 async def test_partial_samples_from_a_changed_coordinate_frame_are_discarded(monkeypatch, change):
     page = _SlowPage(change=change)

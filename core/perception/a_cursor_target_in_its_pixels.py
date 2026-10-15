@@ -27,7 +27,7 @@ from core.verify import invariant
 
 logger = logging.getLogger(__name__)
 TARGET_WITHIN_S = 3.0
-MAX_CORRECTIONS = 6
+MAX_CORRECTIONS = 8
 MAX_AGE_S = 60.0
 
 
@@ -140,12 +140,20 @@ class PointingFeedback:
         self.response = np.eye(2)
         self.previous: tuple[np.ndarray, np.ndarray] | None = None
 
-    def correct(self, pointer: tuple, target: tuple, limit: float) -> tuple[float, float] | None:
+    def correct(self, pointer: tuple, target: tuple, limit: float, *, settled: bool = True) -> tuple[float, float] | None:
         pointer, target = np.asarray(pointer, float), np.asarray(target, float)
         if (pointer.shape != (2,) or target.shape != (2,) or not np.isfinite([pointer, target]).all()
                 or not math.isfinite(limit) or limit <= 0):
             return None
         error = target-pointer
+        if not settled:
+            # Rate control and delayed responses keep moving at a fixed input.
+            # Their transient displacement cannot identify a static inverse.
+            self.previous = None
+            self.response = np.eye(2)
+            step = .65*error
+            step *= min(1., limit/max(1e-9, float(np.linalg.norm(step))))
+            return tuple(float(v) for v in pointer+step)
         if self.previous is not None:
             old_pointer, old_error = self.previous
             moved = pointer-old_pointer
@@ -161,6 +169,24 @@ class PointingFeedback:
         return tuple(float(v) for v in pointer+step)
 
 
+async def _rest_for_pointer(seconds: float) -> None:
+    await asyncio.sleep(seconds)
+
+
+async def _pose_while_pointing(page: Any, target: CursorTarget, pointer: np.ndarray, reference: Any, *,
+                             phase: str, moved_at: float) -> tuple | None:
+    await _rest_for_pointer(.06)
+    lower = time.monotonic()
+    pixels = await target_picture(page, target.bounds)
+    upper = time.monotonic()
+    if pixels is None or not _belongs(target, page):
+        return None
+    observed = await asyncio.to_thread(target_in_picture, target, pixels)
+    record_pointer_correspondence(reference, pixels, phase=phase, pointer=pointer, matched=observed,
+                                  captured=(lower, upper), moved_at=moved_at)
+    return observed
+
+
 async def _arrive(page: Any, target: CursorTarget, point: tuple, check: Any) -> tuple[float, float] | None:
     pointer = np.asarray((point[0]*target.bounds[2], point[1]*target.bounds[3]), float)
     feedback = PointingFeedback()
@@ -171,22 +197,22 @@ async def _arrive(page: Any, target: CursorTarget, point: tuple, check: Any) -> 
         if not _belongs(target, page) or not (0 <= pointer[0] < width and 0 <= pointer[1] < height):
             return None
         await page.mouse.move(left+float(pointer[0]), top+float(pointer[1]))
-        await asyncio.sleep(.12)
-        pixels = await target_picture(page, target.bounds)
-        if pixels is None or not _belongs(target, page):
+        moved_at = time.monotonic()
+        before = await _pose_while_pointing(page, target, pointer, reference, phase='after_move', moved_at=moved_at)
+        if before is None:
             return None
-        observed = await asyncio.to_thread(target_in_picture, target, pixels)
-        record_pointer_correspondence(reference, pixels, phase='correct', pointer=pointer, matched=observed)
+        observed = await _pose_while_pointing(page, target, pointer, reference, phase='held_pointer', moved_at=moved_at)
         if observed is None:
             logger.info('pointer target has no unique current pixel correspondence')
             return None
-        logger.info('pointer material feedback: pointer=(%.2f, %.2f), target=(%.2f, %.2f)',
-                    *pointer, *observed)
+        settled = math.dist(before, observed) <= 1.
+        logger.info('pointer material feedback: pointer=(%.2f, %.2f), target=(%.2f, %.2f), held drift=%.2f',
+                    *pointer, *observed, math.dist(before, observed))
         if math.dist(observed, pointer) <= 1.5:
             at = (left+float(pointer[0]), top+float(pointer[1]))
             if await shown_as_a_hand(page, *at, move=False) and _belongs(target, page):
                 return at
-        corrected = feedback.correct(tuple(pointer), observed, .25*min(width, height))
+        corrected = feedback.correct(tuple(pointer), observed, .25*min(width, height), settled=settled)
         if corrected is None:
             return None
         pointer = np.asarray(corrected)
@@ -217,4 +243,8 @@ def _pointer_feedback_invariant() -> tuple:
     assert feedback.correct((0., 0.), (10., 0.), 20.) == (10., 0.)
     assert feedback.correct((10., 0.), (20., 0.), 20.) is None, 'an unreachable target supplied an inverse'
     assert PointingFeedback().correct((math.nan, 0.), (0., 0.), 20.) is None
+    feedback = PointingFeedback()
+    feedback.correct((0., 0.), (10., 0.), 20.)
+    assert feedback.correct((10., 0.), (20., 0.), 20., settled=False) == (16.5, 0.)
+    assert feedback.previous is None and np.array_equal(feedback.response, np.eye(2))
     return ()

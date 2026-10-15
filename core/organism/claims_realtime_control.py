@@ -113,7 +113,7 @@ def _task_grounding_claims() -> tuple:
              'A candidate grid has a bounded current-control admission period across every continuation branch; unconfirmed motion supplies no played-piece or clear count, and recalled key names require current responses.'),
             ('pointer_feedback_needs_current_distinct_material', 'core/perception/a_cursor_target_in_its_pixels.py',
              'tests/test_a_pointer_target_is_reached_through_pixels.py', lambda: _pointer_feedback_invariant() == (),
-             'A physically sampled cursor target is followed through fresh pixel correspondence; ambiguous, absent or unreachable material cannot authorize a corrected press.'),
+             'A physically sampled cursor target is followed through fresh pixel correspondence; continuing motion under a held pointer cannot train a static inverse, and ambiguous, absent or unreachable material cannot authorize a corrected press.'),
             ('handoff_words_belong_to_the_latest_reading', 'core/perception/the_latest_reading_at_handoff.py',
              'tests/test_handoff_retains_the_latest_reading.py', lambda: _latest_reading_invariant() == (),
              'Wordless or unavailable observations retire current text while retaining separately labelled historical words; an older capture cannot replace a newer handoff observation.'),

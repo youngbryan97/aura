@@ -551,3 +551,21 @@ The Chromium normal-port recording replays to the same target coordinates.
 The focused suites and normal gates pass; the next step is an original case 3
 repeat with these changes and the candidate-well admission repair. See
 `docs/evidence/steering/2026-10-15-cursor-captures-stay-with-their-physical-sample.md`.
+
+
+At `f29daccdb`, the next original case 3 repeat completed in 219.58 seconds
+with six moves and no win. It retained four current material correspondences
+on several reads and recorded three corrected cursor presses, each after a
+zero-error comparison. The final image still shows the house; collection or
+accepted task progress is unproved. The complete 235-picture recording has
+no drops and remains presentation-unqualified.
+
+The source audit and trace identify edge-driven rate scrolling. Holding the
+pointer keeps moving the view, so the former static inverse learned the wrong
+response. The controller now measures two frames at a held pointer before
+learning that inverse; continuing drift uses bounded damped correction instead.
+Physical survey ordering also spreads its early capture budget across the
+view. Pixel rate-control worlds and a strengthened Chromium fixture pass. The
+fixture now shifts the layout after discovery and requires multiple correction
+cycles; its earlier version could succeed in a single arrival. See the dated
+continuing-motion evidence, then run the original repeat before claiming gains.

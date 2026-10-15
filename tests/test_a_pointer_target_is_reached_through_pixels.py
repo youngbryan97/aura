@@ -52,6 +52,19 @@ class _MovingView:
         return 'pointer' if np.linalg.norm(np.asarray(at)-self.position()) < 12 else 'auto'
 
 
+class _RateView(_MovingView):
+    """Visible content keeps moving while the pointer remains outside a quiet band."""
+
+    def __init__(self, speed, below):
+        super().__init__(((0., 0.), (0., 0.)))
+        self.origin = np.array((160., 200. if below else 40.))
+        self.speed = speed
+
+    def advance(self, seconds):
+        direction = 1 if self.at[1] < 80 else -1 if self.at[1] > 160 else 0
+        self.origin[1] = np.clip(self.origin[1]+direction*self.speed*seconds, 36., 204.)
+
+
 def _target(page):
     return pointing.material_at(page.picture(), (.5, .5), page=page, bounds=(0., 0., 320., 240.))
 
@@ -79,6 +92,37 @@ async def test_repeated_pictures_close_pointer_to_material_even_when_hover_moves
     assert landed is not None
     assert np.linalg.norm(page.at-page.position()) <= 1.5
     assert page.pictures >= 2 and 1 <= len(page.moves) <= pointing.MAX_CORRECTIONS
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('speed,below', [(80., False), (220., False), (110., True)])
+async def test_continuing_view_motion_is_not_mistaken_for_a_static_pointer_inverse(monkeypatch, speed, below):
+    page = _RateView(speed, below)
+    initial = (.5, page.origin[1]/240)
+    target = pointing.material_at(page.picture(), initial, page=page, bounds=(0., 0., 320., 240.))
+
+    async def rest(seconds):
+        page.advance(seconds)
+
+    async def picture(page, bounds):
+        page.advance(.02)
+        return page.picture()
+
+    old_match = pointing.target_in_picture
+
+    def matching(*args):
+        result = old_match(*args)
+        page.advance(.07)  # The picture keeps playing while its old pixels are processed.
+        return result
+
+    monkeypatch.setattr(pointing, '_rest_for_pointer', rest)
+    monkeypatch.setattr(pointing, 'target_picture', picture)
+    monkeypatch.setattr(pointing, 'target_in_picture', matching)
+    monkeypatch.setattr(pointing, 'TARGET_WITHIN_S', 8.)
+    landed = await pointing.arrive_at_cursor_target(page, target, initial, check=lambda: None)
+    assert landed is not None
+    assert np.linalg.norm(page.at-page.position()) <= 1.5
+    assert len(page.moves) <= pointing.MAX_CORRECTIONS
 
 
 @pytest.mark.asyncio
@@ -186,14 +230,15 @@ async def test_chromium_normal_page_port_corrects_the_same_material_and_presses_
     const canvas=document.querySelector('canvas'), ctx=canvas.getContext('2d');
     const tile=document.createElement('canvas');tile.width=tile.height=64;
     tile.getContext('2d').putImageData(new ImageData(Uint8ClampedArray.from(atob('TEXTURE'),c=>c.charCodeAt(0)),64,64),0,0);
-    let x=80,y=80,cx=160,cy=120;window.receipts=[];
-    function draw(){cx=160+.4*(x-80)+.1*(y-80);cy=120-.1*(x-80)+.3*(y-80);
+    let x=80,y=80,cx=160,cy=120,dx=0,dy=0;window.receipts=[];
+    function draw(){cx=160+dx+.4*(x-80)+.1*(y-80);cy=120+dy-.1*(x-80)+.3*(y-80);
       ctx.fillStyle='rgb(45,45,45)';ctx.fillRect(0,0,320,240);ctx.drawImage(tile,cx-32,cy-32);
       canvas.style.cursor=Math.hypot(x-cx,y-cy)<12?'pointer':'auto';}
     canvas.addEventListener('pointermove',e=>{x=e.offsetX;y=e.offsetY;draw();
       window.receipts.push({kind:'move',x,y});});
     canvas.addEventListener('pointerdown',()=>window.receipts.push({kind:'down',x,y,hit:Math.hypot(x-cx,y-cy)<12}));
     canvas.addEventListener('pointerup',()=>window.receipts.push({kind:'up',x,y}));draw();
+    window.addEventListener('keydown',e=>{if(e.key==='ArrowRight'){dx+=15;dy-=12;draw();}});
     </script>'''.replace('TEXTURE', encoded)
     async with api.async_playwright() as running:
         browser = await running.chromium.launch(headless=True, args=['--disable-gpu'])
@@ -224,6 +269,7 @@ async def test_chromium_normal_page_port_corrects_the_same_material_and_presses_
             await surface._where_the_pointer_turns(seen, None)
             assert len(seen['shapes']) == 1
             selected = seen['shapes'][0]
+            await page.keyboard.press('ArrowRight')  # An independent layout change after discovery.
             await page.mouse.move(80, 80)  # Later inspection leaves the pointer elsewhere.
             directory = tmp_path/'pointing'
             async with record_frames_and_inputs(directory):
@@ -246,8 +292,10 @@ async def test_chromium_normal_page_port_corrects_the_same_material_and_presses_
                 source.tobytes(), (source.shape[1], source.shape[0]), tuple(reference['anchor']),
                 tuple(reference['sample_point']), reference['sampled_at'])
             compared = [event for event in events if event['kind'] == 'pointer_correspondence']
-            assert compared and all(event['channels'] == 'RGB' for event in compared)
+            assert len(compared) >= 4 and all(event['channels'] == 'RGB' for event in compared)
             for event in compared:
+                lower, upper = event['capture_interval']
+                assert event['moved_at'] <= lower <= upper <= event['received_at']
                 pixels = np.asarray(Image.open(directory/event['file']).convert('RGB'))
                 replayed = pointing.target_in_picture(retained, pixels)
                 assert replayed == pytest.approx(event['matched_in_bounds'], abs=1e-6)

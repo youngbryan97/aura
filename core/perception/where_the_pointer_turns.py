@@ -101,6 +101,21 @@ def _spread(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
     return selected
 
 
+def _spatial_query_order(points: list[tuple[float, float]], limit: int | None = None) -> list[int]:
+    """Spend a partial query budget across the view before refining one corner."""
+    if not points:
+        return []
+    nearest, ordered, chosen = [math.inf]*len(points), [], 0
+    for _ in range(min(len(points), limit if limit is not None else len(points))):
+        ordered.append(chosen)
+        x, y = points[chosen]
+        nearest = [min(old, (px-x)**2+(py-y)**2) for old, (px, py) in zip(nearest, points, strict=True)]
+        for i in ordered:
+            nearest[i] = -1.
+        chosen = max(range(len(points)), key=nearest.__getitem__)
+    return ordered
+
+
 def _geometry(page: Any, over: Any) -> tuple | None:
     size = getattr(page, 'viewport_size', None) or {}
     try:
@@ -176,6 +191,8 @@ def _corner_queries_invariant() -> tuple:
     hints = corners_to_query(ScreenReading({}, picture_snapshot=make_snapshot(picture)))
     assert 0 < len(hints) <= 32 and all(0 < x < 1 and 0 < y < 1 for x, y in hints)
     assert corners_to_query({}) == ()
+    corners = [(x, y) for y in (0., 1., 2., 100.) for x in (0., 1., 2., 100.)]
+    assert {corners[i] for i in _spatial_query_order(corners, 4)} == {(0., 0.), (0., 100.), (100., 0.), (100., 100.)}
     return ()
 
 #: The grid the pointer is swept over, across and down.
@@ -277,12 +294,16 @@ async def _shown_at_each(page: Any, points: list[tuple[float, float]]) -> list[s
                 logger.info("the pointer swept inside the page did not show what the mouse shows: swept with the mouse")
         except Exception as why:  # noqa: BLE001 - a page that will not be asked in one go is asked place by place
             logger.debug("the pointer could not be swept inside the page: %s", str(why)[:120])
-    out = []
-    for x, y in points:
+    out = ['']*len(points)
+    for i in _spatial_query_order(points):
+        x, y = points[i]
         await page.mouse.move(x, y)
         shown = str(await page.evaluate(_SHOWN_AS, [x, y]) or "")
         await _finished_sample(x, y, shown)
-        out.append(shown)
+        out[i] = shown
+    # Both survey implementations finish at the same requested location.
+    if i != len(points)-1:
+        await page.mouse.move(*points[-1])
     return out
 
 
@@ -296,7 +317,8 @@ async def _the_mouse_agrees(page: Any, points: list[tuple[float, float]], shown:
     """Whether the mouse itself shows what the sweep inside the page showed, at every place it found to be a hand and
     at places spread over the rest. A drawing may answer only moves the browser makes from a real mouse (a report on
     a test page, 2026-10-13); on such a page the two part, and the sweep is not trusted."""
-    hands = [i for i, one in enumerate(shown) if one in _A_HAND][:CHECKED_BY_THE_MOUSE]
+    positive = [i for i, one in enumerate(shown) if one in _A_HAND]
+    hands = [positive[i] for i in _spatial_query_order([points[i] for i in positive], CHECKED_BY_THE_MOUSE)]
     rest = [i for i, one in enumerate(shown) if one not in _A_HAND]
     spread = rest[:: max(1, len(rest) // CHECKED_BY_THE_MOUSE)][:CHECKED_BY_THE_MOUSE] if rest else []
     for i in [*hands, *spread]:

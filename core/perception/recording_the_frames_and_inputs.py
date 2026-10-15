@@ -233,7 +233,8 @@ def record_pointer_reference(target: Any) -> int | None:
 
 
 def record_pointer_correspondence(reference: int | None, picture: Any, *, phase: str,
-                                  pointer: Any = None, matched: Any = None) -> None:
+                                  pointer: Any = None, matched: Any = None,
+                                  captured: tuple | None = None, moved_at: float | None = None) -> None:
     """Keep a current RGB comparison, including a failed match; no task result."""
     recorder = _ACTIVE.get()
     if recorder is None:
@@ -241,6 +242,7 @@ def record_pointer_correspondence(reference: int | None, picture: Any, *, phase:
     recorder.offer(recorder.event('pointer_correspondence', reference_sequence=reference, phase=phase,
         channels='RGB', pointer_in_bounds=[float(v) for v in pointer] if pointer is not None else None,
         matched_in_bounds=[float(v) for v in matched] if matched is not None else None,
+        capture_interval=list(captured) if captured is not None else None, moved_at=moved_at,
         qualified=matched is not None), _pixels(picture))
 
 
