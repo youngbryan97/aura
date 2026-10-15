@@ -69,8 +69,22 @@ class _AmplifiesTheDraft:
             )
         except ImportError:
             return draft
-        # A kept procedure answers before any search; see
-        # ResponseGenerationPhase._maybe_amplify_response.
+        # A kept procedure found before the draft put its answer in front of her: her reply stands in her own
+        # words when it states the answer, or when the answer rests on a restatement nothing checked; otherwise
+        # the computed answer is served (core/phases/kept_procedures_in_a_turn.py).
+        from core.phases.kept_procedures_in_a_turn import after_the_draft, planted_for
+
+        planted = planted_for(state, objective)
+        if planted is not None:
+            stated, voice = after_the_draft(draft, planted)
+            receipt = dict(planted.get("receipt") or {})
+            self._last_reasoning_receipt = receipt
+            if hasattr(state, "metadata") and isinstance(state.metadata, dict):
+                state.metadata["reasoning_receipt"] = receipt
+            logger.info("🧠 [AmplifyV2-live/phase] kept answer for %s, %s (known answers agreed: %s)",
+                        planted.get("family"), voice, planted.get("agreed_known"))
+            return draft if stated else str(planted["answer"])
+        # Otherwise a kept procedure answers before any search when the request is worded like its kind.
         kept = await asyncio.to_thread(answer_from_kept_procedures, objective)
         if kept is not None:
             receipt = kept.receipt.to_dict()

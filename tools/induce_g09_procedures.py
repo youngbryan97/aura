@@ -22,6 +22,11 @@ alone.
 Usage:
     induce_g09_procedures.py --kinds bbeh_hyperbaton,calendar --output DIR    (or --kinds all, minus --except)
         [--lines 2] [--rounds 3] [--shots 3] [--batch 8] [--mechanisms] [--no-thinking] [--fake-proposer FILE]
+        [--steps-book BOOK]
+
+With ``--steps-book``, the kinds that book keeps are steps a proposed ``solve``
+may call (``kept_answer``, core/learning/kept_steps.py), so a harder kind can
+be written on top of simpler ones already kept.
 
 A run started again with the same arguments in the same directory resumes: every proposal already
 decoded is read from requests/round*.jsonl rather than decoded again.
@@ -226,6 +231,8 @@ def main() -> int:
     parser.add_argument("--model", type=Path,
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--fake-proposer", type=Path, help="a JSON list of replies, for a dry run without the model")
+    parser.add_argument("--steps-book", type=Path, default=None,
+                        help="a book whose kept kinds a proposed solve may call as steps")
     parser.add_argument("--mechanisms", action="store_true",
                         help="tell her model it may import core/reasoning/mechanisms.py, and what it offers")
     parser.add_argument("--no-thinking", action="store_true",
@@ -243,6 +250,7 @@ def main() -> int:
         candidate_record,
         dumps,
         induce,
+        kept_steps_from,
     )
 
     output = args.output.expanduser()
@@ -333,9 +341,10 @@ def main() -> int:
     try:
         from core.reasoning.mechanisms import reference
 
+        steps = kept_steps_from(args.steps_book.expanduser()) if args.steps_book else None
         state = induce(families, propose, shots=args.shots, lines=args.lines, rounds=args.rounds,
                        agree=agree, workers=args.workers, mechanisms=reference() if args.mechanisms else None,
-                       on_candidate=on_candidate)
+                       steps=steps, on_candidate=on_candidate)
     finally:
         if context is not None:
             context.__exit__(None, None, None)

@@ -30,7 +30,9 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ReasoningAmplifier")
 
-_ANSWER_RE = re.compile(r"(?:final answer|answer|therefore)\s*[:\-]?\s*(.+)$", re.IGNORECASE)
+# Line by line: without MULTILINE, "$" is the end of the whole text, so an answer line followed by any closing
+# remark was missed and the remark taken for the answer.
+_ANSWER_RE = re.compile(r"(?:final answer|answer|therefore)\s*[:\-]?\s*(.+)$", re.IGNORECASE | re.MULTILINE)
 
 
 def default_extract_answer(text: str) -> str:

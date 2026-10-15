@@ -1993,6 +1993,41 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         lines.extend(grounding.render())
         return {"role": "system", "content": "\n".join(lines)}
 
+    async def _consult_kept_procedures(
+        self, state: AuraState, objective: str, *, llm: Any, origin: str, tier: str | None
+    ) -> None:
+        """Find what a kept procedure computes for this request before she drafts (kept_procedures_in_a_turn)."""
+        from core.phases.kept_procedures_in_a_turn import kept_answer_for
+
+        modifiers = getattr(state, "response_modifiers", None)
+        if not isinstance(modifiers, dict):
+            return
+        modifiers.pop("kept_procedure", None)
+        try:
+            planted = await kept_answer_for(objective, router=llm, origin=origin, tier=tier)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: kept procedures not consulted: %s")
+            return
+        if planted is not None:
+            modifiers["kept_procedure"] = planted
+            logger.info("🧠 [UnitaryResponse] kept procedure for %s answered before the draft (%s).",
+                        planted["family"], planted["form"])
+
+    @staticmethod
+    def _kept_procedure_evidence(state: AuraState, objective: str) -> dict[str, str] | None:
+        """The kept answer found for this request, put in front of her as a skill's result is."""
+        from core.phases.kept_procedures_in_a_turn import planted_for
+
+        planted = planted_for(state, objective)
+        if planted is None:
+            return None
+        lines = [
+            "[ACTIVE GROUNDING EVIDENCE]",
+            f"[SKILL RESULT: kept_procedure] \u2705 Answer: {planted['answer']}",
+            f"Summary: {planted['summary']}",
+        ]
+        return {"role": "system", "content": "\n".join(lines)}
+
     @classmethod
     def _build_active_grounding_message(
         cls,
@@ -2000,6 +2035,9 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         objective: str,
         contract: Any,
     ) -> dict[str, str] | None:
+        kept = cls._kept_procedure_evidence(state, objective)
+        if kept is not None:
+            return kept
         if not cls._current_turn_targets_grounding_evidence(state, objective, contract):
             # No skill ran, so nothing has grounded this turn. Before answering
             # a question about the world from weights alone, ask the local
@@ -5122,6 +5160,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 and not exact_format_required
                 and not operator_evidence_turn
             ):
+                if is_user_facing and not is_background:
+                    await self._consult_kept_procedures(
+                        new_state, objective, llm=llm, origin=routing_origin, tier=model_tier
+                    )
                 messages = await self._inject_active_grounding_message_async(
                     messages, new_state, objective, contract
                 )

@@ -487,7 +487,12 @@ def grade_trip(text: str, truth: dict[str, str]) -> tuple[bool, str]:
 def grade_cruxeval(text: str, truth: dict[str, str]) -> tuple[bool, str]:
     """CRUXEval's output scoring, restated: the text after [ANSWER] and up to [/ANSWER] (where its
     generation stopped), the part after "==", rejected if it calls f on the input, else
-    ``assert <true output> == <prediction>`` run after the function, here in her OS sandbox."""
+    ``assert <true output> == <prediction>`` run after the function, here in her OS sandbox.
+
+    Keeping only the text between the first "==" and the next is CRUXEval's own cut, kept for
+    comparability, though an output literal holding "==" is mis-cut by it; such a reference answer fails its own grader and is left out of the known
+    answers on induction (tools/induce_g09_procedures.py, "unconfirmable").
+    """
     from core.sandbox.untrusted_python import run_untrusted_script
 
     answer = text
@@ -606,7 +611,12 @@ def _planbench_grade(text: str, truth: dict[str, Any]) -> tuple[bool, str]:
 
 def grade_lcb(text: str, truth: dict[str, str]) -> tuple[bool, str]:
     """LiveCodeBench's execution scoring, restated: extract_execution_code (cot) and evaluate_score, the check
-    run here in her OS sandbox."""
+    run here in her OS sandbox.
+
+    The split on "==" comes before the cut at "[/ANSWER]", as in LiveCodeBench's own extract_execution_code, so
+    an output literal holding "==" is mis-cut here exactly as it is for every published score; keeping the
+    official order is what makes hers comparable.
+    """
     from core.sandbox.untrusted_python import run_untrusted_script
 
     answer = text

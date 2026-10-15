@@ -78,3 +78,33 @@ def test_a_bbh_procedure_is_checked_by_its_own_grader_though_its_keys_do_not_nam
     assert induce_g09_procedures.main() == 0
     summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))["bbh_word_sorting"]
     assert summary["admitted"] == 1 and summary["best"][0] == summary["best"][1] == summary["development"]
+
+
+@pytest.mark.skipif(not (BENCH / "bbh-src/bbh/word_sorting.json").exists(),
+                    reason="the BBH files are not on this host")
+def test_a_book_given_as_steps_reaches_the_induction(tmp_path: Path, monkeypatch) -> None:
+    import json
+    import sys
+
+    from core.learning import procedures_from_solved_examples as procedures
+    from core.learning.procedures_from_solved_examples import ProcedureBook, Signature, dumps
+    from tools import induce_g09_procedures
+
+    book = ProcedureBook({"percent": Signature({"percent": 1.0}, 0.99)},
+                         {"percent": ["def solve(problem):\n    return '1'\n"]}, {"percent": 4})
+    (tmp_path / "book.json").write_text(dumps(book.to_json()), encoding="utf-8")
+    (tmp_path / "replies.json").write_text(json.dumps(["no code"]), encoding="utf-8")
+    given: dict = {}
+    real = procedures.induce
+
+    def spy(*args, **kwargs):
+        given["steps"] = kwargs.get("steps")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(procedures, "induce", spy)
+    monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "state"))
+    monkeypatch.setattr(sys, "argv", ["induce_g09_procedures.py", "--kinds", "bbh_word_sorting", "--rounds", "1",
+                                      "--lines", "1", "--fake-proposer", str(tmp_path / "replies.json"),
+                                      "--steps-book", str(tmp_path / "book.json"), "--output", str(tmp_path / "out")])
+    assert induce_g09_procedures.main() == 0
+    assert given["steps"] is not None and set(given["steps"].book.procedures) == {"percent"}
