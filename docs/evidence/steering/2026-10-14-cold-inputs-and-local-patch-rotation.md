@@ -86,3 +86,23 @@ repository lint and smoke pass. Smoke has 165 passing tests and one skip in
 response-generation method debt and 123 governance regressions remain.
 No baseline was changed. The log is
 `/private/tmp/codex-steer/cold-patch-gates-1014.log`.
+
+## Original-game run from 48d510637
+
+The assigned original game 9 ran through the browser/agency path for
+105.161887 seconds, with exit 0 and no wrapper timeout. Artifacts are in
+`/private/tmp/codex-steer/cold-input-patch-search-original9-1014`.
+
+There were 598 decisions, 598 qualified capture receipts and 354 decisions
+with an assigned body. Median picture age at decision was 0.193739286
+seconds. The ordinary body trials assigned a body before the independent
+pixel fallback was eligible, so the fallback ran zero times. This run
+therefore does not measure the original-game benefit of its new selection
+or local patch channel. There were 303 current angular-phase receipts and
+350 retained heading readings; no measured turning key was recorded.
+
+The visible game still ended the allotted run with zero parked cars. Its
+first Play click occurred about 42 seconds after launch. The body-trial
+loop had been running over the animated title before returning control to
+navigation. The next change addresses that sequencing defect using current
+owned word pixels. This is no original-game win or native-app prompt proof.

@@ -11,6 +11,12 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from core.agency.navigation_before_body_experiments import (
+    capture_before_reading,
+    keep_navigation_reading,
+    words_bound_to_capture,
+)
+
 if TYPE_CHECKING:
     from core.agency.playing_as_it_happens import _Run
     from core.agency.what_meeting_things_does import WhatMeetingDoes
@@ -32,7 +38,8 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
             run.reading.cancel()
             run.reading = None
         run.read_at = at
-        _read_the_words(run, meeting, hers, moves, rendered, at, say)
+        _read_the_words(run, meeting, hers, moves,
+                        words_bound_to_capture(rendered, capture_before_reading(picture, at)), at, say)
         return
     if read_words is None:
         return
@@ -43,9 +50,11 @@ async def _keep_reading(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, 
     if run.reading is None and at - run.read_at >= READ_EVERY_S:
         run.read_at = at
         bgr = picture[:, :, ::-1].copy()
+        captured = capture_before_reading(picture, at)
 
         async def _read() -> tuple[list[dict[str, Any]], float]:
-            return await asyncio.to_thread(read_words, bgr), at
+            regions = await asyncio.to_thread(read_words, bgr)
+            return words_bound_to_capture(regions, captured), at
 
         run.reading = asyncio.ensure_future(_read())
 
@@ -106,6 +115,7 @@ def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,
     from core.cognition.a_guide_to_a_place import heard_in_play
 
     kept_word_picture(run, when)
+    keep_navigation_reading(run, regions)
     run.regions_read = list(regions)
     for region in regions:
         kept_reading(run, when, " ".join(str(region.get("text") or "").lower().split()))

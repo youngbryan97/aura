@@ -490,6 +490,7 @@ def _travel_turn_claims() -> tuple:
 
 def _bounded_pixel_claims() -> tuple:
     from core.agency.discovering_control_in_current_pixels import _pixel_discovery_invariant
+    from core.agency.navigation_before_body_experiments import _current_navigation_invariant
     from core.agency.pixels_inside_control_trials import _pixel_trial_custody_invariant
     from core.agency.searching_before_a_body_is_known import _pixel_search_phase_invariant
     from core.perception.a_region_that_answers_independent_inputs import _pixel_cohort_invariant
@@ -512,6 +513,9 @@ def _bounded_pixel_claims() -> tuple:
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("current_navigation_precedes_body_experiments", "core/agency/navigation_before_body_experiments.py",
+         "tests/test_current_navigation_precedes_body_experiments.py", lambda: _current_navigation_invariant() == (),
+         "Current owned word pixels can return an unassigned body task to navigation before control experiments; old words, changed surfaces and unavailable captures cannot."),
         ("patch_rotation_uncertainty_needs_rgb_gradient_rank", "core/perception/rotation_inside_a_matched_pixel_patch.py",
          "tests/test_rotation_inside_a_matched_pixel_patch.py", lambda: _patch_rotation_uncertainty_invariant() == (),
          "Local RGB patch rotation keeps fit uncertainty separate from rigid-body pose; flat or rank-deficient patches cannot resolve its angle."),

@@ -1314,6 +1314,12 @@ async def _play_as_it_happens(
             reflexive = await respond_before_planning(hands, run, hers, choosing, at)
             if not reflexive:
                 await _keep_reading(run, meeting, hers, moves, picture, at, read_words, say=say)
+                from core.agency.navigation_before_body_experiments import (
+                    navigation_before_body_experiments,
+                )
+                ended = navigation_before_body_experiments(run, hers, picture, at, keep, now=time.monotonic())
+                if ended:
+                    break
                 rules = rules_as_told_since(run, rules)
                 if await search_after_unresolved_body(hands, run, hers, moves, look=look, context=context,
                                                      picture=picture, at=at, deadline=began + seconds):
