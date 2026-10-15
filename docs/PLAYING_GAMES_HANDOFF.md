@@ -297,3 +297,13 @@ These paths survive temporary-directory cleanup. Do not resume its
 unfinished record blindly or reuse an old report path for a new attempt.
 Native prompt proof, reliable body control and the 56-case campaign remain
 unfinished. Preserve the holdout boundary and G09 ownership.
+
+The later CPU check at 97ac86d8f finished in 79.13 seconds. Its actual
+fast-loop gain and loss totals were both zero after the feedback repair.
+It still reported zero landings and one crash, with no selected body or
+measured moving key. The final picture is after a restart; the terminal
+wording is in OCR logs, so this remains unqualified for independent
+terminal-image proof. Next capture the actual fast-loop frames and paired
+input receipts durably; the current twenty-second pictures cannot explain
+each identity failure. See the appended measurement in
+`docs/evidence/steering/2026-10-15-unowned-readings-do-not-award-reward.md`.

@@ -48,3 +48,32 @@ skip in 50.96 seconds. Ruff, layering, dependency consistency,
 changed-method size and writing passed. Initial test-fixture failures
 omitted parts of the observation protocol; those fixtures were repaired.
 No new original-game or GPU run was used to test this repair.
+
+## Later CPU browser check at 97ac86d8f
+
+A fresh case-18 run used the same 45-second play allocation and the full
+CPU-only envelope. The process finished in 79.13 seconds. Its two fast
+stretches lasted 11.5 and 0.3 seconds, at 5.6 and 3.9 pictures a second.
+Both recorded zero gains and zero losses. The closing sentence no longer
+invented a best count from those feedback events: it said no score was
+shown and reported the run's length.
+
+This was not a matched random-seed experiment. The deterministic generated
+replay above isolates the repaired mechanism; the new original run shows
+that the ordinary path also finished without the earlier gain count.
+The result still reported zero landings, one crash and no selected body or
+moving key. No vision model worker was started. G09 remained PID 4559;
+its process and configuration were not changed.
+
+Raw evidence is in `artifacts/flash-campaign/2026-10-15-case18-feedback/`.
+The retained final screenshot shows a newly restarted active scene, because
+the pursuit restarted just before its time expired. The terminal wording
+is retained in timed OCR logs, not in a synchronous terminal screenshot.
+This also limits the earlier CPU case's terminal evidence: its report is
+not an independently qualified terminal-image verdict. Neither attempt
+supplies a win or native prompt proof. Their task-pass fields remain null.
+
+The sparse pictures cannot reconstruct every observation that failed to
+become a controlled-body track. The next body-discovery diagnosis needs
+the actual fast-loop frames paired with input receipts, stored durably as
+they arrive. A twenty-second picture interval is too coarse for that claim.
