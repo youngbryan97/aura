@@ -87,6 +87,7 @@ def _verdicts(pictures) -> tuple[list[dict], object]:
 
 def test_the_floor_she_paints_is_read_as_bars_and_none_is_what_she_has_left(monkeypatch):
     import core.agency.what_its_code_says_she_sees as says
+    import core.agency.what_she_has_left as resources
     from core.agency.what_she_has_left import what_is_left
     from core.cognition.a_guide_to_a_place import THE_GUIDE, Guide
 
@@ -95,8 +96,10 @@ def test_the_floor_she_paints_is_read_as_bars_and_none_is_what_she_has_left(monk
     guide.world_its_code_makes = _paint()
     token = THE_GUIDE.set(guide)
     try:
+        # Even a false resource label cannot overrule source-grounded scenery.
+        monkeypatch.setattr(resources, "what_a_bar_measures", lambda *args: ("HEALTH", "down is bad"))
         with monkeypatch.context() as unread:
-            # Without its code, the floor is bars, and its rows shortening as they are painted are losses.
+            # Without its ground role, the false label turns shortening rows into losses.
             unread.setattr(says, "a_strip_of_ground", lambda bar, shape, guide=None: False)
             blind, _bars = _verdicts(pictures)
         assert any(v["what"] == "loss" for v in blind), blind

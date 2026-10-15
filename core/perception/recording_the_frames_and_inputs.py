@@ -213,6 +213,8 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
             pushes={key: len(values) for key, values in speeds.pushes().items()}))
     recorder.offer(recorder.event('control_observation', at=float(at), selected=hers.number,
         epoch=hers.identification.epoch, trying=run.held_trying, held=run.held, held_since=run.held_since,
+        carried=hers.carried, known_controls=list(hers.keys_that_move_her(run.keys)),
+        measured_pushes={key: hers.push_of(key) for key in hers._hers.pushes()},
         observations=[dict(number=int(t.number), born=float(t.born), seen=float(t.seen), status=motion_status(t, at),
                            position=[float(t.x), float(t.y)]) for t in moves.things.values()], evidence=evidence))
 

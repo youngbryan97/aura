@@ -193,6 +193,10 @@ class _Speeds:
             when: float | None = None) -> None:
         if press is not None and ((key, press) in self.interrupted or (key, press) in self.ended):
             return
+        if press is not None and when is not None:
+            earlier = self.timed.get((key, press), ())
+            if not math.isfinite(when) or earlier and when <= earlier[-1][0]:
+                return
         if position is not None:
             for axis, (place, speed) in enumerate(zip(position, (vx, vy), strict=True)):
                 self.lowest[axis] = min(self.lowest[axis], place)
@@ -398,6 +402,20 @@ def _ambiguous_controls_remain_unknown() -> bool:
            owner="core/agency/which_one_answers_to_her.py", observational=False)
 def _control_measurement_invariant() -> tuple:
     assert _ambiguous_controls_remain_unknown(), "blocked or unsettled motion established a control"
+    return ()
+
+
+@invariant("agency.control_samples_have_distinct_times", scope="agency",
+           owner="core/agency/which_one_answers_to_her.py", observational=False)
+def _control_sample_custody_invariant() -> tuple:
+    speeds = _Speeds()
+    for at in (.2, .3, .4, .4, .3, math.nan, math.inf):
+        speeds.add("a", 0., at * 10., press=0., when=at)
+    assert len(speeds.by_press[("a", 0.)]) == 3
+    assert len(speeds.timed[("a", 0.)]) == 3
+    assert not speeds.pushes()
+    speeds.add("a", 0., 5., press=0., when=.5)
+    assert math.dist(speeds.pushes()["a"][0], (0., 10.)) < 1e-9
     return ()
 
 
@@ -977,7 +995,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
                     self._hers.free[key].extend(values[-50:])
             if best != self.number:
                 self.carried = self._by_thing[best].carried()
-                self._hers.timed.update(self._by_thing[best].timed)
+                self._hers.timed.update({press: list(samples) for press, samples in self._by_thing[best].timed.items()})
             self.number = best
             self.kind = moves.things[best].kind
         elif self.number not in moves.things and self.kind is not None:

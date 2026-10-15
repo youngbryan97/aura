@@ -3,8 +3,8 @@
 core/perception/how_full_a_bar_is.py finds the strips that fill and empty and
 how far each ran. This says what each change means for her: the words beside a
 bar say what it measures ("health", "paint", "time"), and a fall of what she
-has left is a loss as a counter's fall is; a bar with no words is taken for
-something running out, worse lower, until play says otherwise. The lowest of
+has left is a loss as a counter's fall is. Unnamed strips remain measurements
+until their role is known. The lowest of
 what she has left is how careful she is (core/agency/playing_as_it_happens.py
 gives what costs her a wider berth below CAREFUL_BELOW).
 
@@ -16,6 +16,8 @@ import re
 from collections.abc import Callable, Iterator
 from typing import Any
 
+from core.verify import invariant
+
 __all__ = ["CAREFUL_BELOW", "bars_read", "what_a_bar_measures", "what_is_left"]
 
 #: How full her bars may be before she is careful: below this share of their fullest, what costs is given wider berth.
@@ -23,8 +25,7 @@ CAREFUL_BELOW = 0.5
 
 
 def what_a_bar_measures(bar: Any, regions: list[dict[str, Any]], wide: int, tall: int) -> tuple[str, str]:
-    """The words written nearest a bar, before it on its line or just over it, and what a change in them means; a bar
-    with no words is taken for something running out, worse lower."""
+    """Read a meter's role from its nearby words; absent or unknown roles stay unknown."""
     from core.agency.what_meeting_things_does import _meaning
 
     left, top, right, bottom = bar.where(wide, tall)
@@ -58,7 +59,10 @@ def what_a_bar_measures(bar: Any, regions: list[dict[str, Any]], wide: int, tall
         return label, "neither"
     if label and _the_other_sides(label, regions, (top + bottom) / 2):
         return label, "down is good"
-    return label, (_meaning(label) if label else "") or "down is bad"
+    meaning = _meaning(label) if label else ""
+    if not meaning and _HERS.fullmatch(label.strip(" :")):
+        meaning = "down is bad"
+    return label, meaning
 
 
 #: Words that name the player's own side on a screen, and words that name the side against her.
@@ -96,7 +100,7 @@ def bars_read(bars: Any, picture: Any, at: float, regions: list[dict[str, Any]],
         tall, wide = bars.shape
         if not bar.meaning:
             bar.label, bar.meaning = what_a_bar_measures(bar, regions, wide, tall)
-        if bar.meaning == "neither":
+        if bar.meaning not in ("down is bad", "down is good", "up is good"):
             continue
         fell = change["to"] < change["from"]
         lost = fell if bar.meaning == "down is bad" else not fell
@@ -111,6 +115,18 @@ def what_is_left(bars: Any, *, allow_unnamed: bool = True) -> float:
     left = [bar.full for bar in bars.bars() if bar.meaning == "down is bad" and (allow_unnamed or bar.label)
             and not a_strip_of_ground(bar, bars.shape)]
     return min(left) if left else 1.0
+
+
+@invariant("agency.measured_strips_require_a_known_role", scope="agency",
+           owner="core/agency/what_she_has_left.py", observational=False)
+def _bar_role_invariant() -> tuple:
+    from core.perception.how_full_a_bar_is import Bar
+
+    bar = Bar(row=10, thick=6, colour=(200, 0, 0), start=40, end=130)
+    assert what_a_bar_measures(bar, [], 320, 200) == ("", "")
+    regions = [{"text": "HEALTH", "center_x": .06, "center_y": .05}]
+    assert what_a_bar_measures(bar, regions, 320, 200) == ("HEALTH", "down is bad")
+    return ()
 
 
 #: The words of a way on that a reading gets a letter wrong as often as not.

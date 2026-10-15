@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.which_one_answers_to_her import _control_sample_custody_invariant
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
     from core.perception.affine_motion_from_named_points import _affine_material_invariant
@@ -42,19 +43,26 @@ def _play_execution_claims() -> tuple:
             ('fresh_marks_cannot_outvote_retained_material', 'core/perception/position_from_the_same_points.py',
              'tests/test_fresh_marks_do_not_invalidate_their_own_receipt.py', lambda: _fresh_mark_capacity_invariant() == (),
              'The point provider and retained pose share a fresh-mark budget that keeps admitted existing material at least two thirds of each next set, within 256 marks.'),
+            ('control_samples_have_distinct_times', 'core/agency/which_one_answers_to_her.py',
+             'tests/test_control_samples_do_not_share_mutable_history.py', lambda: _control_sample_custody_invariant() == (),
+             'Timed control measurements reject duplicate and decreasing capture times; selecting a body copies its trial samples into an independently owned history.'),
             *_reward_authority_claims())
 
 
 def _reward_authority_claims() -> tuple:
     from core.agency.reading_while_playing import _unowned_bar_reward_invariant
     from core.agency.what_meeting_things_does import _unlabelled_counter_reference_invariant
+    from core.agency.what_she_has_left import _bar_role_invariant
 
     return (("unowned_strips_cannot_teach_reward", "core/agency/reading_while_playing.py",
              "tests/test_unowned_strips_do_not_teach_rewards.py", lambda: _unowned_bar_reward_invariant() == (),
              "Before a body is selected or a response is measured, nameless changing strips remain measurements and cannot supply rewards or resource scarcity."),
             ("unlabelled_counters_require_a_reference", "core/agency/what_meeting_things_does.py",
              "tests/test_unowned_strips_do_not_teach_rewards.py", lambda: _unlabelled_counter_reference_invariant() == (),
-             "An unlabelled numeric change remains measured without supplying reward until an own-side reference relates the two counters."))
+             "An unlabelled numeric change remains measured without supplying reward until an own-side reference relates the two counters."),
+            ("measured_strips_require_a_known_role", "core/agency/what_she_has_left.py",
+             "tests/test_unowned_strips_do_not_teach_rewards.py", lambda: _bar_role_invariant() == (),
+             "Measured strip changes require a known resource, reward or side role before teaching reward or scarcity; selecting a controlled body supplies no meter semantics."))
 
 
 def install_realtime_control_claims(suite: Any) -> None:

@@ -148,7 +148,7 @@ async def test_actual_control_sample_counts_remain_separate_from_input_delivery(
     hers._by_thing[8].add('a', 20., 0., press=1., when=1.3)
     directory = tmp_path / 'counts'
     async with record_frames_and_inputs(directory):
-        record_control_observation(SimpleNamespace(held_trying=True, held='a', held_since=1.),
+        record_control_observation(SimpleNamespace(held_trying=True, held='a', held_since=1., keys=['a']),
             SimpleNamespace(things={}), hers, 1.3)
     event = _events(directory)[0]
     assert event['kind'] == 'control_observation' and event['selected'] is None

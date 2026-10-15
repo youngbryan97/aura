@@ -159,6 +159,10 @@ def replay(directory: Path, limit: int = 1000, *, replay_control: bool = False) 
                 working_shape=list(moves.shape), things=things,
                 events=[{k: v for k, v in e.items() if k in ('what', 'thing', 'kind', 'at')} for e in happened],
                 control_selected=hers.number if hers is not None else None,
+                control_carried=hers.carried if hers is not None else None,
+                control_keys=list(hers.keys_that_move_her([key for _began, key, _trying in histories[streams] if key]))
+                    if hers is not None else None,
+                control_pushes={key: hers.push_of(key) for key in hers._hers.pushes()} if hers is not None else None,
                 control_evidence=[dict(number=int(n), ratio=list(s.ratio()),
                     pushes={key: len(values) for key, values in s.pushes().items()})
                     for n, s in hers._by_thing.items()] if hers is not None else None,

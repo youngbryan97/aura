@@ -33,10 +33,35 @@ def test_unnamed_changes_are_retained_without_granting_reward_or_scarcity():
 
 
 @pytest.mark.parametrize('reference', ['body', 'pointer', 'response'])
-def test_an_interactive_reference_keeps_existing_meter_feedback(reference):
+def test_an_interactive_reference_cannot_supply_an_unknown_meter_role(reference):
     run, meeting = _observed(**{reference: True})
-    assert run.gains > 0 and run.losses > 0 and meeting.verdicts
-    assert run.vitals < .6
+    assert run.bars.bars() and any(bar.full < .6 for bar in run.bars.bars())
+    assert run.gains == run.losses == 0 and not meeting.verdicts
+    assert run.vitals == meeting.vitals == 1.
+
+
+@pytest.mark.parametrize('label,meaning', [('HEALTH', 'down is bad'), ('YOU', 'down is bad'),
+    ('ENEMY', 'down is good'), ('SCORE', 'up is good'), ('TIME', 'neither'),
+    ('PLAY', 'neither'), ('cloud', ''), ('', '')])
+def test_a_strip_needs_semantics_beyond_a_legible_nearby_word(label, meaning):
+    from core.agency.what_she_has_left import what_a_bar_measures
+    from core.perception.how_full_a_bar_is import Bar
+
+    bar = Bar(row=10, thick=6, colour=(200, 0, 0), start=40, end=130)
+    regions = [{'text': label, 'center_x': .06, 'center_y': .05}]
+    assert what_a_bar_measures(bar, regions, 320, 200)[1] == meaning
+
+
+def test_unknown_meter_roles_have_a_registered_measured_claim():
+    from core.agency.what_she_has_left import _bar_role_invariant
+    from core.organism.claims_realtime_control import install_realtime_control_claims
+    from core.organism.model_validation import ValidationSuite
+
+    assert _bar_role_invariant() == ()
+    suite = ValidationSuite()
+    install_realtime_control_claims(suite)
+    check = next(t for t in suite.tests() if t.name == 'measured_strips_require_a_known_role')
+    assert check.predict(None) is True and any(c.test == check.name for c in suite.claims())
 
 
 def test_named_health_remains_available_before_body_discovery():
