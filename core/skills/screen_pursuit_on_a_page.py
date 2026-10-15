@@ -25,6 +25,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.perception.recording_the_frames_and_inputs import (
+    begin_navigation_input,
+    finish_navigation_input,
+)
 from core.runtime.what_stops_it import current
 
 __all__ = ["HER_OWN_PAGE", "OnAPage", "it_was_answered", "on_her_page"]
@@ -168,12 +172,23 @@ class OnAPage:
             places = await where_the_pointer_turns(self.page, over)
             self._swept = (words, places)
         regions = [r for r in [*(seen.get("shapes") or []), *(seen.get("layout") or [])] if isinstance(r, dict)]
+        linked = {}
+        unnamed = []
         for x, y in places:
             # Where a thing already read stands there, it is that thing which answers the pointer.
             standing = the_thing_there((x, y), regions)
             if standing is not None:
-                standing["answers_the_pointer"] = True
-                continue
+                linked.setdefault(id(standing), (standing, []))[1].append((x, y))
+            else:
+                unnamed.append((x, y))
+        for standing, hits in linked.values():
+            standing['answers_the_pointer'] = True
+            if len(hits) == 1:
+                standing['pointer_x'], standing['pointer_y'] = hits[0]
+            else:
+                standing['pointer_ambiguous'] = True
+                unnamed.extend(hits)
+        for x, y in unnamed:
             seen.setdefault("shapes", []).append({"text": f"the one that stands out at {round(x * 100)}% across, "
                                                           f"{round(y * 100)}% down", "center_x": x, "center_y": y,
                                                   "shape": True, "answers_the_pointer": True})
@@ -238,6 +253,7 @@ class OnAPage:
         watching = self.watching
         window = watching.begin_act(name) if watching is not None else None
         delivered = False
+        recorded = begin_navigation_input(self.page, 'press', (name,))
         try:
             if reflexes is not None:
                 # In a game, a key is held a moment and watched, the way a person tries one.
@@ -251,6 +267,7 @@ class OnAPage:
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False
         finally:
+            finish_navigation_input(recorded, delivered)
             if window is not None:
                 watching.finish_act(window, delivered)
         return True
@@ -280,10 +297,15 @@ class OnAPage:
             # A place found by the pointer turning into a hand is clicked where it answers now: it may move.
             from core.perception.where_the_pointer_turns import where_the_hand_is_now
 
-            x, y = await where_the_hand_is_now(self.page, x, y, left, top, wide, tall)
+            found = await where_the_hand_is_now(self.page, x, y, left, top, wide, tall)
+            if found is None:
+                self._swept = None
+                return False
+            x, y = found
         watching = self.watching
         window = None
         delivered = False
+        recorded = begin_navigation_input(self.page, 'click', (left+x*wide, top+y*tall), bounds=(left, top, wide, tall))
         try:
             context.check()
             window = watching.begin_act(f"click at {x:.2f}, {y:.2f}") if watching is not None else None
@@ -292,6 +314,7 @@ class OnAPage:
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False
         finally:
+            finish_navigation_input(recorded, delivered)
             if window is not None:
                 watching.finish_act(window, delivered)
         # A click on the drawing is also what gives it the keyboard.
@@ -323,6 +346,7 @@ class OnAPage:
         watching = self.watching
         window = None
         delivered = False
+        recorded = begin_navigation_input(self.page, 'carry', (x0, y0, x1, y1), bounds=(left, top, wide, tall))
         try:
             context.check()
             await self.page.mouse.move(x0, y0)
@@ -343,6 +367,7 @@ class OnAPage:
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False
         finally:
+            finish_navigation_input(recorded, delivered)
             if window is not None:
                 watching.finish_act(window, delivered)
         self._focused = True

@@ -18,6 +18,7 @@ def _play_execution_claims() -> tuple:
         _surviving_reference_invariant,
     )
     from core.perception.recording_the_frames_and_inputs import (
+        _navigation_port_recording_invariant,
         _recorded_pixel_invariant,
         _screen_options_invariant,
     )
@@ -25,7 +26,10 @@ def _play_execution_claims() -> tuple:
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
     from core.skills.sovereign_browser_drawing import _notice_word_boundaries_invariant
 
-    return (("software_graphics_need_a_measured_cpu_renderer", "core/capabilities/browser_graphics_policy.py",
+    return (('normal_navigation_records_its_physical_port', 'core/perception/recording_the_frames_and_inputs.py',
+             'tests/test_cursor_witness_reaches_the_physical_click.py', lambda: _navigation_port_recording_invariant() == (),
+             'Opted-in normal page navigation preserves the actual port coordinates and delivery outcome without entering motor replay or supplying a task-completion claim.'),
+            ("software_graphics_need_a_measured_cpu_renderer", "core/capabilities/browser_graphics_policy.py",
              "tests/test_browser_software_graphics_stays_software.py", lambda: _software_graphics_invariant() == (),
              "An explicit software browser request selects the CPU driver and requires the browser process's renderer report; missing measurements cannot certify that policy."),
             ("cpu_vision_requires_request_acknowledgement", "core/perception/vision_request_compute.py",
@@ -80,10 +84,16 @@ def _task_grounding_claims() -> tuple:
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
-    from core.skills.screen_pursuit_bearings import _animated_navigation_invariant
+    from core.skills.screen_pursuit_bearings import (
+        _animated_navigation_invariant,
+        _cursor_anchor_invariant,
+    )
     from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('making_deadlines_cannot_supply_a_creation_handoff', 'core/skills/sovereign_browser_drawing.py',
+    return (('named_clicks_keep_their_cursor_candidate', 'core/skills/screen_pursuit_bearings.py',
+             'tests/test_cursor_witness_reaches_the_physical_click.py', lambda: _cursor_anchor_invariant() == (),
+             'A uniquely associated hover caption retains its cursor candidate in normal click geometry; ambiguous or invalid anchors refuse a named click, and the page revalidates cursor affordance before delivery.'),
+            ('making_deadlines_cannot_supply_a_creation_handoff', 'core/skills/sovereign_browser_drawing.py',
              'tests/test_making_timeout_does_not_make_an_artifact.py', lambda: _making_handoff_invariant() == (),
              'A browser task deadline or making classification cannot replace the current run creation handoff before reporting a made result or setting completion.'),
             ('known_navigation_survives_pixel_animation', 'core/skills/screen_pursuit_bearings.py',

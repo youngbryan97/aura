@@ -911,7 +911,7 @@ def _what_answers_the_pointer(observation: dict[str, Any], clickable: Any) -> An
     more = []
     for region in [*(observation.get("layout") or ()), *(observation.get("shapes") or ())]:
         text = " ".join(str(region.get("text") or "").split()) if isinstance(region, dict) else ""
-        if text and region.get("answers_the_pointer") and text not in have:
+        if text and region.get("answers_the_pointer") and not region.get('pointer_ambiguous') and text not in have:
             have.add(text)
             more.append(a_click_on(text))
     return (*clickable, *more)

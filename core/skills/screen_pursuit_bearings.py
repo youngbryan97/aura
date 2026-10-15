@@ -126,7 +126,7 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
         text = " ".join(str(region.get("text") or "").split())
         # Motion can mark a blinking navigation label too. Whole known
         # navigation labels remain candidates; changing scene prose does not.
-        if (text and (not region.get("of_its_own") or label_is_a_way_on(text))
+        if (text and not region.get('pointer_ambiguous') and (not region.get("of_its_own") or label_is_a_way_on(text))
                 and not _set_as_a_paragraph(region, regions) and not _a_readout(text)):
             for choice in _choices_apart(region):
                 found.setdefault(a_click_on(str(choice["text"])), None)
@@ -316,6 +316,16 @@ def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, floa
         text = " ".join(str((region or {}).get("text") or "").split()).lower()
         if text != wanted:
             continue
+        if region.get('pointer_ambiguous'):
+            return None
+        if region.get('answers_the_pointer') and ('pointer_x' in region or 'pointer_y' in region):
+            try:
+                if any(isinstance(region.get(key), bool) for key in ('pointer_x', 'pointer_y')):
+                    return None
+                x, y = float(region['pointer_x']), float(region['pointer_y'])
+                return (x, y) if all(0 <= value <= 1 for value in (x, y)) else None
+            except (KeyError, TypeError, ValueError):
+                return None
         try:
             return (
                 float(region.get("center_x", region.get("x", 0.0))),
@@ -324,6 +334,16 @@ def where_to_click(observation: dict[str, Any], label: str) -> tuple[float, floa
         except (TypeError, ValueError):
             return None
     return None
+
+
+@invariant('agency.named_clicks_keep_their_cursor_candidate', scope='agency',
+           owner='core/skills/screen_pursuit_bearings.py', observational=False)
+def _cursor_anchor_invariant() -> tuple:
+    region = dict(text='Continue', center_x=.4, center_y=.5, answers_the_pointer=True, pointer_x=.8, pointer_y=.9)
+    assert where_to_click(dict(layout=[region]), 'Continue') == (.8, .9)
+    assert where_to_click(dict(layout=[dict(region, pointer_ambiguous=True)]), 'Continue') is None
+    assert where_to_click(dict(layout=[dict(region, pointer_x=float('nan'))]), 'Continue') is None
+    return ()
 
 
 #: Controls that begin a task again, by the words they are usually labelled

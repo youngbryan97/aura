@@ -17,6 +17,7 @@ What the pointer is shown as is read from the page, as a person reads it off the
 from __future__ import annotations
 
 import logging
+import math
 import weakref
 from typing import Any
 
@@ -51,7 +52,7 @@ def the_thing_there(place: tuple[float, float], regions: list[dict[str, Any]], a
     closely than a cell of it: offline 2026-10-12 a carved "back" was found half a cell beside its word, taken for an
     unnamed thing that stands out, and clicked as a way on."""
     x, y = place
-    best, nearest = None, None
+    best, nearest, ambiguous = None, None, False
     for region in regions:
         try:
             if region.get("width") is not None and region.get("x") is not None:
@@ -64,9 +65,13 @@ def the_thing_there(place: tuple[float, float], regions: list[dict[str, Any]], a
             continue
         off_x = max(left - x, 0.0, x - right) * across
         off_y = max(top - y, 0.0, y - bottom) * down
-        if off_x <= 1.0 and off_y <= 1.0 and (nearest is None or off_x + off_y < nearest):
-            best, nearest = region, off_x + off_y
-    return best
+        if off_x <= 1.0 and off_y <= 1.0:
+            distance = off_x + off_y
+            if nearest is None or distance < nearest - 1e-9:
+                best, nearest, ambiguous = region, distance, False
+            elif abs(distance - nearest) <= 1e-9:
+                ambiguous = True
+    return None if ambiguous else best
 
 
 #: The pointer moved over each of a list of places inside the page, as the page's own pointer moves, and what it is
@@ -191,9 +196,11 @@ async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, fl
     hand, as shares of ``over``; none where the page cannot be asked."""
     size = getattr(page, "viewport_size", None) or {}
     width, height = float(size.get("width") or 0), float(size.get("height") or 0)
-    if not width or not height:
+    if not all(math.isfinite(value) and value > 0 for value in (width, height)):
         return []
     left, top, right, bottom = over or (0.0, 0.0, 1.0, 1.0)
+    if not all(math.isfinite(value) for value in (left, top, right, bottom)) or not (0 <= left < right <= 1 and 0 <= top < bottom <= 1):
+        return []
     cells = [(column, row) for row in range(DOWN) for column in range(ACROSS)]
     try:
         shown = await _shown_at_each(page, [((left + (right - left) * (column + 0.5) / ACROSS) * width,
@@ -204,8 +211,23 @@ async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, fl
         logger.info("the pointer could not be swept over the page: %s", str(why)[:120])
         return []
     places = places_the_pointer_turns(hands)
+    if len(hands) >= .8 * ACROSS * DOWN:
+        return []
     if places and len(hands) < 0.8 * ACROSS * DOWN:
         places = await _split_finer(page, hands, (left, top, right, bottom), (width, height)) or places
+    # Cell centres leave an unprobed strip along every boundary. Probe its
+    # half-cell centres too, retaining actual positive samples as witnesses.
+    border = [((c+.5)/ACROSS, y) for c in range(ACROSS) for y in (.25/DOWN, 1-.25/DOWN)]
+    border += [(x, (r+.5)/DOWN) for r in range(DOWN) for x in (.25/ACROSS, 1-.25/ACROSS)]
+    try:
+        shown = await _shown_at_each(page, [((left+(right-left)*x)*width, (top+(bottom-top)*y)*height) for x, y in border])
+        for point, cursor in zip(border, shown, strict=True):
+            if len(places) >= MOST*3:
+                break
+            if cursor in _A_HAND and not any(abs(point[0]-x) <= .5/ACROSS and abs(point[1]-y) <= .5/DOWN for x, y in places):
+                places.append(point)
+    except Exception as why:  # noqa: BLE001 - retained interior samples remain measurements
+        logger.info('the pointer boundary could not be swept: %s', str(why)[:120])
     logger.info("where the pointer turns into a hand: %s", [(round(x, 2), round(y, 2)) for x, y in places])
     return places
 
@@ -262,9 +284,9 @@ async def shown_as_a_hand(page: Any, x: float, y: float) -> bool:
 
 
 async def where_the_hand_is_now(page: Any, x: float, y: float, left: float, top: float, wide: float,
-                                tall: float) -> tuple[float, float]:
+                                tall: float) -> tuple[float, float] | None:
     """Where a place found to answer the pointer answers now, as shares of the part swept: where it was, where the pointer
-    is still a hand there; else the nearest place within a grid step or so where it is; else where it was. A button
+    is still a hand there; else the nearest place within a grid step or so where it is; else None. A button
     that moves (a top spinning about a title, a door that slides) is not where it was when the screen was swept: offline
     2026-10-11 a title's start was a spinning top, and every click went to where it had been."""
     try:
@@ -278,11 +300,11 @@ async def where_the_hand_is_now(page: Any, x: float, y: float, left: float, top:
                     continue
                 if await shown_as_a_hand(page, left + there[0] * wide, top + there[1] * tall):
                     found.append(there)
-    except Exception as why:  # noqa: BLE001 - a page that cannot be asked is clicked where the place was
+    except Exception as why:  # noqa: BLE001 - no current hand witness authorizes this pointer-derived click
         logger.info("where the hand is now could not be asked: %s", str(why)[:120])
-        return x, y
+        return None
     if not found:
-        return x, y
+        return None
     near = min(found, key=lambda p: (p[0] - x) ** 2 + (p[1] - y) ** 2)
     return near
 

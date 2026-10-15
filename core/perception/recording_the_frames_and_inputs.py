@@ -103,7 +103,7 @@ class FrameAndInputRecording:
                         await gateway.append_text_async(self.directory / 'events.jsonl', json.dumps(event) + '\n',
                                                         source='play_pixel_recording')
                     self.frames += int(picture is not None)
-                    self.inputs += int(event['kind'] == 'input')
+                    self.inputs += int(event['kind'] in ('input', 'navigation_input'))
             except Exception as error:  # noqa: BLE001 - the final manifest retains failed storage
                 self.error = f'{type(error).__name__}: {error}'
             finally:
@@ -196,6 +196,45 @@ def recorded_play_ports(look: Any, hands: Any) -> tuple[Any, Any]:
     return looked, _RecordedHands(hands, recorder)
 
 
+def begin_navigation_input(page: Any, method: str, args: tuple, *, bounds: tuple = ()) -> Any:
+    """Record a normal page-port request separately from fast-loop input."""
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return None
+    request = recorder.event('navigation_input', phase='requested', method=method, args=list(args),
+                             bounds=list(bounds), surface=f'page:{id(page)}')
+    recorder.offer(request)
+    return recorder, request['sequence']
+
+
+def finish_navigation_input(request: Any, delivered: bool) -> None:
+    """Port completion cannot establish acceptance, an effect or task completion."""
+    if request is None:
+        return
+    recorder, sequence = request
+    recorder.offer(recorder.event('navigation_input', phase='completed' if delivered else 'failed',
+                                  request_sequence=sequence, delivered=delivered,
+                                  partial_delivery_possible=not delivered))
+
+
+@invariant('perception.normal_navigation_records_its_physical_port', scope='perception',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _navigation_port_recording_invariant() -> tuple:
+    recorder = FrameAndInputRecording(Path('unused-canary-path'))
+    token = _ACTIVE.set(recorder)
+    try:
+        finish_navigation_input(begin_navigation_input(object(), 'click', (210., 80.)), False)
+        first, _ = recorder.queue.get_nowait()
+        last, _ = recorder.queue.get_nowait()
+        assert first['kind'] == last['kind'] == 'navigation_input'
+        assert first['args'] == [210., 80.] and last['request_sequence'] == first['sequence']
+        assert last['phase'] == 'failed' and last['delivered'] is False
+        assert last['partial_delivery_possible'] and 'task_passed' not in last
+    finally:
+        _ACTIVE.reset(token)
+    return ()
+
+
 def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None:
     """Keep the actor's own sample counts, separate from later pixel replay."""
     recorder = _ACTIVE.get()
@@ -271,7 +310,8 @@ def record_screen_options(observation: Any, clickable: Any, keys: Any, *, leavin
         if not isinstance(region, dict):
             continue
         measured = {key: value[:500] if isinstance(value, str) else value
-                    for key in ('text', 'x', 'y', 'width', 'height', 'center_x', 'center_y', 'confidence', 'of_its_own')
+                    for key in ('text', 'x', 'y', 'width', 'height', 'center_x', 'center_y', 'confidence', 'of_its_own',
+                                'answers_the_pointer', 'pointer_x', 'pointer_y', 'pointer_ambiguous')
                     if isinstance(value := region.get(key), (str, int, float, bool))}
         layout.append(measured)
     recorder.offer(recorder.event('screen_options', text=str(observation.get('text') or '')[:8000],
