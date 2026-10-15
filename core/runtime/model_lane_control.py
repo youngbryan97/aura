@@ -4691,9 +4691,33 @@ def acquire_standalone_model_lane(
 def standalone_model_lane(**kwargs: Any) -> Iterator[StandaloneModelLaneLease]:
     lease = acquire_standalone_model_lane(**kwargs)
     try:
-        yield lease
+        with _held_to_the_host_envelope():
+            yield lease
     finally:
         lease.release()
+
+
+@contextlib.contextmanager
+def _held_to_the_host_envelope() -> Iterator[None]:
+    """A model a standalone tool loads stays inside the host's MLX envelope unless the tool set its own.
+
+    Unbounded, MLX may hold 1.5 times the GPU's working set, and keeps every
+    freed buffer cached up to that: a batched decode whose caches grow for
+    half an hour fills the GPU until the window server cannot draw (14 October
+    2026, a hard reset).
+    """
+    try:
+        import mlx.core  # noqa: F401
+
+        from core.runtime.mlx_memory_guard import envelope_active, mlx_memory_envelope
+    except ImportError:
+        yield
+        return
+    if envelope_active():
+        yield
+        return
+    with mlx_memory_envelope():
+        yield
 
 
 _CONTROLLER: ModelLaneController | None = None

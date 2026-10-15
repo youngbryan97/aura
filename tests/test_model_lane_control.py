@@ -36,6 +36,7 @@ from core.runtime.model_lane_control import (
     infer_model_process_claim,
     managed_process_group_liveness,
     register_model_lane_owner_adapter,
+    standalone_model_lane,
     unregister_model_lane_owner_adapter,
 )
 from core.runtime.model_runtime_assignment import ModelRuntimeAssignment, locator_identity
@@ -2392,3 +2393,30 @@ async def test_in_process_eviction_verifies_unload_without_root_process_death(
     assert ready.evicted_owner_ids == (lease.decision.owner_id,)
     assert controller.snapshot()["owners"] == []
     controller.cancel_sync(ready, reason="unit_cleanup")
+
+
+def test_a_standalone_tool_is_held_to_the_host_envelope_unless_it_set_its_own(tmp_path: Path, monkeypatch) -> None:
+    mx = pytest.importorskip("mlx.core")
+    from core.runtime.mlx_memory_guard import envelope_active, mlx_memory_envelope
+
+    limits: list[tuple[str, int]] = []
+    for name in ("memory", "cache", "wired"):
+        monkeypatch.setattr(mx, f"set_{name}_limit", lambda value, name=name: limits.append((name, value)) or 0)
+    monkeypatch.setattr(mx, "synchronize", lambda: None)
+    monkeypatch.setattr(mx, "clear_cache", lambda: None)
+    controller = _controller(tmp_path, AliveTable())
+    lane = {"owner_id": "direct-tool", "model_path": "/models/test-1b", "purpose": "benchmark", "request_gb": 0.1,
+            "controller": controller}
+
+    with standalone_model_lane(**lane):
+        assert envelope_active()
+        held = dict(limits)
+    assert not envelope_active()
+    # Unbounded, MLX's cache may grow to its memory limit; held, it is a small part of it.
+    assert 0 < held["cache"] < held["memory"]
+
+    limits.clear()
+    with mlx_memory_envelope(fraction=0.3):
+        set_by_the_tool = list(limits)
+        with standalone_model_lane(**lane):
+            assert limits == set_by_the_tool

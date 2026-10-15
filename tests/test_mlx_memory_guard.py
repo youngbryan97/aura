@@ -336,3 +336,19 @@ def test_present_pressure_signals_still_fail_closed(
             swap_used_gb=swap_used_gb,
         )
     ) == expected
+
+
+def test_an_envelope_is_known_to_be_in_force_only_while_it_is(monkeypatch):
+    from core.runtime.mlx_memory_guard import envelope_active
+
+    for name in ("memory", "cache", "wired"):
+        monkeypatch.setattr(mx, f"set_{name}_limit", lambda _value: 0)
+    monkeypatch.setattr(mx, "synchronize", lambda: None)
+    monkeypatch.setattr(mx, "clear_cache", lambda: None)
+    assert not envelope_active()
+    with mlx_memory_envelope():
+        with mlx_memory_envelope():
+            assert envelope_active()
+        # The inner one closing leaves the outer one, though both hold equal limits.
+        assert envelope_active()
+    assert not envelope_active()

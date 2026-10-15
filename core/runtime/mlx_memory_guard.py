@@ -42,6 +42,8 @@ DEFAULT_FRACTION = 0.5
 MIN_LIMIT_BYTES = 2 * 1024**3
 # Reclaim cadence for generation loops. Cheap relative to a forward pass.
 DEFAULT_RECLAIM_EVERY = 16
+# The envelopes in force in this process, innermost last.
+_ACTIVE: list[MemoryEnvelope] = []
 _SWAP_USED = re.compile(r"\bused\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*([MG])\b", re.IGNORECASE)
 
 
@@ -396,9 +398,12 @@ def mlx_memory_envelope(
         device_wired_cap_bytes=device_cap,
     )
     logger.info("MLX memory envelope applied: %s", envelope.to_receipt())
+    _ACTIVE.append(envelope)
     try:
         yield envelope
     finally:
+        # By identity: two envelopes with the same limits compare equal.
+        _ACTIVE[:] = [held for held in _ACTIVE if held is not envelope]
         try:
             if restore_limits_on_exit:
                 _synchronize_and_reclaim()
@@ -414,11 +419,17 @@ def mlx_memory_envelope(
                 restore_applied()
 
 
+def envelope_active() -> bool:
+    """Whether some caller in this process already holds MLX inside an envelope."""
+    return bool(_ACTIVE)
+
+
 __all__ = [
     "DEFAULT_FRACTION",
     "MLX_MEMORY_GUARD_SCHEMA",
     "MemoryEnvelope",
     "_synchronize_and_reclaim",
+    "envelope_active",
     "host_memory_bytes",
     "host_pressure",
     "mlx_memory_envelope",
