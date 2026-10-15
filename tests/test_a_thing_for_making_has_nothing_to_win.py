@@ -160,7 +160,7 @@ def test_a_place_understood_as_for_making_is_known_when_her_time_runs_out():
     from core.cognition.a_guide_to_a_place import THE_GUIDE
     from core.skills.sovereign_browser_drawing import _a_place_for_making
 
-    for mechanics, expected in (({"making": object()}, True), ({"avoiding": object()}, False)):
+    for mechanics, expected in (({"making": object()}, False), ({"avoiding": object()}, False)):
         guide = SimpleNamespace(controls={}, mechanics=mechanics, how=None, how_seen={}, how_said="", goals=[], things={},
                                 rules=None, readouts={}, said="", program="")
         token = THE_GUIDE.set(guide)

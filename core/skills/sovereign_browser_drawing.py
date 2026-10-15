@@ -447,7 +447,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
             result["stopped_because"] = GONE_BLANK
             break
         shape = MADE if reflexes.over_because == MADE_NOT_WON else _the_shape_of(reflexes, run)
-        if shape == MADE and (terms.made_once or terms.tell_what_was_made):
+        if shape == MADE and (terms.made_once or terms.tell_what_was_made) and _a_creation_handed_back(reflexes):
             # Made once, and what was made said, as the person asked of a thing with no end and no measure.
             run["ended"] = "finished"
             _tell(await _what_was_made_as_seen(page, band, run, moves, list(getattr(reflexes, "words", []) or []), keep))
@@ -541,7 +541,7 @@ async def _played(page: Any, band: tuple[float, float, float, float], goal: str,
     won = any(r["ended"] == "won" for r in runs)
     finished_runs = [r for r in runs if r.get("reached_end")]
     counted = (until_won and won) or attempts is None or len(finished_runs) >= attempts
-    complete = (won if until_won else bool(result.get("completed")) or bool(finished_runs)) and counted and not result.get("runtime_violations")
+    complete = (won if until_won else bool(finished_runs)) and counted and not result.get("runtime_violations")
     # Nothing to win, and played as the person said to play such a thing: done as asked.
     fulfilled_measure = result.get("stopped_because") == PLAYED_FOR_ITS_BEST and _measure_runs_are_done(runs, where_none)
     complete = complete or ((fulfilled_measure or result.get("stopped_because") == MADE_AS_ASKED) and not result.get("runtime_violations"))
@@ -577,6 +577,11 @@ async def _said_as_the_time_ran_out(page: Any, band: tuple[float, float, float, 
                                     runs: list[dict[str, Any]], moves: list[Any], reflexes: Any, keep: dict[str, Any]) -> str:
     """What is said when her time with a thing is up, and why she stopped."""
     if runs and moves and (terms.made_once or terms.tell_what_was_made) and _a_place_for_making(keep):
+        if not _a_creation_handed_back(reflexes):
+            from core.skills.screen_pursuit_as_it_happens import MAKING_STALLED
+
+            _tell("My time with this one is up. I have not verified a created result to show.")
+            return MAKING_STALLED
         # A person whose time is up in a thing for making shows what they made in it: offline 2026-10-12 a
         # scrapbook of photographs was worked for five minutes and left with nothing said of what was in it.
         _tell("My time with this one is up. " + await _what_was_made_as_seen(
@@ -1257,7 +1262,28 @@ def _a_place_for_making(keep: Mapping[str, Any] | None = None) -> bool:
     from core.agency.how_a_game_works import MAKES, understood
 
     how = understood(guide)
-    return how.me.value == MAKES or how.counts.value == "make" or "making" in (getattr(guide, "mechanics", None) or {})
+    return how.counts.value not in ('win', 'score') and (
+        how.me.known() and how.me.value == MAKES or how.counts.known() and how.counts.value == 'make')
+
+
+def _a_creation_handed_back(reflexes: Any) -> bool:
+    """A creation handoff is separate from recognizing a place or running out of time."""
+    from core.skills.screen_pursuit_as_it_happens import MADE_NOT_WON
+
+    return getattr(reflexes, 'over_because', None) == MADE_NOT_WON
+
+
+@invariant('agency.making_deadlines_cannot_supply_a_creation_handoff', scope='agency',
+           owner='core/skills/sovereign_browser_drawing.py', observational=False)
+def _making_handoff_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    from core.skills.screen_pursuit_as_it_happens import MADE_NOT_WON, MAKING_STALLED
+
+    assert _a_creation_handed_back(SimpleNamespace(over_because=MADE_NOT_WON))
+    assert not any(_a_creation_handed_back(SimpleNamespace(over_because=reason))
+                   for reason in ('', MAKING_STALLED, 'out_of_time', MADE_AS_ASKED))
+    return ()
 
 
 def _where_it_stood(runs: list[dict[str, Any]]) -> str:

@@ -80,8 +80,16 @@ def _task_grounding_claims() -> tuple:
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
+    from core.skills.screen_pursuit_bearings import _animated_navigation_invariant
+    from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('source_effects_keep_their_reaching_prefix', 'core/perception/symbolic_motion_in_flash_methods.py',
+    return (('making_deadlines_cannot_supply_a_creation_handoff', 'core/skills/sovereign_browser_drawing.py',
+             'tests/test_making_timeout_does_not_make_an_artifact.py', lambda: _making_handoff_invariant() == (),
+             'A browser task deadline or making classification cannot replace the current run creation handoff before reporting a made result or setting completion.'),
+            ('known_navigation_survives_pixel_animation', 'core/skills/screen_pursuit_bearings.py',
+             'tests/test_animated_navigation_still_offers_its_control.py', lambda: _animated_navigation_invariant() == (),
+             'A current whole navigation label remains an input candidate when its pixels animate; changing scene prose and readouts remain excluded.'),
+            ('source_effects_keep_their_reaching_prefix', 'core/perception/symbolic_motion_in_flash_methods.py',
              'tests/test_symbolic_motion_in_flash_methods.py', lambda: _source_effect_prefix_invariant() == (),
              'Each supported bytecode call or write retains its own reaching guards, numeric assumptions and supplied input context; later branches cannot retroactively guard an earlier effect.'),
             ('visual_asset_names_keep_source_dictionary_custody', 'core/perception/visual_assets_in_a_flash_file.py',

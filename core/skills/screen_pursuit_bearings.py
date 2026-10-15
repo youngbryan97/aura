@@ -24,6 +24,7 @@ from core.cognition.what_would_have_to_be_true import a_way_to_get_there
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.watched_goal import BROWSERS
+from core.verify import invariant
 
 from .screen_pursuit_surface import (
     LABEL_REACH,  # noqa: F401
@@ -117,13 +118,16 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
     if not drawn_where:
         return ()
     from core.agency.what_i_can_do_here import a_click_on
+    from core.language.a_way_on import label_is_a_way_on
 
     regions = [region for region in observation.get("layout") or [] if isinstance(region, dict)]
     found: dict[str, None] = {}
     for region in regions:
         text = " ".join(str(region.get("text") or "").split())
-        # Writing that keeps changing by itself is a scene talking, not a control.
-        if text and not region.get("of_its_own") and not _set_as_a_paragraph(region, regions) and not _a_readout(text):
+        # Motion can mark a blinking navigation label too. Whole known
+        # navigation labels remain candidates; changing scene prose does not.
+        if (text and (not region.get("of_its_own") or label_is_a_way_on(text))
+                and not _set_as_a_paragraph(region, regions) and not _a_readout(text)):
             for choice in _choices_apart(region):
                 found.setdefault(a_click_on(str(choice["text"])), None)
     # And the drawn buttons with no words on them, named by where they are.
@@ -131,6 +135,14 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
         if isinstance(region, dict) and region.get("text"):
             found.setdefault(a_click_on(str(region["text"])), None)
     return tuple(found)
+
+
+@invariant('agency.known_navigation_survives_pixel_animation', scope='agency',
+           owner='core/skills/screen_pursuit_bearings.py', observational=False)
+def _animated_navigation_invariant() -> tuple:
+    assert things_to_click({'layout': [{'text': 'CONTINUE •', 'of_its_own': True},
+                                      {'text': 'The scene keeps changing.', 'of_its_own': True}]}, True) == ('click "CONTINUE •"',)
+    return ()
 
 
 def _a_readout(text: str) -> bool:

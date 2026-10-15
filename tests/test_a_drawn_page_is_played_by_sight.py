@@ -228,7 +228,7 @@ def test_the_hand_over_plays_her_page_with_the_band_it_measured(monkeypatch, a_p
     assert seen["target_app"] == drawing.HER_BROWSER and seen["expect_page"] == a_page.url
     assert seen["surface"] is not None and seen["surface"].page is a_page
     assert on_her_page() is None, "the page is the surface for the hand-over and no longer"
-    assert step["landed"] == 1 and step["completed"]
+    assert step["landed"] == 1 and not step["completed"]  # Delivery alone supplies no observed game ending.
 
 
 class _Store:

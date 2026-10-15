@@ -213,7 +213,7 @@ async def test_normal_pursuit_options_keep_their_original_reading_without_becomi
 
     picture = np.zeros((30, 60, 3), np.uint8)
     picture[5:15, 10:30] = (3, 27, 219)
-    layout = [dict(text='Next', x=.2, y=.2, width=.3, height=.2, confidence=.9)]
+    layout = [dict(text='Next', x=.2, y=.2, width=.3, height=.2, confidence=.9, of_its_own=True)]
     observation = ScreenReading(dict(text='Instructions Next', layout=layout, capture_at=2.,
                                     surface_id='one-view', bounds=[0, 0, 60, 30]),
                                 picture_snapshot=make_snapshot(picture))
@@ -231,6 +231,7 @@ async def test_normal_pursuit_options_keep_their_original_reading_without_becomi
     event = _events(directory)[0]
     assert event['kind'] == 'screen_options' and event['kind'] != 'frame'
     assert event['layout'][0]['text'] == 'Next'
+    assert event['layout'][0]['of_its_own'] is True
     assert event['offered_clicks'] == ['click "Next"'] and event['offered_keys'] == ['up', 'left']
     assert event['capture']['at'] == 2. and event['capture']['bounds'] == [0., 0., 60., 30.]
     assert tuple(recorded_picture(directory, event)[8, 15]) == (3, 27, 219)

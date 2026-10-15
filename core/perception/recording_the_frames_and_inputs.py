@@ -271,7 +271,7 @@ def record_screen_options(observation: Any, clickable: Any, keys: Any, *, leavin
         if not isinstance(region, dict):
             continue
         measured = {key: value[:500] if isinstance(value, str) else value
-                    for key in ('text', 'x', 'y', 'width', 'height', 'center_x', 'center_y', 'confidence')
+                    for key in ('text', 'x', 'y', 'width', 'height', 'center_x', 'center_y', 'confidence', 'of_its_own')
                     if isinstance(value := region.get(key), (str, int, float, bool))}
         layout.append(measured)
     recorder.offer(recorder.event('screen_options', text=str(observation.get('text') or '')[:8000],

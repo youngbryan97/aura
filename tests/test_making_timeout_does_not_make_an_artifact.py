@@ -56,3 +56,44 @@ async def test_the_real_completion_caller_does_not_describe_the_untouched_surfac
     assert result["completed_runs"] == 0
     assert result["stopped_because"] == MAKING_STALLED
     assert all("what i made shows" not in line.lower() for line in said)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('making', [True, False])
+async def test_an_outer_deadline_cannot_bypass_the_creation_handoff(monkeypatch, making):
+    from core.cognition.a_guide_to_a_place import SCREEN, Guide
+    from core.perception.reading_a_program import ProgramRead
+
+    clock, said = [10.], []
+    words = ('Create your own picture.' if making else
+             'Find the hidden tools. Use them to reach the robot and win the game.')
+    guide = Guide()
+    guide.take_in(SCREEN, words)
+    guide.take_in_program(ProgramRead(text='outfit outfit outfit', kind='script'))
+    assert 'making' in guide.mechanics  # A source mechanic alone cannot establish the task's end.
+
+    async def stock(*args):
+        return None
+
+    async def one(page, band, goal, url, deadline, keep):
+        keep['guide'] = guide
+        clock[0] = deadline+10.
+        reflexes = SimpleNamespace(keep=keep, words=[words], ending_words='INSTRUCTIONS', ending_parts=[],
+                                  over_because='', stretches=[], new_screens=0, what_it_came_to=lambda: '')
+        return {'moves': [{'key': 'click "Instructions"'}], 'last_seen': 'INSTRUCTIONS', 'completed': True}, reflexes
+
+    async def should_not_describe(*args):
+        pytest.fail('there is no creation handoff to describe')
+
+    monkeypatch.setattr('time.monotonic', lambda: clock[0])
+    monkeypatch.setattr(drawing, '_a_stocktaking', stock)
+    monkeypatch.setattr(drawing, '_one_run', one)
+    monkeypatch.setattr(drawing, '_what_was_made_as_seen', should_not_describe)
+    monkeypatch.setattr(drawing, '_tell', said.append)
+    goal = 'Play this game. If it has neither a winning goal nor a score, do it once and tell me what you made and why.'
+    result = await drawing._played(None, (0, 0, 1, 1), goal, f'https://example.org/task-{making}', {})
+    assert not result['completed'] and not result['ok'] and not result['finished']
+    assert result['completed_runs'] == 0 and result['stopped_because'] != drawing.MADE_AS_ASKED
+    assert not any('I made it' in line for line in said)
+    assert drawing._a_place_for_making({'guide': guide}) is making
+    assert drawing._making_handoff_invariant() == ()
