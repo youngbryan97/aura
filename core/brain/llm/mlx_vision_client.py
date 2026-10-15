@@ -26,6 +26,7 @@ from core.runtime.model_lane_control import (
     register_model_lane_owner_adapter,
     unregister_model_lane_owner_adapter,
 )
+from core.runtime.model_worker_policy import model_workers_allowed
 from core.runtime.process_privilege import Privilege, ProcessRole
 from core.runtime.resource_observation import get_resource_observer
 from core.runtime.shutdown_coordinator import is_shutdown_requested
@@ -150,6 +151,9 @@ class MLXVisionClient:
             raise
 
     def _spawn_worker_blocking(self) -> bool:
+        if not model_workers_allowed():
+            self._init_error = 'model worker start prohibited by process policy'
+            return False
         if is_shutdown_requested():
             logger.info("Vision worker start refused: runtime shutdown requested")
             return False
@@ -277,6 +281,9 @@ class MLXVisionClient:
             self._start_guard.release()
 
     async def start_async(self) -> bool:
+        if not model_workers_allowed():
+            self._init_error = 'model worker start prohibited by process policy'
+            return False
         if is_shutdown_requested():
             return False
         lane_controller = None

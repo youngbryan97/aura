@@ -244,11 +244,16 @@ def _coerce_accelerator_capability(
             f"subprocess_accelerator_capability_undeclared:{source}"
         )
     try:
-        return AcceleratorCapability(str(value).strip().lower())
+        capability = AcceleratorCapability(str(value).strip().lower())
     except ValueError as exc:
         raise GovernanceViolation(
             f"subprocess_accelerator_capability_invalid:{source}"
         ) from exc
+    if capability is AcceleratorCapability.MODEL:
+        from core.runtime.model_worker_policy import require_model_workers_allowed
+
+        require_model_workers_allowed(source=source)
+    return capability
 
 
 def _python_source_for_command(command: Sequence[str]) -> str | None:
@@ -384,6 +389,10 @@ def _resolve_accelerator_claim(
         source=source,
         timeout_s=timeout_s,
     )
+    from core.runtime.model_worker_policy import require_model_workers_allowed
+
+    if inferred is not None or model_lane_claim is not None:
+        require_model_workers_allowed(source=source)
     from core.runtime.model_lane_control import is_registered_non_model_process_command
 
     registered_probe = is_registered_non_model_process_command(command)
@@ -416,6 +425,7 @@ def _resolve_accelerator_claim(
             f"subprocess_accelerator_capability_unresolved:{source}"
         )
     if dynamic_accelerator_use:
+        require_model_workers_allowed(source=source)
         return _declared_model_lane_claim(
             command,
             source=source,

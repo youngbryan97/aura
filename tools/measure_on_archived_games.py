@@ -269,7 +269,14 @@ def _arguments(argv: list[str]):
     parser.add_argument("--plan-only", action="store_true", help="save the case plan without reading programs or starting play")
     parser.add_argument("--graphics", choices=['host', 'software'], default='host', help="software requires a measured CPU driver")
     parser.add_argument("--vision-cpu", action='store_true', help='require CPU acknowledgement before Apple Vision OCR')
+    parser.add_argument("--cpu-only", action='store_true', help='software graphics, CPU OCR, classical points and no model workers')
     args = parser.parse_args(argv)
+    if args.cpu_only:
+        if args.her_model:
+            parser.error('--cpu-only cannot call a model endpoint')
+        args.graphics, args.vision_cpu = 'software', True
+        os.environ.update(AURA_MODEL_WORKERS_ALLOWED='0', AURA_VISION_CPU_ONLY='1',
+                          AURA_PLAY_POINT_BACKEND='classical', AURA_PLAY_POINT_DEVICE='cpu')
     if not math.isfinite(args.minutes) or not 0 < args.minutes <= 60 or args.random < 0:
         parser.error('minutes must be finite, positive and at most sixty; random must be nonnegative')
     if not args.out:
@@ -325,7 +332,7 @@ def _prepare_campaign(args, parser, checkpoint: Path):
     identity = {'commit': revision, 'tracked_diff_sha256': hashlib.sha256(changed).hexdigest(),
                 'manifest_sha256': hashlib.sha256(manifest_bytes).hexdigest(), 'model_endpoint': args.her_model,
                 'visible': args.visible, 'trace': str(args.trace.resolve()) if args.trace else '',
-                'graphics': args.graphics, 'vision_cpu': args.vision_cpu}
+                'graphics': args.graphics, 'vision_cpu': args.vision_cpu, 'cpu_only': args.cpu_only}
     record = campaign_plan(numbers, excluded=excluded, identity=identity, seconds=args.minutes * 60)
     if args.resume:
         record = resume_campaign(json.loads(checkpoint.read_text()), record)

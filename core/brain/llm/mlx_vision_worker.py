@@ -1,9 +1,9 @@
-import multiprocessing as mp
-import time
-import os
 import logging
+import multiprocessing as mp
+import os
 import queue
 import threading
+import time
 
 logger = logging.getLogger("MLXVisionWorker")
 
@@ -78,6 +78,11 @@ def _on_the_gpu() -> str:
 
 
 def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
+    from core.runtime.model_worker_policy import model_workers_allowed
+
+    if not model_workers_allowed():
+        res_q.put({'status': 'error', 'action': 'init', 'message': 'model worker start prohibited by process policy'})
+        return
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - VisionWorker - %(levelname)s - %(message)s')
     
     heartbeat = HeartbeatThread(res_q)
@@ -90,7 +95,7 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
         # and a stream made on the CPU stays there whatever the default becomes after (LIVE 2026-10-10, the model
         # "loaded on the GPU" and every look still multiplied on the CPU).
         _on_the_gpu()
-        from mlx_vlm import load, generate
+        from mlx_vlm import generate, load
         from mlx_vlm.utils import load_config
 
         if _bind_wired_limit_to_this_device():

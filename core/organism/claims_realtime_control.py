@@ -5,13 +5,17 @@ from typing import Any
 def _compute_policy_claims() -> tuple:
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
+    from core.runtime.model_worker_policy import _model_worker_policy_invariant
 
     return (("software_graphics_need_a_measured_cpu_renderer", "core/capabilities/browser_graphics_policy.py",
              "tests/test_browser_software_graphics_stays_software.py", lambda: _software_graphics_invariant() == (),
              "An explicit software browser request selects the CPU driver and requires the browser process's renderer report; missing measurements cannot certify that policy."),
             ("cpu_vision_requires_request_acknowledgement", "core/perception/vision_request_compute.py",
              "tests/test_vision_requests_keep_their_cpu_policy.py", lambda: _cpu_vision_request_invariant() == (),
-             "An explicitly requested CPU policy reaches a Vision request before its handler executes; missing or refused acknowledgement cannot fall back to the platform's device choice."))
+             "An explicitly requested CPU policy reaches a Vision request before its handler executes; missing or refused acknowledgement cannot fall back to the platform's device choice."),
+            ("model_worker_policy_refuses_before_start", "core/runtime/model_worker_policy.py",
+             "tests/test_a_cpu_probe_cannot_start_a_model_worker.py", lambda: _model_worker_policy_invariant() == (),
+             "An explicit process policy can refuse model-worker admission before spawn; the vision client and worker entry honor that refusal before loading accelerator code."))
 
 
 def install_realtime_control_claims(suite: Any) -> None:
