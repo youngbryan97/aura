@@ -302,6 +302,7 @@ class WhatMeetingDoes:
         self.verdicts: list[dict[str, Any]] = []
         #: Whether the place's words say to come onto things gently (``says_to_come_gently``).
         self.told_gently = False
+        self.spatial_request: Any = None
         self.since: float | None = None
         self._open: list[dict[str, Any]] = []
         self._touching: set[int] = set()

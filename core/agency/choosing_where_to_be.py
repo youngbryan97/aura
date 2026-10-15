@@ -307,7 +307,10 @@ class _Choosing:
                 return supposed
         # What only moves in place (a flag waving, stars twinkling, a figure idling) is judged as what stands still is:
         # touched and found to count for nothing, it is decoration, left alone.
-        return self.meeting.stance(thing.kind, fixture=not thing.moved or not goes_somewhere(thing))
+        from core.agency.a_requested_relation_in_play import requested_contact_stance
+
+        return requested_contact_stance(self, thing, self.meeting.stance(
+            thing.kind, fixture=not thing.moved or not goes_somewhere(thing)))
 
     def swerve(self, thing: Any) -> float:
         """How much a thing's going could change before she can answer it, in working pixels a second
@@ -332,8 +335,12 @@ class _Choosing:
 
     def target(self) -> tuple[tuple[float | None, float | None], str, Any]:
         """Where she wants to be, why, and for which thing."""
-        line = self.line()
-        target = self._target_on_a_line(line) if line is not None else self._target_anywhere()
+        from core.agency.a_requested_relation_in_play import requested_target
+
+        target = requested_target(self)
+        if target is None:
+            line = self.line()
+            target = self._target_on_a_line(line) if line is not None else self._target_anywhere()
         self.last_target = target
         return target
 

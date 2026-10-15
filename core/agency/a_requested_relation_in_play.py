@@ -1,0 +1,205 @@
+"""Bind a requested spatial relation to current observed entities.
+
+Names describe referents; they do not give an arbitrary object that role.
+The result is a geometric destination, not evidence of contact or success.
+"""
+from __future__ import annotations
+
+import math
+import re
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any
+
+from core.verify import invariant
+
+
+@dataclass(frozen=True)
+class SpatialRequest:
+    """Where the directly controlled body is asked to go, in the place's words."""
+
+    relation: str
+    destination: str
+    source: str
+
+
+@dataclass(frozen=True)
+class BoundDestination:
+    """One current referent and a position for the controlled body's centre."""
+
+    request: SpatialRequest
+    thing: Any
+    point: tuple[float, float]
+
+
+_HOW = r'(?:safely|softly|gently|slowly|carefully)'
+_REL = r'(?P<relation>on top of|onto|inside|into|on|in|above|below|beside|next to|at|to)'
+_DIRECT = re.compile(
+    r'\b(?:use|using)\s+(?:the\s+)?(?:(?:[\w-]+\s+){0,3}keys|arrows|mouse|pointer|controls|keyboard)\s+to\s+'
+    r'(?:guide|move|steer|drive|fly|bring|lead)\s+.+?\s+(?:' + _HOW + r'\s+)?' + _REL + r'\s+(?P<name>.+)$', re.I)
+_SELF = re.compile(
+    r'^(?:(?:please|now|then)\s+)?(?:land|dock|walk|run|fly|go|head|arrive|stand|rest|move|drive|steer)\s+'
+    r'(?:' + _HOW + r'\s+)?' + _REL + r'\s+(?P<name>.+)$', re.I)
+_NEGATED = re.compile(r"\b(?:not|never|don't|cannot|can't|avoid|if|unless|when|could|would|might|may)\b", re.I)
+_AFTER = re.compile(r'\s+(?:and|while|before|after|without|using|with|to)\b', re.I)
+_COMMON = frozenset('the a an your my its this that to of our their'.split())
+
+
+def requested_relation(words: str) -> SpatialRequest | None:
+    """Read explicit motion directions; conflicting or indirect requests abstain.
+
+    Moving another object is a task-planning problem. This reader accepts
+    controls explicitly moving their body, or an imperative self-motion verb.
+    """
+    found = set()
+    for clause in re.split(r'[.!?;\n]+', str(words or '')):
+        clause = ' '.join(clause.split()).strip()
+        if not clause or len(clause) > 300 or _NEGATED.search(clause):
+            continue
+        match = _DIRECT.search(clause) or _SELF.fullmatch(clause)
+        if match is None:
+            continue
+        name = _AFTER.split(match['name'], maxsplit=1)[0].strip(' ,:')
+        if not _name_words(name) or len(name) > 80:
+            continue
+        relation = {'onto': 'on', 'on top of': 'on', 'into': 'inside', 'in': 'inside', 'to': 'at', 'next to': 'beside'}.get(
+            match['relation'].lower(), match['relation'].lower())
+        found.add((relation, name.casefold(), clause))
+    meanings = {(relation, name) for relation, name, _ in found}
+    if len(meanings) != 1:
+        return None
+    relation, name = next(iter(meanings))
+    return SpatialRequest(relation, name, min(clause for _, _, clause in found))
+
+
+def _name_words(name: str) -> tuple[str, ...]:
+    return tuple(word for word in re.findall(r'[a-z]+', str(name or '').casefold()) if word not in _COMMON)
+
+
+def _box(thing: Any) -> tuple[float, float, float, float] | None:
+    try:
+        raw = tuple(getattr(thing, field) for field in ('x', 'y', 'w', 'h'))
+        if any(isinstance(value, bool) for value in raw):
+            return None
+        values = tuple(float(value) for value in raw)
+    except (TypeError, ValueError, OverflowError, AttributeError):
+        return None
+    return values if all(math.isfinite(v) for v in values) and min(values[2:]) > 0 else None
+
+
+def position_for_relation(relation: str, mine: Any, target: Any) -> tuple[float, float] | None:
+    """A centre destination from finite extents; containment requires enough room.
+
+    The support and containment geometry is provisional. It cannot certify
+    collision shape, orientation, safe arrival speed, or a completed task.
+    """
+    own, other = _box(mine), _box(target)
+    if own is None or other is None:
+        return None
+    x, y, w, h = other
+    _, _, mw, mh = own
+    if relation == 'inside':
+        return (x, y) if mw <= w and mh <= h else None
+    if relation == 'on':
+        return (x, y - (h + mh) / 2) if mw <= w else None
+    if relation == 'above':
+        return x, y - h / 2 - mh
+    if relation == 'below':
+        return x, y + h / 2 + mh
+    if relation == 'beside':
+        return x + math.copysign((w + mw) / 2, own[0] - x), y
+    return (x, y) if relation == 'at' else None
+
+
+def bind_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], names: Mapping[int, str],
+                     at: float | None) -> BoundDestination | None:
+    """The uniquely named current object, never the nearest unnamed substitute.
+
+    An unmeasured, stale or duplicate candidate still competes for the name.
+    Dropping it could turn an ambiguous request into a false unique match.
+    """
+    wanted = _name_words(request.destination)
+    if (not wanted or mine is None or not isinstance(at, (int, float)) or isinstance(at, bool) or not math.isfinite(at)
+            or getattr(mine, 'seen', None) != at):
+        return None
+    candidates, best = [], 0
+    for thing in things:
+        if getattr(thing, 'number', None) == getattr(mine, 'number', None):
+            continue
+        words = _name_words(names.get(getattr(thing, 'kind', -1), ''))
+        if wanted[-1] not in words:
+            continue
+        score = len(set(wanted) & set(words))
+        if score < best:
+            continue
+        if score > best:
+            candidates, best = [], score
+        candidates.append(thing)
+    if len(candidates) != 1 or best != len(set(wanted)):
+        return None
+    target = candidates[0]
+    if getattr(target, 'seen', None) != at:
+        return None
+    point = position_for_relation(request.relation, mine, target)
+    return BoundDestination(request, target, point) if point is not None else None
+
+
+def observed_names(moves: Any) -> dict[int, str]:
+    """Names attached to observed kinds, excluding names assigned merely by role."""
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    guide = THE_GUIDE.get()
+    seen = getattr(guide, 'seen', None)
+    return {kind.number: seen.as_seen(kind.number) for kind in moves.kinds} if seen is not None else {}
+
+
+def take_motion_directions(meeting: Any, words: str) -> None:
+    """Retain explicit directions beside the existing arrival-speed instruction."""
+    from core.agency.what_meeting_things_does import says_to_come_gently
+
+    if words:
+        meeting.spatial_request = requested_relation(words)
+    meeting.told_gently = meeting.told_gently or says_to_come_gently(words)
+
+
+def requested_target(choosing: Any) -> tuple | None:
+    """Give an explicit request priority; an unbound referent waits for observation."""
+    request = getattr(getattr(choosing, 'meeting', None), 'spatial_request', None)
+    if request is None or choosing.mine is None:
+        return None
+    binding = bind_destination(request, choosing.mine, choosing.others(), observed_names(choosing.moves), choosing.at)
+    choosing.goal_binding = binding
+    if binding is not None and choosing.stance(binding.thing) not in ('avoid', 'shoot', 'ignore'):
+        return binding.point, 'meet', binding.thing
+    # Stabilize where she is while the referent is missing. Unknown scenery
+    # cannot become a replacement destination or a predicted contact reward.
+    return (float(choosing.mine.x), float(choosing.mine.y)), 'wait', None
+
+
+def requested_contact_stance(choosing: Any, thing: Any, stance: str) -> str:
+    """Unknown contacts have no task reward when an explicit destination is requested."""
+    if stance != 'meet' or getattr(choosing.meeting, 'spatial_request', None) is None:
+        return stance
+    bound = getattr(choosing, 'goal_binding', None)
+    if bound is not None and bound.thing.number == thing.number:
+        return stance
+    if choosing.meeting.known(thing.kind) or thing.kind in choosing.meeting.told:
+        return stance
+    return 'ignore'
+
+
+@invariant('agency.requested_destinations_require_current_unique_referents', scope='agency',
+           owner='core/agency/a_requested_relation_in_play.py', observational=False)
+def _requested_destination_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    request = requested_relation('Use the arrow keys to guide the vessel safely onto the platform.')
+    assert request is not None and request.relation == 'on'
+    body = SimpleNamespace(number=1, kind=0, x=10., y=10., w=4., h=4., seen=3.)
+    target = SimpleNamespace(number=2, kind=1, x=50., y=60., w=20., h=10., seen=3.)
+    assert bind_destination(request, body, [body, target], {1: 'platform'}, 3.).point == (50., 53.)
+    assert bind_destination(request, body, [body, target], {}, 3.) is None
+    assert bind_destination(request, body, [body, target, target], {1: 'platform'}, 3.) is None
+    assert bind_destination(request, body, [body, target], {1: 'platform'}, 4.) is None
+    assert requested_relation('Put the crate onto the platform') is None
+    return ()

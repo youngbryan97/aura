@@ -1136,9 +1136,9 @@ async def _play_as_it_happens(
         run.pointed = 2 * len(_POINTER_TRIAL)
     run.burst_keys = keys_pressed_fast(told)
     run.building_up = builds_up(told)
-    from core.agency.what_meeting_things_does import says_to_come_gently
+    from core.agency.a_requested_relation_in_play import take_motion_directions
 
-    meeting.told_gently = meeting.told_gently or says_to_come_gently(told)
+    take_motion_directions(meeting, told)
     run.contest.heard(told)
     run.situation_known = set(keep.get("situation_known") or ())
     run.clicks_pay = keep.get("where_clicks_pay")

@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.language.how_a_game_ended", # Bounded damaged-label canary supplies no winner.
     "+core.perception.vision_request_compute", # Pure check of CPU request acknowledgement, without loading Vision.
     "+core.perception.recording_the_frames_and_inputs", # Lossless pixel recording contract, no play execution.
     "+core.perception.a_material_observation_from_its_parts", # Current visible material ownership invariant.

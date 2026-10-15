@@ -233,6 +233,8 @@ def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> 
                     size=[float(thing.w), float(thing.h)], seen=float(thing.seen), moved=bool(thing.moved))
 
     target = getattr(choosing, 'last_target', None)
+    request = getattr(choosing.meeting, 'spatial_request', None)
+    binding = getattr(choosing, 'goal_binding', None)
     imagined = getattr(choosing, 'planned', None)
     planned = (dict(first=imagined.plan.first, holds=list(imagined.plan.held),
                     worth=float(imagined.worth), decides=bool(imagined.decides),
@@ -243,7 +245,10 @@ def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> 
         mine=body(choosing.mine), aim=body(aim), target=list(target[0]) if target else None,
         ways={control: list(way) for control, way in choosing.ways.items()}, rest=list(choosing.rest),
         planned=planned, response_s=float(choosing.response_s), next_picture_s=float(choosing.next_picture_s),
-        told_gently=getattr(choosing.meeting, 'told_gently', None)))
+        told_gently=getattr(choosing.meeting, 'told_gently', None),
+        requested=(dict(relation=request.relation, destination=request.destination, source=request.source,
+                        bound_number=binding.thing.number if binding is not None else None)
+                   if request is not None else None)))
 
 
 @invariant('perception.recorded_pixels_keep_their_bytes', scope='perception',

@@ -64,7 +64,19 @@ def _play_execution_claims() -> tuple:
             ('inertial_control_axes_use_displacement_resolution', 'core/agency/which_one_answers_to_her.py',
              'tests/test_inertial_controls_keep_their_resolved_axes.py', lambda: _inertial_axis_resolution_invariant() == (),
              'Established inertial control axes require measured pulse and neutral responses whose predicted displacement exceeds tracking resolution; discovery thresholds remain unchanged.'),
-            *_reward_authority_claims())
+            *_task_grounding_claims(), *_reward_authority_claims())
+
+
+def _task_grounding_claims() -> tuple:
+    from core.agency.a_requested_relation_in_play import _requested_destination_invariant
+    from core.language.how_a_game_ended import _damaged_repeat_invariant
+
+    return (('requested_destinations_require_current_unique_referents', 'core/agency/a_requested_relation_in_play.py',
+             'tests/test_requested_relations_reach_the_actual_target.py', lambda: _requested_destination_invariant() == (),
+             'An explicit spatial request binds a unique currently observed named destination; ambiguous names, stale extents and narration-only role names cannot select a replacement contact target.'),
+            ('damaged_repeat_labels_supply_no_winner', 'core/language/how_a_game_ended.py',
+             'tests/test_a_repeat_label_read_badly_hands_back_the_screen.py', lambda: _damaged_repeat_invariant() == (),
+             'A bounded OCR comparison can return a newly repeated end screen to navigation without declaring a winner; current turns and conditional instructions still refuse termination.'))
 
 
 def _reward_authority_claims() -> tuple:

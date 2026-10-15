@@ -17,6 +17,8 @@ import re
 import unicodedata
 from typing import Any, Final
 
+from core.verify import invariant
+
 __all__ = ["asks_to_win", "declares_a_win", "how_it_ended", "how_it_ended_in", "names_a_measure", "offers_a_win",
            "says_a_round_is_over", "says_an_unresolved_result", "says_play_is_ongoing", "the_rating_in", "the_score_in",
            "what_it_asks_of_a_player", "what_says_the_game_is_over"]
@@ -203,8 +205,32 @@ def says_a_round_is_over(words: str) -> bool:
     """Whether writing says a round is over, the way an end screen says it: "GAME OVER", "TRY AGAIN", "Level Complete"."""
     if says_play_is_ongoing(words):
         return False
-    return bool(how_it_ended(words) or any(_asserted(clause) and _ROUND_OVER.search(clause)
+    return bool(how_it_ended(words) or any(_asserted(clause) and (_ROUND_OVER.search(clause) or _repeat_at_the_end(clause))
                                          for clause in _clauses(words)))
+
+
+def _repeat_at_the_end(clause: str) -> bool:
+    """An OCR-damaged repeat label at the end of an asserted screen reading.
+
+    Use the same bounded spelling comparison as navigation. A result counter
+    before the label must not prevent the actor from handing the screen back.
+    This supplies no winner or score.
+    """
+    from core.language.a_way_on import nearly_says
+
+    words = clause.split()
+    return any(nearly_says(' '.join(words[-size:]), ('try again', 'play again'))
+               for size in range(1, min(len(words), 3) + 1))
+
+
+@invariant('language.damaged_repeat_labels_supply_no_winner', scope='language',
+           owner='core/language/how_a_game_ended.py', observational=False)
+def _damaged_repeat_invariant() -> tuple:
+    assert says_a_round_is_over('Attempts: 3 Accuracy: 0% TRYJAGAIN J')
+    assert how_it_ended('Attempts: 3 Accuracy: 0% TRYJAGAIN J') == ''
+    assert not says_a_round_is_over('If you miss, TRYJAGAIN J')
+    assert not says_a_round_is_over('Your turn. PLAYAGAlN')
+    return ()
 
 
 #: What a screen says when the whole game is over, not a level of it: its last count, or that it is lost or won.

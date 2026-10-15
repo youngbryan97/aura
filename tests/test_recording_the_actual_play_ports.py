@@ -157,8 +157,10 @@ async def test_actual_control_sample_counts_remain_separate_from_input_delivery(
 
 
 @pytest.mark.asyncio
-async def test_the_actual_choice_hook_records_a_made_target_without_selecting_again(tmp_path):
+@pytest.mark.parametrize('bound', [False, True])
+async def test_the_actual_choice_hook_records_a_made_target_without_selecting_again(tmp_path, bound):
     from core.agency.a_choice_and_its_reasons import chose_in_play
+    from core.agency.a_requested_relation_in_play import SpatialRequest
     from core.agency.imagining_ahead import Imagined, Plan
 
     def no_selection():
@@ -170,7 +172,8 @@ async def test_the_actual_choice_hook_records_a_made_target_without_selecting_ag
                           w=30., h=20., seen=10., moved=False)
     choosing = SimpleNamespace(mine=mine, last_target=((80., 70.), 'meet', aim), target=no_selection,
         ways={'q': (4., 5.)}, rest=(0., 1.), response_s=.12, next_picture_s=.1,
-        meeting=SimpleNamespace(told_gently=True),
+        meeting=SimpleNamespace(told_gently=True, spatial_request=SpatialRequest('on', 'platform', 'Land on the platform')),
+        goal_binding=SimpleNamespace(thing=aim) if bound else None,
         planned=Imagined(Plan(((0., 'q'),)), 2., gets=1, decides=True, ends_at=(50., 60.)))
     at = CanvasFrameTime(10., lower=9.99, upper=10.01, arrived=10.1, source='canvas', source_at=8.,
                          epoch=2, surface='one', sequence=37)
@@ -183,6 +186,8 @@ async def test_the_actual_choice_hook_records_a_made_target_without_selecting_ag
     assert event['mine']['position'] == [20., 30.] and event['aim']['position'] == [80., 90.]
     assert event['capture']['sequence'] == 37 and event['capture']['surface'] == 'one'
     assert event['key'] == 'q' and event['told_gently']
+    assert event['requested'] == dict(relation='on', destination='platform', source='Land on the platform',
+                                      bound_number=3 if bound else None)
     assert event['planned'] == dict(first='q', holds=[[0., 'q']], worth=2., decides=True,
                                     gets=1, costs=0, ends_at=[50., 60.])
 
