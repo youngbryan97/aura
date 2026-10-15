@@ -704,6 +704,7 @@ def _visual_motion_claims() -> tuple:
     )
     from core.cognition.what_its_code_says import _parsed_control_priority_invariant
     from core.perception.a_board_seen import _lattice_phase_invariant
+    from core.perception.a_browser_picture_has_a_deadline import _picture_request_budget_invariant
     from core.perception.a_clock_for_drawn_frames import _drawing_clock_invariant
     from core.perception.a_picture_examined_without_holding_the_loop import (
         _picture_probe_inputs_invariant,
@@ -773,6 +774,9 @@ def _visual_motion_claims() -> tuple:
     from core.skills.a_new_attempt_must_be_seen import _new_attempt_invariant
 
     return (
+        ("browser_picture_requests_have_a_finite_budget", "core/perception/a_browser_picture_has_a_deadline.py",
+         "tests/test_a_stalled_browser_cannot_own_the_picture_wait.py", lambda: _picture_request_budget_invariant() == (),
+         "Stream startup, frame acknowledgements, resampling, direct canvas reads and screenshot requests have finite browser waits; an unanswered request supplies no fresh picture."),
         ("local_frame_encoding_keeps_colour_samples", "core/perception/frames_as_they_are_drawn.py",
          "tests/test_local_capture_preserves_colour_samples.py", lambda: _lossless_frame_invariant() == (),
          "Local stream and direct canvas capture use lossless encoding; fine colour samples survive decoding and cropping at the chosen capture extent."),

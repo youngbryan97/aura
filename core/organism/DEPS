@@ -44,6 +44,7 @@ include_rules = [
     "+core.perception.activity_in_the_picture", # Pure check of visible activity and covered quiet intervals.
     "+core.perception.frames_as_they_are_drawn", # Pure check of original frame receipt times.
     "+core.perception.a_clock_for_drawn_frames", # Pure check of bracketed source clocks and immutable capture bounds.
+    "+core.perception.a_browser_picture_has_a_deadline", # Pure check of the finite browser capture budget.
     "+core.perception.sampling_the_drawings_pace", # Pure check of source cadence before reducing frame thinning.
     "+core.perception.motion_kept_between_pictures", # Pure check of prediction uncertainty and observation custody.
     "+core.perception.play_observation_without_holding_the_loop", # Pure check of detached worker-owned observation state.

@@ -21,6 +21,8 @@ import weakref
 from collections.abc import Mapping
 from typing import Any
 
+from core.perception.a_browser_picture_has_a_deadline import picture_request
+
 __all__ = ["picture_of"]
 
 logger = logging.getLogger("Aura.APictureOfHerPage")
@@ -32,7 +34,7 @@ _SESSIONS: weakref.WeakKeyDictionary[Any, Any] = weakref.WeakKeyDictionary()
 async def _session(page: Any) -> Any:
     held = _SESSIONS.get(page)
     if held is None:
-        held = await page.context.new_cdp_session(page)
+        held = await picture_request(page.context.new_cdp_session(page))
         _SESSIONS[page] = held
     return held
 
@@ -73,8 +75,8 @@ async def picture_of(page: Any, clip: Mapping[str, float] | None = None, *, css:
             # Packed for speed rather than size: still every pixel as it is (PNG loses nothing however it is packed),
             # taken and unpacked in 24 ms where 39 (offline 2026-10-12, a whole 1280 by 800 window).
             asked["optimizeForSpeed"] = True
-        data = base64.b64decode((await session.send("Page.captureScreenshot", asked))["data"])
-        wide, _tall = await the_page_size(page)
+        data = base64.b64decode((await picture_request(session.send("Page.captureScreenshot", asked)))["data"])
+        wide, _tall = await picture_request(the_page_size(page))
         return await asyncio.to_thread(_cut, data, clip, wide, css)
     except Exception as why:  # noqa: BLE001 - no direct way to the browser: its own picture of the part, which may move it
         logger.debug("a whole-window picture could not be taken (%s); taking the part", str(why)[:120])
@@ -84,6 +86,6 @@ async def picture_of(page: Any, clip: Mapping[str, float] | None = None, *, css:
         options: dict[str, Any] = {"type": "png", "scale": "css" if css else "device"}
         if clip:
             options["clip"] = dict(clip)
-        return decode(await page.screenshot(**options))
+        return decode(await picture_request(page.screenshot(**options)))
     except Exception:  # noqa: BLE001 - a page gone, or off screen: no picture
         return None

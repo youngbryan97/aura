@@ -23,6 +23,7 @@ import math
 import time
 from typing import Any
 
+from core.perception.a_browser_picture_has_a_deadline import picture_request
 from core.perception.a_clock_for_drawn_frames import DrawingClock, MeasuredFrameTime
 from core.perception.sampling_the_drawings_pace import DrawingCadence
 from core.runtime.executors import run_interactive_cpu
@@ -92,9 +93,9 @@ class PageFrames:
         clock = DrawingClock()
         clock.epoch = generation
         try:
-            session = await self.page.context.new_cdp_session(self.page)
+            session = await picture_request(self.page.context.new_cdp_session(self.page))
             if generation != self._generation:
-                await session.detach()
+                await picture_request(session.detach())
                 return False
             self._session = session
             self._clock = clock
@@ -106,18 +107,18 @@ class PageFrames:
                        if self._owns_session(session, generation) else None)
             session.on("Page.screencastFrame", lambda params: self._frame(
                 params, source_session=session, generation=generation))
-            await session.send("Page.enable")
+            await picture_request(session.send("Page.enable"))
             await clock.calibrate(session, time.monotonic)
             if not self._owns_session(session, generation):
                 return False
             # At the page's own size: a window on a high-density screen
             # otherwise sends each frame at twice that in each direction, and
             # encoding it is most of what a frame costs.
-            wide, tall = await self.page.evaluate("[innerWidth, innerHeight]")
+            wide, tall = await picture_request(self.page.evaluate("[innerWidth, innerHeight]"))
             if not self._owns_session(session, generation):
                 return False
             self._options = _stream_options(int(wide), int(tall), self.every_nth_frame)
-            await session.send("Page.startScreencast", self._options)
+            await picture_request(session.send("Page.startScreencast", self._options))
         except Exception as why:  # noqa: BLE001 - any engine without a screencast: screenshots instead
             logger.info("frames cannot be streamed from this page (%s); taking screenshots", why)
             if generation == self._generation:
@@ -148,7 +149,7 @@ class PageFrames:
 
     async def _ack(self, session: Any, frame_id: Any) -> None:
         try:
-            await session.send("Page.screencastFrameAck", {"sessionId": frame_id})
+            await picture_request(session.send("Page.screencastFrameAck", {"sessionId": frame_id}))
         except Exception as why:  # noqa: BLE001 - closing a page can race its last acknowledgement
             logger.debug("acknowledging a frame: %s", why)
 
@@ -204,11 +205,11 @@ class PageFrames:
         try:
             # Chromium requires a stopped screencast before another starts.
             # The browser's clock and the producing CDP session are unchanged.
-            await session.send('Page.stopScreencast')
+            await picture_request(session.send('Page.stopScreencast'))
             if not self._owns_session(session, generation):
                 return False
             options = {**self._options, 'everyNthFrame': stride}
-            await session.send('Page.startScreencast', options)
+            await picture_request(session.send('Page.startScreencast', options))
             if not self._owns_session(session, generation):
                 return False
             self.every_nth_frame, self._options = stride, options
@@ -238,11 +239,11 @@ class PageFrames:
         if session is None:
             return
         try:
-            await session.send("Page.stopScreencast")
+            await picture_request(session.send("Page.stopScreencast"))
         except Exception as why:  # noqa: BLE001 - a page already gone has nothing to stop
             logger.debug("stopping the stream: %s", why)
         try:
-            await session.detach()
+            await picture_request(session.detach())
         except Exception as why:  # noqa: BLE001 - detaching remains necessary when stopping failed
             logger.debug("detaching the stream: %s", why)
 
@@ -435,13 +436,13 @@ class CanvasFrames:
                 from core.perception.the_drawing_as_objects import acquire
                 from core.perception.what_the_page_plays import BOOTSTRAP as LISTEN
 
-                self._observing = await acquire(self.page)
+                self._observing = await picture_request(acquire(self.page))
                 # What the page plays is heard from here on, where it was not listened to from its first script.
-                await self.page.evaluate(LISTEN)
+                await picture_request(self.page.evaluate(LISTEN))
             # The request starts before the canvas is read. Its response can
             # arrive much later, so completion cannot make the picture new.
             began = time.monotonic()
-            data = await self.page.evaluate(_THE_CANVAS_NOW, clip)
+            data = await picture_request(self.page.evaluate(_THE_CANVAS_NOW, clip))
             finished = time.monotonic()
         except Exception as why:  # noqa: BLE001 - a page that cannot be asked has no canvas to read
             logger.debug("the canvas could not be read: %s", why)
@@ -476,7 +477,7 @@ class CanvasFrames:
 
             self._observing = False
             try:
-                await release(self.page)
+                await picture_request(release(self.page))
             except Exception:  # noqa: BLE001 - a closed page has already released its observer
                 pass
 
