@@ -67,3 +67,11 @@ success do not qualify a full game or a native-app demonstration. G09's job,
 original game 9, the reserved holdouts and the resident runtime were left alone.
 
 Final smoke after query consolidation: 165 passed, one skipped, in 46.26 seconds.
+
+
+The original repeat at `911ee48d0` was interrupted after 148.17 seconds. It
+produced current material correspondences but no verified corrected click or
+win. A later candidate well misread scene motion as 39 pieces and 198 clears
+before rejecting its own control model. Its outer actor rejected that result.
+See `2026-10-15-candidate-modes-need-current-control.md` for the preserved
+measurement and the next repairs. The recording is incomplete and unqualified.

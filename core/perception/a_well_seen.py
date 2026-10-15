@@ -14,10 +14,13 @@ at each picture are all seen the same way.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+
+from core.verify import invariant
 
 __all__ = ["PieceSeen", "WellSeen", "a_ground_like_a_wells", "a_well_in", "the_piece_in", "what_rests", "what_stands_in"]
 
@@ -76,13 +79,29 @@ class WellSeen:
         """The well as numbers, for keeping between one stretch of play and the next."""
         return [self.left, self.top, self.wide, self.tall, self.columns, self.rows, *self.ground]
 
+    def valid(self) -> bool:
+        return (all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+                    for v in (self.left, self.top, self.wide, self.tall))
+                and min(self.wide, self.tall) > 0
+                and type(self.columns) is int and FEWEST_COLUMNS <= self.columns <= MOST_COLUMNS
+                and type(self.rows) is int and self.rows >= FEWEST_ROWS
+                and math.isfinite(self.left+self.columns*self.wide)
+                and math.isfinite(self.top+self.rows*self.tall)
+                and len(self.ground) == 3 and all(type(v) is int and 0 <= v <= 255 for v in self.ground))
+
     @classmethod
     def from_kept(cls, kept: Any) -> WellSeen | None:
         try:
+            if any(isinstance(n, bool) for n in kept):
+                return None
             left, top, wide, tall, columns, rows, red, green, blue = (float(n) for n in kept)
         except (TypeError, ValueError):
             return None
-        return cls(left, top, wide, tall, int(columns), int(rows), (int(red), int(green), int(blue)))
+        if (not all(math.isfinite(n) for n in (left, top, wide, tall, columns, rows, red, green, blue))
+                or any(n != int(n) for n in (columns, rows, red, green, blue))):
+            return None
+        well = cls(left, top, wide, tall, int(columns), int(rows), (int(red), int(green), int(blue)))
+        return well if well.valid() else None
 
 
 @dataclass
@@ -188,10 +207,10 @@ def a_well_in(picture: Any, known: WellSeen | None = None) -> WellSeen | None:
     """The well in a picture, where there is one. A well found before is looked for in the same place first: its
     ground must still be there."""
     image = _picture(picture)
-    if known is not None:
+    if known is not None and known.valid():
         left, top, right, bottom = known.box(0, 0)[0], known.box(0, 0)[1], known.box(known.columns, 0)[0], \
             known.box(0, known.rows)[1]
-        if bottom <= image.shape[0] and right <= image.shape[1] and \
+        if 0 <= top < bottom <= image.shape[0] and 0 <= left < right <= image.shape[1] and \
                 float(_is_ground(image[top:bottom, left:right], known.ground).mean()) >= 0.1:
             return known
     for ground in _commonest_colours(image):
@@ -322,9 +341,13 @@ def the_piece_in(picture: Any, well: WellSeen, resting: dict[Cell, int]) -> Piec
     from scipy import ndimage
 
     image = _picture(picture)
+    if not well.valid():
+        return None
     left, top = round(well.left), round(well.top)
     right, bottom = round(well.left + well.columns * well.wide), round(well.top + well.rows * well.tall)
     right, bottom = min(right, image.shape[1]), min(bottom, image.shape[0])
+    if not (0 <= left < right and 0 <= top < bottom):
+        return None
     there = ~_is_ground(image[top:bottom, left:right], well.ground)
     for column, row in resting:
         x0, y0, x1, y1 = well.box(column, row)
@@ -335,6 +358,8 @@ def the_piece_in(picture: Any, well: WellSeen, resting: dict[Cell, int]) -> Piec
     there[:, :edge_x] = there[:, -edge_x:] = False
     # Specks and ruled lines are not a piece: only what is a fair part of a cell both ways is.
     labelled, count = ndimage.label(_no_lines(there))
+    if not count:
+        return None
     least_wide, least_tall = A_FAIR_PART * well.wide, A_FAIR_PART * well.tall
     spans = [(down, across) for down, across in ndimage.find_objects(labelled)
              if across.stop - across.start >= least_wide and down.stop - down.start >= least_tall]
@@ -359,3 +384,14 @@ def the_piece_in(picture: Any, well: WellSeen, resting: dict[Cell, int]) -> Piec
     least_dc, least_dr = min(dc for dc, _dr, _k in parts), min(dr for _dc, dr, _k in parts)
     parts = [(dc - least_dc, dr - least_dr, kind) for dc, dr, kind in parts]
     return PieceSeen(tuple(parts), int(corner + least_dc), float(upper + least_dr), whole=y0 > 0.5 * well.tall)
+
+
+@invariant('perception.unseen_well_geometry_is_not_a_piece', scope='perception',
+           owner='core/perception/a_well_seen.py', observational=False)
+def _well_geometry_invariant() -> tuple:
+    well = WellSeen(80., 80., 8., 8., 8, 16, (30, 30, 30))
+    assert the_piece_in(np.zeros((32, 32, 3), np.uint8), well, {}) is None
+    kept = well.kept()
+    kept[0] = math.nan
+    assert WellSeen.from_kept(kept) is None
+    return ()

@@ -524,3 +524,18 @@ port tests pass; original-game performance is the next measurement. See
 The governance baseline gate has existing drift; the exact effect inventory
 of the production files changed here matches HEAD. No baseline was raised.
 This code has not been deployed to the default checkout or native runtime.
+
+
+The original repeat at `911ee48d0` was interrupted after 148.17 seconds when
+scene motion was misread as a well. It reported 39 pieces and 198 clears before
+returning that none of its keys moved a piece; the outer actor already
+rejected that ending. No game win or corrected cursor click was proved.
+
+Candidate wells now need current distinct horizontal control responses, spend
+the same admission budget across changing/resting branches, and cannot report
+or save new play outcomes before admission. Failed attempts preserve prior
+hypotheses without mutating verified rule/appearance objects through aliases.
+Offscreen or invalid well crops return no piece instead of crashing. The well
+pixel worlds and admission regressions pass. Read the dated candidate-mode
+evidence. Next couple material capture to the original physical cursor hit;
+resampling it after the sweep loses the pointer/view relationship.

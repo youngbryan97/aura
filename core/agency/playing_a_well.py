@@ -19,6 +19,7 @@ Nothing here knows a game. The keys are whichever of hers move the piece; a kind
 from __future__ import annotations
 
 import asyncio
+import copy
 import itertools
 import logging
 import time
@@ -35,6 +36,7 @@ from core.agency.where_a_piece_goes import (
     score,
     settled,
 )
+from core.verify import invariant
 
 logger = logging.getLogger("Aura.PlayingAWell")
 
@@ -333,6 +335,8 @@ class _Game:
     offered: tuple[str, ...]
     clears: WhatClears = field(default_factory=WhatClears)
     keys: HerKeys = field(default_factory=HerKeys)
+    #: Current-piece horizontal responses; recalled key names remain hypotheses.
+    current_controls: dict[str, int] = field(default_factory=dict)
     pieces: int = 0
     cleared: int = 0
     #: The cells that rest, as she holds them: changed only when a piece lands or what rests is seen to have changed.
@@ -468,7 +472,7 @@ async def _find_out(game: _Game, key: str, before: Any) -> None:
     What it did is judged from a steady look, and where the look cannot say (what rests is changing, the piece is out
     of sight, less of it is read than there was) nothing is concluded and the key is tried again."""
     keys = game.keys
-    if keys.left and keys.right and keys.nothing.get(key) and not keys.drop and before.whole:
+    if _controls_found(game) and keys.nothing.get(key) and not keys.drop and before.whole:
         # Pressed before to no effect: all that is left to find is whether, held, it brings the piece down.
         await _held_to_see(game, key, before)
         return
@@ -488,10 +492,18 @@ async def _find_out(game: _Game, key: str, before: Any) -> None:
             keys.drop = keys.drop or key
         return
     if after.column != before.column:
+        if not before.whole or not after.whole or _normal(before.parts) != _normal(after.parts):
+            return
         if after.column < before.column:
+            if keys.right == key:
+                keys.right = ''
             keys.left = keys.left or key
+            game.current_controls[key] = -1
         else:
+            if keys.left == key:
+                keys.left = ''
             keys.right = keys.right or key
+            game.current_controls[key] = 1
         return
     did = what_a_turn_did(before.parts, after.parts) if before.whole and after.whole else None
     if did is not None and not keys.turn:
@@ -611,6 +623,9 @@ def _held_to_what_it_left(game: _Game, left: dict[Cell, int]) -> None:
     """The last landing held against what it left: every rule is tried against it, and what went is learned from."""
     if game.landed is None:
         return
+    if not _controls_found(game):
+        game.landed = None
+        return
     after = game.the_well(left)
     gone = _gone(game.landed, after)
     game.cleared += len(gone)
@@ -631,8 +646,8 @@ def _it_landed(game: _Game, standing: dict[Cell, int]) -> None:
     """A piece is down: it joins what rests, and the well as it landed is kept to be held against what it leaves."""
     _held_to_what_it_left(game, game.stack or {})
     game.stack = {**(game.stack or {}), **standing}
-    game.landed, game.landed_at = game.the_well(game.stack), _now()
-    game.pieces += 1
+    game.landed, game.landed_at = (game.the_well(game.stack) if _controls_found(game) else None), _now()
+    game.pieces += int(_controls_found(game))
     game.last, game.plan, game.stood = None, None, {}
 
 
@@ -663,7 +678,7 @@ async def _tried(game: _Game, key: str, piece: Any) -> None:
     await _find_out(game, key, piece)
     game.plan = None
     if game.keys.said() != before:
-        if game.keys.left and game.keys.right:
+        if _controls_found(game):
             # What it is is said once it has answered as such a thing does: a piece taken a column across by her keys.
             # LIVE 2026-10-11 it was said on sight, of a field with creatures walking down it.
             game.once("well", f"This is a well, {game.well.columns} across: pieces come down it and stack up, and I can "
@@ -739,9 +754,15 @@ async def _while_it_changes(game: _Game, cells: dict[Cell, int]) -> None:
 
 async def _one_piece_on(game: _Game, piece: Any) -> bool:
     """What is done with a whole piece in the air on one look. Whether there is anything she can do with it at all."""
-    if not (game.keys.left and game.keys.right):
+    if not _controls_found(game):
         # Nothing can be placed until she can take a piece across: her keys are tried until two of them do.
-        key = game.keys.to_try(game.offered)
+        for direction, sign in (('left', -1), ('right', 1)):
+            candidate = getattr(game.keys, direction)
+            if candidate and game.current_controls.get(candidate) != sign and game.keys.nothing.get(candidate, 0) >= TRIES_OF_A_KEY:
+                setattr(game.keys, direction, '')
+        pending = [key for key, sign in ((game.keys.left, -1), (game.keys.right, 1))
+                   if key and game.current_controls.get(key) != sign]
+        key = pending[0] if pending else game.keys.to_try(game.offered)
         if not key:
             return False
         await _tried(game, key, piece)
@@ -777,6 +798,11 @@ async def play_a_well(look: Any, hands: Any, well: Any, words: str = "", *, seco
     pressed = False
     try:
         while _now() - began < seconds:
+            # Every provisional path spends the same admission budget. A
+            # changing picture cannot postpone it by repeatedly continuing.
+            if not _controls_found(game) and _now()-began > ACROSS_FOUND_WITHIN_S:
+                ended = NOTHING_MOVES_IT
+                break
             got = await look()
             if got is None or a_well_in(got[0], game.well) is None:
                 hidden_since = hidden_since or _now()
@@ -795,13 +821,10 @@ async def play_a_well(look: Any, hands: Any, well: Any, words: str = "", *, seco
                 continue
             if _what_stayed_put_is_taken_in(game, cells):
                 continue
-            if not (game.keys.left and game.keys.right) and _now() - began > 2.0 * ACROSS_FOUND_WITHIN_S:
-                ended = NOTHING_MOVES_IT
-                break
             if piece is None:
                 nothing_since = nothing_since or _now()
                 if _now() - nothing_since > OVER_AFTER_S:
-                    ended = "nothing more comes down"
+                    ended = "nothing more comes down" if _controls_found(game) else NOTHING_MOVES_IT
                     break
                 await _wait(LOOKS_APART_S)
                 continue
@@ -816,8 +839,9 @@ async def play_a_well(look: Any, hands: Any, well: Any, words: str = "", *, seco
                 continue
             if not standing and _now() - game.unmoved_since > max(STUCK_S, 3.0 * _falls_in(game, 0.0)):
                 # Hanging there unmoved for longer than any piece hangs: it is part of what rests, misread as coming.
+                counted = game.pieces
                 _it_landed(game, _cells_of(piece))
-                game.pieces -= 1
+                game.pieces = counted
                 continue
             if game.last is None and piece.row < 1.0:
                 game.enters |= {piece.column + dc for dc, _dr, _kind in piece.parts}
@@ -834,7 +858,7 @@ async def play_a_well(look: Any, hands: Any, well: Any, words: str = "", *, seco
             if not await _one_piece_on(game, piece):
                 ended = NOTHING_MOVES_IT
                 break
-            if not (game.keys.left and game.keys.right) and _now() - began > ACROSS_FOUND_WITHIN_S:
+            if not _controls_found(game) and _now() - began > ACROSS_FOUND_WITHIN_S:
                 # A well answers at once: a piece goes a column across at the first press of the right key. Where
                 # none has in this long, it is no well, whatever it looked like.
                 ended = NOTHING_MOVES_IT
@@ -844,13 +868,38 @@ async def play_a_well(look: Any, hands: Any, well: Any, words: str = "", *, seco
     if ended == NOTHING_MOVES_IT:
         # What she held of her keys did not let her place a piece: it is let go, and found again from nothing next time.
         game.keys = HerKeys()
-    _kept(game, known)
-    return {"ended": ended, "pieces": game.pieces, "cleared": game.cleared, "rule": game.clears.name(),
-            "keys": game.keys.said(), "seconds": round(_now() - began, 1)}
+    if _controls_found(game):
+        _kept(game, known)
+    return {"ended": ended, "pieces": game.pieces, "cleared": game.cleared,
+            "rule": game.clears.name() if _controls_found(game) else '',
+            "keys": game.keys.said() if _controls_found(game) else '',
+            "controls_confirmed": _controls_found(game), "seconds": round(_now() - began, 1)}
+
+
+def _controls_found(game: _Game) -> bool:
+    keys = game.keys
+    return (bool(keys.left and keys.right) and keys.left != keys.right
+            and game.current_controls.get(keys.left) == -1 and game.current_controls.get(keys.right) == 1)
+
+
+@invariant('agency.provisional_well_motion_cannot_supply_a_played_result', scope='agency',
+           owner='core/agency/playing_a_well.py', observational=False)
+def _provisional_well_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    game = _Game(SimpleNamespace(columns=8, rows=16), None, None, lambda line: None, ())
+    game.keys.left, game.keys.right = 'a', 'd'
+    _it_landed(game, {(0, 15): 1})
+    _held_to_what_it_left(game, {})
+    assert game.pieces == game.cleared == 0 and game.landed is None
+    assert not _controls_found(game), 'recalled names supplied current control evidence'
+    game.current_controls = {'a': -1, 'd': 1}
+    assert _controls_found(game)
+    return ()
 
 
 def _recalled(game: _Game, known: dict[str, Any] | None) -> None:
-    """What she kept of this game from before: her keys go straight back into her hands."""
+    """Reuse prior hypotheses; current responses must admit the controls again."""
     kept = (known or {}).get("well_keys")
     if isinstance(kept, dict):
         keys = game.keys
@@ -862,22 +911,24 @@ def _recalled(game: _Game, known: dict[str, Any] | None) -> None:
         if keys.turn and keys.turn_does is None:
             keys.turn = ""
     held = (known or {}).get("well_clears")
-    if isinstance(held, WhatClears):
-        game.clears = held
+    verified = (known or {}).get('well_control_verified') is True
+    if isinstance(held, WhatClears) and verified:
+        game.clears = copy.deepcopy(held)
     looks = (known or {}).get("well_looks")
-    if isinstance(looks, list) and not game.well.looks:
-        game.well.looks = looks
+    if isinstance(looks, list) and verified and not game.well.looks:
+        game.well.looks = copy.deepcopy(looks)
     said = (known or {}).get("well_said")
-    if isinstance(said, set):
-        game.said = said
+    if isinstance(said, set) and verified:
+        game.said = set(said)
     enters = (known or {}).get("well_enters")
-    if isinstance(enters, (list, set)):
+    if isinstance(enters, (list, set)) and verified:
         game.enters = {int(column) for column in enters}
 
 
 def _kept(game: _Game, known: dict[str, Any] | None) -> None:
     if known is None:
         return
+    known['well_control_verified'] = True
     keys = game.keys
     does = keys.turn_does
     known["well_keys"] = {"left": keys.left, "right": keys.right, "turn": keys.turn, "drop": keys.drop,

@@ -79,11 +79,13 @@ def _play_execution_claims() -> tuple:
 
 def _task_grounding_claims() -> tuple:
     from core.agency.a_requested_relation_in_play import _requested_destination_invariant
+    from core.agency.playing_a_well import _provisional_well_invariant
     from core.agency.reading_while_playing import _current_directions_invariant
     from core.agency.the_controls_a_game_names import _navigation_motion_invariant
     from core.language.how_a_game_ended import _damaged_repeat_invariant
     from core.perception.a_cursor_target_in_its_pixels import _pointer_feedback_invariant
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
+    from core.perception.a_well_seen import _well_geometry_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
     from core.perception.the_latest_reading_at_handoff import _latest_reading_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
@@ -99,7 +101,13 @@ def _task_grounding_claims() -> tuple:
     from core.skills.screen_pursuit_on_a_page import _cursor_cache_custody_invariant
     from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('pointer_feedback_needs_current_distinct_material', 'core/perception/a_cursor_target_in_its_pixels.py',
+    return (('unseen_well_geometry_is_not_a_piece', 'core/perception/a_well_seen.py',
+             'tests/test_a_changing_picture_cannot_hold_well_control.py', lambda: _well_geometry_invariant() == (),
+             'Invalid or absent well crop geometry supplies no piece; saved nonfinite coordinates, fractional cell counts and invalid color bytes cannot enter the retained grid.'),
+            ('provisional_well_motion_cannot_supply_a_played_result', 'core/agency/playing_a_well.py',
+             'tests/test_a_changing_picture_cannot_hold_well_control.py', lambda: _provisional_well_invariant() == (),
+             'A candidate grid has a bounded current-control admission period across every continuation branch; unconfirmed motion supplies no played-piece or clear count, and recalled key names require current responses.'),
+            ('pointer_feedback_needs_current_distinct_material', 'core/perception/a_cursor_target_in_its_pixels.py',
              'tests/test_a_pointer_target_is_reached_through_pixels.py', lambda: _pointer_feedback_invariant() == (),
              'A physically sampled cursor target is followed through fresh pixel correspondence; ambiguous, absent or unreachable material cannot authorize a corrected press.'),
             ('handoff_words_belong_to_the_latest_reading', 'core/perception/the_latest_reading_at_handoff.py',

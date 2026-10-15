@@ -1775,7 +1775,7 @@ async def _played_a_well(reflexes: PlayingAsItHappens, now: float) -> bool:
         return False
     reflexes.keep.pop("no_well_on", None)
     reflexes.keep["well_seen"] = well
-    logger.info("a well %d across and %d down with a piece coming down it: playing it by where each piece lands best",
+    logger.info("candidate cells %d across and %d down with apparent falling motion: checking current control responses",
                 well.columns, well.rows)
     heard: list[str] = reflexes.keep.setdefault("words_of_the_place", [])
     heard += [w for w in reflexes.words if w not in heard]
@@ -1801,6 +1801,8 @@ async def _played_a_well(reflexes: PlayingAsItHappens, now: float) -> bool:
         reflexes.no_well_here = True
         reflexes.keep["no_well_found"] = int(reflexes.keep.get("no_well_found", 0)) + 1
         reflexes.keep.pop("well_seen", None)
+        return False
+    if not stretch.get('controls_confirmed'):
         return False
     reflexes.keep["no_well_found"] = 0
     reflexes.waited_at_a_well = 0.0
