@@ -223,6 +223,9 @@ def chose_in_play(choices: ChoicesMade | None, choosing: Any, key: str, why: str
     """The choice her fast play just made, taken in with its reason, craft, what it counts on and what should follow;
     said once a craft."""
     from core.agency.naming_what_she_sees import describe
+    from core.perception.recording_the_frames_and_inputs import record_play_choice
+
+    record_play_choice(choosing, key, why, aim, at)
 
     if choices is None:
         return

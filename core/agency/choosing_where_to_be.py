@@ -333,9 +333,9 @@ class _Choosing:
     def target(self) -> tuple[tuple[float | None, float | None], str, Any]:
         """Where she wants to be, why, and for which thing."""
         line = self.line()
-        if line is not None:
-            return self._target_on_a_line(line)
-        return self._target_anywhere()
+        target = self._target_on_a_line(line) if line is not None else self._target_anywhere()
+        self.last_target = target
+        return target
 
     def _target_on_a_line(self, line: int) -> tuple[tuple[float | None, float | None], str, Any]:
         free = 1 - line

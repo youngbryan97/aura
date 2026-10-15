@@ -115,7 +115,7 @@ class FrameAndInputRecording:
         return dict(schema='aura.pixel_input_recording.v1', state=state, frames=self.frames,
                     input_events=self.inputs, last_sequence=self.sequence, dropped_events=self.dropped,
                     error=self.error, complete=state == 'closed' and not self.error and not self.dropped,
-                    presentation_qualified=False, omitted=['drawing_scene', 'sounds', 'internal decisions'],
+                    presentation_qualified=False, omitted=['drawing_scene', 'sounds', 'unrecorded decision paths'],
                     input_receipt='port call completion; does not prove game acceptance or visible effect')
 
 
@@ -217,6 +217,33 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
         measured_pushes={key: hers.push_of(key) for key in hers._hers.pushes()},
         observations=[dict(number=int(t.number), born=float(t.born), seen=float(t.seen), status=motion_status(t, at),
                            position=[float(t.x), float(t.y)]) for t in moves.things.values()], evidence=evidence))
+
+
+def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> None:
+    """Retain a made choice without asking the target selector to make it again."""
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return
+
+    def body(thing):
+        if thing is None:
+            return None
+        return dict(number=int(thing.number), born=float(thing.born), kind=int(thing.kind),
+                    position=[float(thing.x), float(thing.y)], velocity=[float(thing.vx), float(thing.vy)],
+                    size=[float(thing.w), float(thing.h)], seen=float(thing.seen), moved=bool(thing.moved))
+
+    target = getattr(choosing, 'last_target', None)
+    imagined = getattr(choosing, 'planned', None)
+    planned = (dict(first=imagined.plan.first, holds=list(imagined.plan.held),
+                    worth=float(imagined.worth), decides=bool(imagined.decides),
+                    gets=int(imagined.gets), costs=int(imagined.costs), ends_at=list(imagined.ends_at))
+               if imagined is not None else None)
+    recorder.offer(recorder.event('play_choice', at=float(at), key=key, why=why,
+        capture={'at': float(at), **{field: getattr(at, field) for field in _TIME_FIELDS if hasattr(at, field)}},
+        mine=body(choosing.mine), aim=body(aim), target=list(target[0]) if target else None,
+        ways={control: list(way) for control, way in choosing.ways.items()}, rest=list(choosing.rest),
+        planned=planned, response_s=float(choosing.response_s), next_picture_s=float(choosing.next_picture_s),
+        told_gently=getattr(choosing.meeting, 'told_gently', None)))
 
 
 @invariant('perception.recorded_pixels_keep_their_bytes', scope='perception',

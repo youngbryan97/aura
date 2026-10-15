@@ -156,6 +156,49 @@ async def test_actual_control_sample_counts_remain_separate_from_input_delivery(
     assert event['evidence'][0]['ratio'] == [0., 0.]
 
 
+@pytest.mark.asyncio
+async def test_the_actual_choice_hook_records_a_made_target_without_selecting_again(tmp_path):
+    from core.agency.a_choice_and_its_reasons import chose_in_play
+    from core.agency.imagining_ahead import Imagined, Plan
+
+    def no_selection():
+        raise AssertionError('recording reran the target selector')
+
+    mine = SimpleNamespace(number=1, born=1., kind=2, x=20., y=30., vx=4., vy=5.,
+                           w=10., h=12., seen=10., moved=True)
+    aim = SimpleNamespace(number=3, born=2., kind=4, x=80., y=90., vx=0., vy=0.,
+                          w=30., h=20., seen=10., moved=False)
+    choosing = SimpleNamespace(mine=mine, last_target=((80., 70.), 'meet', aim), target=no_selection,
+        ways={'q': (4., 5.)}, rest=(0., 1.), response_s=.12, next_picture_s=.1,
+        meeting=SimpleNamespace(told_gently=True),
+        planned=Imagined(Plan(((0., 'q'),)), 2., gets=1, decides=True, ends_at=(50., 60.)))
+    at = CanvasFrameTime(10., lower=9.99, upper=10.01, arrived=10.1, source='canvas', source_at=8.,
+                         epoch=2, surface='one', sequence=37)
+    directory = tmp_path / 'choices'
+    async with record_frames_and_inputs(directory):
+        chose_in_play(None, choosing, 'q', 'meet', aim, at, lambda *_: None)
+        mine.x, aim.x = 999., 999.
+    event = _events(directory)[0]
+    assert event['kind'] == 'play_choice' and event['target'] == [80., 70.]
+    assert event['mine']['position'] == [20., 30.] and event['aim']['position'] == [80., 90.]
+    assert event['capture']['sequence'] == 37 and event['capture']['surface'] == 'one'
+    assert event['key'] == 'q' and event['told_gently']
+    assert event['planned'] == dict(first='q', holds=[[0., 'q']], worth=2., decides=True,
+                                    gets=1, costs=0, ends_at=[50., 60.])
+
+
+def test_a_target_lookup_retains_the_made_result_for_its_action_record():
+    from core.agency.choosing_where_to_be import _Choosing
+
+    calls = []
+    def selected():
+        calls.append(1)
+        return ((20., 30.), 'meet', None)
+    choosing = SimpleNamespace(line=lambda: None, _target_anywhere=selected)
+    result = _Choosing.target(choosing)
+    assert len(calls) == 1 and choosing.last_target is result
+
+
 def test_control_replay_uses_observed_independence_and_refuses_missing_or_conflicting_ownership():
     from tools.replay_recorded_play_pixels import control_histories
 
