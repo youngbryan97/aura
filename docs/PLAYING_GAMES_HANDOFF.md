@@ -398,3 +398,32 @@ The existing two one-shot continuation heartbeats were rearmed for
 12:10:40 PM and 5:11:40 PM Pacific on 15 October, as Bryan requested. Their
 prompts prohibit duplicate workers while this chat is already active, retain
 the G09/runtime boundary and retire each follow-up after it runs.
+
+## Source custody for visual references, 15 October, after noon
+
+`d1c361e72` keeps newly read directions current in the running actor, ordered
+by capture time, even when the wording repeats a prior request. `80853022e`
+keeps visual exports with source namespaces, dictionary IDs and definition
+and export addresses in `ProgramRead` and the current guide. Invalid asset
+metadata cannot discard read controls or assign an observed role. Main's
+concurrent changes were merged in `0a831a553` and the combined checkpoint
+was pushed.
+
+The new explicit external export utility is
+`tools/export_program_visual_reference.py`. It stages a read-only source,
+uses the existing bounded supervisor, and records renderer and output hashes.
+`-select ID:1` selects a sprite's first frame; bare `-select 1` selected the
+main timeline and had exported all sprite frames. The new case-18 export
+and its 27-point match to recorded gameplay are retained in
+`artifacts/flash-campaign/2026-10-15-custodied-reference/`.
+
+Only static source 18 was read. Its current procedural code reader has
+empty `hers` and `ends`; source names alone still do not bind the instruction's
+landing platform. See the new dated source-custody evidence before wiring
+these references into control. There is still no landing, full campaign or
+independent native-app demonstration. Do not weaken causal thresholds to
+promote the reference match into body identity.
+
+The first continuation fired while this chat was active and was deleted
+through the app tool. The later 5:11:40 PM Pacific continuation remains.
+G09 PID 4559 and the excluded original 9/holdouts remain untouched.
