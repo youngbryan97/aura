@@ -2,7 +2,7 @@
 from typing import Any
 
 
-def _compute_policy_claims() -> tuple:
+def _play_execution_claims() -> tuple:
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
@@ -15,7 +15,20 @@ def _compute_policy_claims() -> tuple:
              "An explicitly requested CPU policy reaches a Vision request before its handler executes; missing or refused acknowledgement cannot fall back to the platform's device choice."),
             ("model_worker_policy_refuses_before_start", "core/runtime/model_worker_policy.py",
              "tests/test_a_cpu_probe_cannot_start_a_model_worker.py", lambda: _model_worker_policy_invariant() == (),
-             "An explicit process policy can refuse model-worker admission before spawn; the vision client and worker entry honor that refusal before loading accelerator code."))
+             "An explicit process policy can refuse model-worker admission before spawn; the vision client and worker entry honor that refusal before loading accelerator code."),
+            *_reward_authority_claims())
+
+
+def _reward_authority_claims() -> tuple:
+    from core.agency.reading_while_playing import _unowned_bar_reward_invariant
+    from core.agency.what_meeting_things_does import _unlabelled_counter_reference_invariant
+
+    return (("unowned_strips_cannot_teach_reward", "core/agency/reading_while_playing.py",
+             "tests/test_unowned_strips_do_not_teach_rewards.py", lambda: _unowned_bar_reward_invariant() == (),
+             "Before a body is selected or a response is measured, nameless changing strips remain measurements and cannot supply rewards or resource scarcity."),
+            ("unlabelled_counters_require_a_reference", "core/agency/what_meeting_things_does.py",
+             "tests/test_unowned_strips_do_not_teach_rewards.py", lambda: _unlabelled_counter_reference_invariant() == (),
+             "An unlabelled numeric change remains measured without supplying reward until an own-side reference relates the two counters."))
 
 
 def install_realtime_control_claims(suite: Any) -> None:
@@ -93,7 +106,7 @@ def install_realtime_control_claims(suite: Any) -> None:
     from core.skills.sovereign_browser_picking import _picked_outcomes_invariant
 
     for name, owner, fixture, probe, statement in (
-        *_compute_policy_claims(),
+        *_play_execution_claims(),
         *_visual_motion_claims(),
         *_body_state_claims(),
         *_control_discovery_claims(),

@@ -104,11 +104,12 @@ def bars_read(bars: Any, picture: Any, at: float, regions: list[dict[str, Any]],
         yield {"what": "loss" if lost else "gain", "at": at, "since": change["since"], "counter": named, "by": -1 if lost else 1}
 
 
-def what_is_left(bars: Any) -> float:
+def what_is_left(bars: Any, *, allow_unnamed: bool = True) -> float:
     """The lowest of what she has left, as a share of its fullest: 1 where no bar says."""
     from core.agency.what_its_code_says_she_sees import a_strip_of_ground
 
-    left = [bar.full for bar in bars.bars() if bar.meaning == "down is bad" and not a_strip_of_ground(bar, bars.shape)]
+    left = [bar.full for bar in bars.bars() if bar.meaning == "down is bad" and (allow_unnamed or bar.label)
+            and not a_strip_of_ground(bar, bars.shape)]
     return min(left) if left else 1.0
 
 

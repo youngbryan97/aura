@@ -262,3 +262,38 @@ original-case-9 run with durable actual-frame and input receipts, followed
 by ordinary native-app prompt validation. Keep holdouts 31, 32, 33, 34, 35,
 36, 39, 42, 47 and 49 unopened. Body control, task-goal grounding and the
 56-game campaign remain open. Presentation readiness is unproved.
+
+## CPU continuation while G09 owns the model lane, 15 October 2026
+
+The archived runner now has durable per-case checkpoints, exclusions before
+asset reads, a supervisor lease and settled-attempt resume. A 56-case plan
+retained 45 pending cases and excluded case 9 plus the ten holdouts. It did
+not open any program. A process exit and Aura's own win claim still supply
+no independent presentation qualification.
+
+Independent local point fits reduced median observation time by 20.7 percent
+on the generated scene used in the paired measurement. The tracking set
+has 255 passes. This is not a measured original-game speed-up.
+
+For probes beside G09, use `--cpu-only`. The earlier combination of software
+graphics and CPU OCR was insufficient: scene recognition launched a 4B GPU
+vision worker during the first case-18 probe. That diagnostic group was
+stopped; G09 was not signalled. The explicit model-worker prohibition now
+reaches the generic subprocess gateway, vision client before lane admission,
+and worker entry before MLX import. The complete CPU retry started no vision
+worker. Separate real tests proved SwiftShader WebGL2 readback, keyboard
+delivery into screenshots and native OCR with CPU acknowledgement.
+
+The case-18 retry still lost: zero landings, one crash, no selected body or
+moving key. Internal gain counts were inconsistent with useful progress.
+The latest feedback repair preserves unowned strips and unnamed numeric
+readings without awarding reward, with 119 focused passes. It has not yet
+been measured on the original game. Keep the distinction between these
+CPU component/browser results and ordinary native model-backed play.
+
+New evidence is under `artifacts/flash-campaign/` in the steering worktree.
+The dated evidence logs describe each checkpoint and the aborted probe.
+These paths survive temporary-directory cleanup. Do not resume its
+unfinished record blindly or reuse an old report path for a new attempt.
+Native prompt proof, reliable body control and the 56-case campaign remain
+unfinished. Preserve the holdout boundary and G09 ownership.

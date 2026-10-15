@@ -177,10 +177,9 @@ class Readouts:
     def _unlabelled(readout: Readout, all_unlabelled: list[Readout], her_x: float | None) -> str:
         row = [r for r in all_unlabelled if abs(r.y - readout.y) < 0.05]
         if len(row) < 2 or her_x is None:
-            return "up is good"
+            return ""
         nearest = min(row, key=lambda r: abs(r.x - her_x))
         return "up is good" if nearest is readout else "up is bad"
-
     def _confirmed(self, key: str, value: int, at: float) -> tuple[int, float, float] | None:
         """A change in a counter once two readings in a row agree on it: by how much, when first seen, and when last not."""
         before = self.values.get(key)
@@ -200,6 +199,18 @@ class Readouts:
         self.values[key] = value
         self.read_at[key] = at
         return value - before, pending[1], pending[2]
+
+
+@invariant('agency.unlabelled_counters_require_a_reference', scope='agency',
+           owner='core/agency/what_meeting_things_does.py', observational=False)
+def _unlabelled_counter_reference_invariant() -> tuple:
+    counter = Readout('', 3, .1, .1)
+    other = Readout('', 5, .9, .1)
+    assert Readouts._unlabelled(counter, [counter], None) == ''
+    assert Readouts._unlabelled(counter, [counter, other], None) == ''
+    assert Readouts._unlabelled(counter, [counter, other], .1) == 'up is good'
+    assert Readouts._unlabelled(other, [counter, other], .1) == 'up is bad'
+    return ()
 
 
 def _absent_counters_are_not_current() -> bool:

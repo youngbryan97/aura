@@ -16,6 +16,7 @@ from core.agency.navigation_before_body_experiments import (
     keep_navigation_reading,
     words_bound_to_capture,
 )
+from core.verify import invariant
 
 if TYPE_CHECKING:
     from core.agency.playing_as_it_happens import _Run
@@ -166,8 +167,7 @@ def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves
         return where_on_screen(moves, x * moves.shape[1], y * moves.shape[0]) if moves.shape[0] else "middle"
 
     # A bar with no name going down before anything on the screen answers her may be a story playing out or a thing
-    # loading: counted, but not said to be what she has left (LIVE 2026-10-10 "The bar at the bottom left goes down: it's
-    # what I have left." over an opening scene).
+    # loading. Keep its measurements without crediting reward or resources until there is an interactive reference.
     answering = (getattr(hers, "kind", None) is not None or getattr(hers, "follows_pointer", False)
                  or (run.presses is not None and run.presses.moves_anything(4.0)))
     for verdict in bars_read(run.bars, picture, at, run.regions_read, place):
@@ -175,6 +175,8 @@ def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves
         # 2026-10-11 "The SCORE bar goes down: it's what I have left." A bar named by a control ("SPACE TO STOMP") fills
         # for that control and empties as it is used: it is no loss either.
         if _A_SCORE.search(str(verdict.get("counter") or "")) or _A_CONTROLS.search(str(verdict.get("counter") or "")):
+            continue
+        if not _bar_change_can_teach(str(verdict.get('counter') or ''), answering):
             continue
         meeting._verdict(verdict)
         if verdict["what"] == "gain":
@@ -193,7 +195,23 @@ def _read_the_bars(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers, moves
             run.bars.said_unnamed = run.bars.said_unnamed or (named if unnamed else "")
             _say(run, say, f"{spoken[0].upper()}{spoken[1:]} goes down{' as I am hit' if hit else ''}: it's what I have left.",
                  at, once=f"bar {named}")
-    run.vitals = meeting.vitals = what_is_left(run.bars)
+    remaining = what_is_left(run.bars) if answering else what_is_left(run.bars, allow_unnamed=False)
+    run.vitals = meeting.vitals = remaining
+
+
+def _bar_change_can_teach(counter: str, answering: bool) -> bool:
+    """A nameless changing strip needs an interactive reference before it can teach reward."""
+    return answering or bool(counter) and not counter.startswith('the bar')
+
+
+@invariant('agency.unowned_strips_cannot_teach_reward', scope='agency',
+           owner='core/agency/reading_while_playing.py', observational=False)
+def _unowned_bar_reward_invariant() -> tuple:
+    assert not _bar_change_can_teach('the bar at the middle', False)
+    assert not _bar_change_can_teach('', False)
+    assert _bar_change_can_teach('the HEALTH bar', False)
+    assert _bar_change_can_teach('the bar at the middle', True)
+    return ()
 
 
 def _a_bar_in_words(named: str) -> str:
