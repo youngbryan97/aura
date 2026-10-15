@@ -395,6 +395,27 @@ class LocalCorpusStore:
             conn.set_progress_handler(None, 0)
             conn.close()
 
+    def documents(self, doc_ids: Sequence[int]) -> list[CorpusHit]:
+        """The documents with these ids, in the order given; an id with no document is left out."""
+        ids = [int(i) for i in doc_ids]
+        if not ids or not self.db_path.exists():
+            return []
+        try:
+            conn = self._connect_ro()
+        except sqlite3.OperationalError:
+            return []
+        try:
+            marks = ",".join("?" * len(ids))
+            rows = {int(r[0]): r for r in conn.execute(
+                f"SELECT id, title, source, ingested_at FROM docs WHERE id IN ({marks})", ids)}
+        except sqlite3.OperationalError as exc:
+            logger.debug("Corpus document lookup degraded to none: %s", exc)
+            return []
+        finally:
+            conn.close()
+        return [CorpusHit(title=str(rows[i][1]), snippet="", source=str(rows[i][2]), rank=0.0, doc_id=i,
+                          ingested_at=float(rows[i][3] or 0.0)) for i in ids if i in rows]
+
     def body(self, doc_id: int, *, max_chars: int = 20000) -> str:
         """The text of one document, or "" when it cannot be read."""
         if not self.db_path.exists():

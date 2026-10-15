@@ -192,6 +192,29 @@ class PassageIndex:
             return []
         return self._read_back(rows)
 
+    def articles_titled(self, name: str, around: list[str], *, limit: int) -> list[int]:
+        """Ids of the articles whose title holds every word of ``name``, best first by their paragraphs' match to
+        ``around`` (the words said with the name); [] when there are none.
+
+        One search: the name's words are required in the title and the words
+        around it rank the paragraphs, so "Kobe" said with "81 point game" puts
+        the player's article before the city's.
+        """
+        named = _NOT_A_WORD.sub(" ", name).split()
+        words = _NOT_A_WORD.sub(" ", " ".join(around)).split()
+        if not named or not self.available():
+            return []
+        query_text = " ".join([*(f"+title:{w}" for w in named), *words])
+        try:
+            index = _opened(self.index_dir)
+            searcher = index.searcher()
+            hits = searcher.search(index.parse_query(query_text, ["title", "text"]), max(1, int(limit))).hits
+            keys = [int(searcher.doc(address)["key"][0]) for _score, address in hits]
+        except (ValueError, OSError, RuntimeError) as exc:
+            logger.debug("Title search returned nothing: %s", exc)
+            return []
+        return list(dict.fromkeys(key >> POSITION_BITS for key in keys))
+
     def _read_back(self, rows: list[tuple[int, float]]) -> list[Passage]:
         from core.knowledge.passages_about import _paragraphs
 

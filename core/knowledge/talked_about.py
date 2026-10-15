@@ -23,9 +23,11 @@ abbreviation is linked only to its own page, and a disambiguation page is
 about no one. A turn that names no one but speaks of "he", "she" or "they"
 carries the subjects of the person's own turns before it, then of hers.
 
-From each subject's article come its opening paragraph, where an article sums
-up its subject, and then the paragraphs nearest in meaning to the turn by her
-embedder when one is given, or those holding the turn's rarer words.
+With her embedder, every paragraph of the subjects' articles and the corpus's
+paragraphs about the subjects as they are talked about compete by meaning for
+the turn's few places. Without it, each subject's opening paragraph, where an
+article sums up its subject, comes first, then its paragraphs holding the
+turn's rarer words.
 """
 
 from __future__ import annotations
@@ -112,14 +114,40 @@ def _is_abbreviation(name: str) -> bool:
     return len(name.split()) == 1 and name.isupper()
 
 
-def _link(store: Any, mention: str, words: set[str], *, deadline_s: float) -> Any:
-    """The encyclopedia article for ``mention`` that shares the most of ``words``; None when none shares any."""
+def _about_one_subject(store: Any, hit: Any) -> bool:
+    """An encyclopedia article about one subject: not a note she saved, not a list of namesakes."""
+    from core.knowledge.local_corpus import RETAINED_SOURCE
+
+    return hit.source != RETAINED_SOURCE and not _DISAMBIGUATION.search(store.body(hit.doc_id, max_chars=400))
+
+
+def _link(store: Any, mention: str, words: set[str], *, deadline_s: float, everywhere: Any = None) -> Any:
+    """The encyclopedia article for ``mention`` that the words around it point to; None when there is none.
+
+    With the index of every paragraph, one search: the mention's words in the
+    title, ranked by the other words (passage_index.articles_titled). Without
+    it, the article holding the mention in its title that shares the most of
+    the words.
+    """
     from core.knowledge.local_corpus import RETAINED_SOURCE
     from core.knowledge.passages_about import _terms
 
     expires = time.monotonic() + max(0.01, deadline_s)
     own = {w.lower() for w in mention.split()}
     other = {w for w in words if w not in own}
+    if everywhere is not None:
+        from core.knowledge.corpus_grounding import _CANDIDATE_POOL_FACTOR
+
+        if _is_abbreviation(mention):
+            exact = store.by_title(mention, deadline_s=max(0.01, expires - time.monotonic()))
+            return exact if exact is not None and _about_one_subject(store, exact) else None
+        found = store.documents(everywhere.articles_titled(mention, sorted(other),
+                                                           limit=_CANDIDATE_POOL_FACTOR * _CANDIDATE_POOL_FACTOR))
+        whole = [hit for hit in found if len(mention.split()) > 1 and hit.title.lower() == mention.lower()]
+        for hit in [*whole, *found]:
+            if _about_one_subject(store, hit):
+                return hit
+        return None
     exact = store.by_title(mention, deadline_s=max(0.01, expires - time.monotonic()))
     # An abbreviation names many things: it counts only where its own page is about one of them.
     titled = [] if _is_abbreviation(mention) else store.search_titles(
@@ -152,7 +180,7 @@ def _carried_from(before: Sequence[Turn]) -> list[str]:
 
 
 def subjects(turn: str, before: Sequence[Turn], *, store: Any, deadline_s: float, most: int,
-             speakers: Sequence[str] = ()) -> list[Any]:
+             speakers: Sequence[str] = (), everywhere: Any = None) -> list[Any]:
     """Articles for what the turn names, or for whom its pronouns point back to; at most ``most``."""
     from core.knowledge.passages_about import _terms
 
@@ -168,7 +196,7 @@ def subjects(turn: str, before: Sequence[Turn], *, store: Any, deadline_s: float
             left = expires - time.monotonic()
             if left <= 0 or len(linked) >= most:
                 return linked
-            hit = _link(store, mention, words, deadline_s=left)
+            hit = _link(store, mention, words, deadline_s=left, everywhere=everywhere)
             if hit is not None and all(hit.doc_id != s.doc_id for s in linked):
                 linked.append(hit)
         if linked:
@@ -179,12 +207,14 @@ def subjects(turn: str, before: Sequence[Turn], *, store: Any, deadline_s: float
 def said_about(turn: str, before: Sequence[Turn] = (), *, store: Any = None, limit: int, deadline_s: float,
                rerank: Rerank | None = None, speakers: Sequence[str] = (),
                everywhere: Any = None) -> list[tuple[str, str]]:
-    """(title, paragraph) for the subjects of the conversation: each one's opening, then the turn's nearest.
+    """(title, paragraph) about the subjects of the conversation, at most ``limit``.
 
-    With ``everywhere`` (core/knowledge/passage_index.PassageIndex), the
-    paragraphs of the whole corpus that best match the turn's rarer words join
-    the subjects' own: what is said about a subject often names others it
-    does not mention, as a ranking of players names the one above them.
+    With ``rerank`` (her embedder) and ``everywhere``
+    (core/knowledge/passage_index.PassageIndex), the corpus's paragraphs about
+    the subjects as they are talked about compete with the subjects' own:
+    what is said about a subject often turns on others it does not name, as a
+    ranking of players names the one above them. ``everywhere`` also links a
+    mention to its article in one search.
     """
     from core.knowledge.passages_about import _paragraphs
 
@@ -193,40 +223,34 @@ def said_about(turn: str, before: Sequence[Turn] = (), *, store: Any = None, lim
 
         store = LocalCorpusStore()
     expires = time.monotonic() + max(0.0, deadline_s)
-    found = subjects(turn, before, store=store, deadline_s=deadline_s, most=max(1, limit), speakers=speakers)
+    found = subjects(turn, before, store=store, deadline_s=deadline_s, most=max(1, limit), speakers=speakers,
+                     everywhere=everywhere)
     if not found:
         return []
     said = " ".join(str(turn or "").split())
     split = {hit.doc_id: list(_paragraphs(store.body(hit.doc_id, max_chars=10**7))) for hit in found}
     found = [hit for hit in found if split[hit.doc_id]]
-    if rerank is not None and len(found) > 1:
-        # The subjects most about what is being said first, so a stray link spends the budget last.
-        nearness = list(rerank(said, [f"{hit.title}: {split[hit.doc_id][0]}" for hit in found]))
-        found = [found[i] for i in sorted(range(len(found)), key=lambda i: -nearness[i])]
-    openings = [(hit.title, split[hit.doc_id][0]) for hit in found][:max(1, limit)]
-    rest = [(hit.title, p) for hit in found for p in split[hit.doc_id][1:]]
-    room = max(0, limit - len(openings))
-    beyond: list[tuple[str, str]] = []
-    if room and everywhere is not None and time.monotonic() < expires:
+    if not found:
+        return []
+    if rerank is None:
+        # By words alone, each subject's opening, then its own paragraphs holding the turn's rarer words. The
+        # rest of the corpus is left out: a chatty turn's common words find short pages of their own.
+        openings = [(hit.title, split[hit.doc_id][0]) for hit in found][:max(1, limit)]
+        rest = [(hit.title, p) for hit in found for p in split[hit.doc_id][1:]]
+        return openings + _by_words(turn, rest)[:max(0, limit - len(openings))]
+    # By meaning, everything competes: each subject's paragraphs, its opening among them, and the paragraphs
+    # of the whole corpus about the subjects as they are being talked about. A stray link loses to them.
+    titles = "; ".join(hit.title for hit in found)
+    pool = [(hit.title, p) for hit in found for p in split[hit.doc_id]]
+    if everywhere is not None and time.monotonic() < expires:
         from core.knowledge.corpus_grounding import _CANDIDATE_POOL_FACTOR
 
-        beyond = [(p.title, p.paragraph) for p in everywhere.search(said, limit=limit * _CANDIDATE_POOL_FACTOR,
-                                                                    deadline_s=expires - time.monotonic())
-                  if (p.title, p.paragraph) not in openings]
-    if not room or not (rest or beyond):
-        return openings
-    if rerank is not None:
-        # The subjects named, then what was said: "he" in the turn is the subject carried here.
-        pool = rest + [item for item in beyond if item not in rest]
-        query = "; ".join(title for title, _ in openings) + ": " + said
-        similarity = list(rerank(query, [f"{title}: {paragraph}" for title, paragraph in pool]))
-        order = sorted(range(len(pool)), key=lambda i: -similarity[i])
-        return openings + [pool[i] for i in order[:room]]
-    if beyond:
-        from core.knowledge.passage_index import fused
-
-        return openings + fused([_by_words(turn, rest), beyond], limit=room)
-    return openings + _by_words(turn, rest)[:room]
+        pool += [(p.title, p.paragraph) for p in everywhere.search(f"{titles} {said}",
+                                                                   limit=limit * _CANDIDATE_POOL_FACTOR)
+                 if (p.title, p.paragraph) not in pool]
+    similarity = list(rerank(f"{titles}: {said}", [f"{title}: {paragraph}" for title, paragraph in pool]))
+    order = sorted(range(len(pool)), key=lambda i: -similarity[i])
+    return [pool[i] for i in order[:max(1, limit)]]
 
 
 def _by_words(turn: str, paragraphs: list[tuple[str, str]]) -> list[tuple[str, str]]:

@@ -64,3 +64,17 @@ def test_fusion_ranks_what_both_lists_agree_on_first() -> None:
     a = [("A", "1"), ("B", "2"), ("C", "3")]
     b = [("B", "2"), ("D", "4"), ("A", "1")]
     assert fused([a, b], limit=4)[:2] == [("B", "2"), ("A", "1")]
+
+
+def test_a_name_finds_its_article_by_the_words_said_with_it_in_one_search(tmp_path: Path) -> None:
+    store = LocalCorpusStore(tmp_path / "corpus.db")
+    store.add_documents([
+        ("Kobe", "Kobe is a port city in Japan on Osaka Bay, known for its harbour and its beef.", "wikipedia"),
+        ("Kobe Bryant", "Kobe Bryant was a basketball player who scored 81 points in one game.", "wikipedia"),
+    ])
+    build(tmp_path / "corpus.db", tmp_path / "paragraphs", **SMALL)
+    index = PassageIndex(tmp_path / "paragraphs", tmp_path / "corpus.db")
+    player = store.documents(index.articles_titled("Kobe", ["81", "points", "game"], limit=5))
+    city = store.documents(index.articles_titled("Kobe", ["harbour", "beef", "ferry"], limit=5))
+    assert [player[0].title, city[0].title] == ["Kobe Bryant", "Kobe"]
+    assert index.articles_titled("Nagoya", ["harbour"], limit=5) == []

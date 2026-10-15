@@ -70,17 +70,19 @@ def test_he_she_or_they_carries_the_subject_of_the_persons_own_last_turn(tmp_pat
     assert subjects("That was a lovely evening.", before, store=store, deadline_s=5.0, most=3) == []
 
 
-def test_the_opening_comes_first_then_the_paragraph_nearest_in_meaning(tmp_path: Path) -> None:
+def test_by_words_the_opening_comes_first_and_by_meaning_the_nearest_paragraph_does(tmp_path: Path) -> None:
     store = _store(tmp_path)
     before = [("user", "Kobe Bryant was something else.")]
+    by_words = said_about("He had a lot of championships though", before, store=store, limit=2, deadline_s=5.0)
+    assert by_words[0][1].startswith("Kobe Bryant was") and "five championships" in by_words[1][1]
 
     def nearness(query: str, texts: list[str]) -> list[float]:
         # A stand-in for her embedder: the paragraph about championships is nearest to talk of rings.
         return [1.0 if "championships" in text else 0.0 for text in texts]
 
-    found = said_about("He had a lot of rings though", before, store=store, limit=2, deadline_s=5.0, rerank=nearness)
-    assert found[0][0] == "Kobe Bryant" and found[0][1].startswith("Kobe Bryant was")
-    assert "five championships" in found[1][1]
+    by_meaning = said_about("He had a lot of rings though", before, store=store, limit=1, deadline_s=5.0,
+                            rerank=nearness)
+    assert by_meaning == [("Kobe Bryant", "He won five championships and two Finals MVP awards with the Lakers.")]
 
 
 def test_chat_grounds_a_statement_about_a_person_only_when_it_gives_the_conversation(tmp_path: Path) -> None:
@@ -93,17 +95,24 @@ def test_chat_grounds_a_statement_about_a_person_only_when_it_gives_the_conversa
     assert not corpus_grounding_for("Open Kobe Bryant's page", store=store, conversation=[]).grounded
 
 
-def test_paragraphs_from_articles_the_conversation_does_not_name_join_its_subjects(tmp_path: Path) -> None:
+def test_by_meaning_paragraphs_from_articles_the_conversation_does_not_name_compete(tmp_path: Path) -> None:
     from core.knowledge.passage_index import build
 
     store = _store(tmp_path)
     build(tmp_path / "corpus.db", tmp_path / "paragraphs.tantivy", threads=1, heap_bytes=50_000_000)
     said = "Kobe Bryant's 81 was huge, though the record for points in a single game is someone else's"
-    grounding = corpus_grounding_for(said, store=store, conversation=[], limit=3)
-    titles = [title for title, _text in grounding.passages]
-    assert titles[0] == "Kobe Bryant"
+
+    def nearness(query: str, texts: list[str]) -> list[float]:
+        # A stand-in for her embedder: the record is what this turn is about.
+        return [1.0 if "record for points" in text else 0.5 if text.startswith("Kobe Bryant:") else 0.0
+                for text in texts]
+
+    grounded = corpus_grounding_for(said, store=store, conversation=[], limit=2, rerank=nearness)
     # The record is in an article the turn never names.
-    assert any("Wilt Chamberlain" in text for _title, text in grounding.passages), grounding.passages
+    assert "Wilt Chamberlain" in grounded.passages[0][1] and grounded.passages[1][0] == "Kobe Bryant"
+    # By words alone the subject's own paragraphs are all it gets.
+    by_words = corpus_grounding_for(said, store=store, conversation=[], limit=2)
+    assert {title for title, _text in by_words.passages} == {"Kobe Bryant"}
 
 
 def test_a_question_is_answered_from_every_paragraph_and_the_careful_lookup_together(tmp_path: Path,
