@@ -139,6 +139,51 @@ async def test_endpoint_capture_releases_input_before_processing_its_pixels(lane
 
 
 @pytest.mark.asyncio
+async def test_neutral_observer_latency_does_not_change_the_paired_physical_interval(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    lane.hers.holding('', lane.clock.at)
+    observed_before = []
+    observed = []
+
+    async def observe(frame):
+        observed.append((frame.lower, lane.hers._held_at(frame.lower), lane.run.held))
+        if not lane.run.held:
+            observed_before.append(frame.lower)
+            lane.clock.at += .2 if len(observed_before) % 2 else .01
+
+    result = await collecting.collect_independent_pixel_trials(experiment, look=lane.look,
+        inputs=lane.inputs, settle_s=.5, sample_s=.1, after_capture=observe)
+    assert result.status == 'complete' and result.trials == 24 and result.release_confirmed
+    spans = [trial.after.lower - trial.before.upper for trial in experiment.trials]
+    assert max(spans) - min(spans) < .001
+    assert all(trial.before.lower not in observed_before for trial in experiment.trials)
+    assert all(trial.down_dispatch == trial.before.upper for trial in experiment.trials)
+    for trial in experiment.trials:
+        baseline = next(row for row in observed if row[0] == trial.before.lower)
+        assert baseline[1][1] == '' and baseline[2] == trial.schedule.key
+
+
+@pytest.mark.asyncio
+async def test_fresh_pre_dispatch_baseline_bridges_material_history(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    observed = []
+
+    async def observe(frame):
+        observed.append(frame.lower)
+        if not lane.run.held:
+            lane.clock.at += .18
+
+    result = await collecting.collect_independent_pixel_trials(experiment, look=lane.look,
+        inputs=lane.inputs, settle_s=.6, sample_s=.2, after_capture=observe)
+    assert result.status == 'complete' and result.release_confirmed
+    for trial in experiment.trials:
+        baseline_index = observed.index(trial.before.lower)
+        previous, baseline, held = observed[baseline_index-1:baseline_index+2]
+        assert held - previous > .35
+        assert baseline - previous <= .35 and held - baseline <= .35
+
+
+@pytest.mark.asyncio
 async def test_resolved_observation_releases_input_without_qualifying_a_partial_cohort(lane):
     experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
     settled = []

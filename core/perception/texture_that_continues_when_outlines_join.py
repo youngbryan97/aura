@@ -83,7 +83,12 @@ def _supported_part(picture: np.ndarray, inside: np.ndarray, thing: Any, motion:
     old, support = thing.patch, thing.support
     if (not isinstance(old, np.ndarray) or not isinstance(support, np.ndarray) or old.ndim != 3
             or support.ndim != 2 or old.shape[:2] != support.shape or old.shape[2] != 3
-            or not support.any() or int(inside.sum()) <= 2 * int(support.sum())):
+            or not support.any()):
+        return None
+    # A thin attached structure can multiply the outline's extent without
+    # doubling foreground pixels. Current texture and marks still decide
+    # whether the proposed smaller material part is actually present.
+    if int(inside.sum()) <= 2 * int(support.sum()) and inside.size <= 2 * support.size:
         return None
     ox, oy, right, bottom = thing.box()
     if not all(math.isfinite(v) for v in (ox, oy, right, bottom)):

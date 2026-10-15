@@ -276,6 +276,12 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
     before = await _captured(look, capture_s, not_before=neutral_began + neutral_s)
     if after_capture is not None:
         await after_capture(before)
+        _guard(inputs, interference, receipts, epoch)
+        if stop_when is not None and stop_when() is True:
+            raise _ObservationResolvedError
+        # Observer service time belongs to the neutral phase. The paired
+        # measurement starts on a later capture immediately before dispatch.
+        before = await _captured(look, capture_s, not_before=before.upper)
     _guard(inputs, interference, receipts, epoch)
     if before.lower < neutral_began or time.monotonic() - before.upper > .75:
         raise _LostEvidenceError("before_outside_neutral")
@@ -288,6 +294,13 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
     # Observation cannot extend a physical press indefinitely. The final
     # cleanup still owns an acknowledgement that outlives this finite wait.
     async with asyncio.timeout(1.05):
+        if after_capture is not None:
+            # Preserve the exact neutral baseline in the ordinary tracker's
+            # history after dispatch. Its capture clock still precedes input.
+            await after_capture(before)
+            _guard(inputs, interference, receipts, epoch, held=held)
+            if stop_when is not None and stop_when() is True:
+                raise _ObservationResolvedError
         for offset in capture_offsets(settle_s, sample_s):
             # A late intermediate slot cannot delay the selected endpoint.
             if offset < settle_s and time.monotonic() > down_ack + offset:
