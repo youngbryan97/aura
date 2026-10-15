@@ -437,3 +437,21 @@ layering, dependency and writing gates passed. Case 18 still exhausts 64
 paths and stops at `Delete`, so neither complete source semantics nor an
 exact source controller is qualified. These new records are not wired into
 task-role binding or used to replace pixels.
+
+`4a68839a1` repairs animated navigation candidates and two outer completion
+bypasses. Case 3 (zero-based Runaway Robot) exposed both: it was left on
+instructions and falsely described as made. The repeat now recorded a
+dynamic `CONTINUE` offered and selected, and ended honestly as time up;
+it still did not clear the instructions or win. Both raw runs and the dated
+navigation/completion evidence are retained. The component and normal
+handover suites passed 84 tests; smoke passed 165 with one skipped, and
+Ruff/layering/dependency/writing gates passed.
+
+Next inspect cursor hit ownership. Small footer arrows lie outside the
+coarse grid's last centre sample, and their hover captions can be displaced
+from the physical hit point. The current cursor-to-label association keeps
+only a boolean, so a later click uses the caption centre. Preserve the
+measured hit, revalidate it before delivery, and record the normal physical
+input without treating delivery as task completion. The non-placement
+maker's internal changed-screen completion heuristic also remains weaker
+than the placement proof; the last change closes outer bypasses only.
