@@ -4,6 +4,7 @@ from typing import Any
 
 def _play_execution_claims() -> tuple:
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
+    from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
     from core.perception.position_from_the_same_points import _surviving_reference_invariant
     from core.perception.recording_the_frames_and_inputs import _recorded_pixel_invariant
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
@@ -24,6 +25,9 @@ def _play_execution_claims() -> tuple:
             ('surviving_marks_need_target_precision', 'core/perception/position_from_the_same_points.py',
              'tests/test_surviving_marks_locate_the_retained_reference.py', lambda: _surviving_reference_invariant() == (),
              'Surviving original marks can retain a coordinate origin through a rigid fit with a finite target precision budget; new names, collinearity and an exhausted budget cannot bridge it.'),
+            ('material_parts_need_one_current_owner', 'core/perception/a_material_observation_from_its_parts.py',
+             'tests/test_material_pieces_keep_one_observed_body.py', lambda: _material_parts_invariant() == (),
+             'Visible foreground pieces can supply one material observation through current named rigid support; competing owners and valid rival outlines refuse their union, and unseen gaps remain unfilled.'),
             *_reward_authority_claims())
 
 

@@ -318,13 +318,17 @@ def _motion_of_retained_marks(thing: Any, points: list[SeenPoint], center: tuple
         return None
     owned = [p for p in points if p.number in pose.anchors and p.number in pose.visible_marks
              and math.dist((p.old_x, p.old_y), pose.visible_marks[p.number]) <= 1e-6]
-    if (len(owned) < max(3, math.ceil(.6*len(pose.anchors)))
+    if (len(owned) < 3
             or len({p.number for p in owned}) != len(owned)):
         return None
     starts = np.asarray([(p.old_x, p.old_y) for p in owned])
     ends = np.asarray([(p.x, p.y) for p in owned])
     fitted = rigid_motion(starts, ends)
     if fitted is None:
+        return None
+    from core.perception.position_from_the_same_points import _reference_error
+
+    if _reference_error(pose, starts, ends, fitted, pose.pixel_size, target=pose.position) > 1.:
         return None
     # Other corners can join only through this observed transform. A larger
     # stationary consensus elsewhere in the outline cannot replace it.
@@ -334,14 +338,14 @@ def _motion_of_retained_marks(thing: Any, points: list[SeenPoint], center: tuple
     extra = [p for p, agrees in zip(points, coherent, strict=True) if agrees and p.number not in pose.anchors]
     used = continuing + extra[:256-len(continuing)]
     retained = set(pose.anchors) & {p.number for p in used}
-    if len(retained) < max(3, math.ceil(.6*len(pose.anchors))):
+    if len(retained) < 3:
         return None
     measured = rigid_motion(np.asarray([(p.old_x, p.old_y) for p in used]),
                             np.asarray([(p.x, p.y) for p in used]))
     if measured is None or np.max(np.linalg.norm(measured.apply(starts)-fitted.apply(starts), axis=1)) > .75:
         return None
     support = [used[index] for index in measured.inliers]
-    if (len(set(pose.anchors) & {p.number for p in support}) < max(3, math.ceil(.6*len(pose.anchors)))
+    if (len(set(pose.anchors) & {p.number for p in support}) < 3
             or len({p.number for p in support}) != len(support)):
         return None
     shift = measured.apply(center)-center

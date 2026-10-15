@@ -13,7 +13,11 @@ from typing import Any
 
 import numpy as np
 
-from core.perception.position_from_the_same_points import PointPose, last_observed_outline
+from core.perception.position_from_the_same_points import (
+    PointPose,
+    _reference_error,
+    last_observed_outline,
+)
 from core.perception.rigid_motion_from_named_points import rigid_motion
 from core.verify import invariant
 
@@ -28,11 +32,14 @@ def material_matches(things: dict[int, Any], blobs: list[dict], motions: dict, a
         previous, current = marks
         for index, blob in enumerate(blobs):
             names = [name for name, place in current.items() if _owns(blob, place)]
-            if len(names) < max(3, math.ceil(.6*len(previous)), math.ceil(.6*len(current))):
+            if len(names) < max(3, math.ceil(.6*len(current))):
                 continue
             starts = np.asarray([previous[name] for name in names])
             ends = np.asarray([current[name] for name in names])
-            if rigid_motion(starts, ends) is not None:
+            fitted = rigid_motion(starts, ends)
+            pose = thing.point_pose
+            if fitted is not None and _reference_error(pose, starts, ends, fitted,
+                    pose.pixel_size, target=pose.position) <= 1.:
                 pairs.append((number, index))
     by_thing, by_blob = Counter(n for n, _i in pairs), Counter(i for _n, i in pairs)
     return {n: i for n, i in pairs if by_thing[n] == by_blob[i] == 1}
@@ -56,7 +63,7 @@ def _continuing_marks(thing: Any, motion: Any, at: float) -> tuple[dict, dict] |
                 if type(name) is int and _owns_thing(thing, place)}
     current = {name: place for name, place in zip(names, locations, strict=True) if name in previous}
     if (len(previous) != len(pose.visible_marks)
-            or len(current) < max(3, math.ceil(.6*len(previous)), math.ceil(.6*len(names)))):
+            or len(current) < max(3, math.ceil(.6*len(names)))):
         return None
     return previous, current
 

@@ -70,3 +70,37 @@ def test_the_surviving_reference_contract_is_registered():
     install_realtime_control_claims(suite)
     check = next(t for t in suite.tests() if t.name == 'surviving_marks_need_target_precision')
     assert check.predict(None) and any(c.test == check.name for c in suite.claims())
+
+
+@pytest.mark.parametrize('departure', ['', 'two_survive', 'collinear', 'spent_precision', 'other_birth'])
+def test_geometric_qualification_reaches_point_motion_material_matching_and_position(departure):
+    from core.perception.points_that_keep_their_motion import FollowingPoints, SeenPoint
+    from tests.test_continuing_material_survives_a_changed_outline import scene
+
+    eyes, body, blob, original = scene()
+    pose = body.point_pose
+    for n, point in enumerate(((17., 29.), (23., 29.), (17., 33.), (23., 33.), (20., 30.), (20., 32.)), 4):
+        pose.visible_marks[n] = point
+        pose.anchors[n] = (point[0]-10., point[1])
+    if departure == 'spent_precision':
+        pose.reference_error = .999
+    elif departure == 'other_birth':
+        pose.born = 0.
+    names = (0, 1) if departure == 'two_survive' else (0, 1, 2, 3)
+    if departure == 'collinear':
+        for n in names:
+            pose.visible_marks[n] = (16.+2*n, 31.)
+    following = FollowingPoints()
+    following.points = tuple(SeenPoint(n, x+3., y, x, y, .5, 1., 1.1, .01, 3)
+                             for n in names for x, y in [pose.visible_marks[n]])
+    motion = following.motion_of(body, 1.1)
+    if departure:
+        assert motion is None
+        return
+    assert motion is not None and motion.support == 4  # four of ten original anchors survive
+    eyes._point_motion = {body.number: motion}
+    assert eyes._cost(body, blob, 1.1) == float('inf')  # outline alone still refuses the change
+    assert eyes._match([blob], 1.1) == ({body.number: 0}, [])
+    eyes._moved(body, blob, 1.1)
+    assert body.point_pose.reference_at == .8 and body.born == .5
+    assert body.motion_position == pytest.approx((23., 20.)) and body.motion_measured_at == 1.1

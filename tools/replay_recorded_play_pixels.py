@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 import time
 from collections import Counter
@@ -62,7 +63,30 @@ def recorded_picture(directory: Path, event: dict) -> np.ndarray:
     return picture
 
 
-def replay(directory: Path, limit: int = 1000) -> dict:
+def control_histories(events: list[dict]) -> dict[int, list[tuple]]:
+    """Only actual actor snapshots can label an input as an independent trial."""
+    streams, stream = {}, 0
+    for event in events:
+        if event['kind'] == 'stream_started':
+            stream += 1
+            streams[stream] = {}
+        elif event['kind'] == 'control_observation' and stream:
+            since, key, trying = event['held_since'], event['held'], event['trying']
+            if since is not None:
+                if (isinstance(since, bool) or not isinstance(since, (int, float)) or not math.isfinite(since)
+                        or not isinstance(key, str) or type(trying) is not bool):
+                    raise ValueError('input ownership snapshot is unmeasured')
+                prior = streams[stream].setdefault(since, (key, trying))
+                if prior != (key, trying):
+                    raise ValueError('conflicting input ownership snapshots')
+    if not streams or any(not history for history in streams.values()):
+        raise ValueError('control replay requires actual actor ownership snapshots in every stream')
+    if any(e['kind'] == 'input' and e['method'] not in ('up', 'down') for e in events):
+        raise ValueError('this control replay does not reconstruct combined or pointer input')
+    return {n: [(at, key, trying) for at, (key, trying) in sorted(history.items())] for n, history in streams.items()}
+
+
+def replay(directory: Path, limit: int = 1000, *, replay_control: bool = False) -> dict:
     from core.perception.frames_as_they_are_drawn import CanvasFrameTime
     from core.perception.translation_from_visible_support import motion_status
     from core.perception.what_moves_in_the_picture import WhatMoves, prepare_play_vision
@@ -70,16 +94,25 @@ def replay(directory: Path, limit: int = 1000) -> dict:
     manifest = json.loads((directory / 'manifest.json').read_text())
     if manifest.get('schema') != 'aura.pixel_input_recording.v1':
         raise ValueError('unknown recording schema')
+    if replay_control and not manifest.get('complete'):
+        raise ValueError('control replay requires a complete input recording')
     events = [json.loads(line) for line in (directory / 'events.jsonl').read_text().splitlines()]
     sequences = [e['sequence'] for e in events]
     if any(b <= a for a, b in zip(sequences, sequences[1:], strict=False)):
         raise ValueError('recording event order is invalid')
+    histories = control_histories(events) if replay_control else None
     prepare_play_vision()
-    moves, streams, frames, statuses, inputs = None, 0, [], Counter(), []
+    moves, hers, streams, frames, statuses, inputs = None, None, 0, [], Counter(), []
     for event in events:
         if event['kind'] == 'stream_started':
             moves = WhatMoves(kinds=moves.kinds if moves else None)
             streams += 1
+            if histories is not None:
+                from core.agency.which_one_answers_to_her import WhichIsHers
+
+                hers = WhichIsHers()
+                for when, key, trying in histories[streams]:
+                    hers.holding(key, when, trying=trying)
         elif event['kind'] == 'input':
             inputs.append(event)
         elif event['kind'] == 'frame':
@@ -93,6 +126,8 @@ def replay(directory: Path, limit: int = 1000) -> dict:
                   else float(capture['at']))
             began = time.perf_counter()
             happened = moves.see(picture, at)
+            if hers is not None:
+                hers.saw(moves, happened, at)
             duration = time.perf_counter() - began
             things = []
             for thing in moves.things.values():
@@ -109,9 +144,14 @@ def replay(directory: Path, limit: int = 1000) -> dict:
                 drawing_scene_omitted=event.get('drawing_scene_present', False), duration_s=duration,
                 working_shape=list(moves.shape), things=things,
                 events=[{k: v for k, v in e.items() if k in ('what', 'thing', 'kind', 'at')} for e in happened],
+                control_selected=hers.number if hers is not None else None,
+                control_evidence=[dict(number=int(n), ratio=list(s.ratio()),
+                    pushes={key: len(values) for key, values in s.pushes().items()})
+                    for n, s in hers._by_thing.items()] if hers is not None else None,
                 points=len(moves.points.points), retained_points=sum(p.pictures >= 2 for p in moves.points.points)))
-    return dict(scope='pixel-only perception replay; no control identity or gameplay qualification',
+    return dict(scope='pixel-only replay on recorded controls; changed policy and gameplay outcomes are not replayed',
                 recording=manifest, replayed_frames=len(frames), streams=streams,
+                replayed_actor_control_flags=replay_control,
                 statuses=dict(statuses), frames=frames, inputs=inputs, presentation_qualified=False)
 
 
@@ -119,12 +159,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('recording', type=Path)
     parser.add_argument('--limit', type=int, default=1000)
+    parser.add_argument('--replay-control', action='store_true')
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
     if args.out.exists() or not 1 <= args.limit <= 10000:
         parser.error('use a fresh output and a frame limit between one and ten thousand')
     with point_diagnostics() as points:
-        result = replay(args.recording, args.limit)
+        result = replay(args.recording, args.limit, replay_control=args.replay_control)
         result['point_diagnostics'] = points
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway

@@ -127,7 +127,7 @@ def _continue_rotating_marks(thing: Any, previous: PointPose, current: dict, nam
 
 
 def _reference_error(previous: PointPose, starts: np.ndarray, ends: np.ndarray, fit: Any,
-                     pixel_size: float) -> float:
+                     pixel_size: float, *, target: tuple | None = None) -> float:
     """An RMS precision budget at the retained origin, including its lever arm.
 
     First-order rigid-registration geometry separates residual at marks from
@@ -143,7 +143,7 @@ def _reference_error(previous: PointPose, starts: np.ndarray, ends: np.ndarray, 
         return math.inf
     residual = float(np.mean(np.sum((fit.apply(before)-observed)**2, axis=1)))
     variance = residual + (.25 * max(previous.pixel_size, pixel_size))**2
-    lever = float(np.sum((np.asarray(previous.origin)-before.mean(axis=0))**2))
+    lever = float(np.sum((np.asarray(previous.origin if target is None else target)-before.mean(axis=0))**2))
     return math.sqrt(previous.reference_error**2 + variance*(2./len(before) + lever/spread))
 
 

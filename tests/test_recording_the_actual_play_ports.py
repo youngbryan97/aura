@@ -154,3 +154,21 @@ async def test_actual_control_sample_counts_remain_separate_from_input_delivery(
     assert event['kind'] == 'control_observation' and event['selected'] is None
     assert event['trying'] and event['evidence'][0]['presses'][0]['samples'] == 1
     assert event['evidence'][0]['ratio'] == [0., 0.]
+
+
+def test_control_replay_uses_observed_independence_and_refuses_missing_or_conflicting_ownership():
+    from tools.replay_recorded_play_pixels import control_histories
+
+    events = [dict(kind='stream_started'),
+              dict(kind='control_observation', held_since=1., held='a', trying=False),
+              dict(kind='control_observation', held_since=2., held='', trying=True)]
+    assert control_histories(events) == {1: [(1., 'a', False), (2., '', True)]}
+    with pytest.raises(ValueError, match='conflicting'):
+        control_histories(events+[dict(kind='control_observation', held_since=1., held='a', trying=True)])
+    with pytest.raises(ValueError, match='every stream'):
+        control_histories([dict(kind='stream_started')])
+    with pytest.raises(ValueError, match='combined or pointer'):
+        control_histories(events+[dict(kind='input', method='tap')])
+    with pytest.raises(ValueError, match='unmeasured'):
+        control_histories([dict(kind='stream_started'),
+                           dict(kind='control_observation', held_since=float('nan'), held='a', trying=True)])

@@ -1075,6 +1075,12 @@ class WhatMoves:
         scene = getattr(picture, "drawing_scene", None)
         if scene is not None and masks is not None:
             blobs = self._drawn_objects(scene, small, masks[0])
+        from core.perception.a_material_observation_from_its_parts import (
+            material_observations_from_parts,
+        )
+
+        blobs = material_observations_from_parts(small, blobs, {**self.things, **self.pending},
+                                                 self._point_motion, at, outline_cost=self._cost)
         matched, fresh = self._match(blobs, at)
         for number, index in matched.items():
             self._moved(self.things.get(number) or self.pending[number], blobs[index], at)
