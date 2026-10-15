@@ -68,7 +68,7 @@ async def try_a_facing_control(hands: Any, run: Any, hers: Any, choosing: Any, a
     if owner is not None and programme is None:
         return False
     seconds = observed_response_seconds(getattr(run, "intervals", ()), least_s=seconds, settle_s=SETTLE_S,
-                                        samples=4, span_s=.15, longest_s=max(seconds, LONGEST_TURN_S)) or seconds
+                                        samples=4, span_s=.15, longest_s=max(4 * seconds, LONGEST_TURN_S)) or seconds
     if ((programme.issued >= programme.limit if programme is not None else run.facing_trials >= limit)
             or at - run.tried_at < seconds):
         return False

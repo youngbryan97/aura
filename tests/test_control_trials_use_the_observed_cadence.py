@@ -190,6 +190,49 @@ def test_a_counter_experiment_keeps_its_chosen_phase_time():
     assert trial.phase_seconds == .6
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize('cadence', [.21, .25, .3, .35])
+async def test_facing_calibration_does_not_shorten_an_observable_request_to_the_default(cadence):
+    import math
+    import time
+
+    from core.agency.a_trial_has_a_physical_end import cancel_trial_deadline
+    from core.agency.giving_a_trial_time import try_a_facing_control
+    from core.agency.inputs_while_measuring_control import hold_control
+    from core.agency.which_way_she_faces import WhichWaySheFaces
+
+    run = play._Run(keys=['drive', 'bend-a', 'bend-b'], began=time.monotonic(), tried_at=-math.inf)
+    run.faces = WhichWaySheFaces()
+    run.faces.heading_hints.add('drive')
+    run.intervals.extend([cadence] * 6)
+    hers = WhichIsHers()
+    hers.number, hers.kind = 1, 1
+    choosing = SimpleNamespace(mine=SimpleNamespace(number=1, born=0.))
+    delivered = []
+
+    class Hands:
+        async def down(self, key):
+            delivered.append(('down', key))
+
+        async def up(self, key):
+            delivered.append(('up', key))
+
+    hands = Hands()
+    try:
+        assert await try_a_facing_control(hands, run, hers, choosing, time.monotonic(),
+            hold=hold_control, seconds=.45, limit=10)
+        trial = run.facing_trial
+        duration = trial.until - trial.began
+        assert duration >= .2 + 4 * cadence - 1e-9 and duration <= 1.8
+        assert trial.began == run.held_since and run.held == 'drive'
+        assert delivered == [('down', 'drive')]
+        assert run._input_clock_receipts[-1][2] == 'drive'
+    finally:
+        cancel_trial_deadline(run)
+        if run.held:
+            await hold_control(hands, run, hers, '', time.monotonic())
+
+
 def test_the_observation_time_has_a_registered_measured_claim():
     from core.agency.time_to_observe_a_control import _observation_time_invariant
     from core.organism.claims_realtime_control import install_realtime_control_claims
