@@ -500,15 +500,18 @@ def _bounded_pixel_claims() -> tuple:
         _navigation_occurrence_invariant,
     )
     from core.agency.pixels_inside_control_trials import _pixel_trial_custody_invariant
+    from core.agency.probes_from_source_arithmetic import _conditional_source_probe_invariant
     from core.agency.searching_before_a_body_is_known import _pixel_search_phase_invariant
     from core.perception.a_region_that_answers_independent_inputs import _pixel_cohort_invariant
     from core.perception.a_search_hint_for_these_pixels import _pixel_search_hint_invariant
     from core.perception.boundary_support_for_translation import _bounded_edge_samples_invariant
+    from core.perception.flash_actions_with_source import _action_address_invariant
     from core.perception.frames_as_they_are_drawn import _canvas_capture_bounds_invariant
     from core.perception.learned_tracking.continuity_backend import _continuity_invariant
     from core.perception.learned_tracking.points_for_the_motion_eyes import (
         _query_lifetime_invariant,
     )
+    from core.perception.motion_inside_source_methods import _source_motion_conditions_invariant
     from core.perception.pixel_motion_before_object_identity import (
         _pixel_motion_bound_invariant,
         _translation_layer_invariant,
@@ -524,6 +527,15 @@ def _bounded_pixel_claims() -> tuple:
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("conditional_source_arithmetic_only_orders_body_probes", "core/agency/probes_from_source_arithmetic.py",
+         "tests/test_source_arithmetic_reaches_body_probes.py", lambda: _conditional_source_probe_invariant() == (),
+         "Conditional source vector increments can order already authorized body probes without supplying physical units, signed controls or a visible identity."),
+        ("flash_action_branches_keep_exact_byte_boundaries", "core/perception/flash_actions_with_source.py",
+         "tests/test_flash_actions_keep_their_control_flow.py", lambda: _action_address_invariant() == (),
+         "Flash action source records retain exact branch destinations and refuse branches into instruction payloads."),
+        ("source_motion_keeps_unresolved_branch_conditions", "core/perception/motion_inside_source_methods.py",
+         "tests/test_motion_inside_source_methods.py", lambda: _source_motion_conditions_invariant() == (),
+         "Source arithmetic keeps unresolved branch conditions separate from unconditional physical models."),
         ("experiment_observations_preserve_scene_transitions", "core/agency/an_observed_scene_transition.py",
          "tests/test_pixel_search_observes_its_physical_trials.py", lambda: _observed_transition_invariant() == (),
          "A screen transition observed during an input experiment retires the partial cohort, releases input and clears the prior scene's spatial plans."),

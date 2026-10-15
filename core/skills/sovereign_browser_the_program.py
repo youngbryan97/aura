@@ -27,7 +27,7 @@ logger = logging.getLogger("Skills.SovereignBrowser.TheProgram")
 MOST_BYTES = 40 * 1024 * 1024
 MOST_PROGRAMS = 6
 #: Which reading of programs a kept read was made by: one made by an earlier reader is read again.
-READER = 6
+READER = 7
 
 #: The most of a page's own scripts read for its world, in characters, all of them together.
 MOST_SCRIPT_TEXT = 2_000_000

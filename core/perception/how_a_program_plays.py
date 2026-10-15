@@ -122,6 +122,8 @@ class HowItPlays:
     #: Where a level is passed by covering ground: the cells it marks as covered (width, height, in stage pixels),
     #: the rectangle play is kept inside (left, top, right, bottom) where it says, and what counts the cells.
     covers: dict[str, Any] = field(default_factory=dict)
+    #: Arithmetic proposals retain their unresolved conditions separately from body physics.
+    source_motion: Any = None
 
     def keys_for(self, does: str) -> list[str]:
         return [key for key, what in self.keys.items() if what.does == does]
@@ -525,20 +527,26 @@ def kept(plays: HowItPlays | None) -> dict[str, Any]:
     """What a program was read to say of how it is played, as plain data to be kept with the read."""
     if not plays:
         return {}
+    from core.perception.motion_inside_source_methods import kept as motion_kept
+
     return {"keys": {k: [a.does, a.by, a.where] for k, a in plays.keys.items()}, "hers": dict(plays.hers),
             "ends": [[e.kind, e.happens, e.when, e.where, dict(e.made_of)] for e in plays.ends],
             "stage": list(plays.stage), "covers": {k: list(v) if isinstance(v, tuple) else v
-                                                   for k, v in plays.covers.items()}}
+                                                   for k, v in plays.covers.items()},
+            "source_motion": motion_kept(plays.source_motion)}
 
 
 def unkept(held: Any) -> HowItPlays | None:
     """What was kept of how a program plays, as it was read; None where nothing was."""
     if not isinstance(held, dict) or not held:
         return None
+    from core.perception.motion_inside_source_methods import unkept as motion_unkept
+
     try:
         covers = {k: tuple(v) if isinstance(v, list) else v for k, v in (held.get("covers") or {}).items()}
         return HowItPlays(keys={k: AKey(k, *v) for k, v in (held.get("keys") or {}).items()},
                           hers=dict(held.get("hers") or {}), ends=[AnEnd(*e) for e in held.get("ends") or []],
-                          stage=tuple(held.get("stage") or (0.0, 0.0)), covers=covers) or None
+                          stage=tuple(held.get("stage") or (0.0, 0.0)), covers=covers,
+                          source_motion=motion_unkept(held.get('source_motion'))) or None
     except TypeError:
         return None

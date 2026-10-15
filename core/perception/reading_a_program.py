@@ -111,6 +111,8 @@ class ProgramRead:
     #: Its world as its code makes it: her body's physics, the ground, the clock
     #: (core/perception/a_world_as_its_code_makes_it.py).
     world: Any = None
+    #: Exact immutable instruction sources are available while this program read is current.
+    action_sources: Any = None
 
     def __bool__(self) -> bool:
         return bool(self.text or self.keys or self.words or self.pointer or self.mechanics_found or self.world)
@@ -268,6 +270,16 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
         from core.perception.how_a_program_plays import how_it_plays
 
         plays = how_it_plays(statements, got.get("stage") or (0.0, 0.0))
+        from core.perception.flash_action_sources import read_flash_action_streams
+        from core.perception.motion_inside_source_methods import (
+            SourceMethodMotion,
+            motion_in_source_methods,
+        )
+
+        action_sources = read_flash_action_streams(data)
+        plays.source_motion = (motion_in_source_methods(statements, plays.keys, got.get('frames_a_second'),
+                                                        source=action_sources.source) if action_sources.complete else
+                               SourceMethodMotion(unknown=('bytecode source is incomplete',), source=action_sources.source))
         from core.perception.a_world_as_its_code_makes_it import from_how_it_plays
 
         world = from_how_it_plays(plays, got.get("frames_a_second"))
@@ -282,7 +294,7 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
         texts = re.findall(r"(?:\"([^\"\n]{12,240})\"|'([^'\n]{12,240})'|>([^<>\n]{12,240})<)", code)
         texts = [next(t for t in group if t) for group in texts]
         kind, labels = "script" if not re.search(r"<html|<body", code[:4000], re.I) else "page", []
-        plays = world = None
+        plays = world = action_sources = None
     text = "\n".join([code, *texts, " ".join(names), " ".join(labels)])[:MOST_TEXT].lower()
     pointer = [way for way, sign in _POINTER.items() if sign.search(text)]
     keys = {key: purpose for key, purpose in _keys_in(text, names).items() if purpose != "cheat"}
@@ -291,7 +303,8 @@ def read_program(data: bytes, name: str = "") -> ProgramRead:
     return ProgramRead(words=prose[:80], keys=keys, keyed=_acts_keyed(names), pointer=pointer,
                        buttons=_buttons_in(names),
                        names=[n for n in names if 3 <= len(n) <= 32][:600], labels=labels[:200], text=text, kind=kind,
-                       code=statements[:40_000], plays=plays or None, world=world or None)
+                       code=statements[:40_000], plays=plays or None, world=world or None,
+                       action_sources=action_sources)
 
 
 def merged(reads: list[ProgramRead]) -> ProgramRead:
@@ -311,5 +324,6 @@ def merged(reads: list[ProgramRead]) -> ProgramRead:
         out.code += read.code
         out.plays = out.plays or read.plays
         out.world = out.world or read.world
+        out.action_sources = out.action_sources or read.action_sources
     return out
 

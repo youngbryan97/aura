@@ -130,6 +130,8 @@ class HowItWorks:
     translating_keys_from_code: tuple[str, ...] = ()
     #: Emission experiments have their own receipts and need no body-motion response.
     emission_keys_from_code: tuple[str, ...] = ()
+    #: Conditional source arithmetic orders probes without claiming physical units or response.
+    source_trial_keys: tuple[str, ...] = ()
     #: Which optional geometric checks agree with the described activity; absent entries remain unresolved.
     picture_checks: dict[str, Answer] = field(default_factory=dict)
 
@@ -256,6 +258,9 @@ def understood(guide: Any, also: str = "") -> HowItWorks:
         getattr(how, axis).held_to(answer.value, answer.sure, answer.why[0] if answer.why else "")
     how.body_keys_from_code = _body_controls_from_code(guide)
     how.translating_keys_from_code = _translating_controls_from_code(guide)
+    from core.agency.probes_from_source_arithmetic import source_motion_trial_keys
+
+    how.source_trial_keys = source_motion_trial_keys(guide, how.body_keys_from_code)
     world = getattr(guide, 'world_its_code_makes', None)
     how.emission_keys_from_code = tuple(key for key in (getattr(world, 'sends', None) or {})
                                         if key in controls and getattr(world, 'hers', None) is not None)

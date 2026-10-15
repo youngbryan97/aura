@@ -74,7 +74,8 @@ def eligible_pixel_search(run: Any, hers: Any, moves: Any, at: float, remaining:
             or getattr(run, "letting_go", ()) or getattr(getattr(run, "charging", None), "key", "")):
         return None
     controls = tuple(k for k in (how.body_keys_from_code or how.keys_for_body_trials(keys)) if k in keys)
-    return _pair(controls, getattr(how, "translating_keys_from_code", ()))
+    return _pair(controls, (*getattr(how, 'translating_keys_from_code', ()),
+                            *getattr(how, 'source_trial_keys', ())))
 
 
 async def search_after_unresolved_body(hands: Any, run: Any, hers: Any, moves: Any, *,
