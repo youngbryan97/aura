@@ -49,6 +49,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--domain", action="append", required=True, help="NAME=DIR, DIR holding rows/kept")
     parser.add_argument("--drop-groups", action="append", default=[], help="NAME=g1,g2: groups left out of NAME")
+    parser.add_argument("--kept", default="kept", help="the folder under rows/ holding the kept arm's rows")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
 
@@ -60,7 +61,7 @@ def main() -> int:
     for spec in args.domain:
         name, directory = spec.split("=", 1)
         by_domain[name].extend(json.loads(p.read_text(encoding="utf-8"))
-                               for p in sorted((Path(directory).expanduser() / "rows" / "kept").glob("*.json")))
+                               for p in sorted((Path(directory).expanduser() / "rows" / args.kept).glob("*.json")))
     report: dict[str, Any] = {"domains": {}, "dropped": {}}
     pooled: list[dict[str, Any]] = []
     for name, every in by_domain.items():
