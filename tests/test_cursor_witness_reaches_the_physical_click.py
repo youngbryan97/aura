@@ -215,3 +215,38 @@ def test_invalid_declared_scope_cannot_be_replaced_by_an_assumed_viewport(bounds
     from core.skills.screen_pursuit_on_a_page import _cursor_scope
 
     assert _cursor_scope(_Page(), _reading(bounds=bounds), None) is None
+
+
+@pytest.mark.asyncio
+async def test_current_corners_find_an_independently_drawn_small_control_with_a_sparse_probe():
+    import numpy as np
+
+    from core.perception.observed_transfer import ScreenReading, make_snapshot
+    from core.perception.where_the_pointer_turns import _corner_queries_invariant, corners_to_query
+
+    picture = np.full((160, 240, 3), 30, np.uint8)
+    picture[141:155, 137:152] = 245
+    reading = ScreenReading({}, picture_snapshot=make_snapshot(picture))
+    hints = corners_to_query(reading)
+    page = _Page()
+    page.cursor = lambda x, y: 'pointer' if 137/240 <= x/1000 < 152/240 and 141/160 <= y/700 < 155/160 else 'auto'
+    movements = []
+
+    async def move(x, y, **kwargs):
+        movements.append((x, y))
+        await page.move(x, y, **kwargs)
+
+    page.mouse.move = move
+    found = await where_the_pointer_turns(page, hints=hints)
+    assert found and all(page.cursor(x*1000, y*700) == 'pointer' for x, y in found)
+    assert len(movements) < 50
+    assert _corner_queries_invariant() == ()
+
+
+@pytest.mark.asyncio
+async def test_corners_on_a_surface_with_no_local_cursor_evidence_do_not_invent_targets():
+    page = _Page()
+    page.cursor = lambda x, y: 'pointer'
+    assert await where_the_pointer_turns(page, hints=((.4, .4), (.6, .6))) == []
+    page.cursor = lambda x, y: 'auto'
+    assert await where_the_pointer_turns(page, hints=((.4, .4), (.6, .6))) == []

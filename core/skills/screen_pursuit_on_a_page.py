@@ -217,7 +217,11 @@ class OnAPage:
     async def _where_the_pointer_turns(self, seen: dict[str, Any], over: tuple[float, float, float, float] | None) -> None:
         """Once a screen, the places on it where the pointer turns into a hand (core/perception/where_the_pointer_turns.py),
         among the shapes she may click: a doorway or a hidden thing looks like nothing in particular."""
-        from core.perception.where_the_pointer_turns import the_thing_there, where_the_pointer_turns
+        from core.perception.where_the_pointer_turns import (
+            corners_to_query,
+            the_thing_there,
+            where_the_pointer_turns,
+        )
 
         scope = _cursor_scope(self.page, seen, over)
         if scope is None:
@@ -229,7 +233,10 @@ class OnAPage:
         if known is not None and key[-1] is not None and known.key == key and known.places:
             places = known.places
         else:
-            sampled = await where_the_pointer_turns(self.page, over)
+            hinted = tuple(((bounds[0]+x*bounds[2]-scan[0])/scan[2],
+                            (bounds[1]+y*bounds[3]-scan[1])/scan[3]) for x, y in corners_to_query(seen))
+            hinted = tuple((x, y) for x, y in hinted if 0 <= x <= 1 and 0 <= y <= 1)
+            sampled = await where_the_pointer_turns(self.page, over, hints=hinted) if hinted else await where_the_pointer_turns(self.page, over)
             places = tuple(((scan[0]+x*scan[2]-bounds[0])/bounds[2],
                             (scan[1]+y*scan[3]-bounds[1])/bounds[3]) for x, y in sampled)
             places = tuple((x, y) for x, y in places if 0 <= x <= 1 and 0 <= y <= 1)

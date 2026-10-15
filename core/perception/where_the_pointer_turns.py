@@ -21,9 +21,62 @@ import math
 import weakref
 from typing import Any
 
+from core.verify import invariant
+
 __all__ = ["places_the_pointer_turns", "shown_as_a_hand", "the_thing_there", "where_the_hand_is_now", "where_the_pointer_turns"]
 
 logger = logging.getLogger("Aura.WhereThePointerTurns")
+
+
+def corners_to_query(seen: Any) -> tuple[tuple[float, float], ...]:
+    """Current image corners propose pointer queries, without click authority."""
+    from core.perception.observed_transfer import _pixels, freeze_screen
+    from core.perception.points_that_keep_their_motion import _grey, _new_points
+
+    frame = freeze_screen(seen)
+    picture = _pixels(frame.picture) if frame.picture is not None else None
+    if picture is None or min(picture.shape[:2]) < 16:
+        return ()
+    height, width = picture.shape[:2]
+    return tuple(((x+.5)/width, (y+.5)/height) for x, y in _new_points(_grey(picture), [], 32))
+
+
+async def _local_hints(page: Any, hints: tuple, over: tuple, size: tuple) -> list[tuple[float, float]]:
+    """A sparse proposal needs both current positive and negative cursor evidence."""
+    if (not hints or len(hints) > 32 or any(len(p) != 2 or any(type(v) not in (int, float)
+            or not math.isfinite(v) or not 0 <= v <= 1 for v in p) for p in hints)):
+        return []
+    left, top, right, bottom = over
+    wide, tall = size
+    controls = tuple((x, y) for x in (.125, .375, .625, .875) for y in (.2, .8))
+    points = (*hints, *controls)
+    shown = await _shown_at_each(page, [((left+(right-left)*x)*wide, (top+(bottom-top)*y)*tall) for x, y in points])
+    if len(shown) != len(points) or not any(cursor not in _A_HAND for cursor in shown[len(hints):]):
+        return []
+    positive = list(dict.fromkeys(p for p, cursor in zip(hints, shown[:len(hints)], strict=True) if cursor in _A_HAND))
+    # Keep a positive sample, then spread the finite returned set. Averaging
+    # points can put a proposed click in a hole between real hit regions.
+    selected = []
+    while positive and len(selected) < MOST:
+        point = max(positive, key=lambda p: min(((p[0]-x)**2+(p[1]-y)**2 for x, y in selected), default=0.))
+        selected.append(point)
+        positive.remove(point)
+    return selected
+
+
+@invariant('perception.picture_corners_propose_cursor_queries', scope='perception',
+           owner='core/perception/where_the_pointer_turns.py', observational=False)
+def _corner_queries_invariant() -> tuple:
+    import numpy as np
+
+    from core.perception.observed_transfer import ScreenReading, make_snapshot
+
+    picture = np.zeros((80, 100, 3), dtype=np.uint8)
+    picture[20:45, 30:65] = 240
+    hints = corners_to_query(ScreenReading({}, picture_snapshot=make_snapshot(picture)))
+    assert 0 < len(hints) <= 32 and all(0 < x < 1 and 0 < y < 1 for x, y in hints)
+    assert corners_to_query({}) == ()
+    return ()
 
 #: The grid the pointer is swept over, across and down.
 ACROSS, DOWN = 12, 9
@@ -191,7 +244,8 @@ def places_the_pointer_turns(hands: set[tuple[int, int]], across: int = ACROSS, 
     return [(x, y) for x, y, _size in places[:MOST]]
 
 
-async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, float] | None = None) -> list[tuple[float, float]]:
+async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, float] | None = None, *,
+                                hints: tuple[tuple[float, float], ...] = ()) -> list[tuple[float, float]]:
     """The places in ``over`` (shares of the page's view, left, top, right, bottom) where the pointer turns into a
     hand, as shares of ``over``; none where the page cannot be asked."""
     size = getattr(page, "viewport_size", None) or {}
@@ -201,6 +255,14 @@ async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, fl
     left, top, right, bottom = over or (0.0, 0.0, 1.0, 1.0)
     if not all(math.isfinite(value) for value in (left, top, right, bottom)) or not (0 <= left < right <= 1 and 0 <= top < bottom <= 1):
         return []
+    if hints:
+        try:
+            found = await _local_hints(page, hints, (left, top, right, bottom), (width, height))
+            if found:
+                logger.info('where current picture corners answer the pointer: %s', [(round(x, 3), round(y, 3)) for x, y in found])
+                return found
+        except Exception as why:  # noqa: BLE001 - an unqualified sparse probe keeps the complete existing sweep
+            logger.info('picture-corner cursor queries did not qualify: %s', str(why)[:120])
     cells = [(column, row) for row in range(DOWN) for column in range(ACROSS)]
     try:
         shown = await _shown_at_each(page, [((left + (right - left) * (column + 0.5) / ACROSS) * width,
