@@ -172,3 +172,33 @@ Rounds, lines, decoding, requests and the claims are unchanged.
 
 Correction to the amendment above: its "round 2" is round 1 in the run's log,
 which counts from 0, as the 17:10 amendment's "round 0" does.
+
+## Amendment, 15 October 2026, 13:55, while attempt 3's drafts run, before any analysis or verdict
+
+The kept arm graded a kept procedure's answer with the harness's grader. For
+a BBH task that grader reads the answer out of "So the answer is ...", so it
+failed every bare answer a procedure returns, right ones included. It showed
+as the first kept arm, BBH boolean expressions: 28 answered, 0 right, against
+28 right drafts. To find the cause I ran the kept procedures on six test
+requests of every attempt 3 domain and graded each answer both ways. On each
+of the 11 kept BBH kinds the harness grader marked 0 of 6 right and BBH's own
+matching of the answer, which admitted the procedures, marked 6 of 6. For the
+math modules and both planning domains the two graders agreed on every
+sampled answer.
+
+The kept arm now grades a procedure's answer by its kind's own answer matching
+(tools/induce_g09_procedures.grader_for), and keeps the harness's grader for a
+domain the induction has no grader for (13fa5051a on the pinned prefill
+commit; on main with this amendment). Boolean expressions' kept rows graded
+the old way are kept beside the new ones (rows/kept.harness-grader-20261015);
+regraded, 28 of 28 are right, as the drafts are. No draft is decoded again.
+
+The same look showed the router sending requests of some kept math modules
+(add and subtract several numbers, mixed arithmetic, division, whether one
+number divides another) and of the routing-only MATH requests to procedures
+of other kinds, multiplication's above all, whose answers are wrong for them.
+That is the system this attempt tests, as preregistered, and it is left as it
+is: changing the router after seeing test answers would fit it to the test.
+Its losses count.
+
+Rounds, lines, decoding, requests, routing and the claims are unchanged.
