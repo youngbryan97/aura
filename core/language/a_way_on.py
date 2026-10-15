@@ -18,7 +18,7 @@ import re
 from core.language.learned_matcher import LearnedMatcher
 from core.language.model_features import model_hidden_features
 
-__all__ = ["asks_to_choose", "confirms", "how_much_it_leads_on", "nearly_says", "offers_a_way_on",
+__all__ = ["asks_to_choose", "confirms", "how_much_it_leads_on", "label_is_a_way_on", "nearly_says", "offers_a_way_on",
            "says_it_is_being_made_ready", "says_it_is_paused"]
 
 #: Labels that go on, whole: a label that merely contains "play" ("Display")
@@ -125,6 +125,11 @@ def offers_a_way_on(said: str) -> bool:
             if _GOES_ON.match(phrase) or _GOES_ON.match(phrase.rstrip("! ")):
                 return True
     return False
+
+
+def label_is_a_way_on(label: str) -> bool:
+    """Whether the whole measured label names a navigation control, without a learned guess."""
+    return bool(_GOES_ON.fullmatch(_plain(label).rstrip('! ')))
 
 
 #: An unnamed shape, by where it is ("the shape at 95% across, 90% down").

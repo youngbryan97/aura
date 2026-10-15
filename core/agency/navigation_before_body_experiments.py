@@ -9,11 +9,11 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from core.agency.pixels_inside_control_trials import FrozenPixelFrame, freeze_frame
-from core.language.a_way_on import asks_to_choose, confirms
+from core.language.a_way_on import asks_to_choose, label_is_a_way_on
 from core.perception.observed_transfer import PixelSnapshot, ScreenReading, make_snapshot
 from core.perception.words_kept_with_their_pixels import WordsWithPixels, words_with_their_pixels
 from core.verify import invariant
@@ -24,6 +24,18 @@ class NavigationReading:
     frame: FrozenPixelFrame
     words: WordsWithPixels
     labels: tuple[str, ...]
+
+
+@dataclass
+class NavigationPhase:
+    """One visible occurrence; a later identical button needs a new budget."""
+
+    reading: NavigationReading | None = None
+    context: tuple | None = None
+    sequence: int = 0
+    lower: float = -math.inf
+    absent_at: float | None = None
+    budgets: dict[str, int] = field(default_factory=dict)
 
 
 class WordsFromCapturedPixels(list):
@@ -47,7 +59,7 @@ def words_bound_to_capture(regions: list, captured: tuple | None) -> WordsFromCa
     if captured is not None:
         frame, snapshot = captured
         bounded = [dict(region) for region in regions[:128] if isinstance(region, dict)]
-        targets = [region for region in bounded if confirms(str(region.get('text') or ''))]
+        targets = [region for region in bounded if label_is_a_way_on(str(region.get('text') or ''))]
         if asks_to_choose(' '.join(str(region.get('text') or '') for region in bounded)):
             targets = bounded
         words = words_with_their_pixels(ScreenReading({'layout': targets}, picture_snapshot=snapshot))
@@ -62,28 +74,62 @@ def keep_navigation_reading(run: Any, regions: Any) -> None:
     run.navigation_reading = getattr(regions, 'navigation_reading', None)
 
 
+def _capture_context(frame: FrozenPixelFrame) -> tuple:
+    return frame.surface, frame.epoch, frame.source, frame.width, frame.height
+
+
+def _observe_phase(phase: NavigationPhase, current: FrozenPixelFrame, picture: Any) -> bool:
+    context = _capture_context(current)
+    if phase.context != context:
+        phase.reading, phase.context, phase.sequence, phase.lower = None, context, 0, -math.inf
+        phase.absent_at = None
+        phase.budgets.clear()
+    if current.sequence <= phase.sequence or current.lower < phase.lower:
+        return False
+    phase.sequence, phase.lower = current.sequence, current.lower
+    if phase.reading is not None:
+        remains = phase.reading.words.still_in(picture)
+        if remains is False:
+            if phase.absent_at is None:
+                phase.absent_at = current.lower
+            elif current.lower - phase.absent_at >= .05:
+                phase.reading, phase.absent_at = None, None
+                phase.budgets.clear()
+        else:
+            phase.absent_at = None
+    return True
+
+
 def navigation_before_body_experiments(run: Any, hers: Any, picture: Any, at: Any,
                                       keep: dict, *, now: float) -> str:
     """Request navigation only with current pixels; supply no body or victory claim."""
-    if hers.number is not None or hers.follows_pointer:
-        return ''
     reading = getattr(run, 'navigation_reading', None)
-    if not isinstance(reading, NavigationReading):
+    phase = keep.get('pixel_navigation_phase')
+    if not isinstance(reading, NavigationReading) and (not isinstance(phase, NavigationPhase) or phase.reading is None):
         return ''
     current = freeze_frame(picture, at)
-    previous = reading.frame
-    if (current is None or not math.isfinite(now) or not previous.valid()
-            or (current.surface, current.epoch, current.source, current.width, current.height)
-            != (previous.surface, previous.epoch, previous.source, previous.width, previous.height)
-            or current.sequence < previous.sequence or current.lower < previous.lower
-            or not current.upper <= current.arrived <= now
-            or now - current.lower > .5 or reading.words.still_in(picture) is not True):
+    if (current is None or not math.isfinite(now) or not current.upper <= current.arrived <= now
+            or now - current.lower > .5):
         return ''
-    # A label's flashing colour cannot renew the budget. Its wording and
-    # extents, on this surface, identify the unchanged navigation request.
+    if not isinstance(phase, NavigationPhase):
+        phase = keep['pixel_navigation_phase'] = NavigationPhase()
+    if not _observe_phase(phase, current, picture):
+        return ''
+    if hers.number is not None or hers.follows_pointer or not isinstance(reading, NavigationReading):
+        return ''
+    previous = reading.frame
+    if (not previous.valid() or _capture_context(current) != _capture_context(previous)
+            or current.sequence < previous.sequence or current.lower < previous.lower
+            or reading.words.still_in(picture) is not True):
+        return ''
+    phase.reading = reading
+    # Colour changes and small OCR-box changes cannot renew an unchanged
+    # request. A measured disappearance retires this occurrence separately.
+    places = tuple((round(16 * (x + w / 2)), round(16 * (y + h / 2)))
+                   for (x, y, w, h), _pixels in reading.words.patches)
     key = hashlib.sha256(json.dumps((current.surface, current.epoch, reading.labels,
-                                    tuple(box for box, _pixels in reading.words.patches))).encode()).hexdigest()
-    budgets = keep.setdefault('pixel_navigation_handoffs', {})
+                                    places)).encode()).hexdigest()
+    budgets = phase.budgets
     if budgets.get(key, 0) >= 2:
         return ''
     budgets[key] = budgets.get(key, 0) + 1
@@ -113,4 +159,35 @@ def _current_navigation_invariant() -> tuple:
     assert navigation_before_body_experiments(run, hers, picture, at, {}, now=10.03)
     assert not navigation_before_body_experiments(run, hers, np.full_like(picture, 60), at, {}, now=10.03)
     assert not navigation_before_body_experiments(run, hers, picture, 10., {}, now=10.03)
+    return ()
+
+
+@invariant('agency.a_new_menu_occurrence_needs_measured_retirement', scope='agency',
+           owner='core/agency/navigation_before_body_experiments.py', observational=False)
+def _navigation_occurrence_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from core.perception.frames_as_they_are_drawn import CanvasFrameTime
+
+    def captured(when, sequence):
+        return CanvasFrameTime(when, lower=when, upper=when + .001, arrived=when + .002,
+            source='canvas-bracket', source_at=None, epoch=1, surface='one', sequence=sequence)
+    pixels = np.zeros((64, 64, 3), np.uint8)
+    pixels[16:48, 16:48] = (((np.indices((32, 32)).sum(axis=0) // 4) % 2) * 240)[:, :, None]
+    regions = [{'text': 'PLAY', 'x': .25, 'y': .25, 'width': .5, 'height': .5}]
+    reading = words_bound_to_capture(regions, capture_before_reading(pixels, captured(10., 1)))
+    run, hers, keep = SimpleNamespace(), SimpleNamespace(number=None, follows_pointer=False), {}
+    keep_navigation_reading(run, reading)
+    for number in (1, 2):
+        at = captured(10. + number * .1, number)
+        assert navigation_before_body_experiments(run, hers, pixels, at, keep, now=float(at) + .01)
+    run.navigation_reading = None
+    for number in (3, 4):
+        at = captured(10. + number * .1, number)
+        assert not navigation_before_body_experiments(run, hers, np.full_like(pixels, 60), at, keep, now=float(at) + .01)
+    keep_navigation_reading(run, reading)
+    at = captured(10.5, 5)
+    assert navigation_before_body_experiments(run, hers, pixels, at, keep, now=10.51)
     return ()

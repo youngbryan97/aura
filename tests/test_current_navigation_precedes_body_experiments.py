@@ -9,6 +9,7 @@ import pytest
 
 from core.agency.navigation_before_body_experiments import (
     _current_navigation_invariant,
+    _navigation_occurrence_invariant,
     capture_before_reading,
     keep_navigation_reading,
     navigation_before_body_experiments,
@@ -40,7 +41,8 @@ def test_a_current_navigation_request_has_a_registered_invariant():
     assert _current_navigation_invariant() == ()
 
 
-@pytest.mark.parametrize('text', ['PLAY', 'Start', 'Continue', 'Next', 'OK', 'Choose difficulty'])
+@pytest.mark.parametrize('text', ['PLAY', 'Start', 'Continue', 'Next', 'OK', 'Choose difficulty',
+                                 'Next Level', 'Play Now!', 'Skip Intro', 'Try again'])
 def test_current_navigation_can_precede_body_discovery(text):
     run, hers, pixels, at = menu(text)
     assert navigation_before_body_experiments(run, hers, pixels, at, {}, now=10.1)
@@ -89,11 +91,44 @@ def test_unchanged_menu_budget_survives_actor_reentry_and_colour_flashing():
     run, hers, pixels, at = menu()
     keep = {}
     assert navigation_before_body_experiments(run, hers, pixels, at, keep, now=10.1)
-    assert navigation_before_body_experiments(run, hers, pixels, at, keep, now=10.1)
+    assert not navigation_before_body_experiments(run, hers, pixels, at, keep, now=10.1)
+    assert navigation_before_body_experiments(run, hers, pixels, frame(10.1, sequence=2), keep, now=10.2)
     other, _, _, _ = menu()
     other.navigation_reading = replace(run.navigation_reading)
-    assert not navigation_before_body_experiments(other, hers, pixels, at, keep, now=10.1)
-    assert not navigation_before_body_experiments(other, hers, (pixels * .8).astype(np.uint8), at, keep, now=10.1)
+    assert not navigation_before_body_experiments(other, hers, pixels, frame(10.2, sequence=3), keep, now=10.3)
+    assert not navigation_before_body_experiments(other, hers, (pixels * .8).astype(np.uint8),
+                                                 frame(10.3, sequence=4), keep, now=10.4)
+
+
+def test_a_later_identical_button_has_a_new_budget_only_after_measured_disappearance():
+    assert _navigation_occurrence_invariant() == ()
+
+
+def test_an_empty_read_or_one_changed_frame_cannot_renew_an_unchanged_menu():
+    run, hers, pixels, at = menu()
+    keep = {}
+    assert navigation_before_body_experiments(run, hers, pixels, at, keep, now=10.1)
+    assert navigation_before_body_experiments(run, hers, pixels, frame(10.1, sequence=2), keep, now=10.2)
+    reading = run.navigation_reading
+    run.navigation_reading = None
+    assert not navigation_before_body_experiments(run, hers, np.full_like(pixels, 60),
+                                                 frame(10.2, sequence=3), keep, now=10.3)
+    run.navigation_reading = reading
+    assert not navigation_before_body_experiments(run, hers, pixels, frame(10.3, sequence=4), keep, now=10.4)
+
+
+def test_out_of_order_changed_frames_do_not_retire_the_menu_occurrence():
+    run, hers, pixels, at = menu()
+    keep = {}
+    assert navigation_before_body_experiments(run, hers, pixels, at, keep, now=10.1)
+    assert navigation_before_body_experiments(run, hers, pixels, frame(10.1, sequence=2), keep, now=10.2)
+    reading = run.navigation_reading
+    run.navigation_reading = None
+    for when in (10.2, 10.3):
+        assert not navigation_before_body_experiments(run, hers, np.full_like(pixels, 60),
+                                                     frame(when, sequence=2), keep, now=when + .1)
+    run.navigation_reading = reading
+    assert not navigation_before_body_experiments(run, hers, pixels, frame(10.4, sequence=3), keep, now=10.5)
 
 
 @pytest.mark.parametrize('field,value', [('number', 3), ('follows_pointer', True)])
