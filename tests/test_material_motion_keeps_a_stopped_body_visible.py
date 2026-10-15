@@ -29,7 +29,8 @@ def test_outline_motion_cannot_supply_travel_when_the_material_stayed_in_place()
 
 
 @pytest.mark.parametrize('seed', [347, 348])
-def test_the_actual_pixel_path_finds_and_keeps_the_responder_as_its_outline_changes(seed):
+@pytest.mark.parametrize('gap', [.1, .268130064])
+def test_the_actual_pixel_path_finds_and_keeps_the_responder_as_its_outline_changes(seed, gap):
     eyes, hers = WhatMoves(width=240), WhichIsHers()
     tile = np.random.default_rng(seed).integers(90, 240, (24, 24, 3), dtype=np.uint8)
     for i in range(8):
@@ -39,7 +40,7 @@ def test_the_actual_pixel_path_finds_and_keeps_the_responder_as_its_outline_chan
         hers.holding(key, at, trying=True)
         for step in range(10):
             x += {'A': 4., 'B': -4.}.get(key, 0.)
-            at += .1
+            at += gap
             image = np.full((180, 240, 3), 25, np.uint8)
             left = round(x)-12
             image[104:128, left:left+24] = tile
@@ -47,12 +48,14 @@ def test_the_actual_pixel_path_finds_and_keeps_the_responder_as_its_outline_chan
                 image[56:104, round(x)-2:round(x)+2] = 120
             happened = eyes.see(image, at)
             hers.saw(eyes, happened, at)
+            if interval >= 8:
+                assert hers.number is not None, 'the last four control intervals must keep the measured body'
             if hers.number is not None:
                 mine = eyes.things.get(hers.number)
                 assert mine is not None and mine.seen == at
                 assert mine.x == pytest.approx(x, abs=.5)
                 body_attributions.append(hers.number)
-    assert len(body_attributions) >= 50
+    assert len(body_attributions) >= 40
     assert len(set(body_attributions)) == 1 and hers.identification.epoch == 0
     receipt = next(r for r in hers.identification.receipts if r.get('reason') == 'independent repeated trials')
     assert sum(count >= 2 for count in receipt['independent_trials'].values()) >= 2

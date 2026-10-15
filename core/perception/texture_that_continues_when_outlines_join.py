@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
+from core.perception.points_that_keep_their_motion import NAMED_POINT_GAP_S
 from core.verify import invariant
 
 
@@ -57,7 +58,7 @@ def could_continue(thing: Any, motions: dict, at: float) -> bool:
     born = getattr(thing, "born", None)
     if (born is None or not math.isfinite(born) or motion is None or born > motion.before
             or motion.before != thing.seen or motion.at != at
-            or not 0 < at - thing.seen <= .25 or motion.support < 3
+            or not 0 < at - thing.seen <= NAMED_POINT_GAP_S or motion.support < 3
             or len(motion.points) != motion.support or len(set(motion.points)) != motion.support
             or len(motion.locations) != motion.support
             or not all(math.isfinite(v) for v in (motion.before, motion.dx, motion.dy, motion.error)) or motion.error < 0):
@@ -74,7 +75,7 @@ def _supported_part(picture: np.ndarray, inside: np.ndarray, thing: Any, motion:
         return None
     if (born is None or not math.isfinite(born) or motion is None or born > motion.before
             or motion.before != thing.seen or motion.at != at
-            or not 0 < at - thing.seen <= .25 or motion.support < 3
+            or not 0 < at - thing.seen <= NAMED_POINT_GAP_S or motion.support < 3
             or len(motion.points) != motion.support or len(set(motion.points)) != motion.support
             or len(motion.locations) != motion.support
             or not all(math.isfinite(v) for v in (motion.before, motion.dx, motion.dy, motion.error)) or motion.error < 0):
@@ -163,6 +164,11 @@ def _continuing_texture_invariant() -> tuple:
                                           at=1.1, difference=40.)
     assert len(parts) == 2 and int(parts[0].sum()) == 64
     assert np.array_equal(np.sum(parts, axis=0), inside)
+    from dataclasses import replace
+
+    later = parts_from_continuing_texture(picture, inside, left=0, top=0, things=[body],
+                                         motions={1: replace(motion, at=1.3)}, at=1.3, difference=40.)
+    assert len(later) == 2 and np.array_equal(later[0], parts[0])
     unknown = parts_from_continuing_texture(picture, inside, left=0, top=0, things=[body], motions={},
                                            at=1.1, difference=40.)
     assert len(unknown) == 1 and unknown[0] is inside

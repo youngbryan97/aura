@@ -50,10 +50,13 @@ def test_pixel_sampling_phase_cannot_discard_an_otherwise_supported_texture(offs
     assert len(parts) == 2 and int(parts[0].sum()) == 64
 
 
+@pytest.mark.parametrize('gap', [.1, .268130064])
 @pytest.mark.parametrize("bad", ["stale", "gap", "duplicate", "missing_location", "nan", "negative_error",
                                "two", "collinear", "outside", "unowned", "changed_texture", "birth", "geometry"])
-def test_unsupported_landmarks_or_pixels_cannot_split_an_object_from_the_patch(bad):
+def test_unsupported_landmarks_or_pixels_cannot_split_an_object_from_the_patch(bad, gap):
     picture, inside, body, motion = _scene()
+    at = 1. + gap
+    motion = replace(motion, at=at)
     if bad == "stale":
         motion = replace(motion, before=.9)
     elif bad == "gap":
@@ -81,7 +84,7 @@ def test_unsupported_landmarks_or_pixels_cannot_split_an_object_from_the_patch(b
         body.born = 1.05
     elif bad == "geometry":
         body.w = 9.
-    parts = _parts(picture, inside, body, motion)
+    parts = _parts(picture, inside, body, motion, at=at)
     assert len(parts) == 1 and parts[0] is inside
 
 
@@ -131,6 +134,69 @@ def test_the_normal_motion_eyes_separate_a_supported_body_and_keep_the_remainder
     white = [b for b in blobs if b["colour"] == (240, 240, 240)]
     assert len(white) == 1 and (white[0]["x"], white[0]["y"], white[0]["w"], white[0]["h"]) == (16., 14., 8., 8.)
     assert any(b["colour"] == (180, 0, 0) for b in blobs)
+
+
+@pytest.mark.parametrize('gap', [.249, .25, .268130064, .35])
+def test_current_material_separates_before_the_accepted_correspondence_expires(gap):
+    picture, _inside, body, motion = _scene()
+    picture[6:28, 20:24] = (130, 130, 130)
+    eyes = WhatMoves(width=40)
+    eyes._backdrop = np.zeros_like(picture, dtype=np.float32)
+    body.seen = 0.
+    at = gap
+    eyes._now = at
+    eyes.things = {1: body}
+    eyes._point_motion = {1: replace(motion, before=0., at=at)}
+    mask = np.zeros((30, 40), np.uint8)
+    mask[10:18, 12:20] = 1
+    mask[6:28, 20:24] = 1
+    blobs = eyes._blobs(picture, (mask, mask))
+    own = [blob for blob in blobs if blob['colour'] == body.colour]
+    assert len(own) == 1
+    assert (own[0]['x'], own[0]['y'], own[0]['w'], own[0]['h']) == (16., 14., 8., 8.)
+    assert eyes._match(blobs, at)[0].get(body.number) == blobs.index(own[0])
+    eyes._moved(body, own[0], at)
+    assert body.number == 1 and body.born == 0. and body.support.sum() == 64
+    assert body.w == body.h == 8.
+
+
+def test_texture_partition_cannot_outlive_current_material_correspondence():
+    picture, inside, body, motion = _scene()
+    motion = replace(motion, at=1.350001)
+    parts = _parts(picture, inside, body, motion, at=motion.at)
+    assert len(parts) == 1 and parts[0] is inside
+
+
+@pytest.mark.parametrize('gap', [.1, .268130064])
+def test_actual_pixels_keep_one_small_material_track_while_crossing_a_static_line(gap):
+    eyes = WhatMoves(width=200)
+    texture = np.random.default_rng(517).integers(70, 250, (24, 24, 3), dtype=np.uint8)
+
+    def picture(x=None):
+        image = np.full((140, 200, 3), 25, np.uint8)
+        if x is not None:
+            image[20:125, 98:102] = 130
+            image[72:96, x-12:x+12] = texture
+        return image
+
+    for index in range(8):
+        eyes.see(picture(), index * .1)
+    at, number = 1., None
+    for x in [60, 64, 68, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116, 120, 124, 128]:
+        at += gap
+        eyes.see(picture(x), at)
+        def material_center(thing):
+            return thing.motion_position if thing.motion_evidence == 'points' else (thing.x, thing.y)
+
+        material = [thing for thing in [*eyes.things.values(), *eyes.pending.values()]
+                    if thing.seen == at and abs(material_center(thing)[0]-x) <= 2
+                    and abs(material_center(thing)[1]-84) <= 2]
+        assert len(material) == 1, (x, [(t.number, t.box()) for t in eyes.things.values()])
+        if number is None:
+            number = material[0].number
+        assert material[0].number == number
+        if material[0].motion_evidence == 'points':
+            assert material[0].motion_position == pytest.approx((x, 84.), abs=.5)
 
 
 def test_continuing_texture_has_a_registered_measured_claim():

@@ -20,6 +20,8 @@ from scipy import ndimage
 from core.perception.rigid_motion_from_named_points import RigidMotion, rigid_motion
 from core.verify import invariant
 
+NAMED_POINT_GAP_S = .35
+
 
 @dataclass(frozen=True)
 class SeenPoint:
@@ -171,7 +173,7 @@ def _spread_points(points: list[SeenPoint], limit: int) -> tuple[SeenPoint, ...]
 class FollowingPoints:
     """A bounded set of point identities, each backed by consecutive measured pictures."""
 
-    def __init__(self, *, limit: int = 192, longest_gap: float = .35) -> None:
+    def __init__(self, *, limit: int = 192, longest_gap: float = NAMED_POINT_GAP_S) -> None:
         self.limit = max(0, min(384, int(limit)))
         self.longest_gap = longest_gap
         self.points: tuple[SeenPoint, ...] = ()
