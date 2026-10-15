@@ -281,7 +281,7 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
             raise _ObservationResolvedError
         # Observer service time belongs to the neutral phase. The paired
         # measurement starts on a later capture immediately before dispatch.
-        before = await _captured(look, capture_s, not_before=before.upper)
+        before = await _captured(look, capture_s, not_before=time.monotonic())
     _guard(inputs, interference, receipts, epoch)
     if before.lower < neutral_began or time.monotonic() - before.upper > .75:
         raise _LostEvidenceError("before_outside_neutral")

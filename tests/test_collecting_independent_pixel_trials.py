@@ -184,6 +184,30 @@ async def test_fresh_pre_dispatch_baseline_bridges_material_history(lane):
 
 
 @pytest.mark.asyncio
+async def test_paired_baseline_excludes_frames_queued_during_neutral_processing(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    queued, neutral_finished = [], []
+
+    async def observe(frame):
+        if not lane.run.held:
+            lane.clock.at += .18
+            neutral_finished.append(lane.clock.at)
+            queued.append((lane.source, CanvasFrameTime(lane.clock.at-.07,
+                lower=lane.clock.at-.07, upper=lane.clock.at-.06, arrived=lane.clock.at-.05,
+                source='canvas-bracket', source_at=None, epoch=2,
+                surface='actual-document/canvas', sequence=1000+len(neutral_finished))))
+
+    async def look():
+        return queued.pop(0) if queued else await lane.look()
+
+    result = await collecting.collect_independent_pixel_trials(experiment, look=look,
+        inputs=lane.inputs, settle_s=.5, sample_s=.1, after_capture=observe)
+    assert result.status == 'complete' and result.release_confirmed
+    assert all(trial.before.lower >= neutral_finished[index*2]
+               for index, trial in enumerate(experiment.trials))
+
+
+@pytest.mark.asyncio
 async def test_resolved_observation_releases_input_without_qualifying_a_partial_cohort(lane):
     experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
     settled = []
