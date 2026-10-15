@@ -455,3 +455,24 @@ measured hit, revalidate it before delivery, and record the normal physical
 input without treating delivery as task completion. The non-placement
 maker's internal changed-screen completion heuristic also remains weaker
 than the placement proof; the last change closes outer bypasses only.
+
+`06e2b604d` carries cursor candidates through normal click geometry, checks
+for a current hand before pointer-derived delivery, extends the boundary
+sweep and records normal page port requests/completions. The 69 focused
+checks and normal gates passed. The repeat in
+`2026-10-15-case3-owned-cursor` reached an actual room, as its final picture
+shows, although its textual report retained old instructions. It did not
+win. Its `Continue` captions had no pointer anchor, so their successful
+transport is not proof of the new caption-anchor mechanism. Read the dated
+cursor evidence before drawing a stronger conclusion.
+
+The next actionable gap is cursor-cache custody: words alone do not
+identify a scene, and samples from a different crop cannot be reused in
+another coordinate frame. Preserve capture geometry and current pixel
+identity. Normal input records are now available to test that connection.
+
+Deployment also remains open. The default live-source checkout was on
+`main` at `ca975c498`, 131 commits behind the pushed branch. Do not assume
+the native app contains these changes. Do not update that shared checkout
+under an exclusive job or start a model-backed runtime beside G09. The
+later continuation remains scheduled, with the first already retired.
