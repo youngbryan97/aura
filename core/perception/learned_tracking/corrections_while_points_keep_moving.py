@@ -293,6 +293,7 @@ class CorrectionsWhilePointsMove(PointsBeforeReduction):
         # Two names on one measured mark do not become two pieces of support.
         self.points = (*current, *(point for point in fast if all(math.hypot(point.x - p.x, point.y - p.y) >= .5
                                                                  for p in current)))
+        self._remember_points(replacing_current=True)
         self._submit(picture)
         return self.points
 

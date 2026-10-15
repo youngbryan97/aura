@@ -159,7 +159,8 @@ class TurningWhileTravelling:
 
     def curved(self, key: str) -> bool:
         """One observed curve can request a repeat, without supplying a control model."""
-        return any(trial.key == key and abs(trial.rate) >= self.turns for trial in self.trials)
+        return any(trial.key == key and trial.samples >= 4 and trial.span >= .15
+                   and abs(trial.rate) >= self.turns for trial in self.trials)
 
     def repeats(self, key: str) -> int:
         return 2 if self._repeated(key) is not None else int(self.curved(key))
@@ -168,6 +169,9 @@ class TurningWhileTravelling:
 @invariant("agency.travel_turns_require_repeated_observed_input_contrasts", scope="agency",
            owner="core/agency/turning_while_travelling.py", observational=False)
 def _travel_turns_invariant() -> tuple:
+    incomplete = TurningWhileTravelling(moving=20., settle_s=.2, gap_s=.35, turns=.5)
+    incomplete.trials.append(TravelTurn('drive', 0., .6, .75, samples=2, span=.12))
+    assert not incomplete.curved('drive') and not incomplete.rates()
     turns = TurningWhileTravelling(moving=20., settle_s=.2, gap_s=.35, turns=.5)
     for index, (key, rate) in enumerate((('', 0.), ('bend', 1.4), ('', 0.), ('bend', 1.4), ('', 0.))):
         began = index * .8

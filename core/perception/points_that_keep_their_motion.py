@@ -209,9 +209,10 @@ class FollowingPoints:
         self._remember_points()
         return self.points
 
-    def _remember_points(self) -> None:
+    def _remember_points(self, *, replacing_current: bool = False) -> None:
         """Retain bounded measured coordinates while an outline can briefly be absent."""
-        if self._point_history and self._at <= next(reversed(self._point_history)):
+        if self._point_history and (self._at < next(reversed(self._point_history))
+                or self._at == next(reversed(self._point_history)) and not replacing_current):
             self._point_history.clear()
         self._point_history[self._at] = {point.number: point for point in self.points}
         while self._point_history and (len(self._point_history) > 32

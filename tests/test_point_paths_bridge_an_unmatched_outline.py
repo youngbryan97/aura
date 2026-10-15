@@ -114,6 +114,43 @@ def test_many_fast_frames_have_a_fixed_history_budget():
     assert sum(len(frame) for frame in points._point_history.values()) <= 32*points.limit
 
 
+def test_current_visible_corrections_belong_to_the_saved_capture_history(monkeypatch):
+    from core.perception.learned_tracking import corrections_while_points_keep_moving as correcting
+    from tests.test_learned_corrections_do_not_hold_up_visible_tracking import marks, picture
+
+    frames = [picture(1.),picture(1.05)]
+    transport = correcting.visible_transport(marks(1.),frames,256_000)
+    assert transport is not None
+    points = correcting.CorrectionsWhilePointsMove(lambda:None,limit=16)
+    monkeypatch.setattr(points,'_submit',lambda _frame:None)
+    monkeypatch.setattr(points,'_receive',lambda:None)
+    first = picture(1.1)
+    points.see_source(first.source,first.working,first.at)
+    points._transport = transport
+    body = SimpleNamespace(number=1,x=36.,y=32.,w=32.,h=32.,seen=1.2,support=np.ones((32,32),bool))
+    for at in (1.2,1.3,1.4):
+        frame = picture(at)
+        points.see_source(frame.source,frame.working,at)
+        named = {p.number:p for p in points.points}
+        assert points._point_history[at] == named
+    motion = points.motion_of(body,1.4)
+    assert motion is not None and motion.before == 1.2 and motion.at == 1.4
+    assert any(name >= correcting._LEARNED_NAMES for name in motion.points)
+    points._point_history[1.3].clear()
+    assert points.motion_of(body,1.4) is None
+
+
+def test_replacing_one_capture_publication_does_not_create_an_extra_time_sample():
+    points,thing,_see = _tracking()
+    captured_times = tuple(points._point_history)
+    points._remember_points(replacing_current=True)
+    assert tuple(points._point_history) == captured_times
+    assert points.motion_of(thing,1.2) is not None
+    points._at = 1.1
+    points._remember_points(replacing_current=True)
+    assert tuple(points._point_history) == (1.1,)
+
+
 def test_point_history_has_a_registered_measured_claim():
     from core.organism.claims_realtime_control import install_realtime_control_claims
     from core.organism.model_validation import ValidationSuite

@@ -102,6 +102,30 @@ def test_heading_changes_from_one_unstable_arc_remain_unmodeled():
     assert not turns.rates()
 
 
+@pytest.mark.parametrize('samples,span', [(2,.12),(3,.23),(4,.10)])
+def test_an_incomplete_arc_cannot_remove_the_driver_and_block_further_calibration(samples,span):
+    from core.agency.turning_while_travelling import TravelTurn
+
+    faces = WhichWaySheFaces(facing=0.)
+    faces.pressed.update(('drive','bend-a','bend-b'))
+    faces.along['drive'] = [40.,42.]
+    faces.ways['drive'] = [0.,.01]
+    faces.travel_turns.trials.append(TravelTurn('drive',1.,1.6,.75,samples=samples,span=span))
+    assert not faces.travel_turns.curved('drive')
+    assert faces.ahead_key() == 'drive' and not faces.turning_keys()
+    assert faces.trial(['drive','bend-a','bend-b']) == 'drive'
+    assert faces.trial(['drive','bend-a','bend-b']) == 'bend-a'
+
+
+def test_one_complete_curve_still_requests_confirmation_without_lending_a_turn_rate():
+    from core.agency.turning_while_travelling import TravelTurn
+
+    turns = _observer()
+    turns.trials.append(TravelTurn('bend',1.,1.6,.75,samples=4,span=.2))
+    assert turns.curved('bend') and turns.repeats('bend') == 1
+    assert not turns.rates()
+
+
 def test_the_travel_turn_boundary_has_a_registered_measured_claim():
     from core.agency.turning_while_travelling import _travel_turns_invariant
     from core.organism.claims_realtime_control import install_realtime_control_claims
