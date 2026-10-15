@@ -732,6 +732,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.motion_kept_between_pictures import (
         _motion_belief_invariant,
         _motion_proposal_invariant,
+        _shared_motion_arithmetic_invariant,
     )
     from core.perception.play_observation_without_holding_the_loop import (
         _owned_play_observation_invariant,
@@ -741,7 +742,10 @@ def _visual_motion_claims() -> tuple:
         _source_point_precision_invariant,
     )
     from core.perception.points_shared_with_changing_regions import _point_capacity_invariant
-    from core.perception.points_that_keep_their_motion import _point_identity_invariant
+    from core.perception.points_that_keep_their_motion import (
+        _point_history_invariant,
+        _point_identity_invariant,
+    )
     from core.perception.position_from_the_same_points import (
         _point_handoff_invariant,
         _point_path_invariant,
@@ -768,6 +772,12 @@ def _visual_motion_claims() -> tuple:
     from core.skills.a_new_attempt_must_be_seen import _new_attempt_invariant
 
     return (
+        ("shared_motion_arithmetic_keeps_its_owned_state", "core/perception/motion_kept_between_pictures.py",
+         "tests/test_motion_prediction_reuses_its_arithmetic.py", lambda: _shared_motion_arithmetic_invariant() == (),
+         "Motion estimates share bounded immutable time-step matrices while each object's state remains owned; diagonal mixture arithmetic retains the full covariance reference's reported estimates."),
+        ("a_missing_outline_requires_continuous_observed_marks", "core/perception/points_that_keep_their_motion.py",
+         "tests/test_point_paths_bridge_an_unmatched_outline.py", lambda: _point_history_invariant() == (),
+         "A briefly missing object outline can use continuously observed named marks from its last owned pixels; broken, stale or replaced paths cannot bridge the gap."),
         ("texture_copy_uses_effective_public_draw_state", "core/perception/a_texture_copy_with_public_state.py",
          "tests/test_a_texture_copy_with_public_state.py", lambda: _effective_texture_copy_invariant() == (),
          "Texture-copy geometry requires the current linked shader, effective sampler, replacement raster state and exact attachment image generations; geometry grants no visibility or control identity."),

@@ -103,6 +103,7 @@ class PointsForMotionEyes(FollowingPoints):
                 if len(seeds) < 3:
                     self.points, self.status = (), 'insufficient visible texture'
                     self._at, self._previous_pixels = at, source.copy()
+                    self._remember_points()
                     return ()
                 self._slots = tuple(self._new_seed(x, y, at) for x, y in seeds)
                 self._native_visible.clear()
@@ -136,6 +137,7 @@ class PointsForMotionEyes(FollowingPoints):
         self._births = {seed.number: self._births[seed.number] for seed in self._slots}
         if not self.points and fast:
             self.points = self._fallback_marks(fast)
+        self._remember_points()
         return self.points
 
     @staticmethod

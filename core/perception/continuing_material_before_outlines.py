@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from core.perception.position_from_the_same_points import PointPose
+from core.perception.position_from_the_same_points import PointPose, last_observed_outline
 from core.perception.rigid_motion_from_named_points import rigid_motion
 from core.verify import invariant
 
@@ -62,7 +62,12 @@ def _continuing_marks(thing: Any, motion: Any, at: float) -> tuple[dict, dict] |
 
 
 def _owns_thing(thing: Any, place: tuple) -> bool:
-    return _owns(dict(x=thing.x, y=thing.y, w=thing.w, h=thing.h, support=getattr(thing, 'support', None)), place)
+    bounds = last_observed_outline(thing)
+    if bounds is None:
+        return False
+    left, top, right, bottom = bounds
+    return _owns(dict(x=(left+right)/2, y=(top+bottom)/2, w=right-left, h=bottom-top,
+                      support=getattr(thing, 'support', None)), place)
 
 
 def _owns(blob: dict, place: tuple) -> bool:

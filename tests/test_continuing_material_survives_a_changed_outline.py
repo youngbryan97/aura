@@ -22,6 +22,7 @@ def scene():
                look=np.ones(64)/64)
     body = eyes._born(old, .5)
     body.seen = 1.
+    body.path.append((body.seen, body.x, body.y))
     body.announced = True
     eyes.things, eyes.pending = {body.number: body}, {}
     marks = {n: p for n, p in enumerate(((16., 28.), (24., 28.), (16., 34.), (24., 34.)))}

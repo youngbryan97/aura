@@ -207,6 +207,7 @@ class PointsBeforeReduction(FollowingPoints):
         self.points = tuple(SeenPoint(p.number, p.x * scale[0], p.y * scale[1], p.old_x * scale[0], p.old_y * scale[1],
                             p.born, p.before, p.at, p.error, p.pictures) for p in self._native_points)
         self._image, self._colours, self._at = image, colours, at
+        self._remember_points()
         if sampling_owner is not None and self._priority is not None:
             from core.perception.a_search_hint_for_these_pixels import SamplingHintReceipt
 

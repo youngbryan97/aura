@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -21,6 +22,22 @@ from core.verify import invariant
 # Smooth and responsive laws compete at each derivative order. These are
 # normalized process-noise priors, not measured limits on a world's motion.
 _LAWS = tuple((order, noise) for order in (2, 3) for noise in (.001, .03, 1.))
+
+
+@lru_cache(maxsize=256)
+def _prediction_matrices(order: int, noise: float, dt: float) -> tuple[np.ndarray, np.ndarray]:
+    """Reuse immutable time-step arithmetic across objects observed in one picture."""
+    if order == 2:
+        transition = np.array(((1., dt), (0., 1.)))
+        process = np.array(((dt ** 3 / 3, dt ** 2 / 2), (dt ** 2 / 2, dt)))
+    else:
+        transition = np.array(((1., dt, dt ** 2 / 2), (0., 1., dt), (0., 0., 1.)))
+        process = np.array(((dt ** 5 / 20, dt ** 4 / 8, dt ** 3 / 6),
+                            (dt ** 4 / 8, dt ** 3 / 3, dt ** 2 / 2),
+                            (dt ** 3 / 6, dt ** 2 / 2, dt)))
+    process *= noise
+    transition.flags.writeable = process.flags.writeable = False
+    return transition, process
 
 def _finite(*values: Any) -> bool:
     return all(isinstance(v, (float, int)) and not isinstance(v, bool) and math.isfinite(v) for v in values)
@@ -73,15 +90,10 @@ class _MotionLaw:
         self.covariance[0, 0] = variance
 
     def predicted(self, dt: float) -> tuple[np.ndarray, np.ndarray]:
-        if self.order == 2:
-            transition = np.array(((1., dt), (0., 1.)))
-            noise = np.array(((dt ** 3 / 3, dt ** 2 / 2), (dt ** 2 / 2, dt)))
-        else:
-            transition = np.array(((1., dt, dt ** 2 / 2), (0., 1., dt), (0., 0., 1.)))
-            noise = np.array(((dt ** 5 / 20, dt ** 4 / 8, dt ** 3 / 6),
-                              (dt ** 4 / 8, dt ** 3 / 3, dt ** 2 / 2),
-                              (dt ** 3 / 6, dt ** 2 / 2, dt)))
-        return transition @ self.state, transition @ self.covariance @ transition.T + noise * self.noise
+        if dt == 0.:
+            return self.state.copy(), self.covariance.copy()
+        transition, process = _prediction_matrices(self.order, self.noise, dt)
+        return transition @ self.state, transition @ self.covariance @ transition.T + process
 
     def corrected(self, position: np.ndarray, variance: float, dt: float) -> tuple:
         state, covariance = self.predicted(dt)
@@ -171,19 +183,19 @@ class MotionBetweenPictures:
         """A forecast is a copy; looking ahead cannot refresh or train the history."""
         if (self.at is None or not _finite(at) or not 0 <= at - self.at <= self.longest_gap):
             return None
-        states, covariances = [], []
+        states, diagonals = [], []
         for law in self._laws:
             state, covariance = law.predicted(float(at - self.at))
-            full, uncertainty = np.zeros(6), np.eye(6) * 4.
+            full, diagonal = np.zeros(6), np.full(6, 4.)
             flat = state.ravel()
             full[:len(flat)] = flat
-            uncertainty[:len(flat), :len(flat)] = np.kron(covariance, np.eye(2))
+            diagonal[:len(flat)] = np.repeat(np.diag(covariance), 2)
             states.append(full)
-            covariances.append(uncertainty)
+            diagonals.append(diagonal)
         mean = sum(weight * state for weight, state in zip(self._weights, states, strict=True))
-        covariance = sum(weight * (cov + np.outer(state - mean, state - mean))
-                         for weight, state, cov in zip(self._weights, states, covariances, strict=True))
-        error = np.sqrt(np.maximum(0., np.diag(covariance))) * self.scale
+        variance = sum(weight * (diagonal + (state - mean) ** 2)
+                       for weight, state, diagonal in zip(self._weights, states, diagonals, strict=True))
+        error = np.sqrt(np.maximum(0., variance)) * self.scale
         values = mean * self.scale
         return MotionEstimate(self.owner, self.basis, float(at), self.at, tuple(values[:2]),
             tuple(values[2:4]), tuple(values[4:6]), float(np.linalg.norm(error[:2])),
@@ -310,6 +322,20 @@ def _motion_belief_invariant() -> tuple:
     assert predicted.position_error > current.position_error
     assert belief.observe((1, 0.), ('one view',), 1.3, (200., 10.)) is None
     assert belief.observe((1, 1.4), ('one view',), 1.4, (30., 10.)).observations == 1
+    return ()
+
+
+@invariant('perception.shared_motion_arithmetic_keeps_its_owned_state', scope='perception',
+           owner='core/perception/motion_kept_between_pictures.py', observational=False)
+def _shared_motion_arithmetic_invariant() -> tuple:
+    transition, process = _prediction_matrices(3, .03, .1)
+    assert not transition.flags.writeable and not process.flags.writeable
+    assert _prediction_matrices(3, .03, .1)[0] is transition
+    assert _prediction_matrices.cache_info().currsize <= 256
+    law = _MotionLaw(np.array((1., 2.)), 1., 3, .03)
+    state, covariance = law.predicted(0.)
+    state[:] = covariance[:] = 99.
+    assert law.state[0, 0] == 1. and law.covariance[0, 0] == 1.
     return ()
 
 

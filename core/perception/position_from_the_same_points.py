@@ -40,6 +40,26 @@ def measured_position(thing: Any) -> tuple[float, float]:
     return float(thing.x), float(thing.y)
 
 
+def last_observed_outline(thing: Any) -> tuple[float, float, float, float] | None:
+    """Locate the saved pixel support, even while the public box is projected ahead."""
+    box = getattr(thing, 'box', None)
+    if callable(box):
+        left, top, right, bottom = box()
+    else:
+        left, top = thing.x-thing.w/2, thing.y-thing.h/2
+        right, bottom = left+thing.w, top+thing.h
+    path = getattr(thing, 'path', None)
+    if path:
+        when, x, y = path[-1]
+        if when != thing.seen or not all(math.isfinite(v) for v in (when, x, y)):
+            return None
+        width, height = right-left, bottom-top
+        left, top, right, bottom = x-width/2, y-height/2, x+width/2, y+height/2
+    if not all(math.isfinite(v) for v in (left, top, right, bottom)) or right <= left or bottom <= top:
+        return None
+    return left, top, right, bottom
+
+
 def position_from_points(thing: Any, blob: dict, motion: Any, at: float) -> tuple | None:
     """Return previous and current positions supported by continuing owned marks.
 

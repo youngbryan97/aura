@@ -33,13 +33,16 @@ def test_texture_points_measure_displacement_in_every_direction(dx, dy):
 
 
 def test_points_keep_their_names_across_several_pictures_without_object_detections():
-    before, _thing = _scene()
+    before, thing = _scene()
     points = FollowingPoints()
     first = {p.number for p in points.see(before, 1.)}
     for i in range(1, 6):
         points.see(ndimage.shift(before, (0, i * 2, 0), order=1, mode="nearest"), 1. + i * .05)
     survivors = [p for p in points.points if p.number in first]
     assert len(survivors) >= 3 and all(p.pictures == 6 for p in survivors)
+    measured = points.motion_of(thing, 1.25)
+    assert measured is not None and measured.before == thing.seen
+    assert measured.dx == pytest.approx(10., abs=.35) and measured.dy == pytest.approx(0., abs=.35)
 
 
 def test_occlusion_does_not_invent_a_continuing_track():

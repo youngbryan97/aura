@@ -11,12 +11,13 @@ Kanade, An Iterative Image Registration Technique (1981).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 from scipy import ndimage
 
+from core.perception.position_from_the_same_points import last_observed_outline
 from core.perception.rigid_motion_from_named_points import RigidMotion, rigid_motion
 from core.verify import invariant
 
@@ -180,11 +181,13 @@ class FollowingPoints:
         self._image: list[np.ndarray] | None = None
         self._at = -math.inf
         self._number = 0
+        self._point_history: dict[float, dict[int, SeenPoint]] = {}
 
     def clear(self) -> None:
         self.points = ()
         self._image = None
         self._at = -math.inf
+        self._point_history.clear()
 
     def see(self, picture: np.ndarray, at: float) -> tuple[SeenPoint, ...]:
         """Track points in a current RGB picture; a gap, resize or reset starts new identities."""
@@ -196,12 +199,51 @@ class FollowingPoints:
         if (self._image is not None and self._image[0].shape == image[0].shape
                 and 0 < at - self._at <= self.longest_gap and self.points):
             current = self._continued(image, at)
+        else:
+            self._point_history.clear()
         for x, y in _new_points(image[0], current, self.limit):
             current.append(SeenPoint(self._number, x, y, x, y, at, at, at, 0., 1))
             self._number += 1
         self.points = _spread_points(current, self.limit)
         self._image, self._at = image, at
+        self._remember_points()
         return self.points
+
+    def _remember_points(self) -> None:
+        """Retain bounded measured coordinates while an outline can briefly be absent."""
+        if self._point_history and self._at <= next(reversed(self._point_history)):
+            self._point_history.clear()
+        self._point_history[self._at] = {point.number: point for point in self.points}
+        while self._point_history and (len(self._point_history) > 32
+                or self._at-next(iter(self._point_history)) > min(self.longest_gap, NAMED_POINT_GAP_S)):
+            del self._point_history[next(iter(self._point_history))]
+
+    def _points_since(self, seen: float, at: float) -> tuple[SeenPoint, ...]:
+        """An older object support can own only marks seen at every intervening picture."""
+        if not isinstance(seen, (int, float)) or not isinstance(at, (int, float)) or not math.isfinite(seen+at):
+            return ()
+        if (self._at != at or not 0 < at-seen <= min(self.longest_gap, NAMED_POINT_GAP_S)
+                or seen not in self._point_history):
+            return self.points
+        frames = [(when, points) for when, points in self._point_history.items() if seen <= when <= at]
+        if len(frames) < 3 or frames[0][0] != seen or frames[-1][0] != at:
+            return self.points
+        result = [point for point in self.points if point.before == seen and point.at == at]
+        for point in self.points:
+            if point.before == seen:
+                continue
+            chain = [points.get(point.number) for _when, points in frames]
+            if (any(p is None for p in chain)
+                    or any(p.born != point.born or not p.born <= seen or p.at != when
+                           or p.pictures < 1 or p.pictures != chain[0].pictures+index
+                           or not math.isfinite(p.error) or p.error < 0
+                           or (index and (p.before != frames[index-1][0]
+                               or (p.old_x, p.old_y) != (chain[index-1].x, chain[index-1].y)))
+                           for index, ((when, _points), p) in enumerate(zip(frames, chain, strict=True)))):
+                continue
+            result.append(replace(point, old_x=chain[0].x, old_y=chain[0].y, before=seen,
+                                  error=sum(p.error for p in chain[1:])))
+        return tuple(result)
 
     def _continued(self, image: list[np.ndarray], at: float) -> list[SeenPoint]:
         positions = np.array([(p.x, p.y) for p in self.points], dtype=np.float32)
@@ -226,12 +268,16 @@ class FollowingPoints:
 
     def motion_of(self, thing: Any, at: float) -> PointMotion | None:
         """The common displacement of points spread through this last observed object box."""
-        points = [p for p in self.points if p.pictures >= 2 and p.before == thing.seen and p.at == at
-                  and abs(p.old_x - thing.x) <= thing.w / 2 and abs(p.old_y - thing.y) <= thing.h / 2]
+        bounds = last_observed_outline(thing)
+        if bounds is None:
+            return None
+        left, top, right, bottom = bounds
+        center = (left+right)/2, (top+bottom)/2
+        points = [p for p in self._points_since(thing.seen, at) if p.pictures >= 2 and p.before == thing.seen and p.at == at
+                  and left <= p.old_x <= right and top <= p.old_y <= bottom]
         mask = getattr(thing, "support", None)
         if mask is None or mask.ndim != 2 or not mask.size:
             return None
-        left, top = thing.x - thing.w / 2, thing.y - thing.h / 2
         points = [p for p in points if 0 <= (x := int(round(p.old_x - left))) < mask.shape[1]
                   and 0 <= (y := int(round(p.old_y - top))) < mask.shape[0] and mask[y, x]]
         if len(points) < 3:
@@ -254,10 +300,31 @@ class FollowingPoints:
             return None
         middle = np.median(differences[coherent], axis=0)
         if rigid is not None:
-            middle = rigid.apply((thing.x, thing.y)) - (thing.x, thing.y)
+            middle = rigid.apply(center) - center
         return PointMotion(float(middle[0]), float(middle[1]), max(p.error for p in support),
                            len(support), thing.seen, at, tuple(p.number for p in support),
                            tuple((p.x, p.y) for p in support), rigid)
+
+
+@invariant('perception.a_missing_outline_requires_continuous_observed_marks', scope='perception',
+           owner='core/perception/points_that_keep_their_motion.py', observational=False)
+def _point_history_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    tracker = FollowingPoints()
+    marks = ((10., 10.), (20., 10.), (10., 20.), (20., 20.))
+    for step, at in enumerate((1., 1.1, 1.2)):
+        tracker.points = tuple(SeenPoint(name, x+step*2., y, x+max(0, step-1)*2., y,
+                               1., at if step == 0 else (1., 1.1, 1.2)[step-1], at, .01, step+1)
+                               for name, (x, y) in enumerate(marks))
+        tracker._at = at
+        tracker._remember_points()
+    body = SimpleNamespace(x=15., y=15., w=20., h=20., seen=1., support=np.ones((20, 20), bool))
+    motion = tracker.motion_of(body, 1.2)
+    assert motion is not None and motion.dx == 4. and motion.before == 1.
+    tracker._point_history[1.1].clear()
+    assert tracker.motion_of(body, 1.2) is None
+    return ()
 
 
 @invariant("perception.point_identity_needs_current_pixels", scope="perception",

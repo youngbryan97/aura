@@ -53,6 +53,16 @@ def test_native_points_reach_the_actual_motion_support_in_working_coordinates(im
     assert motion.before == 1. and motion.at == 1.1
 
 
+def test_continuously_visible_learned_marks_bridge_a_missing_object_detection(images):
+    points = PointsForMotionEyes(InventedTracker(), limit=4)
+    for at in (1., 1.1, 1.2):
+        points.see_source(*images, at)
+    body = SimpleNamespace(x=20., y=20., w=20., h=20., seen=1., support=np.ones((20, 20), bool))
+    motion = points.motion_of(body, 1.2)
+    assert motion is not None and motion.support == 4 and motion.dx == 4. and motion.dy == 0.
+    assert motion.before == 1. and motion.at == 1.2
+
+
 def test_hidden_predictions_cannot_extend_a_path_and_reappearance_needs_new_visible_support(images):
     tracker = InventedTracker()
     points = PointsForMotionEyes(tracker, limit=4)
@@ -64,6 +74,8 @@ def test_hidden_predictions_cannot_extend_a_path_and_reappearance_needs_new_visi
     assert {point.number for point in first} == {point.number for point in returned}
     assert all(point.pictures == 1 and point.before == 1.2 for point in returned)
     body = SimpleNamespace(x=20., y=20., w=30., h=30., seen=1.1, support=np.ones((30, 30), bool))
+    assert points.motion_of(body, 1.2) is None
+    body.seen = 1.
     assert points.motion_of(body, 1.2) is None
 
 

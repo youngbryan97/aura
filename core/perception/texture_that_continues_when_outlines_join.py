@@ -14,6 +14,7 @@ import numpy as np
 from scipy import ndimage
 
 from core.perception.points_that_keep_their_motion import NAMED_POINT_GAP_S
+from core.perception.position_from_the_same_points import last_observed_outline
 from core.verify import invariant
 
 
@@ -90,9 +91,10 @@ def _supported_part(picture: np.ndarray, inside: np.ndarray, thing: Any, motion:
     # whether the proposed smaller material part is actually present.
     if int(inside.sum()) <= 2 * int(support.sum()) and inside.size <= 2 * support.size:
         return None
-    ox, oy, right, bottom = thing.box()
-    if not all(math.isfinite(v) for v in (ox, oy, right, bottom)):
+    bounds = last_observed_outline(thing)
+    if bounds is None:
         return None
+    ox, oy, right, bottom = bounds
     if (round(right - ox), round(bottom - oy)) != (old.shape[1], old.shape[0]):
         return None
     h, w = inside.shape
