@@ -18,6 +18,10 @@ from scipy import ndimage
 
 from core.perception.a_picture_of_her_page import picture_of
 from core.perception.a_visual_reference_in_the_picture import reference_appearances
+from core.perception.recording_the_frames_and_inputs import (
+    record_pointer_correspondence,
+    record_pointer_reference,
+)
 from core.perception.where_the_pointer_turns import shown_as_a_hand
 from core.verify import invariant
 
@@ -36,6 +40,7 @@ class CursorTarget:
     patch: bytes
     size: tuple[int, int]
     anchor: tuple[float, float]
+    sample_point: tuple[float, float]
     captured: float
 
 
@@ -80,7 +85,7 @@ def material_at(picture: np.ndarray, point: tuple[float, float], *, page: Any, b
     left, top = max(0, min(width-96, round(px)-48)), max(0, min(height-96, round(py)-48))
     patch = np.ascontiguousarray(picture[top:min(height, top+96), left:min(width, left+96)])
     return CursorTarget(*scope, tuple(bounds), patch.tobytes(), (patch.shape[1], patch.shape[0]),
-                        (px-left, py-top), time.monotonic())
+                        (px-left, py-top), (point[0]*bounds[2], point[1]*bounds[3]), time.monotonic())
 
 
 def target_in_picture(target: CursorTarget, picture: np.ndarray) -> tuple[float, float] | None:
@@ -107,12 +112,18 @@ def target_in_picture(target: CursorTarget, picture: np.ndarray) -> tuple[float,
 
 async def sample_cursor_target(page: Any, point: tuple[float, float], bounds: tuple) -> CursorTarget | None:
     """A physical hover and its subsequent picture, with a hand on both sides."""
-    scope = _scope(page)
-    if scope is None or not all(math.isfinite(v) and 0 <= v <= 1 for v in point):
+    if _scope(page) is None or not all(math.isfinite(v) and 0 <= v <= 1 for v in point):
         return None
     x, y = bounds[0]+point[0]*bounds[2], bounds[1]+point[1]*bounds[3]
     await page.mouse.move(x, y)
     await asyncio.sleep(.12)
+    return await cursor_material_here(page, point, bounds)
+
+
+async def cursor_material_here(page: Any, point: tuple[float, float], bounds: tuple) -> CursorTarget | None:
+    """Capture the current physical hover before any further pointer movement."""
+    scope = _scope(page)
+    x, y = bounds[0]+point[0]*bounds[2], bounds[1]+point[1]*bounds[3]
     if not await shown_as_a_hand(page, x, y, move=False):
         return None
     picture = await target_picture(page, bounds)
@@ -153,6 +164,7 @@ class PointingFeedback:
 async def _arrive(page: Any, target: CursorTarget, point: tuple, check: Any) -> tuple[float, float] | None:
     pointer = np.asarray((point[0]*target.bounds[2], point[1]*target.bounds[3]), float)
     feedback = PointingFeedback()
+    reference = record_pointer_reference(target)
     left, top, width, height = target.bounds
     for _ in range(MAX_CORRECTIONS):
         check()
@@ -164,6 +176,7 @@ async def _arrive(page: Any, target: CursorTarget, point: tuple, check: Any) -> 
         if pixels is None or not _belongs(target, page):
             return None
         observed = await asyncio.to_thread(target_in_picture, target, pixels)
+        record_pointer_correspondence(reference, pixels, phase='correct', pointer=pointer, matched=observed)
         if observed is None:
             logger.info('pointer target has no unique current pixel correspondence')
             return None
@@ -186,6 +199,14 @@ async def arrive_at_cursor_target(page: Any, target: CursorTarget, point: tuple,
         return await asyncio.wait_for(_arrive(page, target, point, check), TARGET_WITHIN_S)
     except TimeoutError:
         logger.info('pointer target did not converge within %.1fs', TARGET_WITHIN_S)
+        return None
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError) as why:
+        logger.info('pointer feedback could not complete: %s', str(why)[:120])
+        return None
+    except Exception as why:  # noqa: BLE001 - optional browser SDK errors have no shared runtime base
+        if not type(why).__module__.startswith('playwright.'):
+            raise
+        logger.info('the browser could not complete pointer feedback: %s', str(why)[:120])
         return None
 
 

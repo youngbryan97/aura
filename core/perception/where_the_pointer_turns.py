@@ -76,12 +76,20 @@ def has_current_cursor_sample(reading: Any, point: tuple) -> bool:
 # Keep only finished physical queries when its time expires.
 SWEEP_WITHIN_S = 2.0
 _CURSOR_SAMPLES: contextvars.ContextVar[list | None] = contextvars.ContextVar('physical_cursor_samples', default=None)
+_CURSOR_OBSERVER: contextvars.ContextVar[Any] = contextvars.ContextVar('physical_cursor_observer', default=None)
 
 
 def _sampled(x: float, y: float, shown: str) -> None:
     samples = _CURSOR_SAMPLES.get()
     if samples is not None and len(samples) < 1024:
         samples.append((x, y, shown))
+
+
+async def _finished_sample(x: float, y: float, shown: str) -> None:
+    _sampled(x, y, shown)
+    observer = _CURSOR_OBSERVER.get()
+    if observer is not None:
+        await observer(x, y, shown)
 
 
 def _spread(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
@@ -273,7 +281,7 @@ async def _shown_at_each(page: Any, points: list[tuple[float, float]]) -> list[s
     for x, y in points:
         await page.mouse.move(x, y)
         shown = str(await page.evaluate(_SHOWN_AS, [x, y]) or "")
-        _sampled(x, y, shown)
+        await _finished_sample(x, y, shown)
         out.append(shown)
     return out
 
@@ -295,7 +303,7 @@ async def _the_mouse_agrees(page: Any, points: list[tuple[float, float]], shown:
         x, y = points[i]
         await page.mouse.move(x, y)
         physical = str(await page.evaluate(_SHOWN_AS, [x, y]) or "")
-        _sampled(x, y, physical)
+        await _finished_sample(x, y, physical)
         if (physical in _A_HAND) != (shown[i] in _A_HAND):
             return False
     return True
@@ -341,7 +349,7 @@ def places_the_pointer_turns(hands: set[tuple[int, int]], across: int = ACROSS, 
 
 
 async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, float] | None = None, *,
-                                hints: tuple[tuple[float, float], ...] = ()) -> list[tuple[float, float]]:
+                                hints: tuple[tuple[float, float], ...] = (), on_sample: Any = None) -> list[tuple[float, float]]:
     """Bound pointer inspection; an interrupted pass retains only physical samples.
 
     A partial result needs a positive and a negative in the requested region.
@@ -353,6 +361,7 @@ async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, fl
         return []
     samples: list = []
     token = _CURSOR_SAMPLES.set(samples)
+    observed = _CURSOR_OBSERVER.set(on_sample)
     try:
         try:
             return await asyncio.wait_for(_sweep(page, over, hints=hints), SWEEP_WITHIN_S)
@@ -365,6 +374,7 @@ async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, fl
             return points
     finally:
         _CURSOR_SAMPLES.reset(token)
+        _CURSOR_OBSERVER.reset(observed)
 
 
 async def _sweep(page: Any, over: tuple[float, float, float, float] | None = None, *,

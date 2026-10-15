@@ -539,3 +539,15 @@ Offscreen or invalid well crops return no piece instead of crashing. The well
 pixel worlds and admission regressions pass. Read the dated candidate-mode
 evidence. Next couple material capture to the original physical cursor hit;
 resampling it after the sweep loses the pointer/view relationship.
+
+
+Material acquisition now runs inside the original physical cursor sample,
+including physical validation of a synthetic sweep, before the next move.
+It has no extra approach and spends the existing sweep deadline. The fresh
+reading retains only uniquely reconciled samples. Opted-in recordings include
+reference patches and correction/comparison pictures in declared RGB with
+reference sequence links, so the exact correspondence can be replayed.
+The Chromium normal-port recording replays to the same target coordinates.
+The focused suites and normal gates pass; the next step is an original case 3
+repeat with these changes and the candidate-well admission repair. See
+`docs/evidence/steering/2026-10-15-cursor-captures-stay-with-their-physical-sample.md`.

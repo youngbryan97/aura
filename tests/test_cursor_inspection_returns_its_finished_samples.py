@@ -47,6 +47,7 @@ async def test_a_deadline_returns_finished_physical_hits_without_inventing_the_u
     actual = {(x/1000, y/700) for x, y, shown in page.read if shown == 'pointer'}
     assert set(places) <= actual
     assert cursor._CURSOR_SAMPLES.get() is None
+    assert cursor._CURSOR_OBSERVER.get() is None
     assert cursor._partial_cursor_invariant() == ()
 
 
@@ -57,6 +58,37 @@ async def test_partial_uniform_samples_cannot_localize_a_target(monkeypatch, uni
     cursor._NEEDS_THE_MOUSE.add(page)
     monkeypatch.setattr(cursor, 'SWEEP_WITHIN_S', .04)
     assert await cursor.where_the_pointer_turns(page) == []
+
+
+@pytest.mark.asyncio
+async def test_an_observer_receives_each_finished_physical_sample_before_the_next_move(monkeypatch):
+    page = _SlowPage()
+    cursor._NEEDS_THE_MOUSE.add(page)
+    monkeypatch.setattr(cursor, 'SWEEP_WITHIN_S', .04)
+    observed = []
+
+    async def at_the_sample(x, y, shown):
+        assert (x, y) == page.at
+        assert page.read[-1] == (x, y, shown)
+        observed.append((x, y, shown))
+
+    await cursor.where_the_pointer_turns(page, on_sample=at_the_sample)
+    assert observed == page.read and len(observed) == 6
+    assert cursor._CURSOR_OBSERVER.get() is None
+
+
+@pytest.mark.asyncio
+async def test_a_stalled_sample_capture_spends_the_existing_sweep_budget(monkeypatch):
+    page = _SlowPage()
+    cursor._NEEDS_THE_MOUSE.add(page)
+    monkeypatch.setattr(cursor, 'SWEEP_WITHIN_S', .04)
+
+    async def stalled(*args):
+        await asyncio.Event().wait()
+
+    assert await asyncio.wait_for(cursor.where_the_pointer_turns(page, on_sample=stalled), .5) == []
+    assert len(page.read) == 1  # The unchecked rest is neither sampled nor authorized.
+    assert cursor._CURSOR_OBSERVER.get() is None
 
 
 @pytest.mark.asyncio

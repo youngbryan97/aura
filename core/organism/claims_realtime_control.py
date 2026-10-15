@@ -86,6 +86,7 @@ def _task_grounding_claims() -> tuple:
     from core.perception.a_cursor_target_in_its_pixels import _pointer_feedback_invariant
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
     from core.perception.a_well_seen import _well_geometry_invariant
+    from core.perception.recording_the_frames_and_inputs import _pointer_recording_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
     from core.perception.the_latest_reading_at_handoff import _latest_reading_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
@@ -101,7 +102,10 @@ def _task_grounding_claims() -> tuple:
     from core.skills.screen_pursuit_on_a_page import _cursor_cache_custody_invariant
     from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('unseen_well_geometry_is_not_a_piece', 'core/perception/a_well_seen.py',
+    return (('pointer_comparisons_keep_their_reference_pixels', 'core/perception/recording_the_frames_and_inputs.py',
+             'tests/test_a_pointer_target_is_reached_through_pixels.py', lambda: _pointer_recording_invariant() == (),
+             'Opted-in pointer comparisons retain separate RGB reference and current pictures with their relationship, including failed matches; these records supply no task result or motor-frame identity.'),
+            ('unseen_well_geometry_is_not_a_piece', 'core/perception/a_well_seen.py',
              'tests/test_a_changing_picture_cannot_hold_well_control.py', lambda: _well_geometry_invariant() == (),
              'Invalid or absent well crop geometry supplies no piece; saved nonfinite coordinates, fractional cell counts and invalid color bytes cannot enter the retained grid.'),
             ('provisional_well_motion_cannot_supply_a_played_result', 'core/agency/playing_a_well.py',

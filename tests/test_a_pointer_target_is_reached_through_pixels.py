@@ -57,7 +57,10 @@ def _target(page):
 
 
 def test_feedback_invariant():
+    from core.perception.recording_the_frames_and_inputs import _pointer_recording_invariant
+
     assert pointing._pointer_feedback_invariant() == ()
+    assert _pointer_recording_invariant() == ()
 
 
 @pytest.mark.asyncio
@@ -211,6 +214,8 @@ async def test_chromium_normal_page_port_corrects_the_same_material_and_presses_
                                     np.array((160., 120.))-np.array(((.4, .1), (-.1, .3))) @ (80., 80.))
 
             async def sweep(*args, **kwargs):
+                await page.mouse.move(*fixed)
+                await kwargs['on_sample'](*fixed, 'pointer')
                 return [(fixed[0]/320, fixed[1]/240)]
 
             monkeypatch.setattr('core.perception.where_the_pointer_turns.where_the_pointer_turns', sweep)
@@ -230,7 +235,21 @@ async def test_chromium_normal_page_port_corrects_the_same_material_and_presses_
             assert receipts[down-1]['kind'] == 'move'
             assert (receipts[down-1]['x'], receipts[down-1]['y']) == (receipts[down]['x'], receipts[down]['y'])
             events = [json.loads(line) for line in (directory/'events.jsonl').read_text().splitlines()]
-            assert events[-1]['delivered'] is True
-            assert events[0]['args'] == pytest.approx((receipts[down]['x'], receipts[down]['y']), abs=.6)
+            inputs = [event for event in events if event['kind'] == 'navigation_input']
+            assert inputs[-1]['delivered'] is True
+            assert inputs[0]['args'] == pytest.approx((receipts[down]['x'], receipts[down]['y']), abs=.6)
+            from PIL import Image
+
+            reference = next(event for event in events if event['kind'] == 'pointer_reference')
+            source = np.asarray(Image.open(directory/reference['file']).convert('RGB'))
+            retained = pointing.CursorTarget(id(page), page.url, (320, 240), tuple(reference['bounds']),
+                source.tobytes(), (source.shape[1], source.shape[0]), tuple(reference['anchor']),
+                tuple(reference['sample_point']), reference['sampled_at'])
+            compared = [event for event in events if event['kind'] == 'pointer_correspondence']
+            assert compared and all(event['channels'] == 'RGB' for event in compared)
+            for event in compared:
+                pixels = np.asarray(Image.open(directory/event['file']).convert('RGB'))
+                replayed = pointing.target_in_picture(retained, pixels)
+                assert replayed == pytest.approx(event['matched_in_bounds'], abs=1e-6)
         finally:
             await browser.close()

@@ -217,6 +217,58 @@ def finish_navigation_input(request: Any, delivered: bool) -> None:
                                   partial_delivery_possible=not delivered))
 
 
+def record_pointer_reference(target: Any) -> int | None:
+    """Retain the small RGB reference separately from the later matching pictures."""
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return None
+    width, height = target.size
+    patch = np.frombuffer(target.patch, np.uint8).reshape(height, width, 3)
+    event = recorder.event('pointer_reference', channels='RGB', surface=f'page:{target.page_id}',
+                           viewport=list(target.viewport), bounds=list(target.bounds),
+                           anchor=list(target.anchor), sampled_at=target.captured,
+                           sample_point=list(target.sample_point), authority='visible material only')
+    recorder.offer(event, _pixels(patch))
+    return event['sequence']
+
+
+def record_pointer_correspondence(reference: int | None, picture: Any, *, phase: str,
+                                  pointer: Any = None, matched: Any = None) -> None:
+    """Keep a current RGB comparison, including a failed match; no task result."""
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return
+    recorder.offer(recorder.event('pointer_correspondence', reference_sequence=reference, phase=phase,
+        channels='RGB', pointer_in_bounds=[float(v) for v in pointer] if pointer is not None else None,
+        matched_in_bounds=[float(v) for v in matched] if matched is not None else None,
+        qualified=matched is not None), _pixels(picture))
+
+
+@invariant('perception.pointer_comparisons_keep_their_reference_pixels', scope='perception',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _pointer_recording_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    recorder = FrameAndInputRecording(Path('unused-pointer-canary'))
+    token = _ACTIVE.set(recorder)
+    try:
+        picture = np.zeros((16, 16, 3), np.uint8)
+        target = SimpleNamespace(size=(16, 16), patch=picture.tobytes(), page_id=1, viewport=(100, 100),
+                                 bounds=(0., 0., 100., 100.), anchor=(8., 8.), captured=1., sample_point=(50., 50.))
+        reference = record_pointer_reference(target)
+        record_pointer_correspondence(reference, picture, phase='correct', pointer=(10., 10.))
+        first, source = recorder.queue.get_nowait()
+        last, comparison = recorder.queue.get_nowait()
+        assert first['kind'] == 'pointer_reference' and first['sampled_at'] == 1.
+        assert last['reference_sequence'] == first['sequence'] and last['qualified'] is False
+        assert last['kind'] != 'frame' and 'task_passed' not in last
+        assert first['channels'] == last['channels'] == 'RGB'
+        assert np.array_equal(source, comparison)
+    finally:
+        _ACTIVE.reset(token)
+    return ()
+
+
 @invariant('perception.normal_navigation_records_its_physical_port', scope='perception',
            owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
 def _navigation_port_recording_invariant() -> tuple:
