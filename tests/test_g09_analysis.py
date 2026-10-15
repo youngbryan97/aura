@@ -47,3 +47,19 @@ def test_a_domain_named_twice_pools_and_dropped_groups_are_reported_apart(tmp_pa
     assert report["domains"]["planning"]["requests"] == 10 and report["domains"]["planning"]["gained"] == 6
     assert report["domains"]["transfer"]["requests"] == 2 and report["dropped"]["transfer"]["gained"] == 1
     assert report["pooled"]["gained"] == 8
+
+
+def test_a_kept_procedures_bare_answer_is_graded_as_its_kind_was_when_it_was_kept() -> None:
+    from tools.g09_kept_procedure_arm import _kept_answer_grader
+
+    def harness(text, truth):
+        # A BBH harness grader reads the answer out of "So the answer is ...".
+        marker = "the answer is "
+        said = text.lower().split(marker)[-1].strip(" .") if marker in text.lower() else ""
+        return said == str(truth).lower(), said
+
+    grade = _kept_answer_grader("bbh_boolean_expressions", harness)
+    assert grade("False", "False")[0] and not grade("True", "False")[0]
+    assert not harness("False", "False")[0]
+    # A domain the induction never graded keeps the harness's grader.
+    assert _kept_answer_grader("math", harness) is harness
