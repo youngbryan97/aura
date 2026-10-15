@@ -85,6 +85,7 @@ def _task_grounding_claims() -> tuple:
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
+    from core.perception.where_am_i import _pointer_target_frame_invariant
     from core.perception.where_the_pointer_turns import (
         _corner_queries_invariant,
         _partial_cursor_invariant,
@@ -96,7 +97,10 @@ def _task_grounding_claims() -> tuple:
     from core.skills.screen_pursuit_on_a_page import _cursor_cache_custody_invariant
     from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('view_navigation_does_not_name_a_following_body', 'core/agency/the_controls_a_game_names.py',
+    return (('current_pointer_targets_do_not_depend_on_a_grid', 'core/perception/where_am_i.py',
+             'tests/test_current_pointer_target_survives_an_unrelated_grid.py', lambda: _pointer_target_frame_invariant() == (),
+             'A unique pointer-responsive target in a current scoped pixel capture can admit its click despite an unrelated remembered grid; missing or ambiguous targets and keyboard moves retain the prior frame gate.'),
+            ('view_navigation_does_not_name_a_following_body', 'core/agency/the_controls_a_game_names.py',
              'tests/test_pointer_navigation_does_not_invent_a_body.py', lambda: _navigation_motion_invariant() == (),
              'An explicit route between rooms or software views supplies no following-body evidence; separate direct body movement, aiming, firing and keyboard clauses remain available.'),
             ('interrupted_cursor_sweeps_keep_only_physical_evidence', 'core/perception/where_the_pointer_turns.py',

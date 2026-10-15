@@ -227,7 +227,8 @@ async def carry_out_the_move(
     # the thing she is acting in is the thing whose places she has
     # been acting on, and she is holding those places.
     here = where_am_i(laid_out, lattice=lattice, asked_for=goal,
-                      aimed_at=clicked or (two.one if two is not None else ""))
+                      aimed_at=clicked or (two.one if two is not None else ""),
+                      observation=getattr(run, 'observation', None))
     if not here.the_thing_is_here:
         if narrate:
             from .screen_pursuit_bearings import _said_unless_playing

@@ -476,3 +476,32 @@ Deployment also remains open. The default live-source checkout was on
 the native app contains these changes. Do not update that shared checkout
 under an exclusive job or start a model-backed runtime beside G09. The
 later continuation remains scheduled, with the first already retired.
+
+## 15 October, ordinary cursor navigation follow-up
+
+The worktree is `codex-steering-1012`. `a73fc355f` added current-corner
+cursor proposals, `54eb608f6` bounded the full sweep while retaining finished
+physical samples, and `2df71d077` distinguished view-navigation routes from
+following-body control. Each was pushed to main. `fa7da1c27` preserved two
+concurrent upstream changes by merging them unchanged after a rejected push.
+
+The three-minute original case 3 repeat at `2df71d077` finished in 213.55
+seconds with 14 moves, no win, and no fast body-control stream. Its final
+image shows a kitchen. Later clicks were repeatedly rejected because a
+remembered 2 by 2 lattice differed from the scene's inferred arrangement.
+The current repair gives a unique current captured pointer target its own
+admission evidence, while keeping the grid check for keyboard actions.
+See the dated evidence for its negative tests and the next original repeat.
+
+Next: measure that admission repair, check whether hover samples wait for
+the browser's response, and fix the stale `last_seen` report. The report
+retained old instructions after visual room entry, so inspect the actual
+recording and final image. Do not read it as current scene text.
+
+Accelerator ownership continues under G09. PID 91159 ended; successor PID
+668 runs the same organ entry point with about 15 GB resident. Only resource
+ownership was checked. Stay CPU-only, leave the shared default checkout
+alone, and preserve original 9 and the recorded holdouts. No native app was
+started and no runtime restart occurred. The 5:11 PM continuation remains
+scheduled; the fired first continuation was retired. None of this is an
+independently witnessed native-app result or a cleared 56-game campaign.

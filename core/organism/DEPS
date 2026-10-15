@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.perception.where_am_i", # Pure current pointer-target admission canary; no input delivery.
     "+core.perception.where_the_pointer_turns", # Pure original pixel-corner proposal canary, no browser execution.
     "+core.skills.screen_pursuit_on_a_page", # Pure cursor cache geometry/pixel canary; no browser or port execution.
     "+core.skills.screen_pursuit_bearings", # Pure check that animation cannot erase a measured navigation label.

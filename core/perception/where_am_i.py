@@ -23,8 +23,11 @@ for, checked against the words in front of her.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
+
+from core.verify import invariant
 
 __all__ = ["WhereSheIs", "where_am_i", "SOME_OF_IT"]
 
@@ -89,6 +92,7 @@ def where_am_i(
     lattice: Any = None,
     asked_for: str = "",
     aimed_at: str = "",
+    observation: Mapping[str, Any] | None = None,
 ) -> WhereSheIs:
     """Whether the thing she means to act in is what is in front of her.
 
@@ -100,6 +104,8 @@ def where_am_i(
     ``aimed_at`` is the thing she is about to click or carry, as she saw it in
     this same look: where there is one, there is something in front of her.
     """
+    if _current_pointer_target(observation, aimed_at):
+        return WhereSheIs(True, 'the current captured target answers the pointer')
     filled = int(getattr(reading, "occupied", lambda: 0)() or 0)
     rows = int(getattr(reading, "rows", 0) or 0)
     columns = int(getattr(reading, "columns", 0) or 0)
@@ -148,3 +154,44 @@ def where_am_i(
     return WhereSheIs(
         True, "I have not acted anywhere yet, so I have nothing to tell this apart from"
     )
+
+
+def _current_pointer_target(observation: Mapping[str, Any] | None, label: str) -> bool:
+    """A measured pointer affordance does not depend on the screen's inferred grid."""
+    if not observation or observation.get('ok') is not True or not str(label or '').strip():
+        return False
+    from core.perception.observed_transfer import freeze_screen
+
+    frame = freeze_screen(observation)
+    if (frame.picture is None or not frame.surface or frame.bounds is None or not frame.settled or frame.occluded
+            or frame.capture_at is None or not observation.get('_capture_epoch')
+            or observation.get('her_window_showing') is False or observation.get('refused_because')):
+        return False
+    named = ' '.join(str(label).casefold().split())
+    candidates = [region for field in ('layout', 'shapes', 'objects') for region in observation.get(field) or ()
+                  if isinstance(region, Mapping) and ' '.join(str(region.get('text') or '').casefold().split()) == named]
+    if len(candidates) != 1 or candidates[0].get('answers_the_pointer') is not True or candidates[0].get('pointer_ambiguous'):
+        return False
+    region = candidates[0]
+    # Use the same explicit anchor preference as delivery. A malformed
+    # anchor cannot regain authority through its label's centre.
+    x, y = ((region.get('pointer_x'), region.get('pointer_y')) if 'pointer_x' in region or 'pointer_y' in region
+            else (region.get('center_x'), region.get('center_y')))
+    return (type(x) in (float, int) and type(y) in (float, int) and 0 <= x <= 1 and 0 <= y <= 1
+            and any(item.label == named for item in frame.regions))
+
+
+@invariant('perception.current_pointer_targets_do_not_depend_on_a_grid', scope='perception',
+           owner='core/perception/where_am_i.py', observational=False)
+def _pointer_target_frame_invariant() -> tuple:
+    from core.perception.observed_transfer import PixelSnapshot, ScreenReading
+
+    region = dict(text='a current target', x=.2, y=.2, width=.2, height=.2,
+                  center_x=.3, center_y=.3, answers_the_pointer=True)
+    seen = ScreenReading(dict(ok=True, shapes=[region], surface_id='one', bounds=[0, 0, 8, 8],
+                              capture_at=1., _capture_epoch='one', settled=True),
+                         picture_snapshot=PixelSnapshot(bytes(192), 8, 8))
+    assert _current_pointer_target(seen, 'a current target')
+    assert not _current_pointer_target(dict(seen), 'a current target')
+    assert not _current_pointer_target(seen, 'an old target')
+    return ()
