@@ -231,3 +231,34 @@ cd ~/.aura/flash-campaign/offline-bundle && git init -b main && git add -A \
    live path does that the harness does not: her eyes, the fire pace
    (`_trigger` in `core/agency/playing_as_it_happens.py`), or whether the
    code's reading reaches her choosing there.
+
+## Mac checkpoint, 15 October 2026
+
+Main now includes the browser observation deadline repair (5e82e7082),
+unfinished proof checkpoints (7fa671d25), and retained material before a
+joined outline's larger point consensus (fd06569ed). The last repair
+reproduces a moving body's measured motion becoming zero when stationary
+texture enters its outline. Generated-pixel tests now preserve that body
+through the join and split with both trackers. The focused perception set
+has 249 passes; smoke has 165 passes and one skip. These are offline
+component results. No original game was won or native prompt proved here.
+
+The new record is
+`docs/evidence/steering/2026-10-15-retained-marks-before-the-joined-outline.md`.
+It also maps Bryan's five-repair attachment against the current code.
+The control-identification thresholds remain unchanged.
+
+The machine reboot removed `/private/tmp/codex-steer`, including its raw
+captures and diagnostic scripts. Earlier dated logs retain their original
+claims, but those missing captures cannot be replayed. Keep new run evidence
+under `~/.aura/flash-campaign/evidence/`. `tools/run_proof_step.py` now saves
+prepared and running records before waiting, with `passed=false`, and a
+command's exit code leaves its task outcome for independent review.
+
+Claude's G09 run is active. Preserve its model and process ownership; no
+desktop runtime or browser play run was started alongside it for this
+checkpoint. Once that lane is available, the next proof is a fresh assigned
+original-case-9 run with durable actual-frame and input receipts, followed
+by ordinary native-app prompt validation. Keep holdouts 31, 32, 33, 34, 35,
+36, 39, 42, 47 and 49 unopened. Body control, task-goal grounding and the
+56-game campaign remain open. Presentation readiness is unproved.
