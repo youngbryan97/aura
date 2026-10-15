@@ -86,6 +86,19 @@ def control_histories(events: list[dict]) -> dict[int, list[tuple]]:
     return {n: [(at, key, trying) for at, (key, trying) in sorted(history.items())] for n, history in streams.items()}
 
 
+def recorded_prefix(events: list[dict], limit: int) -> tuple[list[dict], bool]:
+    """A complete early prefix can survive a later recording-budget exhaustion."""
+    selected, pictures = [], 0
+    for event in events:
+        if event['kind'] == 'frame':
+            pictures += 1
+            if pictures > limit:
+                break
+        selected.append(event)
+    consecutive = bool(selected) and [e['sequence'] for e in selected] == list(range(1, selected[-1]['sequence']+1))
+    return selected, consecutive and pictures > limit
+
+
 def replay(directory: Path, limit: int = 1000, *, replay_control: bool = False) -> dict:
     from core.perception.frames_as_they_are_drawn import CanvasFrameTime
     from core.perception.translation_from_visible_support import motion_status
@@ -94,9 +107,10 @@ def replay(directory: Path, limit: int = 1000, *, replay_control: bool = False) 
     manifest = json.loads((directory / 'manifest.json').read_text())
     if manifest.get('schema') != 'aura.pixel_input_recording.v1':
         raise ValueError('unknown recording schema')
-    if replay_control and not manifest.get('complete'):
-        raise ValueError('control replay requires a complete input recording')
     events = [json.loads(line) for line in (directory / 'events.jsonl').read_text().splitlines()]
+    events, complete_prefix = recorded_prefix(events, limit)
+    if replay_control and not manifest.get('complete') and not complete_prefix:
+        raise ValueError('control replay requires a complete input recording or an intact bounded prefix')
     sequences = [e['sequence'] for e in events]
     if any(b <= a for a, b in zip(sequences, sequences[1:], strict=False)):
         raise ValueError('recording event order is invalid')
@@ -152,6 +166,7 @@ def replay(directory: Path, limit: int = 1000, *, replay_control: bool = False) 
     return dict(scope='pixel-only replay on recorded controls; changed policy and gameplay outcomes are not replayed',
                 recording=manifest, replayed_frames=len(frames), streams=streams,
                 replayed_actor_control_flags=replay_control,
+                bounded_input_prefix_complete=complete_prefix,
                 statuses=dict(statuses), frames=frames, inputs=inputs, presentation_qualified=False)
 
 

@@ -172,3 +172,15 @@ def test_control_replay_uses_observed_independence_and_refuses_missing_or_confli
     with pytest.raises(ValueError, match='unmeasured'):
         control_histories([dict(kind='stream_started'),
                            dict(kind='control_observation', held_since=float('nan'), held='a', trying=True)])
+
+
+def test_later_overflow_cannot_certify_a_gapped_prefix_or_destroy_an_intact_one():
+    from tools.replay_recorded_play_pixels import recorded_prefix
+
+    events = [dict(sequence=1, kind='stream_started'), dict(sequence=2, kind='frame'),
+              dict(sequence=3, kind='control_observation'), dict(sequence=4, kind='frame'),
+              dict(sequence=9, kind='frame')]
+    prefix, complete = recorded_prefix(events, 1)
+    assert prefix == events[:3] and complete
+    assert not recorded_prefix(events, 3)[1]
+    assert not recorded_prefix([events[0], events[2], events[3], events[4]], 1)[1]

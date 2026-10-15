@@ -42,6 +42,21 @@ def measured_position(thing: Any) -> tuple[float, float]:
     return float(thing.x), float(thing.y)
 
 
+def new_mark_capacity(retained: int) -> int:
+    """Keep retained material at least two thirds of the next admitted set."""
+    return min(max(0, 256-retained), max(0, retained//2))
+
+
+@invariant('perception.fresh_marks_cannot_outvote_retained_material', scope='perception',
+           owner='core/perception/position_from_the_same_points.py', observational=False)
+def _fresh_mark_capacity_invariant() -> tuple:
+    for retained in range(3, 257):
+        fresh = new_mark_capacity(retained)
+        assert retained+fresh <= 256 and retained/(retained+fresh) >= 2./3.
+    assert new_mark_capacity(4) == 2
+    return ()
+
+
 def last_observed_outline(thing: Any) -> tuple[float, float, float, float] | None:
     """Locate the saved pixel support, even while the public box is projected ahead."""
     box = getattr(thing, 'box', None)
@@ -120,7 +135,7 @@ def _continue_rotating_marks(thing: Any, previous: PointPose, current: dict, nam
     ordered = list(names)
     qualified = [ordered[i] for i in fit.inliers]
     anchors = {name: previous.anchors[name] for name in qualified}
-    for name in sorted(current.keys() - names)[:len(qualified) // 2]:
+    for name in sorted(current.keys() - names)[:new_mark_capacity(len(qualified))]:
         anchors[name] = tuple(float(v) for v in fit.inverse(current[name]))
     before = previous.position
     previous.anchors, previous.position, previous.at = anchors, position, at

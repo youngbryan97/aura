@@ -351,7 +351,9 @@ def _motion_of_retained_marks(thing: Any, points: list[SeenPoint], center: tuple
     coherent = np.linalg.norm(predicted-np.asarray([(p.x, p.y) for p in points]), axis=1) <= .75
     continuing = [p for p, agrees in zip(points, coherent, strict=True) if agrees and p.number in pose.anchors]
     extra = [p for p, agrees in zip(points, coherent, strict=True) if agrees and p.number not in pose.anchors]
-    used = continuing + extra[:256-len(continuing)]
+    from core.perception.position_from_the_same_points import new_mark_capacity
+
+    used = continuing + extra[:new_mark_capacity(len(continuing))]
     retained = set(pose.anchors) & {p.number for p in used}
     if len(retained) < 3:
         return None
