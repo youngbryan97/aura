@@ -86,6 +86,20 @@ def _turn_observation_invariant() -> tuple:
     return ()
 
 
+@invariant('agency.observed_travel_is_not_erased_by_a_later_missing_picture', scope='agency',
+           owner='core/agency/which_way_she_faces.py', observational=False)
+def _past_travel_invariant() -> tuple:
+    faces = WhichWaySheFaces()
+    for at in (0., .25, .4):
+        faces.saw(80., 0., 'opaque', at, began=0.)
+    faces.saw(0., 0., 'opaque', .55, began=0., measured=False)
+    assert not faces.going and not faces.turns_measured and not faces.along
+    faces.saw(0., 0., '', .7, began=.7, measured=False)
+    assert faces.along['opaque'] == [80.] and not faces.turns
+    assert faces.ahead_key() is None, 'one segment became independent repeated presses'
+    return ()
+
+
 @dataclass
 class WhichWaySheFaces:
     """What her keys do to where she faces, learned from her going; and the key that takes her toward a place."""
@@ -104,6 +118,8 @@ class WhichWaySheFaces:
     #: Whether the key held takes her ahead (1) or back (-1), as read while it is held.
     sign: float | None = None
     going: list[tuple[float, float]] = field(default_factory=list)
+    #: Best observed segment of this delivered press; a later missing picture cannot erase it.
+    observed_going: tuple[float, float, float | None, int] | None = None
     #: Pictures taken after the held input had time to answer, including those in which she stood still.
     settled_pictures: int = 0
     #: Turning keys pressed since she last went somewhere, each with how long it was held: what turned her.
@@ -140,11 +156,13 @@ class WhichWaySheFaces:
             since = at if began is None else began
             self._let_go(since)
             self.held, self.held_since, self.going, self.sign = held, since, [], None
+            self.observed_going = None
             self.settled_pictures = 0
             if held:
                 self.pressed.add(held)
         self.travel_turns.saw(held, self.held_since, at, vx, vy, measured=measured)
         if gap or not measured or not all(math.isfinite(v) for v in (vx, vy)):
+            self._keep_observed_going()
             self.going = []
             self.settled_pictures = 0
             self.turns_measured = False
@@ -205,14 +223,14 @@ class WhichWaySheFaces:
         key, held_for = self.held, at - self.held_since
         if not key or held_for <= 0:
             return
-        if len(self.going) >= 2:
-            vx = statistics.fmean(v[0] for v in self.going)
-            vy = statistics.fmean(v[1] for v in self.going)
+        self._keep_observed_going()
+        if self.observed_going is not None:
+            vx, vy, sign, _count = self.observed_going
             self.ways[key].append(math.atan2(vy, vx))
             self.heading_dependent |= self.spread()
             del self.ways[key][:-20]
-            if self.sign is not None:
-                self.along[key].append(self.sign * math.hypot(vx, vy))
+            if sign is not None:
+                self.along[key].append(sign * math.hypot(vx, vy))
                 del self.along[key][:-20]
         else:
             self.turned_by.append((key, held_for))
@@ -221,6 +239,12 @@ class WhichWaySheFaces:
             # where a short press takes her; it teaches no new rate.
             if self.going or self.settled_pictures < 2:
                 self.turns_measured = False
+
+    def _keep_observed_going(self) -> None:
+        """Retain one qualified segment per press, without bridging a missing interval."""
+        if len(self.going) >= 2 and (self.observed_going is None or len(self.going) >= self.observed_going[3]):
+            self.observed_going = (statistics.fmean(v[0] for v in self.going),
+                                   statistics.fmean(v[1] for v in self.going), self.sign, len(self.going))
 
     # -- what it comes to --------------------------------------------------------
 

@@ -436,6 +436,7 @@ def _travel_turn_claims() -> tuple:
         _travel_segments_invariant,
         _travel_turns_invariant,
     )
+    from core.agency.which_way_she_faces import _past_travel_invariant
     from core.perception.orientation_from_continuing_marks import _angular_phase_invariant
     from core.perception.texture_that_continues_when_outlines_join import (
         _rotating_texture_invariant,
@@ -443,6 +444,9 @@ def _travel_turn_claims() -> tuple:
     from core.runtime.task_ownership import _unstarted_task_cleanup_invariant
 
     return (
+        ("observed_travel_is_not_erased_by_a_later_missing_picture", "core/agency/which_way_she_faces.py",
+         "tests/test_observed_travel_survives_a_missing_picture.py", lambda: _past_travel_invariant() == (),
+         "One delivered press retains its earlier observed motion segment through later missing pictures; gaps do not combine samples or establish stationary turns."),
         ("rotating_texture_requires_measured_rigid_pose", "core/perception/texture_that_continues_when_outlines_join.py",
          "tests/test_a_rotating_texture_keeps_its_visible_support.py", lambda: _rotating_texture_invariant() == (),
          "A rotated texture proposal uses a current rigid pose, continuing owned marks and matching current pixels; translation alone cannot supply an unmeasured rotation."),
@@ -669,6 +673,7 @@ def _control_discovery_claims() -> tuple:
 
 
 def _visual_motion_claims() -> tuple:
+    from core.perception.a_texture_copy_with_public_state import _effective_texture_copy_invariant
     """Measured foreground and point continuity claims."""
     from core.agency.a_body_still_expected_when_it_is_unseen import _expected_control_invariant
     from core.agency.a_model_for_steering import (
@@ -763,6 +768,9 @@ def _visual_motion_claims() -> tuple:
     from core.skills.a_new_attempt_must_be_seen import _new_attempt_invariant
 
     return (
+        ("texture_copy_uses_effective_public_draw_state", "core/perception/a_texture_copy_with_public_state.py",
+         "tests/test_a_texture_copy_with_public_state.py", lambda: _effective_texture_copy_invariant() == (),
+         "Texture-copy geometry requires the current linked shader, effective sampler, replacement raster state and exact attachment image generations; geometry grants no visibility or control identity."),
         ("source_marks_return_to_one_working_geometry", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_source_points_keep_their_visible_detail.py", lambda: _source_point_geometry_invariant() == (),
          "Source-resolution marks retain their identities and observation times when mapped to working coordinates; changed geometry breaks their correspondence."),

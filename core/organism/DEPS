@@ -62,6 +62,7 @@ include_rules = [
     "+core.perception.shader_attributes_from_buffer_bytes", # Pure check of current vertex addressing.
     "+core.perception.triangles_from_public_draws", # Pure check of triangle assembly and index versions.
     "+core.perception.texture_coordinates_to_a_surface", # Pure check of measured projective texture coordinates.
+    "+core.perception.a_texture_copy_with_public_state", # Pure check of effective sampler and image-write custody.
     "+core.perception.a_region_that_answers_independent_inputs", # Pure check of disjoint press-level response cohorts.
     "+core.perception.a_search_hint_for_these_pixels", # Pure check of exact capture custody for sampling hints.
     "+core.perception.pixel_motion_before_object_identity", # Pure check of bounded RGB correspondence support.
