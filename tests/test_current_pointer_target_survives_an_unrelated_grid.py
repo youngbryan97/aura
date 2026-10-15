@@ -49,7 +49,11 @@ async def test_the_page_adapter_supplies_point_receipts_without_inventing_object
     async def sampled(*args, **kwargs):
         return [(.4, .3)]
 
+    async def current_material(*args, **kwargs):
+        return ((.4, .3),), ()
+
     monkeypatch.setattr('core.perception.where_the_pointer_turns.where_the_pointer_turns', sampled)
+    monkeypatch.setattr('core.perception.cursor_materials_after_inspection.cursor_materials_after_inspection', current_material)
     await OnAPage(page, 'surface')._where_the_pointer_turns(seen, None)
     assert len(seen['shapes']) == 1 and 'width' not in seen['shapes'][0]
     label = seen['shapes'][0]['text']

@@ -462,9 +462,10 @@ async def _split_finer(page: Any, hands: set[tuple[int, int]], over: tuple[float
     return places[:MOST * 3] if split else []
 
 
-async def shown_as_a_hand(page: Any, x: float, y: float) -> bool:
-    """Whether the pointer, moved to ``x``, ``y`` in the page's pixels, is shown as a hand there now."""
-    await page.mouse.move(x, y)
+async def shown_as_a_hand(page: Any, x: float, y: float, *, move: bool = True) -> bool:
+    """Read the current cursor; optionally move it to the supplied page pixels first."""
+    if move:
+        await page.mouse.move(x, y)
     return str(await page.evaluate(_SHOWN_AS, [x, y]) or "") in _A_HAND
 
 

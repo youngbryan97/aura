@@ -121,6 +121,7 @@ async def as_a_hand_clicks(page: Any, x: float, y: float, *, arrives_s: float = 
 class _CursorSweep:
     key: tuple
     places: tuple[tuple[float, float], ...]
+    materials: tuple = ()
 
 
 def _cursor_scope(page: Any, seen: dict, over: Any) -> tuple | None:
@@ -212,6 +213,7 @@ class OnAPage:
         if (not getattr(reflexes, "play_in_sight", False) or a_hand_among_things()
                 or stuck_on_one_screen_of_play(reflexes, str(seen.get("text") or ""))):
             await self._where_the_pointer_turns(seen, over)
+            _what_the_stream_shows(seen, self.watching)
         return seen
 
     async def _where_the_pointer_turns(self, seen: dict[str, Any], over: tuple[float, float, float, float] | None) -> None:
@@ -232,7 +234,7 @@ class OnAPage:
         bounds_key = tuple(round(v, 6) for v in bounds)
         known = self._cursor_sweeps.get(bounds_key)
         if known is not None and key[-1] is not None and known.key == key and known.places:
-            places = known.places
+            places, materials = known.places, known.materials
         else:
             hinted = tuple(((bounds[0]+x*bounds[2]-scan[0])/scan[2],
                             (bounds[1]+y*bounds[3]-scan[1])/scan[3]) for x, y in corners_to_query(seen))
@@ -241,9 +243,19 @@ class OnAPage:
             places = tuple(((scan[0]+x*scan[2]-bounds[0])/bounds[2],
                             (scan[1]+y*scan[3]-bounds[1])/bounds[3]) for x, y in sampled)
             places = tuple((x, y) for x, y in places if 0 <= x <= 1 and 0 <= y <= 1)
+            from core.perception.cursor_materials_after_inspection import (
+                cursor_materials_after_inspection,
+            )
+
+            places, materials = await cursor_materials_after_inspection(self.page, seen, places, bounds, over=over, name=self.name)
+            current_scope = _cursor_scope(self.page, seen, over)
+            if current_scope is None:
+                self._invalidate_cursor_samples()
+                return
+            key = current_scope[0]
             self._cursor_sweeps.pop(bounds_key, None)
             if places:
-                self._cursor_sweeps[bounds_key] = _CursorSweep(key, places)
+                self._cursor_sweeps[bounds_key] = _CursorSweep(key, places, materials)
                 while len(self._cursor_sweeps) > 4:
                     self._cursor_sweeps.pop(next(iter(self._cursor_sweeps)))
         words = frozenset(str(seen.get('text') or '').casefold().split())
@@ -379,7 +391,17 @@ class OnAPage:
         bounds_key = tuple(round(v, 6) for v in (left, top, wide, tall))
         swept = self._cursor_sweeps.get(bounds_key)
         places = swept.places if swept is not None else self._swept[1] if self._swept is not None and self._swept_bounds is None else ()
-        if any(abs(x-a) < 1e-6 and abs(y-b) < 1e-6 for a, b in places):
+        chosen = next((i for i, (a, b) in enumerate(places) if abs(x-a) < 1e-6 and abs(y-b) < 1e-6), None)
+        arrived = None
+        if chosen is not None and swept is not None and swept.materials:
+            from core.perception.a_cursor_target_in_its_pixels import arrive_at_cursor_target
+
+            arrived = await arrive_at_cursor_target(self.page, swept.materials[chosen], (x, y), check=context.check)
+            if arrived is None:
+                self._invalidate_cursor_samples()
+                return False
+            x, y = (arrived[0]-left)/wide, (arrived[1]-top)/tall
+        elif chosen is not None:
             # A place found by the pointer turning into a hand is clicked where it answers now: it may move.
             from core.perception.where_the_pointer_turns import where_the_hand_is_now
 
@@ -395,7 +417,18 @@ class OnAPage:
         try:
             context.check()
             window = watching.begin_act(f"click at {x:.2f}, {y:.2f}") if watching is not None else None
-            await as_a_hand_clicks(self.page, left + x * wide, top + y * tall)
+            if arrived is not None:
+                # Feedback already placed and rested the pointer on this
+                # material. Another approach movement would invalidate it.
+                await self.page.mouse.down()
+                try:
+                    import asyncio
+
+                    await asyncio.sleep(HAND_PRESSES_S)
+                finally:
+                    await self.page.mouse.up()
+            else:
+                await as_a_hand_clicks(self.page, left + x * wide, top + y * tall)
             delivered = True
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             return False

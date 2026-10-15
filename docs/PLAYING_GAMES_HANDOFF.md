@@ -505,3 +505,22 @@ alone, and preserve original 9 and the recorded holdouts. No native app was
 started and no runtime restart occurred. The 5:11 PM continuation remains
 scheduled; the fired first continuation was retired. None of this is an
 independently witnessed native-app result or a cleared 56-game campaign.
+
+
+## 15 October, cursor material and pointing feedback
+
+The `b76c34b02` case 3 repeat completed with 17 moves, zero grid-admission
+refusals and no win. Its final picture shows another room and no inventory;
+its current/historical text fields now stay separate. The next fault is input
+to view coupling: cursor inspection pans the picture, and a later nearby-hand
+search can select another affordance.
+
+The captured page path now samples material under physical hand cursors,
+refreshes the reading after inspection, and uses unique pixel correspondence
+plus measured pointer feedback to reach that material before down/up. It makes
+no extra approach move after final validation. Component and Chromium normal
+port tests pass; original-game performance is the next measurement. See
+`docs/evidence/steering/2026-10-15-cursor-material-and-pointing-feedback.md`.
+The governance baseline gate has existing drift; the exact effect inventory
+of the production files changed here matches HEAD. No baseline was raised.
+This code has not been deployed to the default checkout or native runtime.
