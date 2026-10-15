@@ -84,7 +84,10 @@ def _task_grounding_claims() -> tuple:
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
-    from core.perception.where_the_pointer_turns import _corner_queries_invariant
+    from core.perception.where_the_pointer_turns import (
+        _corner_queries_invariant,
+        _partial_cursor_invariant,
+    )
     from core.skills.screen_pursuit_bearings import (
         _animated_navigation_invariant,
         _cursor_anchor_invariant,
@@ -92,7 +95,10 @@ def _task_grounding_claims() -> tuple:
     from core.skills.screen_pursuit_on_a_page import _cursor_cache_custody_invariant
     from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('picture_corners_propose_cursor_queries', 'core/perception/where_the_pointer_turns.py',
+    return (('interrupted_cursor_sweeps_keep_only_physical_evidence', 'core/perception/where_the_pointer_turns.py',
+             'tests/test_cursor_inspection_returns_its_finished_samples.py', lambda: _partial_cursor_invariant() == (),
+             'A bounded cursor sweep retains actual finished physical hit samples only with a local negative and unchanged page geometry; an incomplete pass cannot supply a census or suppress external cancellation.'),
+            ('picture_corners_propose_cursor_queries', 'core/perception/where_the_pointer_turns.py',
              'tests/test_cursor_witness_reaches_the_physical_click.py', lambda: _corner_queries_invariant() == (),
              'Current captured corners provide bounded coordinate proposals; the sparse cursor path requires local current hand evidence with a negative control and retains the existing sweep when that evidence is missing.'),
             ('cursor_cache_keeps_pixels_and_coordinate_frames', 'core/skills/screen_pursuit_on_a_page.py',

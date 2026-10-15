@@ -16,6 +16,8 @@ What the pointer is shown as is read from the page, as a person reads it off the
 """
 from __future__ import annotations
 
+import asyncio
+import contextvars
 import logging
 import math
 import weakref
@@ -26,6 +28,58 @@ from core.verify import invariant
 __all__ = ["places_the_pointer_turns", "shown_as_a_hand", "the_thing_there", "where_the_hand_is_now", "where_the_pointer_turns"]
 
 logger = logging.getLogger("Aura.WhereThePointerTurns")
+
+# A sweep can exceed its look while the browser delivers physical moves.
+# Keep only finished physical queries when its time expires.
+SWEEP_WITHIN_S = 2.0
+_CURSOR_SAMPLES: contextvars.ContextVar[list | None] = contextvars.ContextVar('physical_cursor_samples', default=None)
+
+
+def _sampled(x: float, y: float, shown: str) -> None:
+    samples = _CURSOR_SAMPLES.get()
+    if samples is not None and len(samples) < 1024:
+        samples.append((x, y, shown))
+
+
+def _spread(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    remaining, selected = list(dict.fromkeys(points)), []
+    while remaining and len(selected) < MOST:
+        point = max(remaining, key=lambda p: min(((p[0]-x)**2+(p[1]-y)**2 for x, y in selected), default=0.))
+        selected.append(point)
+        remaining.remove(point)
+    return selected
+
+
+def _geometry(page: Any, over: Any) -> tuple | None:
+    size = getattr(page, 'viewport_size', None) or {}
+    try:
+        width, height = float(size.get('width') or 0), float(size.get('height') or 0)
+        left, top, right, bottom = over or (0., 0., 1., 1.)
+        if (not all(type(v) in (int, float) and math.isfinite(v) for v in (width, height, left, top, right, bottom))
+                or width <= 0 or height <= 0 or not 0 <= left < right <= 1 or not 0 <= top < bottom <= 1):
+            return None
+        return width, height, left, top, right, bottom
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _partial_places(samples: list, geometry: tuple) -> list[tuple[float, float]]:
+    width, height, left, top, right, bottom = geometry
+    local = [((x/width-left)/(right-left), (y/height-top)/(bottom-top), cursor) for x, y, cursor in samples
+             if left <= x/width <= right and top <= y/height <= bottom]
+    return _spread([(x, y) for x, y, cursor in local if cursor in _A_HAND]) if any(
+        cursor not in _A_HAND for _x, _y, cursor in local) else []
+
+
+@invariant('perception.interrupted_cursor_sweeps_keep_only_physical_evidence', scope='perception',
+           owner='core/perception/where_the_pointer_turns.py', observational=False)
+def _partial_cursor_invariant() -> tuple:
+    geometry = (100., 100., .2, .2, .8, .8)
+    points = _partial_places([(50, 50, 'pointer'), (30, 30, 'auto')], geometry)
+    assert len(points) == 1 and all(abs(v-.5) < 1e-12 for v in points[0])
+    assert _partial_places([(50, 50, 'pointer')], geometry) == []
+    assert _partial_places([(50, 50, 'pointer'), (0, 0, 'auto')], geometry) == []
+    return ()
 
 
 def corners_to_query(seen: Any) -> tuple[tuple[float, float], ...]:
@@ -56,12 +110,7 @@ async def _local_hints(page: Any, hints: tuple, over: tuple, size: tuple) -> lis
     positive = list(dict.fromkeys(p for p, cursor in zip(hints, shown[:len(hints)], strict=True) if cursor in _A_HAND))
     # Keep a positive sample, then spread the finite returned set. Averaging
     # points can put a proposed click in a hole between real hit regions.
-    selected = []
-    while positive and len(selected) < MOST:
-        point = max(positive, key=lambda p: min(((p[0]-x)**2+(p[1]-y)**2 for x, y in selected), default=0.))
-        selected.append(point)
-        positive.remove(point)
-    return selected
+    return _spread(positive)
 
 
 @invariant('perception.picture_corners_propose_cursor_queries', scope='perception',
@@ -180,7 +229,9 @@ async def _shown_at_each(page: Any, points: list[tuple[float, float]]) -> list[s
     out = []
     for x, y in points:
         await page.mouse.move(x, y)
-        out.append(str(await page.evaluate(_SHOWN_AS, [x, y]) or ""))
+        shown = str(await page.evaluate(_SHOWN_AS, [x, y]) or "")
+        _sampled(x, y, shown)
+        out.append(shown)
     return out
 
 
@@ -200,7 +251,9 @@ async def _the_mouse_agrees(page: Any, points: list[tuple[float, float]], shown:
     for i in [*hands, *spread]:
         x, y = points[i]
         await page.mouse.move(x, y)
-        if (str(await page.evaluate(_SHOWN_AS, [x, y]) or "") in _A_HAND) != (shown[i] in _A_HAND):
+        physical = str(await page.evaluate(_SHOWN_AS, [x, y]) or "")
+        _sampled(x, y, physical)
+        if (physical in _A_HAND) != (shown[i] in _A_HAND):
             return False
     return True
 
@@ -246,6 +299,33 @@ def places_the_pointer_turns(hands: set[tuple[int, int]], across: int = ACROSS, 
 
 async def where_the_pointer_turns(page: Any, over: tuple[float, float, float, float] | None = None, *,
                                 hints: tuple[tuple[float, float], ...] = ()) -> list[tuple[float, float]]:
+    """Bound pointer inspection; an interrupted pass retains only physical samples.
+
+    A partial result needs a positive and a negative in the requested region.
+    It proposes actual hit points and cannot establish a complete control list.
+    External cancellation still cancels the look.
+    """
+    geometry, address = _geometry(page, over), getattr(page, 'url', None)
+    if geometry is None:
+        return []
+    samples: list = []
+    token = _CURSOR_SAMPLES.set(samples)
+    try:
+        try:
+            return await asyncio.wait_for(_sweep(page, over, hints=hints), SWEEP_WITHIN_S)
+        except TimeoutError:
+            if _geometry(page, over) != geometry or getattr(page, 'url', None) != address:
+                return []
+            points = _partial_places(samples, geometry)
+            logger.info('cursor inspection reached %.1fs: %d physical samples, %d local proposals',
+                        SWEEP_WITHIN_S, len(samples), len(points))
+            return points
+    finally:
+        _CURSOR_SAMPLES.reset(token)
+
+
+async def _sweep(page: Any, over: tuple[float, float, float, float] | None = None, *,
+                 hints: tuple[tuple[float, float], ...] = ()) -> list[tuple[float, float]]:
     """The places in ``over`` (shares of the page's view, left, top, right, bottom) where the pointer turns into a
     hand, as shares of ``over``; none where the page cannot be asked."""
     size = getattr(page, "viewport_size", None) or {}
