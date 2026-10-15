@@ -13,7 +13,12 @@ a wrong one. Three arms on the same questions:
   result, then the question; greedy;
 * declining: the grounded question answered again, sampled at her runtime's
   ``llm.deep_temperature``; when the two grounded answers do not agree she
-  declines, otherwise the greedy grounded answer stands.
+  declines, otherwise the greedy grounded answer stands;
+* grounded, fused: as grounded, with as many passages, chosen by reciprocal
+  rank fusion of the careful lookup and the index of every paragraph
+  (core/knowledge/passage_index.py); greedy. Left out when there is no index.
+  On these questions the answer was within the first three passages for 71
+  of 200 fused against 54 careful (15 October, 5 s per lookup).
 
 The grader is deterministic and the same for every arm. An answer is read
 from the reply's last line. It counts as declined when it says it does not
@@ -99,6 +104,8 @@ def main() -> int:
 
     from core.config import config
     from core.knowledge.corpus_grounding import corpus_grounding_for
+    from core.knowledge.local_corpus import SEARCH_DEADLINE_S
+    from core.knowledge.passage_index import PassageIndex, fused
     from core.knowledge.passages_about import passages_about
     from tools.run_g09_organ import sample
     from tools.run_general_reasoning import TOP_P, Rows, evidence_block
@@ -108,10 +115,20 @@ def main() -> int:
     chosen = sample(tasks(args.part), args.count, args.seed, set())
     output.mkdir(parents=True, exist_ok=True)
     (output / "task_ids.txt").write_text("".join(f"{t['id']}\n" for t in chosen), encoding="utf-8")
+    index = PassageIndex()
+    with_index = index.available()
     for task in chosen:
+        careful = None
         if rows.get("lookup", task["id"]) is None:
-            found = passages_about(task["request"]) or list(corpus_grounding_for(task["request"]).passages)
-            rows.put("lookup", task["id"], {"passages": [f"{t}: {x}" for t, x in found]})
+            careful = passages_about(task["request"]) or list(corpus_grounding_for(task["request"]).passages)
+            rows.put("lookup", task["id"], {"passages": [f"{t}: {x}" for t, x in careful]})
+        if with_index and rows.get("lookup_fused", task["id"]) is None:
+            if careful is None:
+                careful = passages_about(task["request"]) or list(corpus_grounding_for(task["request"]).passages)
+            every = [(p.title, p.paragraph) for p in index.search(task["request"], limit=max(1, len(careful)) * 4,
+                                                                  deadline_s=SEARCH_DEADLINE_S)]
+            both = fused([careful, every], limit=max(1, len(careful))) if (careful or every) else []
+            rows.put("lookup_fused", task["id"], {"passages": [f"{t}: {x}" for t, x in both]})
 
     import mlx.core as mx  # noqa: F401 - loaded before the lane is held
     from mlx_lm import load
@@ -134,8 +151,8 @@ def main() -> int:
                               on_record=lambda i, record: rows.put(stage, todo[i][0], {"id": todo[i][0], **record}),
                               sampler=sampler if sampled else None, seed=args.seed if sampled else None)
 
-        def grounded(task: dict[str, Any]) -> list[dict[str, str]]:
-            passages = rows.get("lookup", task["id"])["passages"]
+        def grounded(task: dict[str, Any], lookup: str = "lookup") -> list[dict[str, str]]:
+            passages = rows.get(lookup, task["id"])["passages"]
             given = [{"role": "system", "content": evidence_block("From her corpus: " + " … ".join(passages))}] \
                 if passages else []
             return [*given, {"role": "user", "content": task["request"]}]
@@ -143,11 +160,13 @@ def main() -> int:
         run("ordinary", [(t["id"], [{"role": "user", "content": t["request"]}]) for t in chosen])
         run("grounded", [(t["id"], grounded(t)) for t in chosen])
         run("grounded_sampled", [(t["id"], grounded(t)) for t in chosen], sampled=True)
+        if with_index:
+            run("grounded_fused", [(t["id"], grounded(t, "lookup_fused")) for t in chosen])
 
     from tools.g12_analysis import two_sided_mcnemar
 
-    counts: dict[str, dict[str, int]] = {arm: {"correct": 0, "wrong": 0, "declined": 0}
-                                         for arm in ("ordinary", "grounded", "declining")}
+    arms = ("ordinary", "grounded", "declining", *(("grounded_fused",) if with_index else ()))
+    counts: dict[str, dict[str, int]] = {arm: {"correct": 0, "wrong": 0, "declined": 0} for arm in arms}
     correct: dict[str, dict[str, bool]] = {arm: {} for arm in counts}
     tokens = dict.fromkeys(counts, 0)
     for task in chosen:
@@ -160,6 +179,10 @@ def main() -> int:
         tokens["ordinary"] += ordinary["generated_tokens"]
         tokens["grounded"] += ground["generated_tokens"]
         tokens["declining"] += ground["generated_tokens"] + sampled_record["generated_tokens"]
+        if with_index:
+            fused_record = rows.get("grounded_fused", key)
+            verdicts["grounded_fused"] = grade(fused_record["public_text"], task["truth"])
+            tokens["grounded_fused"] += fused_record["generated_tokens"]
         for arm, verdict in verdicts.items():
             counts[arm][verdict] += 1
             correct[arm][key] = verdict == "correct"
@@ -176,6 +199,8 @@ def main() -> int:
                                      for arm, c in counts.items()},
               "tokens_per_request": {arm: round(t / max(1, n), 1) for arm, t in tokens.items()},
               "grounded_vs_ordinary": pair("grounded", "ordinary"),
+              **({"fused_vs_grounded": pair("grounded_fused", "grounded")} if with_index else
+                 {"fused": "no index of every paragraph"}),
               "with_passages": sum(bool(rows.get("lookup", t["id"])["passages"]) for t in chosen)}
     (output / "summary.json").write_text(json.dumps(report, indent=1, sort_keys=True), encoding="utf-8")
     print(json.dumps(report, indent=1, sort_keys=True))

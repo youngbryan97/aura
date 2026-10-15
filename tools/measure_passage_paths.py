@@ -15,7 +15,7 @@ k passages. Words only: her embedder needs the model lane. Each way's time is
 reported too.
 
 Usage:
-    measure_passage_paths.py --count 200 --seed 7 --output FILE
+    measure_passage_paths.py --count 200 --seed 7 --output FILE [--deadline SECONDS]
 """
 
 from __future__ import annotations
@@ -38,6 +38,8 @@ def main() -> int:
     parser.add_argument("--count", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--deadline", type=float, default=None,
+                        help="seconds each way may take (default: the corpus store's backstop)")
     args = parser.parse_args()
 
     from core.knowledge.local_corpus import SEARCH_DEADLINE_S, LocalCorpusStore
@@ -46,6 +48,7 @@ def main() -> int:
     from tools.run_g09_organ import sample
     from tools.run_knowledge_with_corpus import _words, tasks
 
+    deadline = SEARCH_DEADLINE_S if args.deadline is None else args.deadline
     store = LocalCorpusStore()
     index = PassageIndex()
     if not index.available():
@@ -68,10 +71,10 @@ def main() -> int:
     deepest = max(WITHIN)
     for task in chosen:
         question = task["request"]
-        careful, took = timed(lambda q=question: passages_about(q, store=store, limit=deepest))
+        careful, took = timed(lambda q=question: passages_about(q, store=store, limit=deepest, deadline_s=deadline))
         seconds["careful"].append(took)
         every, took = timed(lambda q=question: [(p.title, p.paragraph) for p in
-                                                index.search(q, limit=deepest, deadline_s=SEARCH_DEADLINE_S)])
+                                                index.search(q, limit=deepest, deadline_s=deadline)])
         seconds["every_paragraph"].append(took)
         seconds["fused"].append(seconds["careful"][-1] + took)
         both = fused([careful, every], limit=deepest)
@@ -84,7 +87,7 @@ def main() -> int:
         return {"median_ms": round(1000 * ordered[len(ordered) // 2]),
                 "p95_ms": round(1000 * ordered[int(0.95 * (len(ordered) - 1))]), "max_ms": round(1000 * ordered[-1])}
 
-    report = {"questions": len(chosen), "seed": args.seed, "answer_within_k": counts,
+    report = {"questions": len(chosen), "seed": args.seed, "deadline_s": deadline, "answer_within_k": counts,
               "time": {way: spread(seconds[way]) for way in ways}}
     args.output.expanduser().write_text(json.dumps(report, indent=1), encoding="utf-8")
     print(json.dumps(report, indent=1))
