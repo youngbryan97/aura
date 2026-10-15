@@ -189,7 +189,7 @@ async def steer_with_a_model(hands: Any, run: Any, hers: Any, choosing: Any, at:
     if model is None or owner is None or hers.follows_pointer or not motion_was_measured(mine, at):
         return False
     trial = getattr(run, 'facing_trial', None)
-    if (trial is not None and run.held_trying
+    if (trial is not None and run.held_trying == trial.independent
             and trial.waits_for_picture(run.held, run.held_since, hers.identification.epoch, at)):
         return False
     if getattr(run, '_model_offers_calibration', False):

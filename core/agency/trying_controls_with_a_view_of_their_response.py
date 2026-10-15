@@ -7,12 +7,14 @@ from typing import Any
 
 from core.agency.a_response_worth_measuring_again import response_worth_repeating
 from core.agency.a_trial_has_a_physical_end import lease_control_trial
+from core.agency.calibration_for_a_current_body import calibration_owner
 from core.agency.controls_ready_for_the_motion_model import has_a_measured_response
 from core.agency.countering_motion_as_it_appears import CounteringMotion
 from core.agency.giving_a_trial_time import ControlTrial
 from core.agency.keeping_a_trial_observable import control_before_the_next_trial
 from core.agency.the_key_against_its_going import FIRST, against_its_going
 from core.agency.time_to_observe_a_control import observed_response_seconds
+from core.agency.trials_with_room_to_observe import trials_with_room
 from core.agency.unknown_controls_get_their_turn import next_unknown_control
 from core.agency.which_one_answers_to_her import (
     PUSH_OVER_S,
@@ -29,7 +31,7 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
     """Repeat unknown controls when there is headroom, using measured control when waiting would lose it."""
     epoch = getattr(getattr(hers, "identification", None), "epoch", 0)
     trial = getattr(run, "body_trial", None)
-    active = (trial is not None and run.held_trying
+    active = (trial is not None and run.held_trying == trial.independent
               and trial.waits_for_picture(run.held, run.held_since, epoch, at))
     seconds = observed_response_seconds(getattr(run, "intervals", ()), least_s=seconds, settle_s=SETTLE_S,
                                         samples=PUSH_PICTURES, span_s=PUSH_OVER_S, longest_s=4 * seconds) or seconds
@@ -68,10 +70,11 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
                                              if hers is not None and hasattr(moves, "shape") else None)
     if key is None:
         if identified:
-            if run.held_trying and run.held:
+            if trial is not None and run.held and trial.belongs_to_input(run.held, run.held_since, epoch):
                 key = ""
             else:
                 unknown = [control for control in run.keys if not has_a_measured_response(hers, control)]
+                unknown = trials_with_room(unknown, hers, moves, at, seconds)
                 key = '' if run.held and run.held in unknown else next_unknown_control(run, hers, hers.thing(moves), unknown)
                 if key is None:
                     return
@@ -82,13 +85,17 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
             key = run.keys[turn // 2] if turn % 2 == 0 else ""
         else:
             return
-    await hold(hands, run, hers, key, at, trying=True)
+    # State-dependent calibration is owned by this trial but cannot supply
+    # independent identity evidence about other things moving in the scene.
+    independent = not identified
+    await hold(hands, run, hers, key, at, trying=independent)
     # A trial of resting begun while nothing is held holds nothing new, and the hold leaves no time of its own: the
     # trial begins now. Offline 2026-10-13 a game was ended in its first half minute by a rest asked for with nothing
     # held (None + duration).
     began = run.held_since if run.held_since is not None else at
     run.tried_at = began
     duration = run.counter_trial.phase_seconds if run.counter_trial.key and not run.counter_trial.done else seconds
-    run.body_trial = ControlTrial(key, began, began + duration, epoch)
+    owner = calibration_owner(hers, hers.thing(moves)) if identified else None
+    run.body_trial = ControlTrial(key, began, began + duration, epoch, owner, independent)
     lease_control_trial(hands, run, hers, run.body_trial, field='body_trial')
     run.longest_control_trial_s = max(getattr(run, "longest_control_trial_s", 0.), duration)

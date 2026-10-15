@@ -47,6 +47,27 @@ async def test_actual_discovery_releases_then_preserves_its_rest_without_another
     assert len(actions) == 2
 
 
+async def test_a_feedback_chosen_trial_keeps_its_deadline_and_its_nonindependent_rest():
+    from core.agency.inputs_while_measuring_control import body_probe_is_active
+
+    run, hers, actions, hands = setup()
+    await hold_control(hands, run, hers, 'opaque-a', time.monotonic(), trying=False)
+    run.body_trial = ControlTrial(run.held, run.held_since, run.held_since + .015,
+                                  hers.identification.epoch, independent=False)
+    pulse = run.body_trial
+    assert lease_control_trial(hands, run, hers, pulse, field='body_trial')
+    assert body_probe_is_active(run, hers, pointer_steps=0, at=pulse.began)
+    await asyncio.wait_for(run._trial_input_deadline, timeout=1.)
+    assert [(kind, key) for kind, key, _at in actions] == [('down', 'opaque-a'), ('up', 'opaque-a')]
+    assert actions[-1][2] >= pulse.until and not run.held and not run.held_trying
+    assert run.body_trial.key == '' and not run.body_trial.independent
+    assert hers._held[-1][1:] == ('', False)
+    assert body_probe_is_active(run, hers, pointer_steps=0, at=run.body_trial.began)
+    moves = SimpleNamespace(things={}, shape=(200, 200))
+    await try_controls(hands, run, hers, run.body_trial.began, moves, hold=hold_control, seconds=.015)
+    assert len(actions) == 2
+
+
 async def test_actual_facing_trial_releases_without_a_new_picture():
     run, hers, actions, hands = setup()
     hers.number = 1

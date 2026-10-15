@@ -28,7 +28,7 @@ def body_probe_is_active(run: Any, hers: Any, *, pointer_steps: int, at: float |
         return not hers.follows_pointer and 0 <= getattr(run, 'pointed', pointer_steps) < pointer_steps
     trial = getattr(run, 'body_trial', None)
     epoch = getattr(getattr(hers, 'identification', None), 'epoch', 0)
-    if (at is not None and trial is not None and getattr(run, 'held_trying', False)
+    if (at is not None and trial is not None and getattr(run, 'held_trying', False) == trial.independent
             and trial.belongs_to_input(getattr(run, 'held', ''), getattr(run, 'held_since', None), epoch)
             and math.isfinite(at) and (at < trial.until or bool(trial.key))):
         return True

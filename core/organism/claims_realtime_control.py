@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.trials_with_room_to_observe import _trial_priority_invariant
     from core.agency.which_one_answers_to_her import _control_sample_custody_invariant
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
@@ -46,6 +47,9 @@ def _play_execution_claims() -> tuple:
             ('control_samples_have_distinct_times', 'core/agency/which_one_answers_to_her.py',
              'tests/test_control_samples_do_not_share_mutable_history.py', lambda: _control_sample_custody_invariant() == (),
              'Timed control measurements reject duplicate and decreasing capture times; selecting a body copies its trial samples into an independently owned history.'),
+            ('trial_priority_cannot_certify_a_response', 'core/agency/trials_with_room_to_observe.py',
+             'tests/test_trials_retain_room_for_their_observation.py', lambda: _trial_priority_invariant() == (),
+             'Provisional pulse and rest measurements rank finite trials by projected clearance, without certifying a response, selecting an identity or increasing the per-control allowance.'),
             *_reward_authority_claims())
 
 

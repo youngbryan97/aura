@@ -20,7 +20,7 @@ def source_motion_checked(run: Any, hers: Any, choosing: Any, at: float | None) 
     epoch = getattr(getattr(hers, 'identification', None), 'epoch', None)
     for field in ('body_trial', 'facing_trial'):
         trial = getattr(run, field, None)
-        if (trial is not None and getattr(run, 'held_trying', False)
+        if (trial is not None and getattr(run, 'held_trying', False) == trial.independent
                 and trial.belongs_to_input(run.held, run.held_since, epoch)
                 and (trial.key or at < trial.until)):
             return False
