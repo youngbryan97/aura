@@ -36,35 +36,38 @@ def _colours(picture: np.ndarray) -> np.ndarray:
 
 def _refine(before: np.ndarray, after: np.ndarray, points: np.ndarray,
             initial: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Fit a small rigid patch, retaining the colour residual as separate evidence."""
+    """Fit each rigid patch to its own convergence; measure every final colour residual."""
     if not len(points):
         return initial.copy(), np.empty(0), np.empty(0), np.empty(0, dtype=bool)
     gradients = [np.gradient(after[..., c]) for c in range(3)]
     templates = np.stack([_samples(before[..., c], points[:, None] + _OFFSETS) for c in range(3)], axis=-1)
     shift, angles, useful = initial - points, np.zeros(len(points)), np.ones(len(points), dtype=bool)
+    active = np.arange(len(points))
     for _ in range(12):
-        c, s = np.cos(angles), np.sin(angles)
+        if not len(active):
+            break
+        c, s = np.cos(angles[active]), np.sin(angles[active])
         rotated = np.stack((c[:, None] * _OFFSETS[:, 0] - s[:, None] * _OFFSETS[:, 1],
                             s[:, None] * _OFFSETS[:, 0] + c[:, None] * _OFFSETS[:, 1]), axis=-1)
-        places = points[:, None] + shift[:, None] + rotated
+        places = points[active, None] + shift[active, None] + rotated
         current = np.stack([_samples(after[..., k], places) for k in range(3)], axis=-1)
         dx = np.stack([_samples(gx, places) for _gy, gx in gradients], axis=-1)
         dy = np.stack([_samples(gy, places) for gy, _gx in gradients], axis=-1)
         rotation = -rotated[..., 1, None] * dx + rotated[..., 0, None] * dy
-        jacobian = np.stack((dx, dy, rotation), axis=-1).reshape(len(points), -1, 3)
-        residual = (templates - current).reshape(len(points), -1)
+        jacobian = np.stack((dx, dy, rotation), axis=-1).reshape(len(active), -1, 3)
+        residual = (templates[active] - current).reshape(len(active), -1)
         normal = np.einsum('nki,nkj->nij', jacobian, jacobian)
         valid = np.linalg.eigvalsh(normal)[:, 0] > 1e-6
-        useful &= valid
-        delta = np.zeros((len(points), 3))
+        useful[active] &= valid
+        delta = np.zeros((len(active), 3))
         rhs = np.einsum('nki,nk->ni', jacobian, residual)
         delta[valid] = np.linalg.solve(normal[valid], rhs[valid, :, None])[..., 0]
         delta[:, :2] = np.clip(delta[:, :2], -2., 2.)
         delta[:, 2] = np.clip(delta[:, 2], -.12, .12)
-        shift += delta[:, :2]
-        angles += delta[:, 2]
-        if np.max(np.linalg.norm(delta[:, :2], axis=1), initial=0.) < .015 and np.max(abs(delta[:, 2]), initial=0.) < .002:
-            break
+        shift[active] += delta[:, :2]
+        angles[active] += delta[:, 2]
+        converged = (np.linalg.norm(delta[:, :2], axis=1) < .015) & (abs(delta[:, 2]) < .002)
+        active = active[valid & ~converged]
     c, s = np.cos(angles), np.sin(angles)
     rotated = np.stack((c[:, None] * _OFFSETS[:, 0] - s[:, None] * _OFFSETS[:, 1],
                         s[:, None] * _OFFSETS[:, 0] + c[:, None] * _OFFSETS[:, 1]), axis=-1)
@@ -72,6 +75,22 @@ def _refine(before: np.ndarray, after: np.ndarray, points: np.ndarray,
     current = np.stack([_samples(after[..., k], places) for k in range(3)], axis=-1)
     error = np.mean(abs(templates - current), axis=(1, 2))
     return points + shift, error, angles, useful
+
+
+@invariant('perception.local_patch_fits_finish_independently', scope='perception',
+           owner='core/perception/points_before_the_picture_is_reduced.py', observational=False)
+def _independent_patch_fit_invariant() -> tuple:
+    before = ndimage.gaussian_filter(np.random.default_rng(37).uniform(.05, .95, (64, 64, 3)), (.6, .6, 0.))
+    after = ndimage.shift(before, (.4, -.7, 0.), order=1, mode='constant')
+    after[:25, :25] = before[:25, :25]
+    points = np.array(((12., 12.), (44., 44.)))
+    initial = points + np.array(((0., 0.), (6., 4.)))
+    grouped = _refine(before, after, points, initial)
+    for index in range(len(points)):
+        alone = _refine(before, after, points[index:index+1], initial[index:index+1])
+        assert all(np.allclose(value[index:index+1], one, rtol=0., atol=1e-10)
+                   for value, one in zip(grouped, alone, strict=True))
+    return ()
 
 
 def _new_marks(image: np.ndarray, occupied: list[SeenPoint], limit: int, scale: tuple,

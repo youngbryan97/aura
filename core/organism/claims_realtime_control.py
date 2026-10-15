@@ -740,6 +740,7 @@ def _visual_motion_claims() -> tuple:
         _owned_play_observation_invariant,
     )
     from core.perception.points_before_the_picture_is_reduced import (
+        _independent_patch_fit_invariant,
         _source_point_geometry_invariant,
         _source_point_precision_invariant,
     )
@@ -796,6 +797,9 @@ def _visual_motion_claims() -> tuple:
         ("source_marks_return_to_one_working_geometry", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_source_points_keep_their_visible_detail.py", lambda: _source_point_geometry_invariant() == (),
          "Source-resolution marks retain their identities and observation times when mapped to working coordinates; changed geometry breaks their correspondence."),
+        ("local_patch_fits_finish_independently", "core/perception/points_before_the_picture_is_reduced.py",
+         "tests/test_patch_refinement_finishes_independently.py", lambda: _independent_patch_fit_invariant() == (),
+         "Each local rigid patch fit reaches its own numerical stopping condition; batching unrelated patches preserves the isolated fit's result and final colour residual."),
         ("graphics_hints_require_current_presentation", "core/perception/graphics_presented_on_canvas.py",
          "tests/test_graphics_presented_on_canvas.py", lambda: _presentation_custody_invariant() == (),
          "Geometric search hints follow recorded image versions and ordered public copies to a measured current canvas; visibility and object identity remain unverified."),
