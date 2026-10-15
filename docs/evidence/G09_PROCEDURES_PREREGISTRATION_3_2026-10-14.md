@@ -169,3 +169,6 @@ same commit, and the decode measurements at 5724f9c6d (7616ed583 with the
 same change).
 
 Rounds, lines, decoding, requests and the claims are unchanged.
+
+Correction to the amendment above: its "round 2" is round 1 in the run's log,
+which counts from 0, as the 17:10 amendment's "round 0" does.
