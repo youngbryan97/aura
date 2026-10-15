@@ -24,6 +24,7 @@ would go by.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -125,6 +126,8 @@ class HowItWorks:
     inputs: dict[str, str] = field(default_factory=dict)
     #: Current source bindings qualify experiments; they do not identify a visible body.
     body_keys_from_code: tuple[str, ...] = ()
+    #: Translating channels can expose a cold body before turning needs prior travel.
+    translating_keys_from_code: tuple[str, ...] = ()
     #: Emission experiments have their own receipts and need no body-motion response.
     emission_keys_from_code: tuple[str, ...] = ()
     #: Which optional geometric checks agree with the described activity; absent entries remain unresolved.
@@ -252,6 +255,7 @@ def understood(guide: Any, also: str = "") -> HowItWorks:
     for axis, answer in (getattr(guide, "how_seen", None) or {}).items():
         getattr(how, axis).held_to(answer.value, answer.sure, answer.why[0] if answer.why else "")
     how.body_keys_from_code = _body_controls_from_code(guide)
+    how.translating_keys_from_code = _translating_controls_from_code(guide)
     world = getattr(guide, 'world_its_code_makes', None)
     how.emission_keys_from_code = tuple(key for key in (getattr(world, 'sends', None) or {})
                                         if key in controls and getattr(world, 'hers', None) is not None)
@@ -282,6 +286,34 @@ def _body_controls_from_code(guide: Any) -> tuple[str, ...]:
             if key not in found:
                 found.append(key)
     return tuple(found)
+
+
+def _translating_controls_from_code(guide: Any) -> tuple[str, ...]:
+    """Use current declared nonzero movement channels, without inferring a visible identity."""
+    controls = getattr(guide, 'controls', None) or {}
+    physical = getattr(getattr(guide, 'world_its_code_makes', None), 'hers', None)
+    found = []
+    for field_name in ('paces', 'pushes', 'lifts', 'drives'):
+        for key, value in (getattr(physical, field_name, None) or {}).items():
+            values = value if type(value) is tuple else (value,)
+            if (key and key in controls and values
+                    and all(type(v) in (float, int) and math.isfinite(v) for v in values)
+                    and any(v != 0 for v in values) and key not in found):
+                found.append(key)
+    return tuple(found)
+
+
+@invariant('agency.cold_translation_trials_keep_current_source_channels', scope='agency',
+           owner='core/agency/how_a_game_works.py', observational=False)
+def _cold_translation_controls_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    physical = SimpleNamespace(paces={'opaque': (4., 0.), 'obsolete': (2., 0.)},
+                               pushes={'still': (0., 0.)}, lifts={}, drives={'other': -3.})
+    guide = SimpleNamespace(controls={'opaque': object(), 'still': object(), 'other': object()},
+                            world_its_code_makes=SimpleNamespace(hers=physical))
+    assert _translating_controls_from_code(guide) == ('opaque', 'other')
+    return ()
 
 
 @invariant('agency.body_motion_trials_keep_emission_controls_separate', scope='agency',

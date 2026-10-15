@@ -81,6 +81,23 @@ def test_translation_can_be_confirmed_without_claiming_unseen_angle():
     assert result is not None and result.bounds == (48, 36, 72, 60)
 
 
+def test_small_responder_does_not_need_to_cross_an_arbitrary_tile_boundary():
+    data = features(effect=False)
+    for index, key in enumerate(data['keys']):
+        data['features'][index, 3, 4, 2] = 2. if key == 'a' else -2.
+    result = region_from_press_features(**data)
+    assert result is not None and result.bounds == (48, 36, 60, 48)
+    assert result.status == 'search_hint_only' and result.confirmation_p <= .01
+
+
+def test_single_cell_still_requires_observed_support_and_independent_confirmation():
+    data = features(effect=False)
+    for index, key in enumerate(data['keys']):
+        data['features'][index, 3, 4, 2] = 2. if key == 'a' else -2.
+    data['counts'][-1, 3, 4] = 0
+    assert region_from_press_features(**data) is None
+
+
 @pytest.mark.parametrize("bad", ["cohort", "shape", "count", "budget", "finite"])
 def test_invalid_or_insufficient_trials_cannot_be_scored(bad):
     data = features()

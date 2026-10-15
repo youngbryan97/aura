@@ -68,6 +68,11 @@ class PixelResponseDiscovery:
         angles = np.asarray([s.angular_support for s in self._signatures], dtype=int).reshape(-1, *shape)
         available = np.repeat((support >= 3)[..., None], 3, axis=-1)
         available[..., 2] = angles >= 4
+        if all(len(getattr(s, 'patch_rotations', ())) == len(s.features) for s in self._signatures):
+            patches = np.asarray([s.patch_rotations for s in self._signatures], dtype=float).reshape(-1, *shape, 1)
+            patch_support = np.asarray([s.patch_support for s in self._signatures], dtype=int).reshape(-1, *shape, 1)
+            values = np.concatenate((values, patches), axis=-1)
+            available = np.concatenate((available, patch_support >= 1), axis=-1)
         cameras = (np.asarray([(s.camera.dx, s.camera.dy) for s in self._signatures])
                    if self._reference == "distributed_translation" else None)
         region = region_from_press_features(values, support, cameras,
@@ -79,7 +84,9 @@ class PixelResponseDiscovery:
             return None
         height, width = self._signatures[0].working_shape
         left, top, right, bottom = region.bounds
-        return replace(region, bounds=(left, top, min(width, right), min(height, bottom)))
+        sample = region.sampling_bounds
+        return replace(region, bounds=(left, top, min(width, right), min(height, bottom)),
+                       sampling_bounds=None if sample is None else (sample[0], sample[1], min(width, sample[2]), min(height, sample[3])))
 
 
 @invariant("agency.pixel_discovery_requires_its_complete_admitted_experiment", scope="agency",

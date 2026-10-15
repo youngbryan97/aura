@@ -505,10 +505,16 @@ def _bounded_pixel_claims() -> tuple:
         _pixel_search_capacity_invariant,
         _sampling_hint_receipt_invariant,
     )
+    from core.perception.rotation_inside_a_matched_pixel_patch import (
+        _patch_rotation_uncertainty_invariant,
+    )
     from core.perception.streamed_pixels_keep_their_surface import _stream_surface_invariant
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("patch_rotation_uncertainty_needs_rgb_gradient_rank", "core/perception/rotation_inside_a_matched_pixel_patch.py",
+         "tests/test_rotation_inside_a_matched_pixel_patch.py", lambda: _patch_rotation_uncertainty_invariant() == (),
+         "Local RGB patch rotation keeps fit uncertainty separate from rigid-body pose; flat or rank-deficient patches cannot resolve its angle."),
         ("streamed_pixels_keep_session_document_and_crop", "core/perception/streamed_pixels_keep_their_surface.py",
          "tests/test_streamed_pixels_keep_their_surface.py", lambda: _stream_surface_invariant() == (),
          "Accepted streamed frames retain their actual session, document and crop with source capture bounds; missing clocks and geometry cannot supply causal capture custody."),
@@ -559,7 +565,10 @@ def _control_discovery_claims() -> tuple:
     from core.agency.a_source_motion_model_checked_in_view import _source_motion_agreement_invariant
     from core.agency.an_effect_contact_cannot_avoid import _nonlocal_countermeasure_invariant
     from core.agency.body_trials_keep_the_world import _control_source_invariant
-    from core.agency.how_a_game_works import _motion_and_emission_trials_invariant
+    from core.agency.how_a_game_works import (
+        _cold_translation_controls_invariant,
+        _motion_and_emission_trials_invariant,
+    )
     from core.agency.inputs_while_measuring_control import (
         _body_probe_phase_invariant,
         _body_trial_rest_invariant,
@@ -572,6 +581,9 @@ def _control_discovery_claims() -> tuple:
     from core.perception.a_world_as_its_code_makes_it import _saved_world_effects_invariant
 
     return (
+        ("cold_translation_trials_keep_current_source_channels", "core/agency/how_a_game_works.py",
+         "tests/test_pixel_search_follows_unresolved_body_trials.py", lambda: _cold_translation_controls_invariant() == (),
+         "Cold pixel experiments prioritize current nonzero translation channels before turning inputs; key names and obsolete controls cannot supply that priority."),
         ("acknowledged_inputs_cover_the_response_interval", "core/agency/what_acknowledged_inputs_predict.py",
          "tests/test_acknowledged_inputs_cover_visual_latency.py", lambda: _acknowledged_prediction_invariant() == (),
          "Direct-response predictions integrate acknowledged control intervals with bounded state channels; missing model intervals preserve uncertainty."),

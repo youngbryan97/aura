@@ -78,6 +78,35 @@ def test_current_source_body_controls_precede_old_arrow_guesses():
     assert eligible_pixel_search(run, hers, moves, 10., 30.) == ('j', 'k')
 
 
+def test_declared_translation_precedes_turning_without_using_key_names():
+    run, hers, moves = state()
+    run.keys = ['opaque-yaw-a', 'opaque-yaw-b', 'opaque-drive-a', 'opaque-drive-b']
+    run.trying = 16
+    run.how.body_keys_from_code = tuple(run.keys)
+    run.how.translating_keys_from_code = ('opaque-drive-a', 'opaque-drive-b')
+    assert eligible_pixel_search(run, hers, moves, 10., 30.) == ('opaque-drive-a', 'opaque-drive-b')
+
+
+def test_arrow_names_do_not_override_source_acquisition_order():
+    run, hers, moves = state()
+    run.keys = ['up', 'down', 'left', 'right']
+    run.trying = 16
+    run.how.body_keys_from_code = tuple(run.keys)
+    assert eligible_pixel_search(run, hers, moves, 10., 30.) == ('up', 'down')
+
+
+def test_only_current_nonzero_source_channels_prioritize_translation():
+    from core.agency.how_a_game_works import _translating_controls_from_code
+    from core.perception.a_world_as_its_code_makes_it import HerBody
+
+    body = HerBody(paces={'move': (0., 12.), 'obsolete': (3., 0.)},
+                   pushes={'idle': (0., 0.)}, lifts={'bad': float('nan')},
+                   drives={'drive': 20., 'reverse': -20.}, turns={'yaw': 3.})
+    guide = SimpleNamespace(controls={key: object() for key in ('move', 'idle', 'bad', 'drive', 'reverse', 'yaw')},
+                            world_its_code_makes=SimpleNamespace(hers=body))
+    assert _translating_controls_from_code(guide) == ('move', 'drive', 'reverse')
+
+
 @pytest.mark.asyncio
 async def test_unmeasured_frame_cannot_start_a_physical_intervention():
     run, hers, moves = state()

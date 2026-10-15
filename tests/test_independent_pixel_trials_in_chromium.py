@@ -24,7 +24,7 @@ from core.perception.frames_as_they_are_drawn import CanvasFrames
 from core.perception.pixel_motion_before_object_identity import pixel_motion_signature
 from core.runtime.executors import run_interactive_cpu
 
-_SCENE = r"""({background,body,responds}) => {
+_SCENE = r"""({background,body,responds,bodySize,center}) => {
  document.body.style.margin='0';
  const canvas=document.createElement('canvas');canvas.width=192;canvas.height=144;document.body.append(canvas);
  const ctx=canvas.getContext('2d');
@@ -32,8 +32,8 @@ _SCENE = r"""({background,body,responds}) => {
    c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(data),wide,tall),0,0);return c;};
  const floor=image(192,144,background),actor=image(48,48,body);
  let angle=0;window.delivered=[];
- const draw=()=>{ctx.drawImage(floor,0,0);ctx.save();ctx.translate(96,72);ctx.rotate(angle);
-   ctx.drawImage(actor,-24,-24);ctx.restore();};
+ const draw=()=>{ctx.drawImage(floor,0,0);ctx.save();ctx.translate(center[0],center[1]);ctx.rotate(angle);
+   ctx.drawImage(actor,-bodySize/2,-bodySize/2,bodySize,bodySize);ctx.restore();};
  addEventListener('keydown',event=>{if(event.code!=='ArrowLeft'&&event.code!=='ArrowRight')return;
    window.delivered.push(['down',event.code]);if(responds)angle+=event.code==='ArrowLeft'?-.12:.12;draw();});
  addEventListener('keyup',event=>{window.delivered.push(['up',event.code]);});
@@ -52,14 +52,16 @@ def _texture(height, width, seed):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("responds", [False, True])
-async def test_physical_browser_inputs_reach_bound_pixel_discovery(responds):
+@pytest.mark.parametrize("responds,body_size", [(False, 48), (True, 48), (True, 20)])
+async def test_physical_browser_inputs_reach_bound_pixel_discovery(responds, body_size):
     async with async_playwright() as driver:
         browser = await driver.chromium.launch(headless=True)
         try:
             page = await browser.new_page(viewport={"width": 192, "height": 144})
+            center = (84, 60) if body_size == 20 else (96, 72)
             await page.evaluate(_SCENE, {"background": _texture(144, 192, 12),
-                                        "body": _texture(48, 48, 31), "responds": responds})
+                                        "body": _texture(48, 48, 31), "responds": responds,
+                                        "bodySize": body_size, "center": center})
             frames = CanvasFrames(page)
             run = SimpleNamespace(held="", held_since=0., held_trying=False, presses=WhatAPressDoes(),
                                   things={}, input_key_downs=Counter(), responses=[], letting_go=[],
@@ -94,8 +96,8 @@ async def test_physical_browser_inputs_reach_bound_pixel_discovery(responds):
                     "angle_extents": [(min(s.features, key=lambda f: f[2])[2], max(s.features, key=lambda f: f[2])[2])
                                       for s in discovery._signatures],
                 }
-                left, top, right, bottom = region.bounds
-                assert left <= 96 <= right and top <= 72 <= bottom
+                left, top, right, bottom = region.sampling_bounds
+                assert left <= center[0] <= right and top <= center[1] <= bottom
                 assert region.status == "search_hint_only" and hers.number is None
                 from core.perception.a_search_hint_for_these_pixels import make_search_hint
 

@@ -36,6 +36,7 @@ class PixelSearchState:
     release_confirmed: bool = True
     reference: str | None = None
     region: tuple | None = None
+    keys: tuple[str, ...] = ()
 
 
 def search_inputs(hands: Any, run: Any, hers: Any) -> PixelExperimentInputs:
@@ -44,12 +45,9 @@ def search_inputs(hands: Any, run: Any, hers: Any) -> PixelExperimentInputs:
                                  owns=lambda: state.active and getattr(state, "may_collect", lambda: False)())
 
 
-def _pair(keys: tuple[str, ...]) -> tuple[str, str] | None:
-    for first, second in (("left", "right"), ("up", "down")):
-        named = {k.casefold().removeprefix("arrow"): k for k in keys}
-        if first in named and second in named:
-            return named[first], named[second]
-    return (keys[0], keys[1]) if len(keys) >= 2 else None
+def _pair(keys: tuple[str, ...], preferred: tuple[str, ...] = ()) -> tuple[str, str] | None:
+    candidates = tuple(dict.fromkeys([*(k for k in preferred if k in keys), *keys]))
+    return (candidates[0], candidates[1]) if len(candidates) >= 2 else None
 
 
 def eligible_pixel_search(run: Any, hers: Any, moves: Any, at: float, remaining: float) -> tuple[str, str] | None:
@@ -69,7 +67,7 @@ def eligible_pixel_search(run: Any, hers: Any, moves: Any, at: float, remaining:
             or getattr(run, "letting_go", ()) or getattr(getattr(run, "charging", None), "key", "")):
         return None
     controls = tuple(k for k in (how.body_keys_from_code or how.keys_for_body_trials(keys)) if k in keys)
-    return _pair(controls)
+    return _pair(controls, getattr(how, "translating_keys_from_code", ()))
 
 
 async def search_after_unresolved_body(hands: Any, run: Any, hers: Any, moves: Any, *,
@@ -81,6 +79,7 @@ async def search_after_unresolved_body(hands: Any, run: Any, hers: Any, moves: A
         return False
     state = run._pixel_search
     state.attempted, state.active = True, True
+    state.keys = pair
     owner_task = asyncio.current_task()
     def may_collect():
         if owner_task.cancelling() or time.monotonic() >= deadline:
@@ -123,7 +122,7 @@ async def search_after_unresolved_body(hands: Any, run: Any, hers: Any, moves: A
                 state.reference, state.region = region.reference, region.bounds
                 image, captured_at = latest
                 height, width = experiment.trials[-1].after.height, experiment.trials[-1].after.width
-                left, top, right, bottom = region.bounds
+                left, top, right, bottom = region.sampling_bounds or region.bounds
                 hint = make_search_hint(image, captured_at, normalized_region=(left / width, top / height,
                                                                              right / width, bottom / height))
                 if hint is not None and time.monotonic() - captured_at.upper <= .5:

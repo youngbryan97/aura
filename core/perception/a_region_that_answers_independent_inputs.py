@@ -22,6 +22,7 @@ class ResponsiveRegion:
     effect: float
     status: str = "search_hint_only"
     reference: str = "screen_unreferenced"
+    sampling_bounds: tuple[int, int, int, int] | None = None
 
 
 def _contrast(data: np.ndarray, flags: np.ndarray):
@@ -48,7 +49,7 @@ def region_from_press_features(features: np.ndarray, counts: np.ndarray, camera:
                                permutations: int = 499, seed: int = 41,
                                available: np.ndarray | None = None) -> ResponsiveRegion | None:
     """Input rows are distinct admitted presses, never frames from one press."""
-    if (not isinstance(features, np.ndarray) or features.ndim != 4 or features.shape[-1] != 3
+    if (not isinstance(features, np.ndarray) or features.ndim != 4 or not 1 <= features.shape[-1] <= 6
             or not 20 <= len(features) <= 40 or min(features.shape[1:3]) < 2
             or features.shape[1] * features.shape[2] > 600 or first_key == second_key
             or type(tile) is not int or not 6 <= tile <= 32
@@ -64,7 +65,7 @@ def region_from_press_features(features: np.ndarray, counts: np.ndarray, camera:
             or not np.isfinite(features).all() or not np.isfinite(counts).all() or np.any(counts < 0)):
         return None
     if available is None:
-        available = np.repeat((counts >= 3)[..., None], 3, axis=-1)
+        available = np.repeat((counts >= 3)[..., None], features.shape[-1], axis=-1)
     if (not isinstance(available, np.ndarray) or available.shape != features.shape
             or available.dtype != bool):
         return None
@@ -93,13 +94,13 @@ def region_from_press_features(features: np.ndarray, counts: np.ndarray, camera:
         exceed += np.max(null[usable]) >= statistic
     probability = (1 + exceed) / (1 + permutations)
     eligible = usable & (probability <= .01) & (effect >= .6)
-    if np.count_nonzero(eligible) < 2 or eligible.mean() > .2:
+    if not np.any(eligible) or eligible.mean() > .2:
         return None
     groups, size = label(binary_dilation(eligible, iterations=1))
     components = []
     for number in range(1, size + 1):
         support = eligible & (groups == number)
-        if np.count_nonzero(support) >= 2:
+        if np.any(support):
             components.append((float(effect[support].sum()), support))
     components.sort(key=lambda entry: entry[0], reverse=True)
     if not components or len(components) > 1 and components[1][0] >= .4 * components[0][0]:
@@ -124,10 +125,16 @@ def region_from_press_features(features: np.ndarray, counts: np.ndarray, camera:
             or camera is not None and _camera_answers(camera[~split], held_flags, rng, permutations)):
         return None
     yy, xx = np.nonzero(support)
-    return ResponsiveRegion((int(xx.min()) * tile, int(yy.min()) * tile,
-                             (int(xx.max()) + 1) * tile, (int(yy.max()) + 1) * tile),
+    bounds = (int(xx.min()) * tile, int(yy.min()) * tile,
+              (int(xx.max()) + 1) * tile, (int(yy.max()) + 1) * tile)
+    # The measured response need not be the body's centre. Matching windows
+    # and encoded boundary pixels ask the sampler to inspect nearby material.
+    sampling = (max(0, bounds[0] - tile), max(0, bounds[1] - tile),
+                min(features.shape[2] * tile, bounds[2] + tile), min(features.shape[1] * tile, bounds[3] + tile))
+    return ResponsiveRegion(bounds,
                             float(probability[support].max()), float(confirm_p), float(effect[support].max()),
-                            reference="screen_unreferenced" if camera is None else "distributed_translation")
+                            reference="screen_unreferenced" if camera is None else "distributed_translation",
+                            sampling_bounds=sampling)
 
 
 @invariant("perception.pixel_response_uses_distinct_confirmation_cohorts", scope="perception",
