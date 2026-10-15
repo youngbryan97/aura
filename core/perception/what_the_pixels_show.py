@@ -427,6 +427,9 @@ def _recognized(image: Any) -> list[dict[str, Any]]:
         request = VNRecognizeTextRequest.alloc().init()
         request.setRecognitionLevel_(VNRequestTextRecognitionLevelAccurate)
         request.setUsesLanguageCorrection_(False)
+        from core.perception.vision_request_compute import configure_vision_request
+
+        configure_vision_request(request)
         handler = VNImageRequestHandler.alloc().initWithCGImage_options_(picture, {})
         ok, _error = handler.performRequests_error_([request], None)
         if not ok:

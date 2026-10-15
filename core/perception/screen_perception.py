@@ -194,6 +194,9 @@ class ScreenPerception:
         request = Vision.VNRecognizeTextRequest.alloc().initWithCompletionHandler_(_completion)
         request.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
         request.setUsesLanguageCorrection_(True)
+        from core.perception.vision_request_compute import configure_vision_request
+
+        configure_vision_request(request)
         url = Foundation.NSURL.fileURLWithPath_(str(screenshot_path))
         handler = Vision.VNImageRequestHandler.alloc().initWithURL_options_(url, {})
         ok, error = handler.performRequests_error_([request], None)

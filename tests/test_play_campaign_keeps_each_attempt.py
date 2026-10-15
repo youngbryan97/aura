@@ -248,3 +248,46 @@ async def test_plan_only_starts_no_browser_asset_reader_or_model_connection(tmp_
                               '--her-model', 'http://uncontacted', '--out', str(out)]) == []
     record = json.loads((tmp_path / 'pass.json.state.json').read_text())
     assert [c['state'] for c in record['cases']] == ['pending', 'excluded']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fails', [False, True])
+async def test_short_case_budgets_reach_play_and_both_globals_are_restored(monkeypatch, fails):
+    from types import SimpleNamespace
+
+    from core.capabilities import phantom_browser
+    from core.skills import screen_pursuit as pursuit
+    from core.skills import sovereign_browser_drawing as drawing
+    from tools import measure_on_archived_games as runner
+
+    async def nothing(*args, **kwargs):
+        pass
+
+    class Browser:
+        page = SimpleNamespace(goto=nothing)
+
+        async def ensure_ready(self):
+            return True
+
+        def get_status(self):
+            return {'graphics': {'renderer': 'test driver'}}
+
+        close = staticmethod(nothing)
+
+    async def play(*args):
+        assert drawing.PLAY_UNTIL_WON_S == 30.
+        assert drawing.LEAST_SHARE_S == 30.
+        if fails:
+            raise RuntimeError('play failed')
+        return {'won': True}
+
+    original_tell = pursuit._tell
+    monkeypatch.setattr(drawing, 'PLAY_UNTIL_WON_S', 1200.)
+    monkeypatch.setattr(drawing, 'LEAST_SHARE_S', 360.)
+    monkeypatch.setattr(drawing, 'played_on_the_drawing', play)
+    monkeypatch.setattr(phantom_browser, 'PhantomBrowser', lambda **kwargs: Browser())
+    monkeypatch.setattr(runner.asyncio, 'sleep', nothing)
+    result = await runner._one(2, 'local-test', .5, False)
+    assert bool(result['error']) == fails
+    assert drawing.PLAY_UNTIL_WON_S == 1200. and drawing.LEAST_SHARE_S == 360.
+    assert pursuit._tell is original_tell

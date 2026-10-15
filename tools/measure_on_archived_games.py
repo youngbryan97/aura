@@ -148,7 +148,9 @@ async def _one(number: int, address: str, minutes: float, visible: bool, trace: 
         original_tell(line)
 
     pursuit._tell = tell
+    previous_budget, previous_share = drawing.PLAY_UNTIL_WON_S, drawing.LEAST_SHARE_S
     drawing.PLAY_UNTIL_WON_S = minutes * 60.0
+    drawing.LEAST_SHARE_S = min(previous_share, minutes * 60.0)
     # Everything she decided and why, game by game, and the screen she ended on.
     import logging
 
@@ -178,6 +180,7 @@ async def _one(number: int, address: str, minutes: float, visible: bool, trace: 
         played = {"error": f"{type(why).__name__}: {why}"}
     finally:
         pursuit._tell = original_tell
+        drawing.PLAY_UNTIL_WON_S, drawing.LEAST_SHARE_S = previous_budget, previous_share
         if trace is not None:
             try:
                 await browser.page.screenshot(path=str(trace / f"game{number}_end.png"))
@@ -265,6 +268,7 @@ def _arguments(argv: list[str]):
     parser.add_argument("--resume", action="store_true", help="continue a settled campaign checkpoint at --out.state.json")
     parser.add_argument("--plan-only", action="store_true", help="save the case plan without reading programs or starting play")
     parser.add_argument("--graphics", choices=['host', 'software'], default='host', help="software requires a measured CPU driver")
+    parser.add_argument("--vision-cpu", action='store_true', help='require CPU acknowledgement before Apple Vision OCR')
     args = parser.parse_args(argv)
     if not math.isfinite(args.minutes) or not 0 < args.minutes <= 60 or args.random < 0:
         parser.error('minutes must be finite, positive and at most sixty; random must be nonnegative')
@@ -286,6 +290,8 @@ async def main(argv: list[str]) -> list[dict]:
 
 
 def _prepare_campaign(args, parser, checkpoint: Path):
+    if args.vision_cpu:
+        os.environ['AURA_VISION_CPU_ONLY'] = '1'
     if checkpoint.exists() != args.resume:
         parser.error('use a fresh --out or --resume with its existing checkpoint')
     if args.out.exists() and not args.resume:
@@ -318,7 +324,8 @@ def _prepare_campaign(args, parser, checkpoint: Path):
     changed = subprocess.check_output(['git', 'diff', 'HEAD', '--', 'core', 'tools'], cwd=ROOT)
     identity = {'commit': revision, 'tracked_diff_sha256': hashlib.sha256(changed).hexdigest(),
                 'manifest_sha256': hashlib.sha256(manifest_bytes).hexdigest(), 'model_endpoint': args.her_model,
-                'visible': args.visible, 'trace': str(args.trace.resolve()) if args.trace else '', 'graphics': args.graphics}
+                'visible': args.visible, 'trace': str(args.trace.resolve()) if args.trace else '',
+                'graphics': args.graphics, 'vision_cpu': args.vision_cpu}
     record = campaign_plan(numbers, excluded=excluded, identity=identity, seconds=args.minutes * 60)
     if args.resume:
         record = resume_campaign(json.loads(checkpoint.read_text()), record)
