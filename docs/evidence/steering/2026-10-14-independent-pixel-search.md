@@ -110,3 +110,51 @@ known cleared destination alone does not make alpha blending an identity
 copy: the separate RGB/alpha factors and equations, opacity and intervening
 writes still matter. Geometric or draw-transform evidence cannot supply
 player identity without current pixels and owned control trials.
+
+## Original-game run after the checkpoint
+
+The saved revision `eeeebd3d8abe0e6a518fd427a96048f035fc2ed4` ran assigned
+original case 9 through the ordinary browser/drawing actor for 103.287
+seconds. It finished without a runner error or timeout. No win was
+demonstrated, and all 426 recorded decisions had no identified body. Median
+decision picture age was 0.217022 seconds.
+
+Of 426 search-admission observations, 27 reached the ordinary unresolved
+trial eligibility boundary, but zero had the surface/sequence capture
+custody needed by the new probe. It therefore made zero interventions. The
+actual game uses `PageFrames` when its WebGL canvas cannot be read reliably;
+the canvas-only custody improvement did not cover this source.
+
+Artifacts are in
+`/private/tmp/codex-steer/independent-pixel-search-original9-1014/`. The
+separate frozen proof worktree ran the saved revision with no overlays.
+This is original-game browser-actor evidence, not native-app prompt proof.
+
+## Streaming acquisition continuation
+
+`StreamedSurface` now gives accepted source-clock frames their actual
+stream-session identity and capture order. Top-level document navigation
+changes the owner; iframe navigation does not. Cropping retains source
+extent, scroll and requested region. Old frames cannot be relabelled as the
+new document's captures. Geometry without custody keeps its original clock
+semantics but cannot supply an independent pixel trial.
+
+The collector skips queued pre-action frames within one finite capture
+budget, rather than accepting them under the newly held key. Eight queued
+frames exhaust the allowance. Missing source clocks, unknown ownership or
+unavailable fresh frames still retire the experiment.
+
+Streaming/custody and related suites passed 123 tests in 19.25 seconds.
+After the finite queued-frame change, the focused recheck passed 102 tests
+in 17.40 seconds. A real Chromium test confirms source-clock frames, unique
+sequences and document changes. An initial backward-compatibility test found
+that unknown crop geometry incorrectly replaced the existing clock source;
+the corrected path preserves clock bounds while withholding owner metadata.
+
+The new streaming path still requires its own original-game measurement.
+There is no readiness or transfer claim from these component results.
+
+Streaming checkpoint gates pass for Ruff, writing, changed-method size,
+layering, dependencies, compile, repository lint and smoke. The same
+inherited module-size and governance debt remain; no baseline was changed.
+Output is `/private/tmp/codex-steer/stream-surface-gates-1014.log`.

@@ -52,6 +52,7 @@ class PageFrames:
         self._cadence = DrawingCadence(self.every_nth_frame, STILL_AFTER_S / 2)
         self._options: dict[str, Any] = {}
         self._resampling = False
+        self._surface: Any = None
         self.unavailable = False
 
     async def _start(self) -> bool:
@@ -73,8 +74,15 @@ class PageFrames:
                 return False
             self._session = session
             self._clock = clock
+            from core.perception.streamed_pixels_keep_their_surface import StreamedSurface
+
+            self._surface = StreamedSurface()
+            surface = self._surface
+            session.on("Page.frameNavigated", lambda event: surface.navigated(event, time.monotonic())
+                       if self._owns_session(session, generation) else None)
             session.on("Page.screencastFrame", lambda params: self._frame(
                 params, source_session=session, generation=generation))
+            await session.send("Page.enable")
             await clock.calibrate(session, time.monotonic)
             if not self._owns_session(session, generation):
                 return False
@@ -107,6 +115,8 @@ class PageFrames:
             metadata = dict(params.get("metadata") or {})
             captured = self._clock.frame(metadata, time.monotonic())
             if captured is not None:
+                if self._surface is not None:
+                    captured = self._surface.frame(captured)
                 self._cadence.observe(captured)
                 self._latest = (str(params.get("data") or ""), metadata, captured)
                 self._arrived.set()
@@ -151,6 +161,12 @@ class PageFrames:
             return None
         if not self._owns_session(session, generation):
             return None
+        if (getattr(captured, "surface", None) is not None and self._surface is not None
+                and captured.surface != self._surface.owner):
+            return None
+        from core.perception.streamed_pixels_keep_their_surface import captured_crop
+
+        captured = captured_crop(captured, metadata, clip, picture.shape)
         return picture, captured
 
     async def _sample_at_the_drawings_pace(self) -> bool:
@@ -191,6 +207,7 @@ class PageFrames:
         self._clock.reset()
         self._cadence = DrawingCadence(self.every_nth_frame, STILL_AFTER_S / 2)
         self._latest, self._taken_at = None, -1.0
+        self._surface = None
         acks = list(self._acks)
         for task in acks:
             task.cancel()

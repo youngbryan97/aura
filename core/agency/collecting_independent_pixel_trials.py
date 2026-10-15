@@ -220,14 +220,21 @@ def _guard(inputs: PixelExperimentInputs, interference: int, receipts: tuple,
         raise _LostEvidenceError("neutral_owner_changed")
 
 
-async def _captured(look: Callable[[], Awaitable[Any]], seconds: float) -> FrozenPixelFrame:
-    captured = await asyncio.wait_for(look(), seconds)
-    if not isinstance(captured, tuple) or len(captured) != 2:
-        raise _LostEvidenceError("missing_capture")
-    frame = freeze_frame(*captured)
-    if frame is None or frame.arrived > time.monotonic():
-        raise _LostEvidenceError("unmeasured_capture")
-    return frame
+async def _captured(look: Callable[[], Awaitable[Any]], seconds: float, *, not_before: float) -> FrozenPixelFrame:
+    deadline = time.monotonic() + seconds
+    for _ in range(8):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("fresh capture budget ended")
+        captured = await asyncio.wait_for(look(), remaining)
+        if not isinstance(captured, tuple) or len(captured) != 2:
+            raise _LostEvidenceError("missing_capture")
+        frame = freeze_frame(*captured)
+        if frame is None or frame.arrived > time.monotonic():
+            raise _LostEvidenceError("unmeasured_capture")
+        if frame.lower >= not_before:
+            return frame
+    raise _LostEvidenceError("queued_capture_budget")
 
 
 async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperimentInputs,
@@ -239,7 +246,7 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
     epoch = inputs.hers.identification.epoch
     _guard(inputs, interference, receipts, epoch)
     await asyncio.sleep(neutral_s)
-    before = await _captured(look, capture_s)
+    before = await _captured(look, capture_s, not_before=neutral_began)
     _guard(inputs, interference, receipts, epoch)
     if before.lower < neutral_began or time.monotonic() - before.upper > .75:
         raise _LostEvidenceError("before_outside_neutral")
@@ -248,7 +255,7 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
         raise _LostEvidenceError("input_interrupted")
     receipts, held = inputs._receipts(), inputs._owned_press
     await asyncio.sleep(settle_s)
-    after = await _captured(look, capture_s)
+    after = await _captured(look, capture_s, not_before=down_ack + .02)
     _guard(inputs, interference, receipts, epoch, held=held)
     release = await inputs._release(ack_s)
     if inputs._interference != interference or inputs.hers.identification.epoch != epoch:

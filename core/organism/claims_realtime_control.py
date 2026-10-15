@@ -505,9 +505,13 @@ def _bounded_pixel_claims() -> tuple:
         _pixel_search_capacity_invariant,
         _sampling_hint_receipt_invariant,
     )
+    from core.perception.streamed_pixels_keep_their_surface import _stream_surface_invariant
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("streamed_pixels_keep_session_document_and_crop", "core/perception/streamed_pixels_keep_their_surface.py",
+         "tests/test_streamed_pixels_keep_their_surface.py", lambda: _stream_surface_invariant() == (),
+         "Accepted streamed frames retain their actual session, document and crop with source capture bounds; missing clocks and geometry cannot supply causal capture custody."),
         ("sampling_hint_receipt_comes_from_kept_points", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_pixel_search_hints_reach_owned_sampling.py", lambda: _sampling_hint_receipt_invariant() == (),
          "A sampling receipt retains exact capture custody and counts points after actual allocation; skipped or refused sampling supplies no consumed receipt."),

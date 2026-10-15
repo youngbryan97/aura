@@ -252,6 +252,34 @@ async def test_stopping_collection_still_releases_its_retained_physical_press(la
 
 
 @pytest.mark.asyncio
+async def test_queued_pre_action_frame_is_skipped_within_the_capture_budget(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    queued = False
+    async def look():
+        nonlocal queued
+        if lane.run.held and not queued:
+            queued = True
+            old = lane.captures[-1]
+            return lane.source, old
+        return await lane.look()
+    result = await collecting.collect_independent_pixel_trials(experiment, look=look, inputs=lane.inputs)
+    assert result.status == 'complete' and result.trials == 24 and result.release_confirmed
+    assert queued and len(lane.captures) == 48
+
+
+@pytest.mark.asyncio
+async def test_unchanging_queued_capture_cannot_extend_the_owned_hold(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    async def look():
+        if lane.run.held:
+            return lane.source, lane.captures[-1]
+        return await lane.look()
+    result = await collecting.collect_independent_pixel_trials(experiment, look=look, inputs=lane.inputs)
+    assert result.status == 'queued_capture_budget' and result.trials == 0 and result.release_confirmed
+    assert lane.run.held == ''
+
+
+@pytest.mark.asyncio
 async def test_repeated_cancellation_does_not_interrupt_the_owned_key_release(lane):
     experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
     captured, releasing, acknowledge = asyncio.Event(), asyncio.Event(), asyncio.Event()
