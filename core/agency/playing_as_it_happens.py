@@ -64,10 +64,11 @@ from core.agency.how_far_her_blow_reaches import BLOW_EVERY_S as BLOW_EVERY_S
 from core.agency.how_far_her_blow_reaches import HerBlows
 from core.agency.how_the_contest_stands import ContestStands
 from core.agency.inputs_while_measuring_control import (
-    HandsWithControlReceipts,
     body_probe_is_active,
     hold_control,
-    release_after_play,
+)
+from core.agency.inputs_while_measuring_control import (
+    release_after_play as release_after_play,
 )
 from core.agency.keeping_a_watcher_company import keeping_company
 from core.agency.naming_what_she_sees import (
@@ -1154,7 +1155,13 @@ async def _play_as_it_happens(
     from core.agency.what_a_press_does import WhatAPressDoes
 
     run.presses = keep.get("presses") or WhatAPressDoes()
-    hands = HandsWithControlReceipts(hands, run, hers)
+    from core.agency.searching_before_a_body_is_known import (
+        pixel_search_record,
+        release_search_after_play,
+        search_after_unresolved_body,
+        search_inputs,
+    )
+    hands = search_inputs(hands, run, hers)
     from core.agency.when_a_press_pays import WhenAPressPays
 
     run.timing = keep.get("timing") or WhenAPressPays()
@@ -1308,6 +1315,9 @@ async def _play_as_it_happens(
             if not reflexive:
                 await _keep_reading(run, meeting, hers, moves, picture, at, read_words, say=say)
                 rules = rules_as_told_since(run, rules)
+                if await search_after_unresolved_body(hands, run, hers, moves, look=look, context=context,
+                                                     picture=picture, at=at, deadline=began + seconds):
+                    continue
                 await _act(hands, run, moves, hers, meeting, choosing, at, say=say, rules=rules)
             context.check()
             if not reflexive:
@@ -1324,7 +1334,7 @@ async def _play_as_it_happens(
             ended = _over(run, moves, happened, at) or _nothing_answers(run, hers, meeting, at) or _said_it_is_over(run)
     finally:
         await moves.close()
-        await release_after_play(hands, run, hers)
+        await release_search_after_play(hands, run, hers)
         await run.coming.let_go(hands)
         keep["signs_going"] = run.coming.known() or keep.get("signs_going")
         keep["keys_never_absent"] = run.shown.done()
@@ -1339,6 +1349,7 @@ async def _play_as_it_happens(
                  "supply": run.supply, "pushing": run.pushing, "harm_lands": getattr(run, "harm_lands", None)})
     result = _what_it_came_to(run, moves, hers, meeting, ended, began)
     result['reflexes'] = reflex_record(run)
+    result['pixel_search'] = pixel_search_record(run)
     after_the_stretch(run.settings, run.gains, run.losses)
     result["runtime_checks"] = {"required_edges": sorted(motion_checks.required_edges),
                                 "provenance": motion_checks.provenance, "violations": motion_checks.violations,

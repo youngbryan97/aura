@@ -14,7 +14,7 @@ from core.verify import invariant
 
 
 def share_point_capacity(points: list[SeenPoint], activity: np.ndarray, scale: tuple,
-                         limit: int) -> tuple[SeenPoint, ...]:
+                         limit: int, *, quiet_budget: int | None = None) -> tuple[SeenPoint, ...]:
     """Reserve quiet reference marks while sharing the remaining slots among changing regions."""
     from core.perception.points_before_the_picture_is_reduced import PointsBeforeReduction
 
@@ -31,7 +31,7 @@ def share_point_capacity(points: list[SeenPoint], activity: np.ndarray, scale: t
             quiet.append(point)
     # A changing cell shares its own slots before competing with long-lived
     # reference cells. Unused reservations return to the other observations.
-    quiet_budget = limit // 3
+    quiet_budget = limit // 3 if quiet_budget is None else min(limit, max(0, quiet_budget))
     active_budget = limit - min(quiet_budget, len(quiet))
     active = list(PointsBeforeReduction._spatial_share(moving, scale, active_budget))
     room = active_budget - len(active)

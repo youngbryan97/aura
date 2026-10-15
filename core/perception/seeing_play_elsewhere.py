@@ -290,15 +290,16 @@ class SeenElsewhere:
     def elsewhere(self) -> bool:
         return self._here is None
 
-    def see(self, picture: np.ndarray, at: float) -> list[dict[str, Any]]:
+    def see(self, picture: np.ndarray, at: float, *, search_hint: Any = None) -> list[dict[str, Any]]:
         if self._here is not None:
-            return self._here.see(picture, at)
+            return self._here.see(picture, at) if search_hint is None else self._here.see(picture, at, search_hint=search_hint)
         pixels = np.asarray(picture)
         with _LOCK:
             memory, answers = _memory_for(pixels.nbytes), _answers_memory()
             np.ndarray(pixels.shape, pixels.dtype, buffer=memory.buf)[...] = pixels
-            answer = _ask(("see", self._name, memory.name, pixels.shape, pixels.dtype.str, at,
-                           getattr(picture, "drawing_scene", None), answers.name, answers.size))
+            message = ("see", self._name, memory.name, pixels.shape, pixels.dtype.str, at,
+                       getattr(picture, "drawing_scene", None), answers.name, answers.size)
+            answer = _ask(message if search_hint is None else (*message, search_hint))
             if isinstance(answer, tuple) and answer[0] == "written":
                 answer = pickle.loads(answers.buf[:answer[1]])  # noqa: S301 - her own child's answer
         if isinstance(answer, tuple) and answer[0] == "seen":
@@ -307,7 +308,7 @@ class SeenElsewhere:
         why = answer[1] if isinstance(answer, tuple) and len(answer) > 1 else "no answer in time"
         logger.info("the eyes for play are opened here, from what was seen there: %s", why)
         self._here = _eyes_from(self._likeness)
-        return self._here.see(picture, at)
+        return self._here.see(picture, at) if search_hint is None else self._here.see(picture, at, search_hint=search_hint)
 
     def __getattr__(self, name: str) -> Any:
         holder = self.__dict__.get("_here") or self.__dict__.get("_likeness")
@@ -436,7 +437,8 @@ def _serve() -> None:
                 prepare_play_vision()
                 _send(wire_out, ("ready", _state_of(eyes[name])))
             elif kind == "see":
-                _, _, memory_name, shape, dtype, at, scene, answers_name, answers_size = message
+                _, _, memory_name, shape, dtype, at, scene, answers_name, answers_size = message[:9]
+                search_hint = message[9] if len(message) == 10 else None
                 memory = memories.get(memory_name)
                 if memory is None:
                     memory = memories[memory_name] = shared_memory.SharedMemory(name=memory_name)
@@ -447,7 +449,8 @@ def _serve() -> None:
                     from core.perception.the_drawing_as_objects import described
 
                     picture = described(picture, scene)
-                happened = eyes[name].see(picture, at)
+                happened = (eyes[name].see(picture, at) if search_hint is None
+                            else eyes[name].see(picture, at, search_hint=search_hint))
                 data = pickle.dumps(("seen", happened, _state_of(eyes[name])), protocol=pickle.HIGHEST_PROTOCOL)
                 answers = memories.get(answers_name)
                 if answers is None:

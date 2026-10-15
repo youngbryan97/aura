@@ -434,6 +434,7 @@ class WhatMoves:
         from core.perception.points_before_the_picture_is_reduced import PointsBeforeReduction
 
         self.points = points if points is not None else PointsBeforeReduction()
+        self.sampling_hint_receipt: Any = None
         self._point_motion: dict = {}
         from core.perception.what_the_points_on_a_thing_say import WhatThePointsSay
 
@@ -1013,8 +1014,15 @@ class WhatMoves:
 
     # -- one picture -------------------------------------------------------
 
-    def see(self, picture: np.ndarray, at: float) -> list[dict[str, Any]]:
+    def see(self, picture: np.ndarray, at: float, *, search_hint: Any = None) -> list[dict[str, Any]]:
         """Take one picture in. Returns what happened in it."""
+        self.sampling_hint_receipt = None
+        captured_at = at
+        priority = None
+        if search_hint is not None:
+            from core.perception.a_search_hint_for_these_pixels import frame_priority_mask
+
+            priority = frame_priority_mask(search_hint, np.asarray(picture), at)
         # What the eyes keep of when things were seen is a time, as a plain number: the picture's capture receipt
         # (core/perception/a_clock_for_drawn_frames.py) stays with the picture for whoever weighs its bounds, and a
         # thing born on a receipt was refused by every check that a time is a number (offline 2026-10-13).
@@ -1046,7 +1054,13 @@ class WhatMoves:
         else:
             self._still = np.zeros(small.shape[:2], np.float32)
         if hasattr(self.points, 'see_source'):
-            self.points.see_source(np.asarray(picture), small, at)
+            from core.perception.points_before_the_picture_is_reduced import PointsBeforeReduction
+
+            if priority is not None and getattr(type(self.points), 'see_source', None) is PointsBeforeReduction.see_source:
+                self.points.see_source(np.asarray(picture), small, captured_at, search_hint=search_hint)
+                self.sampling_hint_receipt = self.points.sampling_hint_receipt
+            else:
+                self.points.see_source(np.asarray(picture), small, at)
         else:
             self.points.see(small, at)
         self._point_motion = {thing.number: motion

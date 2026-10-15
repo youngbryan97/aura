@@ -489,14 +489,52 @@ def _travel_turn_claims() -> tuple:
 
 
 def _bounded_pixel_claims() -> tuple:
+    from core.agency.discovering_control_in_current_pixels import _pixel_discovery_invariant
+    from core.agency.pixels_inside_control_trials import _pixel_trial_custody_invariant
+    from core.agency.searching_before_a_body_is_known import _pixel_search_phase_invariant
+    from core.perception.a_region_that_answers_independent_inputs import _pixel_cohort_invariant
+    from core.perception.a_search_hint_for_these_pixels import _pixel_search_hint_invariant
     from core.perception.boundary_support_for_translation import _bounded_edge_samples_invariant
+    from core.perception.frames_as_they_are_drawn import _canvas_capture_bounds_invariant
     from core.perception.learned_tracking.continuity_backend import _continuity_invariant
     from core.perception.learned_tracking.points_for_the_motion_eyes import (
         _query_lifetime_invariant,
     )
+    from core.perception.pixel_motion_before_object_identity import _pixel_motion_bound_invariant
+    from core.perception.points_before_the_picture_is_reduced import (
+        _pixel_search_capacity_invariant,
+        _sampling_hint_receipt_invariant,
+    )
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("sampling_hint_receipt_comes_from_kept_points", "core/perception/points_before_the_picture_is_reduced.py",
+         "tests/test_pixel_search_hints_reach_owned_sampling.py", lambda: _sampling_hint_receipt_invariant() == (),
+         "A sampling receipt retains exact capture custody and counts points after actual allocation; skipped or refused sampling supplies no consumed receipt."),
+        ("pixel_search_follows_completed_unresolved_body_trials", "core/agency/searching_before_a_body_is_known.py",
+         "tests/test_pixel_search_follows_unresolved_body_trials.py", lambda: _pixel_search_phase_invariant() == (),
+         "A bounded pixel search follows a completed unresolved body experiment with current body controls; known bodies and other action phases keep ordinary play."),
+        ("pixel_search_hints_belong_to_the_exact_capture", "core/perception/a_search_hint_for_these_pixels.py",
+         "tests/test_pixel_search_hints_reach_owned_sampling.py", lambda: _pixel_search_hint_invariant() == (),
+         "A sampling search hint requires the exact RGB capture and its owner through thread and child transport; changed pixels or receipts refuse priority."),
+        ("pixel_search_preserves_other_point_capacity", "core/perception/points_before_the_picture_is_reduced.py",
+         "tests/test_pixel_search_hints_reach_owned_sampling.py", lambda: _pixel_search_capacity_invariant() == (),
+         "A validated region reserves part of existing point capacity while preserving quiet references; newly sampled corners supply no prior motion or identity."),
+        ("pixel_discovery_requires_its_complete_admitted_experiment", "core/agency/discovering_control_in_current_pixels.py",
+         "tests/test_discovering_control_in_current_pixels.py", lambda: _pixel_discovery_invariant() == (),
+         "Pixel response discovery requires every planned admitted press and its observed motion; missing or changed references retire the experiment without assigning a body."),
+        ("pixel_trials_keep_prespecified_input_and_capture", "core/agency/pixels_inside_control_trials.py",
+         "tests/test_pixels_inside_control_trials.py", lambda: _pixel_trial_custody_invariant() == (),
+         "Independent visual trials retain randomized cohorts, immutable captured pixels and acknowledged isolated input windows; replayed captures and changed exposures are refused."),
+        ("pixel_response_uses_distinct_confirmation_cohorts", "core/perception/a_region_that_answers_independent_inputs.py",
+         "tests/test_a_region_answers_independent_inputs.py", lambda: _pixel_cohort_invariant() == (),
+         "Visual response regions require separate prespecified confirmation trials and measured feature support; they supply search priority without player identity."),
+        ("canvas_capture_bounds_keep_their_surface", "core/perception/frames_as_they_are_drawn.py",
+         "tests/test_canvas_frames_keep_their_capture_bounds.py", lambda: _canvas_capture_bounds_invariant() == (),
+         "A canvas capture retains its read interval, surface generation and page sequence through decoding; missing custody metadata leaves capture time unknown."),
+        ("pixel_motion_proposals_have_bounded_measured_support", "core/perception/pixel_motion_before_object_identity.py",
+         "tests/test_pixel_motion_before_object_identity.py", lambda: _pixel_motion_bound_invariant() == (),
+         "Bounded RGB correspondences retain current forward and reverse patch support before object discovery; absent scene references remain unavailable."),
         ('queries_keep_their_first_observation_and_live_budget',
          'core/perception/learned_tracking/points_for_the_motion_eyes.py',
          'tests/test_original_continuity_points.py', lambda: _query_lifetime_invariant() == (),

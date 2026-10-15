@@ -75,7 +75,7 @@ def _refine(before: np.ndarray, after: np.ndarray, points: np.ndarray,
 
 
 def _new_marks(image: np.ndarray, occupied: list[SeenPoint], limit: int, scale: tuple,
-               activity: np.ndarray | None = None) -> list[tuple[float, float]]:
+               activity: np.ndarray | None = None, *, priority: np.ndarray | None = None) -> list[tuple[float, float]]:
     """Spread the source corners by working-picture cells within the fixed point budget."""
     gy, gx = np.gradient(image)
     xx, xy, yy = (ndimage.uniform_filter(a * b, 3) for a, b in ((gx, gx), (gx, gy), (gy, gy)))
@@ -94,16 +94,29 @@ def _new_marks(image: np.ndarray, occupied: list[SeenPoint], limit: int, scale: 
                                           float(strength[y, x]), float(x), float(y)))
     for values in cells.values():
         values.sort(reverse=True)
-    found = []
     ranks = max((len(values) for values in cells.values()), default=0)
-    for active_first in ((True, False) if activity is not None else (False,)):
-        for rank in range(ranks):
-            layer = (v[rank] for v in cells.values() if len(v) > rank and v[rank][0] == active_first)
-            for _active, _strength, x, y in sorted(layer, reverse=True):
-                found.append((x, y))
-                if len(found) >= limit:
-                    return found
-    return found
+
+    def take(wanted: bool | None, budget: int) -> list[tuple[float, float]]:
+        found = []
+        if budget <= 0:
+            return found
+        for active_first in ((True, False) if activity is not None else (False,)):
+            for rank in range(ranks):
+                layer = (v[rank] for v in cells.values() if len(v) > rank and v[rank][0] == active_first
+                         and (wanted is None or bool(priority[int(v[rank][3]), int(v[rank][2])]) == wanted))
+                for _active, _strength, x, y in sorted(layer, reverse=True):
+                    found.append((x, y))
+                    if len(found) >= budget:
+                        return found
+        return found
+
+    if priority is None:
+        return take(None, limit)
+    preferred = take(True, max(1, limit // 3))
+    background = take(False, limit - len(preferred))
+    if len(preferred) + len(background) < limit:
+        preferred = take(True, limit - len(background))
+    return preferred + background
 
 
 class PointsBeforeReduction(FollowingPoints):
@@ -118,11 +131,15 @@ class PointsBeforeReduction(FollowingPoints):
         self._colours: np.ndarray | None = None
         self._geometry: tuple | None = None
         self._activity: np.ndarray | None = None
+        self._priority: np.ndarray | None = None
+        self.sampling_hint_receipt: Any = None
 
     def clear(self) -> None:
         super().clear()
         self._native_points, self._colours, self._geometry = (), None, None
         self._activity = None
+        self._priority = None
+        self.sampling_hint_receipt = None
 
     def motion_of(self, thing: Any, at: float) -> Any:
         """Publish the tracked grid's cell size in the same units as its coordinates."""
@@ -133,8 +150,17 @@ class PointsBeforeReduction(FollowingPoints):
         size = max(working[axis]/tracked[axis] for axis in (0, 1))
         return replace(motion, pixel_size=size)
 
-    def see_source(self, source: np.ndarray, working: np.ndarray, at: float) -> tuple[SeenPoint, ...]:
+    def see_source(self, source: np.ndarray, working: np.ndarray, at: float, *,
+                   priority_mask: np.ndarray | None = None, search_hint: Any = None) -> tuple[SeenPoint, ...]:
         """A source and its reduced view must belong to this one capture and geometry."""
+        self.sampling_hint_receipt = None
+        sampling_owner = None
+        if search_hint is not None:
+            from core.perception.a_search_hint_for_these_pixels import frame_priority_mask
+
+            priority_mask = frame_priority_mask(search_hint, source, at)
+            sampling_owner = search_hint if priority_mask is not None else None
+            at = float(at)
         if (source.ndim != 3 or working.ndim != 3 or min(source.shape[:2]) < 16
                 or min(working.shape[:2]) < 16 or min(source.shape[2], working.shape[2]) < 3
                 or not math.isfinite(at) or self.limit <= 0):
@@ -154,6 +180,15 @@ class PointsBeforeReduction(FollowingPoints):
         if self._geometry is not None and (geometry != self._geometry or not 0 < at - self._at <= self.longest_gap):
             self.clear()
         self._geometry = geometry
+        self._priority = None
+        if (isinstance(priority_mask, np.ndarray) and priority_mask.dtype == bool
+                and priority_mask.shape == source_shape and 0 < np.count_nonzero(priority_mask) <= priority_mask.size // 2):
+            height, width = source.shape[:2]
+            ys = np.minimum(((np.arange(height) + .5) * source_shape[0] / height).astype(int), source_shape[0] - 1)
+            xs = np.minimum(((np.arange(width) + .5) * source_shape[1] / width).astype(int), source_shape[1] - 1)
+            self._priority = priority_mask[np.ix_(ys, xs)].copy()
+            if not self._priority.any():
+                self._priority = None
         scale = working.shape[1] / source.shape[1], working.shape[0] / source.shape[0]
         colours = _colours(source)
         image = _pyramid(colours.mean(axis=2))
@@ -163,16 +198,49 @@ class PointsBeforeReduction(FollowingPoints):
             if changed.any() and changed.mean() <= .6:
                 self._activity = ndimage.maximum_filter(changed, 7)
         current = self._continued_source(image, colours, at) if self._image is not None and self._native_points else []
-        for x, y in _new_marks(image[0], current, self.limit, scale, self._activity):
+        marks = (_new_marks(image[0], current, self.limit, scale, self._activity) if self._priority is None
+                 else _new_marks(image[0], current, self.limit, scale, self._activity, priority=self._priority))
+        for x, y in marks:
             current.append(SeenPoint(self._number, x, y, x, y, at, at, at, 0., 1))
             self._number += 1
         self._native_points = self._spread(current, scale)
         self.points = tuple(SeenPoint(p.number, p.x * scale[0], p.y * scale[1], p.old_x * scale[0], p.old_y * scale[1],
                             p.born, p.before, p.at, p.error, p.pictures) for p in self._native_points)
         self._image, self._colours, self._at = image, colours, at
+        if sampling_owner is not None and self._priority is not None:
+            from core.perception.a_search_hint_for_these_pixels import SamplingHintReceipt
+
+            preferred = []
+            for point in self._native_points:
+                x, y = int(round(point.x)), int(round(point.y))
+                if 0 <= y < self._priority.shape[0] and 0 <= x < self._priority.shape[1] and self._priority[y, x]:
+                    preferred.append(point)
+            hint = sampling_owner
+            self.sampling_hint_receipt = SamplingHintReceipt(
+                hint.surface, hint.epoch, hint.sequence, hint.lower, hint.upper, hint.arrived, hint.source,
+                hint.source_at, hint.shape, hint.digest, hint.region, True, int(np.count_nonzero(self._priority)),
+                sum(point.pictures == 1 and point.born == at and point.before == at for point in preferred),
+                len(preferred), len(self._native_points) - len(preferred))
         return self.points
 
     def _spread(self, points: list[SeenPoint], scale: tuple) -> tuple[SeenPoint, ...]:
+        if self._priority is not None:
+            from core.perception.points_shared_with_changing_regions import share_point_capacity
+
+            preferred, background = [], []
+            for point in points:
+                x, y = int(round(point.x)), int(round(point.y))
+                inside = 0 <= y < self._priority.shape[0] and 0 <= x < self._priority.shape[1] and self._priority[y, x]
+                (preferred if inside else background).append(point)
+            kept = list(self._spatial_share(preferred, scale, max(1, self.limit // 3)))
+            room = self.limit - len(kept)
+            kept.extend(share_point_capacity(background, self._activity, scale, room, quiet_budget=self.limit // 3)
+                        if self._activity is not None else self._spatial_share(background, scale, room))
+            if len(kept) < self.limit:
+                names = {point.number for point in kept}
+                unused = [point for point in points if point.number not in names]
+                kept.extend(self._spatial_share(unused, scale, self.limit - len(kept)))
+            return tuple(kept)
         if self._activity is not None:
             from core.perception.points_shared_with_changing_regions import share_point_capacity
 
@@ -215,6 +283,49 @@ class PointsBeforeReduction(FollowingPoints):
         return [SeenPoint(p.number, float(found[i, 0]), float(found[i, 1]), p.x, p.y, p.born,
                          self._at, at, float(errors[i]), p.pictures + 1)
                 for i, p in enumerate(self._native_points) if valid[i]]
+
+
+@invariant("perception.sampling_hint_receipt_comes_from_kept_points", scope="perception",
+           owner="core/perception/points_before_the_picture_is_reduced.py", observational=False)
+def _sampling_hint_receipt_invariant() -> tuple:
+    from core.perception.a_search_hint_for_these_pixels import (
+        make_search_hint,
+        sampling_hint_matches,
+    )
+    from core.perception.frames_as_they_are_drawn import CanvasFrameTime
+
+    picture = np.random.default_rng(41).integers(20, 240, (48, 64, 3), dtype=np.uint8)
+    at = CanvasFrameTime(1., lower=1., upper=1.01, arrived=1.02, source="canvas-bracket",
+                         source_at=2., epoch=3, surface="document/canvas", sequence=4)
+    hint = make_search_hint(picture, at, normalized_region=(0., 0., .5, .5))
+    observer = PointsBeforeReduction(limit=12)
+    observer.see_source(picture, picture, at, search_hint=hint)
+    receipt = observer.sampling_hint_receipt
+    assert sampling_hint_matches(receipt, hint)
+    assert receipt.kept_priority_points + receipt.background_points == len(observer.points)
+    assert receipt.fresh_priority_points == receipt.kept_priority_points
+    assert all(type(point.at) is float for point in observer.points)
+    observer.see_source(picture, picture, 1.1)
+    assert observer.sampling_hint_receipt is None
+    return ()
+
+
+@invariant("perception.pixel_search_keeps_quiet_point_capacity", scope="perception",
+           owner="core/perception/points_before_the_picture_is_reduced.py", observational=False)
+def _pixel_search_capacity_invariant() -> tuple:
+    observer = PointsBeforeReduction(limit=9)
+    observer._priority = np.zeros((64, 64), bool)
+    observer._priority[:20, :20] = True
+    observer._activity = np.zeros((64, 64), bool)
+    observer._activity[30:40] = True
+    preferred = [SeenPoint(i, 5. + i, 5., 5. + i, 5., 1., 1., 1., 0., 1) for i in range(6)]
+    changed = [SeenPoint(i, 5. + i, 35., 5. + i, 35., 1., 1., 1., 0., 1) for i in range(6, 12)]
+    quiet = [SeenPoint(i, 5. + i, 55., 5. + i, 55., 0., .9, 1., 0., 20) for i in range(12, 18)]
+    kept = observer._spread(preferred + changed + quiet, (1., 1.))
+    assert len(kept) == 9 and sum(point.number < 6 for point in kept) == 3
+    assert sum(point.number >= 12 for point in kept) == 3
+    assert all(point.pictures == 1 and point.before == point.at for point in kept if point.number < 6)
+    return ()
 
 
 @invariant('perception.source_marks_return_to_one_working_geometry', scope='perception',

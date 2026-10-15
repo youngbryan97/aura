@@ -19,17 +19,18 @@ from __future__ import annotations
 import asyncio
 import base64
 import logging
+import math
 import time
 from typing import Any
 
-from core.perception.a_clock_for_drawn_frames import DrawingClock
+from core.perception.a_clock_for_drawn_frames import DrawingClock, MeasuredFrameTime
 from core.perception.sampling_the_drawings_pace import DrawingCadence
 from core.runtime.executors import run_interactive_cpu
 from core.verify import invariant
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["CanvasFrames", "PageFrames"]
+__all__ = ["CanvasFrameTime", "CanvasFrames", "PageFrames"]
 
 #: How long to wait before asking the caller for a fresh screenshot.
 STILL_AFTER_S = 0.25
@@ -287,11 +288,96 @@ _THE_CANVAS_NOW = """
     if (!canvas || area < 10000) return null;
     window.__auraCanvas = canvas;
   }
-  try { return {pixels:canvas.toDataURL('image/jpeg', 0.8),
+  let capture = null;
+  try {
+    let custody = window.__auraCanvasCaptureCustody;
+    if (!custody || custody.document !== document) {
+      const token = new Uint32Array(4); crypto.getRandomValues(token);
+      custody = {document, token:Array.from(token, n => n.toString(16)).join('-'),
+        canvases:new WeakMap(), canvas:0, epoch:0, sequence:0};
+      window.__auraCanvasCaptureCustody = custody;
+    }
+    const r = canvas.getBoundingClientRect();
+    const extent = [canvas.width, canvas.height, r.left, r.top, r.width, r.height];
+    let owner = custody.canvases.get(canvas);
+    if (!owner) {
+      owner = {surface:`${custody.token}/${++custody.canvas}`, epoch:++custody.epoch, extent};
+      custody.canvases.set(canvas, owner);
+    } else if (extent.some((n, i) => n !== owner.extent[i])) {
+      owner.epoch = ++custody.epoch; owner.extent = extent;
+    }
+    capture = {version:'canvas-capture-v1', surface:owner.surface, epoch:owner.epoch,
+      sequence:++custody.sequence, width:canvas.width, height:canvas.height};
+  } catch (_) { capture = null; }
+  try {
+    const source_at = performance.now() / 1000;
+    const pixels = canvas.toDataURL('image/jpeg', 0.8);
+    if (capture) capture.source_at = source_at;
+    return {pixels, capture,
     scene:window.__auraDrawingObservation?.snapshot(canvas) ?? null,
-    sounds:window.__auraSoundsHeard?.take() ?? null}; } catch (e) { return null; }
+    sounds:window.__auraSoundsHeard?.take() ?? null};
+  } catch (e) { return null; }
 })
 """
+
+
+class CanvasFrameTime(MeasuredFrameTime):
+    """Capture bounds with the canvas owner and the page's capture order."""
+
+    def __new__(cls, at: float, *, lower: float, upper: float, arrived: float,
+                source: str, source_at: float | None, epoch: int, surface: str, sequence: int):
+        value = super().__new__(cls, at, lower=lower, upper=upper, arrived=arrived,
+                                source=source, source_at=source_at, epoch=epoch)
+        object.__setattr__(value, "surface", surface)
+        object.__setattr__(value, "sequence", sequence)
+        return value
+
+    def __reduce__(self):
+        return _restored_canvas_frame_time, (float(self), self.lower, self.upper, self.arrived,
+                                            self.source, self.source_at, self.epoch, self.surface, self.sequence)
+
+
+def _restored_canvas_frame_time(at, lower, upper, arrived, source, source_at, epoch, surface, sequence):
+    return CanvasFrameTime(at, lower=lower, upper=upper, arrived=arrived, source=source,
+                           source_at=source_at, epoch=epoch, surface=surface, sequence=sequence)
+
+
+def _canvas_capture_time(capture: Any, began: float, finished: float, shape: tuple[int, ...]) -> MeasuredFrameTime:
+    """A response without matching canvas custody keeps its capture bound unknown."""
+    unknown = MeasuredFrameTime(began, lower=None, upper=finished, arrived=finished,
+                                source="canvas-receipt", source_at=None, epoch=0)
+    if (not all(math.isfinite(v) for v in (began, finished)) or not 0 <= began <= finished
+            or not isinstance(capture, dict) or capture.get("version") != "canvas-capture-v1"):
+        return unknown
+    surface, epoch, sequence = (capture.get(key) for key in ("surface", "epoch", "sequence"))
+    width, height, source_at = (capture.get(key) for key in ("width", "height", "source_at"))
+    if (not isinstance(surface, str) or not 1 <= len(surface) <= 256
+            or type(epoch) is not int or epoch <= 0 or type(sequence) is not int or sequence <= 0
+            or type(width) is not int or type(height) is not int or min(width, height) <= 0
+            or len(shape) < 2 or (height, width) != shape[:2]):
+        return unknown
+    if source_at is not None and (isinstance(source_at, bool) or not isinstance(source_at, (int, float))
+                                  or not math.isfinite(source_at) or source_at < 0):
+        return unknown
+    return CanvasFrameTime(began, lower=began, upper=finished, arrived=finished,
+                           source="canvas-bracket", source_at=source_at, epoch=epoch,
+                           surface=surface, sequence=sequence)
+
+
+@invariant("perception.canvas_capture_bounds_keep_their_surface", scope="perception",
+           owner="core/perception/frames_as_they_are_drawn.py", observational=False)
+def _canvas_capture_bounds_invariant() -> tuple:
+    capture = {"version": "canvas-capture-v1", "surface": "document/canvas", "epoch": 3,
+               "sequence": 7, "width": 20, "height": 12, "source_at": 2.}
+    at = _canvas_capture_time(capture, 10., 10.02, (12, 20, 3))
+    assert isinstance(at, CanvasFrameTime) and at.lower == float(at) == 10.
+    assert at.upper == at.arrived == 10.02 and at.source == "canvas-bracket"
+    assert (at.surface, at.epoch, at.sequence, at.source_at) == ("document/canvas", 3, 7, 2.)
+    assert _canvas_capture_time(None, 10., 10.02, (12, 20, 3)).lower is None
+    assert _canvas_capture_time({**capture, "surface": ""}, 10., 10.02, (12, 20, 3)).lower is None
+    assert _canvas_capture_time(capture, 10., 10.02, (10, 20, 3)).lower is None
+    return ()
+
 
 class CanvasFrames:
     """The drawing read from its own canvas; told apart from a canvas that reads back blank."""
@@ -316,8 +402,9 @@ class CanvasFrames:
                 await self.page.evaluate(LISTEN)
             # The request starts before the canvas is read. Its response can
             # arrive much later, so completion cannot make the picture new.
-            at = time.monotonic()
+            began = time.monotonic()
             data = await self.page.evaluate(_THE_CANVAS_NOW, clip)
+            finished = time.monotonic()
         except Exception as why:  # noqa: BLE001 - a page that cannot be asked has no canvas to read
             logger.debug("the canvas could not be read: %s", why)
             data = None
@@ -330,6 +417,8 @@ class CanvasFrames:
         if picture is None:
             self.unavailable = True
             return None
+        at = _canvas_capture_time(data.get("capture") if isinstance(data, dict) else None,
+                                  began, finished, picture.shape)
         if not self._checked:
             self._checked = True
             if not await self._shows_what_the_screen_shows(picture, clip):

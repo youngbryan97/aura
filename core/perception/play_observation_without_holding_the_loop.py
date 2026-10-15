@@ -74,8 +74,8 @@ def _started(factory: Callable[..., Any], kinds: list[Any]) -> tuple[Any, dict[s
     return eyes, _detached_state(eyes)
 
 
-def _seen(eyes: Any, picture: Any, at: float) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    happened = eyes.see(picture, at)
+def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    happened = eyes.see(picture, at) if search_hint is None else eyes.see(picture, at, search_hint=search_hint)
     return copy.deepcopy(happened), _detached_state(eyes)
 
 
@@ -212,7 +212,7 @@ class PlayObservation:
             await self._wait(operation, self._startup_wait_s)
         return self._eyes is not None
 
-    async def see(self, picture: Any, at: float) -> list[dict[str, Any]] | None:
+    async def see(self, picture: Any, at: float, *, search_hint: Any = None) -> list[dict[str, Any]] | None:
         """Return this frame's events, or None while its measurement is unavailable."""
         if self._closed or isinstance(at, bool) or not isinstance(at, (float, int)) or not math.isfinite(at):
             return None
@@ -229,8 +229,12 @@ class PlayObservation:
             self._status = "repeated observation"
             return None
         owned_picture, owned_at = copy.deepcopy(picture), copy.deepcopy(at)
+        if search_hint is not None:
+            from core.perception.a_search_hint_for_these_pixels import PixelSearchHint
+
+            search_hint = copy.deepcopy(search_hint) if isinstance(search_hint, PixelSearchHint) else None
         eyes = self._eyes
-        operation = self._submit("frame", lambda: _seen(eyes, owned_picture, owned_at))
+        operation = self._submit("frame", lambda: _seen(eyes, owned_picture, owned_at, search_hint=search_hint))
         if operation is None:
             return None
         self._last_submitted_at = float(at)
