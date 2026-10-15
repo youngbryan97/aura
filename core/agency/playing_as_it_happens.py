@@ -1321,7 +1321,7 @@ async def _play_as_it_happens(
                 ended = navigation_before_body_experiments(run, hers, picture, at, keep, now=time.monotonic())
                 if ended:
                     break
-                rules = rules_as_told_since(run, rules)
+                rules = rules_as_told_since(run, rules, meeting=meeting)
                 if await search_after_unresolved_body(hands, run, hers, moves, look=look, context=context,
                                                      picture=picture, at=at, deadline=began + seconds):
                     continue

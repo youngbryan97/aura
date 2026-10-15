@@ -36,21 +36,19 @@ _HOW = r'(?:safely|softly|gently|slowly|carefully)'
 _REL = r'(?P<relation>on top of|onto|inside|into|on|in|above|below|beside|next to|at|to)'
 _DIRECT = re.compile(
     r'\b(?:use|using)\s+(?:the\s+)?(?:(?:[\w-]+\s+){0,3}keys|arrows|mouse|pointer|controls|keyboard)\s+to\s+'
-    r'(?:guide|move|steer|drive|fly|bring|lead)\s+.+?\s+(?:' + _HOW + r'\s+)?' + _REL + r'\s+(?P<name>.+)$', re.I)
+    r'(?:guide|move|steer|drive|fly|bring|lead)\s+(?P<mover>[\w\x27’ -]{1,80}?)\s+(?:' + _HOW + r'\s+)?'
+    + _REL + r'\s+(?P<name>.+)$', re.I)
 _SELF = re.compile(
     r'^(?:(?:please|now|then)\s+)?(?:land|dock|walk|run|fly|go|head|arrive|stand|rest|move|drive|steer)\s+'
     r'(?:' + _HOW + r'\s+)?' + _REL + r'\s+(?P<name>.+)$', re.I)
 _NEGATED = re.compile(r"\b(?:not|never|don't|cannot|can't|avoid|if|unless|when|could|would|might|may)\b", re.I)
 _AFTER = re.compile(r'\s+(?:and|while|before|after|without|using|with|to)\b', re.I)
-_COMMON = frozenset('the a an your my its this that to of our their'.split())
+_COMMON = frozenset('the a an your my its this that to of our their it them there here somewhere something'.split())
+_AN_ACTION = re.compile(r'^(?:find|get|collect|win|lose|avoid|shoot|move|open|close|build|make|try|help|catch|rescue|'
+                        r'protect|save|complete|finish|land|dock|jump|pick|push|pull|use)\b', re.I)
 
 
-def requested_relation(words: str) -> SpatialRequest | None:
-    """Read explicit motion directions; conflicting or indirect requests abstain.
-
-    Moving another object is a task-planning problem. This reader accepts
-    controls explicitly moving their body, or an imperative self-motion verb.
-    """
+def _directions(words: str) -> set[tuple[str, str, str]]:
     found = set()
     for clause in re.split(r'[.!?;\n]+', str(words or '')):
         clause = ' '.join(clause.split()).strip()
@@ -59,12 +57,26 @@ def requested_relation(words: str) -> SpatialRequest | None:
         match = _DIRECT.search(clause) or _SELF.fullmatch(clause)
         if match is None:
             continue
+        if 'mover' in match.re.groupindex and re.search(r'\b(?:and|or|then|while|before|after|with)\b', match['mover'], re.I):
+            continue
         name = _AFTER.split(match['name'], maxsplit=1)[0].strip(' ,:')
-        if not _name_words(name) or len(name) > 80:
+        if (not _name_words(name) or len(name) > 80
+                or match['relation'].lower() == 'to' and _AN_ACTION.match(name)):
             continue
         relation = {'onto': 'on', 'on top of': 'on', 'into': 'inside', 'in': 'inside', 'to': 'at', 'next to': 'beside'}.get(
             match['relation'].lower(), match['relation'].lower())
         found.add((relation, name.casefold(), clause))
+    return found
+
+
+def requested_relation(words: str) -> SpatialRequest | None:
+    """Read explicit motion directions; conflicting or indirect requests abstain.
+
+    Moving another object is a task-planning problem. This reader accepts
+    controls explicitly moving their body, or an imperative self-motion verb.
+    An infinitive action after "to" is not a named destination.
+    """
+    found = _directions(words)
     meanings = {(relation, name) for relation, name, _ in found}
     if len(meanings) != 1:
         return None
@@ -160,6 +172,12 @@ def take_motion_directions(meeting: Any, words: str) -> None:
     if words:
         meeting.spatial_request = requested_relation(words)
     meeting.told_gently = meeting.told_gently or says_to_come_gently(words)
+
+
+def update_motion_directions(meeting: Any, words: str) -> None:
+    """A new explicit direction replaces the old one; counters supply no revision."""
+    if _directions(words):
+        take_motion_directions(meeting, words)
 
 
 def requested_target(choosing: Any) -> tuple | None:

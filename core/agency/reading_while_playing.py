@@ -7,6 +7,7 @@ things that are writing are for reading, not for touching.
 from __future__ import annotations
 
 import asyncio
+import math
 import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
@@ -80,23 +81,31 @@ def kept_reading(run: _Run, when: float, said: str) -> None:
 LINES_HEARD_KEPT = 600
 
 
-def rules_as_told_since(run: _Run, rules: Any) -> Any:
+def rules_as_told_since(run: _Run, rules: Any, *, meeting: Any = None) -> Any:
     """The rules, with what the screen has told her since play began: a lesson in play says one thing at a time ("USE
     WASD TO MOVE", then "NOW USE YOUR MOUSE TO AIM AND SHOOT THE EVIL PIN!"), and each is taken in as it is read.
     Offline 2026-10-11 a bowling game's second lesson came up mid-stretch, was never taken in, and she never aimed."""
     from core.agency.what_the_rules_said import WhatTheRulesSaid
 
-    if not run.words_read or run.words_read[-1][0] <= run.rules_read_at:
+    if not run.words_read:
         return rules
     # A reading's lines are one screen's words: a lesson set out over two lines ("NOW USE YOUR MOUSE TO" / "AND SHOOT
     # THE EVIL PIN!") says what neither line says alone.
     readings: dict[float, list[str]] = {}
     for when, said in run.words_read:
-        if when > run.rules_read_at:
+        if isinstance(when, (int, float)) and not isinstance(when, bool) and math.isfinite(when) and when > run.rules_read_at:
             readings.setdefault(when, []).append(said)
-    fresh = list(dict.fromkeys(" ".join(lines) for lines in readings.values()))
+    if not readings:
+        return rules
+    ordered = [' '.join(readings[when]) for when in sorted(readings)]
+    if meeting is not None:
+        from core.agency.a_requested_relation_in_play import update_motion_directions
+
+        for said in ordered:
+            update_motion_directions(meeting, said)
+    fresh = list(dict.fromkeys(ordered))
     fresh = [said for said in fresh if said not in run.lines_heard]
-    run.rules_read_at = run.words_read[-1][0]
+    run.rules_read_at = max(readings)
     if len(run.lines_heard) > LINES_HEARD_KEPT:
         run.lines_heard.clear()
     run.lines_heard.update(fresh)
@@ -106,6 +115,23 @@ def rules_as_told_since(run: _Run, rules: Any) -> Any:
     rules = WhatTheRulesSaid.read(" ".join([getattr(rules, "words", "") or "", *told]).strip())
     run.pointer_trigger = rules.a_click_is_a_shot
     return rules
+
+
+@invariant('agency.current_directions_follow_capture_order', scope='agency',
+           owner='core/agency/reading_while_playing.py', observational=False)
+def _current_directions_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    from core.agency.a_requested_relation_in_play import take_motion_directions
+    from core.agency.what_meeting_things_does import WhatMeetingDoes
+
+    meeting = WhatMeetingDoes()
+    take_motion_directions(meeting, 'Land on the old platform.')
+    run = SimpleNamespace(words_read=[(3., 'Land on the current platform.'), (2., 'Land on the old platform.')],
+                          rules_read_at=1., lines_heard=set(), pointer_trigger=False)
+    rules_as_told_since(run, None, meeting=meeting)
+    assert meeting.spatial_request.destination == 'the current platform' and run.rules_read_at == 3.
+    return ()
 
 
 def _read_the_words(run: _Run, meeting: WhatMeetingDoes, hers: WhichIsHers,

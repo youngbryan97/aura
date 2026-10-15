@@ -75,10 +75,14 @@ def _play_execution_claims() -> tuple:
 
 def _task_grounding_claims() -> tuple:
     from core.agency.a_requested_relation_in_play import _requested_destination_invariant
+    from core.agency.reading_while_playing import _current_directions_invariant
     from core.language.how_a_game_ended import _damaged_repeat_invariant
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
 
-    return (('reference_appearance_is_not_temporal_identity', 'core/perception/a_visual_reference_in_the_picture.py',
+    return (('current_directions_follow_capture_order', 'core/agency/reading_while_playing.py',
+             'tests/test_new_motion_directions_reach_the_running_actor.py', lambda: _current_directions_invariant() == (),
+             'New explicit spatial directions reach the running meeting state in capture order, even when their wording was heard earlier; counters and stale or invalid capture times cannot replace them.'),
+            ('reference_appearance_is_not_temporal_identity', 'core/perception/a_visual_reference_in_the_picture.py',
              'tests/test_a_supplied_reference_needs_current_matching_material.py', lambda: _reference_appearance_invariant() == (),
              'Supplied visual references require current bidirectional patch correspondence and redundant geometry; static asset appearance supplies neither a task role nor a controlled identity, and repeated instances remain competing matches.'),
             ('requested_destinations_require_current_unique_referents', 'core/agency/a_requested_relation_in_play.py',
