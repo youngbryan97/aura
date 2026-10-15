@@ -29,6 +29,7 @@ import re
 import sqlite3
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -364,12 +365,15 @@ class LocalCorpusStore:
             logger.debug("Corpus search degraded to empty: %s", exc)
             return []
 
-    def search_titles(self, name: str, limit: int = 5, *, deadline_s: float = SEARCH_DEADLINE_S) -> list[CorpusHit]:
+    def search_titles(self, name: str, limit: int = 5, *, deadline_s: float = SEARCH_DEADLINE_S,
+                      about: Sequence[str] = ()) -> list[CorpusHit]:
         """Documents whose TITLE holds every term of ``name``, best BM25 first; [] when none or unreadable.
 
         For finding the article a name refers to: the full-text search ranks
         by the whole body, where "Cities Skylines" ranks "Skylines" above the
-        game's own page, "Cities: Skylines".
+        game's own page, "Cities: Skylines". With ``about`` (the words around
+        the name), only documents holding one of them count, ranked by them:
+        "Kobe" beside "81 point game" is the player, not the city.
         """
         terms = _TERM_RE.findall(name or "")[:16]
         if not terms or not self.db_path.exists():
@@ -381,6 +385,10 @@ class LocalCorpusStore:
         expires_at = time.monotonic() + max(0.01, float(deadline_s))
         conn.set_progress_handler(lambda: 1 if time.monotonic() > expires_at else 0, 2000)
         match = "title:(" + " ".join('"' + t.replace('"', '""') + '"' for t in terms) + ")"
+        around = [t for t in dict.fromkeys(w for word in about for w in _TERM_RE.findall(word))
+                  if t.lower() not in {term.lower() for term in terms}][:16]
+        if around:
+            match += " AND (" + " OR ".join('"' + t.replace('"', '""') + '"' for t in around) + ")"
         try:
             return self._search_conn(conn, match, limit)
         finally:

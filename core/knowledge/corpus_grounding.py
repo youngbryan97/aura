@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -193,20 +194,45 @@ def corpus_grounding_for(
     limit: int = DEFAULT_LIMIT,
     deadline_s: float = SEARCH_DEADLINE_S,
     store: Any = None,
+    conversation: Sequence[tuple[str, str]] | None = None,
+    rerank: Callable[[str, list[str]], Sequence[float]] | None = None,
+    speakers: Sequence[str] = (),
 ) -> CorpusGrounding:
     """Passages for `objective`, or an empty grounding when it cannot help.
 
     Never raises. A missing corpus, a slow query, or an ineligible turn all
     produce the same empty result, because to the caller they are the same
     thing: no reference to stand on.
+
+    ``conversation`` is the (role, text) turns before this one, given by a
+    caller answering a person. A turn the question paths do not ground then
+    gets what her corpus says about whom the conversation is about
+    (core/knowledge/talked_about.py), ordered by ``rerank`` when given.
     """
 
     query = " ".join(str(objective or "").split())
     started = time.monotonic()
+    found = _for_a_question(query, limit=limit, deadline_s=deadline_s, store=store)
+    if not found and conversation is not None and not _NOT_ABOUT_THE_WORLD.search(query):
+        left = deadline_s - (time.monotonic() - started)
+        if left > 0:
+            try:
+                from core.knowledge.talked_about import said_about
+
+                found = said_about(query, conversation, store=store, limit=limit, deadline_s=left, rerank=rerank,
+                                   speakers=speakers)
+            except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+                found = []
+    return CorpusGrounding(query=query, passages=tuple(found))
+
+
+def _for_a_question(query: str, *, limit: int, deadline_s: float, store: Any) -> list[tuple[str, str]]:
+    """The passages for a question about the world: this module's search, then the careful lookup."""
+    started = time.monotonic()
     groundable = is_corpus_groundable(query)
     named = asks_about_named_things(query)
     if not groundable and not named:
-        return CorpusGrounding(query=query, passages=())
+        return []
     found = _conversational_passages(query, limit=limit, deadline_s=deadline_s, store=store) if groundable else []
     if not found and named:
         # The careful lookup (core/knowledge/passages_about.py): the articles the
@@ -224,7 +250,7 @@ def corpus_grounding_for(
                 found = passages_about(query, store=store, limit=limit, deadline_s=left)
             except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
                 found = []
-    return CorpusGrounding(query=query, passages=tuple(found))
+    return found
 
 
 def _conversational_passages(query: str, *, limit: int, deadline_s: float, store: Any) -> list[tuple[str, str]]:

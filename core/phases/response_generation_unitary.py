@@ -1908,20 +1908,72 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         ]
         return {"role": "system", "content": "\n".join(lines)}
 
+    @staticmethod
+    def _her_meaning() -> Any:
+        """Her embedder's nearness of texts to a query, when her runtime holds it loaded already; else None.
+
+        A reply's path never loads the encoder: that is a lane admission and a
+        model load, seconds long. Without it, passages are ordered by words.
+        """
+        try:
+            from core.memory.embedding_runtime import (
+                acquire_shared_embedding_engine,
+                shared_embedding_runtime_snapshot,
+            )
+
+            if not shared_embedding_runtime_snapshot().get("engine_live"):
+                return None
+            with acquire_shared_embedding_engine("corpus_grounding") as engine:
+                if getattr(engine, "_model", None) is None:
+                    return None
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: her embedder unavailable to grounding: %s")
+            return None
+
+        def nearness(query: str, texts: list[str]) -> list[float]:
+            import numpy as np
+
+            with acquire_shared_embedding_engine("corpus_grounding") as engine:
+                asked = np.asarray(engine.embed_query(query, task="document"), dtype=np.float32)
+                found = np.asarray(engine.embed_batch(texts), dtype=np.float32)
+            asked /= max(float(np.linalg.norm(asked)), 1e-9)
+            found /= np.maximum(np.linalg.norm(found, axis=1, keepdims=True), 1e-9)
+            return [float(x) for x in found @ asked]
+
+        return nearness
+
     @classmethod
-    def _build_corpus_grounding_message(cls, objective: str) -> dict[str, str] | None:
+    def _build_corpus_grounding_message(
+        cls, objective: str, state: AuraState | None = None
+    ) -> dict[str, str] | None:
         """Grounding built from the local reference corpus, or None.
 
-        Returns None on anything that is not a question about the world, on a
-        miss, and on any failure — an ungrounded turn is the status quo, and a
-        lookup that cannot answer must not cost the turn its latency or crowd
-        the live context with irrelevant text.
+        Returns None on a turn the corpus cannot help, on a miss, and on any
+        failure — an ungrounded turn is the status quo, and a lookup that
+        cannot answer must not crowd the live context with irrelevant text.
+        With the conversation in ``state``, a turn that talks about people or
+        things, asked or said, gets what the corpus says about them.
         """
 
         try:
             from core.knowledge.corpus_grounding import corpus_grounding_for
 
-            grounding = corpus_grounding_for(objective)
+            conversation = None
+            speakers: tuple[str, ...] = ()
+            if state is not None:
+                conversation = [
+                    ("user" if msg["role"] == "user" else "aura", msg["content"])
+                    for msg in cls._recent_router_history(state, limit=4)
+                    if msg.get("role") in {"user", "assistant"} and msg.get("content") != objective
+                ]
+                name = str(getattr(getattr(state, "identity", None), "name", "") or "").strip()
+                speakers = (name,) if name else ()
+            grounding = corpus_grounding_for(
+                objective,
+                conversation=conversation,
+                rerank=cls._her_meaning() if conversation is not None else None,
+                speakers=speakers,
+            )
         except _RESPONSE_RECOVERABLE_ERRORS as exc:
             _record_response_degradation(
                 exc, "UnitaryResponse: corpus grounding lookup failed: %s"
@@ -1976,7 +2028,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             logger.debug(
                 "📄 [GROUNDING] no named file in objective=%r", str(objective)[:120]
             )
-            return cls._build_corpus_grounding_message(objective)
+            return cls._build_corpus_grounding_message(objective, state)
 
         modifiers = dict(getattr(state, "response_modifiers", {}) or {})
         skill_name = cls._resolve_skill_name(modifiers.get("last_skill_run", ""))
@@ -2090,6 +2142,24 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         contract: Any,
     ) -> list[dict]:
         evidence_message = cls._build_active_grounding_message(state, objective, contract)
+        return cls._with_grounding_message(messages, evidence_message)
+
+    @classmethod
+    async def _inject_active_grounding_message_async(
+        cls,
+        messages: list[dict],
+        state: AuraState,
+        objective: str,
+        contract: Any,
+    ) -> list[dict]:
+        """As _inject_active_grounding_message, with its lookups (the corpus, her embedder) off the event loop."""
+        evidence_message = await asyncio.to_thread(
+            cls._build_active_grounding_message, state, objective, contract
+        )
+        return cls._with_grounding_message(messages, evidence_message)
+
+    @staticmethod
+    def _with_grounding_message(messages: list[dict], evidence_message: dict[str, str] | None) -> list[dict]:
         if not evidence_message:
             return messages
 
@@ -5052,7 +5122,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 and not exact_format_required
                 and not operator_evidence_turn
             ):
-                messages = self._inject_active_grounding_message(
+                messages = await self._inject_active_grounding_message_async(
                     messages, new_state, objective, contract
                 )
 
