@@ -1439,7 +1439,8 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
                 and (run.timing.pays() or at - run.tried_at < max(RECHECK_CONTROLS_S, run.timing.a_round_s()))
                 and await _press_in_time(hands, run, moves, at, say)):
             return
-        if run.keys and run.trying >= 4 * len(run.keys) and at - run.tried_at >= RECHECK_CONTROLS_S:
+        if (run.keys and not body_probe_is_active(run, hers, pointer_steps=2 * len(_POINTER_TRIAL), at=at)
+                and at - run.tried_at >= RECHECK_CONTROLS_S):
             run.trying = 0
             run.control_probe_retries += 1
             hers.recheck_controls()
@@ -1475,7 +1476,7 @@ async def _act(hands: Any, run: _Run, moves: WhatMoves, hers: WhichIsHers, meeti
             await _click_the_picture(hands, run, moves, at)
             if run.last_click == at:
                 return
-        if run.trying < 4 * len(run.keys):
+        if body_probe_is_active(run, hers, pointer_steps=2 * len(_POINTER_TRIAL), at=at):
             await _try_the_keys(hands, run, hers, at, moves)
             return
         await _hold(hands, run, hers, "", at)

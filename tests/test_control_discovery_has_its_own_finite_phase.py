@@ -124,6 +124,41 @@ def test_an_identified_body_with_known_controls_does_not_start_another_discovery
     assert not play._still_trying_keys(run, hers, SimpleNamespace(mine=object()), False, at=1.)
 
 
+@pytest.mark.asyncio
+async def test_no_moving_way_does_not_reenter_a_finished_probe_until_rechecking_is_due(monkeypatch):
+    now, run, hers, choosing, moves, actions, hands = _setup(monkeypatch, trying=3,key='')
+    body = SimpleNamespace(number=7,born=1.)
+    hers.number,hers.kind = 7,2
+    hers.keys_known = lambda _keys: True
+    hers.way_of = lambda _key: (0.,0.)
+    moves.things,run.things,choosing.mine = {7:body},{7:body},body
+    run.body_trial = None
+    async def unexpected(*_args, **_kwargs):
+        pytest.fail('finished discovery was reentered without a new experiment')
+    monkeypatch.setattr(play,'_try_the_keys',unexpected)
+    monkeypatch.setattr(play,'_a_facing_trial',lambda *_a,**_k: _false())
+    async def nothing(*_args,**_kwargs):
+        return None
+    monkeypatch.setattr(play,'_fire_while_finding_herself',nothing)
+    monkeypatch.setattr(play,'_try_the_pointer',nothing)
+    run.pointed = 100
+    now[0] = 11.3
+    await play._act(hands,run,moves,hers,None,choosing,now[0])
+    assert actions == [(11.3,'tap','b')]
+    assert run.trying == 3 and run.control_probe_retries == 0 and hers.number == 7
+    now[0] = 10.+play.RECHECK_CONTROLS_S+.1
+    issued=[]
+    async def discovery(*_args,**_kwargs):
+        issued.append(hers.identification.epoch)
+    monkeypatch.setattr(play,'_try_the_keys',discovery)
+    await play._act(hands,run,moves,hers,None,choosing,now[0])
+    assert issued == [1] and hers.number is None and run.control_probe_retries == 1
+
+
+async def _false():
+    return False
+
+
 def test_the_discovery_phase_has_a_registered_measured_claim():
     from core.agency.inputs_while_measuring_control import _body_probe_phase_invariant
     from core.organism.claims_realtime_control import install_realtime_control_claims
