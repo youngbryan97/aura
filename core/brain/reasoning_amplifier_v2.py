@@ -1252,7 +1252,9 @@ class ReasoningAmplifierV2:
             else (
                 "preserve_incumbent"
                 if strategy == "verified_incumbent"
-                else ("checked_verifier" if verified_pass else "none")
+                # The authority goes with the text the person receives: a rewrite that failed its own check
+                # carries none, though the text before it passed.
+                else ("checked_verifier" if delivered_pass else "none")
             )
         )
         receipt = ReasoningReceipt(
@@ -1346,20 +1348,26 @@ class ReasoningAmplifierV2:
             executable_was_attempted = True
             program_sha256 = str(executable.receipt.get("program_sha256") or "")
             candidate_sha256 = str(executable.receipt.get("candidate_sha256") or "")
+            # Every program is withheld from the next strategy, so each writes its own. Only an answer the
+            # verifier refuted is withheld and called refuted: one it passed is what an independent program
+            # must be free to reach again for the two to agree.
             if program_sha256:
                 excluded_programs.append(program_sha256)
-            if candidate_sha256:
-                excluded_candidates.append(candidate_sha256)
             if not executable.succeeded or not executable.candidate:
+                if candidate_sha256:
+                    excluded_candidates.append(candidate_sha256)
                 continue
             executable_verdict = await self._verify(
                 executable.candidate,
                 problem,
                 context,
             )
-            if bool(getattr(executable_verdict, "ok", False)) and bool(
+            passed = bool(getattr(executable_verdict, "ok", False)) and bool(
                 getattr(executable_verdict, "checked", False)
-            ):
+            )
+            if not passed and candidate_sha256:
+                excluded_candidates.append(candidate_sha256)
+            if passed:
                 executable_candidates.append(
                     (
                         str(executable.candidate),
@@ -1377,7 +1385,7 @@ class ReasoningAmplifierV2:
                     operation_index + 1,
                     "executable_reasoning",
                 )
-            fallbacks.append("executable_reasoning_refuted")
+            fallbacks.append("executable_reasoning_not_authoritative" if passed else "executable_reasoning_refuted")
         consensus: dict[str, list[tuple[str, Any, str, str]]] = {}
         for row in executable_candidates:
             consensus.setdefault(row[0], []).append(row)
@@ -1603,13 +1611,6 @@ class ReasoningAmplifierV2:
             return await self._shallow_path(problem, guard_text, max(3, sample_budget), deadline, ReasoningMode.NORMAL, context, fallbacks)
 
         answer = verdict_court.answer
-        # Code/math: actually run it and self-correct if the courtroom answer is executable.
-        if problem.task_type in {"code", "math"} and time.monotonic() < deadline:
-            repaired = await self._sandbox_repair(answer, problem)
-            if repaired:
-                answer = repaired
-                fallbacks.append("sandbox_repaired")
-
         verdict = await self._verify(answer, problem, context)
         agreement = float(getattr(verdict_court, "confidence", 0.7))
         return answer, agreement, verdict, len(getattr(verdict_court, "candidates", []) or [1]), "courtroom"

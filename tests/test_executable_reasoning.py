@@ -539,3 +539,39 @@ async def test_no_execution_constraint_uses_ordinary_candidate(tmp_path) -> None
     assert sandbox.calls == 0
     assert result.receipt.cognitive_operations[0]["status"] == "not_applicable"
     assert result.receipt.cognitive_operations[0]["program_bytes"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_second_program_is_told_the_first_is_withheld_not_that_a_verifier_refuted_it(tmp_path) -> None:
+    prompts: list[str] = []
+
+    async def generate(prompt: str, _temperature: float) -> str:
+        prompts.append(prompt)
+        return f"```python\n# method {len(prompts)}\nprint('private source')\n```"
+
+    class _ProxyVerifier:
+        async def verify(self, candidate, *, task_type=None, context=None):
+            del candidate, task_type, context
+            return VerificationResult(domain="logic", ok=True, checked=True, score=0.8,
+                                      engine="candidate_quality_proxy_not_ground_truth",
+                                      detail={"assessment": {"ground_truth_verified": False}})
+
+    sandbox = _Sandbox(_Execution(stdout='FINAL_ANSWER: {"answer":4}'), _Execution(stdout='FINAL_ANSWER: {"answer":4}'))
+    amplifier = ReasoningAmplifierV2(generate, verifier=_ProxyVerifier(), sandbox=sandbox,
+                                     calibration=CalibrationGate(),
+                                     memory=ReasoningMemory(path=tmp_path / "memory.jsonl"))
+    result = await amplifier.amplify(AmplificationRequest(
+        objective="Compute the constrained result for [1, 2, 3].", task_type="logic", mode=ReasoningMode.NORMAL,
+        sample_budget=2,
+        context={"response_contract": '{"answer":int}', "enable_executable_reasoning": True,
+                 "read_only_evaluation": True, "sealed_evaluation": True, "skip_evidence": True,
+                 "skip_cache": True, "disable_batched_candidates": True}))
+
+    first = result.receipt.cognitive_operations[0]
+    # The first program is withheld, so the second is independent of it ...
+    assert first["program_sha256"] in prompts[1]
+    # ... but its answer passed, so it is neither withheld nor called refuted.
+    assert first["candidate_sha256"] not in prompts[1]
+    assert "refuted" not in prompts[1] and "rejected" not in prompts[1]
+    assert result.receipt.promotion_authority == "independent_executable_consensus"
+    assert "executable_reasoning_refuted" not in result.receipt.fallbacks_used

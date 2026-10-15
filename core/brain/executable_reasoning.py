@@ -329,7 +329,7 @@ def _program_prompt(
         else "Print only the final answer that should be returned to the user."
     )
     prior = ""
-    if excluded_program_sha256s or excluded_candidate_sha256s:
+    if excluded_candidate_sha256s:
         prior = (
             "A public verifier rejected earlier computations. Their source and output "
             "are withheld to prevent anchoring. Do not reproduce them; use the assigned "
@@ -337,6 +337,13 @@ def _program_prompt(
             f"PRIOR_FAILURE_CLASS: {prior_failure_class or 'public_verifier_refuted'}\n"
             f"EXCLUDED_PROGRAM_SHA256: {','.join(excluded_program_sha256s[-6:])}\n"
             f"EXCLUDED_CANDIDATE_SHA256: {','.join(excluded_candidate_sha256s[-6:])}\n"
+        )
+    elif excluded_program_sha256s:
+        # Earlier programs are withheld so this one is independent of them, not because a verifier refuted them.
+        prior = (
+            "Earlier programs for this task are withheld so that this one is independent of them. "
+            "Do not reproduce them; use the assigned independent strategy.\n"
+            f"EXCLUDED_PROGRAM_SHA256: {','.join(excluded_program_sha256s[-6:])}\n"
         )
     return (
         "Solve the task by authoring a self-contained pure-Python scratch program.\n"

@@ -149,3 +149,11 @@ async def test_decompose_falls_back_when_no_subquestions():
     eng = DeliberationEngine()
     r = await eng.decompose_and_solve("simple?", _gen, _decompose, verify=_all_valid)
     assert r.answer.endswith("direct")
+
+
+def test_an_answer_line_is_found_though_a_remark_follows_it():
+    from core.brain.reasoning_amplifier import default_extract_answer
+
+    assert default_extract_answer("Let me work it out.\nAnswer: 42\nWait, let me double check: yes, that holds.") == "42"
+    assert default_extract_answer("6 times 7.\nFinal answer: 42") == "42"
+    assert default_extract_answer("no conclusion marker here\n41 + 1 = 42") == "41 + 1 = 42"

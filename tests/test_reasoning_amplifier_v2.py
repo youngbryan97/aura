@@ -646,3 +646,27 @@ async def test_proof_mode_refuses_on_vacuous_pass(tmp_path):
     )
     assert "can't assert" in out.answer
     assert "mechanically checkable" in out.answer
+
+
+@pytest.mark.asyncio
+async def test_a_rewrite_that_fails_its_own_check_carries_no_verifier_authority(tmp_path):
+    from core.brain.verifiers.base import VerificationResult
+
+    class _RewritingCalibration:
+        def assess(self, *_args, **_kwargs):
+            return SimpleNamespace(calibrated_answer="Calibrated answer.", confidence=0.81,
+                                   overall=SimpleNamespace(value="bounded"), downgraded=1, flagged_impossible=0)
+
+    class _PassesOnlyTheRaw:
+        async def verify(self, candidate, *, task_type=None, context=None):
+            raw = str(candidate).strip() == "Raw candidate."
+            return VerificationResult(domain="generic", ok=raw, checked=True, engine="exact")
+
+    amp = ReasoningAmplifierV2(_gen("Raw candidate."), verifier=_PassesOnlyTheRaw(),
+                               calibration=_RewritingCalibration(),
+                               memory=ReasoningMemory(path=tmp_path / "refl.jsonl"))
+    out = await amp.amplify(AmplificationRequest(objective="Give a bounded answer", task_type="generic",
+                                                 mode=ReasoningMode.FAST))
+    assert out.answer == "Calibrated answer." and out.verified is False
+    assert "delivered_rewrite_not_verified" in out.receipt.fallbacks_used
+    assert out.receipt.promotion_authority == "none"
