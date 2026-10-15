@@ -489,7 +489,11 @@ def _travel_turn_claims() -> tuple:
 
 
 def _bounded_pixel_claims() -> tuple:
-    from core.agency.collecting_independent_pixel_trials import _settled_pixel_capture_invariant
+    from core.agency.an_observed_scene_transition import _observed_transition_invariant
+    from core.agency.collecting_independent_pixel_trials import (
+        _pixel_sampling_time_invariant,
+        _settled_pixel_capture_invariant,
+    )
     from core.agency.discovering_control_in_current_pixels import _pixel_discovery_invariant
     from core.agency.navigation_before_body_experiments import (
         _current_navigation_invariant,
@@ -520,6 +524,12 @@ def _bounded_pixel_claims() -> tuple:
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("experiment_observations_preserve_scene_transitions", "core/agency/an_observed_scene_transition.py",
+         "tests/test_pixel_search_observes_its_physical_trials.py", lambda: _observed_transition_invariant() == (),
+         "A screen transition observed during an input experiment retires the partial cohort, releases input and clears the prior scene's spatial plans."),
+        ("pixel_sampling_keeps_finite_selected_capture_times", "core/agency/collecting_independent_pixel_trials.py",
+         "tests/test_collecting_independent_pixel_trials.py", lambda: _pixel_sampling_time_invariant() == (),
+         "An isolated press can supply at most five selected capture times to its existing observation path; early feedback retires the incomplete pixel cohort and releases its input."),
         ("a_later_menu_occurrence_needs_measured_retirement", "core/agency/navigation_before_body_experiments.py",
          "tests/test_current_navigation_precedes_body_experiments.py", lambda: _navigation_occurrence_invariant() == (),
          "Two fresh captures of changed word pixels can retire a menu occurrence and renew a later identical control; unchanged colour, duplicate captures and missing readings cannot."),

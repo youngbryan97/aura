@@ -773,11 +773,10 @@ def _what_she_plays_for(run: _Run, choosing: _Choosing, moves: WhatMoves, hers: 
 
 
 def _over(run: _Run, moves: WhatMoves, happened: list[dict[str, Any]], at: float) -> str:
+    from core.agency.an_observed_scene_transition import keep_scene_phase
+
+    keep_scene_phase(run, happened, at)
     acts = sum(run.input_key_downs.values()) + run.pointed + run.pointer_moves
-    if any(h.get("what") == "new screen" for h in happened):
-        run.new_screen_at, run.acts_at_new_screen = at, acts
-    if any(h.get("what") == "same screen back" for h in happened):
-        run.new_screen_at = -math.inf  # something over the view cleared: the screen did not change
     # Motion seen in this picture, not a thing carried on along its last speed
     # because it was not seen.
     activity = getattr(moves, 'activity', None)
@@ -1263,11 +1262,9 @@ async def _play_as_it_happens(
             # The ground is the point where the rules say so, and where the world waits for her: with nothing coming and
             # nothing to go to, a person looks round the place for what is there (a way on, a thing to take).
             goes_over = (rules is not None and rules.covers) or waits_for_her
-            if any(h.get("what") == "new screen" for h in happened):
-                run.covered.clear()
-                run.barred.clear()
-                run.way_through.new_screen()
-                run.walls_seen_at = -math.inf
+            from core.agency.an_observed_scene_transition import keep_scene_transition
+
+            keep_scene_transition(run, happened, at)
             ground = mark_the_ground_under_her(run, moves, hers.thing(moves), happened)
             goes_over = goes_over or ground is not None
             choosing = _Choosing(moves, hers, meeting, run.keys, physics,

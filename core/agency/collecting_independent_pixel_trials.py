@@ -44,6 +44,10 @@ class _LostEvidenceError(Exception):
     pass
 
 
+class _ObservationResolvedError(Exception):
+    pass
+
+
 class PixelExperimentInputs(HandsWithControlReceipts):
     """Keep the caller's lease, acknowledged key, and unrelated-input history."""
 
@@ -260,7 +264,9 @@ def _settled_pixel_capture_invariant() -> tuple:
 
 async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperimentInputs,
                      look: Callable[[], Awaitable[Any]], neutral_s: float, settle_s: float,
-                     capture_s: float, ack_s: float) -> None:
+                     capture_s: float, ack_s: float, sample_s: float | None,
+                     stop_when: Callable[[], bool] | None,
+                     after_capture: Callable[[FrozenPixelFrame], Awaitable[None]] | None) -> None:
     scheduled = experiment.next_press
     neutral_began = time.monotonic()
     interference, receipts = inputs._interference, inputs._receipts()
@@ -268,17 +274,35 @@ async def _one_press(experiment: RandomizedPixelExperiment, inputs: PixelExperim
     _guard(inputs, interference, receipts, epoch)
     await asyncio.sleep(neutral_s)
     before = await _captured(look, capture_s, not_before=neutral_began + neutral_s)
+    if after_capture is not None:
+        await after_capture(before)
     _guard(inputs, interference, receipts, epoch)
     if before.lower < neutral_began or time.monotonic() - before.upper > .75:
         raise _LostEvidenceError("before_outside_neutral")
+    if stop_when is not None and stop_when() is True:
+        raise _ObservationResolvedError
     down_dispatch, down_ack = await inputs._deliver(scheduled.key, ack_s)
     if inputs._interference != interference or inputs.hers.identification.epoch != epoch:
         raise _LostEvidenceError("input_interrupted")
     receipts, held = inputs._receipts(), inputs._owned_press
-    await asyncio.sleep(settle_s)
-    after = await _captured(look, capture_s, not_before=down_ack + settle_s)
-    _guard(inputs, interference, receipts, epoch, held=held)
-    release = await inputs._release(ack_s)
+    # Observation cannot extend a physical press indefinitely. The final
+    # cleanup still owns an acknowledgement that outlives this finite wait.
+    async with asyncio.timeout(1.05):
+        for offset in capture_offsets(settle_s, sample_s):
+            # A late intermediate slot cannot delay the selected endpoint.
+            if offset < settle_s and time.monotonic() > down_ack + offset:
+                continue
+            await asyncio.sleep(max(0., down_ack + offset - time.monotonic()))
+            after = await _captured(look, capture_s, not_before=down_ack + offset)
+            _guard(inputs, interference, receipts, epoch, held=held)
+            if offset == settle_s:
+                release = await inputs._release(ack_s)
+                receipts = inputs._receipts()
+            if after_capture is not None:
+                await after_capture(after)
+            _guard(inputs, interference, receipts, epoch, held=held if offset < settle_s else None)
+            if stop_when is not None and stop_when() is True:
+                raise _ObservationResolvedError
     if inputs._interference != interference or inputs.hers.identification.epoch != epoch:
         raise _LostEvidenceError("input_interrupted")
     if release is None or not experiment.record(PixelPress(
@@ -292,11 +316,30 @@ def _failure_reason(why: Exception) -> str:
     return "capture_or_delivery_timeout" if isinstance(why, TimeoutError) else "capture_or_delivery_failed"
 
 
+def capture_offsets(settle_s: float, sample_s: float | None) -> tuple[float, ...]:
+    """Select at most five capture times before input; endpoints retain their selected exposure."""
+    steps = 1 if sample_s is None else min(5, max(1, math.floor(settle_s / sample_s + 1e-9)))
+    return tuple(settle_s * number / steps for number in range(1, steps)) + (settle_s,)
+
+
+@invariant('agency.pixel_sampling_keeps_finite_selected_capture_times', scope='agency',
+           owner='core/agency/collecting_independent_pixel_trials.py', observational=False)
+def _pixel_sampling_time_invariant() -> tuple:
+    for settle in (.04, .35, .8):
+        for sample in (None, .02, .1, .5):
+            offsets = capture_offsets(settle, sample)
+            assert 1 <= len(offsets) <= 5 and offsets[-1] == settle
+            assert all(0 <= a < b for a, b in zip((0., *offsets[:-1]), offsets, strict=True))
+    return ()
+
+
 async def collect_independent_pixel_trials(experiment: RandomizedPixelExperiment, *,
         look: Callable[[], Awaitable[Any]], inputs: PixelExperimentInputs,
         after_press: Callable[[PixelPress], Awaitable[bool]] | None = None,
         neutral_s: float = .04, settle_s: float = .04, capture_s: float = .3,
-        ack_s: float = .3, total_s: float = 20.) -> PixelCollectionResult:
+        ack_s: float = .3, total_s: float = 20., sample_s: float | None = None,
+        stop_when: Callable[[], bool] | None = None,
+        after_capture: Callable[[FrozenPixelFrame], Awaitable[None]] | None = None) -> PixelCollectionResult:
     """Use an already selected schedule, with finite capture and input waits.
 
     ``look`` can be ``lambda: canvas_frames.look(clip)``. The caller must hold
@@ -306,10 +349,14 @@ async def collect_independent_pixel_trials(experiment: RandomizedPixelExperiment
     if not isinstance(experiment, RandomizedPixelExperiment) or not isinstance(inputs, PixelExperimentInputs):
         raise TypeError("pixel collection requires an experiment and owned physical inputs")
     if (not callable(look) or after_press is not None and not callable(after_press)
+            or after_capture is not None and not callable(after_capture)
+            or stop_when is not None and not callable(stop_when)
+            or sample_s is not None and (type(sample_s) not in (int, float)
+                or not math.isfinite(sample_s) or not .02 <= sample_s <= .5)
             or any(type(v) not in (int, float) or not math.isfinite(v)
                                  for v in (neutral_s, settle_s, capture_s, ack_s, total_s))
-            or not .02 <= neutral_s <= .2 or not .02 <= settle_s <= .5
-            or not .01 <= capture_s <= .4 or not .01 <= ack_s <= .4 or not 0 < total_s <= 30.):
+            or not .02 <= neutral_s <= .2 or not .02 <= settle_s <= .8
+            or not .01 <= capture_s <= .4 or not .01 <= ack_s <= .4 or not 0 < total_s <= 45.):
         raise ValueError("pixel collection needs finite observation and delivery budgets")
     if inputs._collector is not None:
         experiment.retire("collector_already_active")
@@ -322,7 +369,8 @@ async def collect_independent_pixel_trials(experiment: RandomizedPixelExperiment
     try:
         async with asyncio.timeout(total_s):
             while experiment.next_press is not None:
-                await _one_press(experiment, inputs, look, neutral_s, settle_s, capture_s, ack_s)
+                await _one_press(experiment, inputs, look, neutral_s, settle_s, capture_s, ack_s,
+                                 sample_s, stop_when, after_capture)
                 if after_press is not None:
                     interference, receipts = inputs._interference, inputs._receipts()
                     epoch = inputs.hers.identification.epoch
@@ -330,6 +378,9 @@ async def collect_independent_pixel_trials(experiment: RandomizedPixelExperiment
                     _guard(inputs, interference, receipts, epoch)
                     if measured is not True:
                         raise _LostEvidenceError(experiment.refused or "pixel_measurement_unavailable")
+    except _ObservationResolvedError:
+        status = 'observation_resolved'
+        experiment.retire(status)
     except asyncio.CancelledError:
         experiment.retire("cancelled")
         raise

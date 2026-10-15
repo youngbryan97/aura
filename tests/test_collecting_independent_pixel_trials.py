@@ -22,6 +22,10 @@ def test_selected_settling_has_a_capture_contract():
     assert collecting._settled_pixel_capture_invariant() == ()
 
 
+def test_selected_within_press_captures_are_bounded_and_keep_the_endpoint():
+    assert collecting._pixel_sampling_time_invariant() == ()
+
+
 class _Clock:
     def __init__(self):
         self.at = 10.
@@ -99,6 +103,76 @@ async def test_prespecified_schedule_uses_distinct_released_inputs_and_frozen_me
     lane.source.fill(0)
     assert retained == experiment.trials[0].before.pixels and any(retained)
     assert lane.run.held == ''
+
+
+@pytest.mark.asyncio
+async def test_captures_continue_inside_a_single_unchanged_physical_press(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    result = await collecting.collect_independent_pixel_trials(experiment, look=lane.look, inputs=lane.inputs,
+                                                               settle_s=.5, sample_s=.1)
+    assert result.status == 'complete' and result.trials == 24 and result.release_confirmed
+    assert len(lane.captures) == 24 * 6 and len(lane.events) == 48
+    for trial in experiment.trials:
+        captured = [at for at in lane.captures if trial.down_ack < at.lower < trial.up_dispatch]
+        assert len(captured) == 5 and trial.after.lower == captured[-1].lower
+        assert trial.after.lower >= trial.down_ack + .5
+
+
+@pytest.mark.asyncio
+async def test_endpoint_capture_releases_input_before_processing_its_pixels(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    processed = []
+
+    async def observe(frame):
+        processed.append((frame.lower, lane.run.held))
+        # Processing may be slow without lengthening the physical endpoint.
+        lane.clock.at += .03
+
+    result = await collecting.collect_independent_pixel_trials(experiment, look=lane.look,
+        inputs=lane.inputs, settle_s=.5, sample_s=.1, after_capture=observe)
+    assert result.status == 'complete' and result.release_confirmed
+    for trial in experiment.trials:
+        assert (trial.after.lower, '') in processed
+        assert trial.up_dispatch == trial.after.upper
+        assert any(trial.down_ack < at < trial.after.lower and held == trial.schedule.key
+                   for at, held in processed)
+
+
+@pytest.mark.asyncio
+async def test_resolved_observation_releases_input_without_qualifying_a_partial_cohort(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+    settled = []
+
+    async def look():
+        result = await lane.look()
+        if lane.run.held and result[1].lower >= lane.run.held_since + .2:
+            settled.append(result[1])
+        return result
+
+    result = await collecting.collect_independent_pixel_trials(experiment, look=look, inputs=lane.inputs,
+        settle_s=.5, sample_s=.1, stop_when=lambda: len(settled) >= 2)
+    assert result.status == 'observation_resolved' and result.release_confirmed
+    assert not experiment.complete and experiment.refused == 'observation_resolved'
+    assert not experiment.trials and lane.run.held == ''
+    assert [event[0] for event in lane.events] == ['down', 'up']
+
+
+@pytest.mark.asyncio
+async def test_slow_observation_has_one_physical_press_deadline(lane):
+    experiment = RandomizedPixelExperiment(('a', 'b'), seed=41)
+
+    async def look():
+        if lane.run.held:
+            await asyncio.sleep(.3)
+        return await lane.look()
+
+    began = asyncio.get_running_loop().time()
+    result = await collecting.collect_independent_pixel_trials(experiment, look=look, inputs=lane.inputs,
+        settle_s=.5, sample_s=.1, capture_s=.4)
+    assert asyncio.get_running_loop().time() - began < 1.8
+    assert result.status == 'capture_or_delivery_timeout' and result.release_confirmed
+    assert not experiment.trials and lane.run.held == ''
+    assert [event[0] for event in lane.events] == ['down', 'up']
 
 
 @pytest.mark.asyncio

@@ -120,7 +120,7 @@ async def test_unmeasured_frame_cannot_start_a_physical_intervention():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('intervals,expected', [([.1] * 6, .22), ([.18] * 6, .38), ([], None), ([.3] * 6, None)])
+@pytest.mark.parametrize('intervals,expected', [([.1] * 6, .5), ([.18] * 6, .74), ([], None), ([.3] * 6, None)])
 async def test_actor_selects_one_bounded_exposure_from_prior_measured_cadence(monkeypatch, intervals, expected):
     import time
 
@@ -150,5 +150,6 @@ async def test_actor_selects_one_bounded_exposure_from_prior_measured_cadence(mo
     else:
         assert result and len(requests) == 1
         assert requests[0]['settle_s'] == pytest.approx(expected)
-        assert 0 < requests[0]['total_s'] <= 30.
+        assert 0 < requests[0]['total_s'] <= 45.
+        assert requests[0]['sample_s'] == pytest.approx((expected - .2) / 3)
         assert run._pixel_search.settle_s == pytest.approx(expected)
