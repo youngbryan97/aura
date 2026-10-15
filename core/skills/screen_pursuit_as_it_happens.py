@@ -830,7 +830,7 @@ class PlayingAsItHappens:
         if not self.words:
             return True
         said = self.words[-1]
-        if not offers_a_way_on(said) and not reads_as_rules(said) and not a_way_on_glimpsed():
+        if not self.way_on_shown and not offers_a_way_on(said) and not reads_as_rules(said) and not a_way_on_glimpsed():
             return False
         key = said[:80]
         self.held_for_a_way_on[key] = self.held_for_a_way_on.get(key, 0) + 1

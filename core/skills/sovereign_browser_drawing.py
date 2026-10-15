@@ -84,9 +84,18 @@ _PUT_OVER_IT = """
 
 #: The close controls of notices laid over the drawing (a player's warning, a
 #: page's banner), by their own words or sign, as viewport points to click.
-_CLOSES_OVER_IT = """
+_CLOSES_OVER_IT = r"""
 (function (l, t, r, b) {
   var found = [];
+  var hitAt = function (x, y) {
+    var hit = document.elementFromPoint(x, y);
+    for (var depth = 0; hit && hit.shadowRoot && depth < 16; depth++) {
+      var next = hit.shadowRoot.elementFromPoint(x, y);
+      if (!next || next === hit) break;
+      hit = next;
+    }
+    return hit;
+  };
   var walk = function (root) {
     var all = root.querySelectorAll('*');
     for (var i = 0; i < all.length; i++) {
@@ -100,6 +109,8 @@ _CLOSES_OVER_IT = """
       var x = rect.left + rect.width / 2, y = rect.top + rect.height / 2;
       if (x < l || x > r || y < t || y > b) continue;
       if (getComputedStyle(el).visibility === 'hidden') continue;
+      var hit = hitAt(x, y);
+      if (!hit || (hit !== el && !el.contains(hit))) continue;
       found.push([x, y]);
     }
   };
@@ -107,6 +118,13 @@ _CLOSES_OVER_IT = """
   return JSON.stringify(found.slice(0, 3));
 })(%f, %f, %f, %f)
 """
+
+@invariant('agency.notice_controls_keep_javascript_word_boundaries', scope='agency',
+           owner='core/skills/sovereign_browser_drawing.py', observational=False)
+def _notice_word_boundaries_invariant() -> tuple:
+    assert '\x08' not in _CLOSES_OVER_IT and r'/\b(close|dismiss)\b/' in _CLOSES_OVER_IT
+    return ()
+
 
 #: A page she plays on stays where it is. A key the game does not take is the
 #: page's to act on, and arrows and space scroll it: LIVE-like 2026-10-05, an

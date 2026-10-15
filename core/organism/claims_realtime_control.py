@@ -9,6 +9,7 @@ def _play_execution_claims() -> tuple:
     from core.perception.recording_the_frames_and_inputs import _recorded_pixel_invariant
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
+    from core.skills.sovereign_browser_drawing import _notice_word_boundaries_invariant
 
     return (("software_graphics_need_a_measured_cpu_renderer", "core/capabilities/browser_graphics_policy.py",
              "tests/test_browser_software_graphics_stays_software.py", lambda: _software_graphics_invariant() == (),
@@ -28,6 +29,9 @@ def _play_execution_claims() -> tuple:
             ('material_parts_need_one_current_owner', 'core/perception/a_material_observation_from_its_parts.py',
              'tests/test_material_pieces_keep_one_observed_body.py', lambda: _material_parts_invariant() == (),
              'Visible foreground pieces can supply one material observation through current named rigid support; competing owners and valid rival outlines refuse their union, and unseen gaps remain unfilled.'),
+            ('notice_controls_keep_javascript_word_boundaries', 'core/skills/sovereign_browser_drawing.py',
+             'tests/test_only_an_exposed_notice_close_is_pressed.py', lambda: _notice_word_boundaries_invariant() == (),
+             'The embedded notice-close expression preserves JavaScript word boundaries; physical close coordinates require a current hit on the labelled element or its descendant.'),
             *_reward_authority_claims())
 
 
