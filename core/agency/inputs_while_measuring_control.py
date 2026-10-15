@@ -34,6 +34,11 @@ def body_probe_is_active(run: Any, hers: Any, *, pointer_steps: int, at: float |
         return True
     keys = getattr(run, 'keys', ())
     trying = getattr(run, 'trying', None)
+    if getattr(hers, 'number', None) is not None:
+        from core.agency.unknown_controls_get_their_turn import unknown_control_trials_finished
+
+        if unknown_control_trials_finished(run, hers):
+            return False
     return bool(keys and type(trying) is int and 0 <= trying < 4 * len(keys)
                 and (hers.number is None or not hers.keys_known(keys)))
 

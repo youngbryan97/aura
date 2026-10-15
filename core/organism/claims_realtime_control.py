@@ -619,10 +619,14 @@ def _control_discovery_claims() -> tuple:
         _reflex_consequence_invariant,
         _reflex_effect_invariant,
     )
+    from core.agency.unknown_controls_get_their_turn import _unknown_control_fairness_invariant
     from core.agency.what_acknowledged_inputs_predict import _acknowledged_prediction_invariant
     from core.perception.a_world_as_its_code_makes_it import _saved_world_effects_invariant
 
     return (
+        ("unknown_controls_share_a_finite_current_body_budget", "core/agency/unknown_controls_get_their_turn.py",
+         "tests/test_unknown_controls_get_their_turn.py", lambda: _unknown_control_fairness_invariant() == (),
+         "Unknown controls share bounded issued trials for the current body; reordered inputs and unavailable outcomes cannot starve the other controls or renew an exhausted budget."),
         ("cold_translation_trials_keep_current_source_channels", "core/agency/how_a_game_works.py",
          "tests/test_pixel_search_follows_unresolved_body_trials.py", lambda: _cold_translation_controls_invariant() == (),
          "Cold pixel experiments prioritize current nonzero translation channels before turning inputs; key names and obsolete controls cannot supply that priority."),

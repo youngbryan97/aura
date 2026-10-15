@@ -13,6 +13,7 @@ from core.agency.giving_a_trial_time import ControlTrial
 from core.agency.keeping_a_trial_observable import control_before_the_next_trial
 from core.agency.the_key_against_its_going import FIRST, against_its_going
 from core.agency.time_to_observe_a_control import observed_response_seconds
+from core.agency.unknown_controls_get_their_turn import next_unknown_control
 from core.agency.which_one_answers_to_her import (
     PUSH_OVER_S,
     PUSH_PICTURES,
@@ -33,6 +34,8 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
     seconds = observed_response_seconds(getattr(run, "intervals", ()), least_s=seconds, settle_s=SETTLE_S,
                                         samples=PUSH_PICTURES, span_s=PUSH_OVER_S, longest_s=4 * seconds) or seconds
     identified = hers is not None and moves is not None and hers.kind is not None and hers.thing(moves) is not None
+    if identified:
+        run.things = moves.things
     if identified and hers.carried and not hers.keys_known(run.keys):
         remaining = max(0., trial.until - at) if active else seconds
         measured_delays = run.motion_responses if len(run.motion_responses) >= 3 else run.responses
@@ -69,9 +72,9 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
                 key = ""
             else:
                 unknown = [control for control in run.keys if not has_a_measured_response(hers, control)]
-                if not unknown:
+                key = '' if run.held and run.held in unknown else next_unknown_control(run, hers, hers.thing(moves), unknown)
+                if key is None:
                     return
-                key = unknown[0]
             run.trying += 1
         elif run.keys:
             turn = run.trying % (2 * len(run.keys))
