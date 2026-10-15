@@ -732,6 +732,9 @@ class Guide:
         for key, (act, source, *on) in (held.get("controls") or {}).items():
             guide.controls[key] = Control(key, act, source, on=str(on[0]) if on else "")
         guide.pointer = dict(held.get("pointer") or {})
+        if str(guide.pointer.get('moves') or '').lower() in ('from', 'between'):
+            # Older reads mistook a route preposition for a controlled body.
+            guide.pointer.pop('moves', None)
         for name, known in (held.get("mechanics") or {}).items():
             guide.mechanics[name] = Known(name, list(known.get("evidence") or []), set(known.get("sources") or []),
                                           in_play=bool(known.get("in_play", True)))
@@ -1026,7 +1029,10 @@ def moved_by_the_pointer(sentence: str) -> str:
     """What a sentence says the pointer moves: a body ("mac", "boat"), "you" where it names none, "" where the pointer
     is not said to move anything. Things moved many at a time ("move the pieces with the mouse") are dragged, not a
     body."""
-    found = _POINTER_THEN_MOVES.search(sentence or "") or _MOVES_WITH_THE_POINTER.search(sentence or "")
+    from core.agency.the_controls_a_game_names import pointer_motion_text
+
+    motion = pointer_motion_text(sentence)
+    found = _POINTER_THEN_MOVES.search(motion) or _MOVES_WITH_THE_POINTER.search(motion)
     if found is None:
         return ""
     what = (found.group("what") or "").lower()

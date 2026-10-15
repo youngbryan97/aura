@@ -14,6 +14,7 @@ import re
 from collections.abc import Sequence
 
 from core.agency.which_one_answers_to_her import WAYS
+from core.verify import invariant
 
 __all__ = ["a_legend_of_controls", "controls_named_in", "the_pointer_only_clicks", "tried_in_turn", "without_a_legend"]
 
@@ -300,6 +301,39 @@ _THE_POINTER_IN_TIME = re.compile(
     r"strike|smash|bounce)\b", re.I)
 
 
+# A route between views has no direct object whose pose follows the mouse.
+# Keep separate aiming or body-control clauses in the same instructions.
+_VIEW = r'(?:rooms?|pages?|screens?|panels?|views?|sections?|tabs?|locations?|places?)'
+_ARTICLE = r'(?:(?:the next|the previous|the other|a different|one|another|the|a|different)\s+)?'
+_VIEW_ROUTE = re.compile(
+    rf'\b(?:from\s+{_ARTICLE}{_VIEW}\s+to\s+{_ARTICLE}{_VIEW}'
+    rf'|between\s+{_ARTICLE}{_VIEW}|to\s+(?:the\s+)?(?:next|previous|another)\s+{_VIEW})\b', re.I)
+_NAVIGATION_MOTION = re.compile(
+    rf'\b(?:move|moves|moving|go|going|travel|navigate)\s+{_VIEW_ROUTE.pattern}', re.I)
+
+
+def pointer_motion_text(text: str) -> str:
+    """Keep movement evidence after removing explicit view-navigation routes.
+
+    A named body remains a direct object: moving a robot from room to room
+    still describes moving that robot. A route alone names no moving body.
+    """
+    navigation = _NAVIGATION_MOTION.sub('navigate', ' '.join(str(text or '').split()))
+    # After navigation verbs are resolved, a route modifying an explicit
+    # direct object can be removed without losing that object's control.
+    return ' '.join(_VIEW_ROUTE.sub('', navigation).split())
+
+
+@invariant('agency.view_navigation_does_not_name_a_following_body', scope='agency',
+           owner='core/agency/the_controls_a_game_names.py', observational=False)
+def _navigation_motion_invariant() -> tuple:
+    assert the_pointer_only_clicks('Use your mouse to move from room to room.')
+    assert the_pointer_only_clicks('Use the pointer to move between pages.')
+    assert not the_pointer_only_clicks('Use your mouse to move the robot from room to room.')
+    assert not the_pointer_only_clicks('Use the mouse to move between rooms, and click to shoot.')
+    return ()
+
+
 def the_pointer_only_clicks(text: str) -> bool:
     """Whether a place's words name the pointer only to click on things, drag them, or start, and name no key for moving:
     a moving scene in such a place is no world to play in time, however its pictures move. "Click on items as you find
@@ -308,5 +342,5 @@ def the_pointer_only_clicks(text: str) -> bool:
     fast play thirty-two times, three seconds at a time, and nothing was found."""
     keys, pointer = controls_named_in(text, keys_without_words=(), during_play=True)
     moving = {"up", "down", "left", "right", "w", "a", "s", "d"} & set(keys)
-    return bool(pointer and not moving and not _THE_POINTER_IN_TIME.search(" ".join(str(text or "").split())))
+    return bool(pointer and not moving and not _THE_POINTER_IN_TIME.search(pointer_motion_text(text)))
 
