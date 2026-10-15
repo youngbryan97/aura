@@ -120,3 +120,37 @@ def test_recording_requires_an_explicit_trace_directory():
 
     with pytest.raises(SystemExit):
         _arguments(['--out', 'unused.json', '--record-interactions'])
+
+
+@pytest.mark.asyncio
+async def test_recorded_pixels_are_hash_checked_before_replay(tmp_path):
+    from tools.replay_recorded_play_pixels import recorded_picture
+
+    directory = tmp_path / 'hashed'
+    async with record_frames_and_inputs(directory) as recorder:
+        recorder.frame((np.ones((3, 3, 3), dtype=np.uint8), 1.))
+    event = _events(directory)[0]
+    assert recorded_picture(directory, event).shape == (3, 3, 3)
+    event['raw_sha256'] = 'changed'
+    with pytest.raises(ValueError, match='no longer match'):
+        recorded_picture(directory, event)
+    event['file'] = '../outside.png'
+    with pytest.raises(ValueError, match='inside'):
+        recorded_picture(directory, event)
+
+
+@pytest.mark.asyncio
+async def test_actual_control_sample_counts_remain_separate_from_input_delivery(tmp_path):
+    from core.agency.which_one_answers_to_her import WhichIsHers
+    from core.perception.recording_the_frames_and_inputs import record_control_observation
+
+    hers = WhichIsHers()
+    hers._by_thing[8].add('a', 20., 0., press=1., when=1.3)
+    directory = tmp_path / 'counts'
+    async with record_frames_and_inputs(directory):
+        record_control_observation(SimpleNamespace(held_trying=True, held='a', held_since=1.),
+            SimpleNamespace(things={}), hers, 1.3)
+    event = _events(directory)[0]
+    assert event['kind'] == 'control_observation' and event['selected'] is None
+    assert event['trying'] and event['evidence'][0]['presses'][0]['samples'] == 1
+    assert event['evidence'][0]['ratio'] == [0., 0.]

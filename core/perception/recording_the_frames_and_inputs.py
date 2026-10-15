@@ -196,6 +196,27 @@ def recorded_play_ports(look: Any, hands: Any) -> tuple[Any, Any]:
     return looked, _RecordedHands(hands, recorder)
 
 
+def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None:
+    """Keep the actor's own sample counts, separate from later pixel replay."""
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return
+    from core.perception.translation_from_visible_support import motion_status
+
+    evidence = []
+    for number, speeds in hers._by_thing.items():
+        evidence.append(dict(number=int(number), ratio=list(speeds.ratio()),
+            presses=[dict(key=key, began=began, samples=len(samples),
+                times=[t for t, _vx, _vy in speeds.timed.get((key, began), ())],
+                ended=(key, began) in speeds.ended, interrupted=(key, began) in speeds.interrupted)
+                for (key, began), samples in speeds.by_press.items()],
+            pushes={key: len(values) for key, values in speeds.pushes().items()}))
+    recorder.offer(recorder.event('control_observation', at=float(at), selected=hers.number,
+        epoch=hers.identification.epoch, trying=run.held_trying, held=run.held, held_since=run.held_since,
+        observations=[dict(number=int(t.number), born=float(t.born), seen=float(t.seen), status=motion_status(t, at),
+                           position=[float(t.x), float(t.y)]) for t in moves.things.values()], evidence=evidence))
+
+
 @invariant('perception.recorded_pixels_keep_their_bytes', scope='perception',
            owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
 def _recorded_pixel_invariant() -> tuple:

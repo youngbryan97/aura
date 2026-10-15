@@ -430,6 +430,8 @@ class _Run:
 
 def _record_control_attribution(run: _Run, moves: Any, hers: WhichIsHers, at: float) -> None:
     """Retain bounded ownership changes from visible geometry and measured controls."""
+    from core.perception.recording_the_frames_and_inputs import record_control_observation
+    record_control_observation(run, moves, hers, at)
     mine = hers.thing(moves)
     keys = tuple(sorted(hers.keys_that_move_her(run.keys))) if mine is not None else ()
     source = "pointer" if mine is not None and hers.follows_pointer else "keys" if keys else "unknown"

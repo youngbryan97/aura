@@ -4,6 +4,7 @@ from typing import Any
 
 def _play_execution_claims() -> tuple:
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
+    from core.perception.position_from_the_same_points import _surviving_reference_invariant
     from core.perception.recording_the_frames_and_inputs import _recorded_pixel_invariant
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
@@ -20,6 +21,9 @@ def _play_execution_claims() -> tuple:
             ('recorded_pixels_keep_their_bytes', 'core/perception/recording_the_frames_and_inputs.py',
              'tests/test_recording_the_actual_play_ports.py', lambda: _recorded_pixel_invariant() == (),
              'Opted-in pixel recording preserves raw channel bytes through a lossless image; storage gaps and input transport receipts do not qualify gameplay.'),
+            ('surviving_marks_need_target_precision', 'core/perception/position_from_the_same_points.py',
+             'tests/test_surviving_marks_locate_the_retained_reference.py', lambda: _surviving_reference_invariant() == (),
+             'Surviving original marks can retain a coordinate origin through a rigid fit with a finite target precision budget; new names, collinearity and an exhausted budget cannot bridge it.'),
             *_reward_authority_claims())
 
 

@@ -30,6 +30,7 @@ class PointPose:
     angular_offset: float = 0.
     angular_error: float = 0.
     pixel_size: float = 1.
+    reference_error: float = 0.
 
 
 def measured_position(thing: Any) -> tuple[float, float]:
@@ -84,7 +85,7 @@ def position_from_points(thing: Any, blob: dict, motion: Any, at: float) -> tupl
         thing.point_pose = seed
         return None
     names = previous.anchors.keys() & current.keys()
-    if len(names) < 3 or len(names) < .6 * len(previous.anchors):
+    if len(names) < 3:
         _bridge_angular_basis(previous, seed)
         thing.point_pose = seed
         return None
@@ -102,6 +103,9 @@ def _continue_rotating_marks(thing: Any, previous: PointPose, current: dict, nam
     fit = rigid_motion(starts, ends)
     if fit is None:
         return None
+    error = _reference_error(previous, starts, ends, fit, seed.pixel_size)
+    if error > 1.:
+        return None
     position = tuple(float(v) for v in fit.apply(previous.origin))
     current_fit = getattr(motion, 'rigid', None)
     expected = (current_fit.apply(previous.position) if current_fit is not None
@@ -117,8 +121,43 @@ def _continue_rotating_marks(thing: Any, previous: PointPose, current: dict, nam
     previous.anchors, previous.position, previous.at = anchors, position, at
     previous.visible_marks = dict(current)
     previous.pixel_size = max(previous.pixel_size, seed.pixel_size)
+    previous.reference_error = error
     thing.point_pose = previous
     return before, position
+
+
+def _reference_error(previous: PointPose, starts: np.ndarray, ends: np.ndarray, fit: Any,
+                     pixel_size: float) -> float:
+    """An RMS precision budget at the retained origin, including its lever arm.
+
+    First-order rigid-registration geometry separates residual at marks from
+    uncertainty at a target away from them. This estimate includes raster
+    resolution and accumulated reference error. It is not a bound on correlated
+    tracking errors. Original mark names, support and rigid consensus still
+    supply correspondence; this calculation cannot make new names continuous.
+    """
+    before = starts[list(fit.inliers)]
+    observed = ends[list(fit.inliers)]
+    spread = float(np.sum((before-before.mean(axis=0))**2))
+    if spread <= 0 or not math.isfinite(previous.reference_error) or previous.reference_error < 0:
+        return math.inf
+    residual = float(np.mean(np.sum((fit.apply(before)-observed)**2, axis=1)))
+    variance = residual + (.25 * max(previous.pixel_size, pixel_size))**2
+    lever = float(np.sum((np.asarray(previous.origin)-before.mean(axis=0))**2))
+    return math.sqrt(previous.reference_error**2 + variance*(2./len(before) + lever/spread))
+
+
+@invariant('perception.surviving_marks_need_target_precision', scope='perception',
+           owner='core/perception/position_from_the_same_points.py', observational=False)
+def _surviving_reference_invariant() -> tuple:
+    starts = np.array(((0., 0.), (12., 0.), (0., 12.), (12., 12.)))
+    fitted = rigid_motion(starts, starts+(2., 1.))
+    assert fitted is not None
+    previous = PointPose(0., 1., (6., 6.), {}, (6., 6.))
+    assert 0 < _reference_error(previous, starts, starts+(2., 1.), fitted, 1.) < 1.
+    previous.origin = (1000., 1000.)
+    assert _reference_error(previous, starts, starts+(2., 1.), fitted, 1.) > 1.
+    return ()
 
 
 def _bridge_angular_basis(previous: PointPose, current: PointPose) -> None:
