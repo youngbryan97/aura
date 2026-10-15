@@ -61,6 +61,27 @@ def drafts_from_g12_bbeh(directory: Path) -> list[dict[str, Any]]:
     return out
 
 
+def _kept_answer_grader(domain: str, harness_grade):
+    """How a kept procedure's answer is graded: as the induction graded it when it was kept.
+
+    A procedure returns the answer itself, not a written derivation ending in
+    one. The harness's grader for a BBH task reads the answer out of "So the
+    answer is ..." and so failed every bare answer, right ones included (15
+    October: 0 of 6 on each of the 11 kept BBH kinds, against 6 of 6 by BBH's
+    own matching of the answer). The induction admitted each procedure by its
+    kind's own answer matching (tools/induce_g09_procedures.grader_for), and
+    the same matching grades its answers here. A domain the induction has no
+    grader for keeps the harness's.
+    """
+    from tools.induce_g09_procedures import grader_for
+
+    try:
+        matches = grader_for(domain)
+    except KeyError:
+        return harness_grade
+    return lambda answer, truth: (bool(matches(answer, truth)), str(answer)[:120])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--domain", required=True)
@@ -74,7 +95,7 @@ def main() -> int:
     from core.learning.procedures_from_solved_examples import ProcedureBook
     from tools.run_g09_organ import GRADERS
 
-    grade = GRADERS[args.domain]
+    grade = _kept_answer_grader(args.domain, GRADERS[args.domain])
     book = ProcedureBook.merged([ProcedureBook.from_json(json.loads(path.expanduser().read_text(encoding="utf-8")))
                                  for path in args.book])
     directory = args.drafts.expanduser()
