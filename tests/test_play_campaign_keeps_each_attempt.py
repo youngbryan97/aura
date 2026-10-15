@@ -195,7 +195,7 @@ async def test_the_cli_excludes_protected_cases_before_asset_reading_and_resumes
         validated.append(active)
         return {n: f'http://local/{n}' for n in active}
 
-    async def play(number, *args):
+    async def play(number, *args, **kwargs):
         called.append(number)
         saved = json.loads((tmp_path / 'pass.json.state.json').read_text())
         assert next(c for c in saved['cases'] if c['case'] == number)['state'] == 'running'

@@ -2,6 +2,14 @@
 from typing import Any
 
 
+def _browser_graphics_claims() -> tuple:
+    from core.capabilities.browser_graphics_policy import _software_graphics_invariant
+
+    return (("software_graphics_need_a_measured_cpu_renderer", "core/capabilities/browser_graphics_policy.py",
+             "tests/test_browser_software_graphics_stays_software.py", lambda: _software_graphics_invariant() == (),
+             "An explicit software browser request selects the CPU driver and requires the browser process's renderer report; missing measurements cannot certify that policy."),)
+
+
 def install_realtime_control_claims(suite: Any) -> None:
     from core.agency.a_body_seen_then import _body_seen_then_invariant
     from core.agency.a_response_worth_measuring_again import _provisional_response_invariant
@@ -77,6 +85,7 @@ def install_realtime_control_claims(suite: Any) -> None:
     from core.skills.sovereign_browser_picking import _picked_outcomes_invariant
 
     for name, owner, fixture, probe, statement in (
+        *_browser_graphics_claims(),
         *_visual_motion_claims(),
         *_body_state_claims(),
         *_control_discovery_claims(),

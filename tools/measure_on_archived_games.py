@@ -134,7 +134,7 @@ def _served(bundle: Path, case_ids: set[int] | None = None) -> dict[int, str]:
 
 
 async def _one(number: int, address: str, minutes: float, visible: bool, trace: Path | None = None,
-               goal: str = GOAL) -> dict:
+               goal: str = GOAL, *, graphics_backend: str = 'host') -> dict:
     from core.capabilities.phantom_browser import PhantomBrowser
     from core.skills import sovereign_browser_drawing as drawing
 
@@ -160,10 +160,12 @@ async def _one(number: int, address: str, minutes: float, visible: bool, trace: 
         logging.getLogger().addHandler(kept)
         logging.getLogger().setLevel(logging.INFO)
     began = time.monotonic()
-    browser = PhantomBrowser(visible=visible, browser_type="chromium", principal="owner")
+    browser = PhantomBrowser(visible=visible, browser_type="chromium", principal="owner", graphics_backend=graphics_backend)
+    graphics = None
     try:
         if not await browser.ensure_ready():
             return {"game": number, "error": "browser did not start"}
+        graphics = browser.get_status().get('graphics')
         await browser.page.goto(address, wait_until="domcontentloaded", timeout=60000)
         await asyncio.sleep(6)
         watching = asyncio.ensure_future(_pictured(browser, trace, number, began)) if trace is not None else None
@@ -194,6 +196,8 @@ async def _one(number: int, address: str, minutes: float, visible: bool, trace: 
         "last_seen": str(played.get("last_seen") or "")[:200],
         "said": said[:200],
         "stopped_because": str(played.get("stopped_because") or ""),
+        "graphics_backend_requested": graphics_backend,
+        "graphics": graphics,
     }
 
 
@@ -260,6 +264,7 @@ def _arguments(argv: list[str]):
     parser.add_argument("--evaluate-held-out", action="store_true", help="explicitly open held-out cases for evaluation")
     parser.add_argument("--resume", action="store_true", help="continue a settled campaign checkpoint at --out.state.json")
     parser.add_argument("--plan-only", action="store_true", help="save the case plan without reading programs or starting play")
+    parser.add_argument("--graphics", choices=['host', 'software'], default='host', help="software requires a measured CPU driver")
     args = parser.parse_args(argv)
     if not math.isfinite(args.minutes) or not 0 < args.minutes <= 60 or args.random < 0:
         parser.error('minutes must be finite, positive and at most sixty; random must be nonnegative')
@@ -313,7 +318,7 @@ def _prepare_campaign(args, parser, checkpoint: Path):
     changed = subprocess.check_output(['git', 'diff', 'HEAD', '--', 'core', 'tools'], cwd=ROOT)
     identity = {'commit': revision, 'tracked_diff_sha256': hashlib.sha256(changed).hexdigest(),
                 'manifest_sha256': hashlib.sha256(manifest_bytes).hexdigest(), 'model_endpoint': args.her_model,
-                'visible': args.visible, 'trace': str(args.trace.resolve()) if args.trace else ''}
+                'visible': args.visible, 'trace': str(args.trace.resolve()) if args.trace else '', 'graphics': args.graphics}
     record = campaign_plan(numbers, excluded=excluded, identity=identity, seconds=args.minutes * 60)
     if args.resume:
         record = resume_campaign(json.loads(checkpoint.read_text()), record)
@@ -349,7 +354,7 @@ async def _campaign(args, parser, checkpoint: Path) -> list[dict]:
     async def play(number):
         if number not in places:
             return {'game': number, 'error': 'no copy that plays here'}
-        result = await _one(number, places[number], args.minutes, args.visible, args.trace)
+        result = await _one(number, places[number], args.minutes, args.visible, args.trace, graphics_backend=args.graphics)
         print(json.dumps({k: result.get(k) for k in ('game', 'minutes', 'runs', 'won', 'error', 'last_seen')}), flush=True)
         return result
 

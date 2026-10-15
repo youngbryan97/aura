@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.capabilities.browser_graphics_policy", # Pure check of an explicitly requested software renderer.
     # The registered knowledge-revision canary exercises the canonical store.
     "+core.knowledge.revision_validation",
     # The scoped-calculation canary checks interval arithmetic and premise taint.

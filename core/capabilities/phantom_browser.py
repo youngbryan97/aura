@@ -29,6 +29,7 @@ from core.capabilities.browser_authority import (
     BrowserAction,
     authorize_browser_action,
 )
+from core.capabilities.browser_graphics_policy import graphics_arguments, software_graphics_verified
 from core.capabilities.where_downloads_go import keep_downloads
 from core.runtime.errors import (
     DependencyUnavailable,
@@ -99,13 +100,26 @@ _KEEPS_RUNNING = [
 ]
 
 
-def _chromium_graphics_arguments() -> list[str]:
-    """Use the host renderer on macOS instead of Chromium's software default.
+def _chromium_graphics_arguments(backend: str = 'host') -> list[str]:
+    """An explicit software request keeps its driver across launch attempts."""
+    return graphics_arguments(backend, sys.platform)
 
-    Other hosts retain Chromium's backend selection. A failed launch retries
-    that selection; graphics readiness is reported from CDP.
-    """
-    return ["--enable-gpu", "--use-angle=metal"] if sys.platform == "darwin" else []
+
+async def _browser_graphics(browser: Any) -> dict | None:
+    cdp = None
+    try:
+        cdp = await asyncio.wait_for(browser.new_browser_cdp_session(), timeout=3.)
+        gpu = (await asyncio.wait_for(cdp.send('SystemInfo.getInfo'), timeout=3.))['gpu']
+        return {'renderer': gpu.get('auxAttributes', {}).get('glRenderer'), 'features': gpu.get('featureStatus', {})}
+    except (PlaywrightError, RuntimeError, AttributeError, TypeError, KeyError, ValueError, TimeoutError) as why:
+        logger.debug('browser graphics could not be measured: %s', why)
+        return None
+    finally:
+        if cdp is not None:
+            try:
+                await asyncio.wait_for(cdp.detach(), timeout=1.)
+            except (PlaywrightError, RuntimeError, AttributeError, TimeoutError) as why:
+                logger.debug('graphics measurement session ended without confirmation: %s', why)
 
 
 def _hides_automation() -> bool:
@@ -248,7 +262,12 @@ class PhantomBrowser(_ActsOnThePage):
         browser_type: str = "chromium",
         *,
         principal: str = "",
+        graphics_backend: str = 'host',
     ):
+        graphics_arguments(graphics_backend, sys.platform)
+        if graphics_backend == 'software' and browser_type != 'chromium':
+            raise ValueError('verified software graphics requires Chromium')
+        self.graphics_backend = graphics_backend
         self.playwright = None
         self.browser = None
         self.context = None
@@ -410,6 +429,7 @@ class PhantomBrowser(_ActsOnThePage):
             "engine_launched": self._launched_engine or "none",
             "executable_launched": self._launched_executable or "none",
             "graphics": self._graphics,
+            "graphics_backend_requested": self.graphics_backend,
             "browser_connected": bool(getattr(self.browser, "is_connected", lambda: False)())
             if self.browser is not None
             else False,
@@ -674,9 +694,9 @@ class PhantomBrowser(_ActsOnThePage):
             )
 
         failures: list[str] = []
-        graphics = _chromium_graphics_arguments()
+        graphics = _chromium_graphics_arguments(self.graphics_backend)
         launches = [(source, executable, graphics) for source, executable in candidates]
-        if graphics:
+        if graphics and self.graphics_backend == 'host':
             launches += [(source, executable, []) for source, executable in candidates]
         for source, executable, renderer_args in launches:
             label = executable or source
@@ -691,21 +711,10 @@ class PhantomBrowser(_ActsOnThePage):
                 kwargs["executable_path"] = executable
             try:
                 browser = await self.playwright.chromium.launch(**kwargs)
-                self._graphics = None
-                cdp = None
-                try:
-                    cdp = await browser.new_browser_cdp_session()
-                    gpu = (await asyncio.wait_for(cdp.send("SystemInfo.getInfo"), timeout=3.0))["gpu"]
-                    self._graphics = {"renderer": gpu.get("auxAttributes", {}).get("glRenderer"),
-                                      "features": gpu.get("featureStatus", {})}
-                except (PlaywrightError, RuntimeError, AttributeError, TypeError, KeyError, ValueError, TimeoutError) as why:
-                    logger.debug("browser graphics could not be measured: %s", why)
-                finally:
-                    if cdp is not None:
-                        try:
-                            await asyncio.wait_for(cdp.detach(), timeout=1.0)
-                        except (PlaywrightError, RuntimeError, AttributeError, TimeoutError) as why:
-                            logger.debug("graphics measurement session ended without confirmation: %s", why)
+                self._graphics = await _browser_graphics(browser)
+                if self.graphics_backend == 'software' and not software_graphics_verified(self._graphics):
+                    await asyncio.wait_for(browser.close(), timeout=5.)
+                    raise RuntimeError('requested software renderer was not verified by the browser')
                 self._executable = executable or str(getattr(getattr(self.playwright, "chromium", None), "executable_path", "") or "")
                 return browser, label
             except (
