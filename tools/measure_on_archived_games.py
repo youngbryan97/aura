@@ -134,7 +134,7 @@ def _served(bundle: Path, case_ids: set[int] | None = None) -> dict[int, str]:
 
 
 async def _one(number: int, address: str, minutes: float, visible: bool, trace: Path | None = None,
-               goal: str = GOAL, *, graphics_backend: str = 'host') -> dict:
+               goal: str = GOAL, *, graphics_backend: str = 'host', record_interactions: bool = False) -> dict:
     from core.capabilities.phantom_browser import PhantomBrowser
     from core.skills import sovereign_browser_drawing as drawing
 
@@ -172,7 +172,16 @@ async def _one(number: int, address: str, minutes: float, visible: bool, trace: 
         await asyncio.sleep(6)
         watching = asyncio.ensure_future(_pictured(browser, trace, number, began)) if trace is not None else None
         try:
-            played = await drawing.played_on_the_drawing(browser, goal, {"url": address})
+            from contextlib import AsyncExitStack
+
+            async with AsyncExitStack() as contexts:
+                if record_interactions:
+                    from core.perception.recording_the_frames_and_inputs import (
+                        record_frames_and_inputs,
+                    )
+
+                    await contexts.enter_async_context(record_frames_and_inputs(trace / f'game{number}-interactions'))
+                played = await drawing.played_on_the_drawing(browser, goal, {"url": address})
         finally:
             if watching is not None:
                 watching.cancel()
@@ -258,6 +267,7 @@ def _arguments(argv: list[str]):
     parser.add_argument("--visible", action="store_true")
     parser.add_argument("--out", default="")
     parser.add_argument("--trace", default="", help="a folder for each game's log of decisions and its last screen")
+    parser.add_argument('--record-interactions', action='store_true', help='retain exact fast-loop pixels and input port receipts')
     parser.add_argument("--bundle", default="", help="the offline bundle to play the games from, instead of their archived copies")
     parser.add_argument("--her-model", default="", help="where her model answers (tools/her_model_server.py), as live")
     parser.add_argument("--random", type=int, default=0, help="this many games drawn at random, as the demo draws them")
@@ -271,6 +281,8 @@ def _arguments(argv: list[str]):
     parser.add_argument("--vision-cpu", action='store_true', help='require CPU acknowledgement before Apple Vision OCR')
     parser.add_argument("--cpu-only", action='store_true', help='software graphics, CPU OCR, classical points and no model workers')
     args = parser.parse_args(argv)
+    if args.record_interactions and not args.trace:
+        parser.error('--record-interactions requires --trace')
     if args.cpu_only:
         if args.her_model:
             parser.error('--cpu-only cannot call a model endpoint')
@@ -332,7 +344,8 @@ def _prepare_campaign(args, parser, checkpoint: Path):
     identity = {'commit': revision, 'tracked_diff_sha256': hashlib.sha256(changed).hexdigest(),
                 'manifest_sha256': hashlib.sha256(manifest_bytes).hexdigest(), 'model_endpoint': args.her_model,
                 'visible': args.visible, 'trace': str(args.trace.resolve()) if args.trace else '',
-                'graphics': args.graphics, 'vision_cpu': args.vision_cpu, 'cpu_only': args.cpu_only}
+                'graphics': args.graphics, 'vision_cpu': args.vision_cpu, 'cpu_only': args.cpu_only,
+                'record_interactions': args.record_interactions}
     record = campaign_plan(numbers, excluded=excluded, identity=identity, seconds=args.minutes * 60)
     if args.resume:
         record = resume_campaign(json.loads(checkpoint.read_text()), record)
@@ -368,7 +381,8 @@ async def _campaign(args, parser, checkpoint: Path) -> list[dict]:
     async def play(number):
         if number not in places:
             return {'game': number, 'error': 'no copy that plays here'}
-        result = await _one(number, places[number], args.minutes, args.visible, args.trace, graphics_backend=args.graphics)
+        result = await _one(number, places[number], args.minutes, args.visible, args.trace, graphics_backend=args.graphics,
+                            record_interactions=args.record_interactions)
         print(json.dumps({k: result.get(k) for k in ('game', 'minutes', 'runs', 'won', 'error', 'last_seen')}), flush=True)
         return result
 

@@ -4,6 +4,7 @@ from typing import Any
 
 def _play_execution_claims() -> tuple:
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
+    from core.perception.recording_the_frames_and_inputs import _recorded_pixel_invariant
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
 
@@ -16,6 +17,9 @@ def _play_execution_claims() -> tuple:
             ("model_worker_policy_refuses_before_start", "core/runtime/model_worker_policy.py",
              "tests/test_a_cpu_probe_cannot_start_a_model_worker.py", lambda: _model_worker_policy_invariant() == (),
              "An explicit process policy can refuse model-worker admission before spawn; the vision client and worker entry honor that refusal before loading accelerator code."),
+            ('recorded_pixels_keep_their_bytes', 'core/perception/recording_the_frames_and_inputs.py',
+             'tests/test_recording_the_actual_play_ports.py', lambda: _recorded_pixel_invariant() == (),
+             'Opted-in pixel recording preserves raw channel bytes through a lossless image; storage gaps and input transport receipts do not qualify gameplay.'),
             *_reward_authority_claims())
 
 

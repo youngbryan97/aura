@@ -1,0 +1,210 @@
+"""Bounded, opt-in evidence from the actual fast play ports.
+
+Transport completion is recorded separately from visible effect. Pixels retain
+their original size, channel order and capture receipt. Drawing commands and
+sounds are not serialized; this is a pixel replay, not a whole runtime replay.
+"""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import io
+import json
+import time
+from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+from PIL import Image
+
+from core.governance_context import local_internal_governed_scope
+from core.runtime.file_write_gateway import get_file_write_gateway
+from core.verify import invariant
+
+_ACTIVE: ContextVar[Any] = ContextVar('play_pixel_recording', default=None)
+_INPUTS = frozenset({'down', 'up', 'tap', 'click', 'point', 'press', 'release', 'type_text'})
+_TIME_FIELDS = ('lower', 'upper', 'arrived', 'source', 'source_at', 'epoch', 'surface', 'sequence')
+
+
+def _pixels(picture: Any) -> np.ndarray:
+    value = np.asarray(picture)
+    if value.dtype != np.uint8 or value.ndim != 3 or value.shape[2] not in (3, 4):
+        raise ValueError('a recorded picture must be uint8 RGB or RGBA')
+    return np.array(value, copy=True, order='C', subok=False)
+
+
+def _encoded(picture: np.ndarray) -> tuple[bytes, str]:
+    stream = io.BytesIO()
+    Image.fromarray(picture).save(stream, format='PNG', compress_level=1)
+    return stream.getvalue(), hashlib.sha256(picture.tobytes()).hexdigest()
+
+
+class FrameAndInputRecording:
+    """A single writer owns a fresh directory; overflow stays explicitly incomplete."""
+
+    def __init__(self, directory: Path, *, queued_bytes: int = 64 * 1024**2,
+                 total_bytes: int = 2 * 1024**3, queued_events: int = 128) -> None:
+        if min(queued_bytes, total_bytes, queued_events) <= 0:
+            raise ValueError('recording bounds must be positive')
+        self.directory = Path(directory)
+        self.byte_limit, self.total_limit = queued_bytes, total_bytes
+        self.queue: asyncio.Queue = asyncio.Queue(maxsize=queued_events)
+        self.pending_bytes = self.total_bytes = 0
+        self.sequence = self.frames = self.inputs = self.dropped = 0
+        self.error = ''
+        self.closed = False
+
+    def event(self, kind: str, **fields: Any) -> dict:
+        self.sequence += 1
+        return dict(sequence=self.sequence, kind=kind, received_at=time.monotonic(), **fields)
+
+    def offer(self, event: dict, picture: np.ndarray | None = None) -> None:
+        size = picture.nbytes if picture is not None else 0
+        if (self.closed or self.error or self.queue.full() or self.pending_bytes + size > self.byte_limit
+                or self.total_bytes + size > self.total_limit):
+            self.dropped += 1
+            return
+        self.pending_bytes += size
+        self.total_bytes += size
+        self.queue.put_nowait((event, picture))
+
+    def frame(self, result: Any) -> None:
+        if result is None:
+            self.offer(self.event('missing_frame'))
+            return
+        picture, at = result
+        size = getattr(picture, 'nbytes', self.byte_limit + 1)
+        if size > self.byte_limit or self.pending_bytes + size > self.byte_limit:
+            self.sequence += 1
+            self.dropped += 1
+            return
+        receipt = {'at': float(at), **{key: getattr(at, key) for key in _TIME_FIELDS if hasattr(at, key)}}
+        self.offer(self.event('frame', capture=receipt,
+                             drawing_scene_present=getattr(picture, 'drawing_scene', None) is not None), _pixels(picture))
+
+    async def write(self) -> None:
+        gateway = get_file_write_gateway()
+        while True:
+            item = await self.queue.get()
+            if item is None:
+                self.queue.task_done()
+                return
+            event, picture = item
+            try:
+                if not self.error:
+                    with local_internal_governed_scope('play_pixel_recording'):
+                        if picture is not None:
+                            data, digest = await asyncio.to_thread(_encoded, picture)
+                            name = f"frame-{event['sequence']:07d}.png"
+                            await gateway.write_bytes_async(self.directory / name, data, source='play_pixel_recording')
+                            event.update(file=name, shape=list(picture.shape), dtype='uint8', raw_sha256=digest)
+                        await gateway.append_text_async(self.directory / 'events.jsonl', json.dumps(event) + '\n',
+                                                        source='play_pixel_recording')
+                    self.frames += int(picture is not None)
+                    self.inputs += int(event['kind'] == 'input')
+            except Exception as error:  # noqa: BLE001 - the final manifest retains failed storage
+                self.error = f'{type(error).__name__}: {error}'
+            finally:
+                if picture is not None:
+                    self.pending_bytes -= picture.nbytes
+                self.queue.task_done()
+
+    def manifest(self, state: str) -> dict:
+        return dict(schema='aura.pixel_input_recording.v1', state=state, frames=self.frames,
+                    input_events=self.inputs, last_sequence=self.sequence, dropped_events=self.dropped,
+                    error=self.error, complete=state == 'closed' and not self.error and not self.dropped,
+                    presentation_qualified=False, omitted=['drawing_scene', 'sounds', 'internal decisions'],
+                    input_receipt='port call completion; does not prove game acceptance or visible effect')
+
+
+@asynccontextmanager
+async def record_frames_and_inputs(directory: Path, **bounds: Any):
+    recorder = FrameAndInputRecording(directory, **bounds)
+    if recorder.directory.exists():
+        raise ValueError('use a fresh pixel recording directory')
+    gateway = get_file_write_gateway()
+    with local_internal_governed_scope('play_pixel_recording'):
+        await gateway.ensure_directory_async(recorder.directory, source='play_pixel_recording')
+        if not await gateway.write_bytes_if_absent_async(recorder.directory / 'manifest.json',
+                json.dumps(recorder.manifest('running')).encode(), source='play_pixel_recording'):
+            raise ValueError('another recorder owns this directory')
+    writer = asyncio.create_task(recorder.write())
+    token = _ACTIVE.set(recorder)
+    state = 'closed'
+    try:
+        yield recorder
+    except BaseException:
+        state = 'interrupted'
+        raise
+    finally:
+        _ACTIVE.reset(token)
+        recorder.closed = True
+        # Drain only queued evidence, never wait for a new capture or input.
+        async def drain():
+            await recorder.queue.put(None)
+            await writer
+
+        try:
+            await asyncio.wait_for(drain(), timeout=20.)
+        except TimeoutError:
+            writer.cancel()
+            await asyncio.gather(writer, return_exceptions=True)
+            recorder.error = 'recording writer did not finish in twenty seconds'
+        with local_internal_governed_scope('play_pixel_recording'):
+            await gateway.write_text_async(recorder.directory / 'manifest.json',
+                json.dumps(recorder.manifest(state), indent=2), source='play_pixel_recording')
+
+
+class _RecordedHands:
+    def __init__(self, hands: Any, recorder: FrameAndInputRecording) -> None:
+        self.hands, self.recorder = hands, recorder
+
+    def __getattr__(self, name: str) -> Any:
+        original = getattr(self.hands, name)
+        if name not in _INPUTS or not callable(original):
+            return original
+
+        async def delivered(*args: Any, **kwargs: Any) -> Any:
+            request = self.recorder.event('input', phase='requested', method=name, args=list(args), kwargs=kwargs)
+            self.recorder.offer(request)
+            try:
+                result = await original(*args, **kwargs)
+            except BaseException as error:
+                self.recorder.offer(self.recorder.event('input', phase='failed', method=name,
+                    request_sequence=request['sequence'], error=type(error).__name__))
+                raise
+            self.recorder.offer(self.recorder.event('input', phase='completed', method=name,
+                request_sequence=request['sequence']))
+            return result
+
+        return delivered
+
+
+def recorded_play_ports(look: Any, hands: Any) -> tuple[Any, Any]:
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return look, hands
+    recorder.offer(recorder.event('stream_started'))
+
+    async def looked():
+        result = await look()
+        recorder.frame(result)
+        return result
+
+    return looked, _RecordedHands(hands, recorder)
+
+
+@invariant('perception.recorded_pixels_keep_their_bytes', scope='perception',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _recorded_pixel_invariant() -> tuple:
+    source = np.arange(60, dtype=np.uint8).reshape(4, 5, 3)
+    retained = _pixels(source)
+    source[:] = 0
+    encoded, digest = _encoded(retained)
+    decoded = np.asarray(Image.open(io.BytesIO(encoded)))
+    assert np.array_equal(retained, decoded)
+    assert digest == hashlib.sha256(decoded.tobytes()).hexdigest()
+    assert retained.any() and not source.any()
+    return ()

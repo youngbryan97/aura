@@ -1063,8 +1063,10 @@ async def play_as_it_happens(
     told: str = "",
     waits_for_her: bool = False,
 ) -> dict[str, Any]:
+    from core.perception.recording_the_frames_and_inputs import recorded_play_ports
     from core.runtime.what_stops_it import current, interruptible
 
+    look, hands = recorded_play_ports(look, hands)
     with interruptible(current(whose="play_as_it_happens")), short_turns_while_playing():
         return await _play_as_it_happens(
             look, hands, keys=keys, seconds=seconds, say=say, read_words=read_words,

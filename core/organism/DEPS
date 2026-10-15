@@ -14,6 +14,7 @@ description = "core.organism: measured claims may exercise named observation cus
 
 include_rules = [
     "+core.perception.vision_request_compute", # Pure check of CPU request acknowledgement, without loading Vision.
+    "+core.perception.recording_the_frames_and_inputs", # Lossless pixel recording contract, no play execution.
     "+core.capabilities.browser_graphics_policy", # Pure check of an explicitly requested software renderer.
     # The registered knowledge-revision canary exercises the canonical store.
     "+core.knowledge.revision_validation",
