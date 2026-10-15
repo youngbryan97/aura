@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.time_to_observe_a_control import _phase_reservation_invariant
     from core.agency.trials_with_room_to_observe import _trial_priority_invariant
     from core.agency.which_one_answers_to_her import _control_sample_custody_invariant
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
@@ -50,6 +51,9 @@ def _play_execution_claims() -> tuple:
             ('trial_priority_cannot_certify_a_response', 'core/agency/trials_with_room_to_observe.py',
              'tests/test_trials_retain_room_for_their_observation.py', lambda: _trial_priority_invariant() == (),
              'Provisional pulse and rest measurements rank finite trials by projected clearance, without certifying a response, selecting an identity or increasing the per-control allowance.'),
+            ('new_phases_keep_their_observation_reservation', 'core/agency/time_to_observe_a_control.py',
+             'tests/test_control_measurements_reserve_the_observed_slow_frames.py', lambda: _phase_reservation_invariant() == (),
+             'A newly delivered counter phase keeps the current observation reservation; delivered input deadlines and the finite overall experiment end remain unchanged.'),
             *_reward_authority_claims())
 
 

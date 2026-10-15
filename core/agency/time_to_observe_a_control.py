@@ -14,6 +14,21 @@ from itertools import islice
 from core.verify import invariant
 
 
+def reserved_phase_seconds(observed_s: float, planned_s: float) -> float:
+    """A new phase keeps both its observation reservation and its planned minimum."""
+    if not all(math.isfinite(value) and value > 0 for value in (observed_s, planned_s)):
+        raise ValueError('a control phase requires finite positive observation and plan durations')
+    return max(observed_s, planned_s)
+
+
+@invariant('agency.new_phases_keep_their_observation_reservation', scope='agency',
+           owner='core/agency/time_to_observe_a_control.py', observational=False)
+def _phase_reservation_invariant() -> tuple:
+    assert reserved_phase_seconds(1.18, .734) == 1.18
+    assert reserved_phase_seconds(.6, .734) == .734
+    return ()
+
+
 def observed_response_seconds(intervals: Reversible[float], *, least_s: float, settle_s: float,
                               samples: int, span_s: float, longest_s: float) -> float | None:
     """Reserve samples at the slowest recent valid cadence, within the stated limit.

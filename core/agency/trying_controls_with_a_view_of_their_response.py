@@ -13,7 +13,7 @@ from core.agency.countering_motion_as_it_appears import CounteringMotion
 from core.agency.giving_a_trial_time import ControlTrial
 from core.agency.keeping_a_trial_observable import control_before_the_next_trial
 from core.agency.the_key_against_its_going import FIRST, against_its_going
-from core.agency.time_to_observe_a_control import observed_response_seconds
+from core.agency.time_to_observe_a_control import observed_response_seconds, reserved_phase_seconds
 from core.agency.trials_with_room_to_observe import trials_with_room
 from core.agency.unknown_controls_get_their_turn import next_unknown_control
 from core.agency.which_one_answers_to_her import (
@@ -85,6 +85,8 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
             key = run.keys[turn // 2] if turn % 2 == 0 else ""
         else:
             return
+    counter_active = run.counter_trial.key and not run.counter_trial.done
+    duration = reserved_phase_seconds(seconds, run.counter_trial.phase_seconds) if counter_active else seconds
     # State-dependent calibration is owned by this trial but cannot supply
     # independent identity evidence about other things moving in the scene.
     independent = not identified
@@ -94,7 +96,10 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
     # held (None + duration).
     began = run.held_since if run.held_since is not None else at
     run.tried_at = began
-    duration = run.counter_trial.phase_seconds if run.counter_trial.key and not run.counter_trial.done else seconds
+    if counter_active:
+        # A newly delivered phase can reserve the current observed cadence.
+        # The previous input's lease and the programme's end do not move.
+        run.counter_trial.phase_seconds = duration
     owner = calibration_owner(hers, hers.thing(moves)) if identified else None
     run.body_trial = ControlTrial(key, began, began + duration, epoch, owner, independent)
     lease_control_trial(hands, run, hers, run.body_trial, field='body_trial')
