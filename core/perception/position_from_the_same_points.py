@@ -31,6 +31,7 @@ class PointPose:
     angular_error: float = 0.
     pixel_size: float = 1.
     reference_error: float = 0.
+    deformed: bool = False
 
 
 def measured_position(thing: Any) -> tuple[float, float]:
@@ -101,13 +102,17 @@ def _continue_rotating_marks(thing: Any, previous: PointPose, current: dict, nam
     """Rotate the retained origin with its original marks; admit new marks through that same transform."""
     thing.point_pose = seed
     fit = rigid_motion(starts, ends)
+    if fit is None and getattr(motion, 'affine', None) is not None and motion.has_affine_pose():
+        from core.perception.affine_motion_from_named_points import affine_motion
+
+        fit = affine_motion(starts, ends)
     if fit is None:
         return None
     error = _reference_error(previous, starts, ends, fit, seed.pixel_size)
     if error > 1.:
         return None
     position = tuple(float(v) for v in fit.apply(previous.origin))
-    current_fit = getattr(motion, 'rigid', None)
+    current_fit = motion.material_transform() if hasattr(motion, 'material_transform') else getattr(motion, 'rigid', None)
     expected = (current_fit.apply(previous.position) if current_fit is not None
                 else np.asarray(previous.position) + (motion.dx, motion.dy))
     if math.dist(position, expected) > 1.:
@@ -122,6 +127,7 @@ def _continue_rotating_marks(thing: Any, previous: PointPose, current: dict, nam
     previous.visible_marks = dict(current)
     previous.pixel_size = max(previous.pixel_size, seed.pixel_size)
     previous.reference_error = error
+    previous.deformed = hasattr(fit, 'target_error')
     thing.point_pose = previous
     return before, position
 
@@ -138,6 +144,10 @@ def _reference_error(previous: PointPose, starts: np.ndarray, ends: np.ndarray, 
     """
     before = starts[list(fit.inliers)]
     observed = ends[list(fit.inliers)]
+    if hasattr(fit, 'target_error'):
+        error = fit.target_error(previous.origin if target is None else target,
+                                  resolution=.25*max(previous.pixel_size, pixel_size))
+        return math.hypot(previous.reference_error, error)
     spread = float(np.sum((before-before.mean(axis=0))**2))
     if spread <= 0 or not math.isfinite(previous.reference_error) or previous.reference_error < 0:
         return math.inf
@@ -189,6 +199,8 @@ def _bridge_angular_basis(previous: PointPose, current: PointPose) -> None:
 def _owned_marks(thing: Any, blob: dict, motion: Any, at: float) -> dict | None:
     """The current motion must name unique marks inside current observed support."""
     if getattr(motion, 'rigid', None) is not None and not motion.has_rigid_pose():
+        return None
+    if getattr(motion, 'affine', None) is not None and not motion.has_affine_pose():
         return None
     size = getattr(motion, 'pixel_size', 1.)
     if not isinstance(size, (int, float)) or isinstance(size, bool) or not math.isfinite(size) or size <= 0.:

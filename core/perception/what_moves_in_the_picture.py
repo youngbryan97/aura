@@ -755,7 +755,9 @@ class WhatMoves:
         if motion is not None and motion.before == thing.seen and motion.at == at:
             if not motion.inside(blob):
                 return math.inf
-            px, py = motion.rigid.apply((px, py)) if motion.has_rigid_pose() else (px + motion.dx, py + motion.dy)
+            transform = (motion.material_transform() if hasattr(motion, 'material_transform')
+                         else motion.rigid if motion.has_rigid_pose() else None)
+            px, py = transform.apply((px, py)) if transform is not None else (px + motion.dx, py + motion.dy)
             # An outline may change with articulation. Its changed half-size
             # bounds how far the centre can move without its texture moving.
             reach = 3.0 + .5 * math.hypot(blob["w"] - thing.w, blob["h"] - thing.h)
@@ -782,6 +784,9 @@ class WhatMoves:
         if current_points and motion.has_rigid_pose():
             c, s = abs(math.cos(motion.rigid.angle)), abs(math.sin(motion.rigid.angle))
             expected_w, expected_h = c * thing.w + s * thing.h, s * thing.w + c * thing.h
+        elif current_points and getattr(motion, 'affine', None) is not None and motion.has_affine_pose():
+            linear = np.abs(np.asarray(motion.affine.linear))
+            expected_w, expected_h = linear @ (thing.w, thing.h)
         aspect = (blob["w"] / max(1.0, blob["h"])) / (expected_w / max(1.0, expected_h))
         if max(aspect, 1.0 / max(1e-6, aspect)) > 2.5:
             return math.inf

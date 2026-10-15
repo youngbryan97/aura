@@ -50,6 +50,11 @@ def material_observations_from_parts(picture: np.ndarray, blobs: list[dict], thi
             continue
         starts, ends = np.asarray([previous[n] for n in names]), np.asarray([current[n] for n in names])
         fitted = rigid_motion(starts, ends)
+        motion = motions.get(number)
+        if fitted is None and getattr(motion, 'affine', None) is not None and motion.has_affine_pose():
+            from core.perception.affine_motion_from_named_points import affine_motion
+
+            fitted = affine_motion(starts, ends)
         pose = thing.point_pose
         if (fitted is None or _reference_error(pose, starts, ends, fitted,
                 pose.pixel_size, target=pose.position) > 1.):

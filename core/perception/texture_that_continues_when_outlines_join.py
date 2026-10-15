@@ -56,6 +56,8 @@ def could_continue(thing: Any, motions: dict, at: float) -> bool:
     motion = motions.get(thing.number)
     if getattr(motion, 'rigid', None) is not None and not motion.has_rigid_pose():
         return False
+    if getattr(motion, 'affine', None) is not None and not motion.has_affine_pose():
+        return False
     born = getattr(thing, "born", None)
     if (born is None or not math.isfinite(born) or motion is None or born > motion.before
             or motion.before != thing.seen or motion.at != at
@@ -73,6 +75,8 @@ def _supported_part(picture: np.ndarray, inside: np.ndarray, thing: Any, motion:
                     left: int, top: int, at: float, difference: float) -> np.ndarray | None:
     born = getattr(thing, "born", None)
     if getattr(motion, 'rigid', None) is not None and not motion.has_rigid_pose():
+        return None
+    if getattr(motion, 'affine', None) is not None and not motion.has_affine_pose():
         return None
     if (born is None or not math.isfinite(born) or motion is None or born > motion.before
             or motion.before != thing.seen or motion.at != at
@@ -98,8 +102,9 @@ def _supported_part(picture: np.ndarray, inside: np.ndarray, thing: Any, motion:
     if (round(right - ox), round(bottom - oy)) != (old.shape[1], old.shape[0]):
         return None
     h, w = inside.shape
-    if getattr(motion, 'rigid', None) is not None:
-        corners = motion.rigid.apply(np.asarray(((ox, oy), (right, oy), (ox, bottom), (right, bottom))))
+    transform = motion.material_transform() if hasattr(motion, 'material_transform') else getattr(motion, 'rigid', None)
+    if transform is not None:
+        corners = transform.apply(np.asarray(((ox, oy), (right, oy), (ox, bottom), (right, bottom))))
         low, high = corners.min(axis=0), corners.max(axis=0)
     else:
         low, high = np.asarray((ox, oy))+(motion.dx, motion.dy), np.asarray((right, bottom))+(motion.dx, motion.dy)
@@ -109,8 +114,8 @@ def _supported_part(picture: np.ndarray, inside: np.ndarray, thing: Any, motion:
         return None
     rows, cols = np.indices((y1 - y0, x1 - x0))
     locations = np.stack((cols+x0+left, rows+y0+top), axis=-1)
-    if getattr(motion, 'rigid', None) is not None:
-        source = motion.rigid.inverse(locations)-(ox, oy)
+    if transform is not None:
+        source = transform.inverse(locations)-(ox, oy)
     else:
         source = locations-(ox+motion.dx, oy+motion.dy)
     # Exact grid rotations acquire tiny floating-point offsets at image edges.

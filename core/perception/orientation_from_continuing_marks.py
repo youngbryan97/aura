@@ -37,7 +37,8 @@ def current_angular_phase(thing: Any, at: float) -> AngularPhase | None:
 
 def _phase_of_pose(pose: PointPose) -> AngularPhase | None:
     reference_at = getattr(pose, 'angular_reference_at', None)
-    if (reference_at is None or not isinstance(pose.pixel_size, (int, float)) or isinstance(pose.pixel_size, bool)
+    if (getattr(pose, 'deformed', False) or reference_at is None
+            or not isinstance(pose.pixel_size, (int, float)) or isinstance(pose.pixel_size, bool)
             or not math.isfinite(pose.pixel_size) or pose.pixel_size <= 0.
             or not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
                                       for v in (reference_at, pose.born, pose.at, pose.angular_offset, pose.angular_error))

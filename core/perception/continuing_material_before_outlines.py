@@ -37,6 +37,11 @@ def material_matches(things: dict[int, Any], blobs: list[dict], motions: dict, a
             starts = np.asarray([previous[name] for name in names])
             ends = np.asarray([current[name] for name in names])
             fitted = rigid_motion(starts, ends)
+            motion = motions.get(number)
+            if fitted is None and getattr(motion, 'affine', None) is not None and motion.has_affine_pose():
+                from core.perception.affine_motion_from_named_points import affine_motion
+
+                fitted = affine_motion(starts, ends)
             pose = thing.point_pose
             if fitted is not None and _reference_error(pose, starts, ends, fitted,
                     pose.pixel_size, target=pose.position) <= 1.:
@@ -52,7 +57,8 @@ def _continuing_marks(thing: Any, motion: Any, at: float) -> tuple[dict, dict] |
             or not all(math.isfinite(v) for v in (at, thing.seen, thing.born, motion.dx, motion.dy, motion.error))
             or motion.error < 0.
             or thing.born > thing.seen or not 0. < at-thing.seen <= .35
-            or (motion.rigid is not None and not motion.has_rigid_pose())):
+            or (motion.rigid is not None and not motion.has_rigid_pose())
+            or (getattr(motion, 'affine', None) is not None and not motion.has_affine_pose())):
         return None
     names, locations = tuple(motion.points), tuple(motion.locations)
     if (not 3 <= len(names) <= 256 or motion.support != len(names) or len(names) != len(locations)

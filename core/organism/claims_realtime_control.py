@@ -5,6 +5,7 @@ from typing import Any
 def _play_execution_claims() -> tuple:
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
+    from core.perception.affine_motion_from_named_points import _affine_material_invariant
     from core.perception.position_from_the_same_points import _surviving_reference_invariant
     from core.perception.recording_the_frames_and_inputs import _recorded_pixel_invariant
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
@@ -32,6 +33,9 @@ def _play_execution_claims() -> tuple:
             ('notice_controls_keep_javascript_word_boundaries', 'core/skills/sovereign_browser_drawing.py',
              'tests/test_only_an_exposed_notice_close_is_pressed.py', lambda: _notice_word_boundaries_invariant() == (),
              'The embedded notice-close expression preserves JavaScript word boundaries; physical close coordinates require a current hit on the labelled element or its descendant.'),
+            ('affine_material_requires_redundant_geometry', 'core/perception/affine_motion_from_named_points.py',
+             'tests/test_affine_material_is_not_a_rigid_body_turn.py', lambda: _affine_material_invariant() == (),
+             'Limited affine material deformation requires redundant named marks, leave-one-out prediction and a stable inverse; it supplies no rigid angular phase or control authority.'),
             *_reward_authority_claims())
 
 

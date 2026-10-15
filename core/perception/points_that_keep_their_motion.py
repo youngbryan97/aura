@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
+from core.perception.affine_motion_from_named_points import AffineMotion, affine_motion
 from core.perception.position_from_the_same_points import PointPose, last_observed_outline
 from core.perception.rigid_motion_from_named_points import RigidMotion, rigid_motion
 from core.verify import invariant
@@ -50,6 +51,18 @@ class PointMotion:
     locations: tuple[tuple[float, float], ...] = ()
     rigid: RigidMotion | None = None
     pixel_size: float = 1.
+    affine: AffineMotion | None = None
+
+    def has_affine_pose(self) -> bool:
+        return (self.rigid is None and isinstance(self.affine, AffineMotion) and self.affine.valid()
+                and isinstance(self.pixel_size, (int, float)) and not isinstance(self.pixel_size, bool)
+                and math.isfinite(self.pixel_size) and self.pixel_size > 0.
+                and self.support >= 6 and self.support == len(self.points) == len(self.locations)
+                and len(set(self.points)) == self.support
+                and all(len(p) == 2 and all(math.isfinite(v) for v in p) for p in self.locations))
+
+    def material_transform(self):
+        return self.rigid if self.has_rigid_pose() else self.affine if self.has_affine_pose() else None
 
     def has_rigid_pose(self) -> bool:
         pose = self.rigid
@@ -325,6 +338,8 @@ def _motion_of_retained_marks(thing: Any, points: list[SeenPoint], center: tuple
     ends = np.asarray([(p.x, p.y) for p in owned])
     fitted = rigid_motion(starts, ends)
     if fitted is None:
+        fitted = affine_motion(starts, ends)
+    if fitted is None:
         return None
     from core.perception.position_from_the_same_points import _reference_error
 
@@ -342,6 +357,9 @@ def _motion_of_retained_marks(thing: Any, points: list[SeenPoint], center: tuple
         return None
     measured = rigid_motion(np.asarray([(p.old_x, p.old_y) for p in used]),
                             np.asarray([(p.x, p.y) for p in used]))
+    if measured is None and isinstance(fitted, AffineMotion):
+        measured = affine_motion(np.asarray([(p.old_x, p.old_y) for p in used]),
+                                 np.asarray([(p.x, p.y) for p in used]))
     if measured is None or np.max(np.linalg.norm(measured.apply(starts)-fitted.apply(starts), axis=1)) > .75:
         return None
     support = [used[index] for index in measured.inliers]
@@ -350,7 +368,9 @@ def _motion_of_retained_marks(thing: Any, points: list[SeenPoint], center: tuple
         return None
     shift = measured.apply(center)-center
     return PointMotion(float(shift[0]), float(shift[1]), max(p.error for p in support), len(support),
-                       thing.seen, at, tuple(p.number for p in support), tuple((p.x, p.y) for p in support), measured)
+                       thing.seen, at, tuple(p.number for p in support), tuple((p.x, p.y) for p in support),
+                       measured if isinstance(measured, RigidMotion) else None,
+                       affine=measured if isinstance(measured, AffineMotion) else None)
 
 
 @invariant('perception.retained_material_precedes_a_joined_outline_majority', scope='perception',
