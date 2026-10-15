@@ -251,6 +251,64 @@ def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> 
                    if request is not None else None)))
 
 
+def record_screen_options(observation: Any, clickable: Any, keys: Any, *, leaving_alone: Any = ()) -> None:
+    """Keep the normal pursuit's offered controls with its original reading.
+
+    A reader snapshot has no declared RGB contract. Preserve its bytes and
+    mark that channel order as unspecified. This event is not a motor frame
+    and must not enter pixel-control replay as one.
+    """
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return
+    from core.perception.observed_transfer import _pixels as snapshot_pixels
+    from core.perception.observed_transfer import freeze_screen
+
+    screen = freeze_screen(observation)
+    snapshot = snapshot_pixels(screen.picture) if screen.picture is not None else None
+    layout = []
+    for region in (observation.get('layout') or [])[:128]:
+        if not isinstance(region, dict):
+            continue
+        measured = {key: value[:500] if isinstance(value, str) else value
+                    for key in ('text', 'x', 'y', 'width', 'height', 'center_x', 'center_y', 'confidence')
+                    if isinstance(value := region.get(key), (str, int, float, bool))}
+        layout.append(measured)
+    recorder.offer(recorder.event('screen_options', text=str(observation.get('text') or '')[:8000],
+        layout=layout, offered_clicks=[str(name)[:300] for name in list(clickable)[:256]],
+        offered_keys=[str(key)[:80] for key in list(keys)[:128]],
+        leaving_alone=[str(label)[:300] for label in list(leaving_alone)[:256]],
+        capture=dict(at=screen.capture_at, surface=screen.surface, bounds=screen.bounds, epoch=screen.epoch),
+        snapshot_channels='unspecified; original reader bytes',
+        truncated=len(observation.get('layout') or []) > 128 or len(clickable) > 256),
+        _pixels(snapshot) if snapshot is not None else None)
+
+
+@invariant('perception.normal_screen_options_keep_their_reading', scope='perception',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _screen_options_invariant() -> tuple:
+    from core.perception.observed_transfer import ScreenReading, make_snapshot
+
+    pixels = np.zeros((8, 10, 3), np.uint8)
+    pixels[2:5, 2:8] = (17, 49, 203)
+    region = dict(text='(BLAY)', x=.2, y=.25, width=.6, height=.4)
+    observation = ScreenReading(dict(text='Read the instructions (BLAY)', layout=[region], capture_at=2.),
+                                picture_snapshot=make_snapshot(pixels))
+    recorder = FrameAndInputRecording(Path('.'))
+    token = _ACTIVE.set(recorder)
+    try:
+        record_screen_options(observation, ['click "(BLAY)"'], ['up'])
+        event, picture = recorder.queue.get_nowait()
+        region['text'], pixels[:] = 'changed', 0
+        assert event['kind'] == 'screen_options' and event['layout'][0]['text'] == '(BLAY)'
+        assert event['offered_keys'] == ['up'] and event['capture']['at'] == 2.
+        assert tuple(picture[3, 3]) == (17, 49, 203)
+        assert event['snapshot_channels'].startswith('unspecified')
+    finally:
+        _ACTIVE.reset(token)
+    return ()
+
+
 @invariant('perception.recorded_pixels_keep_their_bytes', scope='perception',
            owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
 def _recorded_pixel_invariant() -> tuple:

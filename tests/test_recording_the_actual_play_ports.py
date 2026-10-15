@@ -204,6 +204,60 @@ def test_a_target_lookup_retains_the_made_result_for_its_action_record():
     assert len(calls) == 1 and choosing.last_target is result
 
 
+@pytest.mark.asyncio
+async def test_normal_pursuit_options_keep_their_original_reading_without_becoming_a_motor_frame(tmp_path, monkeypatch):
+    from core.cognition import her_bearings
+    from core.perception.observed_transfer import ScreenReading, make_snapshot
+    from core.skills.screen_pursuit_looking import _her_bearings
+    from tools.replay_recorded_play_pixels import recorded_picture
+
+    picture = np.zeros((30, 60, 3), np.uint8)
+    picture[5:15, 10:30] = (3, 27, 219)
+    layout = [dict(text='Next', x=.2, y=.2, width=.3, height=.2, confidence=.9)]
+    observation = ScreenReading(dict(text='Instructions Next', layout=layout, capture_at=2.,
+                                    surface_id='one-view', bounds=[0, 0, 60, 30]),
+                                picture_snapshot=make_snapshot(picture))
+    called = []
+    def works():
+        called.append(1)
+        return ['up', 'left']
+    monkeypatch.setattr(her_bearings, 'take_bearings', lambda place: place)
+    directory = tmp_path / 'normal-options'
+    async with record_frames_and_inputs(directory):
+        place = _her_bearings(observation, ['click "Next"'], observation['text'], SimpleNamespace(works=works))
+        layout[0]['text'] = 'replaced'
+        picture[:] = 0
+    assert called == [1] and place.keys == ('up', 'left')
+    event = _events(directory)[0]
+    assert event['kind'] == 'screen_options' and event['kind'] != 'frame'
+    assert event['layout'][0]['text'] == 'Next'
+    assert event['offered_clicks'] == ['click "Next"'] and event['offered_keys'] == ['up', 'left']
+    assert event['capture']['at'] == 2. and event['capture']['bounds'] == [0., 0., 60., 30.]
+    assert tuple(recorded_picture(directory, event)[8, 15]) == (3, 27, 219)
+
+
+@pytest.mark.asyncio
+async def test_a_normal_reading_without_pixels_stays_without_pixels(tmp_path):
+    from core.perception.recording_the_frames_and_inputs import record_screen_options
+
+    directory = tmp_path / 'unpictured-options'
+    async with record_frames_and_inputs(directory):
+        record_screen_options({'text': 'Next'}, [], [])
+    event = _events(directory)[0]
+    assert event['kind'] == 'screen_options' and 'file' not in event
+    assert event['capture']['at'] is None
+
+
+def test_normal_option_recording_is_inactive_without_an_opted_in_recorder():
+    from core.perception.recording_the_frames_and_inputs import (
+        _screen_options_invariant,
+        record_screen_options,
+    )
+
+    assert _screen_options_invariant() == ()
+    record_screen_options(None, None, None)
+
+
 def test_control_replay_uses_observed_independence_and_refuses_missing_or_conflicting_ownership():
     from tools.replay_recorded_play_pixels import control_histories
 

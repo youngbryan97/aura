@@ -54,3 +54,38 @@ self-motion toward a destination, and choice-record checks for both bound
 and unresolved requests. All Python files compiled. The preceding broader
 run passed 121 checks. Generated DEPS matches all 168 packages; writing
 remains within its unchanged baselines.
+
+## Fresh ordinary browser attempt at 65598e717
+
+`2026-10-15-case18-requested-role` completed in 85.98 seconds with software
+graphics, CPU OCR, classical points and model workers prohibited. G09's
+process was still running separately. The report is won=false, with two
+unread endings. Visible terminal wording included zero landings and one
+crash. The supervisor's return code zero describes completion of the
+measurement, not task success.
+
+The fast actor ran only 3.7 seconds at 6.5 pictures per second. It had no
+confirmed body, no measured moving controls and no normal `play_choice`
+event. It returned because the screen said the round was over. The new
+bounded reading therefore reached the actual end-screen handoff, but this
+run supplied no test of a bound spatial target.
+
+Before fast play, the normal pursuit read the instruction screen and tried
+up and left. It eventually clicked the OCR label `(BLAY)` at 08:08:08; the
+fast loop opened at 08:08:11 and read the crash screen at 08:08:14. The
+recorded 46-second overview still shows the instruction screen and its
+Play control. The exact offered normal-action layouts are not in the
+fast-loop recording, so the reason the earlier decisions omitted that
+control remains unmeasured. Inspect that upstream boundary before another
+controller change. Native gameplay and presentation readiness remain open.
+
+The recorder now also captures the normal pursuit's screen reading, controls
+offered before the bearings filter and the labels that filter leaves alone.
+Its original reader snapshot is retained with its own capture metadata.
+The snapshot's channel order remains explicitly unspecified; these events
+are distinct from motor frames and cannot enter control replay as one.
+Missing snapshots stay missing. This adds evidence without changing choice
+scores or navigation policy. The actual bearings hook, immutable snapshot
+bytes, missing captures and inactive recording passed 63 targeted tests;
+smoke passed 165 with one skip. Ruff, layering and generated DEPS checks
+passed. An existing duplicate local import in the touched hook was removed.
