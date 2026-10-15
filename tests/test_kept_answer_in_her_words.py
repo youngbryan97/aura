@@ -64,7 +64,8 @@ async def test_her_reply_stands_when_it_states_the_kept_answer_and_the_answer_is
         ("I traced it and it closes at 17.\n\nThe answer is: 17", "18", "computed_answer_served"),
     ):
         state = AuraState.default()
-        state.response_modifiers["kept_procedure"] = {"answer": "18", "confidence": 0.99,
+        state.response_modifiers["kept_procedure"] = {"objective": common["objective"], "answer": "18",
+                                                      "confidence": 0.99,
                                                       "receipt": {"strategy_used": "kept_procedure"},
                                                       "generation_metadata": {"response_path": "kept_procedure"}}
         out = await phase._maybe_amplify_response(draft=draft, state=state, **common)

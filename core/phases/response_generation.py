@@ -37,6 +37,9 @@ from core.phases.dialogue_policy import (
     validate_dialogue_response,
 )
 from core.phases.executive_guard import get_executive_guard
+from core.phases.kept_procedures_in_a_turn import (  # noqa: F401  (re-exported: shared with the unitary phase)
+    states_the_answer as _states_the_answer,
+)
 from core.phases.response_contract import build_response_contract
 from core.runtime import background_policy, response_policy
 from core.runtime.connectivity import render_connectivity_prompt_block
@@ -423,47 +426,6 @@ def _judge_the_latent_quality(
 
     _seam_early_response = _block()
     return _seam_early_response, final_latent_quality
-
-
-def _her_query_vector(text: str, task: str) -> Any:
-    """Her embedding of a request, only from an embedding model the runtime already holds; None otherwise."""
-    try:
-        from core.memory.embedding_runtime import (
-            acquire_shared_embedding_engine,
-            shared_embedding_runtime_snapshot,
-        )
-
-        if not shared_embedding_runtime_snapshot().get("engine_live"):
-            return None
-        engine = _HER_EMBEDDER.get("lease")
-        if engine is None:
-            engine = _HER_EMBEDDER["lease"] = acquire_shared_embedding_engine("kinds_by_meaning")
-        return engine.embed_query(text, task=task)
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("no embedding of the request by meaning: %s", exc)
-        return None
-
-
-_HER_EMBEDDER: dict[str, Any] = {}
-
-
-def _states_the_answer(draft: str, answer: str) -> bool:
-    """Whether her reply's closing paragraph states the answer a kept procedure computed.
-
-    A lettered option counts when it is named as one ("(b)", "b)", "option b",
-    "answer is b"); a bare letter would match an article.
-    """
-    paragraphs = [part for part in re.split(r"\n\s*\n", str(draft or "")) if part.strip()]
-    if not paragraphs:
-        return False
-    closing = " ".join(paragraphs[-1].split()).casefold()
-    wanted = " ".join(str(answer or "").split()).casefold()
-    if wanted and wanted in closing:
-        return True
-    lettered = re.fullmatch(r"\(([a-z])\)", wanted)
-    return bool(lettered) and re.search(
-        rf"(?:\(|\boption\s+|\banswer\s+is:?\s+){lettered.group(1)}\b|\b{lettered.group(1)}\)", closing
-    ) is not None
 
 
 def _the_amplifier_stood_down(draft, reason: str):
@@ -982,41 +944,16 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         working memory as a stamped skill result, so she drafts her reply in
         her own words with the computed answer as the fact she builds on.
         """
+        from core.phases.kept_procedures_in_a_turn import kept_answer_for
         from core.utils.injected_blocks import stamp_grounding
 
-        try:
-            from core.brain.reasoning_amplifier_v2 import answer_from_kept_procedures
-        except ImportError as exc:
-            _record_response_generation_degradation(
-                exc, action="drafted without consulting her kept procedures"
-            )
+        state.response_modifiers.pop("kept_procedure", None)
+        planted = await kept_answer_for(objective, router=router, origin=origin, tier=tier)
+        if planted is None:
             return False
-        kept = await asyncio.to_thread(answer_from_kept_procedures, objective)
-        form = "words"
-        if kept is None:
-            kept = await self._kept_answer_by_meaning(objective=objective, router=router, origin=origin, tier=tier)
-            form = "restated"
-        if kept is None:
-            return False
-        operation = dict(kept.receipt.cognitive_operations[0]) if kept.receipt.cognitive_operations else {}
-        known = int(operation.get("agreed_known") or 0)
-        family = str(operation.get("family") or "")
-        summary = (
-            f"computed by the procedure she keeps for problems of the kind {family!r}, "
-            f"which agreed with all {known} answers she knows for that kind"
-        )
-        if form == "restated":
-            summary += f"; the request was first written in that kind's form, as: {operation.get('restated', '')}"
-        payload = {"ok": True, "answer": kept.answer, "summary": summary}
-        state.response_modifiers["kept_procedure"] = {
-            "answer": kept.answer,
-            "family": family,
-            "form": form,
-            "agreed_known": known,
-            "confidence": float(kept.confidence),
-            "receipt": kept.receipt.to_dict(),
-            "generation_metadata": dict(kept.generation_metadata),
-        }
+        family, form = planted["family"], planted["form"]
+        payload = {"ok": True, "answer": planted["answer"], "summary": planted["summary"]}
+        state.response_modifiers["kept_procedure"] = planted
         state.cognition.working_memory.append(
             stamp_grounding(
                 {
@@ -1034,58 +971,6 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         )
         logger.info("🧠 ResponseGeneration: kept procedure for %s answered before the draft (%s).", family, form)
         return True
-
-    async def _kept_answer_by_meaning(self, *, objective: str, router: Any, origin: str, tier: str | None) -> Any:
-        """A kept procedure's answer to a request that means its kind in other words; None when there is none.
-
-        Her embedding model is used only if the runtime already holds it, so a
-        turn never waits on loading one; the restatement is one short decode of
-        hers with the private channel closed.
-        """
-        from core.brain.reasoning_amplifier_v2 import amplified_from_kept_receipt
-        from core.learning.kinds_by_meaning import TASK, restatement_request
-        from core.learning.procedures_from_solved_examples import kept_procedure_book
-
-        if router is None:
-            return None
-        book = await asyncio.to_thread(kept_procedure_book)
-        if book is None or not book.meanings:
-            return None
-        vector = await asyncio.to_thread(_her_query_vector, objective, TASK)
-        if vector is None:
-            return None
-        kind, similarity, why = book.route_by_meaning(vector)
-        if kind is None or kind not in book.procedures or not book.examples.get(kind):
-            logger.debug("no kept kind meant by this request (%s, %.3f)", why, similarity)
-            return None
-        examples = book.examples[kind]
-        # About as long as the kind's longest shown problem and the request together, at under two
-        # characters a token: room for the problem written out, and no more.
-        cap = (max(len(e["problem"]) for e in examples) + len(objective)) // 2
-        try:
-            out = await router.think(
-                messages=[{"role": "user", "content": restatement_request(objective, examples)}],
-                priority=1.0,
-                origin=f"kept_procedure_restatement_{origin}",
-                purpose="kept_procedure_restatement",
-                prefer_tier=tier or "primary",
-                is_background=False,
-                foreground_request=True,
-                allow_cloud_fallback=False,
-                skip_runtime_payload=True,
-                clean_user_surface_contract=True,
-                temperature=0.0,
-                max_tokens=max(1, cap),
-            )
-        except (OSError, ConnectionError, TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            _record_response_generation_degradation(exc, action="drafted without restating the request for its kind")
-            return None
-        restated = str((out.get("content") or out.get("response") or "") if isinstance(out, dict) else (out or ""))
-        if not restated.strip():
-            return None
-        receipt = await asyncio.to_thread(book.answer_restated, kind, restated.strip())
-        receipt["similarity"] = round(similarity, 4)
-        return amplified_from_kept_receipt(receipt)
 
     async def _maybe_amplify_response(
         self,
@@ -1115,10 +1000,12 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         # A kept procedure that answered before the draft (_consult_kept_procedures)
         # put its answer in front of her. Her reply stands in her own words when it
         # states that answer; when it does not, the computed answer is served.
-        planted = state.response_modifiers.get("kept_procedure")
-        if isinstance(planted, dict) and planted.get("answer"):
-            # A restated request's answer rests on a restatement nothing checked, so it never overrides her.
-            stated = _states_the_answer(draft, str(planted["answer"])) or planted.get("form") == "restated"
+        from core.phases.kept_procedures_in_a_turn import after_the_draft, planted_for
+
+        planted = planted_for(state, objective)
+        if planted is not None:
+
+            stated, voice = after_the_draft(draft, planted)
             receipt = dict(planted.get("receipt") or {})
             self._last_reasoning_receipt = receipt
             state.response_modifiers["reasoning_receipt"] = receipt
@@ -1128,8 +1015,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 "confidence": float(planted.get("confidence") or 0.0),
                 "promotion_authority": "kept_procedure",
                 "adopted": not stated,
-                "voice": ("evidence_for_a_restated_request" if planted.get("form") == "restated"
-                          else "her_reply_states_it" if stated else "computed_answer_served"),
+                "voice": voice,
             }
             logger.info("🧠 ResponseGeneration: kept answer for %s, %s (known answers agreed: %s).",
                         planted.get("family"), state.response_modifiers["reasoning_amplifier_v2_active_phase"]["voice"],

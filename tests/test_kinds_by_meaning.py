@@ -78,13 +78,12 @@ def test_a_book_answers_a_restated_request_and_keeps_its_meanings_through_saving
 @needs_boundary
 @pytest.mark.asyncio
 async def test_her_turn_finds_the_kind_by_meaning_restates_it_and_keeps_her_words(monkeypatch) -> None:
-    from core.phases import response_generation as phase_module
     from core.phases.response_generation import ResponseGenerationPhase
     from core.state.aura_state import AuraState
 
     monkeypatch.setattr("core.brain.reasoning_amplifier_v2.answer_from_kept_procedures", lambda *a, **k: None)
     monkeypatch.setattr("core.learning.procedures_from_solved_examples.kept_procedure_book", _book)
-    monkeypatch.setattr(phase_module, "_her_query_vector", lambda text, task: _embed([text])[0])
+    monkeypatch.setattr("core.phases.kept_procedures_in_a_turn.her_query_vector", lambda text, task: _embed([text])[0])
     asked: list[dict] = []
 
     class Router:
@@ -116,13 +115,12 @@ async def test_her_turn_finds_the_kind_by_meaning_restates_it_and_keeps_her_word
 
 @pytest.mark.asyncio
 async def test_without_her_embedder_held_nothing_is_read_by_meaning(monkeypatch) -> None:
-    from core.phases import response_generation as phase_module
     from core.phases.response_generation import ResponseGenerationPhase
     from core.state.aura_state import AuraState
 
     monkeypatch.setattr("core.brain.reasoning_amplifier_v2.answer_from_kept_procedures", lambda *a, **k: None)
     monkeypatch.setattr("core.learning.procedures_from_solved_examples.kept_procedure_book", _book)
-    monkeypatch.setattr(phase_module, "_her_query_vector", lambda text, task: None)
+    monkeypatch.setattr("core.phases.kept_procedures_in_a_turn.her_query_vector", lambda text, task: None)
 
     class Router:
         async def think(self, **kwargs):
@@ -132,3 +130,54 @@ async def test_without_her_embedder_held_nothing_is_read_by_meaning(monkeypatch)
     assert not await phase._consult_kept_procedures(state=state, objective="what's 15 percent of 340?",
                                                     router=Router(), origin="desktop", tier="primary")
     assert "kept_procedure" not in state.response_modifiers
+
+
+@needs_boundary
+@pytest.mark.asyncio
+async def test_the_phase_her_kernel_runs_finds_the_kind_by_meaning_and_shows_her_the_answer(monkeypatch) -> None:
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    monkeypatch.setattr("core.brain.reasoning_amplifier_v2.answer_from_kept_procedures", lambda *a, **k: None)
+    monkeypatch.setattr("core.learning.procedures_from_solved_examples.kept_procedure_book", _book)
+    monkeypatch.setattr("core.phases.kept_procedures_in_a_turn.her_query_vector",
+                        lambda text, task: _embed([text])[0])
+
+    class Router:
+        async def think(self, **kwargs):
+            return "Calculate 0.15*340."
+
+    phase, state = UnitaryResponsePhase(types.SimpleNamespace()), AuraState.default()
+    asked = "what's 15 percent of 340?"
+    await phase._consult_kept_procedures(state, asked, llm=Router(), origin="desktop", tier="primary")
+    evidence = UnitaryResponsePhase._build_active_grounding_message(state, asked, None)
+    assert evidence is not None and "Answer: 51" in evidence["content"]
+    assert "Calculate 0.15*340." in evidence["content"]
+    # Another request's turn is not shown this answer.
+    assert UnitaryResponsePhase._kept_procedure_evidence(state, "what's 20 percent of 50?") is None
+
+
+@pytest.mark.asyncio
+async def test_in_the_phase_her_kernel_runs_her_words_stand_when_they_state_the_kept_answer(monkeypatch) -> None:
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    async def no_search(*_a, **_k):
+        raise AssertionError("a kept answer was in front of her; no search runs")
+
+    monkeypatch.setattr("core.brain.reasoning_amplifier_v2.amplify_turn", no_search)
+    monkeypatch.setattr("core.brain.reasoning_amplifier_v2.answer_from_kept_procedures", lambda *a, **k: None)
+    asked = "A Dyck sequence closes at which step?"
+    common = {"objective": asked, "llm": None, "request_timeout": 20.0, "is_user_facing": True,
+              "is_background": False, "proof_or_benchmark": False}
+    for draft, form, served in (
+        ("I traced every bracket.\n\nIt closes at step 18.", "words", None),
+        ("I traced it.\n\nIt closes at step 17.", "words", "18"),
+        ("I traced it.\n\nIt closes at step 17.", "restated", None),
+    ):
+        state = AuraState.default()
+        state.response_modifiers["kept_procedure"] = {"objective": asked, "answer": "18", "form": form,
+                                                      "receipt": {"strategy_used": "kept_procedure"}}
+        holder = types.SimpleNamespace(_last_reasoning_receipt=None)
+        out = await UnitaryResponsePhase._maybe_amplify_response(holder, draft=draft, state=state, **common)
+        assert out == (served or draft)
