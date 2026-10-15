@@ -70,8 +70,9 @@ async def _end_trial(hands: Any, run: Any, hers: Any, trial: Any, field: str) ->
         counter.released_at_deadline(trial.key, trial.began, run.held_since, epoch, steps=FIRST)
     # A release is a real neutral receipt. Keep its finite observation phase;
     # the next picture may finish it, but cannot skip it to press another key.
+    expected = run.held_since + trial.expected_until - trial.began if trial.expected_until is not None else None
     setattr(run, field, ControlTrial('', run.held_since,
-            run.held_since + trial.until - trial.began, epoch, trial.owner, trial.independent))
+            run.held_since + trial.until - trial.began, epoch, trial.owner, trial.independent, expected))
 
 
 def _lease_matches(run: Any, trial: Any) -> bool:

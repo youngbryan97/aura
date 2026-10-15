@@ -32,6 +32,7 @@ class ControlTrial:
     epoch: int
     owner: BodyOwner | None = None
     independent: bool = True
+    expected_until: float | None = None
 
     def holds(self, held: str, epoch: int, at: float) -> bool:
         """Whether this input still owns the current observation, within its finite time."""

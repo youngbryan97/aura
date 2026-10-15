@@ -10,6 +10,10 @@ from core.agency.a_trial_has_a_physical_end import lease_control_trial
 from core.agency.calibration_for_a_current_body import calibration_owner
 from core.agency.controls_ready_for_the_motion_model import has_a_measured_response
 from core.agency.countering_motion_as_it_appears import CounteringMotion
+from core.agency.enough_observations_for_a_trial import (
+    expected_trial_wait,
+    trial_has_its_observations,
+)
 from core.agency.giving_a_trial_time import ControlTrial
 from core.agency.keeping_a_trial_observable import control_before_the_next_trial
 from core.agency.the_key_against_its_going import FIRST, against_its_going
@@ -30,16 +34,19 @@ from core.perception.what_moves_in_the_picture import TOLD_FROM_STANDING_PX
 async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *, hold: Any, seconds: float) -> None:
     """Repeat unknown controls when there is headroom, using measured control when waiting would lose it."""
     epoch = getattr(getattr(hers, "identification", None), "epoch", 0)
+    maximum_s = 4 * seconds
     trial = getattr(run, "body_trial", None)
     active = (trial is not None and run.held_trying == trial.independent
               and trial.waits_for_picture(run.held, run.held_since, epoch, at))
     seconds = observed_response_seconds(getattr(run, "intervals", ()), least_s=seconds, settle_s=SETTLE_S,
-                                        samples=PUSH_PICTURES, span_s=PUSH_OVER_S, longest_s=4 * seconds) or seconds
+                                        samples=PUSH_PICTURES, span_s=PUSH_OVER_S, longest_s=maximum_s) or seconds
     identified = hers is not None and moves is not None and hers.kind is not None and hers.thing(moves) is not None
+    qualified = active and trial_has_its_observations(trial, hers, moves, at)
     if identified:
         run.things = moves.things
     if identified and hers.carried and not hers.keys_known(run.keys):
-        remaining = max(0., trial.until - at) if active else seconds
+        cadence = statistics.median(run.intervals) if run.intervals else seconds / PUSH_PICTURES
+        remaining = expected_trial_wait(trial, at, cadence) if active else seconds
         measured_delays = run.motion_responses if len(run.motion_responses) >= 3 else run.responses
         timing = getattr(run, "control_timing", None)
         current_delay = timing.ahead(at, time.monotonic()) if timing is not None else None
@@ -52,7 +59,16 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
             run.tried_at = run.held_since
             return
     if active:
-        return
+        if not qualified:
+            return
+        if trial.key:
+            await hold(hands, run, hers, '', at, trying=False)
+            began = run.held_since
+            expected_s = trial.expected_until - trial.began
+            run.body_trial = ControlTrial('', began, began + trial.until - trial.began,
+                epoch, trial.owner, False, began + expected_s)
+            run.tried_at = began
+            return
     run.body_trial = None
     if trial is None and at - run.tried_at < seconds:
         return
@@ -101,6 +117,9 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
         # The previous input's lease and the programme's end do not move.
         run.counter_trial.phase_seconds = duration
     owner = calibration_owner(hers, hers.thing(moves)) if identified else None
-    run.body_trial = ControlTrial(key, began, began + duration, epoch, owner, independent)
+    acquisition = owner is not None and not independent and hers.carried
+    hard_s = maximum_s if acquisition else duration
+    run.body_trial = ControlTrial(key, began, began + hard_s, epoch, owner, independent,
+                                  began + duration if acquisition else None)
     lease_control_trial(hands, run, hers, run.body_trial, field='body_trial')
-    run.longest_control_trial_s = max(getattr(run, "longest_control_trial_s", 0.), duration)
+    run.longest_control_trial_s = max(getattr(run, "longest_control_trial_s", 0.), hard_s)

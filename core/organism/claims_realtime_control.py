@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.enough_observations_for_a_trial import _trial_observation_goal_invariant
     from core.agency.time_to_observe_a_control import _phase_reservation_invariant
     from core.agency.trials_with_room_to_observe import _trial_priority_invariant
     from core.agency.which_one_answers_to_her import _control_sample_custody_invariant
@@ -54,6 +55,9 @@ def _play_execution_claims() -> tuple:
             ('new_phases_keep_their_observation_reservation', 'core/agency/time_to_observe_a_control.py',
              'tests/test_control_measurements_reserve_the_observed_slow_frames.py', lambda: _phase_reservation_invariant() == (),
              'A newly delivered counter phase keeps the current observation reservation; delivered input deadlines and the finite overall experiment end remain unchanged.'),
+            ('trial_acquisition_requires_owned_samples', 'core/agency/enough_observations_for_a_trial.py',
+             'tests/test_a_trial_waits_for_its_actual_observations.py', lambda: _trial_observation_goal_invariant() == (),
+             'An identified inertial body can end a finite calibration phase after distinct settled observations meet its estimator requirement; missing evidence never renews the hard input deadline or its attempt budget.'),
             *_reward_authority_claims())
 
 

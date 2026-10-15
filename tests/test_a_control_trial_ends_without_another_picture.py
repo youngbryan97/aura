@@ -53,7 +53,8 @@ async def test_a_feedback_chosen_trial_keeps_its_deadline_and_its_nonindependent
     run, hers, actions, hands = setup()
     await hold_control(hands, run, hers, 'opaque-a', time.monotonic(), trying=False)
     run.body_trial = ControlTrial(run.held, run.held_since, run.held_since + .015,
-                                  hers.identification.epoch, independent=False)
+                                  hers.identification.epoch, independent=False,
+                                  expected_until=run.held_since + .005)
     pulse = run.body_trial
     assert lease_control_trial(hands, run, hers, pulse, field='body_trial')
     assert body_probe_is_active(run, hers, pointer_steps=0, at=pulse.began)
@@ -61,6 +62,7 @@ async def test_a_feedback_chosen_trial_keeps_its_deadline_and_its_nonindependent
     assert [(kind, key) for kind, key, _at in actions] == [('down', 'opaque-a'), ('up', 'opaque-a')]
     assert actions[-1][2] >= pulse.until and not run.held and not run.held_trying
     assert run.body_trial.key == '' and not run.body_trial.independent
+    assert run.body_trial.expected_until - run.body_trial.began == pytest.approx(.005)
     assert hers._held[-1][1:] == ('', False)
     assert body_probe_is_active(run, hers, pointer_steps=0, at=run.body_trial.began)
     moves = SimpleNamespace(things={}, shape=(200, 200))
