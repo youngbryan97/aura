@@ -88,9 +88,13 @@ def _task_grounding_claims() -> tuple:
         _animated_navigation_invariant,
         _cursor_anchor_invariant,
     )
+    from core.skills.screen_pursuit_on_a_page import _cursor_cache_custody_invariant
     from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('named_clicks_keep_their_cursor_candidate', 'core/skills/screen_pursuit_bearings.py',
+    return (('cursor_cache_keeps_pixels_and_coordinate_frames', 'core/skills/screen_pursuit_on_a_page.py',
+             'tests/test_cursor_witness_reaches_the_physical_click.py', lambda: _cursor_cache_custody_invariant() == (),
+             'Cursor sweep reuse requires the same immutable picture and source geometry; changed pixels, absent pictures and input attempts cannot retain old negative or cross-crop affordance evidence.'),
+            ('named_clicks_keep_their_cursor_candidate', 'core/skills/screen_pursuit_bearings.py',
              'tests/test_cursor_witness_reaches_the_physical_click.py', lambda: _cursor_anchor_invariant() == (),
              'A uniquely associated hover caption retains its cursor candidate in normal click geometry; ambiguous or invalid anchors refuse a named click, and the page revalidates cursor affordance before delivery.'),
             ('making_deadlines_cannot_supply_a_creation_handoff', 'core/skills/sovereign_browser_drawing.py',

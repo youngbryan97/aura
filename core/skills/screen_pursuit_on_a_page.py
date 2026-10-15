@@ -21,7 +21,9 @@ was.
 from __future__ import annotations
 
 import contextvars
-from collections.abc import Sequence
+import hashlib
+import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -30,6 +32,7 @@ from core.perception.recording_the_frames_and_inputs import (
     finish_navigation_input,
 )
 from core.runtime.what_stops_it import current
+from core.verify import invariant
 
 __all__ = ["HER_OWN_PAGE", "OnAPage", "it_was_answered", "on_her_page"]
 
@@ -114,6 +117,56 @@ async def as_a_hand_clicks(page: Any, x: float, y: float, *, arrives_s: float = 
         await mouse.click(x, y)
 
 
+@dataclass(frozen=True)
+class _CursorSweep:
+    key: tuple
+    places: tuple[tuple[float, float], ...]
+
+
+def _cursor_scope(page: Any, seen: dict, over: Any) -> tuple | None:
+    """The screenshot and CSS coordinate frames belonging to this sweep."""
+    from core.perception.observed_transfer import freeze_screen
+
+    try:
+        size = getattr(page, 'viewport_size', None) or {}
+        if not isinstance(size, Mapping) or any(isinstance(value, bool)
+                for value in (size.get('width'), size.get('height'), *(over or ()))):
+            return None
+        wide, tall = float(size['width']), float(size['height'])
+        left, top, right, bottom = over or (0., 0., 1., 1.)
+        if (not all(math.isfinite(v) for v in (wide, tall, left, top, right, bottom))
+                or min(wide, tall) <= 0 or not (0 <= left < right <= 1 and 0 <= top < bottom <= 1)):
+            return None
+    except (KeyError, TypeError, ValueError):
+        return None
+    scan = (left*wide, top*tall, (right-left)*wide, (bottom-top)*tall)
+    frame = freeze_screen(seen)
+    if 'bounds' in seen and frame.bounds is None:
+        return None
+    bounds = frame.bounds or scan
+    picture = frame.picture
+    digest = ((picture.height, picture.width, picture.channels, hashlib.sha256(picture.data).hexdigest())
+              if picture and frame.bounds is not None else None)
+    key = (id(page), str(getattr(page, 'url', '') or ''), frame.surface, scan, bounds, digest)
+    return key, scan, bounds
+
+
+@invariant('agency.cursor_cache_keeps_pixels_and_coordinate_frames', scope='agency',
+           owner='core/skills/screen_pursuit_on_a_page.py', observational=False)
+def _cursor_cache_custody_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    from core.perception.observed_transfer import PixelSnapshot, ScreenReading
+
+    page = SimpleNamespace(viewport_size={'width': 100, 'height': 100}, url='one')
+    first = ScreenReading(dict(text='', bounds=[0, 0, 100, 100]), picture_snapshot=PixelSnapshot(bytes(768), 16, 16))
+    other = ScreenReading(first, picture_snapshot=PixelSnapshot(bytes([1])*768, 16, 16))
+    assert _cursor_scope(page, first, None)[0] != _cursor_scope(page, other, None)[0]
+    assert _cursor_scope(page, first, None)[0] != _cursor_scope(page, first, (.1, .1, .9, .9))[0]
+    assert _cursor_scope(page, {}, None)[0][-1] is None
+    return ()
+
+
 @dataclass
 class OnAPage:
     """One page of her own browser, as the surface a screen pursuit acts on."""
@@ -127,6 +180,8 @@ class OnAPage:
     _pictures: Any = field(default=None, init=False)
     #: The words of the screen the pointer was last swept over, and where it turned into a hand there.
     _swept: Any = field(default=None, init=False)
+    _swept_bounds: Any = field(default=None, init=False)
+    _cursor_sweeps: dict = field(default_factory=dict, init=False)
 
     #: The longest she waits on what plays by itself inside one look, in seconds.
     WATCH_IN_A_LOOK_S = 5.0
@@ -164,13 +219,27 @@ class OnAPage:
         among the shapes she may click: a doorway or a hidden thing looks like nothing in particular."""
         from core.perception.where_the_pointer_turns import the_thing_there, where_the_pointer_turns
 
-        words = frozenset(w for w in str(seen.get("text") or "").lower().split() if len(w) >= 3)
-        known = self._swept
-        if known is not None and (known[0] == words or len(words & known[0]) >= 0.5 * max(1, min(len(words), len(known[0])))):
-            places = known[1]
+        scope = _cursor_scope(self.page, seen, over)
+        if scope is None:
+            self._invalidate_cursor_samples()
+            return
+        key, scan, bounds = scope
+        bounds_key = tuple(round(v, 6) for v in bounds)
+        known = self._cursor_sweeps.get(bounds_key)
+        if known is not None and key[-1] is not None and known.key == key and known.places:
+            places = known.places
         else:
-            places = await where_the_pointer_turns(self.page, over)
-            self._swept = (words, places)
+            sampled = await where_the_pointer_turns(self.page, over)
+            places = tuple(((scan[0]+x*scan[2]-bounds[0])/bounds[2],
+                            (scan[1]+y*scan[3]-bounds[1])/bounds[3]) for x, y in sampled)
+            places = tuple((x, y) for x, y in places if 0 <= x <= 1 and 0 <= y <= 1)
+            self._cursor_sweeps.pop(bounds_key, None)
+            if places:
+                self._cursor_sweeps[bounds_key] = _CursorSweep(key, places)
+                while len(self._cursor_sweeps) > 4:
+                    self._cursor_sweeps.pop(next(iter(self._cursor_sweeps)))
+        words = frozenset(str(seen.get('text') or '').casefold().split())
+        self._swept, self._swept_bounds = (words, places), bounds_key
         regions = [r for r in [*(seen.get("shapes") or []), *(seen.get("layout") or [])] if isinstance(r, dict)]
         linked = {}
         unnamed = []
@@ -237,6 +306,10 @@ class OnAPage:
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             self._focused = False
 
+    def _invalidate_cursor_samples(self) -> None:
+        self._swept = self._swept_bounds = None
+        self._cursor_sweeps.clear()
+
     async def press(self, key: str) -> bool:
         context = current(whose="page_input.press")
         context.check()
@@ -268,6 +341,7 @@ class OnAPage:
             return False
         finally:
             finish_navigation_input(recorded, delivered)
+            self._invalidate_cursor_samples()
             if window is not None:
                 watching.finish_act(window, delivered)
         return True
@@ -293,13 +367,16 @@ class OnAPage:
 
             wide, tall = await the_page_size(self.page)
             left = top = 0.0
-        if self._swept is not None and any(abs(x - a) < 0.02 and abs(y - b) < 0.02 for a, b in self._swept[1]):
+        bounds_key = tuple(round(v, 6) for v in (left, top, wide, tall))
+        swept = self._cursor_sweeps.get(bounds_key)
+        places = swept.places if swept is not None else self._swept[1] if self._swept is not None and self._swept_bounds is None else ()
+        if any(abs(x-a) < 1e-6 and abs(y-b) < 1e-6 for a, b in places):
             # A place found by the pointer turning into a hand is clicked where it answers now: it may move.
             from core.perception.where_the_pointer_turns import where_the_hand_is_now
 
             found = await where_the_hand_is_now(self.page, x, y, left, top, wide, tall)
             if found is None:
-                self._swept = None
+                self._invalidate_cursor_samples()
                 return False
             x, y = found
         watching = self.watching
@@ -315,6 +392,7 @@ class OnAPage:
             return False
         finally:
             finish_navigation_input(recorded, delivered)
+            self._invalidate_cursor_samples()
             if window is not None:
                 watching.finish_act(window, delivered)
         # A click on the drawing is also what gives it the keyboard.
@@ -368,6 +446,7 @@ class OnAPage:
             return False
         finally:
             finish_navigation_input(recorded, delivered)
+            self._invalidate_cursor_samples()
             if window is not None:
                 watching.finish_act(window, delivered)
         self._focused = True

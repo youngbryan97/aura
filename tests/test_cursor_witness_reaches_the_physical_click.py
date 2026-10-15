@@ -17,7 +17,7 @@ from core.skills.screen_pursuit_bearings import (
     where_to_click,
 )
 from core.skills.screen_pursuit_looking import _what_answers_the_pointer
-from core.skills.screen_pursuit_on_a_page import OnAPage
+from core.skills.screen_pursuit_on_a_page import OnAPage, _cursor_cache_custody_invariant
 
 
 class _Page:
@@ -141,3 +141,77 @@ async def test_a_uniform_cursor_supplies_no_local_affordance(everywhere):
     page = _Page()
     page.cursor = lambda x, y: 'pointer' if everywhere else 'auto'
     assert await where_the_pointer_turns(page) == []
+
+
+def _reading(value=0, *, bounds=(0, 0, 1000, 700)):
+    from core.perception.observed_transfer import PixelSnapshot, ScreenReading
+
+    return ScreenReading(dict(text='', bounds=list(bounds)), picture_snapshot=PixelSnapshot(bytes([value])*768, 16, 16))
+
+
+@pytest.mark.asyncio
+async def test_equal_words_do_not_reuse_a_cursor_map_in_another_picture_or_crop(monkeypatch):
+    surface, calls = OnAPage(_Page(), 'editor'), []
+
+    async def points(page, over):
+        calls.append(over)
+        return [(.6, .6)]
+
+    monkeypatch.setattr('core.perception.where_the_pointer_turns.where_the_pointer_turns', points)
+    await surface._where_the_pointer_turns(_reading(), None)
+    await surface._where_the_pointer_turns(_reading(), None)
+    assert len(calls) == 1  # Identical quiet pixels can retain a positive map.
+    await surface._where_the_pointer_turns(_reading(1), None)
+    assert len(calls) == 2  # Both scenes have no words.
+    cropped = _reading(1)
+    await surface._where_the_pointer_turns(cropped, (.1, .2, .9, .8))
+    assert len(calls) == 3
+    assert (cropped['shapes'][0]['center_x'], cropped['shapes'][0]['center_y']) == pytest.approx((.58, .56))
+    assert _cursor_cache_custody_invariant() == ()
+
+
+@pytest.mark.asyncio
+async def test_empty_or_unpictured_sweeps_are_not_negative_cached_knowledge(monkeypatch):
+    surface, calls = OnAPage(_Page(), 'editor'), []
+
+    async def points(*args):
+        calls.append(1)
+        return []
+
+    monkeypatch.setattr('core.perception.where_the_pointer_turns.where_the_pointer_turns', points)
+    await surface._where_the_pointer_turns(_reading(), None)
+    await surface._where_the_pointer_turns(_reading(), None)
+    assert len(calls) == 2
+
+    async def found(*args):
+        calls.append(1)
+        return [(.5, .5)]
+
+    monkeypatch.setattr('core.perception.where_the_pointer_turns.where_the_pointer_turns', found)
+    await surface._where_the_pointer_turns({'text': 'same words'}, None)
+    await surface._where_the_pointer_turns({'text': 'same words'}, None)
+    assert len(calls) == 4
+
+
+@pytest.mark.asyncio
+async def test_an_input_invalidates_a_positive_map_and_nearby_other_points_do_not_inherit_it(monkeypatch):
+    surface, calls = OnAPage(_Page(), 'editor'), []
+
+    async def points(*args):
+        calls.append(1)
+        return [(.8, .8)]
+
+    monkeypatch.setattr('core.perception.where_the_pointer_turns.where_the_pointer_turns', points)
+    await surface._where_the_pointer_turns(_reading(), None)
+    assert await surface.click(.81, .8, [0, 0, 1000, 700])
+    assert surface.page.clicked == [(810., 560.)]
+    assert not surface._cursor_sweeps
+    await surface._where_the_pointer_turns(_reading(), None)
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('bounds', [[0, 0, 0, 700], [0, 0, float('nan'), 700], [0, 0, True, 700]])
+def test_invalid_declared_scope_cannot_be_replaced_by_an_assumed_viewport(bounds):
+    from core.skills.screen_pursuit_on_a_page import _cursor_scope
+
+    assert _cursor_scope(_Page(), _reading(bounds=bounds), None) is None
