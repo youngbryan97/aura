@@ -76,8 +76,12 @@ def _play_execution_claims() -> tuple:
 def _task_grounding_claims() -> tuple:
     from core.agency.a_requested_relation_in_play import _requested_destination_invariant
     from core.language.how_a_game_ended import _damaged_repeat_invariant
+    from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
 
-    return (('requested_destinations_require_current_unique_referents', 'core/agency/a_requested_relation_in_play.py',
+    return (('reference_appearance_is_not_temporal_identity', 'core/perception/a_visual_reference_in_the_picture.py',
+             'tests/test_a_supplied_reference_needs_current_matching_material.py', lambda: _reference_appearance_invariant() == (),
+             'Supplied visual references require current bidirectional patch correspondence and redundant geometry; static asset appearance supplies neither a task role nor a controlled identity, and repeated instances remain competing matches.'),
+            ('requested_destinations_require_current_unique_referents', 'core/agency/a_requested_relation_in_play.py',
              'tests/test_requested_relations_reach_the_actual_target.py', lambda: _requested_destination_invariant() == (),
              'An explicit spatial request binds a unique currently observed named destination; ambiguous names, stale extents and narration-only role names cannot select a replacement contact target.'),
             ('damaged_repeat_labels_supply_no_winner', 'core/language/how_a_game_ended.py',

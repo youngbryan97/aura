@@ -355,3 +355,46 @@ CPU results remain distinct from ordinary native Aura prompt integration.
 No native runtime restart, full 56-case pass or independently witnessed
 presentation qualification has been established. Focused tests and smoke
 passed at each retained checkpoint; the full suite was not run beside G09.
+
+## Explicit goals and supplied visual references, 15 October 2026
+
+Later checkpoints are `f51927d86` (resolved inertial axes), `65598e717`
+(requested spatial destinations and damaged repeat labels) and `6d9f707cd`
+(normal pursuit options retained with their reader snapshot). All were
+pushed to main. The original case-18 browser runs remain CPU-only and lost.
+`2026-10-15-case18-requested-role` exercised the end-screen handoff but made
+no normal target choice. `2026-10-15-case18-offered-controls` has a complete
+recording: 229 motor frames, three normal screen snapshots, 78 input events
+and five normal choices. All five kept the requested landing relation and
+reported an unbound destination. They did not choose scenery instead.
+
+The source's exported artwork now supplies an offline reference experiment
+without another model. Unmodified FFDec 26.3.0 and a Temurin 17 JRE are
+isolated under the worktree's untracked reference-tools artifacts; published
+archive hashes were checked. Headless Java2D used one CPU and a 512-MB heap.
+Only original case 18's source was read. `-select all:1` failed upstream;
+the later `-select 1` succeeded but exported every sprite frame. Do not infer
+first-frame-only custody from its directory name.
+
+The new general correspondence component is
+`core/perception/a_visual_reference_in_the_picture.py`, with an offline
+probe in `tools/measure_supplied_visual_references.py`. It combines bounded
+masked scale search with the existing original forward/reverse patch fits
+and redundant geometry. On a captured gameplay frame it retained 27 points
+of the platform reference and seven of the ship reference. The ship also
+matched its instruction-screen preview; the platform did not. These are
+static appearance correspondences and grant no control identity or task
+role. They have not been wired into the live observer or target binder.
+
+Read the dated evidence documents before the next integration. A reference
+name from source is not automatically the instruction's semantic role;
+preserve ambiguity, capture ownership and the existing causal thresholds.
+The next work must connect qualified material to current observed entities
+without assigning a goal merely because it is unnamed or nearby. G09's
+induction PID 4559 remained active during this work. Leave its model lane,
+original case 9 and the ten holdouts untouched.
+
+The existing two one-shot continuation heartbeats were rearmed for
+12:10:40 PM and 5:11:40 PM Pacific on 15 October, as Bryan requested. Their
+prompts prohibit duplicate workers while this chat is already active, retain
+the G09/runtime boundary and retire each follow-up after it runs.
