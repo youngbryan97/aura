@@ -212,7 +212,7 @@ def corpus_grounding_for(
 
     query = " ".join(str(objective or "").split())
     started = time.monotonic()
-    found = _for_a_question(query, limit=limit, deadline_s=deadline_s, store=store)
+    found = _for_a_question(query, limit=limit, deadline_s=deadline_s, store=store, rerank=rerank)
     if not found and conversation is not None and not _NOT_ABOUT_THE_WORLD.search(query):
         left = deadline_s - (time.monotonic() - started)
         if left > 0:
@@ -235,13 +235,27 @@ def _paragraph_index_beside(store: Any) -> Any:
     return index if index.available() else None
 
 
-def _for_a_question(query: str, *, limit: int, deadline_s: float, store: Any) -> list[tuple[str, str]]:
-    """The passages for a question about the world: this module's search, then the careful lookup."""
+def _for_a_question(query: str, *, limit: int, deadline_s: float, store: Any,
+                    rerank: Callable[[str, list[str]], Sequence[float]] | None = None) -> list[tuple[str, str]]:
+    """The passages for a question about the world.
+
+    With the index of every paragraph (core/knowledge/passage_index.py), the
+    careful lookup's passages and the index's are joined by reciprocal rank
+    fusion, or ordered by ``rerank`` (her embedder) when given. Measured on
+    400 SimpleQA development questions at a chat's 0.25 s (15 October, two
+    draws that share none): the answer was within three passages for 128
+    fused, 123 by every paragraph alone, 103 by the careful lookup alone;
+    within five, 157 against 116; median 160 ms. Without the index, this
+    module's search and then the careful lookup, as before.
+    """
     started = time.monotonic()
     groundable = is_corpus_groundable(query)
     named = asks_about_named_things(query)
     if not groundable and not named:
         return []
+    index = _paragraph_index_beside(store)
+    if index is not None:
+        return _fused_for(query, index, named=named, limit=limit, deadline_s=deadline_s, store=store, rerank=rerank)
     found = _conversational_passages(query, limit=limit, deadline_s=deadline_s, store=store) if groundable else []
     if not found and named:
         # The careful lookup (core/knowledge/passages_about.py): the articles the
@@ -260,6 +274,32 @@ def _for_a_question(query: str, *, limit: int, deadline_s: float, store: Any) ->
             except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
                 found = []
     return found
+
+
+def _fused_for(query: str, index: Any, *, named: bool, limit: int, deadline_s: float, store: Any,
+               rerank: Callable[[str, list[str]], Sequence[float]] | None) -> list[tuple[str, str]]:
+    from core.knowledge.passage_index import fused
+
+    pool = max(1, limit) * _CANDIDATE_POOL_FACTOR
+    started = time.monotonic()
+    every = [(p.title, p.paragraph) for p in index.search(query, limit=pool)]
+    careful: list[tuple[str, str]] = []
+    left = deadline_s - (time.monotonic() - started)
+    if named and left > 0:
+        try:
+            from core.knowledge.passages_about import passages_about
+
+            careful = passages_about(query, store=store, limit=pool, deadline_s=left)
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            careful = []
+    if rerank is None:
+        return fused([careful, every], limit=limit)
+    candidates = fused([careful, every], limit=pool)
+    if not candidates:
+        return []
+    similarity = list(rerank(query, [f"{title}: {paragraph}" for title, paragraph in candidates]))
+    order = sorted(range(len(candidates)), key=lambda i: -similarity[i])
+    return [candidates[i] for i in order[:limit]]
 
 
 def _conversational_passages(query: str, *, limit: int, deadline_s: float, store: Any) -> list[tuple[str, str]]:

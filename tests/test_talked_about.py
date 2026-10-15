@@ -104,3 +104,24 @@ def test_paragraphs_from_articles_the_conversation_does_not_name_join_its_subjec
     assert titles[0] == "Kobe Bryant"
     # The record is in an article the turn never names.
     assert any("Wilt Chamberlain" in text for _title, text in grounding.passages), grounding.passages
+
+
+def test_a_question_is_answered_from_every_paragraph_and_the_careful_lookup_together(tmp_path: Path,
+                                                                                    monkeypatch) -> None:
+    from core.knowledge import passage_index
+    from core.knowledge.passage_index import build
+
+    store = _store(tmp_path)
+    build(tmp_path / "corpus.db", tmp_path / "paragraphs.tantivy", threads=1, heap_bytes=50_000_000)
+    searched: list[str] = []
+    search = passage_index.PassageIndex.search
+
+    def spy(self, question, **kwargs):
+        searched.append(question)
+        return search(self, question, **kwargs)
+
+    monkeypatch.setattr(passage_index.PassageIndex, "search", spy)
+    asked = "What is the record for points scored in a single NBA game, and who scored it?"
+    grounding = corpus_grounding_for(asked, store=store)
+    assert searched == [asked]
+    assert any("Wilt Chamberlain" in text for _title, text in grounding.passages), grounding.passages

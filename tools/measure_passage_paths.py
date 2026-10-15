@@ -8,14 +8,16 @@ tools/measure_passage_recall.py), three ways of choosing passages are run:
   words (core/knowledge/passages_about.py);
 * every paragraph: BM25 over the whole corpus's paragraphs
   (core/knowledge/passage_index.py);
-* fused: reciprocal rank fusion of the two.
+* fused: reciprocal rank fusion of the two;
+* every paragraph first: its ranking, with the careful lookup's passages it
+  lacks after it.
 
 A question counts within k when every word of its gold answer is in the first
 k passages. Words only: her embedder needs the model lane. Each way's time is
 reported too.
 
 Usage:
-    measure_passage_paths.py --count 200 --seed 7 --output FILE [--deadline SECONDS]
+    measure_passage_paths.py --count 200 --seed 7 --output FILE [--deadline SECONDS] [--not-seed 7]
 """
 
 from __future__ import annotations
@@ -38,6 +40,8 @@ def main() -> int:
     parser.add_argument("--count", type=int, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--not-seed", type=int, default=None,
+                        help="leave out the questions this seed draws, for a second sample that shares none")
     parser.add_argument("--deadline", type=float, default=None,
                         help="seconds each way may take (default: the corpus store's backstop)")
     args = parser.parse_args()
@@ -64,8 +68,10 @@ def main() -> int:
         found = run()
         return found, time.monotonic() - began
 
-    chosen = sample(tasks("development"), args.count, args.seed, set())
-    ways = ("careful", "every_paragraph", "fused")
+    first = set() if args.not_seed is None else {t["id"] for t in sample(tasks("development"), args.count,
+                                                                         args.not_seed, set())}
+    chosen = sample(tasks("development"), args.count, args.seed, first)
+    ways = ("careful", "every_paragraph", "fused", "every_paragraph_first")
     counts = {way: dict.fromkeys(WITHIN, 0) for way in ways}
     seconds: dict[str, list[float]] = {way: [] for way in ways}
     deepest = max(WITHIN)
@@ -77,8 +83,11 @@ def main() -> int:
                                                 index.search(q, limit=deepest, deadline_s=deadline)])
         seconds["every_paragraph"].append(took)
         seconds["fused"].append(seconds["careful"][-1] + took)
+        seconds["every_paragraph_first"].append(seconds["careful"][-1] + took)
         both = fused([careful, every], limit=deepest)
-        for way, found in (("careful", careful), ("every_paragraph", every), ("fused", both)):
+        first = (every + [item for item in careful if item not in every])[:deepest]
+        for way, found in (("careful", careful), ("every_paragraph", every), ("fused", both),
+                           ("every_paragraph_first", first)):
             for k in WITHIN:
                 counts[way][k] += holds(found[:k], task["truth"])
 
@@ -87,7 +96,7 @@ def main() -> int:
         return {"median_ms": round(1000 * ordered[len(ordered) // 2]),
                 "p95_ms": round(1000 * ordered[int(0.95 * (len(ordered) - 1))]), "max_ms": round(1000 * ordered[-1])}
 
-    report = {"questions": len(chosen), "seed": args.seed, "deadline_s": deadline, "answer_within_k": counts,
+    report = {"questions": len(chosen), "seed": args.seed, "not_seed": args.not_seed, "deadline_s": deadline, "answer_within_k": counts,
               "time": {way: spread(seconds[way]) for way in ways}}
     args.output.expanduser().write_text(json.dumps(report, indent=1), encoding="utf-8")
     print(json.dumps(report, indent=1))
