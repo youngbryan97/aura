@@ -502,7 +502,10 @@ def _bounded_pixel_claims() -> tuple:
     from core.perception.learned_tracking.points_for_the_motion_eyes import (
         _query_lifetime_invariant,
     )
-    from core.perception.pixel_motion_before_object_identity import _pixel_motion_bound_invariant
+    from core.perception.pixel_motion_before_object_identity import (
+        _pixel_motion_bound_invariant,
+        _translation_layer_invariant,
+    )
     from core.perception.points_before_the_picture_is_reduced import (
         _pixel_search_capacity_invariant,
         _sampling_hint_receipt_invariant,
@@ -514,6 +517,9 @@ def _bounded_pixel_claims() -> tuple:
     from core.runtime.optional_compute import _optional_headroom_invariant
 
     return (
+        ("local_translation_needs_its_own_moving_layer", "core/perception/pixel_motion_before_object_identity.py",
+         "tests/test_pixel_motion_before_object_identity.py", lambda: _translation_layer_invariant() == (),
+         "A local translation proposal can separate coherent moving matches from still background only with current inlier support inside the reported tile; competing layers remain unavailable."),
         ("pixel_exposure_keeps_its_selected_capture_start", "core/agency/collecting_independent_pixel_trials.py",
          "tests/test_collecting_independent_pixel_trials.py", lambda: _settled_pixel_capture_invariant() == (),
          "Paired pixel trials require captures after their selected neutral and settled input intervals; late arrival of an earlier capture cannot supply that exposure."),

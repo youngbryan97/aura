@@ -51,3 +51,35 @@ The existing aggregate module-size excess of 194 lines, response-generation
 method excess and 123 governance regressions remain. No baseline was
 changed. The gate log is
 `/private/tmp/codex-steer/settled-exposure-gates-1014.log`.
+
+## Original-game run from 0dc75aa5c
+
+The assigned original game 9 ran for 167.340228 seconds, exit 0, without a
+wrapper timeout. Artifacts are in
+`/private/tmp/codex-steer/settled-exposure-original9-1014`.
+
+One fast menu stretch returned to navigation in 0.3 seconds with no key
+downs. The game subsequently showed its level-completion screen, captured
+in `game9_0073s.png`, and Level 2, captured in `game9_0083s.png`. The final
+capture still showed Level 2's Play overlay. The campaign reported no whole
+game win. This is observed level progress, not reliable planned control:
+there were 524 decisions and zero assigned-body decisions. Median decision
+picture age was 0.203451165 seconds.
+
+The actor recorded one complete 24-press search with selected settling time
+0.348795910 seconds, and a later 18-press search that timed out with selected
+settling time 0.361587543 seconds. Both released their inputs. Neither
+produced a qualified region or sampling hint.
+
+The diagnostic observer reused ordinal filenames across search instances.
+The later incomplete search overwrote the first 18 pairs of the complete
+search. The root's 24 files therefore cannot form one valid replay. An
+attempted combined replay is marked invalid in
+`/private/tmp/codex-steer/motion-layer-replay-1014/invalidation.json`; its
+aggregate metrics and region verdict are excluded. Per-pair bytes and
+receipts remain genuine, but their grouping was lost. Existing artifacts
+are preserved. Future observers create a distinct directory for each
+discovery instance and record its schedule before physical collection.
+
+Body identification, continuation through current menus, repeatability and
+ordinary native-app presentation proof remain open.

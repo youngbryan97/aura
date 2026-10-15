@@ -12,6 +12,8 @@ from core.perception.pixel_motion_before_object_identity import (
     _camera,
     _local_affine,
     _local_translation,
+    _translation_layer_invariant,
+    _translation_motion_layer,
     pixel_motion_signature,
 )
 
@@ -154,6 +156,43 @@ def test_local_pooling_counts_actual_matches_and_refuses_disagreeing_motion():
     assert measured is not None and measured[1] == 2
     assert measured[0] == pytest.approx((3., 0.))
     assert _local_translation(starts, np.asarray(((3., 0.), (-3., 0.))), np.asarray((10., 10.))) is None
+
+
+def test_translation_retains_a_visible_moving_minority_among_still_pixels():
+    assert _translation_layer_invariant() == ()
+    starts = np.asarray([(x, y) for x in range(6) for y in range(6)], dtype=float)
+    motion = np.zeros_like(starts)
+    motion[-3:] = (3., -2.)
+    owned = np.arange(len(starts)) >= len(starts) - 3
+    found = _translation_motion_layer(starts, motion, np.array((4., 4.)), owned=owned)
+    assert found is not None and found[1] == 3 and found[0] == pytest.approx((3., -2.))
+    assert _translation_motion_layer(starts, motion, np.array((2., 2.)), owned=~owned) is None
+
+
+def test_a_dominant_translation_requires_its_actual_inlier_in_the_tile():
+    starts = np.asarray([(x, y) for x in range(3) for y in range(3)], dtype=float)
+    motion = np.tile((3., 1.), (len(starts), 1))
+    motion[-2:] = ((-7., 3.), (5., -8.))
+    owned = np.arange(len(starts)) == 0
+    found = _translation_motion_layer(starts, motion, np.array((1., 1.)), owned=owned)
+    assert found is not None and found[1] == 7 and found[0] == pytest.approx((3., 1.))
+    assert _translation_motion_layer(starts, motion, np.array((1., 1.)), owned=np.arange(len(starts)) >= 7) is None
+
+
+def test_equally_supported_translations_and_repeated_points_cannot_supply_a_layer():
+    starts = np.asarray([(x, y) for x in range(3) for y in range(2)], dtype=float)
+    motion = np.asarray(((3., 0.),) * 3 + ((-3., 0.),) * 3)
+    assert _translation_motion_layer(starts, motion, np.array((1., 1.)), owned=np.ones(6, bool)) is None
+    repeated = np.zeros((3, 2))
+    assert _translation_motion_layer(repeated, np.tile((4., 0.), (3, 1)), np.zeros(2), owned=np.ones(3, bool)) is None
+
+
+def test_still_translation_and_point_budgets_remain_measured_separately():
+    starts = np.asarray(((0., 0.), (0., 2.), (2., 0.)))
+    found = _translation_motion_layer(starts, np.zeros_like(starts), np.ones(2), owned=np.ones(3, bool))
+    assert found is not None and found[1] == 3 and found[0] == pytest.approx((0., 0.))
+    too_many = np.zeros((MAX_POINTS + 1, 2))
+    assert _translation_motion_layer(too_many, too_many, np.ones(2), owned=np.ones(len(too_many), bool)) is None
 
 
 def test_local_turning_layer_keeps_its_actual_matches_amid_still_marks():

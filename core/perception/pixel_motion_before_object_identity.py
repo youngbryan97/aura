@@ -286,6 +286,46 @@ def _local_translation(starts: np.ndarray, motion: np.ndarray, center: np.ndarra
     return fit[0][2], len(starts)
 
 
+def _translation_motion_layer(starts: np.ndarray, motion: np.ndarray, center: np.ndarray, *,
+                              owned: np.ndarray) -> tuple | None:
+    """Keep coherent local travel when still background shares its neighborhood.
+
+    Only current matches above the existing excursion floor propose a moving
+    layer. Three matches and 70 percent of moving support must agree within
+    the existing pixel error bound. An inlier must occupy the reported tile;
+    nearby movement cannot supply motion to an empty or still tile.
+    """
+    if (not 3 <= len(starts) <= MAX_POINTS or motion.shape != starts.shape or starts.shape[1:] != (2,)
+            or owned.shape != (len(starts),) or owned.dtype != bool or not owned.any()
+            or not np.isfinite(starts).all() or not np.isfinite(motion).all()
+            or len(np.unique(starts, axis=0)) != len(starts)):
+        return None
+    moving = np.linalg.norm(motion, axis=1) > ANGULAR_MOVEMENT_MIN
+    if not moving.any():
+        return _local_translation(starts, motion, center)
+    residual, inside = motion[moving], owned[moving]
+    if len(residual) < 3 or not inside.any():
+        return None
+    # Every hypothesis is an actual matched displacement. No input labels or
+    # object boxes select the layer, and the quadratic work has a point cap.
+    distances = np.linalg.norm(residual[:, None] - residual[None, :], axis=2)
+    best, ambiguous = None, False
+    for candidate in range(len(residual)):
+        selected = distances[candidate] <= LAYER_ERROR_MAX
+        if selected.sum() < max(3, math.ceil(.7 * len(residual))) or not inside[selected].any():
+            continue
+        shift = np.median(residual[selected], axis=0)
+        if (np.max(np.linalg.norm(residual[selected] - shift, axis=1)) > LAYER_ERROR_MAX
+                or np.linalg.norm(shift) <= ANGULAR_MOVEMENT_MIN):
+            continue
+        if best is None or selected.sum() > best[1]:
+            best = shift, int(selected.sum())
+            ambiguous = False
+        elif selected.sum() == best[1] and np.linalg.norm(shift - best[0]) > LAYER_ERROR_MAX:
+            ambiguous = True
+    return None if ambiguous else best
+
+
 def pixel_motion_signature(before_rgb: np.ndarray, after_rgb: np.ndarray, *,
                            tile: int = 12, point_limit: int = 192) -> PixelMotionSignature | None:
     """Measure a pair of RGB captures; custody and input assignment belong to the caller.
@@ -329,9 +369,10 @@ def pixel_motion_signature(before_rgb: np.ndarray, after_rgb: np.ndarray, *,
             # This neighborhood is fixed before pixels or input labels are
             # read. Shared matches remain the same points across nearby tiles.
             pooled = np.all(abs(starts - center) <= tile, axis=1)
-            translation = _local_translation(starts[pooled], residual[pooled], center)
+            translation = _translation_motion_layer(starts[pooled], residual[pooled], center, owned=own[pooled])
             if translation is None:
-                translation = _local_translation(starts[own], residual[own], center)
+                translation = _translation_motion_layer(starts[own], residual[own], center,
+                                                         owned=np.ones(int(own.sum()), dtype=bool))
             displacement, count = translation if translation is not None else ((0., 0.), 0)
             nearby = np.all(abs(starts - center) <= 1.5 * tile, axis=1)
             fitted = _angular_motion_layer(starts[nearby], residual[nearby], center, tile, owned=own[nearby])
@@ -357,4 +398,16 @@ def _pixel_motion_bound_invariant() -> tuple:
     blank = np.full((64, 96, 3), 30, dtype=np.uint8)
     assert pixel_motion_signature(blank, blank) is None
     assert pixel_motion_signature(blank, blank, point_limit=MAX_POINTS + 1) is None
+    return ()
+
+
+@invariant('perception.local_translation_needs_its_own_moving_layer', scope='perception',
+           owner='core/perception/pixel_motion_before_object_identity.py', observational=False)
+def _translation_layer_invariant() -> tuple:
+    starts = np.asarray(((0., 0.), (3., 0.), (0., 3.), (3., 3.), (8., 8.), (11., 8.), (8., 11.)))
+    motion = np.asarray(((0., 0.),) * 4 + ((4., 1.),) * 3)
+    inside = np.asarray((False,) * 4 + (True,) * 3)
+    measured = _translation_motion_layer(starts, motion, np.asarray((10., 10.)), owned=inside)
+    assert measured is not None and measured[1] == 3 and np.allclose(measured[0], (4., 1.))
+    assert _translation_motion_layer(starts, motion, np.asarray((1., 1.)), owned=~inside) is None
     return ()
