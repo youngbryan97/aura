@@ -105,7 +105,6 @@ from .screen_pursuit_bearings import (
     narration_backlog,
     pacing_options,
     screen_options,
-    things_to_click,
     ways_out,
 )
 from .screen_pursuit_looking import (
@@ -1827,6 +1826,7 @@ async def decide_the_next_move(
                 move_said=move_said,
                 observation=observation,
                 anchor=anchor,
+                drawn=drawn,
                 at_rest=at_rest,
                 busy=busy,
                 expected=expected,

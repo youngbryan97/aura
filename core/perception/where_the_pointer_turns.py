@@ -21,6 +21,7 @@ import contextvars
 import logging
 import math
 import weakref
+from dataclasses import dataclass
 from typing import Any
 
 from core.verify import invariant
@@ -28,6 +29,48 @@ from core.verify import invariant
 __all__ = ["places_the_pointer_turns", "shown_as_a_hand", "the_thing_there", "where_the_hand_is_now", "where_the_pointer_turns"]
 
 logger = logging.getLogger("Aura.WhereThePointerTurns")
+
+
+@dataclass(frozen=True)
+class CursorSamples:
+    """Point affordances bound to one reading, without an object extent."""
+
+    picture: Any
+    surface: tuple
+    bounds: tuple
+    epoch: str
+    captured: float
+    points: tuple
+
+
+def bind_cursor_samples(reading: Any, points: tuple) -> None:
+    """Keep a private receipt for sampled points in this capture's coordinates."""
+    from core.perception.observed_transfer import ScreenReading, freeze_screen
+
+    if not isinstance(reading, ScreenReading):
+        return
+    reading.cursor_samples = None
+    frame = freeze_screen(reading)
+    if (frame.picture is None or not frame.surface or frame.bounds is None or frame.capture_at is None
+            or not reading.get('_capture_epoch') or not points or len(points) > 24
+            or any(len(point) != 2 or any(type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1
+                                        for v in point) for point in points)):
+        return
+    reading.cursor_samples = CursorSamples(frame.picture, frame.surface, frame.bounds, frame.epoch,
+                                          frame.capture_at, tuple(tuple(p) for p in points))
+
+
+def has_current_cursor_sample(reading: Any, point: tuple) -> bool:
+    """Retained cursor points cannot cross changed pixels, surfaces or epochs."""
+    from core.perception.observed_transfer import freeze_screen
+
+    samples = getattr(reading, 'cursor_samples', None)
+    if not isinstance(samples, CursorSamples):
+        return False
+    frame = freeze_screen(reading)
+    return ((frame.picture, frame.surface, frame.bounds, frame.epoch, frame.capture_at) ==
+            (samples.picture, samples.surface, samples.bounds, samples.epoch, samples.captured)
+            and point in samples.points)
 
 # A sweep can exceed its look while the browser delivers physical moves.
 # Keep only finished physical queries when its time expires.

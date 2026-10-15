@@ -218,6 +218,7 @@ class OnAPage:
         """Once a screen, the places on it where the pointer turns into a hand (core/perception/where_the_pointer_turns.py),
         among the shapes she may click: a doorway or a hidden thing looks like nothing in particular."""
         from core.perception.where_the_pointer_turns import (
+            bind_cursor_samples,
             corners_to_query,
             the_thing_there,
             where_the_pointer_turns,
@@ -268,6 +269,7 @@ class OnAPage:
             seen.setdefault("shapes", []).append({"text": f"the one that stands out at {round(x * 100)}% across, "
                                                           f"{round(y * 100)}% down", "center_x": x, "center_y": y,
                                                   "shape": True, "answers_the_pointer": True})
+        bind_cursor_samples(seen, places)
 
     async def _watch(self, over: tuple[float, float, float, float] | None) -> None:
         """Watch the part being read as a stream from the first look; and while something plays by itself, wait for it."""

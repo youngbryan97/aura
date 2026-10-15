@@ -57,6 +57,17 @@ async def observe_the_screen(
 
     run: SimpleNamespace,
 ) -> dict[str, Any]:
+    from core.perception.the_latest_reading_at_handoff import keep_latest_reading
+
+    seen = await _observe_the_screen(run)
+    keep_latest_reading(run.drawn, seen)
+    return seen
+
+
+async def _observe_the_screen(
+
+    run: SimpleNamespace,
+) -> dict[str, Any]:
     # These were imports inside the function this was lifted from, and
     # they stay inside it. A module-level import binds once; a test that
     # patches one of these on its own module would then never be seen,
@@ -229,10 +240,6 @@ async def observe_the_screen(
         }
     reading_took.append(time.monotonic() - began_looking)
     del reading_took[:-LOOKS_REMEMBERED]
-    # What the thing said the last time she looked, kept for whoever handed it
-    # to her. A game drawn on a page says GAME OVER only in its pixels.
-    if seen.get("ok") and str(seen.get("text") or "").strip():
-        drawn["last_seen"] = " ".join(str(seen["text"]).split())
     # A screen she may not look at is a pause, not an ending.
     #
     # The person locked theirs while she was playing, and the reading that

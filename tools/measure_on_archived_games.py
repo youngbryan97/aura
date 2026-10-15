@@ -206,6 +206,7 @@ async def _one(number: int, address: str, minutes: float, visible: bool, trace: 
         "won": played.get("won"),
         "error": played.get("error"),
         "last_seen": str(played.get("last_seen") or "")[:200],
+        **{key: played[key] for key in ('last_observation', 'last_read_words') if key in played},
         "said": said[:200],
         "stopped_because": str(played.get("stopped_because") or ""),
         "graphics_backend_requested": graphics_backend,

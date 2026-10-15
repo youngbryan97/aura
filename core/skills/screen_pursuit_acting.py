@@ -292,6 +292,11 @@ async def carry_out_the_move(
         window = run.observation.get("answer_window")
         pending["dispatch_sequence_before"] = window.get("sequence") if isinstance(window, dict) else 0
         pending["dispatch_started_monotonic"] = time.monotonic()
+        held_reading = getattr(run, 'drawn', None)
+        if isinstance(held_reading, dict):
+            from core.perception.the_latest_reading_at_handoff import keep_latest_reading
+
+            keep_latest_reading(held_reading, dict(ok=False, error='input attempt needs a subsequent capture'))
         if two is not None and two.by_clicks:
             # Taken, then used: a click on the thing, a moment for the screen to answer, and a click on what it is used on.
             arrived = 1 if await _click_what_she_named(run, two.one) and await _after_a_moment(_click_what_she_named(run, two.other)) else 0
@@ -380,6 +385,8 @@ async def carry_out_the_move(
         at_rest["reading"] = (
             came_to_rest if came_to_rest is not pending["watched"] else None
         )
+        if isinstance(held_reading, dict) and at_rest['reading'] is not None:
+            keep_latest_reading(held_reading, came_to_rest)
         # How long she could not do anything else for, measured by
         # doing it rather than guessed at.
         busy.an_act_took(key, time.monotonic() - started_acting)

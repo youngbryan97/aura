@@ -84,6 +84,7 @@ def _task_grounding_claims() -> tuple:
     from core.language.how_a_game_ended import _damaged_repeat_invariant
     from core.perception.a_visual_reference_in_the_picture import _reference_appearance_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_effect_prefix_invariant
+    from core.perception.the_latest_reading_at_handoff import _latest_reading_invariant
     from core.perception.visual_assets_in_a_flash_file import _visual_asset_custody_invariant
     from core.perception.where_am_i import _pointer_target_frame_invariant
     from core.perception.where_the_pointer_turns import (
@@ -97,7 +98,10 @@ def _task_grounding_claims() -> tuple:
     from core.skills.screen_pursuit_on_a_page import _cursor_cache_custody_invariant
     from core.skills.sovereign_browser_drawing import _making_handoff_invariant
 
-    return (('current_pointer_targets_do_not_depend_on_a_grid', 'core/perception/where_am_i.py',
+    return (('handoff_words_belong_to_the_latest_reading', 'core/perception/the_latest_reading_at_handoff.py',
+             'tests/test_handoff_retains_the_latest_reading.py', lambda: _latest_reading_invariant() == (),
+             'Wordless or unavailable observations retire current text while retaining separately labelled historical words; an older capture cannot replace a newer handoff observation.'),
+            ('current_pointer_targets_do_not_depend_on_a_grid', 'core/perception/where_am_i.py',
              'tests/test_current_pointer_target_survives_an_unrelated_grid.py', lambda: _pointer_target_frame_invariant() == (),
              'A unique pointer-responsive target in a current scoped pixel capture can admit its click despite an unrelated remembered grid; missing or ambiguous targets and keyboard moves retain the prior frame gate.'),
             ('view_navigation_does_not_name_a_following_body', 'core/agency/the_controls_a_game_names.py',

@@ -177,20 +177,24 @@ def _current_pointer_target(observation: Mapping[str, Any] | None, label: str) -
     # anchor cannot regain authority through its label's centre.
     x, y = ((region.get('pointer_x'), region.get('pointer_y')) if 'pointer_x' in region or 'pointer_y' in region
             else (region.get('center_x'), region.get('center_y')))
+    from core.perception.where_the_pointer_turns import has_current_cursor_sample
+
     return (type(x) in (float, int) and type(y) in (float, int) and 0 <= x <= 1 and 0 <= y <= 1
-            and any(item.label == named for item in frame.regions))
+            and has_current_cursor_sample(observation, (x, y)))
 
 
 @invariant('perception.current_pointer_targets_do_not_depend_on_a_grid', scope='perception',
            owner='core/perception/where_am_i.py', observational=False)
 def _pointer_target_frame_invariant() -> tuple:
     from core.perception.observed_transfer import PixelSnapshot, ScreenReading
+    from core.perception.where_the_pointer_turns import bind_cursor_samples
 
     region = dict(text='a current target', x=.2, y=.2, width=.2, height=.2,
                   center_x=.3, center_y=.3, answers_the_pointer=True)
     seen = ScreenReading(dict(ok=True, shapes=[region], surface_id='one', bounds=[0, 0, 8, 8],
                               capture_at=1., _capture_epoch='one', settled=True),
                          picture_snapshot=PixelSnapshot(bytes(192), 8, 8))
+    bind_cursor_samples(seen, ((.3, .3),))
     assert _current_pointer_target(seen, 'a current target')
     assert not _current_pointer_target(dict(seen), 'a current target')
     assert not _current_pointer_target(seen, 'an old target')

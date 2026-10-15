@@ -227,8 +227,11 @@ def _pursue_on_screen_result(
     ]
     # The last thing the thing said, so whoever handed it over can tell a game
     # that ended from one that is waiting for her.
-    if drawn and drawn.get("last_seen"):
-        result["last_seen"] = str(drawn["last_seen"])
+    if drawn and ('last_observation' in drawn or drawn.get('last_seen')):
+        result['last_seen'] = str(drawn.get('last_seen') or '')
+        for key in ('last_observation', 'last_read_words'):
+            if key in drawn:
+                result[key] = dict(drawn[key])
     return result
 
 def _pursue_on_screen_part_5(
@@ -444,10 +447,10 @@ async def _wait_for_a_screen_or_stop(
     0.
     """
     from .screen_pursuit import (
-        PASSES_ON_ITS_OWN,
-        SOMETHING_ELSE_IS_IN_FRONT,
         _SEAM_FELL_THROUGH,
         _WHY_SHE_CANNOT_LOOK,
+        PASSES_ON_ITS_OWN,
+        SOMETHING_ELSE_IS_IN_FRONT,
         _what_being_refused_a_look_means,
         wait_for_a_screen_to_look_at,
     )
