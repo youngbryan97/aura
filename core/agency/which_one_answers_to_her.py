@@ -1159,11 +1159,12 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         for key in keys:
             if self.carried:
                 # Carried, a key moves her by what it adds to her going: its push less the pull on her with no key.
-                push, rest = self.push_of(key), self.push_of("") or (0.0, 0.0)
-                way = None if push is None else ((push[0] - rest[0]) * PUSHED_FOR_S, (push[1] - rest[1]) * PUSHED_FOR_S)
+                push, rest = self.push_of(key), self.push_of("")
+                way = None if push is None or rest is None else (
+                    (push[0] - rest[0]) * PUSHED_FOR_S, (push[1] - rest[1]) * PUSHED_FOR_S)
             else:
                 way = self.way_of(key)
-            if way is not None and math.hypot(*way) > REALLY_MOVES:
+            if way is not None and math.hypot(*way) > _usable_motion_floor(self.carried):
                 moving[key] = way
         return moving
 
@@ -1185,9 +1186,36 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         ways = list(self.keys_that_move_her(keys).values())
         absent = False if self.keys_known(keys) else None
         return (
-            True if any(abs(vx) > REALLY_MOVES for vx, _vy in ways) else absent,
-            True if any(abs(vy) > REALLY_MOVES for _vx, vy in ways) else absent,
+            True if any(abs(vx) > _usable_motion_floor(self.carried) for vx, _vy in ways) else absent,
+            True if any(abs(vy) > _usable_motion_floor(self.carried) for _vx, vy in ways) else absent,
         )
+
+
+def _usable_motion_floor(carried: bool) -> float:
+    """A known acceleration must produce resolved displacement over its response horizon.
+
+    Acceleration changes velocity by a*T but position by a*T*T/2. A
+    discovery effect threshold is not the resolution of an established
+    body's measured control. Direct pace retains its existing criterion.
+    """
+    return 2 * TOLD_FROM_STANDING_PX / PUSHED_FOR_S if carried else REALLY_MOVES
+
+
+@invariant('agency.inertial_control_axes_use_displacement_resolution', scope='agency',
+           owner='core/agency/which_one_answers_to_her.py', observational=False)
+def _inertial_axis_resolution_invariant() -> tuple:
+    hers = WhichIsHers()
+    hers.kind, hers.carried = 1, True
+    responses = {'q': (36., 20.), '': (0., 20.)}
+    hers.push_of = responses.get
+    assert hers.keys_that_move_her(['q']) == {'q': (18., 0.)}
+    assert hers.axes(['q']) == (True, False)
+    responses['q'] = (4., 20.)
+    assert not hers.keys_that_move_her(['q']) and hers.axes(['q']) == (False, False)
+    responses.pop('')
+    assert not hers.keys_that_move_her(['q']) and hers.axes(['q']) == (None, None)
+    assert ANSWERS == 20. and REALLY_MOVES == 20.
+    return ()
 
 
 def ways_carried(hers: WhichIsHers, keys: list[str], mine: Any, ahead_s: float) -> tuple[dict[str, tuple[float, float]], tuple[float, float]]:

@@ -307,3 +307,51 @@ terminal-image proof. Next capture the actual fast-loop frames and paired
 input receipts durably; the current twenty-second pictures cannot explain
 each identity failure. See the appended measurement in
 `docs/evidence/steering/2026-10-15-unowned-readings-do-not-award-reward.md`.
+
+## Pixels, owned calibration and actual contact, 15 October 2026
+
+Continue in `.claude/worktrees/codex-steering-1012`. G09's induction process
+4559 remains owned by another lane; original case 9 and the ten holdouts
+remain excluded. Do not launch a model-backed runtime beside that job.
+The following general repairs are committed and pushed to main:
+
+- `4f7040fb4`: record the actual browser frames and input calls, with byte
+  hashes, capture clocks, bounded asynchronous writes and explicit gaps.
+- `f54cef691`, `4ab5de94b`, `b00b242a9`, `2c85070e2`: surviving material marks,
+  pieces of one visible body, qualified affine image deformation, and a
+  shared fresh-mark admission budget. Recorded-pixel replay improved
+  identity retention. These changes do not create control authority.
+- `39b41cd50`: current menu classifications reach navigation; the notice
+  expression preserves JavaScript word boundaries and requires an exposed
+  hit target.
+- `1851fbbcc`: body selection copies sample lists rather than sharing them;
+  captured velocities cannot count twice. A changing strip needs a known
+  role before supplying reward or scarcity, even after body selection.
+- `3b4b3e124`: provisional pulse/rest paths rank finite calibration trials
+  by visible clearance. Trial ownership is separate from statistical
+  independence; feedback-chosen calibration does not teach body identity.
+- `d0decf11c`: the observation reservation reaches each newly delivered
+  pulse/rest phase. Existing input deadlines and the overall end stay fixed.
+- `5830b1de5`: an identified inertial body's calibration can wait for four
+  actual settled samples, then release and observe its rest. The existing
+  1.8-second hard maximum and two-attempt allowance remain bounded.
+- `543ef27db`: the optional recording keeps the actual selected target and
+  predicted plan at the choice boundary without rerunning target selection.
+
+Fresh CPU-only original case-18 play now sometimes confirms the body in
+four seconds and measures all three accelerations. It has still made no
+landing. The latest inspected run at `5830b1de5` crashed against the platform:
+the ship remained tracked immediately before impact, then exploded. Inspect
+`artifacts/flash-campaign/2026-10-15-case18-observed-acquisition/` and its
+dated evidence document. Its last five recording events were dropped at
+the raw-byte limit; the crash precedes that gap.
+
+The next run, `2026-10-15-case18-made-choice`, is intended to preserve the
+made destination and arrival plan. Inspect its supervisor/process before
+launching anything else. Do not diagnose that collision as a tracker loss
+or invent a surface policy before reading which target was actually chosen.
+
+CPU results remain distinct from ordinary native Aura prompt integration.
+No native runtime restart, full 56-case pass or independently witnessed
+presentation qualification has been established. Focused tests and smoke
+passed at each retained checkpoint; the full suite was not run beside G09.
