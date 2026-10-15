@@ -150,3 +150,22 @@ the queue on to G12, as it was written to; G12's BBEH run was stopped at
 directory after attempt 3.
 
 Rounds, lines, decoding, requests and the claims are unchanged.
+
+## Amendment, 14 October 2026, 23:55, during the prefill's second round, before anything new was kept
+
+At 22:43 the GPU ran out of memory and the Mac had to be reset. The window
+server's command buffers failed with kIOGPUCommandBufferCallbackErrorOutOfMemory
+while the prefill decoded with no MLX limits and a test browser was drawing on
+the GPU. Unbounded, MLX may hold 1.5 times the GPU's 51.8 GB working set, and
+it kept every KV buffer freed as a group's caches grew. Every tool that takes a
+standalone model lane now holds MLX to the host envelope of
+core/runtime/mlx_memory_guard.py (ed8d6fae6 on main). The limits are soft and
+change no decoded token.
+
+The prefill resumed at 23:46 at 53444b82b, which is 641cdf08b with that one
+change. Round 2 had 60 of its 75 proposals logged; they are read back, and
+the 15 that were in flight are decoded again. Attempt 3's drafts run at the
+same commit, and the decode measurements at 5724f9c6d (7616ed583 with the
+same change).
+
+Rounds, lines, decoding, requests and the claims are unchanged.

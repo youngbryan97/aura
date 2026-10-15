@@ -61,3 +61,11 @@ The same 460 questions and the paper's instruction; micro average.
 | Gemma 3 27B | 17.4 |
 | Distill R1 Qwen 32B | 15.4 |
 | Gemma 2 27B IT | 15.0 |
+
+## Note, 14 October 2026, 23:55: the commit G12's runs resume at
+
+G12's runs go on at ff696bc2d, which is 19b9c7e6d with one change: a model a
+standalone tool loads is held to the host's MLX memory envelope (ed8d6fae6 on
+main), after a GPU out-of-memory freeze at 22:43 forced a reset. The envelope
+bounds how much memory MLX keeps; it changes no decoded token. Each run
+directory's source_commit.txt lists every commit it ran at.
