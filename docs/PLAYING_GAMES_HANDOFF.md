@@ -569,3 +569,20 @@ view. Pixel rate-control worlds and a strengthened Chromium fixture pass. The
 fixture now shifts the layout after discovery and requires multiple correction
 cycles; its earlier version could succeed in a single arrival. See the dated
 continuing-motion evidence, then run the original repeat before claiming gains.
+
+## Startup receiver checkpoint, 15 October 2026
+
+The `e72751c94` original case 3 repeat finished in 220.61 seconds: 12 moves,
+no win. Eight corrected cursor requests have a zero-error held-pointer
+comparison immediately before delivery. The final kitchen picture does not
+prove collection or completion. Repeated material under changing point labels
+still needs persistent action memory.
+
+The 25.25-second startup delay was traced to a warning that appears on hover
+and receives the first click. The intended play control receives only the
+second. Startup now retains the trusted down/click paths and retries promptly
+when a different element received the press. The normal startup function on
+the original file completed in 2.365 seconds, exposing the title screen.
+See `docs/evidence/steering/2026-10-15-startup-presses-keep-their-actual-receiver.md`.
+Focused checks: 43 passed. Smoke: 165 passed, one skipped. No native runtime
+or G09 changes. Gameplay and native presentation readiness remain unproved.

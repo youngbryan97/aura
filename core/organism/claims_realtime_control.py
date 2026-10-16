@@ -24,9 +24,12 @@ def _play_execution_claims() -> tuple:
     )
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
-    from core.skills.sovereign_browser_drawing import _notice_word_boundaries_invariant
+    from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
 
-    return (('normal_navigation_records_its_physical_port', 'core/perception/recording_the_frames_and_inputs.py',
+    return (('cover_press_keeps_its_actual_receiver', 'core/skills/sovereign_browser_drawing.py',
+             'tests/test_a_cover_press_checks_its_actual_receiver.py', lambda: _cover_press_invariant() == (),
+             'Startup retries distinguish a trusted physical click on the intended DOM control from a click received by another overlay; unmeasured delivery retains the finite startup allowance.'),
+            ('normal_navigation_records_its_physical_port', 'core/perception/recording_the_frames_and_inputs.py',
              'tests/test_cursor_witness_reaches_the_physical_click.py', lambda: _navigation_port_recording_invariant() == (),
              'Opted-in normal page navigation preserves the actual port coordinates and delivery outcome without entering motor replay or supplying a task-completion claim.'),
             ("software_graphics_need_a_measured_cpu_renderer", "core/capabilities/browser_graphics_policy.py",

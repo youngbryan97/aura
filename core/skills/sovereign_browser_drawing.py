@@ -66,21 +66,72 @@ _WHERE_IT_DRAWS = """
 #: What the page puts over the middle of its drawing, when that is something to
 #: press and not the drawing itself: an emulator's power button, a player's
 #: "click to play". Shadow roots are looked into, as a player's overlay is in one.
-_PUT_OVER_IT = """
-(function (x, y) {
+_COVER_AT_POINT = """
+function coverAtPoint(x, y) {
   var el = document.elementFromPoint(x, y), depth = 0;
   while (el && el.shadowRoot && depth < 6) {
     var inner = el.shadowRoot.elementFromPoint(x, y);
     if (!inner || inner === el) break;
     el = inner; depth++;
   }
-  if (!el || el.tagName === 'CANVAS' || el.tagName === 'EMBED' || el.tagName === 'OBJECT') return '';
+  if (!el || el.tagName === 'CANVAS' || el.tagName === 'EMBED' || el.tagName === 'OBJECT') return {element: null, description: ''};
   var pressed = el.closest ? (el.closest('button,a,[role=button]') || el) : el;
   var pressable = getComputedStyle(pressed).cursor === 'pointer' || /^(BUTTON|A|IMG|INPUT|SVG|PATH)$/i.test(pressed.tagName)
     || pressed.getAttribute('role') === 'button' || typeof pressed.onclick === 'function';
-  return pressable ? (pressed.tagName + ' ' + (pressed.getAttribute('aria-label') || pressed.getAttribute('alt') || pressed.className || '')).slice(0, 80) : '';
-})(%f, %f)
+  var description = pressable ? (pressed.tagName + ' ' + (pressed.getAttribute('aria-label') || pressed.getAttribute('alt') || pressed.getAttribute('class') || '')).slice(0, 80) : '';
+  return {element: pressable ? pressed : null, description: description};
+}
 """
+
+_PUT_OVER_IT = '(function (x, y) {' + _COVER_AT_POINT + 'return coverAtPoint(x, y).description;})(%f, %f)'
+
+# The physical press can meet a new overlay after the last hit test. Keep its
+# actual public event path, so a press on that overlay does not spend the
+# intended control's whole startup allowance.
+_COVER_PRESS = '(function (x, y, arm) {' + _COVER_AT_POINT + """
+  var observed = coverAtPoint(x, y), previous = window.__auraCoverPress;
+  if (arm && observed.element) {
+    if (previous) previous.stop();
+    var controller = new AbortController(), timeout;
+    var receipt = {received: null, stop: function () {
+      controller.abort(); clearTimeout(timeout);
+    }};
+    var expected = observed.element, down = false;
+    var atPoint = function (e) {
+      return e.isTrusted && e.button === 0 && Math.abs(e.clientX - x) <= 1 && Math.abs(e.clientY - y) <= 1;
+    };
+    document.addEventListener('mousedown', function (e) {
+      if (atPoint(e)) down = e.composedPath().indexOf(expected) >= 0;
+    }, {capture: true, signal: controller.signal});
+    document.addEventListener('click', function (e) {
+      if (!atPoint(e)) return;
+      receipt.received = down && e.composedPath().indexOf(expected) >= 0;
+      receipt.stop();
+    }, {capture: true, signal: controller.signal});
+    timeout = setTimeout(receipt.stop, 2500);
+    window.__auraCoverPress = receipt;
+    previous = receipt;
+  }
+  return {description: observed.description, received: previous ? previous.received : null};
+})(%f, %f, %s)
+"""
+
+
+def _cover_receipt(observation: Any) -> tuple[str, bool | None]:
+    """Unknown or malformed delivery remains unmeasured."""
+    if not isinstance(observation, Mapping) or not isinstance(observation.get('description'), str):
+        return '', None
+    received = observation.get('received')
+    return observation['description'][:80], received if type(received) is bool else None
+
+
+@invariant('agency.cover_press_needs_its_actual_event_path', scope='agency',
+           owner='core/skills/sovereign_browser_drawing.py', observational=False)
+def _cover_press_invariant() -> tuple:
+    assert _cover_receipt({'description': 'BUTTON', 'received': False}) == ('BUTTON', False)
+    assert all(_cover_receipt({'description': 'BUTTON', 'received': v})[1] is None for v in (1, 'true', [], {}))
+    assert _cover_receipt(None) == ('', None)
+    return ()
 
 #: The close controls of notices laid over the drawing (a player's warning, a
 #: page's banner), by their own words or sign, as viewport points to click.
@@ -171,18 +222,21 @@ async def _start_what_is_covered(page: Any, band: tuple[float, float, float, flo
     for press in range(PRESSES_TO_START):
         wide, tall = await the_page_size(page)
         x, y = (band[0] + band[2]) / 2 * wide, (band[1] + band[3]) / 2 * tall
-        over = str(await page.evaluate(_PUT_OVER_IT % (x, y)) or "")
+        over, _received = _cover_receipt(await page.evaluate(_COVER_PRESS % (x, y, 'true')))
         if not over:
             break
         if press == 0:  # said once: pressing it again is the same act, not news
             _tell("The game has a button over it to start it; pressing that first.")
         await page.mouse.click(x, y)
         began = time.monotonic()
+        missed = False
         while time.monotonic() - began < STARTS_WITHIN_S:
-            await asyncio.sleep(1.0)
-            if str(await page.evaluate(_PUT_OVER_IT % (x, y)) or "") != over:
+            await asyncio.sleep(0.1)
+            current, received = _cover_receipt(await page.evaluate(_COVER_PRESS % (x, y, 'false')))
+            missed = received is False
+            if current != over or missed:
                 break
-        await asyncio.sleep(2.0)
+        await asyncio.sleep(0.1 if missed else 2.0)
         band = _the_band(await page.evaluate(_WHERE_IT_DRAWS)) or band
     wide, tall = await the_page_size(page)
     closes = json.loads(str(await page.evaluate(_CLOSES_OVER_IT % (band[0] * wide, band[1] * tall, band[2] * wide, band[3] * tall)) or "[]"))
