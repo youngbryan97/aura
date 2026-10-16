@@ -2824,7 +2824,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
-  REOPENED 2026-10-16 10:40 ([correction](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)): attempt 3
+  REOPENED 2026-10-16 09:37 ([correction](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)): attempt 3
   graded her drafts by exact DeepMind notation and the kept answers by each kind's own grader; with one
   grader for both arms held-out math is 27 gained to 25 lost (p = 0.89), pooled 61 to 79. The record of
   the closing claim follows, kept as it was written.

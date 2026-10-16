@@ -134,3 +134,6 @@ The registered analysis and verdict files are left as they were (`g09-attempt3-a
 regrade is `g09-attempt3-analysis/fair_regrade_math_held_out.json`. The registered verdict is a correct
 computation of a comparison that was not fair, so it does not show what G09 asks. G09 is open again. The live
 proof above stands for what it showed: kept procedures reach her chat and answer there.
+
+The correction's heading gives 10:40; that time was written without reading a clock. It was committed at
+09:37 (5e5b2185f).
