@@ -2823,8 +2823,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repairs containment false positives, disjoint-task causal attribution, and
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
-- [x] G09 Establish broad reasoning gain; bounded synthetic success is not this.
-  CLOSED 2026-10-16 ([result](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)),
+- [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  REOPENED 2026-10-16 10:40 ([correction](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)): attempt 3
+  graded her drafts by exact DeepMind notation and the kept answers by each kind's own grader; with one
+  grader for both arms held-out math is 27 gained to 25 lost (p = 0.89), pooled 61 to 79. The record of
+  the closing claim follows, kept as it was written.
+  Closed 2026-10-16 ([result](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)),
   attempt 3 as preregistered: procedures her model wrote and kept by evidence,
   against her drafts. Pooled 141 gained to 68 lost (p = 4.9e-7); held-out
   kinds, math 107 to 14 (p = 6.5e-19) and planning 32 to 0 (p = 4.7e-10);

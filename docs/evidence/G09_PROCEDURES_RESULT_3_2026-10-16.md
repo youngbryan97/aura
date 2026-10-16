@@ -104,3 +104,33 @@ Her kept procedures are her live default, and in chat wording they reach her for
 The BIG-Bench Hard kinds are posed with three worked examples, so a chat request falls below those kinds' bars
 and her draft stands alone. That is the gap the live proof leaves open. The plan's expected answer for request 4
 was wrong; "]" is right.
+
+## Correction, 16 October 2026, 10:40: the math gain is a grading artifact, and G09 does not close
+
+Attempt 3 graded the two arms differently. Her drafts were graded by the harness's DeepMind rule
+(`tools/run_g09_organ.grade_dm`): the boxed answer equal to the target as text once spaces and dollar signs are
+dropped, or equal in value when both are plain numbers. The kept arm's answers were graded by each kind's own
+grader (preregistration 3, amendment of 15 October 13:55). A kept procedure answers in DeepMind's notation. Her
+drafts answer in LaTeX, so a right draft was marked wrong when it was written `\frac{1}{72}` for `1/72`,
+`231w + 10205` for `231*w + 10205`, or "Yes" for `True`. The 13:55 amendment corrected the kept arm's grading
+and left the drafts' as it was. Found while choosing live-check requests from the kinds where her drafts had
+scored worst.
+
+`tools/g09_fair_regrade.py` grades both arms alike: right when DeepMind's rule or MATH-500's own equivalence
+grader accepts the answer, with a true-or-false kind read as yes or no, a list compared item by item, and a
+request whose kept procedure declined keeping her draft. Held-out math, 300 requests:
+
+| | Drafts right | After kept procedures | Gained | Lost | Two-sided p |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| As registered | 174 | 267 | 107 | 14 | 6.5e-19 |
+| One grader for both arms | 273 | 275 | 27 | 25 | 0.89 |
+
+The 27 gains that remain are mostly kinds where her drafts ran out of thinking budget before answering
+(primality, prime factors) or added in another base wrongly; the 25 losses are requests attempt 3's router sent
+to another kind's procedure. With math corrected, the primary criterion pooled over every domain is 61 gained
+to 79 lost, and breadth has one domain with a gain (planning, 32 to 0). Neither criterion holds.
+
+The registered analysis and verdict files are left as they were (`g09-attempt3-analysis/verdict.json`); the
+regrade is `g09-attempt3-analysis/fair_regrade_math_held_out.json`. The registered verdict is a correct
+computation of a comparison that was not fair, so it does not show what G09 asks. G09 is open again. The live
+proof above stands for what it showed: kept procedures reach her chat and answer there.
