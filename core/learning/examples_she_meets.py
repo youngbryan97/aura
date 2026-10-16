@@ -148,7 +148,10 @@ def _met_line(problem: str, answer: str, source: str) -> str | None:
     problem, answer = str(problem or "").strip(), str(answer or "").strip()
     if source not in SOURCES or not problem or not answer:
         return None
-    return json.dumps({"key": _key(problem), "problem": problem, "answer": answer, "source": source,
+    # A program's answer to a problem is kept beside a person's answer to it, not hidden behind it: it is what
+    # settles whether the person was right (_settle_what_people_said).
+    key = _key(problem) if source == "a_person_gave_it" else f"{_key(problem)}~{source}"
+    return json.dumps({"key": key, "problem": problem, "answer": answer, "source": source,
                        "at": round(time.time(), 3)}) + "\n"
 
 
@@ -361,7 +364,7 @@ async def _check_against_kept(book: ProcedureBook, rows: Sequence[dict[str, Any]
     """
     import asyncio
 
-    report: dict[str, Any] = {"agreed_with_kept": 0, "retired": []}
+    report: dict[str, Any] = {"agreed_with_kept": 0, "retired": [], "disputed": []}
     changed = False
     unanswered: list[dict[str, Any]] = []
     for row in rows:
@@ -390,6 +393,15 @@ async def _check_against_kept(book: ProcedureBook, rows: Sequence[dict[str, Any]
             learning["checked"][row["key"]] = "unanswered"
             unanswered.append(row)
             continue
+        elif row.get("source") == "a_person_gave_it":
+            # One person's word does not undo a procedure that agreed with every answer she knew. The example is
+            # disputed, kept out of learning, and settled by independent programs while she is idle.
+            learning.setdefault("disputed", {})[row["key"]] = {"kind": kind, "person_said": row["answer"],
+                                                               "procedure_said": returned}
+            learning["checked"][row["key"]] = f"disputed:{kind}"
+            report["disputed"].append(kind)
+            await note_to_check_async(row["problem"])
+            continue
         else:
             retired = {"kind": kind, "problem": row["problem"], "known": row["answer"], "source": row["source"],
                        "returned": returned, "declined": receipt.get("declined"), "procedures": book.procedures[kind],
@@ -399,10 +411,56 @@ async def _check_against_kept(book: ProcedureBook, rows: Sequence[dict[str, Any]
             book.agreed.pop(kind, None)
             learning["checked"][row["key"]] = f"retired:{kind}"
             report["retired"].append(kind)
+            # The people who disagreed with it were right: their examples are checked again, now unanswered.
+            for key, verdict in list(learning["checked"].items()):
+                if verdict == f"disputed:{kind}":
+                    learning["checked"].pop(key)
+                    learning.setdefault("disputed", {}).pop(key, None)
         changed = True
     if changed:
         await _keep(book)
     return unanswered, report
+
+
+#: Examples set aside, with why: a person's answer independent programs contradict, or the one answer in a group
+#: that a procedure agreeing with all the rest does not fit.
+SET_ASIDE_RELATIVE = "procedures/set_aside.jsonl"
+
+
+def _settle_what_people_said(rows: Sequence[dict[str, Any]], learning: dict[str, Any]) -> list[dict[str, Any]]:
+    """A person's answer that independent programs answered otherwise is set aside; the rows set aside, new ones."""
+    programs: dict[str, str] = {}
+    for row in rows:
+        if row.get("source") == "independent_programs_agreed":
+            programs[_key(row["problem"])] = row["answer"]
+    aside = learning.setdefault("set_aside", {})
+    new: list[dict[str, Any]] = []
+    for row in rows:
+        settled = programs.get(_key(row["problem"]))
+        if row.get("source") != "a_person_gave_it" or settled is None or row["key"] in aside:
+            continue
+        if not answers_agree(row["answer"], settled):
+            aside[row["key"]] = "independent_programs_answered_otherwise"
+            new.append({"problem": row["problem"], "person_said": row["answer"], "programs_said": settled,
+                        "why": aside[row["key"]], "at": round(time.time(), 3)})
+    return new
+
+
+def _the_one_that_does_not_fit(code: str, group: Sequence[dict[str, Any]], steps: Any) -> dict[str, Any] | None:
+    """The single answer a person gave that a procedure agreeing with every other answer of the group contradicts."""
+    from core.learning.procedures_from_solved_examples import run_procedure
+
+    misses = []
+    for row in group:
+        returned, _error = run_procedure(code, row["problem"], steps=steps)
+        if returned is None or not answers_agree(str(returned), row["answer"]):
+            misses.append((row, returned))
+            if len(misses) > 1:
+                return None
+    if len(misses) != 1 or misses[0][0].get("source") != "a_person_gave_it" or misses[0][1] is None:
+        return None
+    row, returned = misses[0]
+    return {"key": row["key"], "problem": row["problem"], "person_said": row["answer"], "procedure_said": returned}
 
 
 async def learn_one_step(propose_one: ProposeOne, *, documents: Embed | None, queries: Embed | None,
@@ -420,6 +478,9 @@ async def learn_one_step(propose_one: ProposeOne, *, documents: Embed | None, qu
         return {"status": "nothing_met"}
     book = book if book is not None else (kept_procedure_book() or ProcedureBook({}, {}))
     learning = _read_learning()
+    for aside in _settle_what_people_said(rows, learning):
+        await _write(SET_ASIDE_RELATIVE, json.dumps(aside) + "\n", append=True)
+    rows = [row for row in rows if row["key"] not in learning.get("set_aside", {})]
 
     def one_query(text: str) -> Any:
         return queries([text])[0] if queries is not None else None
@@ -481,5 +542,15 @@ async def learn_one_step(propose_one: ProposeOne, *, documents: Embed | None, qu
         state["spent"] = state["requests"] >= ROUNDS
         if candidate is not None:
             out["agreed"] = [candidate.pool_agreed + candidate.sealed_agreed, len(pool) + len(sealed)]
+            # A function that fits every answer but one a person gave names that answer as the likely mistake:
+            # it is set aside, and the group, smaller by one, is tried again from the start.
+            odd = await asyncio.to_thread(_the_one_that_does_not_fit, candidate.code, group, steps)
+            if odd is not None:
+                learning.setdefault("set_aside", {})[odd["key"]] = "does_not_fit_the_others"
+                await _write(SET_ASIDE_RELATIVE, json.dumps({**odd, "why": "does_not_fit_the_others",
+                                                             "at": round(time.time(), 3)}) + "\n", append=True)
+                learning["groups"].pop(group[0]["key"], None)
+                out["set_aside"] = {"problem": odd["problem"], "person_said": odd["person_said"],
+                                    "procedure_said": odd["procedure_said"]}
     await _write(LEARNING_RELATIVE, dumps(learning))
     return out

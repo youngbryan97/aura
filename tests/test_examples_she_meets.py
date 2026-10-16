@@ -99,8 +99,12 @@ async def test_a_kind_she_met_is_learned_kept_and_answers_from_then_on(her_data)
     assert out["agreed_with_kept"] == 1 and len(asked) == 1
     assert ProcedureBook.from_json(json.loads((her_data / KEPT_BOOK_RELATIVE).read_text())).agreed[name] == 15
 
-    # A known answer it disagrees with retires it, with the counterexample kept.
+    # A person's answer it disagrees with disputes it; one person's word does not retire it.
     meets.note_met("orders total of 40 and 44", "85", "a_person_gave_it")
+    out = await meets.learn_one_step(propose_one, documents=_embed, queries=_embed)
+    assert out["retired"] == [] and out["disputed"] == [name]
+    # Independent programs that answer as the person did retire it, with the counterexample kept.
+    meets.note_met("orders total of 40 and 44", "85", "independent_programs_agreed")
     out = await meets.learn_one_step(propose_one, documents=_embed, queries=_embed)
     assert out["retired"] == [name]
     book = ProcedureBook.from_json(json.loads((her_data / KEPT_BOOK_RELATIVE).read_text()))
@@ -219,3 +223,78 @@ async def test_a_kind_found_only_by_meaning_is_not_retired_by_what_it_cannot_rea
     assert out["retired"] == []
     assert ProcedureBook.from_json(json.loads(path.read_text())).procedures["percent"] == [WRONG]
     assert json.loads((her_data / meets.LEARNING_RELATIVE).read_text())["checked"] != {}
+
+
+@needs_boundary
+@pytest.mark.asyncio
+async def test_a_person_who_contradicts_a_kept_procedure_disputes_it_and_does_not_retire_it(her_data) -> None:
+    path = her_data / KEPT_BOOK_RELATIVE
+    book = ProcedureBook.from_json(json.loads(path.read_text()))
+    book.signatures["orders"] = Signature({"orders": 0.5, "total": 0.5}, 0.0)
+    book.procedures["orders"], book.agreed["orders"] = [TOTAL], 40
+    path.write_text(dumps(book.to_json()), encoding="utf-8")
+    from core.learning import procedures_from_solved_examples as procedures
+
+    procedures._kept_cache.clear()
+    meets.note_met("orders total of 40 and 44", "85", "a_person_gave_it")  # the right answer is 84
+
+    async def propose_one(_request: str) -> str:
+        return ""
+
+    out = await meets.learn_one_step(propose_one, documents=_embed, queries=_embed)
+    assert out["retired"] == [] and out["disputed"] == ["orders"]
+    assert ProcedureBook.from_json(json.loads(path.read_text())).procedures["orders"] == [TOTAL]
+    assert meets.next_to_check()["problem"] == "orders total of 40 and 44"  # programs will settle it
+
+    # Programs agree with the procedure: the person's answer stays disputed and out of learning.
+    meets.note_met("orders total of 40 and 44", "84", "independent_programs_agreed")
+    out = await meets.learn_one_step(propose_one, documents=_embed, queries=_embed)
+    assert out["retired"] == [] and out["agreed_with_kept"] == 1
+    learning = json.loads((her_data / meets.LEARNING_RELATIVE).read_text())
+    assert "orders" in json.dumps(learning["disputed"])
+
+
+@needs_boundary
+@pytest.mark.asyncio
+async def test_programs_that_contradict_a_kept_procedure_retire_it(her_data) -> None:
+    path = her_data / KEPT_BOOK_RELATIVE
+    book = ProcedureBook.from_json(json.loads(path.read_text()))
+    book.signatures["orders"] = Signature({"orders": 0.5, "total": 0.5}, 0.0)
+    book.procedures["orders"], book.agreed["orders"] = [WRONG], 40
+    path.write_text(dumps(book.to_json()), encoding="utf-8")
+    from core.learning import procedures_from_solved_examples as procedures
+
+    procedures._kept_cache.clear()
+    meets.note_met("orders total of 40 and 44", "84", "a_person_gave_it")
+
+    async def propose_one(_request: str) -> str:
+        return ""
+
+    assert (await meets.learn_one_step(propose_one, documents=_embed, queries=_embed))["disputed"] == ["orders"]
+    meets.note_met("orders total of 40 and 44", "84", "independent_programs_agreed")
+    out = await meets.learn_one_step(propose_one, documents=_embed, queries=_embed)
+    assert out["retired"] == ["orders"]
+    learning = json.loads((her_data / meets.LEARNING_RELATIVE).read_text())
+    # The person was right, so the person's example is no longer disputed.
+    assert not any("orders" in str(v) for v in learning["disputed"].values())
+
+
+def test_a_persons_answer_that_programs_answer_otherwise_is_set_aside() -> None:
+    rows = [{"key": "a", "problem": "orders total of 1 and 2", "answer": "4", "source": "a_person_gave_it"},
+            {"key": "a~p", "problem": "orders total of 1 and 2", "answer": "3", "source": "independent_programs_agreed"},
+            {"key": "b", "problem": "orders total of 2 and 2", "answer": "4", "source": "a_person_gave_it"}]
+    learning: dict = {}
+    aside = meets._settle_what_people_said(rows, learning)
+    assert [a["person_said"] for a in aside] == ["4"] and learning["set_aside"] == {
+        "a": "independent_programs_answered_otherwise"}
+
+
+@needs_boundary
+def test_the_one_answer_a_procedure_cannot_fit_is_named() -> None:
+    group = [{"key": str(i), "problem": f"orders total of {i} and {i + 3}", "answer": str(2 * i + 3),
+              "source": "a_person_gave_it"} for i in range(7)]
+    group[4] = {**group[4], "answer": "99"}
+    odd = meets._the_one_that_does_not_fit(TOTAL, group, None)
+    assert odd["key"] == "4" and odd["person_said"] == "99" and odd["procedure_said"] == "11"
+    group[5] = {**group[5], "answer": "98"}
+    assert meets._the_one_that_does_not_fit(TOTAL, group, None) is None  # two misfits: the procedure is wrong

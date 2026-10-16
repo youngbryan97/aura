@@ -138,3 +138,47 @@ async def test_a_request_programs_cannot_settle_is_set_aside_without_her_model(m
 
     assert (await reasoning_background._check_one_she_answered(Router()))["status"] == "not_settled_by_programs"
     assert examples_she_meets.next_to_check() is None
+
+
+@pytest.mark.asyncio
+async def test_she_sees_when_the_answer_a_person_gives_is_not_what_her_procedure_says(monkeypatch):
+    from core.brain import cognitive_engine as cognitive_engine_module
+    from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode
+    from core.learning import examples_she_meets
+    from core.phases import kept_procedures_in_a_turn
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    shown: list = []
+
+    async def note(problem, answer, source):
+        return True
+
+    async def kept_answer_for(objective, *, router, origin, tier):
+        if objective != GCD:
+            return None
+        return {"objective": GCD, "answer": "374", "family": "dm_numbers__gcd", "form": "restated",
+                "agreed_known": 5000, "summary": "", "receipt": {}, "generation_metadata": {}, "confidence": 1.0}
+
+    class Router:
+        async def think(self, **kwargs):
+            shown.append("\n".join(str(m.get("content") or "") for m in kwargs["messages"]))
+            return "Are you sure? My procedure says 374."
+
+        def get_last_generation_metadata(self):
+            return {"surface_control_receipt": {"generation_stop_reason": "eos", "surface_quality_gate_reasons": []}}
+
+    class Container:
+        def get(self, name, default=None):
+            return Router() if name == "llm_router" else default
+
+    monkeypatch.setattr(examples_she_meets, "note_met_async", note)
+    monkeypatch.setattr(kept_procedures_in_a_turn, "kept_answer_for", kept_answer_for)
+    monkeypatch.setattr(cognitive_engine_module, "get_container", lambda: Container())
+    await CognitiveEngine()._direct_desktop_quick_reply(
+        "No, it's 375.", ThinkingMode.FAST, "user",
+        {"desktop_quick_reply_contract": True, "visible_user_message": "No, it's 375.", "max_tokens": 512,
+         "recent_completed_exchanges": [stamp_runtime_payload({"user": GCD, "aura": "It's 374."})]},
+        timeout_s=30.0,
+    )
+    assert "answers 374" in shown[-1] and "just given for it is 375" in shown[-1] and "5000" in shown[-1]

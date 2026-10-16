@@ -733,7 +733,9 @@ class _AnswersTheDesktopDirectly:
         _quick_reward = 0.4 if reply_generation_incomplete else 0.6
         return _quick_reward, reply_generation_incomplete
 
-    async def _direct_desktop_quick_reply_note_a_stated_answer(self, context: dict[str, Any], said: str) -> str | None:
+    async def _direct_desktop_quick_reply_note_a_stated_answer(
+        self, context: dict[str, Any], said: str
+    ) -> tuple[str, str] | None:
         """When a person says what the answer was to the request she just answered, keep it as a solved example.
 
         Examples she meets are what she learns new kinds of problem from while
@@ -762,7 +764,34 @@ class _AnswersTheDesktopDirectly:
         if noted:
             logger.info("🧠 CognitiveEngine: kept %r, the answer a person gave, as a solved example for %r.",
                         answer, request[:120])
-        return answer if noted else None
+        return (request, answer)
+
+    async def _direct_desktop_quick_reply_what_her_procedure_says(
+        self, request: str, stated: str, router: Any, origin: str
+    ) -> str | None:
+        """What a kept procedure answers for the request a person just gave an answer to, when it answers otherwise.
+
+        A person can be wrong. One who tells her the gcd of 4862 and 7854 is 375,
+        when the procedure she keeps for that kind agreed with all 5,000 answers
+        she knows, should meet that fact, not have her agree by default; the
+        procedure is not retired on one person's word either
+        (core/learning/examples_she_meets.py, disputes). Shown as evidence, as
+        a skill's result is.
+        """
+        from core.learning.procedures_from_solved_examples import answers_agree
+
+        planted = await self._direct_desktop_quick_reply_kept_procedure(request, router, origin)
+        if planted is None or answers_agree(str(planted["answer"]), stated):
+            return None
+        from .cognitive_engine import logger
+
+        logger.info("🧠 CognitiveEngine: the answer a person gave (%r) is not what her %s procedure says (%r).",
+                    stated, planted["family"], planted["answer"])
+        return (
+            f"[SKILL RESULT: kept_procedure] For the earlier request \"{request[:300]}\", the procedure she keeps for "
+            f"problems of the kind {planted['family']!r}, which agreed with all {planted['agreed_known']} answers she "
+            f"knows for that kind, answers {planted['answer']}. The answer just given for it is {stated}."
+        )
 
     async def _direct_desktop_quick_reply_queue_for_programs(self, request: str) -> bool:
         """Queue a request no kept procedure answered, when independent programs could settle it while she is idle.
@@ -989,8 +1018,9 @@ class _AnswersTheDesktopDirectly:
             context.get("response_style_contract"), self._STYLE_CONTRACT_LIMIT
         )
         visible_user_message = str(context.get("visible_user_message") or objective or "").strip()
+        stated = None
         if not (continuation_contract or obligation_contract):
-            await self._direct_desktop_quick_reply_note_a_stated_answer(context, visible_user_message)
+            stated = await self._direct_desktop_quick_reply_note_a_stated_answer(context, visible_user_message)
         recent_conversation_context = str(context.get("recent_conversation_context") or "").strip()
         history_messages, history_reach_note = _desktop_history_messages_from_context(
             context,
@@ -1205,6 +1235,10 @@ class _AnswersTheDesktopDirectly:
                 from core.phases.kept_procedures_in_a_turn import kept_answer_evidence
 
                 task_grounding_blocks.append(kept_answer_evidence(kept_planted))
+            elif stated is not None:
+                contradiction = await self._direct_desktop_quick_reply_what_her_procedure_says(*stated, router, origin)
+                if contradiction:
+                    task_grounding_blocks.append(contradiction)
         action_episode_evidence = self._direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, runtime_fact_status_contract, self_condition_contract, task_grounding_blocks, user_prompt)
 
         # What the turn can afford to read, now that both claimants exist.
