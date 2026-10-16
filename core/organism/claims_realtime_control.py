@@ -3,6 +3,10 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.points_a_consumer_still_needs import _point_retention_visibility_invariant
+    from core.perception.the_pixel_grid_a_mark_uses import _sample_grid_invariant
+    from core.perception.named_material_in_a_consumed_frame import _named_material_capture_invariant
+    from core.perception.a_source_point_on_visible_marks import _visible_reference_identity_invariant
     from core.perception.visual_references_for_current_sources import _current_reference_source_invariant
     from core.perception.source_references_while_play_advances import _reference_worker_retirement_invariant
     from core.agency.enough_observations_for_a_trial import _trial_observation_goal_invariant
@@ -16,6 +20,7 @@ def _play_execution_claims() -> tuple:
     from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
     from core.perception.coordinates_in_a_visual_reference import _source_image_coordinates_invariant
     from core.perception.a_visual_reference_in_the_picture import _oriented_reference_invariant
+    from core.perception.a_visual_reference_in_the_picture import _reduced_reference_centres_invariant
     from core.perception.names_for_observed_instances import _instance_name_invariant
     from core.perception.a_source_point_on_current_material import _source_point_basis_invariant
     from core.perception.pixels_consumed_by_the_observer import _consumed_pixel_invariant
@@ -36,7 +41,22 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('reference_catalog_requires_the_current_source', 'core/perception/visual_references_for_current_sources.py',
+    return (('reduced_reference_matches_keep_pixel_centres', 'core/perception/a_visual_reference_in_the_picture.py',
+             'tests/test_a_reference_keeps_coordinates_while_it_turns.py', lambda: _reduced_reference_centres_invariant() == (),
+             'Reference matching composes the reduced scene sample-centre offset into original-image geometry; raster footprint checks cannot be replaced by agreement between two identically biased matches.'),
+            ('point_retention_cannot_restore_hidden_marks', 'core/perception/points_a_consumer_still_needs.py',
+             'tests/test_active_material_survives_capacity_allocation.py', lambda: _point_retention_visibility_invariant() == (),
+             'Bounded expiring consumer requests can retain only current visually measured point identities within one third of the point budget; missing material cannot be restored by a retention request.'),
+            ('point_grids_keep_their_actual_sampling', 'core/perception/the_pixel_grid_a_mark_uses.py',
+             'tests/test_named_marks_keep_their_actual_sampling_grid.py', lambda: _sample_grid_invariant() == (),
+             'A point stream maps its actual sampled and working dimensions back to source-image sample centres, including per-axis rounding and raster phase.'),
+            ('named_material_keeps_its_consumed_capture', 'core/perception/named_material_in_a_consumed_frame.py',
+             'tests/test_source_geometry_precedes_object_grouping.py', lambda: _named_material_capture_invariant() == (),
+             'A bounded visible point stream retains its consumed RGB capture, sampling scale, epoch and sequence; stale or duplicate point identities cannot become current material.'),
+            ('reference_geometry_does_not_create_object_identity', 'core/perception/a_source_point_on_visible_marks.py',
+             'tests/test_source_geometry_precedes_object_grouping.py', lambda: _visible_reference_identity_invariant() == (),
+             'A visible source point contains measured geometry without an object number, kind, controlled identity or task role.'),
+            ('reference_catalog_requires_the_current_source', 'core/perception/visual_references_for_current_sources.py',
              'tests/test_registered_references_need_current_source_bytes.py', lambda: _current_reference_source_invariant() == (),
              'Registered source artwork is acquired only for a current complete source declaration and matching pixel identity; a source change or failed current read cannot keep historical references active.'),
             ('reference_workers_retire_publication', 'core/perception/source_references_while_play_advances.py',

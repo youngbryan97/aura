@@ -17,6 +17,8 @@ import numpy as np
 
 from core.perception.a_material_frame_kept_for_its_owner import keep_material_frame
 from core.perception.a_source_point_on_current_material import SourcePointOnTrack, SourcePointSeen
+from core.perception.a_source_point_on_visible_marks import SourcePointOnVisibleMarks, VisibleSourcePoint, attach_source_point_to_visible_marks
+from core.perception.points_a_consumer_still_needs import MaterialRetention, MaterialRegion
 from core.perception.a_visual_reference_in_the_picture import reference_appearances
 from core.perception.visual_references_for_current_sources import (
     RegisteredVisualReference, acquire_visual_references, current_visual_sources,
@@ -38,6 +40,17 @@ class SourceReferencePoint:
     reference_sha256: str
     point: SourcePointSeen
     hypotheses: int = 1
+
+
+@dataclass(frozen=True)
+class SourceReferenceFrame:
+    """A current source coordinate frame with no object or controlled identity."""
+
+    source: str
+    character_id: int
+    exported_name: str
+    reference_sha256: str
+    point: VisibleSourcePoint
 
 
 def _coalesced(points: list[SourceReferencePoint]) -> tuple[tuple, tuple]:
@@ -70,6 +83,7 @@ class _Matched:
     bindings: tuple[SourcePointOnTrack, ...]
     refused: tuple[str, ...]
     views: tuple[tuple[float, float], ...] = ()
+    frames: tuple[SourcePointOnVisibleMarks, ...] = ()
 
 
 @dataclass
@@ -81,7 +95,7 @@ class _Work:
 
 
 def _matched(reference: RegisteredVisualReference, frame: Any, *, angle: float = 0., view: tuple | None = None) -> _Matched:
-    bindings, refused = [], []
+    bindings, refused, frames = [], [], []
     # Each job covers the scale range at one orientation. Successive catalog
     # passes cover the turn; all poses still need original-pixel qualification.
     scales = tuple(sorted({1., *map(float, np.geomspace(.25, 4., 31))}))
@@ -97,11 +111,17 @@ def _matched(reference: RegisteredVisualReference, frame: Any, *, angle: float =
                                                   frame, frame.at, source=reference.source)
         if attached.binding is None:
             refused.append(attached.reason)
+            visible = attach_source_point_to_visible_marks(reference.coordinates, (0., 0.), pose,
+                frame.picture, reference.pixels, frame, frame.at, source=reference.source)
+            if visible.binding is not None:
+                frames.append(visible.binding)
+            else:
+                refused.append(visible.reason)
         else:
             bindings.append(attached.binding)
     views = tuple((float(math.sqrt(np.linalg.det(pose.linear))),
                    float(math.atan2(pose.linear[1][0], pose.linear[0][0]))) for pose in poses)
-    return _Matched(reference, tuple(bindings), tuple(refused) if poses else ('no_qualified_appearance',), views)
+    return _Matched(reference, tuple(bindings), tuple(refused) if poses else ('no_qualified_appearance',), views, tuple(frames))
 
 
 def _finished(raw: Future, slots: Any) -> None:
@@ -124,6 +144,9 @@ class SourceReferencesInPlay:
         self.catalog: tuple = ()
         self.bindings: tuple = ()
         self.points: tuple = ()
+        self.frames: tuple = ()
+        self.source_frames: tuple = ()
+        self.retention: MaterialRetention | None = None
         self.unavailable: tuple = ()
         self.refused: tuple = ()
         self.views: dict = {}
@@ -159,7 +182,7 @@ class SourceReferencesInPlay:
         self._next = now+self.interval_s
         self.status = kind+'_pending'
 
-    def _consume(self) -> None:
+    def _consume(self, observer: Any = None, at: float | None = None) -> None:
         work = self._work
         if work is None or not work.raw.done():
             return
@@ -186,15 +209,36 @@ class SourceReferencesInPlay:
                 self.views[result.reference.key] = result.views
             # A failed appearance search cannot erase continuing measured
             # material. Replace only an instance actually rebound by this job.
-            replaced = {binding.query.key[:4] for binding in result.bindings}
+            delivered = []
+            for binding in result.bindings:
+                sample = binding.inspect(observer, at, source=result.reference.source) if observer is not None else None
+                if sample is None or sample.current is not None:
+                    delivered.append(binding)
+                else:
+                    self.refused = (*self.refused[-31:], sample.reason)
+            replaced = {binding.query.key[:4] for binding in delivered}
             self.bindings = tuple((r, b) for r, b in self.bindings
                                   if r.key != result.reference.key or b.query.key[:4] not in replaced)
-            self.bindings = (*self.bindings, *((result.reference, b) for b in result.bindings))[:256]
+            self.bindings = (*self.bindings, *((result.reference, b) for b in delivered))[:256]
+            for fresh in result.frames:
+                sample = fresh.inspect(observer, at, source=result.reference.source) if observer is not None else None
+                if sample is not None and sample.current is None:
+                    self.refused = (*self.refused[-31:], sample.reason)
+                    continue
+                names = {(a[0], a[1]) for a in fresh.anchors}
+                self.frames = tuple((r, old) for r, old in self.frames
+                    if r.key != result.reference.key or old.epoch != fresh.epoch
+                    or len(names & {(a[0], a[1]) for a in old.anchors}) < 3)
+                if len(self.frames) < 64:
+                    self.frames = (*self.frames, (result.reference, fresh))
+                else:
+                    self.unavailable = (*self.unavailable[-31:], 'source_frame_capacity_unavailable')
             self.status = 'reference_measured'
 
     def advance(self, observer: Any, picture: Any, at: float, tables: tuple, *, now: float | None = None) -> tuple:
         """Poll without waiting; publish only points measured in this current capture."""
         self.points = ()
+        self.source_frames, self.retention = (), None
         if self._closed:
             return ()
         now = time.monotonic() if now is None else now
@@ -204,6 +248,7 @@ class SourceReferencesInPlay:
         tables = current_visual_sources(tables)
         if tables != self.tables:
             self.tables, self.catalog, self.bindings = tables, (), ()
+            self.frames = ()
             self.unavailable, self.refused = (), ()
             self.views = {}
             self._loaded = False
@@ -211,7 +256,7 @@ class SourceReferencesInPlay:
             self._cursor, self._next = 0, -math.inf
             if self._work is not None:
                 self._work.raw.cancel()
-        self._consume()
+        self._consume(observer, at)
         if not self.tables:
             self.status = 'no_current_source'
             return ()
@@ -227,6 +272,30 @@ class SourceReferencesInPlay:
         self.bindings = tuple(kept)
         self.points, conflicting = _coalesced(points)
         self.refused = (*self.refused[-31:], *conflicting)
+        kept_frames, source_frames, retained, regions = [], [], set(), []
+        for reference, binding in self.frames:
+            sample = binding.inspect(observer, at, source=reference.source)
+            if sample.current is not None:
+                kept_frames.append((reference, binding))
+                source_frames.append(SourceReferenceFrame(reference.source, reference.declaration.character_id,
+                    reference.declaration.name, reference.coordinates.reference_sha256, sample.current))
+                retained.update((anchor[0], anchor[1]) for anchor in binding.anchors)
+                if sample.current.sampling_region is not None:
+                    regions.append((sample.current.sampling_region, tuple((a[0], a[1]) for a in binding.anchors)))
+            else:
+                self.refused = (*self.refused[-31:], sample.reason)
+        self.frames, self.source_frames = tuple(kept_frames), tuple(source_frames)
+        marks = getattr(observer, 'material_marks', None)
+        if retained and marks is not None:
+            visible = {(p.number, p.born) for p in marks.points}
+            names = tuple(sorted(retained & visible)[:64])
+            if names:
+                proposed = []
+                for box, anchors in regions:
+                    supported = tuple(key for key in anchors if key in names)
+                    if len(supported) >= 3:
+                        proposed.append(MaterialRegion(box, supported))
+                self.retention = MaterialRetention(marks.epoch, at, at+.5, names, tuple(proposed[:4]))
         if self._work is not None:
             self.status = self._work.kind+('_late' if now-self._work.started > 5. else '_pending')
             return self.points
@@ -254,6 +323,7 @@ class SourceReferencesInPlay:
         self._closed = True
         self._generation += 1
         self.catalog, self.bindings, self.points = (), (), ()
+        self.frames, self.source_frames, self.retention = (), (), None
         self.views = {}
         if self._work is not None:
             self._work.raw.cancel()

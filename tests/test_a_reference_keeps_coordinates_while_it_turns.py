@@ -69,6 +69,20 @@ def test_rotation_and_resizing_keep_the_same_source_samples(scale):
     assert math.dist(poses[0].project((23., 31.)), expected) < .75
 
 
+@pytest.mark.parametrize('edge', [256, 512])
+def test_reducing_the_scene_keeps_original_pixel_centres(edge):
+    reference = _reference()
+    picture = np.full((768, 1024, 3), 20, np.uint8)
+    _paste(picture, _raster(reference, 300, 200, 0., scale=4.), 300, 200)
+    pose, = reference_appearances(picture, reference, scales=(4.,), edge=edge)
+    marker = Image.new('RGBA', (80, 64))
+    ImageDraw.Draw(marker).ellipse((20, 28, 26, 34), fill=(255, 0, 0, 255))
+    weights = _raster(np.asarray(marker), 300, 200, 0., scale=4.)[..., 3].astype(float)
+    yy, xx = np.indices(weights.shape)
+    expected = 300+float((xx*weights).sum()/weights.sum()), 200+float((yy*weights).sum()/weights.sum())
+    assert math.dist(pose.project((23., 31.)), expected) < .25
+
+
 def test_failed_orientation_cannot_suppress_a_valid_fit_in_the_same_region():
     reference = _reference()
     picture = np.full((240, 360, 3), 20, np.uint8)

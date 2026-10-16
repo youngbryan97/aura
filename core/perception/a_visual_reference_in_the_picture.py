@@ -146,6 +146,9 @@ def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales:
     ratio = min(1., edge/max(picture.shape[:2]))
     size = (round(picture.shape[1]*ratio), round(picture.shape[0]*ratio))
     view_scale = np.array((size[0]/picture.shape[1], size[1]/picture.shape[0]))
+    # BOX resampling locates a reduced sample at the centre of its source
+    # footprint. Division alone returns its edge and adds a shared bias.
+    view_origin = (1/view_scale-1)/2
     pixels = np.asarray(Image.fromarray(picture).resize(size, Image.Resampling.BOX))
     scene = pixels.astype(np.float32)/255
     angles = tuple({round((a+math.pi) % (2*math.pi)-math.pi, 12): (a+math.pi) % (2*math.pi)-math.pi
@@ -168,7 +171,7 @@ def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales:
                 c, s = math.cos(fitted.angle), math.sin(fitted.angle)
                 fitted_linear = np.array(((c, -s), (s, c)))
             linear = (fitted_linear @ template_linear)/view_scale[:, None]
-            offset = (fitted_linear @ template_offset+np.asarray(fitted.offset))/view_scale
+            offset = (fitted_linear @ template_offset+np.asarray(fitted.offset))/view_scale+view_origin
             corners = np.array(((0., 0.), (reference.shape[1], 0.),
                                 (0., reference.shape[0]), (reference.shape[1], reference.shape[0]))) @ linear.T+offset
             low, high = corners.min(axis=0), corners.max(axis=0)
@@ -177,7 +180,7 @@ def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales:
                 (*map(float, low), *map(float, high-low)),
                 tuple(tuple(float(v) for v in point) for point in
                       (starts-template_offset) @ np.linalg.inv(template_linear).T),
-                tuple(tuple(float(v) for v in point/view_scale) for point in ends), fitted.error/float(view_scale.min()))
+                tuple(tuple(float(v) for v in point/view_scale+view_origin) for point in ends), fitted.error/float(view_scale.min()))
             probes = ((0., 0.), (reference.shape[1]-1., 0.), (0., reference.shape[0]-1.))
             if not any(max(math.dist(candidate.project(point), old.project(point)) for point in probes) < 1.
                        for old in found):
@@ -197,6 +200,19 @@ def _oriented_reference_invariant() -> tuple:
     seen = reference_appearances(picture, reference, scales=(1.,), angles=(0., math.pi/2))
     assert len(seen) == 1
     assert math.dist(seen[0].project((11., 13.)), (64., 31.)) < .5
+    return ()
+
+
+@invariant('perception.reduced_reference_matches_keep_pixel_centres', scope='perception',
+           owner='core/perception/a_visual_reference_in_the_picture.py', observational=False)
+def _reduced_reference_centres_invariant() -> tuple:
+    reference = np.random.default_rng(53).integers(0, 255, (48, 48, 4), dtype=np.uint8)
+    reference[..., 3] = 255
+    raster = np.asarray(Image.fromarray(reference).resize((192, 192), Image.Resampling.BOX))
+    picture = np.zeros((256, 256, 3), np.uint8)
+    picture[32:224, 32:224] = raster[..., :3]
+    pose, = reference_appearances(picture, reference, scales=(4.,), edge=64)
+    assert math.dist(pose.project((13., 17.)), (85.5, 101.5)) < .25
     return ()
 
 

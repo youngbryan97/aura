@@ -2,6 +2,7 @@
 import asyncio
 import copy
 import threading
+from dataclasses import replace
 from concurrent.futures import Future
 from types import SimpleNamespace
 
@@ -166,6 +167,28 @@ def test_an_empty_appearance_search_does_not_discard_continuing_measured_geometr
     worker.retire()
 
 
+def test_a_result_valid_at_capture_cannot_replace_a_still_valid_binding_after_its_precision_expires(scene, monkeypatch, executor):
+    from core.perception.names_for_observed_instances import query_for
+
+    worker = loaded(scene, monkeypatch, executor)
+    reference, table, picture, observer = scene
+    complete(executor)
+    assert worker.advance(observer, picture, 4., (table,), now=2.)
+    good = worker.bindings[0][1]
+    picture = moved(scene, at=4.1)
+    fresh = replace(good, query=query_for(observer.things[1], observer, 4.1).with_picture(picture), registration_error=.75)
+    assert fresh.current(observer, 4.1, source=reference.source) is not None
+    picture = moved(scene, at=4.2)
+    observer.things[1].point_pose.reference_error = .7
+    assert fresh.current(observer, 4.2, source=reference.source) is None
+    assert good.current(observer, 4.2, source=reference.source) is not None
+    worker._work.raw.set_result(work._Matched(reference, (fresh,), ()))
+    assert worker.advance(observer, picture, 4.2, (table,), now=3.)
+    assert any(binding is good for _, binding in worker.bindings)
+    assert 'reference_point_precision' in worker.refused
+    worker.retire()
+
+
 def test_measured_views_help_reacquisition_without_eliminating_broad_discovery(scene, monkeypatch, executor):
     worker = loaded(scene, monkeypatch, executor)
     reference, table, picture, observer = scene
@@ -265,6 +288,35 @@ async def test_ordinary_observation_starts_the_worker_and_publishes_only_current
             await asyncio.wait_for(asyncio.wrap_future(pending.raw), 5.)
         THE_GUIDE.reset(token)
     assert observation.source_reference_points == ()
+
+
+@pytest.mark.asyncio
+async def test_geometry_before_object_grouping_requests_real_sampler_retention(scene, monkeypatch, executor):
+    from core.cognition.a_guide_to_a_place import Guide, THE_GUIDE
+    from core.perception.play_observation_without_holding_the_loop import open_play_observation
+    from core.perception.what_moves_in_the_picture import WhatMoves
+
+    reference, table, picture, _ = scene
+    monkeypatch.setattr(work, 'acquire_visual_references', lambda *_args, **_kw: ReferencesAcquired((reference,)))
+    token = THE_GUIDE.set(Guide(place='arbitrary', program_visual_assets=(table,)))
+    observation = await open_play_observation(factory=WhatMoves)
+    try:
+        await observation.see(picture, 4.)
+        worker = observation._references
+        worker.interval_s, worker._next = 0., 0.
+        complete(executor)
+        await observation.see(picture, 4.1)
+        complete(executor)
+        await observation.see(picture, 4.2)
+        assert observation.source_reference_frames and worker.retention is not None
+        assert all(not hasattr(frame.point, 'number') for frame in observation.source_reference_frames)
+        await observation.see(picture, 4.3)
+        assert observation.material_retention_admitted >= 3
+        assert observation.source_reference_frames[0].point.position == pytest.approx((52., 38.), abs=.1)
+        assert not hasattr(observation.source_reference_frames[0], 'controlled')
+    finally:
+        await observation.close()
+        THE_GUIDE.reset(token)
 
 
 def test_retirement_canary():

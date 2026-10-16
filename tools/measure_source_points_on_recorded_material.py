@@ -125,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--deliver-after-frames', type=int, default=0,
                         help='advance the live observer before delivering the captured matcher result')
     parser.add_argument('--reference-bundle', type=Path, required=True)
+    parser.add_argument('--visible-marks', action='store_true', help='measure geometry from named pixels without an object identity')
     parser.add_argument('--source-point', type=float, nargs=2, default=(0., 0.))
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args(argv)
@@ -169,18 +170,29 @@ def main(argv: list[str] | None = None) -> int:
         picture = _pixels(args.recording, event)
         observer.see(picture, previous_at)
     delivered_at = previous_at
+    def in_working(point):
+        marks = getattr(observer, 'material_marks', None)
+        return marks.grid.from_image(point) if marks is not None else np.asarray(point)*observer.scale
+
     fresh = reference_appearances(picture, reference, scales=scales) if pending else appearances
     delivery_point = (coordinates.project(tuple(args.source_point), fresh[0], picture, reference,
                                          source=coordinates.source) if len(fresh) == 1 else None)
     results, bindings = [], []
     for appearance in appearances:
-        result = coordinates.on_track(tuple(args.source_point), appearance, captured.picture, reference, captured,
-                                      captured.at, source=coordinates.source)
+        if args.visible_marks:
+            from core.perception.a_source_point_on_visible_marks import attach_source_point_to_visible_marks
+
+            result = attach_source_point_to_visible_marks(coordinates, tuple(args.source_point), appearance,
+                captured.picture, reference, captured, captured.at, source=coordinates.source)
+        else:
+            result = coordinates.on_track(tuple(args.source_point), appearance, captured.picture, reference, captured,
+                                          captured.at, source=coordinates.source)
         current = result.binding.current(observer, previous_at, source=coordinates.source) if result.binding else None
-        results.append(dict(reason=result.reason, owner_support=result.owner_support,
+        results.append(dict(reason=result.reason, owner_support=getattr(result, 'owner_support', ()),
                             matched_points=len(appearance.source_points),
                             current=asdict(current) if current else None,
-                            delivery_independent_difference=math.dist(current.position, np.asarray(delivery_point)*observer.scale)
+                            mark_support=getattr(result, 'support', None),
+                            delivery_independent_difference=math.dist(current.position, in_working(delivery_point))
                                 if current and delivery_point else None))
         bindings.append(result.binding)
     tracks = [dict(number=t.number, born=t.born, seen=t.seen, kind=t.kind,
@@ -204,13 +216,14 @@ def main(argv: list[str] | None = None) -> int:
         for binding in bindings:
             sample = binding.inspect(observer, previous_at, source=coordinates.source) if binding else None
             current = sample.current if sample else None
-            difference = math.dist(current.position, np.asarray(fresh_point)*observer.scale) if current and fresh_point else None
+            difference = math.dist(current.position, in_working(fresh_point)) if current and fresh_point else None
             estimates.append(dict(reason=sample.reason if sample else 'initial_attachment_refused',
                                   current=asdict(current) if current else None, independent_difference=difference,
                                   within_working_pixel=difference <= 1. if difference is not None else None))
         tracked.append(dict(sequence=event['sequence'], at=previous_at, independent_appearances=len(fresh),
                             estimates=estimates))
     record = dict(schema='aura.recorded_source_point_material.v1', frames=len(frames), source=coordinates.source,
+        carrier='visible_named_pixels' if args.visible_marks else 'existing_object_material',
         through_sequence=args.through_sequence, at=attachment_at, delivered_at=delivered_at,
         delayed_frames=[event['sequence'] for event in pending], followed_until=previous_at, scale=observer.scale, tracks=tracks,
         source_point=args.source_point, results=results, following=tracked, seconds=time.perf_counter()-began,

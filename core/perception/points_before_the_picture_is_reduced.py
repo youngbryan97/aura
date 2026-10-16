@@ -217,12 +217,14 @@ class PointsBeforeReduction(FollowingPoints):
             if changed.any() and changed.mean() <= .6:
                 self._activity = ndimage.maximum_filter(changed, 7)
         current = self._continued_source(image, colours, at) if self._image is not None and self._native_points else []
+        if self._priority is None:
+            self._priority = self.still_needed.priority(current, scale, image[0].shape, at)
         marks = (_new_marks(image[0], current, self.limit, scale, self._activity) if self._priority is None
                  else _new_marks(image[0], current, self.limit, scale, self._activity, priority=self._priority))
         for x, y in marks:
             current.append(SeenPoint(self._number, x, y, x, y, at, at, at, 0., 1))
             self._number += 1
-        self._native_points = self._spread(current, scale)
+        self._native_points = self.still_needed.keep(current, self._spread(current, scale), at, self.limit)
         self.points = tuple(SeenPoint(p.number, p.x * scale[0], p.y * scale[1], p.old_x * scale[0], p.old_y * scale[1],
                             p.born, p.before, p.at, p.error, p.pictures) for p in self._native_points)
         self._image, self._colours, self._at = image, colours, at

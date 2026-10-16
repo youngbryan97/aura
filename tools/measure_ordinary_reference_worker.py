@@ -64,8 +64,11 @@ async def measure(args: argparse.Namespace) -> dict:
             worker = observation._references
             measured.append(dict(sequence=event['sequence'], at=at, observed=events is not None,
                 scale=float(observation.scale), rgb_sha256=event['raw_sha256'],
+                sample_grid=asdict(observation.material_marks.grid) if observation.material_marks is not None else None,
                 status=observation.source_reference_status,
                 points=[asdict(point) for point in observation.source_reference_points],
+                source_frames=[asdict(frame) for frame in observation.source_reference_frames],
+                material_retention_admitted=getattr(observation, 'material_retention_admitted', None),
                 unavailable=list(worker.unavailable) if worker else [], refused=list(worker.refused) if worker else []))
             lags.append(time.monotonic()-frame_started)
         return dict(schema='aura.ordinary_reference_worker_replay.v1', index=str(published),
@@ -81,17 +84,25 @@ async def measure(args: argparse.Namespace) -> dict:
         THE_GUIDE.reset(token)
 
 
-def check_published_points(result: dict) -> dict:
+def check_published_points(result: dict, *, source_frames_only: bool = False) -> dict:
     """Measure published points against fresh pixels, without retained tracking state."""
     import numpy as np
 
     from core.perception.a_visual_reference_in_the_picture import reference_appearances
-    from core.perception.visual_references_for_current_sources import registered_reference
+    from core.perception.visual_references_for_current_sources import registered_reference, acquire_visual_references
+    from core.perception.visual_assets_in_a_flash_file import read_flash_visual_assets
+    from core.perception.the_pixel_grid_a_mark_uses import SampleGrid
     from tools.measure_source_points_on_recorded_material import _frames, _pixels
 
     recording = Path(result['recording'])
     reference = registered_reference(Path(result['reference_bundle']))
-    measured = [frame for frame in result['frames'] if frame['points']]
+    references = {reference.key: reference}
+    if result.get('index'):
+        table = read_flash_visual_assets((Path(result['reference_bundle'])/'source.swf').read_bytes())
+        catalog = acquire_visual_references((table,), root=Path(result['index']).parent.parent)
+        references.update((item.key, item) for item in catalog.references)
+    fields = ('source_frames',) if source_frames_only else ('points', 'source_frames')
+    measured = [frame for frame in result['frames'] if any(frame.get(field) for field in fields)]
     if not measured:
         return dict(checks=[], measured=0, maximum_difference=None, unmeasured=0)
     events, _ = _frames(recording, measured[-1]['sequence'], 256)
@@ -102,17 +113,27 @@ def check_published_points(result: dict) -> dict:
         if frame['at'] != event['capture']['at'] or frame['rgb_sha256'] != event['raw_sha256']:
             raise ValueError('verification must use the same recorded capture bytes')
         picture = _pixels(recording, event)
-        poses = reference_appearances(picture, reference.pixels, scales=tuple(map(float, np.geomspace(.5, 4., 32))))
-        position = (reference.coordinates.project((0., 0.), poses[0], picture, reference.pixels, source=reference.source)
-                    if len(poses) == 1 else None)
-        for point in frame['points']:
-            if (point['source'], point['character_id'], point['reference_sha256']) != reference.key:
-                raise ValueError('a different reference cannot verify this published point')
-            difference = (math.dist(point['point']['position'], np.asarray(position)*frame['scale'])
-                          if position is not None else None)
-            checks.append(dict(sequence=frame['sequence'], at=frame['at'], number=point['point']['number'],
-                fresh_appearances=len(poses), independent_difference=difference,
-                within_working_pixel=difference <= 1. if difference is not None else None))
+        cache = {}
+        for field in fields:
+            for point in frame.get(field, []):
+                key = (point['source'], point['character_id'], point['reference_sha256'])
+                if key not in references:
+                    raise ValueError('a different reference cannot verify this published point')
+                reference = references[key]
+                if key not in cache:
+                    cache[key] = reference_appearances(picture, reference.pixels, scales=tuple(map(float, np.geomspace(.5, 4., 32))))
+                poses = cache[key]
+                position = (reference.coordinates.project((0., 0.), poses[0], picture, reference.pixels, source=reference.source)
+                            if len(poses) == 1 else None)
+                grid = SampleGrid(**{k: tuple(v) for k, v in frame['sample_grid'].items()}) if frame.get('sample_grid') else None
+                expected = None
+                if position is not None:
+                    expected = grid.from_image(position) if grid is not None else np.asarray(position)*frame['scale']
+                difference = math.dist(point['point']['position'], expected) if expected is not None else None
+                checks.append(dict(sequence=frame['sequence'], at=frame['at'], kind=field,
+                    number=point['point'].get('number'), character_id=point['character_id'],
+                    fresh_appearances=len(poses), independent_difference=difference,
+                    within_working_pixel=difference <= 1. if difference is not None else None))
     differences = [check['independent_difference'] for check in checks if check['independent_difference'] is not None]
     return dict(checks=checks, measured=len(differences), maximum_difference=max(differences, default=None),
                 unmeasured=len(checks)-len(differences), seconds=time.monotonic()-began,

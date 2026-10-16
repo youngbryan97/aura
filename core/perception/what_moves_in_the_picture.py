@@ -430,10 +430,16 @@ class WhatMoves:
     whole screen changed.
     """
 
+    supports_material_retention = True
+
     def __init__(self, *, width: int = WORKING_WIDTH, kinds: list[Kind] | None = None, points: Any = None) -> None:
         from core.perception.points_before_the_picture_is_reduced import PointsBeforeReduction
 
         self.points = points if points is not None else PointsBeforeReduction()
+        from uuid import uuid4
+
+        self._material_mark_epoch = uuid4().hex
+        self.material_marks = None
         self.sampling_hint_receipt: Any = None
         self._point_motion: dict = {}
         from core.perception.what_the_points_on_a_thing_say import WhatThePointsSay
@@ -529,6 +535,10 @@ class WhatMoves:
         self._backdrop = None
         self._drawn.clear()
         self.points.clear()
+        from uuid import uuid4
+
+        self._material_mark_epoch = uuid4().hex
+        self.material_marks = None
         self._point_motion.clear()
         self.on_things.forget()
         self.screens += 1
@@ -1020,8 +1030,13 @@ class WhatMoves:
 
     # -- one picture -------------------------------------------------------
 
-    def see(self, picture: np.ndarray, at: float, *, search_hint: Any = None) -> list[dict[str, Any]]:
+    def see(self, picture: np.ndarray, at: float, *, search_hint: Any = None,
+            material_retention: Any = None) -> list[dict[str, Any]]:
         """Take one picture in. Returns what happened in it."""
+        self.material_retention_admitted = 0
+        if material_retention is not None and hasattr(self.points, 'still_needed'):
+            self.material_retention_admitted = self.points.still_needed.request(material_retention, self.material_marks)
+        self.material_marks = None
         self.sampling_hint_receipt = None
         captured_at = at
         priority = None
@@ -1072,6 +1087,9 @@ class WhatMoves:
                 self.points.see_source(np.asarray(picture), small, at)
         else:
             self.points.see(small, at)
+        from core.perception.named_material_in_a_consumed_frame import material_marks_from
+
+        self.material_marks = material_marks_from(self)
         self._point_motion = {thing.number: motion
                               for thing in [*self.things.values(), *self.pending.values()]
                               if (motion := self.points.motion_of(thing, at)) is not None}

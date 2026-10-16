@@ -188,6 +188,9 @@ class FollowingPoints:
     """A bounded set of point identities, each backed by consecutive measured pictures."""
 
     def __init__(self, *, limit: int = 192, longest_gap: float = NAMED_POINT_GAP_S) -> None:
+        from core.perception.points_a_consumer_still_needs import PointsStillNeeded
+
+        self.still_needed = PointsStillNeeded()
         self.limit = max(0, min(384, int(limit)))
         self.longest_gap = longest_gap
         self.points: tuple[SeenPoint, ...] = ()
@@ -197,6 +200,8 @@ class FollowingPoints:
         self._point_history: dict[float, dict[int, SeenPoint]] = {}
 
     def clear(self) -> None:
+        self.still_needed.requests.clear()
+        self.still_needed.regions = ()
         self.points = ()
         self._image = None
         self._at = -math.inf
@@ -217,7 +222,7 @@ class FollowingPoints:
         for x, y in _new_points(image[0], current, self.limit):
             current.append(SeenPoint(self._number, x, y, x, y, at, at, at, 0., 1))
             self._number += 1
-        self.points = _spread_points(current, self.limit)
+        self.points = self.still_needed.keep(current, _spread_points(current, self.limit), at, self.limit)
         self._image, self._at = image, at
         self._remember_points()
         return self.points

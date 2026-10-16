@@ -37,6 +37,13 @@ def test_what_is_seen_over_there_is_what_is_seen_here():
         for picture, at in _pictures():
             assert repr(here.see(picture, at)) == repr(there.see(picture, at))
             assert here.pixels_consumed == there.pixels_consumed
+            assert (here.material_marks is None) == (there.material_marks is None)
+            if here.material_marks is not None:
+                assert here.material_marks.pixels == there.material_marks.pixels
+                assert here.material_marks.grid == there.material_marks.grid
+                assert here.material_marks.sequence == there.material_marks.sequence
+                assert here.material_marks.points == there.material_marks.points
+                assert here.material_marks.epoch != there.material_marks.epoch
             assert list(here.things) == list(there.things)
             for number, thing in here.things.items():
                 assert repr(vars(thing)) == repr(vars(there.things[number]))

@@ -19,6 +19,9 @@ from core.perception.affine_motion_from_named_points import affine_motion
 from core.perception.continuing_material_before_outlines import _owns_thing
 from core.perception.names_for_observed_instances import InstanceQuery, query_for
 from core.perception.pixels_consumed_by_the_observer import PixelsConsumed
+from core.perception.named_material_in_a_consumed_frame import MaterialMarks
+from core.perception.the_pixel_grid_a_mark_uses import SampleGrid
+from core.perception.material_samples_in_a_reference_fit import material_samples
 from core.perception.position_from_the_same_points import PointPose, _reference_error
 from core.perception.rigid_motion_from_named_points import rigid_motion
 from core.verify import invariant
@@ -51,6 +54,7 @@ class SourcePointOnTrack:
     basis_point: tuple[float, float]
     registration_error: float
     scale: float
+    grid: SampleGrid | None = None
 
     def __post_init__(self) -> None:
         vectors = (self.source_point, self.basis_point)
@@ -62,7 +66,8 @@ class SourcePointOnTrack:
                 or any(type(n) not in (int, float) or not math.isfinite(n)
                        for n in (self.basis_at, self.registration_error, self.scale))
                 or not self.query.born <= self.basis_at <= self.query.at
-                or not 0 <= self.registration_error <= 1 or not 0 < self.scale <= 8):
+                or not 0 <= self.registration_error <= 1 or not 0 < self.scale <= 8
+                or self.grid is not None and not isinstance(self.grid, SampleGrid)):
             raise ValueError('a source point needs a captured instance and finite measured registration')
         object.__setattr__(self, 'source_point', tuple(self.source_point))
         object.__setattr__(self, 'basis_point', tuple(self.basis_point))
@@ -84,6 +89,10 @@ class SourcePointOnTrack:
         consumed = getattr(observer, 'pixels_consumed', None)
         if not isinstance(consumed, PixelsConsumed) or consumed.at != at:
             return SourcePointSample(None, 'capture_not_observed')
+        if self.grid is not None:
+            marks = getattr(observer, 'material_marks', None)
+            if not isinstance(marks, MaterialMarks) or marks.pixels != consumed or marks.grid != self.grid:
+                return SourcePointSample(None, 'point_sampling_changed')
         if at == self.query.at and consumed.sha256 != self.query.picture_sha256:
             return SourcePointSample(None, 'observer_pixels_do_not_match')
         thing = getattr(observer, 'things', {}).get(self.query.number)
@@ -165,26 +174,10 @@ def attach_source_point(coordinates: Any, source_point: tuple, appearance: Refer
     if (type(at) not in (int, float) or not math.isfinite(at)
             or type(scale) not in (int, float) or not math.isfinite(scale) or not 0 < scale <= 8):
         return refused(None, 'capture_not_measured')
-    if (not isinstance(appearance.source_points, (tuple, list)) or not 6 <= len(appearance.source_points) <= 256
-            or not isinstance(appearance.observed_points, (tuple, list))
-            or len(appearance.observed_points) != len(appearance.source_points)):
+    samples = material_samples(appearance)
+    if samples is None:
         return refused(None, 'invalid_correspondence')
-    try:
-        starts = np.asarray(appearance.source_points, float)
-        ends = np.asarray(appearance.observed_points, float)
-        linear, offset = np.asarray(appearance.linear, float), np.asarray(appearance.offset, float)
-    except (TypeError, ValueError):
-        return refused(None, 'invalid_correspondence')
-    if (starts.shape != ends.shape or starts.ndim != 2 or starts.shape[1:] != (2,)
-            or not 6 <= len(starts) <= 256 or not np.isfinite(starts).all() or not np.isfinite(ends).all()
-            or linear.shape != (2, 2) or offset.shape != (2,) or not np.isfinite(linear).all()
-            or not np.isfinite(offset).all() or np.linalg.det(linear) <= 0
-            or len(np.unique(starts, axis=0)) < 6 or type(appearance.error) not in (int, float)
-            or not math.isfinite(appearance.error) or appearance.error < 0
-            or np.linalg.svd(starts-starts.mean(axis=0), compute_uv=False)[-1] < 1.
-            or np.max(np.linalg.norm(np.asarray([appearance.project(tuple(p)) for p in starts])-ends, axis=1))
-                > appearance.error+1e-5):
-        return refused(None, 'invalid_correspondence')
+    starts, ends, linear, offset = samples
     point = coordinates.project(source_point, appearance, picture, reference, source=source)
     if point is None:
         return refused(None, 'reference_not_current')
@@ -193,10 +186,13 @@ def attach_source_point(coordinates: Any, source_point: tuple, appearance: Refer
             or consumed.sha256 != appearance.picture_sha256):
         return refused(None, 'observer_pixels_do_not_match')
     owners = []
+    marks = getattr(observer, 'material_marks', None)
+    grid = marks.grid if isinstance(marks, MaterialMarks) and marks.pixels == consumed and marks.scale == scale else None
+    observed = grid.from_image(ends) if grid is not None else ends*scale
     for thing in getattr(observer, 'things', {}).values():
         query = query_in_observation(thing, observer, at)
         if query is not None:
-            owned = frozenset(index for index, place in enumerate(ends*scale) if _owns_thing(thing, tuple(place)))
+            owned = frozenset(index for index, place in enumerate(observed) if _owns_thing(thing, tuple(place)))
             if owned:
                 owners.append((thing, query, owned))
     support = tuple((thing.number, len(owned)) for thing, _, owned in owners)
@@ -210,13 +206,14 @@ def attach_source_point(coordinates: Any, source_point: tuple, appearance: Refer
     if basis is None:
         return refused(None, 'no_current_point_basis', support)
     pose, _, _, fit = basis
-    basis_point = tuple(float(v) for v in fit.inverse(np.asarray(point)*scale))
+    located = grid.from_image(point) if grid is not None else np.asarray(point)*scale
+    basis_point = tuple(float(v) for v in fit.inverse(located))
     registration_error = math.hypot(appearance.error,
-        coordinates.calibration_error*float(np.linalg.norm(linear, ord=2)))*scale
+        coordinates.calibration_error*float(np.linalg.norm(linear, ord=2)))*(grid.working_scale if grid is not None else scale)
     if registration_error > 1.:
         return refused(None, 'reference_point_precision', support)
     binding = SourcePointOnTrack(query.with_picture(picture), source, appearance.reference_sha256,
-        tuple(source_point), pose.reference_at, basis_point, registration_error, scale)
+        tuple(source_point), pose.reference_at, basis_point, registration_error, scale, grid)
     if binding.current(observer, at, source=source) is None:
         return refused(None, 'reference_point_precision', support)
     return SourcePointAttachment(binding, 'qualified', support)

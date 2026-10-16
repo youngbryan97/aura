@@ -795,3 +795,46 @@ layering, generated DEPS consistency and writing passed. Governance retains
 131 existing regressions; these new runtime modules add none. The module
 size gate retains its existing unrelated regressions. Baselines were not
 changed. The exclusive corpus/model job remained active (PID 53965).
+
+## Visible source frames and sampling checkpoint, 16 October 2026
+
+Independent raster-marker tests found a sample-centre bias in reduced
+reference matches. The matcher now composes that offset. The native point
+stream also carries its actual per-axis sampling grid, rather than treating
+scaled point indices as original pixel centres. Earlier fresh-match
+agreement shared the matcher bias and did not prove absolute accuracy.
+
+Normal observation now publishes frozen named material before object
+grouping. A separate source-frame channel transports source geometry through
+those original visible marks when no single object owner qualifies. It
+creates no controlled identity or role. Initial appearance still needs six
+correspondences; rigid continuation needs three non-collinear named marks,
+affine continuation six, with 70 percent retained and the existing precision
+ceiling. The object/control qualification gates were not relaxed.
+
+A measured failure showed that capacity allocation discarded two younger
+marks while all four reference anchors were still visually valid. Active
+consumers can request bounded, expiring retention of current marks and
+propose source regions for new sampling. The request passes through the
+ordinary asynchronous and process-worker observation paths. It cannot
+restore missing material or replace original identities.
+
+The 100-frame ordinary replay published the composite's source frame on
+eight frames. Seven fresh pixel checks agreed within 0.375641 working
+pixels; one remained unmeasured. Focal sampling did not improve that count.
+An original supporting mark was still lost despite an admitted retention
+request. This remains far below demo quality. See
+`docs/evidence/steering/2026-10-16-visible-source-frames-and-sampling.md`.
+
+Next: source-defined contacts and current instance binding. The controller
+still cannot turn source-frame geometry into a verified landing predicate.
+The source reader reports unsupported deletion and path-budget exhaustion
+in the case's movement method; raising the budget would not prove semantics.
+Fresh uncached asset export and ordinary native play are also open. No model
+or resident runtime was started, stopped or restarted. G09 and holdouts
+remain untouched; the exclusive corpus job is still active.
+
+Checkpoint gates: final focused set passed; smoke 165 passed, one skipped;
+lint, compile, layering, DEPS consistency and writing passed. Governance
+retains 131 existing regressions and module size the same unrelated
+regressions, including total excess of 197 lines. Baselines were unchanged.

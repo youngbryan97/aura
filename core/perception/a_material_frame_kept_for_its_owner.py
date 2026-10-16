@@ -12,6 +12,7 @@ import numpy as np
 
 from core.perception.names_for_observed_instances import InstanceQuery, query_for
 from core.perception.pixels_consumed_by_the_observer import PixelsConsumed, consumed_pixels
+from core.perception.named_material_in_a_consumed_frame import MaterialMarks
 from core.perception.position_from_the_same_points import PointPose, last_observed_outline
 from core.verify import invariant
 
@@ -43,6 +44,7 @@ class MaterialFrameTaken:
     picture: np.ndarray = field(repr=False, compare=False)
     things: Mapping[int, MaterialThingTaken] = field(repr=False, compare=False)
     queries: Mapping[int, InstanceQuery] = field(repr=False, compare=False)
+    material_marks: MaterialMarks | None = field(default=None, repr=False, compare=False)
 
     def query_for(self, thing: Any, at: float) -> InstanceQuery | None:
         if (type(at) not in (int, float) or not math.isfinite(at) or at != self.at
@@ -110,7 +112,9 @@ def keep_material_frame(observer: Any, picture: np.ndarray, at: float) -> Materi
     if receipt != getattr(observer, 'pixels_consumed', None):
         return None
     owned.setflags(write=False)
-    return MaterialFrameTaken(at, float(scale), receipt, owned, MappingProxyType(kept), MappingProxyType(queries))
+    marks = getattr(observer, 'material_marks', None)
+    marks = marks if isinstance(marks, MaterialMarks) and marks.pixels == receipt and marks.scale == scale else None
+    return MaterialFrameTaken(at, float(scale), receipt, owned, MappingProxyType(kept), MappingProxyType(queries), marks)
 
 
 @invariant('perception.detached_material_keeps_its_original_observer', scope='perception',

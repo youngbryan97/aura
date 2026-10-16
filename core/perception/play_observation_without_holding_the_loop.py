@@ -74,8 +74,12 @@ def _started(factory: Callable[..., Any], kinds: list[Any]) -> tuple[Any, dict[s
     return eyes, _detached_state(eyes)
 
 
-def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    happened = eyes.see(picture, at) if search_hint is None else eyes.see(picture, at, search_hint=search_hint)
+def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
+          material_retention: Any = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    kwargs = {'search_hint': search_hint} if search_hint is not None else {}
+    if material_retention is not None and getattr(eyes, 'supports_material_retention', False):
+        kwargs['material_retention'] = material_retention
+    happened = eyes.see(picture, at, **kwargs)
     return copy.deepcopy(happened), _detached_state(eyes)
 
 
@@ -139,6 +143,7 @@ class PlayObservation:
         self._startup_wait_s = startup_wait_s
         self._references: Any = None
         self._mirror.source_reference_points = ()
+        self._mirror.source_reference_frames = ()
         self._mirror.source_reference_status = 'no_current_source'
 
     @property
@@ -218,6 +223,7 @@ class PlayObservation:
     async def see(self, picture: Any, at: float, *, search_hint: Any = None) -> list[dict[str, Any]] | None:
         """Return this frame's events, or None while its measurement is unavailable."""
         self._mirror.source_reference_points = ()
+        self._mirror.source_reference_frames = ()
         if self._closed or isinstance(at, bool) or not isinstance(at, (float, int)) or not math.isfinite(at):
             return None
         operation = self._operation
@@ -238,7 +244,9 @@ class PlayObservation:
 
             search_hint = copy.deepcopy(search_hint) if isinstance(search_hint, PixelSearchHint) else None
         eyes = self._eyes
-        operation = self._submit("frame", lambda: _seen(eyes, owned_picture, owned_at, search_hint=search_hint))
+        retention = self._references.retention if self._references is not None else None
+        operation = self._submit("frame", lambda: _seen(eyes, owned_picture, owned_at, search_hint=search_hint,
+                                                       material_retention=retention))
         if operation is None:
             return None
         self._last_submitted_at = float(at)
@@ -255,6 +263,7 @@ class PlayObservation:
             self._references = SourceReferencesInPlay()
         if self._references is not None:
             self._mirror.source_reference_points = self._references.advance(self, picture, at, tables)
+            self._mirror.source_reference_frames = self._references.source_frames
             self._mirror.source_reference_status = self._references.status
 
     def _retire(self) -> None:
@@ -264,6 +273,7 @@ class PlayObservation:
         if self._references is not None:
             self._references.retire()
         self._mirror.source_reference_points = ()
+        self._mirror.source_reference_frames = ()
         self._mirror.source_reference_status = 'closed'
         self._generation += 1
         eyes, self._eyes = self._eyes, None
