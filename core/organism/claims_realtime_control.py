@@ -13,6 +13,7 @@ def _play_execution_claims() -> tuple:
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
     from core.perception.coordinates_in_a_visual_reference import _source_image_coordinates_invariant
+    from core.perception.a_visual_reference_in_the_picture import _oriented_reference_invariant
     from core.perception.names_for_observed_instances import _instance_name_invariant
     from core.perception.affine_motion_from_named_points import _affine_material_invariant
     from core.perception.position_from_the_same_points import (
@@ -30,7 +31,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('visual_names_keep_the_queried_instance', 'core/perception/names_for_observed_instances.py',
+    return (('rotating_references_keep_their_source_samples', 'core/perception/a_visual_reference_in_the_picture.py',
+             'tests/test_a_reference_keeps_coordinates_while_it_turns.py', lambda: _oriented_reference_invariant() == (),
+             'A bounded orientation search returns redundant matched samples in original reference coordinates; failed orientation proposals cannot suppress a current fit, while different visible copies remain competing appearances without control or task authority.'),
+            ('visual_names_keep_the_queried_instance', 'core/perception/names_for_observed_instances.py',
              'tests/test_visual_names_stay_with_the_boxed_instance.py', lambda: _instance_name_invariant() == (),
              'A delayed semantic answer retains its observer epoch, tracked birth, visual kind and captured pixel identity; another instance of the same kind cannot inherit that name or receive control authority from it.'),
             ('source_reference_points_need_measured_raster_alignment', 'core/perception/coordinates_in_a_visual_reference.py',

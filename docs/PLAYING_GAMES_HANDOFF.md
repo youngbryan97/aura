@@ -681,3 +681,19 @@ body identity. Recognition accuracy and original-game wins remain unproved.
 Next: connect source-reference geometry to current observed material without
 turning a reference appearance into control identity or guessed contact rules.
 No native deployment, G09 or original-game-9 changes.
+
+## Oriented reference coordinates checkpoint, 15 October 2026
+
+`reference_appearances` accepts a bounded orientation bank and composes
+resampling geometry back to original reference samples. The offline probe
+accepts repeated `--angle-degrees`; scale-count times angle-count must not
+exceed 32. Failed orientation proposals no longer exclude a valid orientation
+at the same place. Default zero-angle callers retain their search policy.
+
+Tests: 88 focused passed; smoke 165 passed, one skipped. Lint, compile,
+layering, DEPS consistency and writing passed. A fresh static case-18 ship
+export still matches recorded frame 304 with seven points; this is offline
+appearance evidence. See
+`docs/evidence/steering/2026-10-15-reference-orientation-keeps-source-samples.md`.
+Next remains current material attachment and source-contact geometry. The
+reference matcher is not yet an ordinary runtime source-asset provider.

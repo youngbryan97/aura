@@ -50,17 +50,32 @@ def _overlap(a: tuple, b: tuple) -> float:
     return common/max(1., a[2]*a[3]+b[2]*b[3]-common)
 
 
-def _proposals(scene: np.ndarray, reference: np.ndarray, scales: tuple) -> list[tuple]:
+def _oriented_template(reference: Image.Image, size: tuple[int, int], angle: float) -> tuple:
+    """Return raster samples and their reference-to-template pixel-centre map."""
+    sized = reference.resize(size, Image.Resampling.BOX)
+    template = sized.rotate(-math.degrees(angle), resample=Image.Resampling.BICUBIC, expand=True) if angle else sized
+    c, s = math.cos(angle), math.sin(angle)
+    rotation = np.array(((c, -s), (s, c)))
+    scale = np.array(size)/reference.size
+    linear = rotation @ np.diag(scale)
+    offset = (np.array(template.size)-1)/2-linear @ ((np.array(reference.size)-1)/2)
+    return np.asarray(template), linear, offset
+
+
+def _proposals(scene: np.ndarray, reference: np.ndarray, scales: tuple, angles: tuple) -> list[tuple]:
     """Masked squared error proposes places; it cannot qualify correspondence."""
     height, width = scene.shape[:2]
     source = Image.fromarray(reference)
     proposed, sizes = [], set()
-    for scale in scales:
+    for scale, angle in ((scale, angle) for scale in scales for angle in angles):
         size = tuple(round(v*scale) for v in source.size)
-        if size in sizes or min(size) < 12 or size[0] > width or size[1] > height:
+        key = size, round(angle, 12)
+        if key in sizes or min(size) < 12 or size[0] > width or size[1] > height:
             continue
-        sizes.add(size)
-        template = np.asarray(source.resize(size, Image.Resampling.BOX))
+        sizes.add(key)
+        template, linear, offset = _oriented_template(source, size, angle)
+        if template.shape[1] > width or template.shape[0] > height:
+            continue
         mask = ndimage.binary_erosion(template[..., 3] >= 250).astype(np.float32)
         if mask.sum() < 36:
             continue
@@ -76,10 +91,10 @@ def _proposals(scene: np.ndarray, reference: np.ndarray, scales: tuple) -> list[
             value = float(cost[row, col])
             if not math.isfinite(value):
                 break
-            proposed.append((value, int(col), int(row), template))
+            proposed.append((value, int(col), int(row), template, linear, offset, angle))
             # Keep separate copies eligible. One best peak cannot prove that
             # a reference has only one visible instance.
-            dx, dy = max(4, size[0]//2), max(4, size[1]//2)
+            dx, dy = max(4, template.shape[1]//2), max(4, template.shape[0]//2)
             cost[max(0, row-dy):row+dy+1, max(0, col-dx):col+dx+1] = math.inf
     return sorted(proposed, key=lambda candidate: candidate[0])
 
@@ -107,12 +122,13 @@ def _supported_fit(scene: np.ndarray, template: np.ndarray, x: int, y: int) -> t
 
 
 def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales: tuple[float, ...],
+                          angles: tuple[float, ...] = (0.,),
                           edge: int = 480) -> tuple[ReferenceAppearance, ...]:
     """Return bounded appearance poses; competing instances remain separate.
 
     ``picture`` is RGB, ``reference`` is RGBA. Supplied scales map reference
-    pixels to original picture pixels. Search is bounded to 32 scales and
-    24 distinct proposals. Neither a returned pose nor an empty result names
+    pixels to original picture pixels; angles are clockwise radians. Search
+    is bounded to 32 scale/angle pairs and 24 distinct proposals. Neither a returned pose nor an empty result names
     the player, a goal, a collision boundary or a successful action.
     """
     if (not isinstance(picture, np.ndarray) or not isinstance(reference, np.ndarray)
@@ -122,6 +138,8 @@ def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales:
             or min(reference.shape[:2]) < 16 or max(reference.shape[:2]) > 512
             or type(edge) is not int or not 64 <= edge <= 512
             or not isinstance(scales, tuple) or not 1 <= len(scales) <= 32
+            or not isinstance(angles, tuple) or not 1 <= len(angles) <= 32 or len(angles)*len(scales) > 32
+            or any(type(v) not in (int, float) or not math.isfinite(v) or not -math.pi <= v <= math.pi for v in angles)
             or any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v)
                    or not .05 <= v <= 8 for v in scales)):
         return ()
@@ -130,37 +148,56 @@ def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales:
     view_scale = np.array((size[0]/picture.shape[1], size[1]/picture.shape[0]))
     pixels = np.asarray(Image.fromarray(picture).resize(size, Image.Resampling.BOX))
     scene = pixels.astype(np.float32)/255
-    proposals = _proposals(scene, reference, tuple(v*ratio for v in scales))
+    angles = tuple({round((a+math.pi) % (2*math.pi)-math.pi, 12): (a+math.pi) % (2*math.pi)-math.pi
+                    for a in angles}.values())
+    proposals = _proposals(scene, reference, tuple(v*ratio for v in scales), angles)
     tried, found = [], []
     reference_hash, picture_hash = _digest(reference), _digest(picture)
-    for _cost, x, y, template in proposals:
+    for _cost, x, y, template, template_linear, template_offset, angle in proposals:
         height, width = template.shape[:2]
         box = (x, y, width, height)
-        if any(_overlap(box, previous) > .6 for previous in tried):
+        if any(previous_angle == angle and _overlap(box, previous) > .6 for previous, previous_angle in tried):
             continue
-        tried.append(box)
+        tried.append((box, angle))
         fit = _supported_fit(pixels, template, x, y)
         if fit is not None:
             fitted, starts, ends = fit
-            sx, sy = width/reference.shape[1], height/reference.shape[0]
             if isinstance(fitted, AffineMotion):
                 fitted_linear = np.asarray(fitted.linear)
             else:
                 c, s = math.cos(fitted.angle), math.sin(fitted.angle)
                 fitted_linear = np.array(((c, -s), (s, c)))
-            linear = (fitted_linear @ np.diag((sx, sy)))/view_scale[:, None]
-            offset = np.asarray(fitted.offset)/view_scale
+            linear = (fitted_linear @ template_linear)/view_scale[:, None]
+            offset = (fitted_linear @ template_offset+np.asarray(fitted.offset))/view_scale
             corners = np.array(((0., 0.), (reference.shape[1], 0.),
                                 (0., reference.shape[0]), (reference.shape[1], reference.shape[0]))) @ linear.T+offset
             low, high = corners.min(axis=0), corners.max(axis=0)
-            found.append(ReferenceAppearance(reference_hash, picture_hash,
+            candidate = ReferenceAppearance(reference_hash, picture_hash,
                 tuple(tuple(float(v) for v in row) for row in linear), tuple(float(v) for v in offset),
                 (*map(float, low), *map(float, high-low)),
-                tuple(tuple(float(v) for v in point/(sx, sy)) for point in starts),
-                tuple(tuple(float(v) for v in point/view_scale) for point in ends), fitted.error/float(view_scale.min())))
+                tuple(tuple(float(v) for v in point) for point in
+                      (starts-template_offset) @ np.linalg.inv(template_linear).T),
+                tuple(tuple(float(v) for v in point/view_scale) for point in ends), fitted.error/float(view_scale.min()))
+            probes = ((0., 0.), (reference.shape[1]-1., 0.), (0., reference.shape[0]-1.))
+            if not any(max(math.dist(candidate.project(point), old.project(point)) for point in probes) < 1.
+                       for old in found):
+                found.append(candidate)
         if len(tried) >= 24 or len(found) >= 8:
             break
     return tuple(found)
+
+
+@invariant('perception.reference_orientation_keeps_source_coordinates', scope='perception',
+           owner='core/perception/a_visual_reference_in_the_picture.py', observational=False)
+def _oriented_reference_invariant() -> tuple:
+    reference = np.random.default_rng(53).integers(0, 255, (48, 48, 4), dtype=np.uint8)
+    reference[..., 3] = 255
+    picture = np.zeros((96, 144, 3), np.uint8)
+    picture[20:68, 30:78] = np.rot90(reference[..., :3], k=3)
+    seen = reference_appearances(picture, reference, scales=(1.,), angles=(0., math.pi/2))
+    assert len(seen) == 1
+    assert math.dist(seen[0].project((11., 13.)), (64., 31.)) < .5
+    return ()
 
 
 @invariant('perception.reference_appearance_is_not_temporal_identity', scope='perception',

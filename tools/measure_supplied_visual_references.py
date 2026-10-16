@@ -37,10 +37,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--minimum-scale', type=float, default=.5)
     parser.add_argument('--maximum-scale', type=float, default=4.)
     parser.add_argument('--scale-count', type=int, default=32)
+    parser.add_argument('--angle-degrees', type=float, action='append', help='clockwise angle; repeat for a bounded bank')
     args = parser.parse_args(argv)
     if (not all(math.isfinite(v) for v in (args.minimum_scale, args.maximum_scale))
             or not .05 <= args.minimum_scale <= args.maximum_scale <= 8 or not 1 <= args.scale_count <= 32):
         parser.error('scales need finite positive ordered bounds and at most 32 samples')
+    degrees = args.angle_degrees or [0.]
+    if (len(degrees)*args.scale_count > 32
+            or any(not math.isfinite(value) or not -180 <= value <= 180 for value in degrees)):
+        parser.error('supply finite angles within 180 degrees and at most 32 scale/angle pairs')
     if args.out.exists():
         parser.error('use a fresh output path')
     from core.governance_context import local_internal_governed_scope
@@ -49,15 +54,16 @@ def main(argv: list[str] | None = None) -> int:
 
     picture, reference = _image(args.picture, reference=False), _image(args.reference, reference=True)
     scales = tuple(map(float, np.geomspace(args.minimum_scale, args.maximum_scale, args.scale_count)))
+    angles = tuple(map(math.radians, degrees))
     began = time.perf_counter()
-    poses = reference_appearances(picture, reference, scales=scales)
+    poses = reference_appearances(picture, reference, scales=scales, angles=angles)
     duration = time.perf_counter()-began
     record = dict(schema='aura.supplied_visual_reference.v1',
         picture=str(args.picture.resolve()), reference=str(args.reference.resolve()),
         picture_file_sha256=hashlib.sha256(args.picture.read_bytes()).hexdigest(),
         reference_file_sha256=hashlib.sha256(args.reference.read_bytes()).hexdigest(),
         implementation_sha256=hashlib.sha256((ROOT/'core/perception/a_visual_reference_in_the_picture.py').read_bytes()).hexdigest(),
-        scales=list(scales), seconds=duration, poses=[asdict(pose) for pose in poses],
+        scales=list(scales), angles_radians=list(angles), seconds=duration, poses=[asdict(pose) for pose in poses],
         presentation_qualified=False, task_passed=None,
         evidence_scope='static reference appearance in captured pixels; no task role, temporal identity or input effect')
     with local_internal_governed_scope('supplied_visual_reference_probe'):
