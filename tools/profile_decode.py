@@ -78,34 +78,38 @@ def main() -> int:
                 generator.insert(prompts, [args.steps * 3] * width)
                 began = time.perf_counter()
                 first = None
-                produced = 0
-                while produced < width * args.steps:
+                produced = generated_steps = 0
+                # Counted in steps, not tokens over the width: a sequence that writes its end-of-text token leaves
+                # the batch, and the steps after it carry fewer tokens.
+                while generated_steps < args.steps:
                     responses = generator.next_generated()
                     if not responses:
                         break
                     if first is None:
                         first = time.perf_counter()
                         prefill_seconds = first - began
-                        produced = 0
                         stepped = time.perf_counter()
+                        continue
                     produced += len(responses)
-                generated_steps = produced / max(1, width)
+                    generated_steps += 1
                 generation_seconds = time.perf_counter() - stepped
-                # The bare forward pass on the generator's own cache, one token per sequence, evaluated each step.
+                # The bare forward pass on the generator's own cache, one token per sequence still in the batch
+                # (16 sequences in, 14 left once two had ended, on 15 October), evaluated each step.
                 batch = generator._generation_batch
                 cache = batch.prompt_cache
-                token = mx.array([[int(p[-1])] for p in prompts])
+                live = len(batch)
+                token = mx.array([[int(p[-1])] for p in prompts[:live]])
                 mx.eval(model(token, cache=cache))
                 forward_began = time.perf_counter()
                 for _ in range(args.steps):
                     mx.eval(model(token, cache=cache))
                 forward_seconds = time.perf_counter() - forward_began
-                rows.append({"context": context, "width": width,
+                rows.append({"context": context, "width": width, "still_writing": live,
                              "prefill_seconds": round(prefill_seconds, 2),
                              "generator_steps_per_second": round(generated_steps / generation_seconds, 2),
                              "generator_tokens_per_second": round(produced / generation_seconds, 1),
                              "forward_steps_per_second": round(args.steps / forward_seconds, 2),
-                             "forward_tokens_per_second": round(width * args.steps / forward_seconds, 1)})
+                             "forward_tokens_per_second": round(live * args.steps / forward_seconds, 1)})
                 print(json.dumps(rows[-1]), flush=True)
                 generator.close()
                 del generator, batch, cache
