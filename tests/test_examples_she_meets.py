@@ -194,3 +194,28 @@ async def test_the_conductor_runs_one_step_in_a_task_of_its_own(her_data, monkey
     assert (await job())["status"] == "step_running"
     result = await asyncio.wait_for(background._LEARNING["task"], 30)
     assert result["status"] == "nothing_met"
+
+
+@needs_boundary
+@pytest.mark.asyncio
+async def test_a_kind_found_only_by_meaning_is_not_retired_by_what_it_cannot_read(her_data) -> None:
+    """Live chat, 16 October: a person's answer to a request in other words would have retired a right procedure."""
+    from core.learning import procedures_from_solved_examples as procedures
+
+    path = her_data / KEPT_BOOK_RELATIVE
+    book = ProcedureBook.from_json(json.loads(path.read_text()))
+    book.procedures["percent"], book.agreed["percent"] = [WRONG], 40
+    path.write_text(dumps(book.to_json()), encoding="utf-8")
+    procedures._kept_cache.clear()
+    # Worded unlike the kind's problems, so its words reach no kind; its meaning reaches "percent".
+    meets.note_met("what is 15 percent of 340 here", "51", "a_person_gave_it")
+    assert book.route("what is 15 percent of 340 here")[0] is None  # not by its words
+
+    async def propose_one(_request: str) -> str:
+        return ""
+
+    out = await meets.learn_one_step(propose_one, documents=_embed, queries=_embed)
+    # The procedure answers 5100 for it, by meaning only: not a counterexample in the kind's own words.
+    assert out["retired"] == []
+    assert ProcedureBook.from_json(json.loads(path.read_text())).procedures["percent"] == [WRONG]
+    assert json.loads((her_data / meets.LEARNING_RELATIVE).read_text())["checked"] != {}

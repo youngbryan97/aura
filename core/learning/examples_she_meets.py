@@ -348,7 +348,13 @@ async def _check_against_kept(book: ProcedureBook, rows: Sequence[dict[str, Any]
     """Run each new met example through the kind she keeps for it; return those no kept kind answers.
 
     An example of a kept kind that its procedures agree with raises the kind's
-    count; one they disagree with retires the kind's procedures. Each example
+    count. One worded as the kind's own problems are (found by words) that
+    they answer otherwise retires the kind's procedures: it is a
+    counterexample. One found only by meaning is in other words than they
+    were kept on, so a procedure that misreads or declines it has not been
+    shown wrong, and it is left unanswered instead (live chat, 16 October:
+    a person's gcd answer would have retired the right gcd procedure, which
+    cannot read "What's the greatest common divisor of ...?"). Each example
     is checked once.
     """
     import asyncio
@@ -364,6 +370,7 @@ async def _check_against_kept(book: ProcedureBook, rows: Sequence[dict[str, Any]
         if verdict is not None:
             continue
         kind, _similarity = book.route(row["problem"])
+        by_words = kind is not None
         if kind is None and query is not None:
             vector = await asyncio.to_thread(query, row["problem"])
             kind = book.route_by_meaning(vector)[0] if vector is not None else None
@@ -377,6 +384,10 @@ async def _check_against_kept(book: ProcedureBook, rows: Sequence[dict[str, Any]
             book.agreed[kind] = int(book.agreed.get(kind, 0)) + 1
             learning["checked"][row["key"]] = f"agreed:{kind}"
             report["agreed_with_kept"] += 1
+        elif returned is None or not by_words:
+            learning["checked"][row["key"]] = "unanswered"
+            unanswered.append(row)
+            continue
         else:
             retired = {"kind": kind, "problem": row["problem"], "known": row["answer"], "source": row["source"],
                        "returned": returned, "declined": receipt.get("declined"), "procedures": book.procedures[kind],
