@@ -40,3 +40,46 @@ Math (DeepMind mathematics, the 27 held-out kinds attempt 3 drafted) and plannin
 Transfer is not drafted: her drafts on BIG-Bench Hard were right on 298 of 300, so it has no room to show a
 gain, and breadth needs two of the domains drafted. Criteria otherwise as attempt 3's: primary pooled over the
 domains, breadth in both, no harm in either.
+
+## Part 2, committed 16 October 2026 at 15:02, before any test request is drawn or drafted
+
+### The route
+
+tools/compare_kept_routes.py at bb0c62e92, on 1,692 development requests (`g09-attempt5-routing-20261016/routes.json`):
+
+| Route | Right | Wrong | Declined |
+| --- | ---: | ---: | ---: |
+| Words | 195 | 0 | 1,497 |
+| Meaning | 194 | 0 | 1,498 |
+| Words, then meaning | 271 | 0 | 1,421 |
+
+No route answered a development request wrongly, so by part 1's rule the route is the one answering the most
+rightly: words, then meaning. Every right answer was to a problem of a kept kind; the 912 problems of kinds
+without a procedure and the 300 MATH training problems were all declined.
+
+### The book
+
+`g09-attempt5-routing-20261016/book.json` (sha256 begins 850a42c1218db780): attempt 4's book with the meanings and shown
+examples of her live book of 04:21.
+
+### The requests
+
+tools/g09_requests_to_draft.py with `--route words_then_meaning`, seed 20261016, excluding every request
+attempt 3 drew (`--exclude-ids g09-attempt3-requests-20261014`): 300 test problems spread over the held-out
+DeepMind kinds that keep a procedure, as attempt 3 spread them; 100 over Logistics and Depots; and every MATH
+test problem the route answers (`--routing-only math`), drafted so that losses there count. Held-out kinds
+decide breadth; every domain counts for the primary criterion and for no harm, as in attempt 3.
+
+### The run
+
+`~/.aura/rlc-evidence/g09-runs/attempt5.sh`, from a worktree pinned at the commit of this part: drafts by
+tools/run_g09_organ.py (`--arms ordinary --batch 8`, seed 20261016), the kept arm by
+tools/g09_kept_procedure_arm.py with `--route words_then_meaning` (rows/kept5), both arms graded by
+tools/g09_one_grader.py (rows/kept5_one_grader), then tools/g09_analysis.py and tools/g09_verdict.py with
+`--alpha 0.01 --breadth-need 2 --breadth-among math,planning`.
+
+### The claim
+
+G09 closes if, at two-sided p below 0.01, the kept arm gains over her drafts pooled over every domain drafted,
+and in each of math and planning on held-out kinds, and no domain loses more than it gains at p below 0.05.
+Then it is shown live in her app before the model is used for anything else.
