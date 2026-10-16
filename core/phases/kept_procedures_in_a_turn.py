@@ -30,6 +30,16 @@ logger = logging.getLogger("Aura.KeptProceduresInATurn")
 _HER_EMBEDDER: dict[str, Any] = {}
 
 
+def _a_problem() -> Any:
+    from core.brain.llm.an_envelope_the_decoder_enforces import AnEnvelope
+
+    # restatement_request shows each problem under "Problem:", so the next one would begin there.
+    return AnEnvelope(opens="Problem:\n", closes="\n\nProblem:")
+
+
+A_PROBLEM = _a_problem()
+
+
 def her_query_vector(text: str, task: str) -> Any:
     """Her embedding of a request, only from an embedding model the runtime already holds; None otherwise."""
     try:
@@ -76,7 +86,7 @@ async def kept_answer_by_meaning(objective: str, *, router: Any, origin: str, ti
     hers with the private channel closed.
     """
     from core.brain.reasoning_amplifier_v2 import amplified_from_kept_receipt
-    from core.learning.kinds_by_meaning import TASK, restatement_request
+    from core.learning.kinds_by_meaning import TASK, restatement_request, restates
     from core.learning.procedures_from_solved_examples import kept_procedure_book
 
     if router is None:
@@ -95,9 +105,14 @@ async def kept_answer_by_meaning(objective: str, *, router: Any, origin: str, ti
     # About as long as the kind's longest shown problem and the request together, at under two
     # characters a token: room for the problem written out, and no more.
     cap = (max(len(e["problem"]) for e in examples) + len(objective)) // 2
+    # Her reply opens inside the label her shown problems carry, so what she writes is a problem and not an
+    # account of how she would write one (live 2026-10-16: twice "To write the problem in the same form as the
+    # examples, we need to ..."), and it stops where the next problem would begin.
+    from core.brain.llm.an_envelope_the_decoder_enforces import the_request_for
+
     try:
         out = await router.think(
-            messages=[{"role": "user", "content": restatement_request(objective, examples)}],
+            **the_request_for(A_PROBLEM, [{"role": "user", "content": restatement_request(objective, examples)}]),
             priority=1.0,
             origin=f"kept_procedure_restatement_{origin}",
             purpose="kept_procedure_restatement",
@@ -115,7 +130,12 @@ async def kept_answer_by_meaning(objective: str, *, router: Any, origin: str, ti
                            action="drafted without restating the request for its kind")
         return None
     restated = str((out.get("content") or out.get("response") or "") if isinstance(out, dict) else (out or ""))
+    restated = restated.strip().removeprefix(A_PROBLEM.opens.strip()).split(A_PROBLEM.closes.strip())[0]
     if not restated.strip():
+        return None
+    if not restates(objective, restated, examples):
+        logger.info("kept procedure for %s not consulted: the restatement is not the problem asked (%r)",
+                    kind, restated[:160])
         return None
     receipt = await asyncio.to_thread(book.answer_restated, kind, restated.strip())
     receipt["similarity"] = round(similarity, 4)

@@ -126,3 +126,33 @@ def test_a_number_already_begun_is_finished_as_written():
     tokens.append(words.ids["2"])
     out = hold(mx.array(tokens), mx.zeros((1, 64)))
     assert float(out[0, words.ids[" +"]]) < 0.0
+
+
+class Lines(Digits):
+    """Digits, with a new line as a token of its own."""
+
+    def encode(self, text, add_special_tokens=False):
+        out = []
+        for index, line in enumerate(str(text).split("\n")):
+            if index:
+                out.append(self.ids.setdefault("\n", len(self.ids)))
+            out += super().encode(line)
+        return out
+
+
+def test_a_list_given_again_is_not_held_back_item_after_item():
+    """Live 16 October: asked to sort the same words a third time, she doubted "ember" before writing it."""
+    words = Lines()
+    earlier = "1 . basil\n2 . ember\n3 . lantern\n4 . orchard"
+    hold = not_her_own_words_again(words, [earlier])
+    tokens = words.encode("sort these again")
+    hold(mx.array(tokens), mx.zeros((1, 64)))
+    for piece in words.encode("1 . basil\n2 ."):
+        tokens.append(piece)
+        out = hold(mx.array(tokens), mx.zeros((1, 64)))
+    # The run counts only since the new line, so the item costs DRY's least, not its run from the top.
+    assert float(out[0, words.ids[" ember"]]) == pytest.approx(-MULTIPLIER)
+    # And the line's end is never pushed down.
+    tokens += words.encode(" ember")
+    out = hold(mx.array(tokens), mx.zeros((1, 64)))
+    assert float(out[0, words.ids["\n"]]) == 0.0

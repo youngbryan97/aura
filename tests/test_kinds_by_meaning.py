@@ -181,3 +181,75 @@ async def test_in_the_phase_her_kernel_runs_her_words_stand_when_they_state_the_
         holder = types.SimpleNamespace(_last_reasoning_receipt=None)
         out = await UnitaryResponsePhase._maybe_amplify_response(holder, draft=draft, state=state, **common)
         assert out == (served or draft)
+
+
+def test_a_restatement_is_the_problem_asked_as_far_as_its_numbers_say() -> None:
+    from core.learning.kinds_by_meaning import restates
+
+    examples = [{"problem": "Calculate the highest common divisor of 3672 and 5033394."},
+                {"problem": "What is the highest common factor of 15 and 27362880?"}]
+    asked = "What's the greatest common divisor of 4862 and 7854?"
+    assert restates(asked, "Calculate the highest common divisor of 4862 and 7854.", examples)
+    # Live 2026-10-16: an analysis of the shown examples, answered as if it were the request.
+    assert not restates(asked, 'To determine the form, the examples: 1. "Calculate the highest common divisor of '
+                               '3672 and 5033394."', examples)
+    # One of the request's numbers cut short.
+    assert not restates(asked, "Calculate the highest common divisor of 4862 and 785.", examples)
+    # A number may change its notation.
+    assert restates("what's 15% of 340?", "Calculate 0.15*340.", [{"problem": "Calculate 0.2*55."}])
+    assert not restates(asked, "Calculate the highest common divisor of a and b.", examples)
+
+
+class _Book:
+    meanings = {"dm_numbers__gcd": object()}
+    procedures = {"dm_numbers__gcd": ["def solve(p): ..."]}
+    examples = {"dm_numbers__gcd": [{"problem": "Calculate the highest common divisor of 3672 and 5033394.",
+                                     "answer": "918"}]}
+
+    def __init__(self) -> None:
+        self.answered: list[str] = []
+
+    def route_by_meaning(self, _vector):
+        return "dm_numbers__gcd", 0.79, ""
+
+    def answer_restated(self, kind, restated):
+        self.answered.append(restated)
+        return {"family": kind, "answer": "374", "restated": restated}
+
+
+def _route(monkeypatch, written: str):
+    import asyncio
+
+    from core.brain import reasoning_amplifier_v2
+    from core.learning import procedures_from_solved_examples
+    from core.phases import kept_procedures_in_a_turn
+
+    book = _Book()
+    asked: list[dict] = []
+
+    class Router:
+        async def think(self, **kwargs):
+            asked.append(kwargs)
+            return {"content": written}
+
+    monkeypatch.setattr(procedures_from_solved_examples, "kept_procedure_book", lambda: book)
+    monkeypatch.setattr(kept_procedures_in_a_turn, "her_query_vector", lambda _text, _task: [1.0])
+    monkeypatch.setattr(reasoning_amplifier_v2, "amplified_from_kept_receipt", lambda receipt: receipt)
+    out = asyncio.run(kept_procedures_in_a_turn.kept_answer_by_meaning(
+        "What's the greatest common divisor of 4862 and 7854?", router=Router(), origin="user", tier="primary"))
+    return out, book, asked
+
+
+def test_her_restatement_opens_inside_the_problem_label_and_is_answered(monkeypatch) -> None:
+    out, book, asked = _route(monkeypatch, "Calculate the highest common divisor of 4862 and 7854.\n\nProblem:\nmore")
+    assert asked[0]["messages"][-1] == {"role": "assistant", "content": "Problem:\n"}
+    assert asked[0]["stop_sequences"] == ["\n\nProblem:"]
+    assert book.answered == ["Calculate the highest common divisor of 4862 and 7854."]
+    assert out["answer"] == "374"
+
+
+def test_an_account_of_the_examples_is_not_answered_as_the_request(monkeypatch) -> None:
+    out, book, _asked = _route(monkeypatch, 'To determine the form, look at "Calculate the highest common divisor '
+                                            'of 3672 and 5033394."')
+    assert out is None
+    assert book.answered == []
