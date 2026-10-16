@@ -180,12 +180,20 @@ def update_motion_directions(meeting: Any, words: str) -> None:
         take_motion_directions(meeting, words)
 
 
+def _scene_referents(moves: Any) -> list[Any]:
+    """Keep published instances before interaction heuristics remove any."""
+    observed = getattr(moves, 'things', None)
+    return list(observed.values()) if isinstance(observed, Mapping) else []
+
+
 def requested_target(choosing: Any) -> tuple | None:
     """Give an explicit request priority; an unbound referent waits for observation."""
     request = getattr(getattr(choosing, 'meeting', None), 'spatial_request', None)
     if request is None or choosing.mine is None:
         return None
-    binding = bind_destination(request, choosing.mine, choosing.others(), observed_names(choosing.moves), choosing.at)
+    # A spatial referent can be scenery or share her visual kind. Interaction
+    # heuristics must not remove it, or remove a rival that keeps its name ambiguous.
+    binding = bind_destination(request, choosing.mine, _scene_referents(choosing.moves), observed_names(choosing.moves), choosing.at)
     choosing.goal_binding = binding
     if binding is not None and choosing.stance(binding.thing) not in ('avoid', 'shoot', 'ignore'):
         return binding.point, 'meet', binding.thing
@@ -215,6 +223,8 @@ def _requested_destination_invariant() -> tuple:
     assert request is not None and request.relation == 'on'
     body = SimpleNamespace(number=1, kind=0, x=10., y=10., w=4., h=4., seen=3.)
     target = SimpleNamespace(number=2, kind=1, x=50., y=60., w=20., h=10., seen=3.)
+    assert _scene_referents(SimpleNamespace(things={1: body, 2: target})) == [body, target]
+    assert _scene_referents(SimpleNamespace()) == []
     assert bind_destination(request, body, [body, target], {1: 'platform'}, 3.).point == (50., 53.)
     assert bind_destination(request, body, [body, target], {}, 3.) is None
     assert bind_destination(request, body, [body, target, target], {1: 'platform'}, 3.) is None

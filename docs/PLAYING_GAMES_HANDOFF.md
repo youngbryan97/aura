@@ -647,3 +647,18 @@ Focused checks: 75 passed; smoke: 165 passed, one skipped. See
 `docs/evidence/steering/2026-10-15-reference-images-retain-source-coordinates.md`.
 Runtime reference acquisition, instance binding and source contact geometry
 remain open. Native-app demo readiness is unproved; G09 remains untouched.
+
+## Explicit referent gate checkpoint, 15 October 2026
+
+Explicit spatial goals now resolve against all published observed instances,
+before ordinary interaction heuristics remove still same-kind objects,
+writing or attached things. A filtered rival still competes for its name;
+ambiguity and current-geometry checks remain. The ordinary interaction list
+and hazard checks are unchanged. Tests: 84 passed; smoke: 165, one skipped.
+See `docs/evidence/steering/2026-10-15-explicit-referents-precede-interaction-filters.md`.
+
+The next naming gap is in `LookingAtThings` and `seen_in_play`: one marked
+instance is classified, then its answer is stored for the entire visual kind,
+and another instance of that kind is never asked. Track and bind the named
+instance instead. Preserve the semantic classification as a guess and the
+existing causal-control thresholds. No native runtime or G09 changes.

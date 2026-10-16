@@ -98,6 +98,34 @@ def test_the_actual_input_choice_keeps_the_bound_goal_and_ignores_unearned_conta
         THE_GUIDE.reset(token)
 
 
+def test_an_explicit_named_destination_is_not_removed_for_sharing_the_controlled_bodys_visual_kind():
+    body, target, _, moves, hers, meeting, guide = _scene({0: 'platform'})
+    target.kind = body.kind
+    token = THE_GUIDE.set(guide)
+    try:
+        choosing = _Choosing(moves, hers, meeting, [])
+        choosing.at = body.seen
+        assert target not in choosing.others()  # Ordinary contact filtering is unchanged.
+        assert choosing.target() == ((140., 139.), 'meet', target)
+        assert choosing.goal_binding.thing is target
+    finally:
+        THE_GUIDE.reset(token)
+
+
+def test_a_filtered_named_rival_cannot_turn_an_ambiguous_request_into_a_unique_destination():
+    body, target, nearby, moves, hers, meeting, guide = _scene({1: 'platform', 2: 'platform'})
+    meeting.writing.add(nearby.number)
+    token = THE_GUIDE.set(guide)
+    try:
+        choosing = _Choosing(moves, hers, meeting, [])
+        choosing.at = body.seen
+        assert target in choosing.others() and nearby not in choosing.others()
+        assert choosing.target() == ((body.x, body.y), 'wait', None)
+        assert choosing.goal_binding is None
+    finally:
+        THE_GUIDE.reset(token)
+
+
 @pytest.mark.parametrize('change', ['unnamed', 'ambiguous', 'stale', 'bad_box', 'too_small', 'danger'])
 def test_failed_binding_cannot_fall_back_to_an_arbitrary_contact_target(change):
     body, target, nearby, moves, hers, meeting, guide = _scene({1: 'platform'})
