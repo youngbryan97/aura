@@ -723,3 +723,31 @@ asset acquisition, destination occurrence binding and source-contact control
 remain open. Native deployment and independently witnessed play are still
 unproved. The October-16 single continuation is scheduled in this chat for
 12:24 PM Pacific; retire it after its run. G09 remains exclusive.
+
+## Captured material owner checkpoint, 16 October 2026
+
+`keep_material_frame` keeps source RGB pixels, masks, point bases and original
+observer instance receipts for detached reference work. A copy does not
+become a different observer. `SourceImageCoordinates.on_track` can attach on
+that saved frame and transport the result to the original current material
+basis; a different observer or new basis cannot inherit it. Copy budgets
+refuse the whole snapshot instead of dropping inconvenient competitors.
+
+The replay tool supports `--deliver-after-frames`. A frame-304 result reached
+its current track after three newer captures (0.468009 seconds of source
+time). Thirteen subsequent frames retained the point; seven independent
+fresh matches agreed within one working pixel. Four losses remained explicit.
+This is delayed recorded-data evidence, not live worker performance. See
+`docs/evidence/steering/2026-10-16-detached-reference-work-keeps-its-owner.md`.
+Focused checks: 247 passed.
+
+Next: an ordinary runtime source-reference provider with bounded off-loop
+work and explicit source/capture lifetimes. This copy/transport contract is
+ready for that provider, but no normal actor acquires source artwork yet.
+Destination occurrences and source-contact requirements still need their
+own source-bound connection. Do not substitute a box centre for an asset's
+source origin or promote its appearance into controlled identity.
+
+Captured-owner checkpoint gates: 247 focused passed; smoke 165 passed,
+one skipped; lint, compile, layering, DEPS consistency and writing passed.
+The G09-owned general-reasoning process was still active at closeout.

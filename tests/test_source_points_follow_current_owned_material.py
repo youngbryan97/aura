@@ -7,6 +7,7 @@ import pytest
 from PIL import Image
 
 from core.perception.a_visual_reference_in_the_picture import _digest, reference_appearances
+from core.perception.a_material_frame_kept_for_its_owner import keep_material_frame
 from core.perception.coordinates_in_a_visual_reference import SourceImageCoordinates
 from core.perception.position_from_the_same_points import PointPose, position_from_points
 from core.perception.points_that_keep_their_motion import PointMotion
@@ -189,6 +190,75 @@ def test_a_current_looking_pose_cannot_borrow_an_older_picture_receipt(scene):
     assert binding.inspect(observer, 4.1, source='source').reason == 'capture_not_observed'
 
 
+def test_a_detached_frame_keeps_pixels_masks_and_pose_when_the_live_objects_change(scene):
+    _, _, picture, _, body, observer = scene
+    frame = keep_material_frame(observer, picture, 4.)
+    assert frame is not None
+    body.support[:] = False
+    body.point_pose.anchors.clear()
+    picture[:] = 0
+    assert frame.things[1].support.all() and len(frame.things[1].point_pose.anchors) == 4
+    assert frame.picture.any()
+    with pytest.raises(ValueError):
+        frame.picture[0, 0] = 1
+    with pytest.raises(ValueError):
+        frame.things[1].support[0, 0] = False
+
+
+def test_a_late_reference_match_can_reach_the_original_observers_current_material(scene):
+    coordinates, appearance, picture, reference, body, observer = scene
+    captured = keep_material_frame(observer, picture, 4.)
+    marks = body.point_pose.visible_marks
+    moved = tuple((x+3., y+2.) for x, y in marks.values())
+    motion = PointMotion(3., 2., .01, len(marks), 4., 4.1, tuple(marks), moved)
+    blob = dict(x=75., y=64., w=64., h=64., support=np.ones((64, 64), bool))
+    assert position_from_points(body, blob, motion, 4.1) is not None
+    body.x, body.y, body.seen = 75., 64., 4.1
+    observer.pixels_consumed = consumed_pixels(np.roll(picture, (2, 3), axis=(0, 1)), 4.1)
+    # Applying the old correspondence to today's observation is refused.
+    direct = coordinates.on_track((0., 0.), appearance, picture, reference, observer, 4., source='source')
+    assert direct.binding is None and direct.reason == 'observer_pixels_do_not_match'
+    # The result belongs to the saved capture; its measured basis alone carries it forward.
+    result = coordinates.on_track((0., 0.), appearance, captured.picture, reference, captured, 4., source='source')
+    assert result.reason == 'qualified'
+    current = result.binding.current(observer, 4.1, source='source')
+    assert current.position == pytest.approx((55., 40.), abs=.05)
+    copy = SimpleNamespace(things=observer.things, scale=1., pixels_consumed=observer.pixels_consumed)
+    assert result.binding.current(copy, 4.1, source='source') is None
+
+
+def test_a_detached_answer_cannot_name_new_material_after_the_basis_restarts(scene):
+    coordinates, appearance, picture, reference, body, observer = scene
+    captured = keep_material_frame(observer, picture, 4.)
+    body.point_pose.reference_at = 3.9
+    result = coordinates.on_track((0., 0.), appearance, captured.picture, reference, captured, 4., source='source')
+    assert result.reason == 'qualified'
+    assert result.binding.inspect(observer, 4., source='source').reason == 'point_basis_replaced'
+
+
+def test_an_unconsumed_picture_cannot_create_a_detached_material_frame(scene):
+    picture, observer = scene[2], scene[-1]
+    changed = picture.copy()
+    changed[0, 0] = 10
+    assert keep_material_frame(observer, changed, 4.) is None
+    assert keep_material_frame(observer, picture, 4.1) is None
+
+
+def test_a_snapshot_budget_cannot_keep_only_the_owners_that_happen_to_fit(scene):
+    _, _, picture, _, body, observer = scene
+    marks = {n: (48., 38.) for n in range(256)}
+    body.point_pose.anchors = marks.copy()
+    body.point_pose.visible_marks = marks.copy()
+    observer.things = {n: replace(body, number=n) for n in range(17)}
+    assert keep_material_frame(observer, picture, 4.) is None
+
+
+def test_nonmaterial_mask_values_cannot_become_a_detached_ownership_witness(scene):
+    _, _, picture, _, body, observer = scene
+    body.support = np.ones((64, 64), float)
+    assert keep_material_frame(observer, picture, 4.) is None
+
+
 @pytest.mark.parametrize('changes', [
     {'source_points': ()}, {'linear': ((1.,),)}, {'offset': (0.,)}, {'observed_points': ((0., 0.),)},
     {'error': float('nan')}, {'source_points': ((1., 2.),)*6, 'observed_points': ((1., 2.),)*6},
@@ -208,3 +278,5 @@ def test_the_registered_claim_executes_the_current_basis_check():
     install_realtime_control_claims(suite)
     claim = next(test for test in suite.tests() if test.name == 'source_points_need_their_current_material_basis')
     assert claim.predict(None) is True
+    detached = next(test for test in suite.tests() if test.name == 'detached_material_keeps_its_original_observer')
+    assert detached.predict(None) is True

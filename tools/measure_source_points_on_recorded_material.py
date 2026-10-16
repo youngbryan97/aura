@@ -122,16 +122,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--through-sequence', type=int, required=True)
     parser.add_argument('--history', type=int, default=20)
     parser.add_argument('--follow-frames', type=int, default=0)
+    parser.add_argument('--deliver-after-frames', type=int, default=0,
+                        help='advance the live observer before delivering the captured matcher result')
     parser.add_argument('--reference-bundle', type=Path, required=True)
     parser.add_argument('--source-point', type=float, nargs=2, default=(0., 0.))
     parser.add_argument('--out', type=Path, required=True)
     args = parser.parse_args(argv)
     if (not 2 <= args.history <= 256 or not 0 <= args.follow_frames <= 256
+            or not 0 <= args.deliver_after_frames <= args.follow_frames
             or args.through_sequence < 0 or args.out.exists()
             or not all(math.isfinite(v) for v in args.source_point)):
         parser.error('use a fresh output, finite source point and bounded frame history')
     from core.governance_context import local_internal_governed_scope
     from core.perception.a_visual_reference_in_the_picture import reference_appearances
+    from core.perception.a_material_frame_kept_for_its_owner import keep_material_frame
     from core.perception.what_moves_in_the_picture import WhatMoves, prepare_play_vision
     from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -149,22 +153,41 @@ def main(argv: list[str] | None = None) -> int:
         previous_at, surface = capture['at'], capture['surface']
         picture = _pixels(args.recording, event)
         observer.see(picture, previous_at)
+    captured = keep_material_frame(observer, picture, previous_at)
+    if captured is None:
+        raise ValueError('the tracker could not preserve this consumed material frame')
     scales = tuple(map(float, np.geomspace(.5, 4., 32)))
-    appearances = reference_appearances(picture, reference, scales=scales)
+    appearances = reference_appearances(captured.picture, reference, scales=scales)
+    pending = following[:args.deliver_after_frames]
+    following = following[args.deliver_after_frames:]
+    for event in pending:
+        capture = event['capture']
+        if (type(capture.get('at')) not in (int, float) or not math.isfinite(capture['at'])
+                or capture['at'] <= previous_at or capture.get('surface') != surface):
+            raise ValueError('the matcher result cannot cross a changed capture scope')
+        previous_at = capture['at']
+        picture = _pixels(args.recording, event)
+        observer.see(picture, previous_at)
+    delivered_at = previous_at
+    fresh = reference_appearances(picture, reference, scales=scales) if pending else appearances
+    delivery_point = (coordinates.project(tuple(args.source_point), fresh[0], picture, reference,
+                                         source=coordinates.source) if len(fresh) == 1 else None)
     results, bindings = [], []
     for appearance in appearances:
-        result = coordinates.on_track(tuple(args.source_point), appearance, picture, reference, observer,
-                                      previous_at, source=coordinates.source)
+        result = coordinates.on_track(tuple(args.source_point), appearance, captured.picture, reference, captured,
+                                      captured.at, source=coordinates.source)
         current = result.binding.current(observer, previous_at, source=coordinates.source) if result.binding else None
         results.append(dict(reason=result.reason, owner_support=result.owner_support,
                             matched_points=len(appearance.source_points),
-                            current=asdict(current) if current else None))
+                            current=asdict(current) if current else None,
+                            delivery_independent_difference=math.dist(current.position, np.asarray(delivery_point)*observer.scale)
+                                if current and delivery_point else None))
         bindings.append(result.binding)
     tracks = [dict(number=t.number, born=t.born, seen=t.seen, kind=t.kind,
                    point_basis_at=getattr(t.point_pose, 'reference_at', None),
                    point_pose_at=getattr(t.point_pose, 'at', None),
                    material_marks=len(getattr(t.point_pose, 'visible_marks', {}))) for t in observer.things.values()]
-    tracked, attachment_at = [], previous_at
+    tracked, attachment_at = [], captured.at
     for event in following:
         capture = event['capture']
         if (type(capture.get('at')) not in (int, float) or not math.isfinite(capture['at'])
@@ -188,7 +211,8 @@ def main(argv: list[str] | None = None) -> int:
         tracked.append(dict(sequence=event['sequence'], at=previous_at, independent_appearances=len(fresh),
                             estimates=estimates))
     record = dict(schema='aura.recorded_source_point_material.v1', frames=len(frames), source=coordinates.source,
-        through_sequence=args.through_sequence, at=attachment_at, followed_until=previous_at, scale=observer.scale, tracks=tracks,
+        through_sequence=args.through_sequence, at=attachment_at, delivered_at=delivered_at,
+        delayed_frames=[event['sequence'] for event in pending], followed_until=previous_at, scale=observer.scale, tracks=tracks,
         source_point=args.source_point, results=results, following=tracked, seconds=time.perf_counter()-began,
         task_passed=None, presentation_qualified=False,
         evidence_scope='recorded pixel replay and current material attachment; no role, action or gameplay proof')

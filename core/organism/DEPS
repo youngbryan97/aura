@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.perception.a_material_frame_kept_for_its_owner", # Pure detached owner/capture canary; no background job.
     "+core.perception.pixels_consumed_by_the_observer", # Pure consumed RGB receipt canary; no capture or model execution.
     "+core.perception.a_source_point_on_current_material", # Pure source-point basis canary; no task or control authority.
     "+core.perception.names_for_observed_instances", # Pure instance-name custody canary; no model or control execution.

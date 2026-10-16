@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 
 from core.perception.a_visual_reference_in_the_picture import ReferenceAppearance
+from core.perception.a_material_frame_kept_for_its_owner import query_in_observation
 from core.perception.affine_motion_from_named_points import affine_motion
 from core.perception.continuing_material_before_outlines import _owns_thing
 from core.perception.names_for_observed_instances import InstanceQuery, query_for
@@ -88,7 +89,7 @@ class SourcePointOnTrack:
         thing = getattr(observer, 'things', {}).get(self.query.number)
         if thing is None:
             return SourcePointSample(None, 'track_missing')
-        query = query_for(thing, observer, at)
+        query = query_in_observation(thing, observer, at)
         if query is None:
             return SourcePointSample(None, 'track_not_current')
         # A visual class may change while the same named material continues.
@@ -193,7 +194,7 @@ def attach_source_point(coordinates: Any, source_point: tuple, appearance: Refer
         return refused(None, 'observer_pixels_do_not_match')
     owners = []
     for thing in getattr(observer, 'things', {}).values():
-        query = query_for(thing, observer, at)
+        query = query_in_observation(thing, observer, at)
         if query is not None:
             owned = frozenset(index for index, place in enumerate(ends*scale) if _owns_thing(thing, tuple(place)))
             if owned:

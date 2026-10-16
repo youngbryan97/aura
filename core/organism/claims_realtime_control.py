@@ -17,6 +17,7 @@ def _play_execution_claims() -> tuple:
     from core.perception.names_for_observed_instances import _instance_name_invariant
     from core.perception.a_source_point_on_current_material import _source_point_basis_invariant
     from core.perception.pixels_consumed_by_the_observer import _consumed_pixel_invariant
+    from core.perception.a_material_frame_kept_for_its_owner import _material_frame_owner_invariant
     from core.perception.affine_motion_from_named_points import _affine_material_invariant
     from core.perception.position_from_the_same_points import (
         _fresh_mark_capacity_invariant,
@@ -33,7 +34,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('observers_keep_their_consumed_pixel_receipt', 'core/perception/pixels_consumed_by_the_observer.py',
+    return (('detached_material_keeps_its_original_observer', 'core/perception/a_material_frame_kept_for_its_owner.py',
+             'tests/test_source_points_follow_current_owned_material.py', lambda: _material_frame_owner_invariant() == (),
+             'Detached reference work retains copied consumed pixels, current masks and the original observer instance receipts; a delayed binding reaches live geometry only through the same continuing measured material basis.'),
+            ('observers_keep_their_consumed_pixel_receipt', 'core/perception/pixels_consumed_by_the_observer.py',
              'tests/test_material_attachment_uses_the_consumed_pixels.py', lambda: _consumed_pixel_invariant() == (),
              'A play observer retains the original consumed RGB geometry, capture time and byte digest across worker publication; unsupported arrays supply no pixel custody and later caller mutations cannot rewrite a consumed receipt.'),
             ('source_points_need_their_current_material_basis', 'core/perception/a_source_point_on_current_material.py',
