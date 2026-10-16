@@ -137,6 +137,7 @@ class ExpectsNext:
         self._model: Any = None
         self._tokenizer: Any = None
         self._refused = ""
+        self._lease: Any = None
 
     def _where(self) -> Path:
         if self._path is None:
@@ -177,6 +178,19 @@ class ExpectsNext:
                 return False
             from mlx_lm import load
 
+            from core.runtime.model_lane_control import acquire_synchronous_in_process_model_lane
+
+            # Held through the lane like every model this host loads, so the lane controller counts its memory
+            # and can take it back; it is loaded again the next time it is needed.
+            self._lease = acquire_synchronous_in_process_model_lane(
+                owner_id=f"expects-next:{id(self)}",
+                model_path=str(path),
+                purpose="serve",
+                priority=30,
+                preemptible=True,
+                evict=self._evict,
+                metadata={"engine": "expects_next", "model_role": "reflex_scoring"},
+            )
             self._model, self._tokenizer = load(str(path))
             logger.info("👂 Her fast model is loaded for scoring next turns (%s).", path.name)
             return True
@@ -187,6 +201,18 @@ class ExpectsNext:
                 action="what an utterance asks of her is not read; her fast model did not load",
             )
             return False
+
+    async def _evict(self, _owner: Any, reason: str) -> bool:
+        """Give the model back to the lane; it loads again when it is next needed."""
+        import asyncio
+
+        self._model = self._tokenizer = None
+        lease, self._lease = self._lease, None
+        release = getattr(lease, "release", None)
+        if callable(release):
+            await asyncio.to_thread(release, reason=f"expects_next_eviction:{reason}")
+        logger.info("👂 Her fast model for scoring was given back to the lane (%s).", reason)
+        return True
 
     def _score(self, said: str, candidates: Sequence[str]) -> list[float]:
         if not self._load():

@@ -110,6 +110,16 @@
    "path": "core/brain/llm/prism_hadamard.py"
   },
   {
+   "expected_load_references": 1,
+   "guard_symbol": "acquire_synchronous_in_process_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "in_process_sync_heartbeat",
+   "path": "core/brain/llm/what_she_expects_next.py"
+  },
+  {
    "expected_load_references": 3,
    "guard_symbol": "acquire_in_process_model_lane",
    "min_guard_sites": 1,
