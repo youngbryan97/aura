@@ -360,14 +360,6 @@ def _has_truncated_tail(
         structured_lines = [line for line in body.splitlines() if line.strip()]
         last_line = structured_lines[-1].strip() if structured_lines else ""
         marker_match = _LIST_LINE_RE.match(last_line)
-        ends_on_complete_item = bool(
-            marker_match and len((marker_match.group("body") or "").split()) >= 3
-        )
-        ends_on_bare_heading = bool(re.fullmatch(r"\*\*[^*\n]{2,80}:\*\*", last_line))
-        # …and on inconsistency. If the earlier items in this list close with a
-        # full stop and the final one does not, the list was cut, whatever the
-        # last item looks like on its own. A list that never punctuates its
-        # items is simply written that way.
         earlier_items = [
             match.group("body").strip()
             for match in (
@@ -375,6 +367,23 @@ def _has_truncated_tail(
             )
             if match and (match.group("body") or "").strip()
         ]
+        # A last item of three words is whole, and so is one as long as the
+        # list's shortest earlier item: the list says how long its items are.
+        # Live 2026-10-16, words sorted one to a line ("6. velvet") were read
+        # as cut, and the right answer was withheld from the person five times.
+        last_item_words = len((marker_match.group("body") or "").split()) if marker_match else 0
+        ends_on_complete_item = bool(
+            marker_match
+            and (
+                last_item_words >= 3
+                or (earlier_items and last_item_words >= min(len(item.split()) for item in earlier_items))
+            )
+        )
+        ends_on_bare_heading = bool(re.fullmatch(r"\*\*[^*\n]{2,80}:\*\*", last_line))
+        # …and on inconsistency. If the earlier items in this list close with a
+        # full stop and the final one does not, the list was cut, whatever the
+        # last item looks like on its own. A list that never punctuates its
+        # items is simply written that way.
         punctuated = [item for item in earlier_items if item.endswith((".", "!", "?"))]
         inconsistent_tail = bool(
             len(earlier_items) >= 2

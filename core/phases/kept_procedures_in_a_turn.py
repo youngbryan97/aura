@@ -8,10 +8,12 @@ worded otherwise is found by her embedding (core/learning/kinds_by_meaning.py),
 restated in the kind's form by her model, and answered from the restatement;
 that answer is evidence only, since nothing checked the restatement.
 
-Both response phases use this. The unitary phase her kernel runs had only
-the first: a request had to be worded like a benchmark's problems to reach a
-procedure at all, and the computed answer replaced her draft rather than
-being put in front of her before it.
+Both response phases use this, and so does the path that answers her desktop
+chat (core/brain/cognitive_engine_quick_reply.py), which runs before the
+phases and, when it answers, instead of them. The unitary phase her kernel
+runs had only the first: a request had to be worded like a benchmark's
+problems to reach a procedure at all, and the computed answer replaced her
+draft rather than being put in front of her before it.
 """
 
 from __future__ import annotations
@@ -162,6 +164,11 @@ async def kept_answer_for(objective: str, *, router: Any, origin: str, tier: str
     }
 
 
+def kept_answer_evidence(planted: dict[str, Any]) -> str:
+    """A kept answer as she is shown it before drafting: the skill result the phases put in front of her."""
+    return f"[SKILL RESULT: kept_procedure] \u2705 Answer: {planted['answer']}\nSummary: {planted['summary']}"
+
+
 def planted_for(state: Any, objective: str) -> dict[str, Any] | None:
     """The kept answer found before this turn's draft, only if it was found for this very request."""
     planted = (getattr(state, "response_modifiers", None) or {}).get("kept_procedure")
@@ -180,5 +187,5 @@ def after_the_draft(draft: str, planted: dict[str, Any]) -> tuple[bool, str]:
     return False, "computed_answer_served"
 
 
-__all__ = ["after_the_draft", "her_query_vector", "kept_answer_by_meaning", "kept_answer_for", "planted_for",
-           "states_the_answer"]
+__all__ = ["after_the_draft", "her_query_vector", "kept_answer_by_meaning", "kept_answer_evidence", "kept_answer_for",
+           "planted_for", "states_the_answer"]
