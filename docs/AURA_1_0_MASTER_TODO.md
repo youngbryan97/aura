@@ -3104,6 +3104,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   surface's fix, and the phi and consciousness criteria, which are the ISC
   campaign's to measure with its nulls and lesions.
 
+- [ ] L09 Show that what she learns improves her ordinary use: a kind of task she
+  gets wrong, learned from answers a person gives her in chat, answered right
+  a day later through the procedure she induced, without being told; then her
+  kept procedures on against off over realistic tasks of her ordinary use.
+  Added 2026-10-16 with Bryan. In G09's live proof the kept procedures reached
+  her chat and changed no outcome (she was right without them), and learning
+  in use had never received an example. Wiring: 83fcd7aa6, 9a4218375,
+  01ddf0a8d. Plan, fixed before it ran:
+  `~/.aura/rlc-evidence/learning-loop-20261016/plan.md`.
+
 ## 4. User-facing capability acceptance
 
 - [ ] U01 Natural conversation: direct answers, conversational repair, memory,
