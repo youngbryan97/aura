@@ -621,3 +621,29 @@ Focused tests: 94 passed. Smoke: 165 passed, one skipped. See
 `docs/evidence/steering/2026-10-15-current-source-survives-a-revisit.md`.
 Source artwork still needs a fresh observed registration before it can name
 a live destination. G09, holdouts and native runtime ownership are unchanged.
+
+## Source-coordinate reference checkpoint, 15 October 2026
+
+`tools/export_program_visual_reference.py --with-registration` now exports
+a sprite/button coordinate frame and requires an independent CPU raster to
+align with its PNG. Source origins can then be projected through a fresh
+appearance fit with exact source/reference/picture byte custody. Changed
+bytes and missing or unsupported registration refuse. This does not name
+an object instance or certify contact or input.
+
+Original case 18's source origin projects 83.084443 pixels from its artwork
+box centre in the recorded frame. The second-raster calibration error is
+0.001177 pixels. The registration packet and RGBA evidence are retained in
+`artifacts/flash-campaign/2026-10-15-registered-reference-raster/`.
+Source comparisons use object origins, so the visual centre is insufficient.
+
+The material replay also shows several platform pieces sharing kind 0 with
+the controlled ship. Instance naming must avoid assigning that asset's name
+to its entire visual kind. The explicit destination lookup currently uses
+`choosing.others()`, whose heuristic removes still same-kind objects before
+the goal can resolve them. Inspect that gate and preserve name ambiguity.
+
+Focused checks: 75 passed; smoke: 165 passed, one skipped. See
+`docs/evidence/steering/2026-10-15-reference-images-retain-source-coordinates.md`.
+Runtime reference acquisition, instance binding and source contact geometry
+remain open. Native-app demo readiness is unproved; G09 remains untouched.

@@ -76,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--java', type=Path, required=True)
     parser.add_argument('--ffdec', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True, help='fresh private output directory')
+    parser.add_argument('--with-registration', action='store_true', help='measure source coordinates for one sprite or button frame')
     args = parser.parse_args(argv)
     from core.governance_context import local_internal_governed_scope
     from core.perception.reading_a_flash_program import MOST_UNPACKED
@@ -119,6 +120,13 @@ def main(argv: list[str] | None = None) -> int:
                     or _sha(java) != record['java_sha256']):
                 raise ValueError('source or renderer changed during export')
             images = _inventory(export, asset.character_id)
+            if args.with_registration:
+                from tools.reference_frame_registration import register_export_frame
+
+                record['registration'] = register_export_frame(java, jar, source, out, asset, images, table.source)
+                if ('swf:'+_sha(source) != table.source or _sha(jar) != record['renderer_jar_sha256']
+                        or _sha(java) != record['java_sha256']):
+                    raise ValueError('source or renderer changed during coordinate acquisition')
             record.update(status='rendered', images=images)
         except (ValueError, OSError) as exc:
             record.update(status='failed', error=f'{type(exc).__name__}: {exc}')

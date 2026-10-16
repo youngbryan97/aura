@@ -12,6 +12,7 @@ def _play_execution_claims() -> tuple:
     )
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
+    from core.perception.coordinates_in_a_visual_reference import _source_image_coordinates_invariant
     from core.perception.affine_motion_from_named_points import _affine_material_invariant
     from core.perception.position_from_the_same_points import (
         _fresh_mark_capacity_invariant,
@@ -28,7 +29,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('current_programs_need_current_acquired_bytes', 'core/skills/sovereign_browser_the_program.py',
+    return (('source_reference_points_need_measured_raster_alignment', 'core/perception/coordinates_in_a_visual_reference.py',
+             'tests/test_source_coordinates_survive_reference_export.py', lambda: _source_image_coordinates_invariant() == (),
+             'Declared source coordinates transfer into reference-image pixels only after redundant independent raster alignment; changed source or image bytes cannot carry the projected point, which supplies no input authority or collision claim.'),
+            ('current_programs_need_current_acquired_bytes', 'core/skills/sovereign_browser_the_program.py',
              'tests/test_a_saved_program_summary_cannot_replace_current_bytes.py', lambda: _current_program_bytes_invariant() == (),
              'A current program read requires bounded acquired bytes; saved URL summaries cannot bypass current source and visual-declaration extraction or supply a current read when acquisition fails.'),
             ('delivered_material_costs_require_the_current_capture', 'core/perception/presses_on_the_same_material.py',
