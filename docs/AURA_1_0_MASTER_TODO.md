@@ -2823,7 +2823,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repairs containment false positives, disjoint-task causal attribution, and
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
-- [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+- [x] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  CLOSED 2026-10-16 ([result](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)),
+  attempt 3 as preregistered: procedures her model wrote and kept by evidence,
+  against her drafts. Pooled 141 gained to 68 lost (p = 4.9e-7); held-out
+  kinds, math 107 to 14 (p = 6.5e-19) and planning 32 to 0 (p = 4.7e-10);
+  no domain harmed. 54 of the losses are competition problems her word
+  router misread; attempt 4's router, which answered none of 1,692
+  development requests wrongly, is the one that goes live.
   [Bounded reach criterion](evidence/G09_BOUNDED_REACH_CRITERION_2026-09-21.md)
   separates candidate reach from selected-answer correctness and adopted code
   from acquired machinery. Search bounds are conditional, not speedup receipts.
