@@ -697,3 +697,29 @@ appearance evidence. See
 `docs/evidence/steering/2026-10-15-reference-orientation-keeps-source-samples.md`.
 Next remains current material attachment and source-contact geometry. The
 reference matcher is not yet an ordinary runtime source-asset provider.
+
+## Source point and consumed-pixel checkpoint, 16 October 2026
+
+`SourceImageCoordinates.on_track` attaches a calibrated point through unique
+current material ownership and a current named-point basis. It preserves
+the existing motion origin and returns no control or task authority. The
+ordinary observer now retains the consumed source RGB hash/shape/time across
+worker publication. Attachment requires that exact capture. `inspect`
+reports stale, missing or replaced tracks/bases and precision refusals.
+
+A recorded case-18 replay attached the exported source origin through seven
+owned correspondences. It retained 16 of the next 20 frames; the four losses
+remain explicit. Nine independent fresh appearances agreed within one
+working pixel (largest difference 0.216533). This is retrospective pixel
+and material evidence, with no new action or gameplay pass. See
+`docs/evidence/steering/2026-10-16-source-points-follow-current-owned-material.md`.
+Focused: 241 passed; smoke: 165, one skipped; normal code gates passed.
+
+Next: preserve the original observation owner and its captured material
+basis while the matcher works off the event loop. A result computed on an
+old frame must be carried through current corresponding marks, or refused;
+it cannot be applied to a new observer merely by overlapping boxes. Runtime
+asset acquisition, destination occurrence binding and source-contact control
+remain open. Native deployment and independently witnessed play are still
+unproved. The October-16 single continuation is scheduled in this chat for
+12:24 PM Pacific; retire it after its run. G09 remains exclusive.

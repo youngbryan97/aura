@@ -15,6 +15,8 @@ def _play_execution_claims() -> tuple:
     from core.perception.coordinates_in_a_visual_reference import _source_image_coordinates_invariant
     from core.perception.a_visual_reference_in_the_picture import _oriented_reference_invariant
     from core.perception.names_for_observed_instances import _instance_name_invariant
+    from core.perception.a_source_point_on_current_material import _source_point_basis_invariant
+    from core.perception.pixels_consumed_by_the_observer import _consumed_pixel_invariant
     from core.perception.affine_motion_from_named_points import _affine_material_invariant
     from core.perception.position_from_the_same_points import (
         _fresh_mark_capacity_invariant,
@@ -31,7 +33,13 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('rotating_references_keep_their_source_samples', 'core/perception/a_visual_reference_in_the_picture.py',
+    return (('observers_keep_their_consumed_pixel_receipt', 'core/perception/pixels_consumed_by_the_observer.py',
+             'tests/test_material_attachment_uses_the_consumed_pixels.py', lambda: _consumed_pixel_invariant() == (),
+             'A play observer retains the original consumed RGB geometry, capture time and byte digest across worker publication; unsupported arrays supply no pixel custody and later caller mutations cannot rewrite a consumed receipt.'),
+            ('source_points_need_their_current_material_basis', 'core/perception/a_source_point_on_current_material.py',
+             'tests/test_source_points_follow_current_owned_material.py', lambda: _source_point_basis_invariant() == (),
+             'A calibrated source point attaches through unique current visible ownership and a measured continuing point basis; changed captures, source, observer, track or basis cannot carry it, and it grants no task role or control identity.'),
+            ('rotating_references_keep_their_source_samples', 'core/perception/a_visual_reference_in_the_picture.py',
              'tests/test_a_reference_keeps_coordinates_while_it_turns.py', lambda: _oriented_reference_invariant() == (),
              'A bounded orientation search returns redundant matched samples in original reference coordinates; failed orientation proposals cannot suppress a current fit, while different visible copies remain competing appearances without control or task authority.'),
             ('visual_names_keep_the_queried_instance', 'core/perception/names_for_observed_instances.py',

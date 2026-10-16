@@ -463,6 +463,7 @@ class WhatMoves:
         self._backdrop: np.ndarray | None = None
         self._last: np.ndarray | None = None
         self._last_at = 0.0
+        self.pixels_consumed: Any = None
         self._still: np.ndarray | None = None
         self.pictures = 0
         self.screens = 0
@@ -1032,6 +1033,9 @@ class WhatMoves:
         # (core/perception/a_clock_for_drawn_frames.py) stays with the picture for whoever weighs its bounds, and a
         # thing born on a receipt was refused by every check that a time is a number (offline 2026-10-13).
         at = float(at)
+        from core.perception.pixels_consumed_by_the_observer import consumed_pixels
+
+        self.pixels_consumed = consumed_pixels(np.asarray(picture), at)
         small = self._smaller(np.asarray(picture))
         self.shape = small.shape[:2]
         happened: list[dict[str, Any]] = []

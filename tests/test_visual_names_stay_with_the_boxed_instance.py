@@ -46,6 +46,17 @@ def test_only_the_queried_instance_receives_a_name_even_when_another_shares_its_
     assert not hasattr(a, 'controlled') and a.kind == b.kind == 0
 
 
+@pytest.mark.parametrize('number_type', [np.float32, np.float64])
+def test_measured_numpy_coordinates_and_times_are_canonicalized_without_losing_the_instance(number_type):
+    a = _thing(born=number_type(1.), at=number_type(4.), x=number_type(40.), y=number_type(40.))
+    scene, names = _scene(a), InstanceNames()
+    names.begin(scene)
+    query = _query(a, scene)
+    assert type(query.born) is float and type(query.at) is float and all(type(v) is float for v in query.box)
+    assert names.record_for(scene, query, 'vessel')
+    assert names.of(scene, a).what == names.scene(scene, {}).for_thing(a) == 'vessel'
+
+
 def test_capture_bytes_are_owned_and_provider_json_cannot_supply_a_query():
     a = _thing()
     scene = _scene(a)

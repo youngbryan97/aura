@@ -5,6 +5,7 @@ import hashlib
 import math
 import re
 from dataclasses import dataclass, replace
+from numbers import Real
 from typing import Any
 from uuid import uuid4
 
@@ -57,20 +58,29 @@ def _scope(observer: Any) -> tuple[int, str]:
     return id(observer), epoch
 
 
+def _finite_real(value: Any) -> bool:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def query_for(thing: Any, observer: Any, at: float) -> InstanceQuery | None:
     values = tuple(getattr(thing, key, None) for key in ('number', 'born', 'kind', 'seen'))
     number, born, kind, seen = values
     if (type(number) is not int or number < 0 or type(kind) is not int or kind < 0
-            or any(type(v) not in (int, float) or not math.isfinite(v) for v in (born, seen, at))
+            or not all(_finite_real(v) for v in (born, seen, at))
             or not 0 <= born <= at or seen != at):
         return None
     if not callable(getattr(thing, 'box', None)):
         return None
     box = tuple(thing.box())
-    if (len(box) != 4 or any(type(v) not in (int, float) or not math.isfinite(v) for v in box)
+    if (len(box) != 4 or not all(_finite_real(v) for v in box)
             or box[2] <= box[0] or box[3] <= box[1]):
         return None
-    return InstanceQuery(*_scope(observer), number, born, kind, at, box)
+    return InstanceQuery(*_scope(observer), number, float(born), kind, float(at), tuple(float(v) for v in box))
 
 
 @dataclass(frozen=True)
@@ -92,7 +102,7 @@ class NamesInScene:
     def for_thing(self, thing: Any) -> str:
         if self.scoped:
             if (type(getattr(thing, 'number', None)) is not int or type(getattr(thing, 'kind', None)) is not int
-                    or type(getattr(thing, 'born', None)) not in (int, float)):
+                    or not _finite_real(getattr(thing, 'born', None))):
                 return ''
             key = thing.number, getattr(thing, 'born', None), thing.kind
             return next((name for number, born, kind, name in self.names if (number, born, kind) == key), '')
@@ -126,8 +136,7 @@ class InstanceNames:
         current = getattr(observer, 'things', {}).get(query.number)
         if (current is None or getattr(current, 'born', None) != query.born
                 or getattr(current, 'kind', None) != query.kind
-                or type(getattr(current, 'seen', None)) not in (int, float)
-                or not math.isfinite(current.seen) or current.seen < query.at):
+                or not _finite_real(getattr(current, 'seen', None)) or current.seen < query.at):
             return False
         return self.record(query, what, odd, who)
 
@@ -150,12 +159,12 @@ class InstanceNames:
 
     def of(self, observer: Any, thing: Any) -> InstanceName | None:
         if (type(getattr(thing, 'number', None)) is not int or type(getattr(thing, 'kind', None)) is not int
-                or type(getattr(thing, 'born', None)) not in (int, float)):
+                or not _finite_real(getattr(thing, 'born', None))):
             return None
         found = self.records.get((*_scope(observer), thing.number, thing.born))
         at = getattr(thing, 'seen', None)
         return (found if found is not None and found.what and found.query.kind == thing.kind
-                and type(at) in (int, float) and math.isfinite(at) and at >= found.query.at else None)
+                and _finite_real(at) and at >= found.query.at else None)
 
     def scene(self, observer: Any, legacy: dict[int, str]) -> NamesInScene:
         names = []

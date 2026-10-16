@@ -10,12 +10,15 @@ import math
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from core.perception.a_visual_reference_in_the_picture import ReferenceAppearance, _digest, reference_appearances
 from core.verify import invariant
+
+if TYPE_CHECKING:
+    from core.perception.a_source_point_on_current_material import SourcePointAttachment
 
 MAX_SVG_BYTES = 2*1024*1024
 _SVG = '{http://www.w3.org/2000/svg}'
@@ -120,6 +123,13 @@ class SourceImageCoordinates:
         point = np.asarray(self.linear) @ source_point + self.offset
         result = appearance.project(tuple(point))
         return tuple(float(v) for v in result) if all(math.isfinite(v) for v in result) else None
+
+    def on_track(self, source_point: tuple, appearance: ReferenceAppearance, picture: np.ndarray,
+                 reference: np.ndarray, observer: Any, at: float, *, source: str) -> SourcePointAttachment:
+        """Attach measured geometry without replacing the track's motion origin."""
+        from core.perception.a_source_point_on_current_material import attach_source_point
+
+        return attach_source_point(self, source_point, appearance, picture, reference, observer, at, source=source)
 
 
 def _rgba(picture: Any) -> bool:

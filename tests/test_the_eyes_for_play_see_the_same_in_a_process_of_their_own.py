@@ -36,6 +36,7 @@ def test_what_is_seen_over_there_is_what_is_seen_here():
         kept: dict[int, object] = {}
         for picture, at in _pictures():
             assert repr(here.see(picture, at)) == repr(there.see(picture, at))
+            assert here.pixels_consumed == there.pixels_consumed
             assert list(here.things) == list(there.things)
             for number, thing in here.things.items():
                 assert repr(vars(thing)) == repr(vars(there.things[number]))
