@@ -77,7 +77,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--ffdec', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True, help='fresh private output directory')
     parser.add_argument('--with-registration', action='store_true', help='measure source coordinates for one sprite or button frame')
+    parser.add_argument('--publish', action='store_true', help='index a registered export for ordinary play under this runtime state root')
     args = parser.parse_args(argv)
+    if args.publish and not args.with_registration:
+        parser.error('publishing requires independent source-coordinate registration')
     from core.governance_context import local_internal_governed_scope
     from core.perception.reading_a_flash_program import MOST_UNPACKED
     from core.perception.visual_assets_in_a_flash_file import read_flash_visual_assets
@@ -131,6 +134,10 @@ def main(argv: list[str] | None = None) -> int:
         except (ValueError, OSError) as exc:
             record.update(status='failed', error=f'{type(exc).__name__}: {exc}')
         gateway.write_text(out/'receipt.json', json.dumps(record, indent=2)+'\n', source='export_program_visual_reference')
+    if args.publish and record['status'] == 'rendered':
+        from tools.publish_program_visual_reference import publish_reference_bundle
+
+        publish_reference_bundle(out)
     print(json.dumps(dict(status=record['status'], images=len(record['images']), source=table.source,
                           character_id=asset.character_id, task_passed=None, presentation_qualified=False)))
     return 0 if record['status'] == 'rendered' else 1

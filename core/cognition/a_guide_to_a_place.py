@@ -274,6 +274,9 @@ class Guide:
         """What a program says of how it is worked, as the least trusted source; its instructions as its words."""
         from core.agency.mechanics_she_knows import mechanics_in
 
+        # A new acquisition replaces the current source scope, including a
+        # failed acquisition. Historical declarations cannot keep artwork live.
+        self.program_visual_assets = tuple(getattr(read, 'visual_assets', ()) or ())
         if not read:
             return
         at = time.monotonic() if at is None else at
@@ -303,8 +306,6 @@ class Guide:
 
         take_in_how_it_plays(self, getattr(read, "plays", None), at)
         self.world_its_code_makes = getattr(read, "world", None) or self.world_its_code_makes
-        self.program_visual_assets = tuple(dict.fromkeys(
-            (*self.program_visual_assets, *(getattr(read, 'visual_assets', ()) or ()))))
 
     def take_in_counsel(self, told: str, at: float | None = None) -> None:
         if told:

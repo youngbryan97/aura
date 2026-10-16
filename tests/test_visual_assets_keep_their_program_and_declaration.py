@@ -127,7 +127,9 @@ def test_regular_program_and_guide_keep_namespaces_without_giving_screen_roles()
     guide = Guide()
     guide.take_in_program(combined, 1.)
     guide.take_in_program(first, 2.)
-    assert guide.program_visual_assets == combined.visual_assets
+    # A later acquisition is the current source scope. It cannot keep a
+    # different file from the preceding visit active for runtime references.
+    assert guide.program_visual_assets == first.visual_assets
     assert not guide.seen.by_kind and not guide.given
     assert 'program_visual_assets' not in guide.as_memory()
     assert Guide.from_memory(guide.as_memory()).program_visual_assets == ()

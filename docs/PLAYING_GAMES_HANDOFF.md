@@ -751,3 +751,47 @@ source origin or promote its appearance into controlled identity.
 Captured-owner checkpoint gates: 247 focused passed; smoke 165 passed,
 one skipped; lint, compile, layering, DEPS consistency and writing passed.
 The G09-owned general-reasoning process was still active at closeout.
+
+## Ordinary reference worker checkpoint, 16 October 2026
+
+Normal `PlayObservation` now acquires registered source-reference exports
+and matches them on one bounded optional CPU operation. It keeps the
+captured observer owner, transports delayed origins through current material
+and refuses changed sources, tracks, bases and excessive precision error.
+Source declarations are replaced on each current program acquisition; a
+failed read clears their scope. The catalog is read-only during play.
+`tools/publish_program_visual_reference.py` registers an existing export;
+`tools/export_program_visual_reference.py --with-registration --publish`
+can register a new export under the selected runtime state root.
+
+Measured scale and orientation guide reacquisition without replacing broad
+search or qualification. No-match searches cannot erase continuing material.
+Agreeing pose hypotheses produce one current estimate with an enclosing
+error allowance. Different instances remain separate. None of this sets
+controlled identity, task roles, source collision rules or the motion origin.
+
+In 100 source-paced recorded case-18 frames, the initial worker published
+points on 27 frames. Measured-view search and pose coalescing published them
+on 57 frames. Fresh pixel matches checked 31 final points, all within one
+working pixel (largest difference 0.630021); 26 checks remain unmeasured.
+The final replay's largest loop pulse gap was 0.017494 seconds. This is the
+ordinary asynchronous observation path over recorded data, with no game
+input, native-app request or gameplay pass. See
+`docs/evidence/steering/2026-10-16-ordinary-reference-work-follows-current-material.md`.
+Focused: 219 passed, followed by 57 post-publication-boundary checks.
+
+Next: fresh source-asset acquisition for uncached programs, and a verified
+destination/source-contact connection to control. A composite static
+reference can match pixels while lacking a single existing material owner;
+do not turn its box centre or a partial component into the source origin.
+The current runtime publishes source geometry but the task controller does
+not yet consume it as a source-defined contact condition. Native deployment,
+original wins, the full 56-game campaign and independent demo readiness are
+still unproved. No native runtime or G09 change was made. The one-time
+October-16 12:24 PM continuation has been retired after this run.
+
+Final checkpoint gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed. Governance retains
+131 existing regressions; these new runtime modules add none. The module
+size gate retains its existing unrelated regressions. Baselines were not
+changed. The exclusive corpus/model job remained active (PID 53965).

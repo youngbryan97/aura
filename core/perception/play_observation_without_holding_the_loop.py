@@ -137,6 +137,9 @@ class PlayObservation:
         self._status = "not started"
         self._frame_wait_s = frame_wait_s
         self._startup_wait_s = startup_wait_s
+        self._references: Any = None
+        self._mirror.source_reference_points = ()
+        self._mirror.source_reference_status = 'no_current_source'
 
     @property
     def status(self) -> str:
@@ -214,6 +217,7 @@ class PlayObservation:
 
     async def see(self, picture: Any, at: float, *, search_hint: Any = None) -> list[dict[str, Any]] | None:
         """Return this frame's events, or None while its measurement is unavailable."""
+        self._mirror.source_reference_points = ()
         if self._closed or isinstance(at, bool) or not isinstance(at, (float, int)) or not math.isfinite(at):
             return None
         operation = self._operation
@@ -238,12 +242,29 @@ class PlayObservation:
         if operation is None:
             return None
         self._last_submitted_at = float(at)
-        return await self._wait(operation, self._frame_wait_s)
+        events = await self._wait(operation, self._frame_wait_s)
+        if events is not None:
+            self._reference_points(owned_picture, at)
+        return events
+
+    def _reference_points(self, picture: Any, at: float) -> None:
+        from core.perception.source_references_while_play_advances import SourceReferencesInPlay, source_tables_in_play
+
+        tables = source_tables_in_play()
+        if self._references is None and tables:
+            self._references = SourceReferencesInPlay()
+        if self._references is not None:
+            self._mirror.source_reference_points = self._references.advance(self, picture, at, tables)
+            self._mirror.source_reference_status = self._references.status
 
     def _retire(self) -> None:
         if self._closed:
             return
         self._closed = True
+        if self._references is not None:
+            self._references.retire()
+        self._mirror.source_reference_points = ()
+        self._mirror.source_reference_status = 'closed'
         self._generation += 1
         eyes, self._eyes = self._eyes, None
         operation, self._operation = self._operation, None

@@ -3,6 +3,8 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.visual_references_for_current_sources import _current_reference_source_invariant
+    from core.perception.source_references_while_play_advances import _reference_worker_retirement_invariant
     from core.agency.enough_observations_for_a_trial import _trial_observation_goal_invariant
     from core.agency.time_to_observe_a_control import _phase_reservation_invariant
     from core.agency.trials_with_room_to_observe import _trial_priority_invariant
@@ -34,7 +36,13 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('detached_material_keeps_its_original_observer', 'core/perception/a_material_frame_kept_for_its_owner.py',
+    return (('reference_catalog_requires_the_current_source', 'core/perception/visual_references_for_current_sources.py',
+             'tests/test_registered_references_need_current_source_bytes.py', lambda: _current_reference_source_invariant() == (),
+             'Registered source artwork is acquired only for a current complete source declaration and matching pixel identity; a source change or failed current read cannot keep historical references active.'),
+            ('reference_workers_retire_publication', 'core/perception/source_references_while_play_advances.py',
+             'tests/test_reference_work_reaches_current_ordinary_observation.py', lambda: _reference_worker_retirement_invariant() == (),
+             'An optional reference worker closes publication when retired; its result grants no controlled identity, task role or gameplay success.'),
+            ('detached_material_keeps_its_original_observer', 'core/perception/a_material_frame_kept_for_its_owner.py',
              'tests/test_source_points_follow_current_owned_material.py', lambda: _material_frame_owner_invariant() == (),
              'Detached reference work retains copied consumed pixels, current masks and the original observer instance receipts; a delayed binding reaches live geometry only through the same continuing measured material basis.'),
             ('observers_keep_their_consumed_pixel_receipt', 'core/perception/pixels_consumed_by_the_observer.py',
