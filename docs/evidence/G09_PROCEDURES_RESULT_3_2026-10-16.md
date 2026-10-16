@@ -71,3 +71,36 @@ The live proof plan was fixed before the verdict (`~/.aura/rlc-evidence/g09-live
 her live book rebuilt with attempt 4's signatures, her app restarted on main, and four requests in chat
 wording typed into her chat, each to be answered through the kept procedure her embedder finds by meaning,
 and one ordinary turn left alone. Its outcome is appended below when it has run.
+
+## Live, 16 October 2026, 04:24 to 05:51
+
+Five runs of the plan's requests, typed into her chat at localhost:8000. Runs 1 to 4 each stopped at the first
+turn whose cause was found, and the cause was fixed before the next run. Records, log lines, drafts and
+screenshots: `~/.aura/rlc-evidence/g09-live-proof-20261015/run1.md` to `run5.md`.
+
+What the first four runs found:
+
+- Her desktop chat is answered by `_direct_desktop_quick_reply`, before the phases and, when it answers, instead
+  of them. The kept-procedure route was wired only into the phases (45f970cbe).
+- Her app reads `live-source/data`, since `launch_aura.sh` exports `AURA_ROOT` as the checkout. Her book had been
+  written to `~/.aura/data` and her app had none. The attempt-4 book was written to her app's path at 05:10.
+- Asked to restate a request in its kind's form, her model wrote an account of the shown examples, and the gcd
+  procedure answered an example's numbers (918) as evidence. Now a restatement opens inside the "Problem:" label
+  (24c04f575, b40a5025c), and one that carries an example's number is refused.
+- The copy hold on her earlier replies cut digits off numbers and counted repeated lists without a limit
+  (431556246, b40a5025c). The reply check withheld a complete list of single words as cut (45f970cbe).
+
+Run 5, on 24c04f575:
+
+| # | Request | Kept procedure | Her reply | Pass |
+| - | ------- | -------------- | --------- | ---- |
+| 1 | sort six words | none: below the kind's bar | right | no |
+| 2 | gcd of 4862 and 7854 | dm_numbers__gcd, restated, 374 | "374", with its factors | yes |
+| 3 | 1203321 from base 4 to base 10 | dm_numbers__base_conversion, restated, 6393 | "6393" | yes |
+| 4 | close the brackets | none: below the kind's bar | right ("]") | no |
+| 5 | how was your afternoon | none | ordinary | yes |
+
+Her kept procedures are her live default, and in chat wording they reach her for kinds posed as bare questions.
+The BIG-Bench Hard kinds are posed with three worked examples, so a chat request falls below those kinds' bars
+and her draft stands alone. That is the gap the live proof leaves open. The plan's expected answer for request 4
+was wrong; "]" is right.
