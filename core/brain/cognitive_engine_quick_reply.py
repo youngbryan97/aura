@@ -1387,7 +1387,21 @@ class _AnswersTheDesktopDirectly:
                 router_kwargs["user_surface_continuation_contract"] = True
                 router_kwargs["user_surface_continuation_partial"] = continuation_partial
             router_kwargs.update(resume_capability.context)
-            content, router_generation_metadata = await self._direct_desktop_quick_reply_part_6(context, live_mind_generation_controls, obligation_contract, obligation_segment, origin, request_timeout, router, router_generation_metadata, router_kwargs)
+            # The corpus reading the gate takes for this turn sees the conversation it continues, so "how
+            # many did he win?" knows who he is (core/knowledge/corpus_grounding.py).
+            from core.knowledge.corpus_grounding import the_conversation_this_turn_continues
+            from core.state.aura_state import IdentityKernel
+
+            her_name = str(getattr(IdentityKernel, "name", "") or "")
+            with the_conversation_this_turn_continues(
+                [
+                    ("user" if message.get("role") == "user" else "aura", str(message.get("content") or ""))
+                    for message in (history_messages or [])
+                    if message.get("role") in {"user", "assistant"}
+                ],
+                speakers=(her_name, *her_name.split()) if her_name else (),
+            ):
+                content, router_generation_metadata = await self._direct_desktop_quick_reply_part_6(context, live_mind_generation_controls, obligation_contract, obligation_segment, origin, request_timeout, router, router_generation_metadata, router_kwargs)
         except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
             record_degradation(
                 "cognitive_engine",
