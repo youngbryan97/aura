@@ -93,3 +93,37 @@ No other test outcome. Attempt 3's routing-only requests (61 MATH problems)
 were chosen as those attempt 3's route answers; attempt 4 is graded on the
 same ones, and a request its route would answer outside them is not measured
 (on 300 MATH training problems it answered none).
+
+## Amendment, 16 October 2026, 10:27, before attempt 4's kept arm has run
+
+Attempt 3 did not close G09 once its two arms were graded alike
+(G09_PROCEDURES_RESULT_3_2026-10-16.md, correction of 16 October), so attempt 4 runs. As registered it would
+reuse attempt 3's graders, which grade her drafts with the harness's rules and the kept answers with each
+kind's own matching. That difference is what made attempt 3's math gain, so attempt 4 grades both arms of every
+request with one function per domain (tools/g09_one_grader.py):
+
+- DeepMind mathematics: right when DeepMind's exact rule or MATH-500's equivalence grader accepts the answer, a
+  true-or-false kind read as yes or no, a list item by item (tools/g09_fair_regrade.fair).
+- MATH and AIME: MATH-500's own grader, on the boxed answer or a one-line reply.
+- BIG-Bench Hard: BBH's matching of the answer after the last "the answer is", or of the whole text when it
+  states none.
+- PlanBench: the restated validator, as both arms were already graded.
+
+A request whose kept procedure declines keeps her draft and its grade. The tool reproduces attempt 3's regrade
+on attempt 3's rows (held-out math 27 gained to 25 lost; planning 32 to 0; transfer 2 to 0; all math 27 to 79).
+
+The run: the kept arm as registered (tools/g09_kept_procedure_arm.py at ec39df960, attempt 4's book, rows in
+`rows/kept4`); the regrade into `rows/kept4_one_grader` by tools/g09_one_grader.py at the commit of this
+amendment; tools/g09_analysis.py and tools/g09_verdict.py unchanged on those rows, with `--kept
+kept4_one_grader`. Criteria and the bar (two-sided p below 0.0125) are as registered.
+
+What test data I have seen since this preregistration was committed, besides attempt 3's registered analysis
+and verdict:
+
+- attempt 3's two arms regraded with one grader, by domain and by kind;
+- for ten DeepMind kinds (sequence nth term, both probability kinds, primality, prime factors, add and subtract
+  several, multiply, multiply and divide several, mixed, is factor, divide), a few rows each with the truth, her
+  draft's answer and the kept answer side by side;
+- three failed planning drafts each for Depots and Logistics, with the grader's note.
+
+No answer of attempt 4's route to a test request has been computed.
