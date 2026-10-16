@@ -91,6 +91,8 @@ def main() -> int:
     parser.add_argument("--g12-bbeh", action="store_true", help="the drafts are tools/run_g12_bbeh.py rows")
     parser.add_argument("--kept", default="kept",
                         help="the folder under rows/ for this arm's rows, so a second book's arm sits beside the first")
+    parser.add_argument("--route", default="words", choices=("words", "meaning", "words_then_meaning"),
+                        help="how a request reaches a kind (tools/g09_routes.py); words is attempt 4's")
     args = parser.parse_args()
 
     from core.brain.reasoning_amplifier_v2 import answer_from_kept_procedures
@@ -112,7 +114,14 @@ def main() -> int:
             row = json.loads(path.read_text(encoding="utf-8"))
         else:
             began = time.monotonic()
-            kept = answer_from_kept_procedures(draft["request"], book, own_book=False)
+            if args.route == "words":
+                kept = answer_from_kept_procedures(draft["request"], book, own_book=False)
+            else:
+                from core.brain.reasoning_amplifier_v2 import amplified_from_kept_receipt
+                from tools.g09_routes import kept_receipt
+
+                receipt = kept_receipt(book, draft["request"], args.route)
+                kept = amplified_from_kept_receipt(receipt) if receipt is not None else None
             row = {"id": draft["id"], "group": draft["group"], "book_sha256": book_sha, "adopted": kept is not None,
                    "authority": "kept_procedure" if kept is not None else "none"}
             for key in ("source_ordinal", "reference_sha256"):

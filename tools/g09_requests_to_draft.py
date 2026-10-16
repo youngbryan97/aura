@@ -53,6 +53,10 @@ def main() -> int:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--routing-only", action="append", default=[], help="a harness domain routed whole")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--route", default="words", choices=("words", "meaning", "words_then_meaning"),
+                        help="how a request reaches a kind (tools/g09_routes.py); words is attempt 4's")
+    parser.add_argument("--exclude-ids", type=Path, action="append", default=[],
+                        help="a folder of an earlier attempt's <kind>.ids; none of those requests is drawn again")
     args = parser.parse_args()
 
     from core.brain.reasoning_amplifier_v2 import answer_from_kept_procedures
@@ -71,9 +75,21 @@ def main() -> int:
     summary: dict[str, dict] = {"kept_kinds": sorted(book.procedures), "domains": {}}
 
     def answered(tasks: list[dict]) -> list[str]:
+        if args.route != "words":
+            from tools.g09_routes import kept_receipt
+
+            return [task["id"] for task in tasks if kept_receipt(book, task["request"], args.route) is not None]
         return [task["id"] for task in tasks
                 if book.route(task["request"])[0] in book.procedures
                 and answer_from_kept_procedures(task["request"], book, own_book=False) is not None]
+
+    def excluded(kind: str) -> set[str]:
+        seen: set[str] = set()
+        for folder in args.exclude_ids:
+            path = folder.expanduser() / f"{kind}.ids"
+            if path.exists():
+                seen.update(line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
+        return seen
 
     for spec in args.spread:
         total, listed = spec.split(":", 1)
@@ -82,14 +98,14 @@ def main() -> int:
     for spec in args.sample:
         kind, count = spec.split("=")
         allowed = test_ids(kind)
-        drawn = sample([t for t in LOADERS[kind]() if t["id"] in allowed], int(count), args.seed, set())
+        drawn = sample([t for t in LOADERS[kind]() if t["id"] in allowed], int(count), args.seed, excluded(kind))
         # Every drawn problem of a kept kind is drafted, answered or not, so the kind's accuracy has a
         # denominator; a held-out kind with nothing kept still drafts any of its problems another kind answers.
         ids = [t["id"] for t in drawn] if kind in book.procedures else answered(drawn)
         (out / f"{kind}.ids").write_text("".join(f"{i}\n" for i in ids), encoding="utf-8")
         summary["domains"][kind] = {"drawn": len(drawn), "to_draft": len(ids)}
     for domain in args.routing_only:
-        ids = answered(LOADERS[domain]())
+        ids = answered([t for t in LOADERS[domain]() if t["id"] not in excluded(domain)])
         (out / f"{domain}.ids").write_text("".join(f"{i}\n" for i in ids), encoding="utf-8")
         summary["domains"][domain] = {"routed_whole": True, "to_draft": len(ids)}
     (out / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True), encoding="utf-8")

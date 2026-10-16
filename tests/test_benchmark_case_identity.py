@@ -97,7 +97,7 @@ def test_task_selection_and_out_of_order_completion_preserve_complete_source_ids
     output = tmp_path / "output"
     deliveries = []
 
-    def fake_decode(_model, _tokenizer, conversations, *, max_tokens, width, on_record):
+    def fake_decode(_model, _tokenizer, conversations, *, max_tokens, width, on_record, carry=False):
         deliveries.append((conversations, max_tokens, width))
         for index in reversed(range(len(conversations))):
             on_record(index, {"public_text": "The answer is: left", "termination": "stop", "generated_tokens": 1,
