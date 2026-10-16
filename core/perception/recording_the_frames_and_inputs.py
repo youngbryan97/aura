@@ -356,6 +356,7 @@ def record_screen_options(observation: Any, clickable: Any, keys: Any, *, leavin
         return
     from core.perception.observed_transfer import _pixels as snapshot_pixels
     from core.perception.observed_transfer import freeze_screen
+    from core.perception.presses_on_the_same_material import current_material_presses
 
     screen = freeze_screen(observation)
     snapshot = snapshot_pixels(screen.picture) if screen.picture is not None else None
@@ -370,6 +371,7 @@ def record_screen_options(observation: Any, clickable: Any, keys: Any, *, leavin
         layout.append(measured)
     recorder.offer(recorder.event('screen_options', text=str(observation.get('text') or '')[:8000],
         layout=layout, offered_clicks=[str(name)[:300] for name in list(clickable)[:256]],
+        material_press_costs=current_material_presses(observation),
         offered_keys=[str(key)[:80] for key in list(keys)[:128]],
         leaving_alone=[str(label)[:300] for label in list(leaving_alone)[:256]],
         capture=dict(at=screen.capture_at, surface=screen.surface, bounds=screen.bounds, epoch=screen.epoch),

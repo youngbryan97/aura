@@ -24,10 +24,11 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     held = getattr(can_do, "leads", None)
     leads = getattr(held, "how_it_led", lambda _act: 1.0)
     again = getattr(held, "taken_here_to_no_end", lambda _act: 0)
+    material = getattr(can_do, 'material_presses', {})
     # What the screen's own words ask to be clicked goes on as surely as a Play does: it is doing what it says.
     asked = set(getattr(can_do, "clicks_asked_for", ()) or ())
     valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
-              / (1 + again(name))
+              / (1 + again(name)) / (1 + material.get(name, 0))
               for name, value in (telling or {}).items()}
     return _as_checked(can_do, _the_lesson_first(_go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued)), held,
                                                  can_do))
@@ -47,7 +48,9 @@ def _never_tried_here(available: Any, responds: Any, can_do: Any) -> list[str]:
     def anywhere(name: str) -> bool:
         return name in tried and not (knows_the_screen and _done_to_a_thing(name))
 
-    return [option.name for option in available if not anywhere(option.name) and not taken_here(option.name)]
+    material = getattr(can_do, 'material_presses', {})
+    return [option.name for option in available
+            if not anywhere(option.name) and not taken_here(option.name) and not material.get(option.name)]
 
 
 def _done_to_a_thing(name: str) -> bool:

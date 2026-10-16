@@ -586,3 +586,19 @@ the original file completed in 2.365 seconds, exposing the title screen.
 See `docs/evidence/steering/2026-10-15-startup-presses-keep-their-actual-receiver.md`.
 Focused checks: 43 passed. Smoke: 165 passed, one skipped. No native runtime
 or G09 changes. Gameplay and native presentation readiness remain unproved.
+
+## Delivered material exploration checkpoint, 15 October 2026
+
+Each page surface retains a bounded history of completed pointer-material
+presses. A unique local correspondence can remove an anonymous point's
+never-tried bonus after its coordinate label changes. This is an exploration
+cost, never a scene or body identity, input authority, accepted action or win.
+Current capture custody is required; named controls keep their behavior.
+An optional-history failure cannot discard a completed physical click.
+
+The original eight-click trace retrospectively yields counts
+`0, 0, 0, 0, 1, 2, 1, 0`. The Chromium port check presses a fresh point after
+the first point moves and changes label. Broad navigation checks passed 172;
+final integration passed 85; final smoke passed 165 with one skipped.
+See `docs/evidence/steering/2026-10-15-delivered-presses-follow-their-local-material.md`.
+An original repeat is next. G09 and native runtime ownership remain unchanged.

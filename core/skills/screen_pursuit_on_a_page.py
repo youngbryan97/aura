@@ -20,6 +20,7 @@ was.
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import hashlib
 import math
@@ -27,11 +28,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.perception.presses_on_the_same_material import MaterialPressHistory, bind_material_presses
 from core.perception.recording_the_frames_and_inputs import (
     begin_navigation_input,
     finish_navigation_input,
 )
 from core.runtime.what_stops_it import current
+from core.runtime.errors import record_degradation
 from core.verify import invariant
 
 __all__ = ["HER_OWN_PAGE", "OnAPage", "it_was_answered", "on_her_page"]
@@ -183,6 +186,7 @@ class OnAPage:
     _swept: Any = field(default=None, init=False)
     _swept_bounds: Any = field(default=None, init=False)
     _cursor_sweeps: dict = field(default_factory=dict, init=False)
+    _material_presses: MaterialPressHistory = field(default_factory=MaterialPressHistory, init=False)
 
     #: The longest she waits on what plays by itself inside one look, in seconds.
     WATCH_IN_A_LOOK_S = 5.0
@@ -284,11 +288,24 @@ class OnAPage:
             else:
                 standing['pointer_ambiguous'] = True
                 unnamed.extend(hits)
+        counts = {}
         for x, y in unnamed:
-            seen.setdefault("shapes", []).append({"text": f"the one that stands out at {round(x * 100)}% across, "
-                                                          f"{round(y * 100)}% down", "center_x": x, "center_y": y,
+            label = f"the one that stands out at {round(x * 100)}% across, {round(y * 100)}% down"
+            seen.setdefault("shapes", []).append({"text": label, "center_x": x, "center_y": y,
                                                   "shape": True, "answers_the_pointer": True})
+            if materials:
+                target = next((target for point, target in zip(places, materials, strict=True) if point == (x, y)), None)
+                if target is not None:
+                    try:
+                        count = await asyncio.to_thread(self._material_presses.count, target)
+                    except (ValueError, TypeError, RuntimeError, OverflowError) as exc:
+                        record_degradation('cursor_material_exploration', exc, action='dropping optional press costs')
+                        self._material_presses.entries = ()
+                        count = None
+                    if count:
+                        counts[label] = count
         bind_cursor_samples(seen, places)
+        bind_material_presses(seen, counts)
 
     async def _watch(self, over: tuple[float, float, float, float] | None) -> None:
         """Watch the part being read as a stream from the first look; and while something plays by itself, wait for it."""
@@ -429,8 +446,6 @@ class OnAPage:
                 # material. Another approach movement would invalidate it.
                 await self.page.mouse.down()
                 try:
-                    import asyncio
-
                     await asyncio.sleep(HAND_PRESSES_S)
                 finally:
                     await self.page.mouse.up()
@@ -446,6 +461,12 @@ class OnAPage:
                 watching.finish_act(window, delivered)
         # A click on the drawing is also what gives it the keyboard.
         self._focused = True
+        if arrived is not None:
+            try:
+                self._material_presses.delivered(swept.materials[chosen])
+            except (ValueError, TypeError, RuntimeError, OverflowError) as exc:
+                record_degradation('cursor_material_exploration', exc, action='forgetting history after completed input')
+                self._material_presses.entries = ()
         return True
 
     #: The steps a carry is made in, and the pause between them: a page sees the pointer travel with the button down,

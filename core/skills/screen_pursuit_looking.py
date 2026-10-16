@@ -983,6 +983,9 @@ def _take_in_the_screen(can_do: Any, observation: dict[str, Any], drawn_where: A
             selector_view = UNKNOWN_SELECTOR_VIEW
             break
         selector_view = held
+    from core.perception.presses_on_the_same_material import current_material_presses
+
+    can_do.material_presses = current_material_presses(observation)
     can_do.looked_at(clickable, says, looks=looks, where=where, selector_view=selector_view)
     if hasattr(can_do, "pictures"):
         # What the screen reading found drawn, not written: the things that are carried (putting_things_in_place.py).

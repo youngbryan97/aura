@@ -237,6 +237,8 @@ class WhatWorksHere(TakingAndUsing, ThingsThatGoTogether, PuttingInPlace):
     quiet_since: set[str] = field(default_factory=set)
     #: The screens of this place and where each act on them led, across sittings.
     leads: WhereThingsLead = field(default_factory=WhereThingsLead)
+    #: Current anonymous point labels with prior delivered presses on matching local material.
+    material_presses: dict[str, int] = field(default_factory=dict)
     #: The input she gave last, for what the screen said after it (a way that would not open).
     last_tried: str = ""
     #: Whether the screen in front of her asks her to choose, and whether she has chosen on it: one choice is enough,

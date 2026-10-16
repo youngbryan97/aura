@@ -17,6 +17,7 @@ def _play_execution_claims() -> tuple:
         _fresh_mark_capacity_invariant,
         _surviving_reference_invariant,
     )
+    from core.perception.presses_on_the_same_material import _material_press_invariant
     from core.perception.recording_the_frames_and_inputs import (
         _navigation_port_recording_invariant,
         _recorded_pixel_invariant,
@@ -26,7 +27,10 @@ def _play_execution_claims() -> tuple:
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
 
-    return (('cover_press_keeps_its_actual_receiver', 'core/skills/sovereign_browser_drawing.py',
+    return (('delivered_material_costs_require_the_current_capture', 'core/perception/presses_on_the_same_material.py',
+             'tests/test_delivered_presses_follow_material_instead_of_point_labels.py', lambda: _material_press_invariant() == (),
+             'A delivered press can reduce the exploration bonus of a uniquely corresponding anonymous local point in a current measured reading; it proves no object identity, accepted action, scene identity or progress.'),
+            ('cover_press_keeps_its_actual_receiver', 'core/skills/sovereign_browser_drawing.py',
              'tests/test_a_cover_press_checks_its_actual_receiver.py', lambda: _cover_press_invariant() == (),
              'Startup retries distinguish a trusted physical click on the intended DOM control from a click received by another overlay; unmeasured delivery retains the finite startup allowance.'),
             ('normal_navigation_records_its_physical_port', 'core/perception/recording_the_frames_and_inputs.py',
