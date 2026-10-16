@@ -87,6 +87,13 @@ def the_request_for(envelope: AnEnvelope, messages: list[dict[str, Any]]) -> dic
 
     Handed to ``router.think``: the assistant turn is opened with the marker
     and the decoder is told where to stop. Nothing in here asks for anything.
+
+    The worker continues a final assistant message only on a job that says it
+    is a continuation (core/brain/llm/mlx_worker.py renders it with
+    ``render_chat_continuation_template``); without that it closes the message
+    and opens a new turn, and the model starts outside the envelope. Live
+    2026-10-16, a restatement opened this way began "To determine the form of
+    the problem, let's analyze ..." as if nothing had been opened.
     """
 
     prefilled = [dict(message) for message in messages or []]
@@ -94,4 +101,6 @@ def the_request_for(envelope: AnEnvelope, messages: list[dict[str, Any]]) -> dic
     return {
         "messages": prefilled,
         "stop_sequences": list(envelope.stop_sequences),
+        "user_surface_continuation_contract": True,
+        "user_surface_continuation_partial": envelope.prefill,
     }

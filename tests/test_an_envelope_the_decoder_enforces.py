@@ -28,6 +28,9 @@ def test_the_model_starts_inside_the_envelope():
     request = the_request_for(AN_ANSWER, [{"role": "user", "content": "2+2?"}])
     assert request["messages"][-1] == {"role": "assistant", "content": "<answer>"}
     assert request["stop_sequences"] == ["</answer>"]
+    # The worker continues the opened turn only on a job that says it is a continuation.
+    assert request["user_surface_continuation_contract"] is True
+    assert request["user_surface_continuation_partial"] == "<answer>"
     # The caller's own turns survive.
     assert request["messages"][0] == {"role": "user", "content": "2+2?"}
 
