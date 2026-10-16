@@ -16,8 +16,11 @@ Greedy speculation with it:
    d comes free from the same pass; otherwise her next token after x is kept;
 3. the head drafts again from what was kept.
 
-Every kept token is the one her model would have produced decoding greedily one
-token at a time, so the output is unchanged; only the number of passes falls.
+In exact arithmetic every kept token is the one her model would have produced
+decoding greedily one token at a time, and only the number of passes falls. On
+her 4-bit model a two-token pass rounds differently from a one-token pass, so
+near-ties can go the other way (core/brain/llm/several_tokens_a_pass.py has the
+measurement).
 A rejected draft must leave the caches as if d had never been read; the
 checking pass and the rewinding are core/brain/llm/several_tokens_a_pass.py's,
 which also drafts from her own text.

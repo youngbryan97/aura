@@ -46,7 +46,8 @@ def main() -> int:
         examples = [SolvedExample(r["key"], r["problem"], str(r.get("answer_text", r["truth"]))) for r in rows]
         families[kind] = split_examples(examples)
     signatures = distinct_signatures(families)
-    distinct = ProcedureBook(signatures, book.procedures, book.agreed, meanings=book.meanings, examples=book.examples)
+    distinct = ProcedureBook(signatures, book.procedures, book.agreed, meanings=book.meanings, examples=book.examples,
+                             posing=book.posing)
     args.output.expanduser().write_text(dumps(distinct.to_json()), encoding="utf-8")
     print(json.dumps({"kinds": len(signatures), "kept": sum(1 for k in signatures if book.procedures.get(k))}))
     return 0

@@ -641,8 +641,14 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
         batch, so every consumer saw a plausible 384-wide vector in the
         wrong place in semantic space.
 
-        Keep MPS for the resident encoder, but make each causal-model forward
-        padding-free.  ``SentenceTransformer.encode`` still owns tokenization,
+        Padding is not the whole cause.  On 2026-10-16 three sentences of
+        exactly 11 tokens each, so with nothing padded, encoded together on
+        MPS agreed with each encoded alone at cosine 0.03 to 0.13; on CPU the
+        same batch agreed at 0.995 or better.  Grouping sentences of equal
+        length therefore does not make an MPS batch safe.
+
+        Keep MPS for the resident encoder, but give each causal-model forward
+        one sentence.  ``SentenceTransformer.encode`` still owns tokenization,
         pooling, normalization and Matryoshka truncation; this changes only
         how many independent sentences share one MPS forward.  CPU and future
         non-MPS backends retain true batching.

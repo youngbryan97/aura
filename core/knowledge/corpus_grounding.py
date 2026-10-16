@@ -41,15 +41,47 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
 
 __all__ = [
     "CorpusGrounding",
+    "conversation_this_turn_continues",
     "corpus_grounding_for",
     "is_corpus_groundable",
+    "the_conversation_this_turn_continues",
 ]
+
+#: The turns before the one being drafted, and who speaks in them, while it is drafted.
+_THIS_CONVERSATION: ContextVar[tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None] = ContextVar(
+    "aura_corpus_conversation", default=None
+)
+
+
+@contextmanager
+def the_conversation_this_turn_continues(
+    turns: Sequence[tuple[str, str]], *, speakers: Sequence[str] = ()
+) -> Iterator[None]:
+    """While a reply is drafted, the (role, text) turns before it, for a reading taken without them in hand.
+
+    Her desktop chat's corpus reading is taken by the inference gate from the
+    request alone (core/brain/observable_registry.py), so "how many did he
+    win?" could not know who "he" was. The path that answers her chat sets
+    this around its call; the reading looks here.
+    """
+    token = _THIS_CONVERSATION.set((tuple((str(r), str(x)) for r, x in turns), tuple(speakers)))
+    try:
+        yield
+    finally:
+        _THIS_CONVERSATION.reset(token)
+
+
+def conversation_this_turn_continues() -> tuple[tuple[tuple[str, str], ...], tuple[str, ...]] | None:
+    """(turns, speakers) set by the_conversation_this_turn_continues, or None outside a reply."""
+    return _THIS_CONVERSATION.get()
 
 #: Tight on purpose. A reference lookup that does not answer fast is not worth
 #: a conversational turn's latency. Measured cold over 6.5M pages, the

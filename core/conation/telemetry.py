@@ -24,6 +24,7 @@ from core.runtime.errors import record_degradation
 
 CHANNEL_WANTING = "conation.wanting"
 CHANNEL_DISSOCIATION = "conation.dissociation_rate"
+CHANNEL_DISSOCIATION_CREDIBLE = "conation.dissociation_credible"
 CHANNEL_BORROWED = "conation.borrowed_fraction"
 CHANNEL_AROUSAL = "conation.arousal"
 CHANNEL_FRUSTRATION = "conation.frustration"
@@ -67,6 +68,15 @@ def declare() -> list[str]:
         dict(
             identifier=0x0702, name=CHANNEL_DISSOCIATION, unit="fraction",
             description="share of contacts where pull and hedonic impact disagreed",
+            owner="core/conation/salience.py", group="conation",
+            # No limit on the share itself: over the first few contacts it is
+            # 0 or 1 by arithmetic (live, 2026-10-16, 1.00 after one contact,
+            # reported "far too high"). Its limits are on 0x0709.
+            stale_after_s=600.0,
+        ),
+        dict(
+            identifier=0x0709, name=CHANNEL_DISSOCIATION_CREDIBLE, unit="fraction",
+            description="how high the share of disagreeing contacts can be shown to be: its Wilson 95% low end",
             owner="core/conation/salience.py", group="conation",
             # A third of contacts disagreeing means cached values have drifted
             # from what contact is worth across the board. Half means the
@@ -176,6 +186,8 @@ def publish(engine: Any) -> bool:
         write(CHANNEL_WANTING, float(last.get("wanting", 0.0) or 0.0))
         write(CHANNEL_DISSOCIATION,
               float(status["salience"].get("dissociation_rate", 0.0) or 0.0))
+        write(CHANNEL_DISSOCIATION_CREDIBLE,
+              float(status["salience"].get("dissociation_credible", 0.0) or 0.0))
         write(CHANNEL_BORROWED, float(last.get("borrowed_fraction", 0.0) or 0.0))
         write(CHANNEL_AROUSAL, float(status["dynamics"].get("arousal", 0.0) or 0.0))
         write(CHANNEL_FRUSTRATION, len(status["dynamics"].get("frustrated", [])))

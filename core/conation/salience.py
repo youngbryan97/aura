@@ -122,6 +122,22 @@ class SalienceCalibration:
         }
 
 
+def _wilson_lower(hits: int, trials: int, z: float = 1.96) -> float:
+    """The low end of the 95% Wilson interval for hits out of trials; 0 with none.
+
+    A share over a handful of contacts says little: one dissociation in the
+    first contact after boot read 1.00 and was reported "far too high"
+    (live, 2026-10-16). The low end is what the contacts can show the share
+    to be at least.
+    """
+    if trials <= 0:
+        return 0.0
+    share = hits / trials
+    centre = share + z * z / (2 * trials)
+    spread = z * ((share * (1 - share) + z * z / (4 * trials)) / trials) ** 0.5
+    return max(0.0, (centre - spread) / (1 + z * z / trials))
+
+
 @dataclass
 class CueRecord:
     """Learned state for one incentive: what it pulls, and what it delivers."""
@@ -409,6 +425,7 @@ class IncentiveSalience:
             "contacts": contacts,
             "dissociations": dissociations,
             "dissociation_rate": (dissociations / contacts) if contacts else 0.0,
+            "dissociation_credible": _wilson_lower(dissociations, contacts),
             "overvalued": [key for key, _ in overvalued[:5]],
             "overvalued_count": len(overvalued),
             "calibration": self._calibration.to_dict(),

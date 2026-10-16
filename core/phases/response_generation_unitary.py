@@ -1910,37 +1910,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
 
     @staticmethod
     def _her_meaning() -> Any:
-        """Her embedder's nearness of texts to a query, when her runtime holds it loaded already; else None.
+        """Her embedder's nearness of texts to a query, as her chat's reading uses it (observable_registry)."""
+        from core.brain.observable_registry import her_nearness
 
-        A reply's path never loads the encoder: that is a lane admission and a
-        model load, seconds long. Without it, passages are ordered by words.
-        """
-        try:
-            from core.memory.embedding_runtime import (
-                acquire_shared_embedding_engine,
-                shared_embedding_runtime_snapshot,
-            )
-
-            if not shared_embedding_runtime_snapshot().get("engine_live"):
-                return None
-            with acquire_shared_embedding_engine("corpus_grounding") as engine:
-                if getattr(engine, "_model", None) is None:
-                    return None
-        except _RESPONSE_RECOVERABLE_ERRORS as exc:
-            _record_response_degradation(exc, "UnitaryResponse: her embedder unavailable to grounding: %s")
-            return None
-
-        def nearness(query: str, texts: list[str]) -> list[float]:
-            import numpy as np
-
-            with acquire_shared_embedding_engine("corpus_grounding") as engine:
-                asked = np.asarray(engine.embed_query(query, task="document"), dtype=np.float32)
-                found = np.asarray(engine.embed_batch(texts), dtype=np.float32)
-            asked /= max(float(np.linalg.norm(asked)), 1e-9)
-            found /= np.maximum(np.linalg.norm(found, axis=1, keepdims=True), 1e-9)
-            return [float(x) for x in found @ asked]
-
-        return nearness
+        return her_nearness()
 
     @classmethod
     def _build_corpus_grounding_message(

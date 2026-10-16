@@ -4,10 +4,18 @@ A forward pass of her 27B reads every weight once, and reading eight tokens
 in that pass costs little more than reading one, because the weights are the
 cost and the arithmetic is not. So the pass can check a guess at the tokens
 to come, and every guessed token she would have written anyway is one pass
-saved. Nothing she writes changes: a draft is kept only where it is the
-token she would choose (greedy), or by speculative sampling's acceptance
-rule, under which what is kept follows her sampling distribution exactly
-(Leviathan, Kalman and Matias 2023; Chen et al. 2023).
+saved. A draft is kept only where it is the token she would choose (greedy),
+or by speculative sampling's acceptance rule, under which what is kept
+follows her sampling distribution (Leviathan, Kalman and Matias 2023; Chen et
+al. 2023).
+
+That holds in exact arithmetic. Her served model is 4-bit, and a pass that
+reads several tokens multiplies its weights in other kernel shapes than a
+pass that reads one, so its logits differ in the last bits; where two tokens
+are nearly tied, the argmax can differ. Measured 15 October 2026 on her 27B
+(rlc-evidence/decode-profile-20261014/speculation.json): greedy output with
+drafts equalled plain greedy output on 2 of 4 prompts, and wall-clock speed
+was 0.77 to 1.21 times plain decoding.
 
 Drafts come from two places.
 
@@ -28,9 +36,8 @@ vector) acts on it as on any other pass; only a gated delta net layer whose
 cache asks for its states computes them position by position, which is the
 same arithmetic.
 
-One sequence at a time; the drafts, the checking pass and the acceptance
-rule are exact for greedy decoding and for her samplers' temperature, top-p,
-min-p and top-k.
+One sequence at a time; the acceptance rule covers greedy decoding and her
+samplers' temperature, top-p, min-p and top-k.
 """
 
 from __future__ import annotations
@@ -217,7 +224,8 @@ def _choose(row: mx.array, sampling: Sampling) -> int:
 
 def several_tokens_a_pass(model: Any, prompt: Sequence[int], max_tokens: int, *, drafts: Drafts | None = None,
                           sampling: Sampling | None = None, stop: Sequence[int] = ()) -> Iterator[int]:
-    """Her tokens for ``prompt``: exactly greedy decoding's, or drawn exactly from her sampler's distribution."""
+    """Her tokens for ``prompt``: greedy decoding's, or drawn from her sampler's distribution, up to the
+    last-bit differences of a pass that reads several tokens (see the module docstring)."""
     from mlx_lm.models.cache import KVCache
 
     drafts = drafts or Drafts()

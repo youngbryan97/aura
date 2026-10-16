@@ -526,6 +526,10 @@ class ProcedureBook:
     ``meanings`` holds a kind's direction in her embedding space
     (core/learning/kinds_by_meaning.py) and ``examples`` a few of its solved
     problems as shown, which is what a request worded otherwise is restated by.
+    ``posing`` is what every problem of a kind opens with before its question,
+    as a benchmark poses it (BIG-Bench Hard's three worked examples): left out
+    of the kind's meaning and examples, and put back before its procedures
+    read a restated request, so they read it as they were kept on.
     ``steps`` is set on a book read from a file, so a procedure that calls
     another kept kind (core/learning/kept_steps.py) can run; it is not saved.
     """
@@ -535,6 +539,7 @@ class ProcedureBook:
     agreed: dict[str, int] = field(default_factory=dict)
     meanings: dict[str, Any] = field(default_factory=dict)
     examples: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    posing: dict[str, str] = field(default_factory=dict)
     steps: KeptSteps | None = field(default=None, compare=False, repr=False)
 
     @classmethod
@@ -557,6 +562,7 @@ class ProcedureBook:
             out.agreed.update(book.agreed)
             out.meanings.update(book.meanings)
             out.examples.update(book.examples)
+            out.posing.update(book.posing)
         return out
 
     @classmethod
@@ -576,7 +582,7 @@ class ProcedureBook:
             keeping = [b for b in having if b.procedures.get(kind)]
             source = (keeping or having)[0]
             out.signatures[kind] = source.signatures[kind]
-            for part in ("meanings", "examples"):
+            for part in ("meanings", "examples", "posing"):
                 value = next((getattr(b, part)[kind] for b in [source, *having] if kind in getattr(b, part)), None)
                 if value is not None:
                     getattr(out, part)[kind] = value
@@ -656,7 +662,7 @@ class ProcedureBook:
         if family not in self.signatures:
             receipt["declined"] = "no_such_kind"
             return receipt
-        return self._run_kind(family, restated, receipt)
+        return self._run_kind(family, self.posing.get(family, "") + restated, receipt)
 
     def _run_kind(self, family: str, problem: str, receipt: dict[str, Any]) -> dict[str, Any]:
         # Laplace's rule of succession over the known answers its procedures all matched.
@@ -683,7 +689,8 @@ class ProcedureBook:
         return {"schema": SOLVED_EXAMPLE_PROCEDURES_SCHEMA,
                 "signatures": {n: asdict(s) for n, s in self.signatures.items()},
                 "procedures": self.procedures, "agreed": self.agreed,
-                "meanings": {n: asdict(m) for n, m in self.meanings.items()}, "examples": self.examples}
+                "meanings": {n: asdict(m) for n, m in self.meanings.items()}, "examples": self.examples,
+                "posing": self.posing}
 
     @classmethod
     def from_json(cls, value: dict[str, Any]) -> ProcedureBook:
@@ -695,7 +702,8 @@ class ProcedureBook:
                    procedures={n: list(c) for n, c in value["procedures"].items()},
                    agreed={n: int(k) for n, k in (value.get("agreed") or {}).items()},
                    meanings={n: KindMeaning(**m) for n, m in (value.get("meanings") or {}).items()},
-                   examples={n: [dict(e) for e in v] for n, v in (value.get("examples") or {}).items()})
+                   examples={n: [dict(e) for e in v] for n, v in (value.get("examples") or {}).items()},
+                   posing={n: str(p) for n, p in (value.get("posing") or {}).items()})
 
 
 #: Her own book, under her data directory. Nothing writes it yet but an

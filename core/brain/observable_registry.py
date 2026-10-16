@@ -372,15 +372,66 @@ async def _read_count(prompt: str) -> str:
 # ── the local reference corpus ───────────────────────────────────────────────
 
 def _matches_corpus(prompt: str) -> bool:
-    from core.knowledge.corpus_grounding import is_corpus_groundable
+    from core.knowledge.corpus_grounding import (
+        conversation_this_turn_continues,
+        is_corpus_groundable,
+    )
 
-    return is_corpus_groundable(prompt)
+    held = conversation_this_turn_continues()
+    # With a conversation in hand, a turn that only refers back ("how many did he win?") can still be about
+    # someone the corpus knows; the reading decides.
+    return is_corpus_groundable(prompt) or bool(held and held[0])
+
+
+def her_nearness() -> Any:
+    """Her embedder's nearness of texts to a query, when her runtime holds it loaded already; else None.
+
+    A reply's path never loads the encoder: that is a lane admission and a
+    model load, seconds long. Without it, passages are ordered by words.
+    """
+    try:
+        from core.memory.embedding_runtime import (
+            acquire_shared_embedding_engine,
+            shared_embedding_runtime_snapshot,
+        )
+
+        if not shared_embedding_runtime_snapshot().get("engine_live"):
+            return None
+        with acquire_shared_embedding_engine("corpus_grounding") as engine:
+            if getattr(engine, "_model", None) is None:
+                return None
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("corpus_grounding", exc, severity="warning",
+                           action="ordered reference passages by words, without her embedder")
+        return None
+
+    def nearness(query: str, texts: list[str]) -> list[float]:
+        import numpy as np
+
+        with acquire_shared_embedding_engine("corpus_grounding") as engine:
+            asked = np.asarray(engine.embed_query(query, task="document"), dtype=np.float32)
+            found = np.asarray(engine.embed_batch(texts), dtype=np.float32)
+        asked /= max(float(np.linalg.norm(asked)), 1e-9)
+        found /= np.maximum(np.linalg.norm(found, axis=1, keepdims=True), 1e-9)
+        return [float(x) for x in found @ asked]
+
+    return nearness
 
 
 async def _read_corpus(prompt: str) -> str:
-    from core.knowledge.corpus_grounding import corpus_grounding_for
+    from core.knowledge.corpus_grounding import (
+        conversation_this_turn_continues,
+        corpus_grounding_for,
+    )
 
-    grounding = await asyncio.to_thread(corpus_grounding_for, prompt)
+    held = conversation_this_turn_continues()
+    conversation, speakers = (list(held[0]), held[1]) if held else (None, ())
+    grounding = await asyncio.to_thread(
+        corpus_grounding_for, prompt, conversation=conversation,
+        rerank=her_nearness() if conversation else None, speakers=speakers,
+    )
     if not grounding.grounded:
         return ""
     return "\n".join(grounding.render())

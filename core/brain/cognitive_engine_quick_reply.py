@@ -733,6 +733,41 @@ class _AnswersTheDesktopDirectly:
         _quick_reward = 0.4 if reply_generation_incomplete else 0.6
         return _quick_reward, reply_generation_incomplete
 
+    async def _direct_desktop_quick_reply_kept_procedure(
+        self, request: str, router: Any, origin: str
+    ) -> dict[str, Any] | None:
+        """What a kept procedure computes for this request, found before she drafts.
+
+        Her desktop chat is answered here, and when it is no phase runs, so
+        the phases' consult (core/phases/kept_procedures_in_a_turn.py) never
+        reached a typed turn. Live 2026-10-16: asked a greatest common
+        divisor her book keeps a procedure for, she worked it out alone.
+        """
+        from core.phases.kept_procedures_in_a_turn import kept_answer_for
+
+        from .cognitive_engine import (
+            _COGNITIVE_ENGINE_RECOVERABLE_ERRORS,
+            logger,
+            record_degradation,
+        )
+
+        try:
+            planted = await kept_answer_for(request, router=router, origin=origin, tier="primary")
+        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "cognitive_engine",
+                exc,
+                severity="warning",
+                action="drafted without consulting her kept procedures",
+            )
+            return None
+        if planted is not None:
+            logger.info(
+                "🧠 CognitiveEngine: kept procedure for %s answered before the draft (%s).",
+                planted["family"], planted["form"],
+            )
+        return planted
+
     async def _direct_desktop_quick_reply(
         self,
         objective: str,
@@ -1107,6 +1142,13 @@ class _AnswersTheDesktopDirectly:
             turn_sensory_evidence = ""
         if turn_sensory_evidence:
             task_grounding_blocks.append(turn_sensory_evidence)
+        kept_planted = None
+        if not (continuation_contract or obligation_contract):
+            kept_planted = await self._direct_desktop_quick_reply_kept_procedure(user_prompt, router, origin)
+            if kept_planted is not None:
+                from core.phases.kept_procedures_in_a_turn import kept_answer_evidence
+
+                task_grounding_blocks.append(kept_answer_evidence(kept_planted))
         action_episode_evidence = self._direct_desktop_quick_reply_context_challenge_evidence(canonical_memory_state_evidence, canonical_self_condition_context, context, contract_grounding_blocks, discourse_repair_contract, runtime_fact_status_contract, self_condition_contract, task_grounding_blocks, user_prompt)
 
         # What the turn can afford to read, now that both claimants exist.
@@ -1345,7 +1387,21 @@ class _AnswersTheDesktopDirectly:
                 router_kwargs["user_surface_continuation_contract"] = True
                 router_kwargs["user_surface_continuation_partial"] = continuation_partial
             router_kwargs.update(resume_capability.context)
-            content, router_generation_metadata = await self._direct_desktop_quick_reply_part_6(context, live_mind_generation_controls, obligation_contract, obligation_segment, origin, request_timeout, router, router_generation_metadata, router_kwargs)
+            # The corpus reading the gate takes for this turn sees the conversation it continues, so "how
+            # many did he win?" knows who he is (core/knowledge/corpus_grounding.py).
+            from core.knowledge.corpus_grounding import the_conversation_this_turn_continues
+            from core.state.aura_state import IdentityKernel
+
+            her_name = str(getattr(IdentityKernel, "name", "") or "")
+            with the_conversation_this_turn_continues(
+                [
+                    ("user" if message.get("role") == "user" else "aura", str(message.get("content") or ""))
+                    for message in (history_messages or [])
+                    if message.get("role") in {"user", "assistant"}
+                ],
+                speakers=(her_name, *her_name.split()) if her_name else (),
+            ):
+                content, router_generation_metadata = await self._direct_desktop_quick_reply_part_6(context, live_mind_generation_controls, obligation_contract, obligation_segment, origin, request_timeout, router, router_generation_metadata, router_kwargs)
         except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
             record_degradation(
                 "cognitive_engine",
@@ -1400,6 +1456,16 @@ class _AnswersTheDesktopDirectly:
                 )
             return None
         text = _restore_sentence_spacing(text)
+        if kept_planted is not None:
+            from core.phases.kept_procedures_in_a_turn import after_the_draft
+
+            stated, voice = after_the_draft(text, kept_planted)
+            logger.info(
+                "🧠 CognitiveEngine: kept answer for %s, %s (known answers agreed: %s).",
+                kept_planted.get("family"), voice, kept_planted.get("agreed_known"),
+            )
+            if not stated:
+                text = str(kept_planted["answer"])
         surface_receipt = (
             router_generation_metadata.get("surface_control_receipt")
             if isinstance(router_generation_metadata, dict)
@@ -1451,6 +1517,7 @@ class _AnswersTheDesktopDirectly:
                 ),
             ],
             metadata={
+                "kept_procedure": kept_planted,
                 "spiking_active_inference": advice
                 if isinstance(advice, dict)
                 else None,

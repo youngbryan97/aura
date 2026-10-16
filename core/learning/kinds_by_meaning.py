@@ -25,12 +25,15 @@ in the kind's form first (``restatement_request``).
 
 from __future__ import annotations
 
+import os
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["TASK", "KindMeaning", "meanings_of", "nearest_kind", "restatement_request"]
+__all__ = ["TASK", "KindMeaning", "meanings_of", "nearest_kind", "restatement_request", "restates",
+           "shared_opening"]
 
 #: What a request is embedded for (core/memory/embedding_model.py TASK_INSTRUCTIONS).
 TASK = "kind_of_problem"
@@ -101,3 +104,47 @@ def restatement_request(request: str, examples: Sequence[Mapping[str, str]]) -> 
         "of this kind, in the same form, with all of its numbers and names, and nothing else.\n\n"
         f"{shown}\n\nThe problem to write in that form:\n{request.strip()}"
     )
+
+
+_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+
+
+def restates(request: str, restated: str, examples: Sequence[Mapping[str, str]] = ()) -> bool:
+    """Whether a restatement is the problem asked, as far as its numbers can say.
+
+    Nothing else checks it. Live 2026-10-16, asked to write a greatest common
+    divisor in its kind's form, her model began analysing the kind's shown
+    examples instead, and the kind's procedure answered the first example's
+    numbers: 918, for a request whose answer is 374. A number may change its
+    notation in a restatement (15% is 0.15), so the rule is on what cannot be
+    the request's: a number taken from a shown example that the request does
+    not have, or one of the request's numbers cut short. And it keeps at least
+    one number of a request that has any.
+    """
+    asked = set(_NUMBER.findall(str(request or "")))
+    written = set(_NUMBER.findall(str(restated or "")))
+    shown = {n for e in examples for n in _NUMBER.findall(str(e.get("problem") or ""))}
+    if asked and not asked & written:
+        return False
+    for number in written - asked:
+        if number in shown or any(number in whole for whole in asked):
+            return False
+    return True
+
+
+def shared_opening(problems: Sequence[str]) -> str:
+    """The paragraphs every one of a kind's problems opens with, whole; "" when they share none.
+
+    A benchmark that poses each problem after the same worked examples makes
+    those paragraphs most of the kind's text, so a kind's meaning computed on
+    them is the examples' meaning, and a request in a person's words falls
+    below its bar (live 2026-10-16: 0.675 against BIG-Bench Hard word
+    sorting's 0.799). Cut at the last paragraph break the problems share, so
+    the question itself is never split.
+    """
+    texts = [str(p) for p in problems]
+    if len(texts) < 2:
+        return ""
+    head = os.path.commonprefix(texts)
+    cut = head.rfind("\n\n")
+    return head[: cut + 2] if cut >= 0 else ""
