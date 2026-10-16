@@ -23,6 +23,13 @@ Only her own earlier turns count. Quoting what somebody said to her, a page,
 or the screen is not repeating herself, and her earlier turns are read from
 the job's messages rather than from the token history, because a cached
 prefix never reaches a logits processor at all.
+
+A copy is a run of words, so only a token that starts a word is pushed down.
+A token that carries on a word already begun is left alone: her tokenizer
+writes a number one digit at a time, and live on 16 October, asked a greatest
+common divisor of 4862 and 7854 a second time, she wrote "486" and "785",
+because the digits after the first two were the run of her earlier answer.
+Cutting a word short does not avoid a copy; it writes a different word.
 """
 from __future__ import annotations
 
@@ -63,6 +70,25 @@ def _encoded(tokenizer: Any, text: str) -> list[int]:
     return [int(i) for i in ids]
 
 
+def _within_a_word(tokenizer: Any, ids: set[int]) -> tuple[set[int], set[int]]:
+    """Of ``ids``, those that end mid-word and those that carry a word on; empty when the tokenizer cannot say."""
+    decode = getattr(tokenizer, "decode", None)
+    if not callable(decode):
+        return set(), set()
+    ends_in_a_word: set[int] = set()
+    carries_a_word_on: set[int] = set()
+    for token in ids:
+        try:
+            text = str(decode([token]))
+        except (TypeError, ValueError, KeyError, IndexError):
+            continue
+        if text[-1:].isalnum():
+            ends_in_a_word.add(token)
+        if text[:1].isalnum():
+            carries_a_word_on.add(token)
+    return ends_in_a_word, carries_a_word_on
+
+
 def not_her_own_words_again(tokenizer: Any, earlier: Sequence[str]) -> Callable[[Any, Any], Any] | None:
     """A logits processor that penalises carrying on a copy of her earlier turns; None with nothing to copy."""
     try:
@@ -73,6 +99,7 @@ def not_her_own_words_again(tokenizer: Any, earlier: Sequence[str]) -> Callable[
     turns = [ids for ids in (_encoded(tokenizer, text) for text in earlier) if len(ids) > ALLOWED_LENGTH]
     if not turns:
         return None
+    ends_in_a_word, carries_a_word_on = _within_a_word(tokenizer, {token for ids in turns for token in ids})
     # Where each run of `ALLOWED_LENGTH` tokens occurs, and what came next.
     after: dict[tuple[int, ...], list[tuple[int, int]]] = {}
     for turn, ids in enumerate(turns):
@@ -99,6 +126,8 @@ def not_her_own_words_again(tokenizer: Any, earlier: Sequence[str]) -> Callable[
             ):
                 length += 1
             following = ids[end]
+            if written[-1] in ends_in_a_word and following in carries_a_word_on:
+                continue  # the word already begun is finished as written
             penalty[following] = max(penalty.get(following, 0.0), MULTIPLIER * BASE ** (length - ALLOWED_LENGTH))
         width = int(logits.shape[-1])
         penalty = {token: amount for token, amount in penalty.items() if 0 <= token < width}

@@ -94,3 +94,35 @@ def test_a_reply_somebody_waits_for_gets_the_hold_and_an_internal_one_does_not()
     internal: list = []
     hold_the_answer({"messages": job["messages"]}, words, None, internal, logging.getLogger("t"), lambda *a, **k: None)
     assert internal == []
+
+
+class Digits(Words):
+    """Words as one token each, numbers one digit a token, as her tokenizer writes them."""
+
+    def encode(self, text, add_special_tokens=False):
+        out = []
+        for word in str(text).split():
+            pieces = list(word) if word.isdigit() else [" " + word]
+            out += [self.ids.setdefault(piece, len(self.ids)) for piece in pieces]
+        return out
+
+    def decode(self, ids):
+        names = {index: piece for piece, index in self.ids.items()}
+        return "".join(names[i] for i in ids)
+
+
+def test_a_number_already_begun_is_finished_as_written():
+    """Live 16 October: asked the same gcd again, she wrote "486" for 4862, the digits held back as a copy."""
+    words = Digits()
+    hold = not_her_own_words_again(words, ["7854 = 1 × 4862 + 2992"])
+    prompt = words.encode("what is the gcd of 4862 and 7854")
+    tokens = list(prompt)
+    hold(mx.array(tokens), mx.zeros((1, 64)))
+    for piece in ["4", "8", "6"]:
+        tokens.append(words.ids[piece])
+        out = hold(mx.array(tokens), mx.zeros((1, 64)))
+    assert float(out[0, words.ids["2"]]) == 0.0
+    # A word that would carry a copied stretch on is still pushed down.
+    tokens.append(words.ids["2"])
+    out = hold(mx.array(tokens), mx.zeros((1, 64)))
+    assert float(out[0, words.ids[" +"]]) < 0.0
