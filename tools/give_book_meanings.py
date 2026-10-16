@@ -38,11 +38,14 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--shown", type=int, default=3,
                         help="examples kept per kind; induction showed three (BIG-Bench Hard's protocol)")
+    parser.add_argument("--only-posed", action="store_true",
+                        help="only the kinds whose problems share an opening (kinds_by_meaning.shared_opening); "
+                             "the others keep the meanings they have")
     args = parser.parse_args()
 
     import numpy as np
 
-    from core.learning.kinds_by_meaning import TASK, meanings_of
+    from core.learning.kinds_by_meaning import TASK, meanings_of, shared_opening
     from core.learning.procedures_from_solved_examples import (
         ProcedureBook,
         SolvedExample,
@@ -70,11 +73,21 @@ def main() -> int:
         except (KeyError, ValueError, FileNotFoundError):
             unknown.append(kind)
             continue
+        # What every problem of the kind opens with is how the benchmark poses it, not the question: it is left
+        # out of the meaning and the examples and kept in the book, to be put back before a procedure reads.
+        opening = shared_opening([r["problem"] for r in rows])
+        if args.only_posed and not opening:
+            continue
         pool, sealed = split_examples([SolvedExample(r["key"], r["problem"], str(r.get("answer_text", r["truth"])))
                                        for r in rows])
-        splits[kind] = ([e.problem for e in pool], [e.problem for e in sealed])
-        examples[kind] = [{"problem": e.problem, "answer": e.answer} for e in pool[: args.shown]]
-        print(json.dumps({"kind": kind, "pool": len(pool), "sealed": len(sealed)}), flush=True)
+        splits[kind] = ([e.problem[len(opening):] for e in pool], [e.problem[len(opening):] for e in sealed])
+        examples[kind] = [{"problem": e.problem[len(opening):], "answer": e.answer} for e in pool[: args.shown]]
+        if opening:
+            book.posing[kind] = opening
+        else:
+            book.posing.pop(kind, None)
+        print(json.dumps({"kind": kind, "pool": len(pool), "sealed": len(sealed), "opening": len(opening)}),
+              flush=True)
     book.meanings.update(meanings_of(splits, documents=documents, queries=queries))
     book.examples.update(examples)
     args.output.expanduser().write_text(json.dumps(book.to_json(), indent=1), encoding="utf-8")

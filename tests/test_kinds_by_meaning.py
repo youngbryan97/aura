@@ -253,3 +253,28 @@ def test_an_account_of_the_examples_is_not_answered_as_the_request(monkeypatch) 
                                             'of 3672 and 5033394."')
     assert out is None
     assert book.answered == []
+
+
+def test_what_every_problem_opens_with_is_found_whole() -> None:
+    from core.learning.kinds_by_meaning import shared_opening
+
+    worked = "Sort a list of words.\n\nQ: Sort: List: b a\nA: a b\n\n"
+    posed = [worked + "Q: Sort the following words alphabetically: List: oven costume",
+             worked + "Q: Sort the following words alphabetically: List: shelve tunis"]
+    assert shared_opening(posed) == worked
+    # A kind posed as its bare question opens with nothing in common.
+    assert shared_opening(["Calculate the highest common divisor of 4 and 6.",
+                           "Calculate the highest common factor of 9 and 12."]) == ""
+    assert shared_opening(["one problem alone"]) == ""
+
+
+@needs_boundary
+def test_a_kinds_posing_is_kept_and_put_back_before_its_procedures_read() -> None:
+    reads = "def solve(problem):\n    return 'posed' if problem.startswith('Worked.') else 'bare'\n"
+    signatures = {"sorting": Signature({"sorting": 1.0}, 0.99)}
+    book = ProcedureBook(signatures, {"sorting": [reads]}, {"sorting": 10}, posing={"sorting": "Worked.\n\n"})
+    again = ProcedureBook.from_json(book.to_json())
+    assert again.posing == {"sorting": "Worked.\n\n"}
+    assert again.answer_restated("sorting", "Q: Sort: List: b a")["answer"] == "posed"
+    assert ProcedureBook.combined([again]).posing == again.posing
+    assert ProcedureBook.merged([again]).posing == again.posing

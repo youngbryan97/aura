@@ -25,13 +25,15 @@ in the kind's form first (``restatement_request``).
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["TASK", "KindMeaning", "meanings_of", "nearest_kind", "restatement_request", "restates"]
+__all__ = ["TASK", "KindMeaning", "meanings_of", "nearest_kind", "restatement_request", "restates",
+           "shared_opening"]
 
 #: What a request is embedded for (core/memory/embedding_model.py TASK_INSTRUCTIONS).
 TASK = "kind_of_problem"
@@ -128,3 +130,21 @@ def restates(request: str, restated: str, examples: Sequence[Mapping[str, str]] 
         if number in shown or any(number in whole for whole in asked):
             return False
     return True
+
+
+def shared_opening(problems: Sequence[str]) -> str:
+    """The paragraphs every one of a kind's problems opens with, whole; "" when they share none.
+
+    A benchmark that poses each problem after the same worked examples makes
+    those paragraphs most of the kind's text, so a kind's meaning computed on
+    them is the examples' meaning, and a request in a person's words falls
+    below its bar (live 2026-10-16: 0.675 against BIG-Bench Hard word
+    sorting's 0.799). Cut at the last paragraph break the problems share, so
+    the question itself is never split.
+    """
+    texts = [str(p) for p in problems]
+    if len(texts) < 2:
+        return ""
+    head = os.path.commonprefix(texts)
+    cut = head.rfind("\n\n")
+    return head[: cut + 2] if cut >= 0 else ""
