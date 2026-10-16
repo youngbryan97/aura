@@ -24,6 +24,8 @@ SORT = "Sort these words alphabetically: walnut cedar maple birch alder"
         (GCD, "no, 374", "374"),
         (GCD, "Wrong — the correct answer is 374. Try again?", "374"),
         (SORT, "No, it's alder birch cedar maple walnut", "alder birch cedar maple walnut"),
+        (GCD, "Yes, the answer is 374.", "374"),
+        (GCD, "Right, it's 374", "374"),
     ],
 )
 def test_a_stated_answer_is_read(request_, said, answer):
@@ -33,7 +35,7 @@ def test_a_stated_answer_is_read(request_, said, answer):
 @pytest.mark.parametrize(
     "said",
     ["No, it's fine.", "it's raining here", "no", "thanks!", "What's the lcm of 4 and 6?", "No, it's not 22.",
-     "actually it was a great answer"],
+     "actually it was a great answer", "yes", "Yes, that's right!", "right, it's late, see you tomorrow"],
 )
 def test_a_turn_that_states_no_answer_is_left_alone(said):
     # A wrong known answer would retire a kept procedure that is right, so nothing unreadable is kept.

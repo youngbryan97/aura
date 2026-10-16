@@ -89,9 +89,11 @@ ProposeOne = Callable[[str], Awaitable[str]]
 
 
 #: How a person says what the answer is, in the turn after she answered: "the answer is 374", "no, it's 374",
-#: "actually it should be 374", "no, 374". A bare "no" with nothing stated is not an answer.
+#: "actually it should be 374", "no, 374", "yes, it's 374". A bare "no" or "yes" with nothing stated is not
+#: an answer.
 _STATED = re.compile(
-    r"^\s*(?:(?:no|nope|wrong|incorrect|not quite|close|actually)\b[\s,.!:;\u2013\u2014-]*)?"
+    r"^\s*(?:(?:no|nope|wrong|incorrect|not quite|close|actually|yes|yep|right|correct|exactly)\b"
+    r"[\s,.!:;\u2013\u2014-]*)?"
     r"(?:(?:the\s+)?(?:correct\s+|right\s+|real\s+|actual\s+)?answer\s*(?:is|was|should be|'s|:|=)"
     r"|it\s*(?:is|'s|should be|should have been|was)|(?:that\s+)?should be)\s*:?\s*(?P<value>.+)$",
     re.IGNORECASE | re.DOTALL,
