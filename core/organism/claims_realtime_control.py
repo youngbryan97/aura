@@ -21,6 +21,7 @@ def _play_execution_claims() -> tuple:
     from core.perception.coordinates_in_a_visual_reference import _source_image_coordinates_invariant
     from core.perception.a_visual_reference_in_the_picture import _oriented_reference_invariant
     from core.perception.a_visual_reference_in_the_picture import _reduced_reference_centres_invariant
+    from core.perception.a_visual_reference_in_the_picture import _scene_correlation_invariant
     from core.perception.names_for_observed_instances import _instance_name_invariant
     from core.perception.a_source_point_on_current_material import _source_point_basis_invariant
     from core.perception.pixels_consumed_by_the_observer import _consumed_pixel_invariant
@@ -41,7 +42,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('reduced_reference_matches_keep_pixel_centres', 'core/perception/a_visual_reference_in_the_picture.py',
+    return (('shared_scene_cost_matches_direct_pixels', 'core/perception/a_visual_reference_in_the_picture.py',
+             'tests/test_reference_search_reuses_current_scene_transforms.py', lambda: _scene_correlation_invariant() == (),
+             'One capture shares its Fourier transforms across reference kernels while preserving the direct masked squared-colour pixel objective; no previous capture supplies the scene.'),
+            ('reduced_reference_matches_keep_pixel_centres', 'core/perception/a_visual_reference_in_the_picture.py',
              'tests/test_a_reference_keeps_coordinates_while_it_turns.py', lambda: _reduced_reference_centres_invariant() == (),
              'Reference matching composes the reduced scene sample-centre offset into original-image geometry; raster footprint checks cannot be replaced by agreement between two identically biased matches.'),
             ('point_retention_cannot_restore_hidden_marks', 'core/perception/points_a_consumer_still_needs.py',

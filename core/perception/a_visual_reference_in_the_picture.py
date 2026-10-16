@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image
-from scipy import ndimage, signal
+from scipy import fft, ndimage
 
 from core.perception.affine_motion_from_named_points import AffineMotion, affine_motion
 from core.perception.points_before_the_picture_is_reduced import _colours, _refine
@@ -62,11 +62,38 @@ def _oriented_template(reference: Image.Image, size: tuple[int, int], angle: flo
     return np.asarray(template), linear, offset
 
 
+class _SceneCorrelations:
+    """Reuse one captured image's spectra for bounded masked colour costs."""
+
+    def __init__(self, scene: np.ndarray, largest: tuple[int, int] | None = None) -> None:
+        self.shape = scene.shape[:2]
+        self.largest = self.shape if largest is None else largest
+        if any(not 1 <= k <= n for k, n in zip(self.largest, self.shape, strict=True)):
+            raise ValueError('a colour-cost bank needs bounded kernels inside its scene')
+        self.padded = tuple(fft.next_fast_len(n+k-1, real=True) for n, k in zip(self.shape, self.largest, strict=True))
+        self.squared = fft.rfftn(np.sum(scene**2, axis=2), self.padded)
+        self.colours = fft.rfftn(scene.transpose(2, 0, 1), self.padded, axes=(-2, -1))
+
+    def cost(self, rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
+        height, width = mask.shape
+        support = float(mask.sum())
+        if (rgb.shape != (height, width, 3) or height > self.largest[0] or width > self.largest[1]
+                or support <= 0):
+            raise ValueError('a colour-cost kernel needs positive support inside its scene')
+        mask_spectrum = fft.rfftn(mask[::-1, ::-1], self.padded)
+        weighted = (rgb*mask[..., None])[::-1, ::-1].transpose(2, 0, 1)
+        colour_spectrum = fft.rfftn(weighted, self.padded, axes=(-2, -1))
+        combined = self.squared*mask_spectrum-2*np.sum(self.colours*colour_spectrum, axis=0)
+        result = fft.irfftn(combined, self.padded)
+        constant = float(np.sum(rgb**2*mask[..., None]))
+        return (result[height-1:self.shape[0], width-1:self.shape[1]]+constant)/(3*support)
+
+
 def _proposals(scene: np.ndarray, reference: np.ndarray, scales: tuple, angles: tuple) -> list[tuple]:
     """Masked squared error proposes places; it cannot qualify correspondence."""
     height, width = scene.shape[:2]
     source = Image.fromarray(reference)
-    proposed, sizes = [], set()
+    proposed, sizes, kernels = [], set(), []
     for scale, angle in ((scale, angle) for scale in scales for angle in angles):
         size = tuple(round(v*scale) for v in source.size)
         key = size, round(angle, 12)
@@ -76,16 +103,22 @@ def _proposals(scene: np.ndarray, reference: np.ndarray, scales: tuple, angles: 
         template, linear, offset = _oriented_template(source, size, angle)
         if template.shape[1] > width or template.shape[0] > height:
             continue
-        mask = ndimage.binary_erosion(template[..., 3] >= 250).astype(np.float32)
+        mask = ndimage.binary_erosion(template[..., 3] >= 250)
         if mask.sum() < 36:
             continue
-        rgb = template[..., :3].astype(np.float32)/255
-        supported = rgb[mask.astype(bool)]
+        supported = template[..., :3][mask].astype(np.float32)/255
         if float(np.std(supported, axis=0).max()) < .03:
             continue
-        cost = sum(signal.fftconvolve(scene[..., c]**2, mask[::-1, ::-1], mode='valid')
-                   - 2*signal.fftconvolve(scene[..., c], (rgb[..., c]*mask)[::-1, ::-1], mode='valid')
-                   + np.sum(rgb[..., c]**2*mask) for c in range(3))/(3*mask.sum())
+        kernels.append((template, linear, offset, angle, mask))
+    if not kernels:
+        return []
+    largest = tuple(max(item[0].shape[axis] for item in kernels) for axis in (0, 1))
+    correlations = _SceneCorrelations(scene, largest)
+    for template, linear, offset, angle, mask in kernels:
+        # Keep one floating-point colour kernel at a time beside the bank's
+        # byte rasters and boolean masks.
+        rgb = template[..., :3].astype(np.float32)/255
+        cost = correlations.cost(rgb, mask.astype(np.float32))
         for _ in range(3):
             row, col = np.unravel_index(cost.argmin(), cost.shape)
             value = float(cost[row, col])
@@ -200,6 +233,20 @@ def _oriented_reference_invariant() -> tuple:
     seen = reference_appearances(picture, reference, scales=(1.,), angles=(0., math.pi/2))
     assert len(seen) == 1
     assert math.dist(seen[0].project((11., 13.)), (64., 31.)) < .5
+    return ()
+
+
+@invariant('perception.shared_scene_cost_matches_direct_pixels', scope='perception',
+           owner='core/perception/a_visual_reference_in_the_picture.py', observational=False)
+def _scene_correlation_invariant() -> tuple:
+    rng = np.random.default_rng(59)
+    scene = rng.uniform(0., 1., (24, 32, 3)).astype(np.float32)
+    rgb = rng.uniform(0., 1., (7, 9, 3)).astype(np.float32)
+    mask = (rng.uniform(0., 1., (7, 9)) > .3).astype(np.float32)
+    measured = _SceneCorrelations(scene).cost(rgb, mask)
+    for y, x in ((0, 0), (11, 17), (17, 23)):
+        direct = np.sum((scene[y:y+7, x:x+9]-rgb)**2*mask[..., None])/(3*mask.sum())
+        assert abs(float(measured[y, x])-float(direct)) < 2e-6
     return ()
 
 

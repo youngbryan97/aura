@@ -838,3 +838,24 @@ Checkpoint gates: final focused set passed; smoke 165 passed, one skipped;
 lint, compile, layering, DEPS consistency and writing passed. Governance
 retains 131 existing regressions and module size the same unrelated
 regressions, including total excess of 197 lines. Baselines were unchanged.
+
+## Shared matcher transforms, 16 October 2026
+
+The reference search now shares current-scene transforms across its bounded
+template bank. Direct pixel sums check the colour objective. It retains
+the same candidate, reverse-patch, material and precision checks, with one
+floating-point colour kernel active at a time. Focused tests: 131 passed.
+
+Five alternating timing pairs on each of two recorded captures measured
+median reductions from 0.261416 to 0.179305 seconds and from 0.279757 to
+0.199373 seconds. Pose components and supporting correspondences were
+exactly equal. The ordinary replay still produced the composite source
+frame on eight of 100 frames; lower matching cost did not close that loss.
+Object-bound points appeared on 53 frames. The maximum loop pulse gap was
+0.021283 seconds. These remain recorded-pixel measurements with no game
+input. Source contacts, instance binding and independent native play remain
+open. No G09, holdout, model-job or resident-runtime change was made.
+
+Shared-transform gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed. Native deployment
+has not been performed.

@@ -119,3 +119,55 @@ Governance retains 131 existing regressions. Module size retains the same
 unrelated phantom-browser ceiling, response-phase method regressions and
 197 excess lines. Neither baseline was expanded. The full suite was not run
 beside the exclusive corpus/model job.
+
+## Matcher cost checkpoint
+
+Profiling found that every candidate scale recomputed the captured scene's
+Fourier transforms. The matcher now creates one bounded transform bank for
+the current picture and the largest actual template. The masked squared
+colour error is computed by combining the three colour correlations and
+the squared-scene correlation before one inverse transform. Templates keep
+their byte rasters and boolean masks; only the active kernel needs a
+floating-point RGB copy. The bank ends with that match call.
+
+Direct sliding-window pixel sums verify the objective on odd, even, small
+and full-scene kernels. Tests also compare the previous convolution route,
+check consecutive different kernels, refuse an oversized kernel for a
+smaller bank, change captured pixels and retain two separate visual copies.
+The patch, reverse-motion, material-support and precision thresholds are
+unchanged. A registered invariant checks direct pixels rather than relying
+only on agreement with another transform implementation.
+
+Five alternating runs per implementation on each of two recorded captures
+measured these median matcher times:
+
+| Capture sequence | Previous separate convolutions | Shared transforms |
+| --- | --- | --- |
+| 304 | 0.261416 seconds | 0.179305 seconds |
+| 413 | 0.279757 seconds | 0.199373 seconds |
+
+Both implementations returned exactly equal pose components and supporting
+correspondences in those measurements. These timings precede the final
+storage change that keeps only one floating-point colour kernel at a time;
+the final tests cover that storage change. They are two measured capture
+cases, not a general speed guarantee.
+
+The ordinary 100-frame replay then published object-bound points on 53
+frames and the composite frame on eight, with eight retention admissions.
+Its largest event-loop pulse gap was 0.021283 seconds and total source-paced
+time 18.759009 seconds. The lower matcher cost did not improve composite
+availability in this run. There was no game input or native-app request.
+The final focused set passed 131 tests. Receipts and paired timings are in
+the same private artifact directory under `shared-*` and `matcher-*`.
+
+The source audit also checked the unsupported deletion instruction against
+the [Ruffle interpreter's public implementation](https://github.com/ruffle-rs/ruffle/blob/master/core/src/avm1/activation.rs).
+Its property deletion leaves a result on the stack, and the recorded case's
+bytecode consumes that result with `Pop`. Treating the instruction as a
+no-op would corrupt stack interpretation. No interpreter source was copied
+and deletion remains explicitly unsupported in Aura at this checkpoint.
+
+Final shared-transform gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed. The exclusive
+corpus/model process remained active. Native gameplay qualification remains
+false.
