@@ -27,7 +27,7 @@ def _kept_apart(tmp_path, monkeypatch):
 def _thing(number, kind, x, y, w=20.0, h=20.0, moved=True):
     def box():
         return (x - w / 2, y - h / 2, x + w / 2, y + h / 2)
-    return SimpleNamespace(number=number, kind=kind, x=x, y=y, w=w, h=h, moved=moved, vx=0.0, vy=0.0, box=box)
+    return SimpleNamespace(number=number, born=0., seen=0., kind=kind, x=x, y=y, w=w, h=h, moved=moved, vx=0.0, vy=0.0, box=box)
 
 
 def _moves(things, colours):
@@ -61,6 +61,8 @@ def test_her_eyes_are_asked_of_each_kind_once_hers_first_and_never_of_a_speck_or
                                                                             (0, 0, 0), (40, 40, 40)])
         picture = np.zeros((200, 300, 3), dtype=np.uint8)
         assert not looking.look(picture, moves, 0.0, mine=5)          # play has only begun
+        for thing in moves.things.values():
+            thing.seen = 4.
         assert looking.look(picture, moves, 4.0, mine=5)
         await looking._asking
         assert not looking.look(picture, moves, 5.0, mine=5)          # not again so soon, and nothing new to ask of
@@ -319,20 +321,21 @@ def test_her_own_kind_is_looked_at_where_she_is_not_at_the_biggest_thing_like_he
     looking = LookingAtThings()
     moves = _moves([_thing(5, 0, 50, 50, w=8, h=10), _thing(6, 0, 150, 80, w=40, h=30)], [(240, 240, 240)])
     chosen = looking._to_look_at(moves, 5, set())
-    assert chosen and chosen[0][1] == moves.things[5].box()
+    assert chosen and chosen[0].box == moves.things[5].box()
 
 
-def test_her_kind_looked_at_before_she_was_known_is_looked_at_again_where_she_is():
+def test_her_instance_is_looked_at_even_if_another_of_its_kind_was_asked_first(monkeypatch):
     from core.perception.what_things_look_like import LookingAtThings
 
     looking = LookingAtThings()
+    monkeypatch.setattr('core.perception.what_things_look_like.AT_ONCE', 1)
     moves = _moves([_thing(5, 0, 50, 50, w=8, h=10), _thing(6, 0, 150, 80, w=40, h=30)], [(240, 240, 240)])
     first = looking._to_look_at(moves, None, set())
-    looking.asked |= {kind for kind, _box in first}
-    assert first[0][1] == moves.things[6].box()                       # before she is known: the biggest of the look
+    looking.asked_instances |= {query.key for query in first}
+    assert first[0].box == moves.things[6].box()
     again = looking._to_look_at(moves, 5, set())
-    assert again and again[0][1] == moves.things[5].box()             # once she is: where she is
-    looking.asked |= {kind for kind, _box in again}
+    assert again and again[0].box == moves.things[5].box()
+    looking.asked_instances |= {query.key for query in again}
     assert looking._to_look_at(moves, 5, set()) == []                 # and only once
 
 

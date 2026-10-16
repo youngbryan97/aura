@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.verify import invariant
+from core.perception.names_for_observed_instances import NamesInScene
 
 
 @dataclass(frozen=True)
@@ -123,7 +124,7 @@ def position_for_relation(relation: str, mine: Any, target: Any) -> tuple[float,
     return (x, y) if relation == 'at' else None
 
 
-def bind_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], names: Mapping[int, str],
+def bind_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], names: Mapping[int, str] | NamesInScene,
                      at: float | None) -> BoundDestination | None:
     """The uniquely named current object, never the nearest unnamed substitute.
 
@@ -138,7 +139,8 @@ def bind_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
     for thing in things:
         if getattr(thing, 'number', None) == getattr(mine, 'number', None):
             continue
-        words = _name_words(names.get(getattr(thing, 'kind', -1), ''))
+        name = names.for_thing(thing) if isinstance(names, NamesInScene) else names.get(getattr(thing, 'kind', -1), '')
+        words = _name_words(name)
         if wanted[-1] not in words:
             continue
         score = len(set(wanted) & set(words))
@@ -156,13 +158,14 @@ def bind_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
     return BoundDestination(request, target, point) if point is not None else None
 
 
-def observed_names(moves: Any) -> dict[int, str]:
-    """Names attached to observed kinds, excluding names assigned merely by role."""
+def observed_names(moves: Any) -> dict[int, str] | NamesInScene:
+    """Current instance names, or legacy kind names before scoped naming begins."""
     from core.cognition.a_guide_to_a_place import THE_GUIDE
 
     guide = THE_GUIDE.get()
     seen = getattr(guide, 'seen', None)
-    return {kind.number: seen.as_seen(kind.number) for kind in moves.kinds} if seen is not None else {}
+    legacy = {kind.number: seen.as_seen(kind.number) for kind in moves.kinds} if seen is not None else {}
+    return seen.instances.scene(moves, legacy) if seen is not None else legacy
 
 
 def take_motion_directions(meeting: Any, words: str) -> None:

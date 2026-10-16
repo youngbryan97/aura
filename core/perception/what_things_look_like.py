@@ -6,10 +6,10 @@ a platform is stood on. They notice, too, when a thing looks unlike how such thi
 rabbit with a sword, a parking space striped like a warning), and wonder what that is about.
 
 Her play finds things by how they move and what colour they are (core/perception/what_moves_in_the_picture.py); this
-asks her eyes (the vision model, core/brain/llm/mlx_vision_client.py) what one of each kind is, one at a time, marked
+asks her eyes (the vision model, core/brain/llm/mlx_vision_client.py) what each tracked instance is, one at a time, marked
 with a box on the picture as it is: one thing marked is named far more surely than several, and each look takes under
-a second. It is asked beside her play, never in its way: a few kinds at a time, the one that is hers first, then what
-moves, then what is still; a kind once named is not asked again.
+a second. It is asked beside her play, never in its way: a few instances at a time, the one that is hers first, then
+what moves, then what is still. Each instance keeps its own query and answer.
 
 What a thing is seen as is a guess, and is kept as one: what play shows of it outranks it.
 
@@ -31,11 +31,13 @@ from typing import Any
 
 import numpy as np
 
+from core.perception.names_for_observed_instances import InstanceQuery, query_for
+
 __all__ = ["LookingAtThings", "Sighting", "sighting_from"]
 
 logger = logging.getLogger("Aura.WhatThingsLookLike")
 
-#: How many kinds are looked at in one go, how many in one game at most, how soon play must have gone on before the
+#: How many instances are looked at in one go, how many in one game at most, how soon play must have gone on before the
 #: first look, and how long between two goes.
 AT_ONCE = 3
 MOST_A_GAME = 14
@@ -80,13 +82,15 @@ _OF_THE_THING = re.compile(r"\b(?:face|eyes?|mouth|smil\w*|arms?|legs?|hands?|we
 
 @dataclass
 class Sighting:
-    """What one kind of thing was seen as, and what about it looked unlike its kind ("" for nothing)."""
+    """What one boxed thing was seen as, and what about it looked unusual ("" for nothing)."""
 
     what: str
     odd: str = ""
     at: float = 0.0
     #: Its own name, where her eyes knew it by one (a character, a famous thing): "Amy Rose", not "hedgehog".
     who: str = ""
+    #: Added by the query owner after parsing; never read from the provider's JSON.
+    query: InstanceQuery | None = None
 
 
 def sighting_from(answer: str, at: float = 0.0) -> Sighting | None:
@@ -129,13 +133,14 @@ async def _her_eyes(prompt: str, image_b64: str) -> str:
 
 @dataclass
 class LookingAtThings:
-    """What each kind of thing she has seen in one game looks like, asked of her eyes beside her play."""
+    """Names for boxed instances, asked beside play; agreeing answers also supply a kind summary."""
 
     by_kind: dict[int, Sighting] = field(default_factory=dict)
     see: Callable[[str, str], Awaitable[str]] = _her_eyes
     asked: set[int] = field(default_factory=set)
-    #: The thing each kind was looked at on: her own kind is looked at again, once, where she is, if it was first looked
-    #: at on another thing of its look before play knew which was hers.
+    asked_instances: set[tuple] = field(default_factory=set)
+    by_instance: dict[tuple, Sighting] = field(default_factory=dict)
+    #: Last queried instance of each kind, retained for older callers' diagnostics.
     looked_on: dict[int, int] = field(default_factory=dict)
     _began: float | None = None
     _last: float = -math.inf
@@ -147,17 +152,24 @@ class LookingAtThings:
     _done_at: float = -math.inf
 
     def look(self, picture: Any, moves: Any, at: float, *, mine: int | None = None, met: Any = ()) -> bool:
-        """Ask what the kinds in ``picture`` not yet named are, where it is time to: hers (``mine``, a thing's number)
+        """Ask what the instances in ``picture`` not yet named are, where it is time to: hers (``mine``, a thing's number)
         first, then those met (kinds), then what moves, then what is still. Whether it was asked now."""
+        if type(at) not in (int, float) or not math.isfinite(at):
+            return False
         self._began = at if self._began is None else self._began
-        if (self._asking is not None and not self._asking.done()) or len(self.asked) >= MOST_A_GAME:
+        if (self._asking is not None and not self._asking.done()) or len(self.asked_instances) >= MOST_A_GAME:
             return False
         # The time between goes from when the last looks were done, not begun: LIVE 2026-10-10 fifteen looks in thirty
         # seconds, as play was finding which thing was hers.
         if (at - self._began < FIRST_AFTER_S or at - self._last < EVERY_S or time.monotonic() < self._rested_until
                 or time.monotonic() - self._done_at < EVERY_S):
             return False
-        chosen = self._to_look_at(moves, mine, set(met or ()))
+        frame = np.asarray(picture)
+        if (frame.dtype != np.uint8 or frame.ndim != 3 or frame.shape[2] < 3
+                or min(frame.shape[:2]) < 1 or max(frame.shape[:2]) > 4096):
+            return False
+        frame = np.ascontiguousarray(frame[..., :3]).copy()
+        chosen = [query.with_picture(frame) for query in self._to_look_at(moves, mine, set(met or ()), at=at)]
         if not chosen:
             return False
         try:
@@ -165,8 +177,8 @@ class LookingAtThings:
         except RuntimeError:
             return False
         self._last = self.asked_at = at
-        self.asked |= {kind for kind, _box in chosen}
-        frame = np.array(picture)[..., :3]
+        self.asked |= {query.kind for query in chosen}
+        self.asked_instances |= {query.key for query in chosen}
         scale = float(getattr(moves, "scale", 1.0) or 1.0)
         self._asking = loop.create_task(self._ask(frame, chosen, scale, at))
         return True
@@ -180,40 +192,32 @@ class LookingAtThings:
         new, self._new = self._new, []
         return new
 
-    def _to_look_at(self, moves: Any, mine: int | None, met: set[int]) -> list[tuple[int, tuple[float, ...]]]:
+    def _to_look_at(self, moves: Any, mine: int | None, met: set[int], *, at: float | None = None) -> list[InstanceQuery]:
         tall, wide = getattr(moves, "shape", (0, 0)) or (0, 0)
-        best: dict[int, Any] = {}
+        best = []
         for thing in (getattr(moves, "things", {}) or {}).values():
-            kind = int(getattr(thing, "kind", -1))
-            again = thing.number == mine and kind in self.looked_on and self.looked_on[kind] != mine
-            if kind < 0 or ((kind in self.asked or kind in self.by_kind) and not again):
+            query = query_for(thing, moves, at if at is not None else getattr(thing, 'seen', None))
+            if query is None or query.key in self.asked_instances or query.key in self.by_instance:
                 continue
             if min(thing.w, thing.h) < LEAST_SIDE or (wide and thing.w > MOST_SHARE * wide) or (tall and thing.h > MOST_SHARE * tall):
                 continue
-            # Her own kind is looked at where she is, not at the biggest thing like her: LIVE 2026-10-10 the pointer's
-            # kind was looked at on a sign of its colour, and she said "That's me: the white sign".
-            if best.get(kind) is not None and best[kind].number == mine:
-                continue
-            if kind not in best or thing.number == mine or thing.w * thing.h > best[kind].w * best[kind].h:
-                best[kind] = thing
+            best.append((query, thing))
+        chosen = sorted(best, key=lambda item: (0 if item[1].number == mine else 1,
+            0 if item[1].kind in met else 1, 0 if item[1].moved else 1, -item[1].w*item[1].h))
+        chosen = chosen[:min(AT_ONCE, MOST_A_GAME-len(self.asked_instances))]
+        self.looked_on.update({query.kind: query.number for query, _thing in chosen})
+        return [query for query, _thing in chosen]
 
-        def first(kind: int) -> tuple[int, int, int, float]:
-            thing = best[kind]
-            return (0 if thing.number == mine else 1, 0 if kind in met else 1, 0 if thing.moved else 1, -thing.w * thing.h)
-
-        chosen = sorted(best, key=first)[:AT_ONCE]
-        self.looked_on.update({kind: best[kind].number for kind in chosen})
-        return [(kind, best[kind].box()) for kind in chosen]
-
-    async def _ask(self, frame: np.ndarray, chosen: list[tuple[int, tuple[float, ...]]], scale: float, at: float) -> None:
+    async def _ask(self, frame: np.ndarray, chosen: list[InstanceQuery], scale: float, at: float) -> None:
         try:
             await self._ask_each(frame, chosen, scale, at)
         finally:
             self._done_at = time.monotonic()
 
-    async def _ask_each(self, frame: np.ndarray, chosen: list[tuple[int, tuple[float, ...]]], scale: float,
+    async def _ask_each(self, frame: np.ndarray, chosen: list[InstanceQuery], scale: float,
                         at: float) -> None:
-        for kind, box in chosen:
+        for query in chosen:
+            kind, box = query.kind, query.box
             try:
                 colour, image = await asyncio.to_thread(_marked, frame, box, scale)
                 answer = await asyncio.wait_for(self.see(_PROMPT.format(colour=colour), image), 2 * LOOK_TIMEOUT_S + 5)
@@ -225,7 +229,13 @@ class LookingAtThings:
             logger.info("what a thing looks like: kind %s seen as %r (%s)", kind, getattr(sighting, "what", None),
                         getattr(sighting, "odd", "") or "nothing odd")
             if sighting is not None:
-                self.by_kind[kind] = sighting
+                sighting.query = query
+                self.by_instance[query.key] = sighting
+                peers = [value for value in self.by_instance.values() if value.query.kind == kind]
+                if len({(value.what, value.who) for value in peers}) == 1:
+                    self.by_kind[kind] = sighting
+                else:
+                    self.by_kind.pop(kind, None)
                 self._new.append((kind, sighting))
 
 

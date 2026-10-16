@@ -662,3 +662,22 @@ instance is classified, then its answer is stored for the entire visual kind,
 and another instance of that kind is never asked. Track and bind the named
 instance instead. Preserve the semantic classification as a guess and the
 existing causal-control thresholds. No native runtime or G09 changes.
+
+## Instance naming checkpoint, 15 October 2026
+
+`LookingAtThings` now queries individual tracks. Its private capture receipt
+retains observer epoch, number, birth, kind, capture time, box and pixel hash
+through delayed semantic replies. `seen_in_play` stores the result on that
+instance, and the explicit-goal resolver consumes the scoped names. Shared
+kind guesses require agreement among current peers; an unknown or conflicting
+peer removes the unmeasured class supposition. Measured contacts and told
+rules remain. The provider prompt and causal-body thresholds are unchanged.
+
+Tests: 116 focused passed; smoke 165 passed, one skipped. Lint, compile,
+layering, DEPS consistency and writing passed. See
+`docs/evidence/steering/2026-10-15-visual-names-retain-the-boxed-instance.md`.
+The producer-to-guide-to-chooser test supplies semantic replies and an existing
+body identity. Recognition accuracy and original-game wins remain unproved.
+Next: connect source-reference geometry to current observed material without
+turning a reference appearance into control identity or guessed contact rules.
+No native deployment, G09 or original-game-9 changes.

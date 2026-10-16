@@ -25,7 +25,7 @@ import numpy as np
 
 from core.agency.what_meeting_things_does import AVOID, MEET, SHOOT
 from core.perception.reading_again_after_loss import ReadingAgain
-from core.perception.what_things_look_like import EVERY_S
+from core.perception.what_things_look_like import EVERY_S, LookingAtThings
 
 __all__ = ["SeeingInPlay", "a_pointer_seen", "a_stance_said", "colour_name", "describe", "i_go_where_the_mouse_goes", "named_for_its_part", "plural", "seen_in_play", "shape_name", "still_looking_at",
            "where_on_screen"]
@@ -66,9 +66,12 @@ def describe(moves: Any, kind: int, thing: Any = None) -> str:
     sample = alike[0]
     colour = colour_name(moves.kinds[kind].colour)
     guide = _the_guide()
-    seen = guide.seen.as_seen(kind) if guide is not None else ""
+    scoped = guide is not None and guide.seen.instances.active(moves)
+    instance = guide.seen.instances.of(moves, sample) if scoped and thing is not None else None
+    seen = ((instance.who or instance.what) if instance is not None else '' if scoped and thing is not None
+            else guide.seen.as_seen(kind) if guide is not None else '')
     if seen:
-        return seen if kind in guide.seen.who or colour in seen.split() else f"{colour} {seen}"
+        return seen if (instance is not None and instance.who) or kind in guide.seen.who or colour in seen.split() else f"{colour} {seen}"
     return f"{colour} {shape_name(sample.w, sample.h)}"
 
 
@@ -106,6 +109,11 @@ def still_looking_at(run: Any, kind: int | None, at: float, mine: int | None = N
     looking = getattr(getattr(run, "seeing", None), "looking", None)
     if looking is None or kind is None or looking.resting() or at - looking.asked_at >= WAIT_FOR_EYES_S + EVERY_S:
         return False
+    if isinstance(looking, LookingAtThings) and mine is not None:
+        queries = [key for key in looking.asked_instances if key[2] == mine and key[4] == kind]
+        if queries:
+            latest = max(queries, key=lambda key: key[3])
+            return latest not in looking.by_instance and at - looking.asked_at < WAIT_FOR_EYES_S
     if mine is not None and kind in looking.looked_on and looking.looked_on[kind] != mine:
         return True
     return kind not in looking.by_kind and kind in looking.asked and at - looking.asked_at < WAIT_FOR_EYES_S
@@ -263,7 +271,6 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
     """One picture: her eyes asked what the kinds not yet named are (beside her play), and what each turned out to be
     made something of: its name in the guide, a stance until meeting it says, a thought said, an odd look wondered at."""
     from core.cognition.what_things_are import what_things_are
-    from core.perception.what_things_look_like import LookingAtThings
 
     guide = _the_guide()
     seeing: SeeingInPlay | None = getattr(run, "seeing", None)
@@ -281,6 +288,8 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
         # Not the place's characters: who they are is the cast's (its what and its side), not what such things are.
         if ask is not None:
             store.ask_about(named, ask)
+    if isinstance(seeing.looking, LookingAtThings):
+        guide.seen.instances.begin(moves)
     seeing.looking.look(picture, moves, at, mine=hers.number, met=list(meeting.evidence))
     # What the place's code says of what she sees, before her eyes' own guesses (core/agency/what_its_code_says_she_sees.py).
     from core.agency.what_its_code_says_she_sees import what_its_code_says_she_sees
@@ -292,19 +301,30 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
         # things on a game's title "Big Shot Checkers", the game's own name, and "Littlest Pet Shop", which nothing
         # there says.
         named = getattr(sighting, "who", "")
-        who = guide.seen.saw(kind, sighting.what, sighting.odd, named if guide.has_said(named) else "")
+        if sighting.query is not None:
+            who = guide.seen.saw_instance(moves, sighting.query, sighting.what, sighting.odd,
+                                         named if guide.has_said(named) else '')
+            if who is None:
+                continue
+        else:
+            who = guide.seen.saw(kind, sighting.what, sighting.odd, named if guide.has_said(named) else "")
         colour = colour_name(moves.kinds[kind].colour) if kind < len(moves.kinds) else ""
-        if kind < len(moves.kinds):
+        common = guide.seen.instances.consensus(moves, kind) if sighting.query is not None else None
+        if kind < len(moves.kinds) and (sighting.query is None or common is not None):
             # How it looks to her play, so where it is can be found by other ways of looking (a send's).
             looked = moves.kinds[kind]
             guide.reading.saw(who or sighting.what, looked.colour, float(getattr(looked, "size", 0.0) or 0.0))
-        guide.notes.notice(f"looks like {kind}", f"the {colour} one looks like {_a(who or sighting.what)}", at,
+        instance_key = f'{kind}:{sighting.query.number}:{sighting.query.born}' if sighting.query is not None else str(kind)
+        guide.notes.notice(f"looks like {instance_key}", f"the {colour} one looks like {_a(who or sighting.what)}", at,
                            kind="seen", about=str(kind))
         if ask is not None:
             store.ask_about([sighting.what], ask)
         seeing.pending[kind] = at
         if sighting.odd:
             _wonder_at(guide, seeing, who or sighting.what, sighting.odd, at, ask)
+    for kind in guide.seen.refresh_instances(moves):
+        meeting.supposed.pop(kind, None)
+        seeing.pending.pop(kind, None)
     _read_the_place(guide, seeing, hers, at, ask, tell)
     for kind, since in sorted(seeing.pending.items()):
         what = guide.seen.as_seen(kind)

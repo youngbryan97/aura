@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
+from core.perception.names_for_observed_instances import InstanceNames, InstanceQuery
 
 __all__ = ["BEARS", "WhatAThingIs", "WhatSheSees", "WhatThingsAre", "asked_patiently", "first_guess", "what_things_are",
            "words_shared"]
@@ -311,11 +312,14 @@ class WhatSheSees:
     who: dict[int, str] = field(default_factory=dict)
     #: The kind her eyes took for the player's own, and what it looked like (core/perception/where_i_am_on_screen.py).
     mine: tuple[int, str] | None = None
+    instances: InstanceNames = field(default_factory=InstanceNames, repr=False)
 
     def saw(self, kind: int, what: str, odd: str = "", who: str = "") -> str:
         """A kind seen as ``what`` (and known by name as ``who``, where her eyes knew it): the place's character it is,
         by name, where it is one; else the name her eyes knew it by; else ""."""
         self.by_kind[kind] = what
+        self.who.pop(kind, None)
+        self.odd.pop(kind, None)
         if odd:
             self.odd[kind] = odd
         for name in self.cast:
@@ -338,6 +342,27 @@ class WhatSheSees:
             self.cast[name] = {k: " ".join(str(said.get(k) or "").split())[:160] for k in ("what", "looks", "side")}
             added.append(name)
         return added
+
+    def saw_instance(self, observer: Any, query: InstanceQuery, what: str, odd: str = '', who: str = '') -> str | None:
+        """Keep a semantic guess on the instance boxed in that query."""
+        known = next((name for name in self.cast if words_shared(name, who) or words_shared(name, what)
+                      or words_shared(name, self.cast[name].get('what', '')) & set(_key(what).split())), who)
+        return known if self.instances.record_for(observer, query, what, odd, known) else None
+
+    def refresh_instances(self, observer: Any) -> set[int]:
+        """Only agreement across current peers can supply a class-wide guess."""
+        if not self.instances.active(observer):
+            return set()
+        uncertain = set()
+        for kind in {thing.kind for thing in observer.things.values()}:
+            common = self.instances.consensus(observer, kind)
+            if common is None:
+                uncertain.add(kind)
+                for field in (self.by_kind, self.who, self.odd):
+                    field.pop(kind, None)
+            else:
+                self.saw(kind, common.what, common.odd, common.who)
+        return uncertain
 
     def as_seen(self, kind: int) -> str:
         """What a kind is called by what it was seen as: the cast member it is, else what it looked like; "" if neither."""
