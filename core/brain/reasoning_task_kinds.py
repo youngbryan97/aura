@@ -25,7 +25,11 @@ _CODE_HINT = re.compile(
 _MATH_HINT = re.compile(
     r"\b(calculate|compute|how many|sum|product|equation|solve|factorial|prime|"
     r"to the power of|raised to|power of|mod(?:ulo)?|gcd|greatest common divisor|"
-    r"remainder|divisible|\d+\s*[-+*/^]\s*\d+)\b",
+    r"remainder|divisible|\d+\s*[-+*/^]\s*\d+|"
+    # A computation named in words. Live chat, 16 October: "What is 15% of 340?" read as a factual question and
+    # "Convert 1203321 from base 4 to base 10." as nothing at all, so neither could be checked by a program.
+    r"percent|\d+(?:\.\d+)?\s*%|(?:from|to|in) base \d+|square root|cube root|divided by|multiplied by|"
+    r"\d+\s+times\s+\d+|average of|median of)(?!\w)",
     re.I,
 )
 _REPO_HINT = re.compile(r"\b(repo|codebase|module|where is|which file|architecture|how does .* work|implemented)\b", re.I)
