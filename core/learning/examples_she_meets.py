@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import asdict
@@ -66,7 +67,8 @@ from core.learning.procedures_from_solved_examples import (
     split_examples,
 )
 
-__all__ = ["SOURCES", "SHOTS", "ROUNDS", "note_met", "note_met_async", "met_examples", "learn_one_step"]
+__all__ = ["SOURCES", "SHOTS", "ROUNDS", "a_person_answered", "learn_one_step", "mark_programs_checked",
+           "met_examples", "next_to_check", "note_met", "note_met_async", "note_to_check_async"]
 
 #: Where a known answer may come from. Nothing else is noted.
 SOURCES = frozenset({"a_person_gave_it", "independent_programs_agreed"})
@@ -79,9 +81,55 @@ ROUNDS = 3
 MET_RELATIVE = "procedures/met_examples.jsonl"
 RETIRED_RELATIVE = "procedures/retired.jsonl"
 LEARNING_RELATIVE = "procedures/learning_in_use.json"
+#: Requests she answered in chat that independent programs might settle, checked one at a time while she is idle.
+TO_CHECK_RELATIVE = "procedures/to_check.jsonl"
 
 Embed = Callable[[list[str]], np.ndarray]
 ProposeOne = Callable[[str], Awaitable[str]]
+
+
+#: How a person says what the answer is, in the turn after she answered: "the answer is 374", "no, it's 374",
+#: "actually it should be 374", "no, 374". A bare "no" with nothing stated is not an answer.
+_STATED = re.compile(
+    r"^\s*(?:(?:no|nope|wrong|incorrect|not quite|close|actually)\b[\s,.!:;\u2013\u2014-]*)?"
+    r"(?:(?:the\s+)?(?:correct\s+|right\s+|real\s+|actual\s+)?answer\s*(?:is|was|should be|'s|:|=)"
+    r"|it\s*(?:is|'s|should be|should have been|was)|(?:that\s+)?should be)\s*:?\s*(?P<value>.+)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_DENIED_THEN_VALUE = re.compile(
+    r"^\s*(?:no|nope|wrong|incorrect|actually)\b[\s,.!:;\u2013\u2014-]+(?P<value>.+)$", re.IGNORECASE | re.DOTALL
+)
+#: "It's not 22" says what the answer is not.
+_DENIES = re.compile(r"^(?:not|never|no)\b", re.IGNORECASE)
+#: Where a stated value ends and a reason or a new request begins.
+_VALUE_ENDS = re.compile(r"\s+(?:because|since|as|not)\b|\s+[-\u2014]\s+|[.!?](?:\s|$)|\n", re.IGNORECASE)
+_WORD = re.compile(r"[\w()]+")
+
+
+def a_person_answered(request: str, her_reply: str, said: str) -> str | None:
+    """The answer a person states, in this turn, for the request she just answered; None when the turn states none.
+
+    Only an answer of a checkable shape is taken: one with a number in it, or
+    one made only of words the request itself holds (the words of a list she
+    was asked to sort, an option it offered). "No, it's fine" or "it's
+    raining" states no answer to "what is 15% of 340?", and a known answer that
+    is wrong would retire a kept procedure that is right
+    (``_check_against_kept``), so a turn that cannot be read is left alone.
+    """
+    if not str(her_reply or "").strip() or len(str(request or "").split()) < 3:
+        return None
+    text = str(said or "").strip()
+    found = _STATED.match(text) or _DENIED_THEN_VALUE.match(text)
+    if found is None:
+        return None
+    value = _VALUE_ENDS.split(found.group("value"), maxsplit=1)[0].strip().strip("\"'`*").rstrip(",;:").strip()
+    if not value or len(value) > 200 or _STATED.match(value) or _DENIES.match(value):
+        return None
+    if any(ch.isdigit() for ch in value):
+        return value
+    asked = {w.casefold() for w in _WORD.findall(str(request))}
+    words = [w.casefold() for w in _WORD.findall(value)]
+    return value if words and all(w in asked for w in words) else None
 
 
 def _root() -> Path:
@@ -132,6 +180,53 @@ async def note_met_async(problem: str, answer: str, source: str) -> bool:
         await gateway.ensure_directory_async(path.parent, source="examples_she_meets.note_met")
         await gateway.append_text_async(path, line, source="examples_she_meets.note_met")
     return True
+
+
+async def note_to_check_async(problem: str) -> bool:
+    """Queue a request she answered, for independent programs to settle while she is idle.
+
+    Her answer in the turn is her own and is not a known answer. When programs
+    written by independent strategies print one answer and her verifier passes
+    it (core/brain/reasoning_amplifier_v2.py), it is noted as a solved example
+    she met, from the source ``independent_programs_agreed``. That search took
+    minutes on her model, too long for a turn, so it runs after it.
+    """
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    problem = str(problem or "").strip()
+    if not problem:
+        return False
+    line = json.dumps({"key": _key(problem), "problem": problem, "at": round(time.time(), 3)}) + "\n"
+    path = _root() / TO_CHECK_RELATIVE
+    with local_internal_governed_scope("examples_she_meets.note_to_check", domain="file_write"):
+        gateway = get_file_write_gateway()
+        await gateway.ensure_directory_async(path.parent, source="examples_she_meets.note_to_check")
+        await gateway.append_text_async(path, line, source="examples_she_meets.note_to_check")
+    return True
+
+
+def next_to_check() -> dict[str, Any] | None:
+    """The first queued request no idle step has settled or set aside yet; None when there is none."""
+    path = _root() / TO_CHECK_RELATIVE
+    if not path.exists():
+        return None
+    done = _read_learning().get("programs_checked", {})
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        try:
+            row = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(row, dict) and row.get("key") and row["key"] not in done:
+            return row
+    return None
+
+
+async def mark_programs_checked(key: str, outcome: str) -> None:
+    """Record what the idle check of one queued request came to, so it is not checked again."""
+    learning = _read_learning()
+    learning.setdefault("programs_checked", {})[str(key)] = str(outcome)
+    await _write(LEARNING_RELATIVE, dumps(learning))
 
 
 def met_examples() -> list[dict[str, Any]]:

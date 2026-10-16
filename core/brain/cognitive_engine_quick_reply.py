@@ -733,6 +733,60 @@ class _AnswersTheDesktopDirectly:
         _quick_reward = 0.4 if reply_generation_incomplete else 0.6
         return _quick_reward, reply_generation_incomplete
 
+    async def _direct_desktop_quick_reply_note_a_stated_answer(self, context: dict[str, Any], said: str) -> str | None:
+        """When a person says what the answer was to the request she just answered, keep it as a solved example.
+
+        Examples she meets are what she learns new kinds of problem from while
+        idle (core/learning/examples_she_meets.py), and an answer a person
+        gives is one she can learn from. Nothing in her chat recorded one until
+        16 October, so she had never learned a kind from anything she met.
+        """
+        from core.conversation.delivered_history import delivered_exchange_messages
+        from core.learning.examples_she_meets import a_person_answered, note_met_async
+
+        from .cognitive_engine import logger, record_degradation
+
+        messages = delivered_exchange_messages(context.get("recent_completed_exchanges"))
+        if len(messages) < 2 or messages[-1].get("role") != "assistant" or messages[-2].get("role") != "user":
+            return None
+        request = str(messages[-2].get("content") or "")
+        answer = a_person_answered(request, str(messages[-1].get("content") or ""), said)
+        if answer is None:
+            return None
+        try:
+            noted = await note_met_async(request, answer, "a_person_gave_it")
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("cognitive_engine", exc, severity="warning",
+                               action="did not keep the answer a person gave as a solved example")
+            return None
+        if noted:
+            logger.info("🧠 CognitiveEngine: kept %r, the answer a person gave, as a solved example for %r.",
+                        answer, request[:120])
+        return answer if noted else None
+
+    async def _direct_desktop_quick_reply_queue_for_programs(self, request: str) -> bool:
+        """Queue a request no kept procedure answered, when independent programs could settle it while she is idle.
+
+        What they settle becomes a solved example she met
+        (core/learning/examples_she_meets.note_to_check_async); the search is
+        minutes long on her model, so it runs after the turn, not in it.
+        """
+        from core.brain.executable_reasoning import should_use_executable_reasoning
+        from core.brain.reasoning_amplifier_v2 import is_amplifiable
+        from core.learning.examples_she_meets import note_to_check_async
+
+        from .cognitive_engine import record_degradation
+
+        task_type = is_amplifiable(request)
+        if task_type is None or not should_use_executable_reasoning(request, task_type=task_type):
+            return False
+        try:
+            return await note_to_check_async(request)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("cognitive_engine", exc, severity="warning",
+                               action="did not queue the request for independent programs")
+            return False
+
     async def _direct_desktop_quick_reply_kept_procedure(
         self, request: str, router: Any, origin: str
     ) -> dict[str, Any] | None:
@@ -935,6 +989,8 @@ class _AnswersTheDesktopDirectly:
             context.get("response_style_contract"), self._STYLE_CONTRACT_LIMIT
         )
         visible_user_message = str(context.get("visible_user_message") or objective or "").strip()
+        if not (continuation_contract or obligation_contract):
+            await self._direct_desktop_quick_reply_note_a_stated_answer(context, visible_user_message)
         recent_conversation_context = str(context.get("recent_conversation_context") or "").strip()
         history_messages, history_reach_note = _desktop_history_messages_from_context(
             context,
@@ -1466,6 +1522,8 @@ class _AnswersTheDesktopDirectly:
             )
             if not stated:
                 text = str(kept_planted["answer"])
+        elif not (continuation_contract or obligation_contract):
+            await self._direct_desktop_quick_reply_queue_for_programs(user_prompt)
         surface_receipt = (
             router_generation_metadata.get("surface_control_receipt")
             if isinstance(router_generation_metadata, dict)

@@ -140,6 +140,48 @@ def _her_embedder() -> tuple[Any, Any]:
     return documents, queries
 
 
+async def _check_one_she_answered(router: Any) -> dict[str, Any]:
+    """Settle one request she answered in chat by independent programs, when it is one they can settle.
+
+    The amplifier notes a problem whose programs agree and whose answer her
+    verifier passes as a solved example she met (independent_programs_agreed);
+    learn_one_step then learns kinds from those. Her model is asked at
+    background priority, so a person's turn comes first.
+    """
+    from core.brain.executable_reasoning import should_use_executable_reasoning
+    from core.brain.reasoning_amplifier_v2 import amplify_turn, is_amplifiable, search_allowance
+    from core.learning.examples_she_meets import mark_programs_checked, next_to_check
+
+    item = next_to_check()
+    if item is None:
+        return {"status": "nothing_to_check"}
+    objective = str(item["problem"])
+    task_type = is_amplifiable(objective)
+    if task_type is None or not should_use_executable_reasoning(objective, task_type=task_type):
+        await mark_programs_checked(item["key"], "not_settled_by_programs")
+        return {"status": "not_settled_by_programs"}
+    # Priced as an induction proposal is: her model writing a program for one problem.
+    _one, search_s = search_allowance(objective, task_type, token_cap=_PROPOSAL_TOKENS, sample_budget=3, system=None)
+    if search_s <= 0.0:
+        return {"status": "no_rate_measured"}
+
+    async def generate(prompt: str, temperature: float) -> str:
+        out = await router.think(
+            prompt, temperature=temperature, prefer_tier="primary", origin="check_what_she_answered",
+            is_background=True, foreground_request=False, allow_cloud_fallback=False,
+        )
+        return str((out.get("content") or out.get("response") or "") if isinstance(out, dict) else (out or "")).strip()
+
+    result = await amplify_turn(
+        objective, generate, task_type=task_type, time_budget_s=search_s, sample_budget=3,
+        extra_context={"enable_executable_reasoning": True, "allow_textual_fallback_after_executable": False},
+    )
+    authority = str(getattr(result.receipt, "promotion_authority", "") or "unsettled")
+    await mark_programs_checked(item["key"], authority)
+    logger.info("🧠 Checked what she answered by independent programs: %s (%s).", authority, objective[:80])
+    return {"status": "checked", "authority": authority}
+
+
 async def _learn_one_step() -> dict[str, Any]:
     from core.container import ServiceContainer
     from core.learning.examples_she_meets import learn_one_step
@@ -147,6 +189,12 @@ async def _learn_one_step() -> dict[str, Any]:
     router = ServiceContainer.get("llm_router", default=None)
     if router is None:
         return {"status": "no_router"}
+    try:
+        checked = await _check_one_she_answered(router)
+    except (ImportError, OSError, RuntimeError, AttributeError, KeyError, TypeError, ValueError) as exc:
+        record_degradation("reasoning_background", exc, severity="warning",
+                           action="left what she answered for the next idle check")
+        checked = {"status": "error", "error": type(exc).__name__}
 
     async def propose_one(request: str) -> str:
         out = await router.think(
@@ -171,6 +219,7 @@ async def _learn_one_step() -> dict[str, Any]:
         record_degradation("reasoning_background_learn_in_use", exc, severity="warning",
                            action="left the examples she met for the next idle step")
         return {"status": "error", "error": type(exc).__name__}
+    result = {**result, "programs": checked}
     logger.info("🧠 Learning in use: %s", result)
     return result
 
