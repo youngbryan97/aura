@@ -6,8 +6,9 @@ fetched them; what it fetched is listed in the page's own record of what it
 loaded. The ones that are programs are fetched again through the page (from
 its cache, as a rule), never larger than ``MOST_BYTES``, and read for how the
 thing is worked (core/perception/reading_a_program.py). Nothing fetched is
-run. What was read is kept by address, so a place visited again is not
-fetched again.
+run. Each visit acquires the bytes through the page again, normally from its
+browser cache. A saved summary cannot stand in for those bytes or retain the
+exact instruction sources and visual declarations available in a current read.
 
 Where no program can be had (a page that loads none, a file refused), there is
 nothing to read, and the guide is made from what is seen and told.
@@ -19,6 +20,8 @@ import logging
 import re
 from typing import Any
 
+from core.verify import invariant
+
 __all__ = ["programs_of", "read_what_the_page_runs"]
 
 logger = logging.getLogger("Skills.SovereignBrowser.TheProgram")
@@ -26,8 +29,8 @@ logger = logging.getLogger("Skills.SovereignBrowser.TheProgram")
 #: The largest program fetched, in bytes, and the most programs read for one page.
 MOST_BYTES = 40 * 1024 * 1024
 MOST_PROGRAMS = 6
-#: Which reading of programs a kept read was made by: one made by an earlier reader is read again.
-READER = 7
+#: Which reader produced a historical summary; a current visit still requires bytes.
+READER = 8
 
 #: The most of a page's own scripts read for its world, in characters, all of them together.
 MOST_SCRIPT_TEXT = 2_000_000
@@ -93,7 +96,7 @@ def programs_of(loaded: list[Any]) -> list[str]:
 async def read_what_the_page_runs(page: Any) -> Any:
     """What the programs a page runs say of how it is worked (a ``ProgramRead``), or an empty read."""
     from core.perception.reading_a_program import ProgramRead, merged, read_program
-    from core.runtime.what_she_learned import named, recall, remember
+    from core.runtime.what_she_learned import named, remember
 
     try:
         loaded = await page.evaluate(_WHAT_IT_LOADED)
@@ -102,19 +105,14 @@ async def read_what_the_page_runs(page: Any) -> Any:
     reads: list[ProgramRead] = []
     scripts: list[str] = []
     for url in programs_of(list(loaded) if isinstance(loaded, list) else []):
-        kept = recall(named("a program read", url))
-        # A read kept by an older reader is read again: what it found was less than what is found now.
-        if isinstance(kept, dict) and kept.get("read") and kept.get("reader") == READER:
-            reads.append(_from_kept(kept["read"]))
-            continue
         try:
             got = await page.evaluate(_FETCH_IT, [url, MOST_BYTES])
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
             got = None
-        if not got:
+        data = _program_bytes(got)
+        if data is None:
             continue
         try:
-            data = base64.b64decode(got)
             read = read_program(data, url)
         except (ValueError, MemoryError):
             continue
@@ -129,19 +127,35 @@ async def read_what_the_page_runs(page: Any) -> Any:
     return out
 
 
+def _program_bytes(encoded: Any) -> bytes | None:
+    """A refused, malformed or oversized response supplies no current program."""
+    if not isinstance(encoded, str) or not encoded or len(encoded) > 4*((MOST_BYTES+2)//3):
+        return None
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, UnicodeError):
+        return None
+    return data if data and len(data) <= MOST_BYTES else None
+
+
+@invariant('agency.current_program_requires_acquired_bytes', scope='agency',
+           owner='core/skills/sovereign_browser_the_program.py', observational=False)
+def _current_program_bytes_invariant() -> tuple:
+    assert _program_bytes(base64.b64encode(b'current program').decode()) == b'current program'
+    assert all(_program_bytes(value) is None for value in (None, '', {'old read': 'controls'}, True, 'not base64!'))
+    return ()
+
+
 async def _the_world_its_scripts_make(page: Any, scripts: list[str]) -> Any:
     """The world a page's scripts make, its own and those it loaded read together, as one program is
     (core/perception/reading_a_world_s_code.py); kept by the page's address. None where they make none that is read."""
     import asyncio
 
-    from core.perception.a_world_as_its_code_makes_it import kept, unkept
+    from core.perception.a_world_as_its_code_makes_it import kept
     from core.perception.reading_a_world_s_code import read_a_world_s_code
-    from core.runtime.what_she_learned import named, recall, remember
+    from core.runtime.what_she_learned import named, remember
 
     address = str(getattr(page, "url", "") or "")
-    held = recall(named("a world read", address)) if address else None
-    if isinstance(held, dict) and held.get("reader") == READER:
-        return unkept(held.get("world"))
     try:
         own = await page.evaluate(_ITS_OWN_SCRIPTS, MOST_SCRIPT_TEXT)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):

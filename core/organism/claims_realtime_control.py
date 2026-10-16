@@ -26,8 +26,12 @@ def _play_execution_claims() -> tuple:
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
+    from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('delivered_material_costs_require_the_current_capture', 'core/perception/presses_on_the_same_material.py',
+    return (('current_programs_need_current_acquired_bytes', 'core/skills/sovereign_browser_the_program.py',
+             'tests/test_a_saved_program_summary_cannot_replace_current_bytes.py', lambda: _current_program_bytes_invariant() == (),
+             'A current program read requires bounded acquired bytes; saved URL summaries cannot bypass current source and visual-declaration extraction or supply a current read when acquisition fails.'),
+            ('delivered_material_costs_require_the_current_capture', 'core/perception/presses_on_the_same_material.py',
              'tests/test_delivered_presses_follow_material_instead_of_point_labels.py', lambda: _material_press_invariant() == (),
              'A delivered press can reduce the exploration bonus of a uniquely corresponding anonymous local point in a current measured reading; it proves no object identity, accepted action, scene identity or progress.'),
             ('cover_press_keeps_its_actual_receiver', 'core/skills/sovereign_browser_drawing.py',

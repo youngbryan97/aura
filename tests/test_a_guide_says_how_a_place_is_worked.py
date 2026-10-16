@@ -264,8 +264,8 @@ async def test_a_page_s_guide_is_made_from_its_words_and_the_program_it_loaded_a
     assert "signing in" not in guide.mechanics                     # the site's menus are not the thing's
     assert guide.things.get("coins") == "meet" and "steering" in guide.mechanics
     assert recall(named("a program read", "https://example.org/thing/game.js"))
-    again = await guide_to_the_page(Page(), "a cart game")         # read before: not fetched again
-    assert fetched == ["https://example.org/thing/game.js"] and set(again.keys_for_play()) >= {"left", "right", "space"}
+    again = await guide_to_the_page(Page(), "a cart game")         # current bytes, normally from the browser cache
+    assert fetched == ["https://example.org/thing/game.js"]*2 and set(again.keys_for_play()) >= {"left", "right", "space"}
 
 
 @pytest.mark.asyncio

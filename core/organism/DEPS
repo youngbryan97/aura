@@ -21,6 +21,7 @@ include_rules = [
     "+core.perception.where_am_i", # Pure current pointer-target admission canary; no input delivery.
     "+core.perception.where_the_pointer_turns", # Pure original pixel-corner proposal canary, no browser execution.
     "+core.skills.screen_pursuit_on_a_page", # Pure cursor cache geometry/pixel canary; no browser or port execution.
+    "+core.skills.sovereign_browser_the_program", # Pure acquired-byte admission canary; no browser fetch or saved-source authority.
     "+core.skills.screen_pursuit_bearings", # Pure check that animation cannot erase a measured navigation label.
     "+core.perception.symbolic_motion_in_flash_methods", # Bytecode effect prefix custody canary, no game execution.
     "+core.perception.visual_assets_in_a_flash_file", # Static source declaration custody canary, no screen identity.

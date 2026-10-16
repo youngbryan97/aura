@@ -602,3 +602,22 @@ the first point moves and changes label. Broad navigation checks passed 172;
 final integration passed 85; final smoke passed 165 with one skipped.
 See `docs/evidence/steering/2026-10-15-delivered-presses-follow-their-local-material.md`.
 An original repeat is next. G09 and native runtime ownership remain unchanged.
+
+## Current program evidence checkpoint, 15 October 2026
+
+The original case 3 repeat at `c5ce472b3` completed 15 normal input requests,
+including nine corrected material clicks. Four normal decisions received the
+new material-press costs. The 202.39-second run still did not win or establish
+collection. Its complete recording keeps `presentation_qualified: false`.
+
+Revisits no longer substitute an address-keyed summary for current program
+bytes. The normal reader reacquires and parses each program; inline world
+reads also inspect current scripts. Failed acquisition cannot restore old
+source authority. The owned CPU browser's two original case 18 reads both
+retained 707 code lines, 18 complete action streams and 33 visual declarations
+in 0.103 and 0.070 seconds. This was a source check without game input.
+
+Focused tests: 94 passed. Smoke: 165 passed, one skipped. See
+`docs/evidence/steering/2026-10-15-current-source-survives-a-revisit.md`.
+Source artwork still needs a fresh observed registration before it can name
+a live destination. G09, holdouts and native runtime ownership are unchanged.
