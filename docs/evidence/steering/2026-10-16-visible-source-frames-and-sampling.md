@@ -171,3 +171,50 @@ Final shared-transform gates: smoke 165 passed, one skipped; lint, compile,
 layering, generated DEPS consistency and writing passed. The exclusive
 corpus/model process remained active. Native gameplay qualification remains
 false.
+
+## Property deletion in bound source methods
+
+`read_flash_method` now preserves an attempted property deletion as a
+`SourceDeletion` with its source address, reaching guards, numeric
+assumptions and invocation. Its result remains symbolic on the stack. A
+subsequent `Pop` consumes that result and later instructions remain readable.
+Deletion success, property flags and inherited values are not guessed.
+
+The attempted mutation invalidates cached values of the property and its
+descendants, including supplied constant substitutions. Values saved before
+the attempt remain previous values. A subsequent explicit assignment can
+supply a new value. Sibling branch states retain their own invalidations.
+All deletions remain uncomposed effects, so reading their stack behavior
+cannot qualify a complete controller model. Scope deletion (`Delete2`)
+remains unsupported without scope resolution.
+
+The audit also found that a member name could be an unresolved variable
+reference and still be treated as that variable's spelling. Member reads,
+writes and deletions now require an actual known string value. A string
+computed into a local remains supported. Dynamic names remain unresolved.
+
+The original case-18 movement method now passes the formerly unsupported
+property deletion. Its reading retains 15 deletion receipts across 64
+paths, with no unsupported-deletion issue. Twelve path-budget issues
+remain, and both `complete` and `effects_composed` are false. No budget was
+raised. The static read took 0.005614 seconds in the measured probe. This
+bound-method sidecar is still not the ordinary controller's source-contact
+model; this result changes no gameplay verdict.
+
+The final focused source tests passed 139 checks. They cover branch copies,
+unknown success, prefix custody after an unread tail, stale property and
+constant values, later assignments, dynamic member names and unresolved
+scope deletion. The registered invariant refuses an old property value and
+an unearned composed-effects verdict. Artifacts are
+`source-deletion-original-case18.json`, `source-deletion-final-tests.json`
+and the bounded gate receipt in this directory's private artifact root.
+
+The earlier corpus process ended. A different exclusive model job was
+observed as PID 72875 during this checkpoint. Only process ownership was
+inspected; its task and evidence were not changed. CPU restrictions, G09
+exclusion and the holdouts remain in force. No native runtime was started
+or restarted.
+
+Deletion checkpoint gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed. The full suite
+was not run beside the exclusive model job.

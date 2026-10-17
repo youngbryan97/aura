@@ -278,3 +278,109 @@ def test_a_free_callback_does_not_become_its_own_receiver():
 def test_dynamic_or_unbounded_receiver_paths_remain_unread(receiver):
     reading = read_flash_method(_binding(_write(2)+b'\0'), receiver=receiver)
     assert not reading.complete and not reading.paths
+
+
+def _delete_pending():
+    return _push('this')+b'\x1c'+_push('pending')+b'\x3a'
+
+
+def test_property_deletion_keeps_its_stack_result_and_uncomposed_mutation():
+    from core.perception.symbolic_motion_in_flash_methods import _source_deletion_invariant
+
+    reading = read_flash_method(_binding(_write(7)+_delete_pending()+b'\x3e'))
+    assert reading.complete and not reading.effects_composed
+    path, = reading.paths
+    deletion, = path.deletions
+    assert deletion.target == 'Opaque.pending'
+    assert path.returned == deletion.result and deletion.result.operation == 'deletion result'
+    assert deletion.source == 'opaque-source' and deletion.offset > path.writes[0].offset
+    assert deletion.invocation == path.writes[0].invocation == reading.invocation
+    assert _source_deletion_invariant() == ()
+
+
+def test_consuming_a_deletion_result_leaves_the_following_write_readable():
+    reading = read_flash_method(_binding(_delete_pending()+b'\x17'+_write(11)+b'\0'))
+    assert reading.complete and not reading.effects_composed
+    assert reading.paths[0].writes[0].value == Arithmetic('number', (11.,))
+    assert len(reading.paths[0].deletions) == 1
+
+
+def test_deletion_does_not_replay_an_old_write_or_a_source_constant():
+    body = _write(7)+_delete_pending()+b'\x17'+_push('this')+b'\x1c'+_push('pending')+b'\x4e\x3e'
+    reading = read_flash_method(_binding(body), constants={'Opaque.pending': 13.})
+    assert reading.complete
+    assert reading.paths[0].returned.operation == 'after deletion'
+    assert not reading.paths[0].assumptions
+    assert reading.paths[0].writes[0].value == Arithmetic('number', (7.,))
+
+
+def test_a_value_saved_before_deletion_remains_a_previous_value():
+    body = _write(7)+_push('this')+b'\x1c'+_push('pending')+b'\x4e'
+    body += _delete_pending()+b'\x17\x3e'
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and reading.paths[0].returned == Arithmetic('number', (7.,))
+
+
+def test_a_later_assignment_can_supply_a_new_value_after_deletion():
+    body = _write(7)+_delete_pending()+b'\x17'+_write(11)
+    body += _push('this')+b'\x1c'+_push('pending')+b'\x4e\x3e'
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and reading.paths[0].returned == Arithmetic('number', (11.,))
+    assert not reading.effects_composed
+
+
+def test_unknown_deletion_success_splits_branches_without_choosing_an_outcome():
+    body = _assemble([_delete_pending(), (0x9D, 'yes'), _write(-1), (0x99, 'end'),
+                      ('label', 'yes'), _write(1), ('label', 'end'), b'\0'])
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and len(reading.paths) == 2 and not reading.effects_composed
+    assert {path.writes[0].value.arguments[0] for path in reading.paths} == {-1., 1.}
+    for path in reading.paths:
+        assert path.deletions[0].conditions == ()
+        assert path.writes[0].conditions == path.conditions
+        assert path.conditions[0].condition == path.deletions[0].result
+
+
+def test_guarded_deletion_survives_an_unread_tail_without_qualifying_the_method():
+    body = _assemble([_push('available')+b'\x1c', (0x9D, 'end'),
+                      _delete_pending()+b'\x17\x07', ('label', 'end'), b'\0'])
+    reading = read_flash_method(_binding(body))
+    assert not reading.complete and not reading.effects_composed
+    path = next(path for path in reading.paths if path.deletions)
+    assert path.issues and path.deletions[0].conditions == path.conditions
+
+
+@pytest.mark.parametrize('opcode', [0x3A, 0x4E, 0x4F])
+def test_an_unknown_member_value_cannot_be_treated_as_its_variable_name(opcode):
+    body = _push('this')+b'\x1c'+_push('field')+b'\x1c'
+    if opcode == 0x4F:
+        body += _push(7)
+    reading = read_flash_method(_binding(body+bytes((opcode,))+b'\0'))
+    assert not reading.complete
+    assert any('dynamic property name' in issue for issue in reading.issues)
+    assert not reading.paths[0].writes and not reading.paths[0].deletions
+
+
+def test_an_explicit_literal_member_computed_in_a_local_is_still_readable():
+    body = _push('field', 'pending')+b'\x3c'+_write(7)
+    body += _push('this')+b'\x1c'+_push('field')+b'\x1c\x4e\x3e'
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and reading.paths[0].returned == Arithmetic('number', (7.,))
+
+
+def test_scope_deletion_stays_unsupported_without_scope_resolution():
+    reading = read_flash_method(_binding(_push('field')+b'\x3b\x17\0'))
+    assert not reading.complete and any('Delete2' in issue for issue in reading.issues)
+
+
+def test_a_delete_on_one_path_cannot_invalidate_the_sibling_path():
+    body = _assemble([_write(7), _push('available')+b'\x1c', (0x9D, 'joined'),
+                      _delete_pending()+b'\x17', ('label', 'joined'),
+                      _push('this')+b'\x1c'+_push('pending')+b'\x4e\x3e'])
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and len(reading.paths) == 2
+    deleted = next(path for path in reading.paths if path.deletions)
+    kept = next(path for path in reading.paths if not path.deletions)
+    assert deleted.returned.operation == 'after deletion'
+    assert kept.returned == Arithmetic('number', (7.,))
+    assert deleted.deletions[0].conditions == deleted.conditions

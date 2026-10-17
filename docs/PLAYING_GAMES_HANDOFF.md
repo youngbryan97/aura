@@ -859,3 +859,27 @@ open. No G09, holdout, model-job or resident-runtime change was made.
 Shared-transform gates: smoke 165 passed, one skipped; lint, compile,
 layering, generated DEPS consistency and writing passed. Native deployment
 has not been performed.
+
+## Deletion in the source sidecar, 16 October 2026
+
+The bound-method reader now keeps property deletion and its unknown stack
+result, invalidates cached property/descendant values and supplied constants,
+and preserves reaching guards and invocation. Deletion remains an
+uncomposed mutation. Scope deletion and unresolved dynamic property names
+remain unsupported. Known string locals still work as member names.
+
+The recorded case's movement method now passes its former unsupported
+deletion, retaining 15 deletion receipts across 64 paths. Twelve path-budget
+issues remain; complete/composed verdicts are both false. The bound-method
+sidecar is not yet the normal controller's source-contact model. This is
+static-reader progress, not a changed gameplay result. Focused: 139 passed.
+See the appended source section in
+`docs/evidence/steering/2026-10-16-visible-source-frames-and-sampling.md`.
+
+The former corpus PID ended. Another exclusive model job is active as PID
+72875. Preserve it and continue CPU-only work. No G09 run, holdout, model
+job or resident runtime was changed. Source contacts, occurrence binding,
+fresh asset export and independently witnessed native gameplay remain open.
+
+Deletion checkpoint gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed.

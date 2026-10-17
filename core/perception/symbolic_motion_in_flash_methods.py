@@ -74,6 +74,19 @@ class SourceCall:
 
 
 @dataclass(frozen=True)
+class SourceDeletion:
+    """An attempted property mutation; success and inherited values are unknown."""
+
+    target: str
+    result: Arithmetic
+    source: str
+    offset: int
+    conditions: tuple[BranchEvidence, ...] = ()
+    assumptions: tuple[tuple[str, float], ...] = ()
+    invocation: SourceInvocation | None = None
+
+
+@dataclass(frozen=True)
 class MethodPath:
     conditions: tuple[BranchEvidence, ...]
     writes: tuple[SourceWrite, ...]
@@ -81,6 +94,7 @@ class MethodPath:
     returned: Arithmetic
     issues: tuple[str, ...] = ()
     assumptions: tuple[tuple[str, float], ...] = ()
+    deletions: tuple[SourceDeletion, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -103,7 +117,7 @@ class FlashMethodReading:
 
     @property
     def effects_composed(self) -> bool:
-        return self.complete and all(not path.calls and not path.assumptions for path in self.paths)
+        return self.complete and all(not path.calls and not path.assumptions and not path.deletions for path in self.paths)
 
 
 @dataclass(frozen=True)
@@ -274,11 +288,14 @@ class _State:
     assumptions: dict[str, float] = field(default_factory=dict)
     local_names: set[str] = field(default_factory=set)
     invocation: SourceInvocation | None = None
+    deletions: list[SourceDeletion] = field(default_factory=list)
+    invalidated: dict[str, tuple[str, int, int]] = field(default_factory=dict)
 
     def copy(self) -> _State:
         return replace(self, stack=list(self.stack), names=dict(self.names), registers=dict(self.registers),
                        writes=list(self.writes), calls=list(self.calls), visits=dict(self.visits),
-                       assumptions=dict(self.assumptions), local_names=set(self.local_names))
+                       assumptions=dict(self.assumptions), local_names=set(self.local_names),
+                       deletions=list(self.deletions), invalidated=dict(self.invalidated))
 
 
 class _CannotReadError(ValueError):
@@ -303,6 +320,10 @@ def _name(value: Arithmetic) -> str:
 def _get(state: _State, path: str, constants: Mapping[str, float]) -> Arithmetic:
     if path in state.names:
         return state.names[path]
+    changed = [stamp for name, stamp in state.invalidated.items() if path == name or path.startswith(name+'.')]
+    if changed:
+        source, offset, ordinal = max(changed, key=lambda stamp: stamp[2])
+        return Arithmetic('after deletion', (path, source, offset, ordinal))
     if path == 'Math.PI':
         return _literal(math.pi)
     if path in constants:
@@ -316,6 +337,8 @@ def _get(state: _State, path: str, constants: Mapping[str, float]) -> Arithmetic
 def _member(receiver: Arithmetic, member: Arithmetic) -> str:
     if receiver.operation != 'reference':
         raise _CannotReadError('property receiver is not an object reference')
+    if member.operation != 'string':
+        raise _CannotReadError('dynamic property name is unresolved')
     name = _name(member)
     if _IDENTIFIER.fullmatch(name) is None:
         raise _CannotReadError('literal property cannot be represented as a qualified path')
@@ -355,7 +378,7 @@ def _call(target: str, arguments: tuple[Arithmetic, ...], state: _State,
 
 def _write(state: _State, path: str, value: Arithmetic, instruction: ActionInstruction,
            source: str, *, local: bool = False) -> None:
-    if len(state.names) >= MAX_BINDINGS or len(state.writes) >= MAX_WRITES:
+    if len(state.names) >= MAX_BINDINGS or len(state.writes)+len(state.deletions) >= MAX_WRITES:
         raise _CannotReadError('symbolic binding or write budget exceeded')
     if not _expression_is_bounded(value):
         raise _CannotReadError('symbolic expression budget exceeded')
@@ -363,6 +386,27 @@ def _write(state: _State, path: str, value: Arithmetic, instruction: ActionInstr
     if not local:
         state.writes.append(SourceWrite(path, value, source, instruction.offset, state.conditions,
                                         tuple(sorted(state.assumptions.items())), state.invocation))
+
+
+def _delete(state: _State, path: str, instruction: ActionInstruction, source: str) -> Arithmetic:
+    """Keep the side effect and unknown result without assuming a writable slot."""
+    if len(state.writes)+len(state.deletions) >= MAX_WRITES:
+        raise _CannotReadError('symbolic mutation budget exceeded')
+    ordinal = len(state.deletions)+1
+    result = Arithmetic('deletion result', (path, source, instruction.offset, ordinal))
+    state.deletions.append(SourceDeletion(path, result, source, instruction.offset, state.conditions,
+                                         tuple(sorted(state.assumptions.items())), state.invocation))
+    # A failed delete can leave the old value; a successful one can reveal
+    # inherited material. Neither case permits replaying a cached constant.
+    state.names = {name: value for name, value in state.names.items()
+                   if name != path and not name.startswith(path+'.')}
+    state.invalidated[path] = source, instruction.offset, ordinal
+    return result
+
+
+def _method_path(state: _State, returned: Arithmetic, issues: tuple[str, ...] = ()) -> MethodPath:
+    return MethodPath(state.conditions, tuple(state.writes), tuple(state.calls), returned, issues,
+                      tuple(sorted(state.assumptions.items())), tuple(state.deletions))
 
 
 def _instruction(state: _State, instruction: ActionInstruction, source: str,
@@ -414,6 +458,9 @@ def _instruction(state: _State, instruction: ActionInstruction, source: str,
     elif code == 0x4F:
         value, member, receiver = _pop(state), _pop(state), _pop(state)
         _write(state, _member(receiver, member), value, instruction, source)
+    elif code == 0x3A:
+        member, receiver = _pop(state), _pop(state)
+        state.stack.append(_delete(state, _member(receiver, member), instruction, source))
     elif code in (0x3D, 0x52):
         if code == 0x52:
             method, receiver = _pop(state), _pop(state)
@@ -511,8 +558,7 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
             instruction = instructions[state.offset]
             try:
                 if instruction.opcode == 0x00:
-                    paths.append(MethodPath(state.conditions, tuple(state.writes), tuple(state.calls), _UNDEFINED,
-                                            assumptions=tuple(sorted(state.assumptions.items()))))
+                    paths.append(_method_path(state, _UNDEFINED))
                     break
                 if instruction.opcode == 0x99:
                     state.offset = instruction.branch_target
@@ -534,20 +580,17 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
                     continue
                 returned = _instruction(state, instruction, function.body.source, constants or {}, held_codes)
                 if returned is not None:
-                    paths.append(MethodPath(state.conditions, tuple(state.writes), tuple(state.calls), returned,
-                                            assumptions=tuple(sorted(state.assumptions.items()))))
+                    paths.append(_method_path(state, returned))
                     break
                 state.offset = instruction.next_offset
             except (_CannotReadError, IndexError, TypeError, ValueError, OverflowError) as exc:
                 issue = f'{function.body.source}@{instruction.offset}: {exc}'
                 issues.append(issue)
-                paths.append(MethodPath(state.conditions, tuple(state.writes), tuple(state.calls), _UNDEFINED, (issue,),
-                                        tuple(sorted(state.assumptions.items()))))
+                paths.append(_method_path(state, _UNDEFINED, (issue,)))
                 break
         else:
             if state.offset == function.body.end_offset:
-                paths.append(MethodPath(state.conditions, tuple(state.writes), tuple(state.calls), _UNDEFINED,
-                                        assumptions=tuple(sorted(state.assumptions.items()))))
+                paths.append(_method_path(state, _UNDEFINED))
             else:
                 issues.append('method path left its owned instruction addresses')
     return FlashMethodReading(binding.target, tuple(paths), tuple(dict.fromkeys(issues)), invocation)
@@ -570,4 +613,18 @@ def _source_effect_prefix_invariant() -> tuple:
     state.conditions = ()
     state.assumptions.clear()
     assert state.calls[0].conditions == (guard,) and state.calls[0].assumptions == (('ceiling', 10.),)
+    return ()
+
+
+@invariant('perception.deleted_source_properties_do_not_keep_cached_values', scope='perception',
+           owner='core/perception/symbolic_motion_in_flash_methods.py', observational=False)
+def _source_deletion_invariant() -> tuple:
+    state = _State(0, names={'body.x': _literal(7), 'body.x.child': _literal(9)})
+    instruction = ActionInstruction(8, 9, 9, 9, 0x3A, 'Delete', (), b'')
+    result = _delete(state, 'body.x', instruction, 'source')
+    assert _boolean(result) is None
+    assert _get(state, 'body.x', {'body.x': 7.}).operation == 'after deletion'
+    assert _get(state, 'body.x.child', {'body.x.child': 9.}).operation == 'after deletion'
+    reading = FlashMethodReading('method', (_method_path(state, result),))
+    assert reading.complete and not reading.effects_composed and reading.paths[0].deletions
     return ()
