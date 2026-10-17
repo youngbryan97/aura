@@ -17,6 +17,35 @@ Status categories:
 
 ---
 
+## 2026-10 (1–17 October) — 1,163 commits (259 features, 446 fixes)
+
+### Added
+- **The learned reader's October closures** — On her resident 27B, a reader learned from the model's hidden states closed five research items. Binding and composition reached 500 of 500 on validation ([G03](docs/evidence/G03_WHICH_AND_WHETHER_2026-10-06.md), 6 October). With execution unavailable, against the incumbent reader on 62 fresh requests per stratum, held-out vocabulary went 33 to 21, depth 54 to 8 and family 62 to 47 ([G04](docs/evidence/G04_TRANSFER_V2_RESULT_2026-10-07.md)). Freely decoded public answers were right on 48 of 48 fresh compositions with the reading against 29 without ([G05](docs/evidence/G05_PUBLIC_ANSWERS_RESULT_2026-10-07.md)). Lesions cost 27 and 35 requests to none ([G06](docs/evidence/G06_COMPARISONS_RESULT_2026-10-07.md)), and the reader qualified through her resident worker ([G10](docs/evidence/G10_READER_QUALIFICATION_2026-10-07.md)).
+- **Knowledge across turns** ([L05](docs/evidence/L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md), 5 October) — One turn reads her own knowledge, the offline Wikipedia copy, the web and what her searches kept, each labelled as its own source with its date. A dated claim is checked against the turn's sources before the reply goes out, and an opinion is not sent to research.
+- **Every paragraph of her corpus, searched by itself** (`core/knowledge/passage_index.py`) — A Tantivy index of about a hundred million paragraphs answers a question in milliseconds; the SQLite index it replaced took a median 3.3 s. Her chat fuses it with the careful lookup of the articles a question names. On 200 SimpleQA development questions her own answers were right on 9, with passages 58 and with fused passages 68 ([development round](docs/evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md)).
+- **Procedures she keeps** (`core/learning/procedures_from_solved_examples.py`) — For a kind of problem with solved examples, her model writes a program, kept only when it agrees with every known answer of the kind, half of them unseen while it was written. Her desktop chat consults kept procedures before she drafts, by a request's words or, after a checked restatement, by its meaning.
+- **Learning in use** (`core/learning/examples_she_meets.py`) — An answer a person states in chat is kept as a solved example; one that contradicts a kept procedure is held as disputed. While idle she groups what she has met and writes procedures for groups large enough to check.
+
+### Fixed
+- **Five chat defects found by teaching her live on 17 October** — Her memory governor could kill the cortex worker while a hidden-state read held the model lock, and the lock was never released, so every turn fell to the fallback ladder. The repetition hold (DRY) read arithmetic that restates a number as a copy of her earlier answers and cut three answers in four off before their number. Lane choice counted a prompt's tokens at about three characters each, so digit-heavy conversations went to a lane too small for them. A question that says "he" was looked up by its other words alone. "Let me work this out" was registered as a 24-hour commitment, 49 times.
+
+### Not claimed
+- **Broad reasoning gain** (G09) — Open. Attempt 3's gain came from grading the two arms differently and was withdrawn. Attempt 5 met its registered criteria, but 13 of its 38 gains were grading artifacts and without them the main test fell short ([result](docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)). Attempt 6 is preregistered ([plan](docs/evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md)).
+- **Frontier performance** (G12) — Not run; held to the end of the list.
+
+---
+
+## 2026-09 — 3,229 commits (739 features, 1,426 fixes)
+
+The month the research items were rebuilt on evidence and the runtime was held to a delivery contract.
+
+- **RLC baseline, reconciliation and public claims** — The frozen baseline and its claim boundary ([G01](docs/evidence/G01_RLC_BASELINE_2026-09-08.md)), lineage and activation reconciled ([G02](docs/evidence/G02_RLC_RECONCILIATION_2026-09-12.md)), and public documentation matched to measured claims ([G13](docs/evidence/G13_RLC_PUBLIC_CLAIMS_2026-09-08.md)).
+- **Preregistration and measurement standards** — Preregistration integrity ([G07](docs/evidence/G07_PREREGISTRATION_INTEGRITY_2026-09-14.md)) and paired public measurement ([G08](docs/evidence/G08_PAIRED_PUBLIC_MEASUREMENT_2026-09-18.md)).
+- **Serving on the desktop** — Four fresh desktop requests across the four qualified families delivered exact answers with source and model identity ([G11](docs/evidence/G11_DESKTOP_SERVING_2026-09-14.md)).
+- **Conversation delivery** — The R09 acceptance matrix ([evidence](docs/evidence/R09_ACCEPTANCE_MATRIX_2026-09-10.md)) and the runtime survival, successor identity and health authority records (R01, R02, R07).
+- **Brainstem lane** — Ternary Bonsai 2 27B at two bits replaced the 9B brainstem ([evidence](docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md)).
+- **Inventory and retention** — Every live model role resolved by `tools/model_inventory.py` ([Q01](docs/evidence/Q01_MODEL_INVENTORY_2026-09-13.md)) and every place Aura writes classified by `tools/disk_retention.py` ([Q02](docs/evidence/Q02_DISK_RETENTION_2026-09-13.md)).
+
 ## 2026-08
 
 ### Added

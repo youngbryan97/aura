@@ -1,6 +1,6 @@
 # Recursive Latent Cortex (RLC)
 
-Status: Guide · Programme landing page · Claim boundary reconciled 2026-09-08.
+Status: Guide · Programme landing page · Claim boundary reconciled 2026-10-17.
 Checkpoints land faster than this page tracks; the claims ladder
 below changes slowly, and the append-only
 [ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
@@ -18,7 +18,35 @@ four executable families with the resident 32B (CP566) and fused 27B (CP1011).
 Those studies do not prove a reasoning gain from repeated middle-layer passes
 through the resident language model. The programme contains both mechanisms.
 
-## Current evidence boundary, 2026-09-08
+## Current evidence boundary, 2026-10-17
+
+The programme's later items ran on her resident 27B (Aura-Qwen3.8-27B, persona
+fine-tuned), with a reader learned from its hidden states:
+
+- [G03](evidence/G03_WHICH_AND_WHETHER_2026-10-06.md), closed 6 October:
+  binding and composition, 500 of 500 on validation, no row lost to the
+  previous reader.
+- [G04](evidence/G04_TRANSFER_V2_RESULT_2026-10-07.md), closed 7 October:
+  held-out transfer with execution unavailable, against the incumbent reader on
+  62 fresh requests per stratum: vocabulary 33 to 21 (p 0.0145), depth 54 to 8,
+  family 62 to 47.
+- [G05](evidence/G05_PUBLIC_ANSWERS_RESULT_2026-10-07.md), closed 7 October:
+  48 fresh compositions answered publicly, 48 right with the reading and 29
+  without, 19 gained and none lost (p 1.9e-6).
+- [G06](evidence/G06_COMPARISONS_RESULT_2026-10-07.md), closed 7 October:
+  lesions cost 27 vocabulary requests to 0 and 35 depth requests to 0.
+- [G10](evidence/G10_READER_QUALIFICATION_2026-10-07.md), closed 7 October: the
+  reader qualified through her resident worker on 416 recorded requests.
+
+G09, broad reasoning gain, is open. Its current form is procedures her model
+writes and keeps by evidence, tested on held-out kinds in math and planning.
+[Attempt 5](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md) met its registered
+criteria, but once its rows were read the main test fell short (p 0.029
+against 0.01); [attempt 6](evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md)
+was running when this was written. G12, frontier performance, is held until the
+end of the list by choice.
+
+## Earlier evidence boundary, 2026-09-08
 
 The [frozen baseline](evidence/G01_RLC_BASELINE_2026-09-08.md) binds the retained
 measurements and configured model metadata. Its acceptance check regrades 600
@@ -117,6 +145,8 @@ preregistered campaigns with committed seeds.
 | **Cross-language operation semantics** | **SUPPORTED AS A REPRESENTATION DIAGNOSTIC, BOUNDED (2026-09-01).** A family- and geometry-blind linear head was transferred in all six directions among ordinary arithmetic, three-step fork/join arithmetic and mixed sequence-pointer language. Absolute operation-span states transferred strongly in five directions but failed sequence→fork/join at whole-program exactness (**27/192** versus geometry-only 24), localizing the remaining nuisance. Answer-blind centering within factorial counterfactual sets exposed the shared operation signal: the four zero-token-overlap test directions reached **47/48, 48/48, 128/128 and 179/192**, while coefficient lesions reached 12, 12, 8 and 3 and label permutation reached zero throughout. Independent replay reloaded 1,296 records and exactly reproduced 14,720 program-arm rows. Because centering requires a target contrast batch and gold operation spans, this proves latent semantic content beneath construction context, not a deployable single-request compiler. |
 | **Recurrence-native backbone training** | **OPEN for broad gain.** The CP566/CP1011 semantic-machine results do not establish that training the resident backbone to repeat its middle layers caused those gains. That path needs its own matched behavioral evidence. |
 | **Native decoder semantic selection** | **RESEARCH ONLY (2026-09-25).** Source-only native suffix adaptation selects 45/50 correct programs on a frozen wording bank versus incumbent 41/50 and matched unfitted 27/50, with five gains and one regression. A separate whole-graph contrast checkpoint returns 38/50, with three gains and six regressions. Neither is promotable under the non-regression requirement. These are candidate-selection measurements, not freely decoded public answers, fresh-family transfer, recurrence gain or frontier qualification. [Complete evidence](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md). |
+| **Learned hidden-state reader on the resident 27B** | **SUPPORTED, BOUNDED (2026-10-07).** G04: held-out vocabulary 33 vs 21, depth 54 vs 8, family 62 vs 47 on fresh requests with execution unavailable. G05: public answers 48 vs 29 (p 1.9e-6). G06: lesions cost 27 to 0 and 35 to 0. G10: qualified through her resident worker. |
+| **Kept procedures, held-out kinds (G09)** | **OPEN (2026-10-17).** Attempt 5: held-out math 10 gained and 0 lost, planning 15 to 0, but the main test was p 0.029 against 0.01 once grading artifacts were removed; attempt 6 running. |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
 **Indirect meaning research (2026-09-27).** The shared semantic runtime can now

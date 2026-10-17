@@ -28,12 +28,13 @@ For the standard of evidence we hold ourselves to on autonomy and novel output
 claims, read [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md).
 
 **The main research program is
-[docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).** It asks:
-can a frozen 32-billion-parameter model be made to reason deeper without changing
-any of its stored weights? It builds the machinery to test that, runs a
-pre-registered experiment, and reports that the hoped-for capability improvement
-didn't appear. Summary in [Recursive Latent Cortex](#recursive-latent-cortex)
-below.
+[docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).** It began by
+asking whether a frozen 32-billion-parameter model could be made to reason deeper
+without changing any of its stored weights, ran a pre-registered experiment, and
+found that the hoped-for improvement didn't appear. It then moved to her resident
+27B model and to readings learned from its hidden states, where its held-out,
+public-answer and qualification items closed in October. Summary in
+[Recursive Latent Cortex](#recursive-latent-cortex) below.
 
 **Evidence map:** Claims should point to runnable tests, proof bundles, receipts,
 or replayable logs. Test counts change with the repo; use `pytest --collect-only`,
@@ -237,7 +238,7 @@ maturity from how confident the prose sounds.
 
 Full page: [docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).
 
-The question: a frozen 32B model is a fixed-depth pipeline — 64 layers,
+The question it began with: a frozen 32B model is a fixed-depth pipeline — 64 layers,
 applied once per token. **Can you make it think longer on a hard problem
 without changing any stored weights?**
 
@@ -288,12 +289,44 @@ development set, with coefficient lesion **0/96**. That development result
 still needs fresh replication. Neither record establishes broad reasoning
 gain or grants serving authority.
 
+### Since October: the resident 27B
+
+Her resident model is now a 27B (Aura-Qwen3.8-27B, persona fine-tuned), and the
+program's later items ran on it:
+
+- **Binding and composition** ([G03](docs/evidence/G03_WHICH_AND_WHETHER_2026-10-06.md)):
+  a learned reader of her hidden states reached 500 of 500 on validation and lost
+  no row to its predecessor.
+- **Held-out transfer** ([G04](docs/evidence/G04_TRANSFER_V2_RESULT_2026-10-07.md)),
+  with execution unavailable, against the incumbent reader on 62 fresh requests
+  per stratum: vocabulary 33 to 21 (*p* 0.0145), depth 54 to 8, family 62 to 47.
+- **Public answers** ([G05](docs/evidence/G05_PUBLIC_ANSWERS_RESULT_2026-10-07.md)):
+  on 48 fresh compositions, 48 right with the reading against 29 without, 19
+  gained and none lost (*p* = 1.9 × 10⁻⁶); every right reading became an exact
+  public answer.
+- **Controls and lesions** ([G06](docs/evidence/G06_COMPARISONS_RESULT_2026-10-07.md)):
+  removing the phrase readouts costs 27 vocabulary requests to 0; zeroing
+  recency costs 35 depth requests to 0.
+- **Qualification** ([G10](docs/evidence/G10_READER_QUALIFICATION_2026-10-07.md)):
+  the reader runs through her resident worker with her model identity, steering
+  generation and geometry checked on 416 recorded requests.
+
+**Kept procedures (G09, open).** See
+[Knowledge, procedures and learning in use](#knowledge-procedures-and-learning-in-use).
+Attempt 5 met its preregistered criteria on 17 October, but 13 of its 38
+gains were grading artifacts, and without them the main test fell short
+(*p* 0.029 against 0.01), so G09 stayed open
+([result](docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)). Attempt 6,
+preregistered with a corrected grader and routing
+([plan](docs/evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md)), was
+running when this was written.
+
 ### Results summary
 
 | What was tested | Verdict |
 |---|---|
 | Mechanics (KV rewind, stability bounds, slot ablation moving the answer distribution, erasure, invariants) | **PROVEN** on real MLX weights |
-| Live runtime integration on the resident 32B | **PROVEN** |
+| Live runtime integration on the then-resident 32B | **PROVEN** |
 | Capability gain, **frozen** loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
 | Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
 | Capability gain, typed semantic machine + state-conditioned decode, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, ablation-dependent, *p* = 5.7 × 10⁻¹⁴ |
@@ -304,6 +337,8 @@ gain or grants serving authority.
 | Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric set after a clean worker restart, against hidden-state shuffle 10/256 and coefficient lesion 0/256 |
 | Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
 | Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
+| Learned hidden-state reader on the resident 27B: held-out transfer, public answers, lesions | **SUPPORTED, BOUNDED** — vocabulary 33 vs 21, depth 54 vs 8, family 62 vs 47 on fresh requests with execution unavailable; public answers 48 vs 29 (*p* = 1.9 × 10⁻⁶); lesions cost 27 to 0 and 35 to 0 |
+| Kept procedures on held-out kinds in math and planning (G09) | **OPEN** — attempt 5 fell short once its rows were read (main test *p* 0.029 against 0.01; held-out math 10 gained, 0 lost; planning 15 to 0); attempt 6 running |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 The current [native semantic-selection work](docs/evidence/G_NATIVE_RELATIVE_FIT_2026-09-26.md)
@@ -479,6 +514,48 @@ Full details: [docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md](docs/LANGUAGE_SUBSTRAT
 
 ---
 
+## Knowledge, procedures and learning in use
+
+**What she can look up offline.** Her corpus is an offline copy of Wikipedia
+(as of 2026-07-03) and what her web searches have kept. Every paragraph is
+indexed on its own (Tantivy, about a hundred million paragraphs, searched in
+milliseconds) beside a careful lookup of the articles a question names, and her
+chat fuses the two. Each source she reads carries its origin and date
+([L05](docs/evidence/L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md)). On 200 SimpleQA
+development questions her own answers were right on 9; with passages, 58; with
+fused passages, 68. Allowed to decline when two answers from the same passages
+disagree, she answered 50 and got 44 right
+([development round](docs/evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md)).
+These are development halves: the claim waits for a test half.
+
+**Procedures she keeps.** For a kind of problem with solved examples, her model
+writes a small program, and the program is kept only if it agrees with every
+known answer of the kind, half of which it never saw while it was written. Her
+chat consults kept procedures before she drafts, by the request's words or by
+its meaning; a request reached by meaning is first restated in the kind's own
+form, and the restatement must carry the request's numbers.
+On held-out kinds, attempt 5's procedures gained in both domains and lost
+nothing there (math 10 to 0, planning 15 to 0), in math mostly where her
+thinking budget ran out on large primes; its routing also sent competition
+problems to procedures of kinds they only resembled. G09 is open (see
+[Since October](#since-october-the-resident-27b)).
+
+**Learning in use.** An answer a person states in chat ("No, it's 1049.") is
+kept as a solved example of the problem it answers; one that contradicts a
+kept procedure is held as disputed rather than believed. While she is idle she
+groups what she has met by meaning and writes procedures for groups large
+enough to check. On 17 October
+she was taught ten date differences this way, having got five right on her
+own; the test, three new ones a day later without being told, is due on
+18 October.
+
+**Where it falls short.** Without passages her factual knowledge is thin. The
+mechanism that settles disagreements between her own derivations gained nothing
+on MMLU-Pro and was not significant on MuSR. A kept answer reached by meaning is
+evidence to her, not her reply, and on 17 October she contradicted one.
+
+---
+
 ## Why Aura is Different
 
 Most "AI companion" projects do the same thing: store a mood number, paste it
@@ -510,6 +587,7 @@ It's a research project. It's also one you can talk to while it's running.
 - [Behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md)
 - [Recursive Latent Cortex](#recursive-latent-cortex) — the flagship research program
 - [Language substrate and generality](#language-substrate-and-generality) — learning new abstractions from experience
+- [Knowledge, procedures and learning in use](#knowledge-procedures-and-learning-in-use) — her offline corpus, the procedures she keeps, learning from conversation
 - [Tracked vs local workspace](#tracked-vs-local-workspace)
 - [Architecture overview](#architecture-overview)
 - [Decisive evidence runner](#decisive-evidence-runner)

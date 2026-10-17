@@ -947,7 +947,7 @@ Graph coverage never grants executable controller or identity authority.
 
 The recorded case-18 movement method now has all 450 instructions and
 19 branches represented in 657 nodes. The older path reader still stops at
-64 paths. The outcome-display helper remains incomplete at `NewObject`;
+64 paths. The outcome-display helper remains incomplete at the NewObject action (0x40);
 the two-method inspection returned 1 and preserved that result. Focused
 tests: 86 passed, including comparison with a separate concrete fixture VM
 over 100 input assignments across 16 unknown branches.
