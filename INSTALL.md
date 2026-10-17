@@ -130,6 +130,7 @@ There is no `AURA_HOST` environment variable; use the `--host` command-line flag
 | `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Background lane (heartbeat, telemetry, background tasks), lazy-loaded: 2-bit quantized Qwen3.5 27B, requiring 8.6 GB RAM (replaced 9B on 2026-09-20; see `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md`). |
 | `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | Emergency CPU fallback model. Kept in the same model family as Cortex to ensure consistent output style during speculative decoding. |
 | `AURA_LOCAL_BACKEND` | `mlx` | Local inference engine (Apple MLX framework). Production Aura always uses this backend. |
+| `AURA_BROWSER_STEALTH` | `1` | Whether her browser hides that it is automated: playwright-stealth, a borrowed user agent, and the automation flag switched off. `0` browses as what it is. A site that refuses automated visitors should be met with `0`; see `docs/BROWSER_PURSUIT.md`. |
 | `AURA_SUBSTRATE_PRIMARY` | `1` | Check continuous neural state before falling back to standard text tokens. |
 | `AURA_SUBSTRATE_DIM` | `64` | Dimension of the continuous neural state vector (clamped between 16 and 512). |
 | `AURA_ONLINE_LORA` | `1` | Allow Aura to update its own weights through background reflection. |
