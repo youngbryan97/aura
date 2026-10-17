@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from core.runtime.what_stops_it import current
+from core.verify import invariant
 from core.skills.games_on_her_record import (
     _keep_what_she_learned,
     _what_she_kept_of,
@@ -1534,12 +1535,6 @@ async def _hers_to_send_is_in_sight(reflexes: PlayingAsItHappens, now: float) ->
         return False
 
 
-#: How long, and how near as a share of the picture, a way on read right is taken to be what a misreading in its place
-#: says.
-WAY_ON_KEPT_S = 30.0
-WAY_ON_SAME_PLACE = 0.03
-
-
 #: Words that ask whether she is sure of something that loses what she has; and the controls that agree and decline.
 _A_WARNING = re.compile(r"\bare you sure\b|\b(?:lose|erase|delete|clear|reset)\s+(?:all\s+)?(?:your\s+|the\s+|current\s+)*"
                         r"(?:progress|work|changes|data|game|alien|save[ds]?)\b|\breally\s+want\s+to\s+quit\b", re.I)
@@ -1573,29 +1568,26 @@ def _starting_over_read_whole(observation: dict[str, Any]) -> None:
 
 
 def _ways_on_read_right_before(reflexes: PlayingAsItHappens, observation: dict[str, Any]) -> None:
-    """A way on read right a moment ago ("Start") is what a misreading in the same place now says ("tarit"), and the
-    look's layout says so. Offline 2026-10-12 a title's small "start" was read once, then otherwise at every look, and in
-    five minutes on the title it was never pressed."""
-    import math
+    """Retire coordinate-only label guesses after current pixel recovery.
 
-    from core.language.a_way_on import how_much_it_leads_on
-    from core.language.what_a_watcher_hears import legible_share
-
-    now = time.monotonic()
-    kept = [way for way in reflexes.keep.get("ways_on_read") or () if now - way[3] <= WAY_ON_KEPT_S]
+    The pixel-backed reader runs first. Position alone cannot replace a
+    current counter, icon or unknown word with an earlier control label.
+    """
+    reflexes.keep.pop('ways_on_read', None)
     _starting_over_read_whole(observation)
-    for region in observation.get("layout") or ():
-        if not isinstance(region, dict) or "center_x" not in region or "center_y" not in region:
-            continue
-        text = " ".join(str(region.get("text") or "").split())
-        place = (float(region["center_x"]), float(region["center_y"]))
-        if 0 < len(text) <= 40 and how_much_it_leads_on(text) > 1.0:
-            kept = [way for way in kept if math.dist(way[1:3], place) > WAY_ON_SAME_PLACE] + [(text, *place, now)]
-        elif text and len(text.split()) <= 2 and legible_share(text) < 0.5:
-            near = [way for way in kept if math.dist(way[1:3], place) <= WAY_ON_SAME_PLACE]
-            if near:
-                region["text"] = near[-1][0]
-    reflexes.keep["ways_on_read"] = kept[-12:]
+
+
+@invariant('skills.coordinates_cannot_rename_current_words', scope='skills',
+           owner='core/skills/screen_pursuit_as_it_happens.py', observational=False)
+def _coordinate_label_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    reflex = SimpleNamespace(keep={'ways_on_read': [('Start', .5, .65, time.monotonic())]})
+    observation = dict(text='0%', layout=[dict(text='0%', center_x=.5, center_y=.65)])
+    _ways_on_read_right_before(reflex, observation)
+    assert observation['layout'][0]['text'] == observation['text'] == '0%'
+    assert 'ways_on_read' not in reflex.keep
+    return ()
 
 
 def _ways_asked_in_this_game(reflexes: PlayingAsItHappens, asked: list[str]) -> list[str]:

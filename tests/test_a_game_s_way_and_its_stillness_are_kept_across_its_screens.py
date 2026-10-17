@@ -46,9 +46,8 @@ def test_stretches_ending_still_with_nothing_to_show_hand_the_screen_over():
     assert not _stuck_still(playing), "a stretch that got somewhere starts the count again"
 
 
-def test_a_way_on_read_right_a_moment_ago_is_what_a_misreading_in_its_place_says():
-    """Offline 2026-10-12 a title's small "start" was read once, then otherwise at every look ("tarit"), and in five
-    minutes on the title it was never pressed."""
+def test_a_way_on_needs_pixel_evidence_to_correct_a_later_reading():
+    """A nearby old label supplies no word strokes for the current reading."""
     from core.skills.screen_pursuit_as_it_happens import _ways_on_read_right_before
 
     playing = _playing()
@@ -57,7 +56,7 @@ def test_a_way_on_read_right_a_moment_ago_is_what_a_misreading_in_its_place_says
     later = {"layout": [{"text": "tarit", "center_x": 0.745, "center_y": 0.842}, {"text": "BLEADELS", "center_x": 0.37, "center_y": 0.36},
                         {"text": "Score 120", "center_x": 0.74, "center_y": 0.85}]}
     _ways_on_read_right_before(playing, later)
-    assert [region["text"] for region in later["layout"]] == ["Start", "BLEADELS", "Score 120"]
+    assert [region["text"] for region in later["layout"]] == ["tarit", "BLEADELS", "Score 120"]
 
 
 def test_a_start_over_read_in_two_and_a_warning_of_loss_are_read_as_what_they_are():

@@ -1165,3 +1165,25 @@ geometries passed independent current-pixel checks (maximum difference
 source frames were published. This is the remaining upstream connection:
 current correspondence exists without a continuing named material path.
 It supplies neither causal control nor a game win.
+
+## Current words and old control coordinates, 17 October 2026
+
+Fresh actor run at `b1404b177`: still no win, 38 control observations with no
+body, five positive focus receipts, three fresh source geometries and no
+continuing or object-bound source geometry. The independently viewed final
+image was the instructions screen. The recorded end screen revealed old
+Start/Play labels replacing a percentage and a new retry label in layout.
+CPU OCR reread the percentage correctly from the saved bytes.
+
+The cause was the separate 30-second coordinate-only navigation-label
+cache, applied after the pixel-backed reader. Eight regressions failed
+before its retirement. The first focused group passed 81 checks afterward;
+the existing pixel-backed recovery and reset handling remain. See
+`docs/evidence/steering/2026-10-17-current-words-cannot-inherit-old-coordinates.md`.
+A source-guided point-sampling prototype gave one more attachment and two
+fewer point continuations on 59 recorded frames; it was not promoted.
+
+The coordinate-label change also passed smoke (165 passed, one skipped),
+lint, compilation, layering, dependency consistency and writing. Its
+ordinary gameplay effect remains to be measured. The skill module remains
+below its 2,000-line cap. No protected process or native checkout was changed.

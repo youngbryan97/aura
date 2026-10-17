@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.skills.screen_pursuit_as_it_happens", # Pure current-label custody canary; no page, capture or input.
     "+core.perception.source_geometry_in_current_pixels", # Pure consumed-capture canary; no capture, source I/O or input.
     "+core.perception.reference_material_near_a_measured_pose", # Pure current-pixel correspondence canary; no capture or input.
     "+core.perception.points_a_consumer_still_needs", # Pure bounded retention/visibility canary; no tracker or input.

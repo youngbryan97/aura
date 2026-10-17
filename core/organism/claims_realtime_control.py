@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.skills.screen_pursuit_as_it_happens import _coordinate_label_invariant
     from core.skills.known_navigation_after_discovery import _known_navigation_use_invariant
     from core.perception.recording_the_frames_and_inputs import (
         _keyboard_target_receipt_invariant,
@@ -58,7 +59,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('reference_metadata_does_not_spend_match_cadence', 'core/perception/source_references_while_play_advances.py',
+    return (('coordinates_cannot_rename_current_words', 'core/skills/screen_pursuit_as_it_happens.py',
+             'tests/test_coordinates_cannot_rename_current_words.py', lambda: _coordinate_label_invariant() == (),
+             'Earlier control coordinates cannot rename current counters or unread labels; pixel-backed recovery and explicit reset interpretation remain separate.'),
+            ('reference_metadata_does_not_spend_match_cadence', 'core/perception/source_references_while_play_advances.py',
              'tests/test_reference_work_reaches_current_ordinary_observation.py', lambda: _reference_catalog_readiness_invariant() == (),
              'A completed reference catalog releases the first pixel search without spending its cadence; later searches retain their rate and one-worker capacity.'),
             ('keyboard_target_receipts_do_not_claim_acceptance', 'core/perception/recording_the_frames_and_inputs.py',
