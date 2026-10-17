@@ -122,10 +122,17 @@ def test_a_number_already_begun_is_finished_as_written():
         tokens.append(words.ids[piece])
         out = hold(mx.array(tokens), mx.zeros((1, 64)))
     assert float(out[0, words.ids["2"]]) == 0.0
-    # A word that would carry a copied stretch on is still pushed down.
+    # A number breaks the run (17 October), so restating it is not a copy either.
     tokens.append(words.ids["2"])
     out = hold(mx.array(tokens), mx.zeros((1, 64)))
-    assert float(out[0, words.ids[" +"]]) < 0.0
+    assert float(out[0, words.ids[" +"]]) == 0.0
+    # Words copied after a number are still pushed down, counted from the number.
+    hold = not_her_own_words_again(words, ["4862 is the answer you asked for"])
+    tokens = list(prompt)
+    hold(mx.array(tokens), mx.zeros((1, 64)))
+    tokens += words.encode("4862 is the answer")
+    out = hold(mx.array(tokens), mx.zeros((1, 64)))
+    assert float(out[0, words.ids[" you"]]) == pytest.approx(-MULTIPLIER * BASE ** (3 - ALLOWED_LENGTH))
 
 
 class Lines(Digits):
@@ -150,9 +157,60 @@ def test_a_list_given_again_is_not_held_back_item_after_item():
     for piece in words.encode("1 . basil\n2 ."):
         tokens.append(piece)
         out = hold(mx.array(tokens), mx.zeros((1, 64)))
-    # The run counts only since the new line, so the item costs DRY's least, not its run from the top.
-    assert float(out[0, words.ids[" ember"]]) == pytest.approx(-MULTIPLIER)
+    # The run counts only since the new line and the item's number, so the item costs nothing.
+    assert float(out[0, words.ids[" ember"]]) == 0.0
     # And the line's end is never pushed down.
     tokens += words.encode(" ember")
     out = hold(mx.array(tokens), mx.zeros((1, 64)))
     assert float(out[0, words.ids["\n"]]) == 0.0
+
+
+class SpacedDigits(Digits):
+    """As her tokenizer writes a number: a space that is a token of its own, then one digit a token."""
+
+    def encode(self, text, add_special_tokens=False):
+        out = []
+        for word in str(text).split():
+            pieces = [" ", *word] if word.isdigit() else [" " + word]
+            out += [self.ids.setdefault(piece, len(self.ids)) for piece in pieces]
+        return out
+
+
+def _written(words, hold, prompt: list[int], written: str):
+    tokens = list(prompt)
+    hold(mx.array(tokens), mx.zeros((1, 64)))
+    tokens += words.encode(written)
+    return hold(mx.array(tokens), mx.zeros((1, 64)))
+
+
+def test_arithmetic_that_says_a_number_again_is_not_a_copy():
+    """Live 17 October: after "245 + 366 +" the space before 365 was pushed down, and she ended her turn."""
+    words = SpacedDigits()
+    earlier = ["Total : 366 + 365 + 365 + 80 = 1176", "Total : 366 + 365 + 144 = 875"]
+    hold = not_her_own_words_again(words, earlier)
+    out = _written(words, hold, words.encode("how many days"), "Total : 245 + 366 +")
+    assert float(mx.min(out)) == 0.0
+    # A copied sentence is still held, numbers or not.
+    hold = not_her_own_words_again(words, [EARLIER])
+    out = _written(words, hold, words.encode("hey"), "I am ready . I have")
+    assert float(out[0, words.ids[" my"]]) < 0.0
+
+
+def test_nothing_is_held_in_her_private_channel():
+    """The same evening she ended her turn inside her private channel, 177 tokens in, before any answer."""
+    import logging
+
+    from core.brain.llm.what_the_decoder_holds import hold_the_answer
+
+    words = Words()
+    words.encode("</think>")
+    held: list = []
+    job = {"clean_user_surface_contract": True, "messages": [{"role": "assistant", "content": EARLIER}]}
+    hold_the_answer(job, words, True, held, logging.getLogger("t"), lambda *a, **k: None)
+    (hold,) = held
+    prompt = words.encode("hey do you want to watch this")
+    thinking = _written(words, hold, prompt, "I am ready . I")
+    assert float(mx.min(thinking)) == 0.0
+    tokens = [*prompt, *words.encode("I am ready . I"), *words.encode("</think>"), *words.encode("I am ready . I")]
+    said = hold(mx.array(tokens), mx.zeros((1, 64)))
+    assert float(said[0, words.ids["have"]]) == pytest.approx(-MULTIPLIER * BASE ** (5 - ALLOWED_LENGTH))
