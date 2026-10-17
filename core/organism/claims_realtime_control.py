@@ -4,7 +4,10 @@ from typing import Any
 
 def _play_execution_claims() -> tuple:
     from core.skills.known_navigation_after_discovery import _known_navigation_use_invariant
-    from core.perception.recording_the_frames_and_inputs import _source_reference_record_invariant
+    from core.perception.recording_the_frames_and_inputs import (
+        _keyboard_target_receipt_invariant,
+        _source_reference_record_invariant,
+    )
     from core.runtime.classical_compute_boundary import _classical_import_invariant
     from core.perception.guarded_effects_in_flash_methods import _guarded_source_graph_invariant
     from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant
@@ -52,7 +55,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('navigation_use_is_separate_from_discovery', 'core/skills/known_navigation_after_discovery.py',
+    return (('keyboard_target_receipts_do_not_claim_acceptance', 'core/perception/recording_the_frames_and_inputs.py',
+             'tests/test_drawing_focus_is_current_for_each_key.py', lambda: _keyboard_target_receipt_invariant() == (),
+             'A current keyboard-target query retains its page and interval separately from input transport, game acceptance, controlled identity and task completion.'),
+            ('navigation_use_is_separate_from_discovery', 'core/skills/known_navigation_after_discovery.py',
              'tests/test_known_navigation_is_useful_after_discovery.py', lambda: _known_navigation_use_invariant() == (),
              'A current offered navigation control can retain its recorded forward use after discovery; missing controls, reset labels and contradicted routes gain no new priority.'),
             ('later_control_intervals_keep_one_input', 'core/agency/which_one_answers_to_her.py',

@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import io
 import json
+import math
 import time
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -194,6 +195,40 @@ def recorded_play_ports(look: Any, hands: Any) -> tuple[Any, Any]:
         return result
 
     return looked, _RecordedHands(hands, recorder)
+
+
+def record_keyboard_target(page: Any, *, status: str, began: float, ended: float, error: str = '') -> None:
+    """Keep current focus evidence without claiming input acceptance or a game effect."""
+    recorder = _ACTIVE.get()
+    if recorder is None:
+        return
+    if (status not in ('focused', 'not_focused', 'unmeasured', 'unavailable')
+            or any(type(value) not in (int, float) or not math.isfinite(value) for value in (began, ended))
+            or began > ended or not isinstance(error, str) or len(error) > 80):
+        return
+    recorder.offer(recorder.event('keyboard_target', surface=f'page:{id(page)}', status=status,
+                                 began=began, ended=ended, error=error))
+
+
+@invariant('agency.keyboard_target_receipts_do_not_claim_acceptance', scope='agency',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _keyboard_target_receipt_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    events = []
+    recorder = SimpleNamespace(offer=events.append, event=lambda kind, **values: dict(kind=kind, **values))
+    token = _ACTIVE.set(recorder)
+    page = object()
+    try:
+        record_keyboard_target(page, status='focused', began=1., ended=1.01)
+        record_keyboard_target(page, status='unavailable', began=2., ended=2.01, error='RuntimeError')
+        record_keyboard_target(page, status='focused', began=float('nan'), ended=3.)
+    finally:
+        _ACTIVE.reset(token)
+    assert len(events) == 2 and events[0]['surface'] == f'page:{id(page)}'
+    assert events[1]['status'] == 'unavailable'
+    assert not any({'delivered', 'accepted_by_game', 'controlled', 'task_passed'} & event.keys() for event in events)
+    return ()
 
 
 def begin_navigation_input(page: Any, method: str, args: tuple, *, bounds: tuple = ()) -> Any:

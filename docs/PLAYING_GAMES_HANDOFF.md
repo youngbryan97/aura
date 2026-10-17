@@ -1097,3 +1097,27 @@ no owned later interval was published. The recorder closed without drops.
 Keep this failure beside the passing component checks. The next input
 investigation concerns current keyboard focus and discovery time. The
 native checkout remains at `24c04f575`; it was not updated or restarted.
+
+## Current keyboard targets, 16 October 2026
+
+Both page input paths cached their first successful focus query. Three
+actual-consumer regressions reproduced delivery after another element took
+focus; a real Chromium fixture showed the second key missing the drawing.
+The helper now checks the drawing's target for each press, down or tap.
+Release does not refocus. Document-level input without a drawing retains
+its prior behavior. Opt-in recording keeps current focus separately from
+input completion and game acceptance.
+
+Focused: 58 passed, one existing browser test deliberately deselected.
+The actual repaired Python ports then delivered two of two keys for each
+of normal, held and tapped input in a real software-rendered Chromium
+fixture. It also checked drawing-free document input. See
+`docs/evidence/steering/2026-10-16-current-keyboard-targets.md`.
+This does not establish a cause for the preceding original-game losses,
+which had no focus receipts. Gameplay still requires fresh measurement.
+
+The pointer path can set the old focus flag without a keyboard query.
+Three additional regressions and a repeated actual-port Chromium fixture
+cover the first key from that state. All six drawing keydowns and the
+document-level key were received, with no recorder drops. The native
+checkout and protected process remain untouched.

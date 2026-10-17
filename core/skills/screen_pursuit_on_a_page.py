@@ -24,6 +24,7 @@ import asyncio
 import contextvars
 import hashlib
 import math
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -88,6 +89,26 @@ _FOCUS_THE_DRAWING = """
   return document.activeElement === best;
 })()
 """
+
+
+async def focus_drawing_for_input(page: Any) -> bool:
+    """Measure the drawing's current keyboard target before a key is sent.
+
+    A missing drawing leaves document-level keyboard handling available.
+    The receipt describes focus only, separately from input transport and
+    any effect the application may subsequently show.
+    """
+    from core.perception.recording_the_frames_and_inputs import record_keyboard_target
+
+    began = time.monotonic()
+    error = ''
+    try:
+        reply = await page.evaluate(_FOCUS_THE_DRAWING)
+        status = 'focused' if reply is True else 'not_focused' if reply is False else 'unmeasured'
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as why:
+        status, error = 'unavailable', type(why).__name__
+    record_keyboard_target(page, status=status, began=began, ended=time.monotonic(), error=error)
+    return status == 'focused'
 
 
 
@@ -344,12 +365,7 @@ class OnAPage:
             await pictures.close()
 
     async def _focus(self) -> None:
-        if self._focused:
-            return
-        try:
-            self._focused = bool(await self.page.evaluate(_FOCUS_THE_DRAWING))
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
-            self._focused = False
+        self._focused = await focus_drawing_for_input(self.page)
 
     def _invalidate_cursor_samples(self) -> None:
         self._swept = self._swept_bounds = None

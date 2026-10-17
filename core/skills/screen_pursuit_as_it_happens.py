@@ -642,14 +642,9 @@ class PlayingAsItHappens:
     # -- hands --------------------------------------------------------------
 
     async def _focus(self) -> None:
-        if self._focused:
-            return
-        from core.skills.screen_pursuit_on_a_page import _FOCUS_THE_DRAWING
+        from core.skills.screen_pursuit_on_a_page import focus_drawing_for_input
 
-        try:
-            self._focused = bool(await self.page.evaluate(_FOCUS_THE_DRAWING))
-        except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
-            self._focused = False
+        self._focused = await focus_drawing_for_input(self.page)
 
     @staticmethod
     def _key(name: str) -> str:
