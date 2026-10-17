@@ -289,6 +289,56 @@ def _navigation_port_recording_invariant() -> tuple:
     return ()
 
 
+def _source_reference_snapshot(moves: Any) -> dict:
+    """Copy published geometry as reported; no field grants control authority."""
+    def scalar(value):
+        return value if type(value) in (int, float, bool, type(None)) else value[:512] if isinstance(value, str) else None
+
+    def point(value):
+        position = getattr(value, 'position', None)
+        return {**{name: scalar(getattr(value, name, None)) for name in ('at', 'error', 'support', 'number', 'born')},
+                'position': [scalar(n) for n in position] if isinstance(position, (tuple, list)) and len(position) == 2 else None}
+
+    def pixels(value):
+        shape = getattr(value, 'shape', None)
+        return {'at': scalar(getattr(value, 'at', None)), 'sha256': scalar(getattr(value, 'sha256', None)),
+                'shape': list(shape) if isinstance(shape, tuple) and len(shape) == 3 and all(type(n) is int for n in shape) else None}
+
+    def channel(name):
+        values = getattr(moves, name, None)
+        if not isinstance(values, (tuple, list)):
+            return {'available': False, 'count': None, 'records': [], 'truncated': False}
+        records = []
+        for item in values[:128]:
+            records.append({**{name: scalar(getattr(item, name, None)) for name in
+                ('source', 'character_id', 'exported_name', 'reference_sha256', 'hypotheses')},
+                'point': point(getattr(item, 'point', None)), 'pixels': pixels(getattr(item, 'pixels', None))})
+        return {'available': True, 'count': len(values), 'records': records, 'truncated': len(values) > 128}
+
+    statuses = getattr(moves, 'fresh_source_reference_status', None)
+    return {'pixels': pixels(getattr(moves, 'pixels_consumed', None)),
+            'status': scalar(getattr(moves, 'source_reference_status', None)),
+            'fresh_status': [scalar(v) for v in statuses[:64]] if isinstance(statuses, (tuple, list)) else None,
+            'object_bound': channel('source_reference_points'), 'continuing': channel('source_reference_frames'),
+            'fresh': channel('fresh_source_reference_frames')}
+
+
+@invariant('perception.source_reference_records_keep_the_reported_capture', scope='perception',
+           owner='core/perception/recording_the_frames_and_inputs.py', observational=False)
+def _source_reference_record_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    point = SimpleNamespace(at=1., position=[2., 3.])
+    moves = SimpleNamespace(fresh_source_reference_frames=[SimpleNamespace(point=point)])
+    snapshot = _source_reference_snapshot(moves)
+    point.position[0] = 9.
+    moves.fresh_source_reference_frames.clear()
+    assert snapshot['fresh']['count'] == 1 and snapshot['fresh']['records'][0]['point']['position'] == [2., 3.]
+    assert snapshot['fresh']['records'][0]['point']['at'] == 1.
+    assert snapshot['object_bound']['count'] is None
+    return ()
+
+
 def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None:
     """Keep the actor's own sample counts, separate from later pixel replay."""
     recorder = _ACTIVE.get()
@@ -309,7 +359,8 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
         carried=hers.carried, known_controls=list(hers.keys_that_move_her(run.keys)),
         measured_pushes={key: hers.push_of(key) for key in hers._hers.pushes()},
         observations=[dict(number=int(t.number), born=float(t.born), seen=float(t.seen), status=motion_status(t, at),
-                           position=[float(t.x), float(t.y)]) for t in moves.things.values()], evidence=evidence))
+                           position=[float(t.x), float(t.y)]) for t in moves.things.values()], evidence=evidence,
+        source_references=_source_reference_snapshot(moves)))
 
 
 def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> None:

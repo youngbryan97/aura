@@ -997,3 +997,12 @@ case 18. Do not run G09 or the ten holdouts, or start/restart native Aura.
 Import-boundary gates: smoke 165 passed, one skipped; lint, compile,
 layering, DEPS consistency and writing passed. Governance remains at its
 131 existing regressions, with no baseline update.
+
+Actual control records now retain copied source-reference geometry, its
+original capture receipts and current matching statuses. This will show
+which channels reached the actor in the next CPU run. Missing, empty,
+stale and truncated channels remain distinguishable. Source geometry
+cannot set the selected body. The focused checks passed 78 tests.
+
+Recording checkpoint gates: smoke 165 passed, one skipped; lint, compile,
+layering, DEPS consistency and writing passed.

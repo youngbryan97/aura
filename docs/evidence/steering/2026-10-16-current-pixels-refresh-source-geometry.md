@@ -147,3 +147,24 @@ passed. Governance retains 131 existing regressions and names none of the
 new modules. Module size retains the same unrelated regressions and 197
 excess lines. Baselines were not expanded. The full suite was not run beside
 the exclusive model job, which remained active as PID 72875.
+
+## Published source geometry in actual control records
+
+Opt-in control observations now snapshot the source-reference channels the
+actor actually received. The record retains the consumed capture receipt,
+each reported source point and its original capture, matching statuses and
+hypothesis counts. It supplies no body selection or task qualification.
+Missing channels have a null count; present empty channels have zero.
+Bounded truncation retains the full reported count and an explicit flag.
+
+The snapshot copies scalar geometry before publication. Later observer
+mutation cannot rewrite the event. Stale point times remain stale in the
+record rather than being replaced by the control-event time. This does
+not run another matcher, recompute picture hashes or alter actor choices.
+
+Focused recording, current-source and compute-boundary checks: 78 passed.
+The supervisor is
+`artifacts/flash-campaign/2026-10-16-classical-import-boundary/recording-tests-supervisor.json`.
+
+Recording checkpoint gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed.

@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.recording_the_frames_and_inputs import _source_reference_record_invariant
     from core.runtime.classical_compute_boundary import _classical_import_invariant
     from core.perception.guarded_effects_in_flash_methods import _guarded_source_graph_invariant
     from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant
@@ -58,6 +59,9 @@ def _play_execution_claims() -> tuple:
             ('previous_reference_poses_need_fresh_pixel_support', 'core/perception/reference_material_near_a_measured_pose.py',
              'tests/test_previous_pose_only_proposes_current_reference_pixels.py', lambda: _near_reference_material_invariant() == (),
              'Previous geometry can propose a bounded fresh reference fit; current correspondence and reverse-patch checks must qualify again and missing material remains unavailable.'),
+            ('play_records_keep_published_source_geometry', 'core/perception/recording_the_frames_and_inputs.py',
+             'tests/test_recording_the_actual_play_ports.py', lambda: _source_reference_record_invariant() == (),
+             'Opt-in control records copy bounded published reference geometry and its original capture; missing channels stay unmeasured and geometry supplies no selected body or task outcome.'),
             ('classical_probes_refuse_known_model_backend_imports', 'core/runtime/classical_compute_boundary.py',
              'tests/test_classical_compute_probe_refuses_inprocess_backends.py', lambda: _classical_import_invariant() == (),
              'A scoped classical Python probe refuses known model-backend imports and preloaded backends; this interpreter boundary complements worker admission and supplies no claim about native code or arbitrary child interpreters.'),

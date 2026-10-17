@@ -154,6 +154,48 @@ async def test_actual_control_sample_counts_remain_separate_from_input_delivery(
     assert event['kind'] == 'control_observation' and event['selected'] is None
     assert event['trying'] and event['evidence'][0]['presses'][0]['samples'] == 1
     assert event['evidence'][0]['ratio'] == [0., 0.]
+    assert event['source_references']['fresh']['count'] is None
+
+
+@pytest.mark.asyncio
+async def test_actual_source_geometry_is_copied_with_its_original_capture_not_a_control_role(tmp_path):
+    from core.agency.which_one_answers_to_her import WhichIsHers
+    from core.perception.recording_the_frames_and_inputs import record_control_observation
+
+    point = SimpleNamespace(at=1., position=[12., 19.], error=.4, support=9)
+    receipt = SimpleNamespace(at=1., shape=(32, 40, 3), sha256='a'*64)
+    reference = SimpleNamespace(source='source', character_id=7, exported_name='decoration',
+                                reference_sha256='b'*64, point=point, pixels=receipt, hypotheses=2)
+    moves = SimpleNamespace(things={}, pixels_consumed=receipt, source_reference_status='catalog_ready',
+                            source_reference_points=(), source_reference_frames=(),
+                            fresh_source_reference_frames=[reference], fresh_source_reference_status=())
+    directory = tmp_path / 'reference-record'
+    async with record_frames_and_inputs(directory):
+        record_control_observation(SimpleNamespace(held_trying=True, held='a', held_since=1., keys=['a']),
+                                   moves, WhichIsHers(), 2.)
+        point.position[0] = 99.
+        moves.fresh_source_reference_frames.clear()
+    event = _events(directory)[0]
+    snapshot = event['source_references']
+    assert snapshot['fresh']['count'] == 1 and event['selected'] is None
+    recorded = snapshot['fresh']['records'][0]
+    assert recorded['point']['position'] == [12., 19.]
+    assert recorded['point']['at'] == recorded['pixels']['at'] == 1. and event['at'] == 2.
+    assert recorded['hypotheses'] == 2 and recorded['pixels']['sha256'] == 'a'*64
+    assert not {'controlled', 'qualified', 'task_passed'} & recorded.keys()
+
+
+def test_source_recording_bounds_remain_explicit_and_missing_is_not_empty():
+    from core.perception.recording_the_frames_and_inputs import _source_reference_record_invariant, _source_reference_snapshot
+
+    moves = SimpleNamespace(source_reference_frames=[SimpleNamespace()] * 200,
+                            fresh_source_reference_frames=())
+    snapshot = _source_reference_snapshot(moves)
+    assert snapshot['object_bound']['count'] is None and not snapshot['object_bound']['available']
+    assert snapshot['fresh']['available'] and snapshot['fresh']['count'] == 0
+    assert snapshot['continuing']['count'] == 200 and snapshot['continuing']['truncated']
+    assert len(snapshot['continuing']['records']) == 128
+    assert _source_reference_record_invariant() == ()
 
 
 @pytest.mark.asyncio
