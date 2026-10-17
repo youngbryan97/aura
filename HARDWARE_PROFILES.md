@@ -2,7 +2,7 @@
 
 This guide explains what hardware Aura runs on and—most importantly—what claims you can validly make about a test run on each machine.
 
-Hardware specs and test results belong together. Running a benchmark on an 8 GB laptop with simulated (mocked) models is completely different from running it on a 64 GB machine with a real 27-billion-parameter model in memory. A test score from the laptop proves almost nothing about real-world performance on the workstation. Each hardware profile below clearly spells out which claims you are allowed to make and which claims are forbidden, ensuring every test result is tied to the hardware that actually produced it.
+Hardware specs and test results belong together. Running a benchmark on an 8 GB laptop with simulated (mocked) models is completely different from running it on a 64 GB machine with a real 27-billion-parameter model in memory. A test score from the laptop proves almost nothing about real-world performance on the workstation. Each hardware profile below spells out which claims you are allowed to make and which are forbidden, so every test result stays tied to the hardware that produced it.
 
 ## 1. No-Model / Dev Profile
 * **Target Hardware**: Standard laptop (such as an Intel or M1 MacBook Air) with 8 GB of RAM.
@@ -44,7 +44,7 @@ Hardware specs and test results belong together. Running a benchmark on an 8 GB 
 * **Target Hardware**: Mac Studio or MacBook Pro with an M5 Pro chip or better, and 64 GB+ Unified Memory. Both `core/config.py` and `core/runtime.py` specify an M5 Pro with 64 GB as the standard hardware budget that Aura's three model tiers are sized against.
 * **Required Models**: Three in-process models running via Apple's MLX framework:
   - Cortex (`Aura-Cortex` / fused Qwen3.8-27B, handles foreground conversation and complex tasks)
-  - Brainstem (`Qwen3.5-9B-4bit`, handles background reflection and processing)
+  - Brainstem (`Ternary-Bonsai-2-27B-mlx-2bit`, Qwen3.5 27B at two bits, 8.6 GB; handles background reflection and processing)
   - Reflex (`Qwen2.5-1.5B-Instruct-4bit`, handles fast routine responses)
   There is no separate coder model: `core/brain/llm/local_code_model.py` runs code generation on Aura's primary model lane with persona steering bypassed (because emotional or conversational steering corrupts code syntax).
 * **Memory/Compute**: High-throughput unified memory bandwidth shared between CPU and GPU.

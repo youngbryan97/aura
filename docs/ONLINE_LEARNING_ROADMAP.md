@@ -72,8 +72,9 @@ promotion gate, and the rollback path (register/activate → baseline) is proven
 Bundle: `artifacts/proof_bundle/latest/LORA_CONSOLIDATION.json`; clears
 `tools/proof_fabrication_guard.py` (real measured scores, no hardcoded
 baselines). HONEST SCOPE: this proves the consolidation **machinery** on a small
-local model; the same pipeline runs on the 32B cortex in production sleep
-windows (longer train). It is **batch** consolidation with a sleep metaphor —
+local model; the same pipeline was written for the resident cortex (the 32B
+when this was written, the 27B since 24 August) in production sleep windows
+(longer train). It is **batch** consolidation with a sleep metaphor —
 **not** online core-weight learning (§3 remains the unclaimed frontier).
 
 **Why this is honest, not online:** the model is unavailable for inference during
