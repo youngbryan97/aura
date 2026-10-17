@@ -3113,6 +3113,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in use had never received an example. Wiring: 83fcd7aa6, 9a4218375,
   01ddf0a8d. Plan, fixed before it ran:
   `~/.aura/rlc-evidence/learning-loop-20261016/plan.md`.
+- [ ] L10 Let her learn from what she verifies online, offline-first. Today a
+  claim she checks online (core/epistemics/epistemic_reach.py, through the
+  governed reach gateway) corrects one reply and is not kept, and no web
+  source feeds learning in use. Wanted, by Bryan on 2026-10-16, saved for a
+  later session: a learning source "reputable sources agree" (at least two
+  independent sources, fetched through the gateway, agreeing, and programs
+  agreeing where the answer can be computed; a disagreement held as
+  disputed); only checkable factual claims, never opinion, evaluation,
+  prediction or preference, with reference, official and primary sources
+  above news, blogs, forums and social media, and no single-source claim; a
+  store of the facts she has verified, with sources, quotes, retrieval
+  dates, corroboration and disputes, dated facts rechecked; and a test that
+  everything works with the network blocked.
 
 ## 4. User-facing capability acceptance
 
