@@ -56,10 +56,14 @@ def _play_execution_claims() -> tuple:
     )
     from core.perception.vision_request_compute import _cpu_vision_request_invariant
     from core.runtime.model_worker_policy import _model_worker_policy_invariant
+    from core.skills.screen_pursuit_on_a_page import _read_before_scene_wait_invariant
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('coordinates_cannot_rename_current_words', 'core/skills/screen_pursuit_as_it_happens.py',
+    return (('current_reading_precedes_waiting_in_a_running_world', 'core/skills/screen_pursuit_on_a_page.py',
+             'tests/test_current_reading_precedes_waiting_in_a_running_world.py', lambda: _read_before_scene_wait_invariant() == (),
+             'A known running clock gives current reading priority over scene settling, while current words still decide navigation and no input authority is added.'),
+            ('coordinates_cannot_rename_current_words', 'core/skills/screen_pursuit_as_it_happens.py',
              'tests/test_coordinates_cannot_rename_current_words.py', lambda: _coordinate_label_invariant() == (),
              'Earlier control coordinates cannot rename current counters or unread labels; pixel-backed recovery and explicit reset interpretation remain separate.'),
             ('reference_metadata_does_not_spend_match_cadence', 'core/perception/source_references_while_play_advances.py',

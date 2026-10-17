@@ -192,6 +192,33 @@ def _cursor_cache_custody_invariant() -> tuple:
     return ()
 
 
+def _read_before_scene_wait(reflexes: Any) -> bool:
+    """A known moving clock makes the next reading urgent, including after menus."""
+    from core.skills.screen_pursuit_as_it_happens import _it_goes_on_without_her
+
+    return reflexes is not None and (bool(getattr(reflexes, 'play_in_sight', False))
+                                     or _it_goes_on_without_her(reflexes))
+
+
+@invariant('skills.current_reading_precedes_waiting_in_a_running_world', scope='skills',
+           owner='core/skills/screen_pursuit_on_a_page.py', observational=False)
+def _read_before_scene_wait_invariant() -> tuple:
+    from types import SimpleNamespace
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+
+    token = THE_GUIDE.set(None)
+    try:
+        reflexes = SimpleNamespace(words=['Catch the falling fruit before it hits the ground.', 'PLAY'],
+                                  keep={}, way_on_shown=True, play_in_sight=False)
+        assert _read_before_scene_wait(reflexes)
+        reflexes.words = ['YOUR TURN: move a piece.', 'PLAY']
+        assert not _read_before_scene_wait(reflexes)
+        assert not _read_before_scene_wait(None)
+    finally:
+        THE_GUIDE.reset(token)
+    return ()
+
+
 @dataclass
 class OnAPage:
     """One page of her own browser, as the surface a screen pursuit acts on."""
@@ -346,12 +373,14 @@ class OnAPage:
             self.watching.start()
             return
         from .screen_pursuit import _tell
-        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS, a_screen_of_play_in_time
+        from .screen_pursuit_as_it_happens import AS_IT_HAPPENS
 
         # Play that goes on without her is not waited out, it is played: offline 2026-10-11 a game's eggs fell while she
         # watched them "play out on its own" twice, and it was over before she played.
         reflexes = AS_IT_HAPPENS.get()
-        if getattr(reflexes, "play_in_sight", False) or a_screen_of_play_in_time(reflexes):
+        # The preceding menu may already be gone. Read this frame before
+        # waiting for a scene to settle in a world whose clock keeps moving.
+        if _read_before_scene_wait(reflexes):
             return
         # Inside one look, which has its own few seconds: a wait longer than the look is a look that never comes back.
         await self.watching.watch(at_most_s=self.WATCH_IN_A_LOOK_S, tell=_tell)

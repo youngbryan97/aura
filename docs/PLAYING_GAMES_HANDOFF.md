@@ -1217,3 +1217,20 @@ to this stationary-path repair; the moving-body failure remains open.
 Smoke and the main code gates also passed under the bounded supervisor
 (90.63 seconds). Continue from the moving visual path and physical-control
 timeline; this checkpoint does not qualify the native demo.
+
+## Read before waiting on a moving clock, 17 October 2026
+
+The corrected-label recording's first fast picture arrived 2.620 seconds
+after its Play click completed; the first key completed 3.278 seconds after
+the click. The log includes a 1.3-second scene wait. `OnAPage` was deciding
+whether to wait from the preceding menu. A known running clock now gets a
+current reading before scene settling. Fresh menus retain navigation;
+unknown and waiting environments retain the wait. Six ordering regressions
+failed before the change, 41 focused checks passed afterward, then 59
+navigation and pointer checks passed. See
+`docs/evidence/steering/2026-10-17-read-the-current-screen-before-waiting.md`.
+Measure ordinary gameplay before claiming any improvement from the saved
+time. No protected source checkout or runtime lifecycle was changed.
+
+Smoke (165 passed, one skipped), lint, compilation, layering, dependency
+consistency and writing passed. The combined group took 98.56 seconds.
