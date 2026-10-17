@@ -53,3 +53,34 @@ Smoke passed 165 checks with one skip. Lint, compilation, layering,
 dependency consistency and writing passed. The bounded gate group completed
 in 87.87 seconds. The changed skill module is 1,979 lines, below its cap.
 The manual organism dependency rule admits only the named label canary.
+
+## Fresh actor run at `0d71007e1`
+
+The repaired reading carried into ordinary CPU browser play: the recorded
+end-screen layout kept `0%` and the current retry reading instead of the
+old Start and Play labels. The independently viewed final image still
+showed zero landings and one crash. The report ended `unread`, `lost`,
+`lost`, with no win, in 134.09 seconds. Its 75 control observations selected
+no body; eight keyboard-target receipts reported focused. Nine observations
+had fresh source geometry, three had object-bound geometry and six had
+continuing geometry. There were no goal-directed choices. The recorder
+closed without drops, with 218 images and 50 input-port events. The
+classical boundary reported no loaded backend and refused six MLX imports.
+
+The actual control records already retain each candidate's independent
+press counts, sample times and statistics. None cleared both identity
+thresholds in this run. A zero statistic can mean too few repeated groups,
+not zero motion. The earlier October 16 run's largest candidate statistic
+was 19.134459 with effect 15.854839; only one complete acceleration sample
+was retained for its up control. These data do not justify lowering the
+identity thresholds or blaming a downstream candidate exclusion.
+
+The pinned emulator declares delegated shadow focus. Ruffle's official
+[programmatic-event test](https://github.com/ruffle-rs/ruffle/blob/master/web/packages/selfhosted/test/integration_tests/programmatic_events/test.ts)
+also exercises focusing the outer player before keyboard events. That
+source check does not prove this game's acceptance of every input. It
+does rule out assuming that outer-player focus is inherently wrong here.
+No shadow-focus policy change was made on that assumption.
+
+The next diagnostic boundary is continuing visual support during physical
+control trials. Native play and demo qualification remain open.

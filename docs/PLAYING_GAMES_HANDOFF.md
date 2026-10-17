@@ -1187,3 +1187,16 @@ The coordinate-label change also passed smoke (165 passed, one skipped),
 lint, compilation, layering, dependency consistency and writing. Its
 ordinary gameplay effect remains to be measured. The skill module remains
 below its 2,000-line cap. No protected process or native checkout was changed.
+
+Pushed at `0d71007e1`. The fresh CPU actor run preserved the current
+percentage in layout, so the label repair carried over. Gameplay still
+failed: 75 observations with no selected body, eight positive focus
+receipts, nine fresh geometries, three object-bound and six continuing
+geometries, zero goal-directed choices. Final image: zero landings, one
+crash. The record closed without drops (218 images, 50 input-port events).
+Actual candidate press counts and statistics are already in each control
+event's `evidence` field; use them before adding more instrumentation.
+None cleared both thresholds. Do not interpret a zero ratio as no motion:
+it also represents insufficient repeated groups. The pinned emulator uses
+delegated shadow focus; no focus change was made merely from a suspicion
+about the outer player. Continue tracing visual sample continuity.
