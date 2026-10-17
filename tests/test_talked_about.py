@@ -134,3 +134,36 @@ def test_a_question_is_answered_from_every_paragraph_and_the_careful_lookup_toge
     grounding = corpus_grounding_for(asked, store=store)
     assert searched == [asked]
     assert any("Wilt Chamberlain" in text for _title, text in grounding.passages), grounding.passages
+
+
+def test_a_question_that_says_he_is_given_the_person_as_well_as_its_other_words(tmp_path: Path) -> None:
+    # Live 2026-10-17: "how many MVP awards did he win?" found other leagues' MVP pages by its words, and the
+    # conversation's player was looked up only when its words found nothing.
+    from core.knowledge.passage_index import build
+
+    store = LocalCorpusStore(tmp_path / "corpus.db")
+    store.add_documents([
+        ("Kobe Bryant", "Kobe Bryant was an American basketball player, named the most valuable player of the "
+                        "Finals twice.\n\nHe played twenty seasons for the Los Angeles Lakers.", "wikipedia"),
+        ("MVP", "MVP may refer to:\n\nMost valuable player\n\nMVP (band)", "wikipedia"),
+        ("Most valuable player", "A most valuable player award, or MVP award, is given to the best player of a "
+                                 "league. Players win MVP awards every season.", "wikipedia")])
+    build(tmp_path / "corpus.db", tmp_path / "paragraphs.tantivy", threads=1, heap_bytes=50_000_000)
+    before = [("user", "Kobe Bryant was one of the best scorers ever."),
+              ("aura", "That 81 against Toronto still looks unreal.")]
+    asked = "How many MVP awards did he win?"
+    bare = corpus_grounding_for(asked, store=store)
+    assert bare.grounded and not any(title == "Kobe Bryant" for title, _text in bare.passages), bare.passages
+    grounding = corpus_grounding_for(asked, store=store, conversation=before)
+    texts = [text for _title, text in grounding.passages]
+    assert any("Finals twice" in text for text in texts), grounding.passages
+    assert any("Players win MVP awards" in text for text in texts), grounding.passages
+
+
+def test_places_are_shared_between_whom_a_pronoun_means_and_what_the_question_says() -> None:
+    from core.knowledge.corpus_grounding import _sharing_places
+
+    said, asked = [("P", "p1"), ("P", "p2"), ("P", "p3")], [("Q", "q1"), ("Q", "q2"), ("Q", "q3")]
+    assert _sharing_places(said, asked, limit=3) == [("P", "p1"), ("P", "p2"), ("Q", "q1")]
+    assert _sharing_places(said[:1], asked, limit=3) == [("P", "p1"), ("Q", "q1"), ("Q", "q2")]
+    assert _sharing_places([], asked, limit=3) == asked
