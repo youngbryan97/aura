@@ -936,3 +936,30 @@ deselected; smoke 165 passed, one skipped. Lint, compile, layering, DEPS
 consistency and writing passed. Governance retains 131 existing regressions
 and module size the same unrelated regressions, including 197 excess lines.
 Neither baseline changed. The exclusive model process remained PID 72875.
+
+## Guarded source effects, 16 October 2026
+
+The new on-demand `ProgramRead.method_effects` reads bounded acyclic source
+flow as a DAG with guarded stack, register and memory joins. It retains
+opaque calls, getters, coercions and deletions in memory order. It refuses
+loops, inconsistent stacks, unbound registers and unproven constant pools.
+Graph coverage never grants executable controller or identity authority.
+
+The recorded case-18 movement method now has all 450 instructions and
+19 branches represented in 657 nodes. The older path reader still stops at
+64 paths. The outcome-display helper remains incomplete at `NewObject`;
+the two-method inspection returned 1 and preserved that result. Focused
+tests: 86 passed, including comparison with a separate concrete fixture VM
+over 100 input assignments across 16 unknown branches.
+
+See `docs/evidence/steering/2026-10-16-guarded-source-effects.md`. This is
+source representation progress. It is not source contact qualification,
+a changed gameplay result or native deployment. The current exclusive
+model process is PID 75699; preserve it, G09 and the recorded holdouts.
+
+Final review moved register loads and stores into the ordered VM-state
+graph, so opaque effects cannot leave a falsely cached register value.
+The final source measurement is 771 nodes for the same 450 instructions
+and 19 branches. Focused source tests: 188 passed. Smoke: 165 passed, one
+skipped. Lint, compile, layering, DEPS consistency and writing passed.
+Governance and size retain their existing regressions; baselines unchanged.

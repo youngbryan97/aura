@@ -119,6 +119,22 @@ class ProgramRead:
     def __bool__(self) -> bool:
         return bool(self.text or self.keys or self.words or self.pointer or self.mechanics_found or self.world or self.visual_assets)
 
+    def method_effects(self, target: str, *, receiver: str | None = None) -> Any:
+        """Read one uniquely bound current-source method as guarded effects.
+
+        This bounded on-demand read grants no motion or identity authority.
+        Missing, incomplete or ambiguous source supplies no graph.
+        """
+        from core.perception.flash_action_sources import FlashActionSources
+        from core.perception.guarded_effects_in_flash_methods import read_flash_effect_graph
+        from core.perception.symbolic_motion_in_flash_methods import bind_flash_methods
+
+        sources = self.action_sources
+        if not isinstance(sources, FlashActionSources) or not sources.complete:
+            return None
+        binding = bind_flash_methods(sources.streams).method(target)
+        return read_flash_effect_graph(binding, receiver=receiver) if binding is not None else None
+
 
 def key_named(name: str) -> str:
     """A key as a program names it ("ArrowLeft", "KeyW", "Space", " "), as the hands press it; "" where not a key."""

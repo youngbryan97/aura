@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.guarded_effects_in_flash_methods import _guarded_source_graph_invariant
     from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant
     from core.perception.source_geometry_in_current_pixels import _reference_attention_invariant
     from core.perception.reference_material_near_a_measured_pose import _near_reference_material_invariant
@@ -56,6 +57,9 @@ def _play_execution_claims() -> tuple:
             ('previous_reference_poses_need_fresh_pixel_support', 'core/perception/reference_material_near_a_measured_pose.py',
              'tests/test_previous_pose_only_proposes_current_reference_pixels.py', lambda: _near_reference_material_invariant() == (),
              'Previous geometry can propose a bounded fresh reference fit; current correspondence and reverse-patch checks must qualify again and missing material remains unavailable.'),
+            ('guarded_source_graph_preserves_memory_and_control', 'core/perception/guarded_effects_in_flash_methods.py',
+             'tests/test_guarded_source_effects_do_not_enumerate_paths.py', lambda: _guarded_source_graph_invariant() == (),
+             'A bounded acyclic source graph shares branch values and retains ordered opaque memory effects; complete instruction coverage cannot certify an executable controller.'),
             ('source_boolean_arithmetic_keeps_type_boundaries', 'core/perception/symbolic_motion_in_flash_methods.py',
              'tests/test_symbolic_motion_in_flash_methods.py', lambda: _source_boolean_arithmetic_invariant() == (),
              'Known boolean values reduce to zero or one for numeric source operations; strict equality retains type distinctions and unknown input remains symbolic.'),
