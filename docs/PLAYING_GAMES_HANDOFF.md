@@ -1157,3 +1157,11 @@ replay found one reference on 16 captures instead of eight. Another
 reference was never seeded, so its fallback remains unmeasured. See
 `docs/evidence/steering/2026-10-17-reference-reacquisition-outside-a-local-window.md`.
 No gameplay improvement or controlled identity is established by that replay.
+
+The wider fit is pushed at `2197fbc45`. Ordinary asynchronous publication
+then observed all 59 source-paced recorded frames. Eleven fresh source
+geometries passed independent current-pixel checks (maximum difference
+0.129063 working pixels); zero object-bound points and zero continuing
+source frames were published. This is the remaining upstream connection:
+current correspondence exists without a continuing named material path.
+It supplies neither causal control nor a game win.

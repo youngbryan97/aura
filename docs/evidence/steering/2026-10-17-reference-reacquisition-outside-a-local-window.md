@@ -54,3 +54,21 @@ sites; this reference-matching change adds no browser or file effect. Module
 size still reports four regressions and 197 aggregate excess lines, outside
 this module. No baseline was expanded. The full suite was not run beside
 the exclusive model job.
+
+## Ordinary publication at `2197fbc45`
+
+All 59 recorded captures were observed through the ordinary asynchronous
+worker with source pacing. Eleven published fresh geometry for export 52.
+Each retained its exact consumed capture and passed the independent fresh
+pixel check; maximum coordinate difference was 0.129063 working pixels.
+No check was unmeasured. The replay took 16.011193 seconds before independent
+checking, with a 0.161189-second maximum frame call and 0.037801-second
+maximum loop pulse gap.
+
+It published zero object-bound source points and zero continuing source
+frames. Fresh current geometry therefore still fails to become continuing
+material in this replay. The result does not prove body identity, input
+effects or a game outcome. The measurement ran inside the classical import
+boundary. Its CLI exited normally before the wrapper's final report print,
+so no refused-import count was retained for this replay. The saved result
+is `ordinary.json` beside its supervisor record.
