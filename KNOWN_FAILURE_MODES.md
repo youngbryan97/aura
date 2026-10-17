@@ -205,6 +205,22 @@ Because the cache was wiped, every turn had to reprocess the entire conversation
 
 **The recurring lesson**: A frequent issue in this codebase is *a safety gate discarding a valid answer, which is then misdiagnosed as an infrastructure failure*. When a subsystem seems slow or unresponsive, always check first whether an upstream check is throwing away good work.
 
+### F20: Model lane held by a dead worker's request
+
+**Cause**: A hidden-state read whose caller timed out hands the model lane to the response listener until the worker sends that request's last frame. When the worker died on its own (on 17 October, killed by the memory governor at 85% system memory), the client replaced its queues and spawned a new worker, so the frame could never arrive and the lane stayed held.
+**Likelihood**: Low after the fix; before it, whenever memory pressure killed the cortex worker during a background read.
+**Impact**: Every chat turn waited twelve seconds for the lane and fell to the fallback ladder, for over half an hour on 17 October.
+**Detection**: Repeated `Request queue timeout ... while waiting on model_hidden_features (held N s)` with N growing past the 90 s limit.
+**Recovery**: Fixed (8124687e7): the died-unexpectedly branch fails what the gone worker owed and releases a detached request's lane, as the lease-loss path already did.
+
+### F21: Answers cut off before their number
+
+**Cause**: The repetition hold (DRY) pushes down a token that would continue a run copied from her earlier replies. Her tokenizer writes a number as a space token and one digit a token, so arithmetic that restates a number from an earlier answer looked like a copy; the hold also ran inside her private reasoning.
+**Likelihood**: High in conversations with repeated arithmetic, before the fix.
+**Impact**: Three answers in four were cut off before their number on 17 October ("Total: 245 + 366 +"), and she ended her turn inside her private reasoning before answering.
+**Detection**: A reply that stops mid-sentence with `generation performance` showing far fewer tokens than its budget, and no deadline or cancel logged.
+**Recovery**: Fixed (37db520c2): a token holding a digit is a sequence breaker, and the hold starts after her private channel closes.
+
 ## Recovery Drill Schedule
 
 | Drill | Frequency | Procedure |
