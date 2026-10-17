@@ -74,6 +74,38 @@ def loaded(scene, monkeypatch, executor):
     return worker
 
 
+def test_ready_metadata_does_not_delay_the_first_match_but_matches_keep_their_cadence(scene, monkeypatch, executor):
+    reference, table, picture, observer = scene
+    monkeypatch.setattr(work, 'acquire_visual_references', lambda *_args, **_kw: ReferencesAcquired((reference,)))
+    worker = work.SourceReferencesInPlay(interval_s=1.)
+    worker.advance(observer, picture, 4., (table,), now=10.)
+    for now in (10.01, 10.02):
+        worker.advance(observer, picture, 4., (table,), now=now)
+    assert len(executor) == 1 and worker.status == 'catalog_pending'
+    complete(executor)
+    worker.advance(observer, picture, 4., (table,), now=10.03)
+    assert len(executor) == 2 and worker.status == 'match_pending'
+    complete(executor)
+    worker.advance(observer, picture, 4., (table,), now=10.04)
+    assert len(executor) == 2 and worker.status == 'reference_measured'
+    worker.advance(observer, picture, 4., (table,), now=11.02)
+    assert len(executor) == 2
+    worker.advance(observer, picture, 4., (table,), now=11.03)
+    assert len(executor) == 3 and worker.status == 'match_pending'
+    worker.retire()
+
+
+def test_metadata_readiness_has_a_registered_measured_claim():
+    from core.organism.claims_realtime_control import install_realtime_control_claims
+    from core.organism.model_validation import ValidationSuite
+
+    assert work._reference_catalog_readiness_invariant() == ()
+    suite = ValidationSuite()
+    install_realtime_control_claims(suite)
+    check = next(test for test in suite.tests() if test.name == 'reference_metadata_does_not_spend_match_cadence')
+    assert check.predict(None) is True and any(claim.test == check.name for claim in suite.claims())
+
+
 def moved(scene, at=4.1):
     _, _, picture, observer = scene
     body = observer.things[1]

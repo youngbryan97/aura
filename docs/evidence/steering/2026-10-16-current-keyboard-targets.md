@@ -66,3 +66,34 @@ The production change passed smoke (165 passed, one skipped), lint,
 compilation, layering, dependency consistency and writing. The module-size
 gate still reports four existing regressions and 197 aggregate excess
 lines; this change did not modify that baseline.
+
+## Fresh original-game measurement
+
+The CPU browser run at `bb884ece0` completed in 149.29 seconds. Its final
+image was independently viewed: zero landings, three crashes, zero percent
+success. All 27 keyboard-target receipts reported `focused`. The 241
+control observations still had no confirmed body and no owned later
+control interval. Focus therefore does not explain the remaining failure
+by itself. These receipts do not prove every game input was accepted.
+
+There were 25 observations with fresh source geometry: 19 for export 57
+and six for export 52. Sixteen had object-bound geometry for export 52;
+one retained a continuing frame for export 57. The recorder closed without
+drops, with 403 images and 98 input-port events. The current-interpreter
+classical boundary reported no loaded backend and refused two MLX imports.
+Chromium reported the SwiftShader renderer.
+
+A bounded replay of the first 100 pictures, across two streams, completed
+in 6.33 seconds. It preserves pixels and recorded control flags; it does
+not replay the actor's decisions, source-reference retention or complete
+input cleanup. It cannot independently qualify the original run. The first
+wrapper wrote a replay but failed while reading the context manager's
+report and cleaning it up. The corrected wrapper used a scoped context,
+completed normally, and reported no model imports. Both supervisor records
+remain beside the failed-game evidence in
+`artifacts/flash-campaign/2026-10-16-case18-current-target/`.
+
+The unresolved boundary is between current visual support, continuing
+object identity and qualified control trials. A visible source point is
+still not an automatically controlled body. No native checkout update,
+runtime restart, protected job or holdout was used.

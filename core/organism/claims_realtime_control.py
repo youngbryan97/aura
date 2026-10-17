@@ -20,7 +20,10 @@ def _play_execution_claims() -> tuple:
     from core.perception.named_material_in_a_consumed_frame import _named_material_capture_invariant
     from core.perception.a_source_point_on_visible_marks import _visible_reference_identity_invariant
     from core.perception.visual_references_for_current_sources import _current_reference_source_invariant
-    from core.perception.source_references_while_play_advances import _reference_worker_retirement_invariant
+    from core.perception.source_references_while_play_advances import (
+        _reference_catalog_readiness_invariant,
+        _reference_worker_retirement_invariant,
+    )
     from core.agency.enough_observations_for_a_trial import _trial_observation_goal_invariant
     from core.agency.time_to_observe_a_control import _phase_reservation_invariant
     from core.agency.trials_with_room_to_observe import _trial_priority_invariant
@@ -55,7 +58,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('keyboard_target_receipts_do_not_claim_acceptance', 'core/perception/recording_the_frames_and_inputs.py',
+    return (('reference_metadata_does_not_spend_match_cadence', 'core/perception/source_references_while_play_advances.py',
+             'tests/test_reference_work_reaches_current_ordinary_observation.py', lambda: _reference_catalog_readiness_invariant() == (),
+             'A completed reference catalog releases the first pixel search without spending its cadence; later searches retain their rate and one-worker capacity.'),
+            ('keyboard_target_receipts_do_not_claim_acceptance', 'core/perception/recording_the_frames_and_inputs.py',
              'tests/test_drawing_focus_is_current_for_each_key.py', lambda: _keyboard_target_receipt_invariant() == (),
              'A current keyboard-target query retains its page and interval separately from input transport, game acceptance, controlled identity and task completion.'),
             ('navigation_use_is_separate_from_discovery', 'core/skills/known_navigation_after_discovery.py',

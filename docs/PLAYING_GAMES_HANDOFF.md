@@ -1121,3 +1121,27 @@ Three additional regressions and a repeated actual-port Chromium fixture
 cover the first key from that state. All six drawing keydowns and the
 document-level key were received, with no recorder drops. The native
 checkout and protected process remain untouched.
+
+The fresh `bb884ece0` original case 18 CPU browser run still lost: zero
+landings and three crashes in the independently viewed final image.
+All 27 focus receipts were positive, while all 241 control observations
+left body identity unknown. Twenty-five observations had fresh source
+geometry and 16 had object-bound geometry. The recorder closed without
+drops (403 images, 98 input-port events). Keep this failure beside the
+passing input fixtures. The remaining visual-to-control boundary still
+needs repair; focus alone did not close it.
+
+## Reference catalog readiness, 17 October 2026
+
+Completed reference metadata used to spend the one-second interval meant
+for expensive pixel searches. A regression reproduced the first search
+waiting despite the catalog being ready. Catalog completion now releases
+that first search; subsequent searches keep their full cadence and the
+global single-worker permit. The first focused group passed 54 checks.
+See `docs/evidence/steering/2026-10-17-reference-catalog-readiness.md`.
+This scheduling repair supplies no controlled identity or game win.
+
+Final: 55 focused checks passed, smoke passed 165 with one skip, and lint,
+compilation, layering, dependency consistency and writing passed. The
+remaining work is current visual continuity into independently proven
+control, source contact/role binding and ordinary native-app proof.

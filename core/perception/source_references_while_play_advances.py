@@ -208,6 +208,8 @@ class SourceReferencesInPlay:
         if work.kind == 'catalog':
             self.catalog, self.unavailable = result.references, result.unavailable
             self._loaded = True
+            # Metadata readiness must not spend the interval between pixel searches.
+            self._next = work.started
             self.status = 'catalog_ready' if self.catalog else 'no_registered_reference'
         else:
             self.refused = result.refused
@@ -357,4 +359,20 @@ def _reference_worker_retirement_invariant() -> tuple:
     worker = SourceReferencesInPlay()
     worker.retire()
     assert worker.advance(None, None, 1., (), now=1.) == () and worker.status == 'closed'
+    return ()
+
+
+@invariant('perception.reference_metadata_does_not_spend_match_cadence', scope='perception',
+           owner='core/perception/source_references_while_play_advances.py', observational=False)
+def _reference_catalog_readiness_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    worker = SourceReferencesInPlay(interval_s=1.)
+    result = SimpleNamespace(references=(), unavailable=())
+    finished = SimpleNamespace(done=lambda: True, cancelled=lambda: False, result=lambda: result)
+    worker._work, worker._next = _Work(finished, worker._generation, 'catalog', 10.), 11.
+    worker._consume()
+    assert worker._loaded and worker._next == 10. and worker._work is None
+    assert not worker.points and not worker.source_frames
+    worker.retire()
     return ()
