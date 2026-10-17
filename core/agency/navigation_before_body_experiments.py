@@ -59,7 +59,7 @@ def words_bound_to_capture(regions: list, captured: tuple | None) -> WordsFromCa
     if captured is not None:
         frame, snapshot = captured
         bounded = [dict(region) for region in regions[:128] if isinstance(region, dict)]
-        targets = [region for region in bounded if label_is_a_way_on(str(region.get('text') or ''))]
+        targets = [region for region in bounded if label_is_a_way_on(str(region.get('text') or ''), from_ocr=True)]
         if asks_to_choose(' '.join(str(region.get('text') or '') for region in bounded)):
             targets = bounded
         words = words_with_their_pixels(ScreenReading({'layout': targets}, picture_snapshot=snapshot))

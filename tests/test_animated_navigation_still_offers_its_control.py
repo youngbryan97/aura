@@ -12,7 +12,8 @@ from core.skills.screen_pursuit_on_a_page import _what_the_stream_shows
 from core.skills.screen_step_evidence import current_controls
 
 
-@pytest.mark.parametrize('label', ['CONTINUE •', 'Next', 'PLAY', 'Resume', 'Try again'])
+@pytest.mark.parametrize('label', ['CONTINUE •', 'Next', 'PLAY', 'Resume', 'Try again',
+                                  'BTART', 'NEX7', 'PL4Y', 'RESUMEe', 'TRY ABAIN'])
 def test_the_stream_can_mark_motion_without_deleting_a_whole_navigation_label(label):
     control = dict(text=label, x=.74, y=.94, width=.14, height=.04, center_x=.81, center_y=.96)
     prose = dict(text='A figure crosses the room.', x=.3, y=.5, width=.5, height=.1)

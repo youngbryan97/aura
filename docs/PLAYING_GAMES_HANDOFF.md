@@ -1006,3 +1006,25 @@ cannot set the selected body. The focused checks passed 78 tests.
 
 Recording checkpoint gates: smoke 165 passed, one skipped; lint, compile,
 layering, DEPS consistency and writing passed.
+
+## Current CPU run stopped before gameplay, 16 October 2026
+
+The recorded case-18 run at `e9ed28187` ended after 69.92 seconds on the
+title screen, won=false. All five screen-option records read `BTART` on
+the visible Start button, but its animation flag removed it before click
+ranking. Only title text survived as a click; the actor tried arrow keys.
+There were no fast-loop control or source-reference measurements.
+
+The CPU boundary remained active with no loaded known backend and refused
+five attempted MLX imports. The measured browser renderer was SwiftShader.
+The recording closed without dropped events. G09 and holdouts were excluded.
+
+Measured OCR now has an explicit bounded, unambiguous one-character path
+through animated-control filtering and captured-menu handoff. Exact semantic
+labels keep their strict grammar. Readouts, stale pixels and reset variants
+do not gain this new path. Focused: 125 passed. The next original UI attempt
+must show the press reaching gameplay. See the dated animated-navigation
+evidence record. This remains CPU browser work, not native demo proof.
+
+Navigation gates: smoke 165 passed, one skipped; lint, compile, layering,
+DEPS consistency and writing passed. No baseline was changed.

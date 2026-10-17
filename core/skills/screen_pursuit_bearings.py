@@ -126,7 +126,7 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
         text = " ".join(str(region.get("text") or "").split())
         # Motion can mark a blinking navigation label too. Whole known
         # navigation labels remain candidates; changing scene prose does not.
-        if (text and not region.get('pointer_ambiguous') and (not region.get("of_its_own") or label_is_a_way_on(text))
+        if (text and not region.get('pointer_ambiguous') and (not region.get("of_its_own") or label_is_a_way_on(text, from_ocr=True))
                 and not _set_as_a_paragraph(region, regions) and not _a_readout(text)):
             for choice in _choices_apart(region):
                 found.setdefault(a_click_on(str(choice["text"])), None)
@@ -142,6 +142,7 @@ def things_to_click(observation: dict[str, Any], drawn_where: Any) -> tuple[str,
 def _animated_navigation_invariant() -> tuple:
     assert things_to_click({'layout': [{'text': 'CONTINUE •', 'of_its_own': True},
                                       {'text': 'The scene keeps changing.', 'of_its_own': True}]}, True) == ('click "CONTINUE •"',)
+    assert things_to_click({'layout': [{'text': 'NEX7', 'of_its_own': True}]}, True) == ('click "NEX7"',)
     return ()
 
 

@@ -127,9 +127,23 @@ def offers_a_way_on(said: str) -> bool:
     return False
 
 
-def label_is_a_way_on(label: str) -> bool:
-    """Whether the whole measured label names a navigation control, without a learned guess."""
-    return bool(_GOES_ON.fullmatch(_plain(label).rstrip('! ')))
+def label_is_a_way_on(label: str, *, from_ocr: bool = False) -> bool:
+    """A whole navigation label, with optional bounded OCR tolerance.
+
+    Exact semantic labels retain the strict grammar. A measured OCR label
+    may differ by one character from one unambiguous known label. This is
+    a control candidate, never evidence that it was pressed or led onward.
+    """
+    plain = _plain(label).rstrip('! ')
+    if _GOES_ON.fullmatch(plain):
+        return True
+    if (not from_ocr or not 3 <= len(plain) <= 24 or str(label).rstrip().endswith(':')
+            or _IS_READ.match(plain) or _A_MEASURE.search(plain)):
+        return False
+    said = plain.casefold()
+    candidates = {word for word in _ONE_WORD if ' ' not in said and _one_letter_off(said, word)}
+    candidates.update(phrase for phrase in _ON if _letters_apart(said, phrase, 1))
+    return len(candidates) == 1
 
 
 #: An unnamed shape, by where it is ("the shape at 95% across, 90% down").

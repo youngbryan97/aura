@@ -42,7 +42,7 @@ def test_a_current_navigation_request_has_a_registered_invariant():
 
 
 @pytest.mark.parametrize('text', ['PLAY', 'Start', 'Continue', 'Next', 'OK', 'Choose difficulty',
-                                 'Next Level', 'Play Now!', 'Skip Intro', 'Try again'])
+                                 'Next Level', 'Play Now!', 'Skip Intro', 'Try again', 'BTART', 'NEX7', 'PL4Y', 'TRY ABAIN'])
 def test_current_navigation_can_precede_body_discovery(text):
     run, hers, pixels, at = menu(text)
     assert navigation_before_body_experiments(run, hers, pixels, at, {}, now=10.1)
@@ -69,6 +69,13 @@ def test_completed_ocr_keeps_immutable_pixels_from_before_its_worker_ran():
     pixels[:] = 60
     assert not navigation_before_body_experiments(run, hers, pixels, at, {}, now=10.1)
     assert run.navigation_reading.words.still_in(pixels) is False
+
+
+def test_damaged_navigation_text_still_requires_the_original_word_pixels():
+    run, hers, pixels, at = menu('NEX7')
+    assert navigation_before_body_experiments(run, hers, pixels, at, {}, now=10.1)
+    pixels[:] = 60
+    assert not navigation_before_body_experiments(run, hers, pixels, frame(10.1, sequence=2), {}, now=10.2)
 
 
 def test_a_recent_frame_can_confirm_words_from_a_slow_ocr_pass():
