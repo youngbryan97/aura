@@ -1088,3 +1088,12 @@ transition evidence, excludes resets and still passes task checks. See
 `docs/evidence/steering/2026-10-16-known-navigation-after-discovery.md`.
 Fresh browser measurement remains required. Native play and a win remain
 unproven, and no protected process or holdout was used.
+
+Fresh measurement at `ed2d1b41d`: navigation reuse carried into ordinary CPU
+browser play, with repeated re-entry after losses. Gameplay still failed:
+118 observations, no confirmed body, no goal-directed choice, no win. Ten
+observations had fresh source geometry and 12 had object-bound geometry;
+no owned later interval was published. The recorder closed without drops.
+Keep this failure beside the passing component checks. The next input
+investigation concerns current keyboard focus and discovery time. The
+native checkout remains at `24c04f575`; it was not updated or restarted.

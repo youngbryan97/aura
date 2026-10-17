@@ -51,3 +51,33 @@ Checkpoint gates passed smoke (165 passed, one skipped), lint, compilation,
 layering, dependency consistency and writing. Module-size again reported
 the same four existing regressions and the same 197-line aggregate excess.
 No size or writing baseline changed.
+
+## Fresh browser attempt at `ed2d1b41d`
+
+The combined CPU browser run completed in 142.25 seconds. Navigation reuse
+reached the actor: after a completed attempt it selected the known title
+button and re-entered play repeatedly. The report retained five attempt
+entries: unread, lost, lost, lost, unread. No win was reported. The active
+stretches lasted 2.4, 3.0, 15.0 and 6.0 seconds; additional short stretches
+returned current menu controls to navigation.
+
+All 118 control observations had an unresolved body, and there were zero
+recorded goal-directed choices. Ten observations had fresh source geometry
+and 12 had object-bound source geometry. No owned later control interval
+was published, so this run does not exercise the interval-recovery fix on
+an identified body. The previous run's body-identification result did not
+repeat here. The distinct runs cannot isolate a cause for that difference.
+
+The final active image of the first stretch was independently viewed and
+showed zero landings, one crash and zero percent success. This is still a
+failed gameplay result. The recording closed without drops: 298 images,
+60 input-port events, 484 total recorded events. The classical boundary
+reported no loaded model backends and refused eight MLX imports.
+
+Artifacts are under
+`artifacts/flash-campaign/2026-10-16-case18-interval-navigation/`.
+Input focus and the time available for discovery remain investigation
+items; this recording does not contain a document-focus receipt. A source
+read of the browser hands shows a cached focus boolean and subsequent
+physical key delivery even when focusing returned false. That observation
+alone does not establish it caused these losses.
