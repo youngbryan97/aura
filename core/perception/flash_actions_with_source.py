@@ -160,7 +160,7 @@ def _operands(opcode: int, payload: bytes) -> tuple[ActionValue, ...]:
                 value = reader.uint8()
                 if kind == 5 and value not in (0, 1):
                     raise _InvalidActionError("invalid boolean")
-                out.append(ActionValue({4: "register", 5: "boolean", 8: "constant"}[kind], value))
+                out.append(ActionValue({4: "register", 5: "boolean", 8: "constant"}[kind], bool(value) if kind == 5 else value))
             elif kind == 6:
                 raw = reader.take(8)
                 out.append(ActionValue("double", struct.unpack("<d", raw[4:] + raw[:4])[0]))

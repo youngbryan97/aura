@@ -5,6 +5,7 @@ from typing import Any
 def _play_execution_claims() -> tuple:
     from core.perception.points_a_consumer_still_needs import _point_retention_visibility_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_deletion_invariant
+    from core.perception.symbolic_motion_in_flash_methods import _source_boolean_arithmetic_invariant
     from core.perception.the_pixel_grid_a_mark_uses import _sample_grid_invariant
     from core.perception.named_material_in_a_consumed_frame import _named_material_capture_invariant
     from core.perception.a_source_point_on_visible_marks import _visible_reference_identity_invariant
@@ -43,7 +44,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('source_deletions_remain_uncomposed_mutations', 'core/perception/symbolic_motion_in_flash_methods.py',
+    return (('source_boolean_arithmetic_keeps_type_boundaries', 'core/perception/symbolic_motion_in_flash_methods.py',
+             'tests/test_symbolic_motion_in_flash_methods.py', lambda: _source_boolean_arithmetic_invariant() == (),
+             'Known boolean values reduce to zero or one for numeric source operations; strict equality retains type distinctions and unknown input remains symbolic.'),
+            ('source_deletions_remain_uncomposed_mutations', 'core/perception/symbolic_motion_in_flash_methods.py',
              'tests/test_symbolic_motion_in_flash_methods.py', lambda: _source_deletion_invariant() == (),
              'Property deletion preserves its reaching context and unknown stack result, invalidates cached property values and remains an uncomposed mutation; scope deletion and dynamic members stay unresolved.'),
             ('shared_scene_cost_matches_direct_pixels', 'core/perception/a_visual_reference_in_the_picture.py',

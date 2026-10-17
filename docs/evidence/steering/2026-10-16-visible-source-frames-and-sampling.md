@@ -218,3 +218,32 @@ or restarted.
 Deletion checkpoint gates: smoke 165 passed, one skipped; lint, compile,
 layering, generated DEPS consistency and writing passed. The full suite
 was not run beside the exclusive model job.
+
+## Boolean source values and numeric operations
+
+The numeric audit found two distinct type errors. The byte decoder tagged
+boolean operands as boolean but retained Python integer values. The method
+reader then constructed numbers from them, so strict `false === 0` and
+`true === 1` comparisons returned true. The decoder now retains actual
+boolean values and still refuses payload bytes other than zero or one.
+
+Numeric source operations now convert known boolean operands to zero or
+one. A known input predicate can therefore supply an actual numeric gain.
+Strict equality keeps boolean and numeric types separate. Unknown input
+remains symbolic, and no hypothetical input context becomes a physical
+keyboard receipt. The invariant checks both the decoded operand types and
+the numeric/strict-equality boundary. The implementation was written here;
+no interpreter source was copied.
+
+The first focused run exposed the decoder defect with two failing strict
+comparison tests. After correcting decoding, 157 focused tests passed.
+Smoke passed 165 tests with one skipped; lint, compile, layering, generated
+DEPS consistency and writing passed.
+
+Five supplied input contexts were read from the original case's movement
+method before and after the correction. Each still reached 64 paths and
+eight path-budget issues, with incomplete and uncomposed verdicts. Correct
+numeric typing did not close that larger source-reading limit. This remains
+a static sidecar test, with no game input or ordinary native play. The
+before/after receipts are `source-boolean-before.json` and
+`source-boolean-after.json` in the private artifact directory.

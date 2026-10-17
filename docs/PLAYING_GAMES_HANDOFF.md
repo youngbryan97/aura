@@ -883,3 +883,20 @@ fresh asset export and independently witnessed native gameplay remain open.
 
 Deletion checkpoint gates: smoke 165 passed, one skipped; lint, compile,
 layering, generated DEPS consistency and writing passed.
+
+## Boolean source typing, 16 October 2026
+
+Boolean byte operands now remain boolean values. The old decoder retained
+integers, which made strict boolean/number comparisons wrong. Numeric source
+operations deliberately convert known booleans to zero or one; strict
+equality preserves type distinctions. Unknown input stays symbolic.
+Focused: 157 passed. Smoke: 165 passed, one skipped. Lint, compile, layering,
+DEPS consistency and writing passed.
+
+The recorded movement method still reaches 64 paths and eight path-budget
+issues under each of five supplied input contexts. Its incomplete and
+uncomposed verdicts remain false. This correction does not establish source
+contact semantics or a live win. The next visual question is whether a
+previous measured appearance can propose fresh current-pixel correspondence
+when original global marks disappear, without asserting continuing object
+identity or relaxing material/control qualification.

@@ -384,3 +384,35 @@ def test_a_delete_on_one_path_cannot_invalidate_the_sibling_path():
     assert deleted.returned.operation == 'after deletion'
     assert kept.returned == Arithmetic('number', (7.,))
     assert deleted.deletions[0].conditions == deleted.conditions
+
+
+@pytest.mark.parametrize('opcode,a,b,expected', [
+    (0x0A, False, 2, 2), (0x47, True, True, 2), (0x0B, True, False, 1),
+    (0x0C, False, 9, 0), (0x0C, 4, True, 4), (0x0D, False, True, 0),
+    (0x3F, True, 2, 1), (0x48, False, 1, True), (0x67, True, 0, True),
+    (0x66, False, 0, False), (0x66, True, 1, False), (0x49, False, 0, True),
+])
+def test_boolean_numeric_operands_follow_the_operation_without_erasing_strict_types(opcode, a, b, expected):
+    reading = read_flash_method(_binding(_push(a, b)+bytes((opcode,))+b'\x3e'))
+    assert reading.effects_composed
+    operation = 'boolean' if type(expected) is bool else 'number'
+    assert reading.paths[0].returned == Arithmetic(operation, (expected,))
+
+
+@pytest.mark.parametrize('keys,expected', [(frozenset(), 0.), (frozenset({65}), 7.)])
+def test_supplied_input_context_reaches_numeric_gain_as_an_actual_number(keys, expected):
+    body = _push('this')+b'\x1c'+_push('pending', 7, 65, 1, 'Key')+b'\x1c'+_push('isDown')+b'\x52\x0c\x4f\0'
+    reading = read_flash_method(_binding(body), held_codes=keys)
+    assert reading.effects_composed and not reading.paths[0].calls
+    assert reading.paths[0].writes[0].value == Arithmetic('number', (expected,))
+    assert reading.paths[0].writes[0].invocation.held_codes == keys
+
+
+def test_unknown_input_cannot_receive_a_numeric_gain_from_a_hypothetical_context():
+    from core.perception.symbolic_motion_in_flash_methods import _source_boolean_arithmetic_invariant
+
+    body = _push('this')+b'\x1c'+_push('pending', 7, 65, 1, 'Key')+b'\x1c'+_push('isDown')+b'\x52\x0c\x4f\0'
+    reading = read_flash_method(_binding(body))
+    assert reading.complete and not reading.effects_composed and reading.paths[0].calls
+    assert reading.paths[0].writes[0].value.operation == 'mul'
+    assert _source_boolean_arithmetic_invariant() == ()

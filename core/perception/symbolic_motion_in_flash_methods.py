@@ -18,6 +18,7 @@ from core.perception.flash_actions_with_source import (
     ActionFunction,
     ActionInstruction,
     ActionStream,
+    parse_action_stream,
 )
 from core.verify import invariant
 
@@ -188,7 +189,10 @@ def _calculation(operation: str, *values: Arithmetic) -> Arithmetic:
     if operation == 'not':
         truth = _boolean(values[0])
         return _literal(not truth) if truth is not None else Arithmetic(operation, values)
-    numbers = tuple(_number(value) for value in values)
+    numeric = operation in {'add', 'sub', 'mul', 'div', 'mod', 'neg', 'lt', 'gt',
+                            'cos', 'sin', 'sqrt', 'abs', 'round', 'atan2', 'int'}
+    numbers = tuple(float(value.arguments[0]) if numeric and value.operation == 'boolean'
+                    else _number(value) for value in values)
     if all(value is not None for value in numbers):
         a, b = numbers[0], numbers[1] if len(numbers) > 1 else None
         choices = {'add': lambda: a + b, 'sub': lambda: a - b, 'mul': lambda: a * b,
@@ -627,4 +631,19 @@ def _source_deletion_invariant() -> tuple:
     assert _get(state, 'body.x.child', {'body.x.child': 9.}).operation == 'after deletion'
     reading = FlashMethodReading('method', (_method_path(state, result),))
     assert reading.complete and not reading.effects_composed and reading.paths[0].deletions
+    return ()
+
+
+@invariant('perception.source_boolean_arithmetic_keeps_type_boundaries', scope='perception',
+           owner='core/perception/symbolic_motion_in_flash_methods.py', observational=False)
+def _source_boolean_arithmetic_invariant() -> tuple:
+    stream = parse_action_stream(b'\x96\x07\x00\x05\x00\x07\x00\x00\x00\x00\x00')
+    assert stream.complete
+    false, zero = stream.instructions[0].operands
+    assert false.kind == 'boolean' and type(false.value) is bool
+    assert zero.kind == 'integer' and type(zero.value) is int
+    assert _calculation('mul', _literal(4), _literal(True)) == _literal(4)
+    assert _calculation('mul', _literal(4), _literal(False)) == _literal(0)
+    assert _calculation('strict eq', _literal(False), _literal(0)) == _literal(False)
+    assert _calculation('mul', _literal(4), Arithmetic('reference', ('flag',))).operation == 'mul'
     return ()

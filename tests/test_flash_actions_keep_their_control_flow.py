@@ -23,6 +23,20 @@ def _function(name: str = "", body: bytes = b"\0", params: tuple[str, ...] = ())
     return _action(0x9B, header) + body
 
 
+@pytest.mark.parametrize('value', [0, 1])
+def test_boolean_payload_retains_its_type_beside_equal_integer_values(value):
+    got = parse_action_stream(_action(0x96, b'\x05'+bytes((value,))+b'\x07'+struct.pack('<i', value))+b'\0')
+    assert got.complete
+    flag, number = got.instructions[0].operands
+    assert flag.kind == 'boolean' and type(flag.value) is bool and flag.value == bool(value)
+    assert number.kind == 'integer' and type(number.value) is int and number.value == value
+
+
+def test_a_nonboolean_byte_cannot_be_coerced_to_a_true_payload():
+    got = parse_action_stream(_action(0x96, b'\x05\x02')+b'\0')
+    assert not got.complete and any('invalid boolean' in issue.reason for issue in got.issues)
+
+
 def test_branch_addresses_use_the_end_of_the_encoded_record() -> None:
     data = _action(0x9D, struct.pack("<h", 1)) + b"\x06\x07\0"
     got = parse_action_stream(data, source="frame-at-80", base_offset=80)
