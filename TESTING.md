@@ -11,6 +11,8 @@ make test                           # the full suite, 6 bounded chunks
 
 Always use the chunk runner for tests. Running all tests at once uses too much memory and crashes at around 83%. This is a known issue, and trying again won't fix it. Running `make test` uses `tools/run_test_chunks.py` to break the work into pieces. You can use `--continue-on-failure` to find all errors instead of stopping at the first one. Use `--only-chunks 5,6` to pick up where a run left off.
 
+The number of chunks is a memory budget, not a constant. Six chunks (about 743 files a pytest process) suit an idle host. With her 27B model resident, or a training run holding memory, six chunks get the runner itself killed, and its log then holds only the chunk header, because each chunk's output was buffered in the process that died. Check free memory first; with the 27B up, use `--chunks 40` (about 112 files a chunk). `/tmp/aura_test_chunks_progress.log` names the chunk that was running, and `--min-free-gb N` refuses to start rather than gamble.
+
 Remember this rule: **if a test fails when run with others but passes when run alone, it is broken because it depends on the order of tests, not because it is a random error.** The test runner checks for this and reports these errors clearly so they cannot be ignored.
 
 ## Production Attestation (updated 2026-04-29)
