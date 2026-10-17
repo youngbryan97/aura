@@ -131,8 +131,55 @@ def _live_tokenizer():
             return tokenizer
     # not a failure: no client means no tokenizer, and the caller counts its own way.
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return _cortex_tokenizer()
+    return _cortex_tokenizer()
+
+
+class _CountsTokens:
+    """A tokenizer file read for counting: ``encode`` gives the token ids her model would read."""
+
+    def __init__(self, tokenizer: Any) -> None:
+        self._tokenizer = tokenizer
+
+    def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+        return list(self._tokenizer.encode(str(text), add_special_tokens=add_special_tokens).ids)
+
+
+_COUNTING_TOKENIZERS: dict[str, Any] = {}
+
+
+def _cortex_tokenizer():
+    """Her cortex's own tokenizer, read from its model folder in this process; None when it cannot be read.
+
+    The client in this process has no tokenizer (her model's lives in the
+    worker), so every count here was the heuristic: about three characters a
+    token. Her tokenizer writes a number one digit a token, and live on 17
+    October a conversation of date arithmetic, 10,354 characters, was 8,421
+    tokens: counted as about 3,450, it was sent to a lane that admits 8,192,
+    and the worker refused it. Read once a model folder, for counting only.
+    """
+    try:
+        from pathlib import Path
+
+        from core.brain.llm.model_registry import get_active_cortex_spec
+
+        spec = get_active_cortex_spec()
+        if spec is None:
+            return None
+        path = Path(spec.model_path) / "tokenizer.json"
+        key = str(path)
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         return None
-    return None
+    if key not in _COUNTING_TOKENIZERS:
+        _COUNTING_TOKENIZERS[key] = None
+        try:
+            from tokenizers import Tokenizer
+
+            if path.exists():
+                _COUNTING_TOKENIZERS[key] = _CountsTokens(Tokenizer.from_file(key))
+        except Exception as exc:  # noqa: BLE001 - the tokenizers library raises its own error for an unreadable file
+            logger.info("Counting tokens by the heuristic: her tokenizer could not be read (%s).", exc)
+    return _COUNTING_TOKENIZERS[key]
 
 
 class ContextPruner:
