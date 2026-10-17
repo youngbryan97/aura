@@ -29,6 +29,7 @@ import logging
 import math
 import statistics
 from collections import Counter, defaultdict, deque
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -145,10 +146,16 @@ class _Speeds:
     interrupted: set[tuple[str, float]] = field(default_factory=set)
     ended: set[tuple[str, float]] = field(default_factory=set)
     sealed_by_gap: set[tuple[str, float]] = field(default_factory=set)
+    #: Later continuous intervals belong to the original physical press.
+    resumed_samples: dict[tuple[str, float], list[tuple[float, float, float]]] = field(default_factory=dict)
+    resumed_pushes: dict[tuple[str, float], tuple[tuple[float, float, float], ...]] = field(default_factory=dict)
+    resumed_through: dict[tuple[str, float], float] = field(default_factory=dict)
 
     def end(self, key: str, began: float) -> None:
         """Keep the measured prefix; later inputs cannot extend or contradict it."""
         self.sealed_by_gap.discard((key, began))
+        self.resumed_samples.pop((key, began), None)
+        self.resumed_through.pop((key, began), None)
         self.ended.add((key, began))
         if len(self.ended) > 80:
             oldest = min(self.ended, key=lambda value: value[1])
@@ -163,6 +170,7 @@ class _Speeds:
         gap. A contradiction before the input ends still retires the trial.
         """
         press = (key, began)
+        self.resumed_samples.pop(press, None)
         if press in self.ended:
             if not contradicted or press not in self.sealed_by_gap:
                 return
@@ -172,11 +180,48 @@ class _Speeds:
             return
         if contradicted:
             self.interrupted.add(press)
+            self.resumed_pushes.pop(press, None)
+            self.resumed_through.pop(press, None)
         self.sealed_by_gap.discard(press)
         if len(self.interrupted) > 80:
             self.interrupted.remove(min(self.interrupted, key=lambda value: value[1]))
         for kept in (self.by_press, self.timed, self.pinned_in):
             kept.pop(press, None)
+
+    def _resume_sample(self, press: tuple[str, float], when: float | None, vx: float, vy: float, *,
+                       settled: bool, pinned: bool) -> None:
+        """Keep a later interval separate; never create a second input receipt."""
+        for kept in (self.resumed_samples, self.resumed_pushes, self.resumed_through):
+            for old in tuple(kept):
+                if old not in self.timed:
+                    del kept[old]
+            while len(kept) > 80:
+                del kept[min(kept, key=lambda value: value[1])]
+        if when is None or not math.isfinite(when):
+            self.resumed_samples.pop(press, None)
+            return
+        retained = self.resumed_pushes.get(press, self.timed.get(press, ()))
+        through = self.resumed_through.get(press, retained[-1][0] if retained else press[1])
+        if when <= max(press[1], through):
+            return
+        self.resumed_through[press] = when
+        if not settled or pinned or not all(math.isfinite(v) for v in (vx, vy)):
+            self.resumed_samples.pop(press, None)
+            return
+        samples = self.resumed_samples.setdefault(press, [])
+        samples.append((when, vx, vy))
+        del samples[:-128]
+        if len(samples) >= PUSH_PICTURES and samples[-1][0]-samples[0][0] >= PUSH_OVER_S:
+            best = self.resumed_pushes.get(press, ())
+            if (not best or len(samples) > len(best)
+                    or len(samples) == len(best) and samples[-1][0]-samples[0][0] > best[-1][0]-best[0][0]):
+                self.resumed_pushes[press] = tuple(samples)
+
+    def push_samples(self, press: tuple[str, float]) -> Sequence[tuple[float, float, float]]:
+        """One continuous interval per physical input; missing stretches are never joined."""
+        candidates = [samples for samples in (self.timed.get(press, ()), self.resumed_pushes.get(press, ()))
+                      if len(samples) >= PUSH_PICTURES and samples[-1][0]-samples[0][0] >= PUSH_OVER_S]
+        return max(candidates, key=lambda samples: (len(samples), samples[-1][0]-samples[0][0])) if candidates else ()
 
     def _has_measured_prefix(self, press: tuple[str, float]) -> bool:
         """Two finite settled samples must have distinct measured times within this press."""
@@ -191,8 +236,13 @@ class _Speeds:
     def add(self, key: str, vx: float, vy: float, *, press: float | None = None, pinned: bool = False,
             settled: bool = True, position: tuple[float, float] | None = None, at: float | None = None,
             when: float | None = None) -> None:
-        if press is not None and ((key, press) in self.interrupted or (key, press) in self.ended):
-            return
+        if press is not None:
+            if (key, press) in self.interrupted:
+                return
+            if (key, press) in self.ended:
+                if (key, press) in self.sealed_by_gap:
+                    self._resume_sample((key, press), when, vx, vy, settled=settled, pinned=pinned)
+                return
         if press is not None and when is not None:
             earlier = self.timed.get((key, press), ())
             if not math.isfinite(when) or earlier and when <= earlier[-1][0]:
@@ -243,7 +293,8 @@ class _Speeds:
         none of them by its pace, and she never found it was hers.
         """
         out: dict[str, list[tuple[float, float]]] = defaultdict(list)
-        for (key, _began), samples in self.timed.items():
+        for key, began in self.timed:
+            samples = self.push_samples((key, began))
             if len(samples) < PUSH_PICTURES or samples[-1][0] - samples[0][0] < PUSH_OVER_S:
                 continue
             middle = statistics.fmean(sample[0] for sample in samples)
@@ -996,6 +1047,9 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
             if best != self.number:
                 self.carried = self._by_thing[best].carried()
                 self._hers.timed.update({press: list(samples) for press, samples in self._by_thing[best].timed.items()})
+                self._hers.resumed_pushes.update(self._by_thing[best].resumed_pushes)
+                self._hers.ended.update(self._by_thing[best].ended)
+                self._hers.sealed_by_gap.update(self._by_thing[best].sealed_by_gap)
             self.number = best
             self.kind = moves.things[best].kind
         elif self.number not in moves.things and self.kind is not None:
@@ -1425,4 +1479,20 @@ def _measured_prefix_invariant() -> tuple:
     assert speeds.ratio()[1] == 60.
     speeds.unseen("a", 1., contradicted=True)
     assert ("a", 1.) not in speeds.by_press
+    return ()
+
+
+@invariant('agency.later_control_intervals_keep_one_input', scope='agency',
+           owner='core/agency/which_one_answers_to_her.py', observational=False)
+def _later_control_interval_invariant() -> tuple:
+    record = _Speeds()
+    for at in (1.25, 1.3):
+        record.add('q', 3., 0., press=1., when=at)
+    record.unseen('q', 1.)
+    for at in (1.7, 1.8, 1.9, 2.):
+        record.add('q', 40.*at, 0., press=1., when=at)
+    assert len(record.pushes()['q']) == 1 and math.isclose(record.pushes()['q'][0][0], 40.)
+    assert record.push('q') is None and len(record.by_press[('q', 1.)]) == 2
+    record.unseen('q', 1., contradicted=True)
+    assert not record.pushes()
     return ()

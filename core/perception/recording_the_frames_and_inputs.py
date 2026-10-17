@@ -358,8 +358,12 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
         epoch=hers.identification.epoch, trying=run.held_trying, held=run.held, held_since=run.held_since,
         carried=hers.carried, known_controls=list(hers.keys_that_move_her(run.keys)),
         measured_pushes={key: hers.push_of(key) for key in hers._hers.pushes()},
+        owned_control_intervals=[dict(key=key, began=began, samples=len(samples),
+            times=[sample[0] for sample in samples], later=samples is hers._hers.resumed_pushes.get((key, began)))
+            for key, began in list(hers._hers.timed)[-32:] if (samples := hers._hers.push_samples((key, began)))],
         observations=[dict(number=int(t.number), born=float(t.born), seen=float(t.seen), status=motion_status(t, at),
-                           position=[float(t.x), float(t.y)]) for t in moves.things.values()], evidence=evidence,
+                           position=[float(t.x), float(t.y)], velocity=[float(t.vx), float(t.vy)],
+                           size=[float(t.w), float(t.h)]) for t in moves.things.values()], evidence=evidence,
         source_references=_source_reference_snapshot(moves)))
 
 

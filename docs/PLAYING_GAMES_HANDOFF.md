@@ -1047,3 +1047,29 @@ original CPU run must prove actual catalog and source publication.
 Clock-boundary gates: smoke 165 passed, one skipped; lint, compile,
 layering, DEPS consistency and writing passed. No native restart or G09
 intervention was performed.
+
+## Later continuous control intervals, 16 October 2026
+
+The fresh `68f5b8f65` CPU browser attempt proves current source publication
+in the actor: 33 of 67 observations had fresh geometry, 23 had object-bound
+source geometry, and 31 selected the independently identified body. It still
+lost with zero landings and zero recorded goal-directed choices. The final
+active image was independently viewed. This is browser evidence, not native
+demo proof. The classical boundary refused four MLX imports and reported no
+loaded model backend. The recording closed without drops.
+
+The code had another measurement gate: a missing picture sealed the first
+two-sample prefix and discarded all later samples from that held input.
+Acceleration needs four continuous samples. Later intervals can now satisfy
+that requirement separately, while the press remains one independent input.
+The original prefix, input deadline and control budget stay intact. Input
+completion and contradictions retain their distinct meanings. The final
+focused group passed 176 checks, including normal control identification and
+the actor's recorded interval selection. See
+`docs/evidence/steering/2026-10-16-control-intervals-after-missing-pictures.md`.
+
+The next browser run must measure the gameplay effect. Also inspect why the
+known successful title button was omitted from exploration after the loss:
+novelty scoring can supply only untried actions to the later navigation
+weights. Source contact/role binding and independently witnessed native play
+remain open. G09, holdouts and the resident lifecycle remain untouched.

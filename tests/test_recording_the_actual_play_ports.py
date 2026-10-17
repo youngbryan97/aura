@@ -158,6 +158,33 @@ async def test_actual_control_sample_counts_remain_separate_from_input_delivery(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('initial_count', [2, 6])
+async def test_the_owned_interval_record_identifies_the_interval_actually_selected(tmp_path, initial_count):
+    from core.agency.which_one_answers_to_her import WhichIsHers
+    from core.perception.recording_the_frames_and_inputs import record_control_observation
+
+    hers = WhichIsHers()
+    record = hers._hers
+    original_times = [1.25+i*.1 for i in range(initial_count)]
+    for at in original_times:
+        record.add('q', at*30., 0., press=1., when=at)
+    record.unseen('q', 1.)
+    later_times = [2.1, 2.2, 2.3, 2.4]
+    for at in later_times:
+        record.add('q', at*40., 0., press=1., when=at)
+    directory = tmp_path / 'owned-interval'
+    async with record_frames_and_inputs(directory):
+        record_control_observation(SimpleNamespace(held_trying=True, held='q', held_since=1., keys=['q']),
+                                   SimpleNamespace(things={}), hers, 3.)
+        record.timed.clear()
+        record.resumed_pushes.clear()
+    interval, = _events(directory)[0]['owned_control_intervals']
+    assert interval['key'] == 'q' and interval['began'] == 1.
+    assert interval['times'] == (later_times if initial_count == 2 else original_times)
+    assert interval['later'] is (initial_count == 2)
+
+
+@pytest.mark.asyncio
 async def test_actual_source_geometry_is_copied_with_its_original_capture_not_a_control_role(tmp_path):
     from core.agency.which_one_answers_to_her import WhichIsHers
     from core.perception.recording_the_frames_and_inputs import record_control_observation

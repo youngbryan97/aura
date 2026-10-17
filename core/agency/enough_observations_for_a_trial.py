@@ -21,7 +21,7 @@ def trial_has_its_observations(trial: Any, hers: Any, moves: Any, at: float) -> 
     press = trial.key, trial.began
     if press in hers._hers.interrupted:
         return False
-    samples = hers._hers.timed.get(press, ())
+    samples = hers._hers.push_samples(press)
     if len(samples) < PUSH_PICTURES or any(not all(math.isfinite(v) for v in sample) for sample in samples):
         return False
     times = [sample[0] for sample in samples]

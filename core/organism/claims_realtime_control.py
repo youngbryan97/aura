@@ -23,6 +23,7 @@ def _play_execution_claims() -> tuple:
     from core.agency.which_one_answers_to_her import (
         _control_sample_custody_invariant,
         _inertial_axis_resolution_invariant,
+        _later_control_interval_invariant,
     )
     from core.capabilities.browser_graphics_policy import _software_graphics_invariant
     from core.perception.a_material_observation_from_its_parts import _material_parts_invariant
@@ -50,7 +51,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('optional_reference_attention_keeps_fair_audits', 'core/perception/source_geometry_in_current_pixels.py',
+    return (('later_control_intervals_keep_one_input', 'core/agency/which_one_answers_to_her.py',
+             'tests/test_later_control_intervals_keep_one_physical_press.py', lambda: _later_control_interval_invariant() == (),
+             'A later continuous measured interval can supply acceleration samples for the same physical input, without joining a missing stretch or counting another independent press.'),
+            ('optional_reference_attention_keeps_fair_audits', 'core/perception/source_geometry_in_current_pixels.py',
              'tests/test_fresh_source_geometry_reaches_ordinary_observation.py', lambda: _reference_attention_invariant() == (),
              'Other observation channels supply priority hints for optional reference work; missing geometry receives extra work while fair audits remain available and no old measurement becomes current evidence.'),
             ('fresh_source_geometry_keeps_the_consumed_capture', 'core/perception/source_geometry_in_current_pixels.py',
