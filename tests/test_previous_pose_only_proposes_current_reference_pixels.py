@@ -32,6 +32,29 @@ def test_a_previous_pose_locates_material_again_in_fresh_captured_bytes():
     assert found[0].reference_sha256 == poses[0].reference_sha256
 
 
+def test_motion_beyond_the_local_window_still_requires_and_can_find_current_material():
+    ref, picture, poses = _scene()
+    current = np.zeros_like(picture)
+    current[65:105, 112:160] = ref[..., :3]
+    found = near_reference_appearances(current, ref, poses)
+    assert len(found) == 1 and len(found[0].source_points) >= 6
+    assert math.dist(found[0].project((11., 13.)), (123., 78.)) < .3
+    assert found[0].picture_sha256 == _digest(current) != poses[0].picture_sha256
+    assert not {'number', 'born', 'controlled', 'role'} & vars(found[0]).keys()
+
+
+def test_a_wider_search_keeps_two_distant_current_copies_separate():
+    ref, _, poses = _scene()
+    current = np.zeros((180, 300, 3), np.uint8)
+    current[60:100, 140:188] = ref[..., :3]
+    current[120:160, 220:268] = ref[..., :3]
+    found = near_reference_appearances(current, ref, poses)
+    assert len(found) == 2
+    expected = [(151., 73.), (231., 133.)]
+    for point in expected:
+        assert min(math.dist(candidate.project((11., 13.)), point) for candidate in found) < .3
+
+
 def test_the_previous_pose_cannot_publish_material_that_disappeared():
     ref, picture, poses = _scene()
     assert near_reference_appearances(np.zeros_like(picture), ref, poses) == ()
@@ -69,6 +92,16 @@ def test_a_bounded_proposal_bank_refuses_extra_work():
     ref, picture, poses = _scene()
     assert near_reference_appearances(picture, ref, poses*5) == ()
     assert near_reference_appearances(picture, ref, list(poses)) == ()
+
+
+def test_a_failed_local_search_keeps_the_wider_fine_work_bounded(monkeypatch):
+    from core.perception import reference_material_near_a_measured_pose as module
+
+    ref, picture, poses = _scene()
+    attempts = []
+    monkeypatch.setattr(module, '_supported_fit', lambda *args: attempts.append(args[2:]) or None)
+    assert near_reference_appearances(np.zeros_like(picture), ref, poses*4) == ()
+    assert 0 < len(attempts) <= 24
 
 
 @pytest.mark.parametrize('shape', [(16, 4096), (4096, 16)])

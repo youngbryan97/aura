@@ -1145,3 +1145,15 @@ Final: 55 focused checks passed, smoke passed 165 with one skip, and lint,
 compilation, layering, dependency consistency and writing passed. The
 remaining work is current visual continuity into independently proven
 control, source contact/role binding and ordinary native-app proof.
+
+The readiness checkpoint was merged with the concurrent main commits and
+pushed at `a40ac6c7d`. The combined revision passed 55 focused checks and
+smoke (165 passed, one skipped). The protected source checkout was not
+updated. A point-capacity prototype did not improve recorded tracking and
+was rejected. The next change permits bounded wider reference reacquisition
+when the local window has no qualified fit. Two large-displacement cases
+failed before it; 50 focused checks passed afterward. A paired 59-picture
+replay found one reference on 16 captures instead of eight. Another
+reference was never seeded, so its fallback remains unmeasured. See
+`docs/evidence/steering/2026-10-17-reference-reacquisition-outside-a-local-window.md`.
+No gameplay improvement or controlled identity is established by that replay.
