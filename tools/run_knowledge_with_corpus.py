@@ -27,8 +27,14 @@ it (numbers compared as numbers), and as wrong otherwise. OpenAI grades with
 a model; this rule is stricter about phrasing and is reported as it is.
 Questions are split into halves by a hash of their text.
 
+MMLU-Pro's knowledge subjects run the same arms (``--benchmark mmlu_pro``, ``--categories``): the lookup is
+made with the question alone, not its instructions or options, and every arm is graded by MMLU-Pro's own
+reading of the chosen letter (tools/run_general_reasoning.answer_of); two answers agree when they choose the
+same letter.
+
 Usage:
     run_knowledge_with_corpus.py --part development --count N --seed S --output DIR [--batch 8] [--max-tokens 32768]
+        [--benchmark simpleqa|mmlu_pro] [--categories history,psychology,...]
 """
 
 from __future__ import annotations
@@ -61,6 +67,41 @@ def tasks(part: str) -> list[dict[str, Any]]:
                 for r in csv.DictReader(handle)]
     ordered = sorted(rows, key=lambda r: r["id"])
     return ordered[: len(ordered) // 2] if part == "development" else ordered[len(ordered) // 2:]
+
+
+#: MMLU-Pro's subjects whose questions turn on what is known rather than on a computation.
+KNOWLEDGE_CATEGORIES = ("history", "psychology", "health", "law", "philosophy", "other")
+
+
+def mmlu_pro_knowledge_tasks(part: str, categories: tuple[str, ...]) -> list[dict[str, Any]]:
+    """MMLU-Pro's questions of ``categories``, each with the question alone as what is looked up."""
+    from tools.run_general_reasoning import mmlu_pro_tasks
+
+    out = []
+    for task in mmlu_pro_tasks(part):
+        if task["group"] not in categories:
+            continue
+        body = task["request"].split("Question:\n", 1)[-1].split("\nOptions:", 1)[0].strip()
+        out.append({**task, "lookup": body})
+    return out
+
+
+def grade_letter(reply: str, gold: str) -> str:
+    """MMLU-Pro: "correct" when the chosen letter is the gold one, "declined" when none is chosen and the reply
+    says it does not know, "wrong" otherwise."""
+    from tools.run_general_reasoning import answer_of
+
+    chosen = answer_of("mmlu_pro", reply)
+    if chosen:
+        return "correct" if chosen == str(gold) else "wrong"
+    return "declined" if _DECLINED.search(final_line(reply)) else "wrong"
+
+
+def agree_letter(first: str, second: str) -> bool:
+    from tools.run_general_reasoning import answer_of
+
+    a, b = answer_of("mmlu_pro", first), answer_of("mmlu_pro", second)
+    return bool(a) and a == b
 
 
 def _words(text: str) -> list[str]:
@@ -100,7 +141,14 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=32768)
     parser.add_argument("--model", type=Path,
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
+    parser.add_argument("--benchmark", choices=("simpleqa", "mmlu_pro"), default="simpleqa")
+    parser.add_argument("--categories", default=",".join(KNOWLEDGE_CATEGORIES))
     args = parser.parse_args()
+    if args.benchmark == "mmlu_pro":
+        chosen_tasks = mmlu_pro_knowledge_tasks(args.part, tuple(c.strip() for c in args.categories.split(",")))
+        grade_one, agree_two = grade_letter, agree_letter
+    else:
+        chosen_tasks, grade_one, agree_two = tasks(args.part), grade, agree
 
     from core.config import config
     from core.knowledge.corpus_grounding import corpus_grounding_for
@@ -112,7 +160,7 @@ def main() -> int:
 
     output = args.output.expanduser()
     rows = Rows(output)
-    chosen = sample(tasks(args.part), args.count, args.seed, set())
+    chosen = sample(chosen_tasks, args.count, args.seed, set())
     output.mkdir(parents=True, exist_ok=True)
     (output / "task_ids.txt").write_text("".join(f"{t['id']}\n" for t in chosen), encoding="utf-8")
     index = PassageIndex()
@@ -120,12 +168,14 @@ def main() -> int:
     for task in chosen:
         careful = None
         if rows.get("lookup", task["id"]) is None:
-            careful = passages_about(task["request"]) or list(corpus_grounding_for(task["request"]).passages)
+            asked = task.get("lookup") or task["request"]
+            careful = passages_about(asked) or list(corpus_grounding_for(asked).passages)
             rows.put("lookup", task["id"], {"passages": [f"{t}: {x}" for t, x in careful]})
         if with_index and rows.get("lookup_fused", task["id"]) is None:
+            asked = task.get("lookup") or task["request"]
             if careful is None:
-                careful = passages_about(task["request"]) or list(corpus_grounding_for(task["request"]).passages)
-            every = [(p.title, p.paragraph) for p in index.search(task["request"], limit=max(1, len(careful)) * 4,
+                careful = passages_about(asked) or list(corpus_grounding_for(asked).passages)
+            every = [(p.title, p.paragraph) for p in index.search(asked, limit=max(1, len(careful)) * 4,
                                                                   deadline_s=SEARCH_DEADLINE_S)]
             both = fused([careful, every], limit=max(1, len(careful))) if (careful or every) else []
             rows.put("lookup_fused", task["id"], {"passages": [f"{t}: {x}" for t, x in both]})
@@ -172,16 +222,16 @@ def main() -> int:
     for task in chosen:
         key = task["id"]
         ordinary, ground, sampled_record = (rows.get(s, key) for s in ("ordinary", "grounded", "grounded_sampled"))
-        verdicts = {"ordinary": grade(ordinary["public_text"], task["truth"]),
-                    "grounded": grade(ground["public_text"], task["truth"]),
-                    "declining": (grade(ground["public_text"], task["truth"])
-                                  if agree(ground["public_text"], sampled_record["public_text"]) else "declined")}
+        verdicts = {"ordinary": grade_one(ordinary["public_text"], task["truth"]),
+                    "grounded": grade_one(ground["public_text"], task["truth"]),
+                    "declining": (grade_one(ground["public_text"], task["truth"])
+                                  if agree_two(ground["public_text"], sampled_record["public_text"]) else "declined")}
         tokens["ordinary"] += ordinary["generated_tokens"]
         tokens["grounded"] += ground["generated_tokens"]
         tokens["declining"] += ground["generated_tokens"] + sampled_record["generated_tokens"]
         if with_index:
             fused_record = rows.get("grounded_fused", key)
-            verdicts["grounded_fused"] = grade(fused_record["public_text"], task["truth"])
+            verdicts["grounded_fused"] = grade_one(fused_record["public_text"], task["truth"])
             tokens["grounded_fused"] += fused_record["generated_tokens"]
         for arm, verdict in verdicts.items():
             counts[arm][verdict] += 1
