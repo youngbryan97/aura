@@ -75,3 +75,25 @@ def test_a_bare_plan_with_no_numbered_steps_is_read_whole():
 
     bare = "drive truck_0 from location_0_1 to location_0_0 in city_0\nload package_1 into truck_0 at location_0_0"
     assert numbered_plan(bare) == bare
+
+
+def test_a_plan_written_after_reasoning_is_read_from_its_run_of_action_lines():
+    """G09 attempt 6: her reasoning before a valid Depots plan was read as steps, and the plan graded invalid."""
+    from tools.planbench_restated import action_lines_plan
+
+    reply = (
+        "crate2 is on crate0, so I must lift crate2 from crate0 at depot2 first.\n\n"
+        "**Plan:**\n"
+        "Use hoist2 to lift crate2 from crate0 at depot2\n"
+        "- hoist2 available ✓\n"
+        "Use hoist2 to load crate2 into truck0 at depot2\n\n"
+        "| 3 | Drive truck0 from depot2 to depot0 |\n"
+        "[PLAN END]\n"
+        "Use hoist0 to unload crate2 from truck0 at depot0"
+    )
+    assert action_lines_plan(reply, "depots").splitlines() == [
+        "Use hoist2 to lift crate2 from crate0 at depot2",
+        "Use hoist2 to load crate2 into truck0 at depot2",
+        "Drive truck0 from depot2 to depot0",
+    ]
+    assert action_lines_plan("I could not find a plan.", "depots") == ""

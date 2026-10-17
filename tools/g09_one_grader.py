@@ -12,6 +12,10 @@ G09 attempt 3 graded her drafts with the harness's graders and the kept answers 
 * PlanBench: the restated validator (tools/planbench_restated.grade), on the plan up to "[PLAN END]", or on
   the numbered steps of a reply that does not write the marker (tools/planbench_restated.numbered_plan).
 
+Version 3 also reads a plan written after reasoning as the last run of lines that each name one action
+(tools/planbench_restated.action_lines_plan), when PlanBench's reader finds none that reaches the goal:
+attempt 6's Depots rows showed five valid plans graded invalid because her reasoning was read as steps.
+
 Version 2 (attempt 6) reads what attempt 5's rows showed version 1 misreading, for both arms: a base written
 as a subscript, a yes or no opening a sentence, a factorization where the kind lists its primes, and a plan
 not closed with "[PLAN END]" (docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md).
@@ -35,7 +39,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-GRADER = "one_grader_v2"
+GRADER = "one_grader_v3"
 
 
 def one_grade(domain: str, text: str, truth: object) -> bool:
@@ -53,9 +57,12 @@ def one_grade(domain: str, text: str, truth: object) -> bool:
         answer = extract_answer(text) or text.strip()
         return bool(answer) and bool(matches(answer, str(truth)))
     if domain in PLANBENCH:
-        from tools.planbench_restated import grade, numbered_plan
+        from tools.planbench_restated import action_lines_plan, grade, numbered_plan
 
-        return bool(grade(text if "[PLAN END]" in text else numbered_plan(text), truth)[0])
+        if grade(text if "[PLAN END]" in text else numbered_plan(text), truth)[0]:
+            return True
+        steps = action_lines_plan(text, str(truth["domain"]))
+        return bool(steps) and bool(grade(steps, truth)[0])
     if domain in ("math", "aime"):
         from tools.run_g09_organ import grade_math
 
