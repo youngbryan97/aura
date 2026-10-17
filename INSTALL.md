@@ -125,9 +125,9 @@ There is no `AURA_HOST` environment variable; use the `--host` command-line flag
 | `AURA_INTERNAL_ONLY` | from security profile | Set to `1` to reject requests from outside localhost. |
 | `AURA_API_TOKEN` | unset | Secret token required to authenticate API requests. |
 | `AURA_LORA_PATH` | auto-detected | Path to the directory containing fine-tuned LoRA weights. |
-| `AURA_MODEL` | `Aura-Cortex` | Main language model (fused Qwen3.8-27B). |
-| `AURA_DEEP_MODEL` | auto-detected (72B) | Larger model used for complex reasoning tasks. |
-| `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Fast fallback model: 2-bit quantized Qwen3.5 27B, requiring 8.6 GB RAM (replaced 9B on 2026-09-20; see `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md`). |
+| `AURA_MODEL` | `Aura-Cortex` | Main language model (`Aura-Qwen3.8-27B-persona`, a persona fine-tune of the fused Qwen3.8-27B). |
+| `AURA_DEEP_MODEL` | unset (deep work runs on the Cortex) | A second local model for hard reasoning, admitted only with an attested qualification certificate (`AURA_DEEP_SPECIALIST_CERTIFICATE`); see `docs/OPERATOR_GUIDE.md`. |
+| `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Background lane (heartbeat, telemetry, background tasks), lazy-loaded: 2-bit quantized Qwen3.5 27B, requiring 8.6 GB RAM (replaced 9B on 2026-09-20; see `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md`). |
 | `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | Emergency CPU fallback model. Kept in the same model family as Cortex to ensure consistent output style during speculative decoding. |
 | `AURA_LOCAL_BACKEND` | `mlx` | Local inference engine (Apple MLX framework). Production Aura always uses this backend. |
 | `AURA_SUBSTRATE_PRIMARY` | `1` | Check continuous neural state before falling back to standard text tokens. |

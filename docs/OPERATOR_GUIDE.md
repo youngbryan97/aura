@@ -133,6 +133,8 @@ export AURA_LLM__MLX_DEEP_MODEL_PATH=/Users/bryan/Desktop/aura/models/DeepSeek-R
 
 Keep this separate from the primary 27B desktop Cortex unless a live proof run shows the alternate lane preserves Aura's conversational personality, fits within system RAM limits, and supports all internal cognitive routing.
 
+Setting these variables does not admit the model on its own. A second deep model is used only after its artifact has been measured and an attested qualification certificate (`AURA_DEEP_SPECIALIST_CERTIFICATE`) verifies against a pinned key (`AURA_DEEP_SPECIALIST_TRUST_ROOT`); until then deep work stays on the Cortex. The rule is in `core/brain/llm/model_registry_deep_solver.py`.
+
 ## Performance tuning
 - There is no Performance settings group. You do not need to configure model parallelism or concurrency settings: one model loads at a time through the GPU semaphore, and the memory monitor decides what stays cached in memory.
 - The memory monitor automatically lowers generation length (`max_tokens`) under RAM pressure and purges GPU memory (VRAM) as pressure climbs. The memory ceilings are set by:
