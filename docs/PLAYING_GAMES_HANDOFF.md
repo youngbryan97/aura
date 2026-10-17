@@ -979,3 +979,21 @@ See the appended creation section in the guarded-source evidence record.
 
 Creation checkpoint gates: smoke 165 passed, one skipped; lint, compile,
 layering, DEPS consistency and writing passed. Native proof remains open.
+
+## In-process imports during CPU probes, 16 October 2026
+
+CPU-only campaigns now scope a known model-backend import boundary around
+lease, preparation and play. Already-loaded backends refuse admission;
+ordinary backend imports fail before package execution. The case retains
+the actual active-boundary report. This complements the existing worker
+prohibition, CPU vision request and software-driver acknowledgement. Its
+scope is this Python interpreter, not arbitrary native code or children.
+
+Focused: 81 passed, two explicit native tests skipped. See
+`docs/evidence/steering/2026-10-16-classical-probe-import-boundary.md`.
+The next measurement is a recorded CPU browser attempt on development
+case 18. Do not run G09 or the ten holdouts, or start/restart native Aura.
+
+Import-boundary gates: smoke 165 passed, one skipped; lint, compile,
+layering, DEPS consistency and writing passed. Governance remains at its
+131 existing regressions, with no baseline update.

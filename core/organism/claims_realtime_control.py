@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.runtime.classical_compute_boundary import _classical_import_invariant
     from core.perception.guarded_effects_in_flash_methods import _guarded_source_graph_invariant
     from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant
     from core.perception.source_geometry_in_current_pixels import _reference_attention_invariant
@@ -57,6 +58,9 @@ def _play_execution_claims() -> tuple:
             ('previous_reference_poses_need_fresh_pixel_support', 'core/perception/reference_material_near_a_measured_pose.py',
              'tests/test_previous_pose_only_proposes_current_reference_pixels.py', lambda: _near_reference_material_invariant() == (),
              'Previous geometry can propose a bounded fresh reference fit; current correspondence and reverse-patch checks must qualify again and missing material remains unavailable.'),
+            ('classical_probes_refuse_known_model_backend_imports', 'core/runtime/classical_compute_boundary.py',
+             'tests/test_classical_compute_probe_refuses_inprocess_backends.py', lambda: _classical_import_invariant() == (),
+             'A scoped classical Python probe refuses known model-backend imports and preloaded backends; this interpreter boundary complements worker admission and supplies no claim about native code or arbitrary child interpreters.'),
             ('guarded_source_graph_preserves_memory_and_control', 'core/perception/guarded_effects_in_flash_methods.py',
              'tests/test_guarded_source_effects_do_not_enumerate_paths.py', lambda: _guarded_source_graph_invariant() == (),
              'A bounded acyclic source graph shares branch values and retains ordered opaque memory effects; complete instruction coverage cannot certify an executable controller.'),

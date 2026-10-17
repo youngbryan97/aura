@@ -303,13 +303,25 @@ def _arguments(argv: list[str]):
 
 async def main(argv: list[str]) -> list[dict]:
     args, parser, checkpoint = _arguments(argv)
-    from tools.play_campaign_checkpoint import campaign_lease
+    from contextlib import nullcontext
 
-    async with campaign_lease(checkpoint):
-        return await _campaign(args, parser, checkpoint)
+    from core.runtime.classical_compute_boundary import classical_compute_boundary
+
+    with classical_compute_boundary() if args.cpu_only else nullcontext():
+        from tools.play_campaign_checkpoint import campaign_lease
+
+        async with campaign_lease(checkpoint):
+            return await _campaign(args, parser, checkpoint)
 
 
 def _prepare_campaign(args, parser, checkpoint: Path):
+    if args.cpu_only:
+        from core.runtime.classical_compute_boundary import current_classical_boundary
+
+        boundary = current_classical_boundary()
+        if boundary is None:
+            raise RuntimeError('CPU-only campaign requires its in-process compute boundary')
+        boundary.require_intact()
     if args.vision_cpu:
         os.environ['AURA_VISION_CPU_ONLY'] = '1'
     if checkpoint.exists() != args.resume:
@@ -384,6 +396,14 @@ async def _campaign(args, parser, checkpoint: Path) -> list[dict]:
             return {'game': number, 'error': 'no copy that plays here'}
         result = await _one(number, places[number], args.minutes, args.visible, args.trace, graphics_backend=args.graphics,
                             record_interactions=args.record_interactions)
+        if args.cpu_only:
+            from core.runtime.classical_compute_boundary import current_classical_boundary
+
+            boundary = current_classical_boundary()
+            if boundary is None:
+                raise RuntimeError('CPU-only campaign lost its in-process compute boundary')
+            boundary.require_intact()
+            result['compute_boundary'] = boundary.report()
         print(json.dumps({k: result.get(k) for k in ('game', 'minutes', 'runs', 'won', 'error', 'last_seen')}), flush=True)
         return result
 
