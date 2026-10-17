@@ -2041,7 +2041,18 @@ def test_strict_answer_contract_is_deterministic_and_cache_isolated():
     assert '"worker_progress_stale"' in client_source
     assert 'progress_anchor <= 0.0' in client_source
     assert '"recurrent_depth",' in gate_source
-    assert 'and foreground_request and not strict_answer_contract' in client_source
+    # The client once prepended an identity message to every foreground turn
+    # that was not strict, and this matched that guard. 68b6a83b4 removed the
+    # message for every turn, which holds the strict contract and more, so
+    # what is checked now is that no string the client can send carries it.
+    # Parsed, so a comment cannot pass it.
+    import ast as _ast_identity
+
+    client_strings = [
+        node.value for node in _ast_identity.walk(_ast_identity.parse(client_source))
+        if isinstance(node, _ast_identity.Constant) and isinstance(node.value, str)
+    ]
+    assert not any("direct first-person continuity" in text for text in client_strings)
     # The bypass is derived, not spelled. That exact line survives only as a
     # COMMENT above the live one — which reads
     # `... or prompt_cache_bypass`, a predicate that covers the strict
