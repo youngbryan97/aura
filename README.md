@@ -983,8 +983,9 @@ displacement, opposite states move it differently, answers get no worse, and
 her own past replies stay as likely as before. The persona 27B met the first
 four on 13 October 2026 and failed the fifth. So on user turns the second and
 third channels are the ones that run: the seven sampling temperatures logged
-on 16 and 17 October ran from 0.68 to 0.74, and readings of her state appear as
-text when the turn is about her.
+on 16 and 17 October ran from 0.68 to 0.74, and her mood and tone go into the
+prompt as text: a `## LIVE TONE` block was in 37 of the 56 chat prompts logged on
+those two days.
 
 ---
 
