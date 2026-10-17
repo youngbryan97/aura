@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 
-def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, float]:
+def _first_what_goes_on(can_do: Any, telling: dict[str, float], *, available: Any = None) -> dict[str, float]:
     """A menu is read before it is pressed: a click on a label that goes on (Play, Next) before one on a
     label to read (Score), and keys as they were; and on a screen she has been on before, what led on from it then.
 
@@ -20,16 +20,23 @@ def _first_what_goes_on(can_do: Any, telling: dict[str, float]) -> dict[str, flo
     """
     from core.agency.what_i_can_do_here import what_is_clicked
     from core.language.a_way_on import how_much_it_leads_on
+    from core.skills.known_navigation_after_discovery import known_navigation_uses
 
     held = getattr(can_do, "leads", None)
     leads = getattr(held, "how_it_led", lambda _act: 1.0)
     again = getattr(held, "taken_here_to_no_end", lambda _act: 0)
     material = getattr(can_do, 'material_presses', {})
+    # Novelty can omit a control already used successfully. Its recorded
+    # forward use still matters before exploring inputs on that same screen.
+    candidates = getattr(can_do, 'on_screen', ()) if available is None else available
+    useful = known_navigation_uses(can_do, candidates)
+    valued_inputs = {name: max([1., *(telling or {}).values()]) for name in useful}
+    valued_inputs.update(telling or {})
     # What the screen's own words ask to be clicked goes on as surely as a Play does: it is doing what it says.
     asked = set(getattr(can_do, "clicks_asked_for", ()) or ())
     valued = {name: value * leads(name) * (1.6 if name in asked else how_much_it_leads_on(label) if (label := what_is_clicked(name)) else 1.0)
               / (1 + again(name)) / (1 + material.get(name, 0))
-              for name, value in (telling or {}).items()}
+              for name, value in valued_inputs.items()}
     return _as_checked(can_do, _the_lesson_first(_go_on_from_a_pause(can_do, _once_chosen_go_on(can_do, valued)), held,
                                                  can_do))
 

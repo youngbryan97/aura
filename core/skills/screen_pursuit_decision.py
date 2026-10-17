@@ -1355,7 +1355,7 @@ async def decide_the_next_move(
             # And, before any of that can mean anything, the acts she has
             # not taken here.
             never_tried=_never_tried_here(available, responds["state"], can_do),
-        ))
+        ), available=[option.name for option in available])
         from core.cognition.a_guide_to_a_place import THE_GUIDE
 
         from .screen_step_evidence import admissible_step

@@ -1073,3 +1073,18 @@ known successful title button was omitted from exploration after the loss:
 novelty scoring can supply only untried actions to the later navigation
 weights. Source contact/role binding and independently witnessed native play
 remain open. G09, holdouts and the resident lifecycle remain untouched.
+
+## Known navigation after discovery, 16 October 2026
+
+The control-interval checkpoint is pushed at `792ac1118`. The next diagnosed
+gate was in navigation: novelty scoring omitted already tried actions while
+untried keys remained. Navigation weights therefore never received a button
+whose recorded forward use was already known. Six ordinary-pipeline
+regressions failed before the fix; 111 focused checks passed afterward.
+
+Current offered navigation can now retain its recorded forward use without
+being counted as new information. The path checks its current screen and
+transition evidence, excludes resets and still passes task checks. See
+`docs/evidence/steering/2026-10-16-known-navigation-after-discovery.md`.
+Fresh browser measurement remains required. Native play and a win remain
+unproven, and no protected process or holdout was used.
