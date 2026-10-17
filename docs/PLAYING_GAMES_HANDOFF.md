@@ -1028,3 +1028,22 @@ evidence record. This remains CPU browser work, not native demo proof.
 
 Navigation gates: smoke 165 passed, one skipped; lint, compile, layering,
 DEPS consistency and writing passed. No baseline was changed.
+
+## Native clock values in the CPU browser actor, 16 October 2026
+
+The fresh `abd07b990` attempt clicked both damaged Start and Play labels
+and reached gameplay. Its 77 control observations selected body 4 on 41
+captures, but supplied no play choices or source references; every source
+status was `capture_not_measured`. The game still lost. Supervisor: 64.01s.
+
+The optional reference paths were receiving the rich float-subclass capture
+clock while their strict pixel-geometry readers expected the plain scalar
+already used by the eyes. The observation boundary now preserves the rich
+receipt for the eyes and input timing, and supplies its scalar capture
+value to source matching. Both real page and canvas clock regressions
+failed before the fix; 113 focused checks passed afterward. The next
+original CPU run must prove actual catalog and source publication.
+
+Clock-boundary gates: smoke 165 passed, one skipped; lint, compile,
+layering, DEPS consistency and writing passed. No native restart or G09
+intervention was performed.

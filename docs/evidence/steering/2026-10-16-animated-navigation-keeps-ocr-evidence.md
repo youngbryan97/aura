@@ -54,3 +54,46 @@ remain open. G09 and the ten holdouts were excluded.
 
 Checkpoint gates: smoke 165 passed, one skipped; lint, compile, layering,
 generated DEPS consistency and writing passed. No baseline was changed.
+
+## Fresh UI verification and the next failed boundary
+
+The attempt at `abd07b990` offered and clicked `BTART`, then offered and
+clicked the instruction screen's damaged Play label. It entered the actual
+fast actor. The recorder has 77 motor captures and 77 control observations,
+with 41 observations selecting body 4 after independent repeated input
+trials. There are no normal play-choice records. The attempt ended lost
+and then unread, with `won=false`; its supervisor took 64.01 seconds.
+The recording closed with 141 images, 30 input-port events and no drops.
+
+The new source records exposed another boundary failure: every control
+observation reported `capture_not_measured`, and none received a source
+reference. Ordinary play supplies `MeasuredFrameTime` or `CanvasFrameTime`,
+float subclasses with capture bounds and source provenance. The main eyes
+already convert that time to a plain scalar for their pixel receipts.
+The optional source worker still received the rich receipt and refused
+its exact-type check. Fresh matching separately refused the same value
+when checking consumed pixels. Earlier replay used plain floats and did
+not expose either refusal.
+
+The observation boundary now passes the complete clock receipt to the
+eyes, and passes its scalar capture value to both source-geometry paths.
+Input timing, source clock, capture bounds, surface and sequence remain
+on the original receipt. Pixel geometry gains no causal timing authority.
+No receipt validator was weakened and no missing capture was invented.
+
+The regression test failed for both real page and canvas clock types
+before the fix; the plain-float case passed. One initial canvas fixture
+omitted its required surface and sequence, then was corrected before the
+two-clock failure was measured. After the fix, 113 focused observation,
+reference, input-deadline, recording and navigation tests passed. The
+retained red and green supervisor records are under
+`artifacts/flash-campaign/2026-10-16-case18-navigation-fixed/`.
+
+This verifies reaching gameplay, not a win or a complete control loop.
+A fresh original run must show the catalog and source geometry reaching
+the actor under its actual clock.
+
+Clock-boundary gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed. The inspected
+last motor image reads zero landings and one crash. Native proof and the
+campaign remain unqualified.

@@ -84,7 +84,9 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
     happened = eyes.see(picture, at, **kwargs)
     state = _detached_state(eyes)
     if fresh_references is not None:
-        frames, unavailable = fresh_references.measure(picture, at, state, reference_proposals, reference_tables, reference_coverage)
+        # The eyes receive the full capture interval. Geometry uses the same
+        # scalar capture value as their consumed-pixel and material receipts.
+        frames, unavailable = fresh_references.measure(picture, float(at), state, reference_proposals, reference_tables, reference_coverage)
         state['fresh_source_reference_frames'], state['fresh_source_reference_status'] = frames, unavailable
     return copy.deepcopy(happened), state
 
@@ -275,7 +277,7 @@ class PlayObservation:
         self._last_submitted_at = float(at)
         events = await self._wait(operation, self._frame_wait_s)
         if events is not None:
-            self._reference_points(owned_picture, at)
+            self._reference_points(owned_picture, float(at))
         return events
 
     def _reference_points(self, picture: Any, at: float) -> None:

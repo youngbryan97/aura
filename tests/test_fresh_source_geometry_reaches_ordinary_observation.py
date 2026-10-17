@@ -120,11 +120,20 @@ def test_a_fresh_bounded_search_can_recover_after_old_search_capacity_is_exceede
     assert frames and 'fresh_reference_prior_search_retired' in unavailable
 
 
-def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_close(scene, monkeypatch):
+@pytest.mark.parametrize('clock', ['plain', 'canvas', 'page'])
+def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_close(scene, monkeypatch, clock):
+    from core.perception.a_clock_for_drawn_frames import MeasuredFrameTime
+    from core.perception.frames_as_they_are_drawn import CanvasFrameTime
     from core.perception import source_references_while_play_advances as work
     from core.perception.play_observation_without_holding_the_loop import open_play_observation
 
     proposal, table, _, current = scene
+    at = 2.
+    if clock != 'plain':
+        cls = CanvasFrameTime if clock == 'canvas' else MeasuredFrameTime
+        at = cls(2., lower=2., upper=2.01, arrived=2.02, source='capture-test', source_at=None, epoch=7,
+                 **(dict(surface='test-surface', sequence=12) if clock == 'canvas' else {}))
+    received = []
 
     class Eyes:
         def __init__(self, **kwargs):
@@ -132,7 +141,8 @@ def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_c
             self.scale = 1.
 
         def see(self, picture, at):
-            self.__dict__.update(_state(picture, at))
+            received.append(at)
+            self.__dict__.update(_state(picture, float(at)))
             return []
 
     class References:
@@ -142,7 +152,8 @@ def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_c
         source_frames = ()
         status = 'ready'
 
-        def advance(self, *args):
+        def advance(self, observer, picture, at, tables):
+            assert type(at) is float and at == 2.
             return ()
 
         def retire(self):
@@ -152,10 +163,15 @@ def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_c
         monkeypatch.setattr(work, 'source_tables_in_play', lambda: (table,))
         observer = await open_play_observation(factory=Eyes)
         observer._references = References()
-        assert await observer.see(current, 2.) == []
+        assert await observer.see(current, at) == []
         frame, = observer.fresh_source_reference_frames
         assert frame.pixels == observer.pixels_consumed and frame.point.at == 2.
         assert not observer.things and not observer.source_reference_frames
+        assert isinstance(received[0], type(at))
+        if clock != 'plain':
+            assert received[0].lower == at.lower and received[0].source == at.source and received[0].epoch == 7
+        if clock == 'canvas':
+            assert received[0].surface == 'test-surface' and received[0].sequence == 12
         await observer.close()
         assert observer.fresh_source_reference_frames == ()
 
