@@ -3278,3 +3278,36 @@ class TestSpawnGateBoundedAcquire(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(mc._spawn_gate_snapshot()["held"])
         self.assertTrue(mc._GLOBAL_SPAWN_GATE.acquire(blocking=False))
         mc._GLOBAL_SPAWN_GATE.release()
+
+
+class TestAGoneWorkersWorkIsRetired(unittest.IsolatedAsyncioTestCase):
+    """Live 2026-10-17: a hidden-state read held the lane for half an hour after its worker was killed."""
+
+    async def test_a_worker_that_died_on_its_own_frees_the_lane_its_detached_read_held(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        client._process = ProcessProbe(alive=False)
+        client._process_started_at = time.time() - 600.0
+        client._init_done = True
+        future = mlx_module._new_shared_future()
+        self.assertTrue(client._try_acquire_request_lock(owner_label="model_hidden_features", owner_token="read-1"))
+        client._pending_generations["read-1"] = future
+        client._active_generations = 1
+        self.assertTrue(client._register_detached_worker_request("read-1", future, owner_label="model_hidden_features"))
+
+        proc = ProcessProbe(alive=True)
+
+        async def _spawn():
+            client._init_future.set_result(ready_init_receipt(QWEN32_MODEL, client=client, process=proc))
+            return proc
+
+        with replace_dotted("core.brain.llm.mlx_client._probe_mlx_runtime", lambda force=False: (True, "mlx_runtime_ok")):
+            with ReplaceAttr(client, "_spawn_worker", AsyncCallProbe(side_effect=_spawn)):
+                await client._ensure_worker_alive()
+
+        self.assertFalse(client._request_lock.locked())
+        self.assertEqual(client._detached_worker_requests, {})
+        self.assertEqual(client._active_generations, 0)
+        self.assertEqual(client._pending_generations, {})
+        self.assertEqual(future.result()["message"], "worker_died_unexpectedly")

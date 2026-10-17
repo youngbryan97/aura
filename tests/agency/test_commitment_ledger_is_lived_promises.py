@@ -388,3 +388,29 @@ def test_load_still_breaks_a_genuinely_overdue_promise(tmp_path, monkeypatch) ->
     assert row.status == CommitmentStatus.BROKEN
     assert engine._broken_count == 278
     assert engine.reliability_score == 0.0
+
+
+def test_a_reply_narrating_its_own_next_step_registers_nothing(engine: CommitmentEngine, monkeypatch) -> None:
+    """Live 17 October: every worked date difference opened "Let me work this out" and became a promise."""
+    from core.agency import commitment_engine as mod
+    from interface.routes.chat_quality import _extract_and_register_commitments
+
+    monkeypatch.setattr(mod, "get_commitment_engine", lambda: engine)
+    _extract_and_register_commitments(
+        "Let me work this out step by step.\n\nMarch 14, 2019 to March 14, 2022 is 1,096 days.", "how many days?"
+    )
+    assert engine._commitments == {}
+    _extract_and_register_commitments("I'll write READY into that file in a few minutes.", "write READY later")
+    assert len(engine._commitments) == 1
+
+
+def test_narration_already_on_file_is_not_counted_or_quoted_back(engine: CommitmentEngine) -> None:
+    kept = engine.commit(description="I'll send Bryan the summary", outcome="sent")
+    engine.fulfill(kept.id)
+    narrated = engine.commit(description="Let me work this out step by step", outcome="x")
+    engine._commitments[narrated.id] = narrated
+    engine.break_commitment(narrated.id, "never acted")
+    assert engine.reliability_score == 1.0
+    open_one = engine.commit(description="Let me count this carefully, segment by segment", outcome="x")
+    engine._commitments[open_one.id] = open_one
+    assert all(not c.description.startswith("Let me") for c in engine.get_active_commitments())

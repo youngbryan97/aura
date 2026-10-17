@@ -245,17 +245,48 @@ def corpus_grounding_for(
     query = " ".join(str(objective or "").split())
     started = time.monotonic()
     found = _for_a_question(query, limit=limit, deadline_s=deadline_s, store=store, rerank=rerank)
-    if not found and conversation is not None and not _NOT_ABOUT_THE_WORLD.search(query):
+    points_back = conversation is not None and _points_back(query)
+    if (not found or points_back) and conversation is not None and not _NOT_ABOUT_THE_WORLD.search(query):
         left = deadline_s - (time.monotonic() - started)
+        said: list[tuple[str, str]] = []
         if left > 0:
             try:
                 from core.knowledge.talked_about import said_about
 
-                found = said_about(query, conversation, store=store, limit=limit, deadline_s=left, rerank=rerank,
-                                   speakers=speakers, everywhere=_paragraph_index_beside(store))
+                said = said_about(query, conversation, store=store, limit=limit, deadline_s=left, rerank=rerank,
+                                  speakers=speakers, everywhere=_paragraph_index_beside(store))
             except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
-                found = []
+                said = []
+        found = _sharing_places(said, found, limit=limit) if found else said
     return CorpusGrounding(query=query, passages=tuple(found))
+
+
+def _points_back(query: str) -> bool:
+    try:
+        from core.knowledge.talked_about import points_back
+    except ImportError:
+        return False
+    return points_back(query)
+
+
+def _sharing_places(said: Sequence[tuple[str, str]], asked: Sequence[tuple[str, str]], *,
+                    limit: int) -> list[tuple[str, str]]:
+    """A question that says "he" or "she": the first half of the places for the person the conversation is
+    about, the rest for the question's own words, and a place either leaves empty for the other.
+
+    Its words alone find pages about its other words. Live 2026-10-17, "how many MVP awards did he win?" after
+    a turn about a player was given an African league's MVP record and a footballer's award, and she answered
+    one, where his own page says two. A pronoun can also point inside the question ("who was the first
+    president, and when did he die?"), so its words keep places of their own.
+    """
+    first = (limit + 1) // 2
+    chosen = [*said[:first], *asked[:limit - first]]
+    for passage in [*said[first:], *asked[limit - first:]]:
+        if len(chosen) >= limit:
+            break
+        if passage not in chosen:
+            chosen.append(passage)
+    return list(dict.fromkeys(chosen))[:limit]
 
 
 def _paragraph_index_beside(store: Any) -> Any:

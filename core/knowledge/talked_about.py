@@ -179,6 +179,11 @@ def _carried_from(before: Sequence[Turn]) -> list[str]:
     return [*theirs, *hers]
 
 
+def points_back(turn: str) -> bool:
+    """Whether a turn speaks of "he", "she" or "they", a person its own words may not name."""
+    return bool(_THIRD_PERSON.search(_prose(turn)))
+
+
 def subjects(turn: str, before: Sequence[Turn], *, store: Any, deadline_s: float, most: int,
              speakers: Sequence[str] = (), everywhere: Any = None) -> list[Any]:
     """Articles for what the turn names, or for whom its pronouns point back to; at most ``most``."""
@@ -265,4 +270,4 @@ def _by_words(turn: str, paragraphs: list[tuple[str, str]]) -> list[tuple[str, s
     return [paragraphs[i] for i in order]
 
 
-__all__ = ["mentions", "said_about", "subjects"]
+__all__ = ["mentions", "points_back", "said_about", "subjects"]

@@ -271,6 +271,14 @@ class CommitmentEngine:
                     type(exc).__name__,
                     exc,
                 )
+        # A reply narrating its own next step is not a promise either.
+        #
+        # LIVE, 2026-10-17: "Let me work this out step by step" was registered
+        # from every worked answer, 49 rows, so her reliability was computed
+        # over sentences the same reply had already carried out. The rows stay
+        # on file; they are not counted, and not quoted back to her.
+        if str(description or "").strip().lower().startswith("let me "):
+            return True
         # A role scaffold is not a promise.
         #
         # LIVE, 2026-08-10: this ledger held 501 entries, 311 of them swarm

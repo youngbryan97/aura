@@ -28,6 +28,20 @@ or the screen is not repeating herself, and her earlier turns are read from
 the job's messages rather than from the token history, because a cached
 prefix never reaches a logits processor at all.
 
+A number breaks a stretch as well. Her tokenizer writes a number one digit a
+token, after a space that is a token of its own, so two computations that say
+the same quantity share a run. Live on 17 October, teaching her date
+differences, she wrote "Total: 245 + 366 +" and stopped: the space before 365
+was pushed down by 13 logits because "366 + 365" was in two of her earlier
+answers, and ending her turn became the likeliest token. Three answers in four
+were cut off before their number. Arithmetic that says a number again is not
+a copy of an earlier reply.
+
+The hold is on what she says. In her private channel it ran as well, and that
+evening she ended her turn there, 177 tokens in, before writing any answer.
+With ``after_token``, the token that closes the channel, nothing is held until
+it has been written.
+
 A copy is a run of words, so only a token that starts a word is pushed down.
 A token that carries on a word already begun is left alone: her tokenizer
 writes a number one digit at a time, and live on 16 October, asked a greatest
@@ -77,7 +91,7 @@ def _encoded(tokenizer: Any, text: str) -> list[int]:
 
 
 def _within_a_word(tokenizer: Any, ids: set[int]) -> tuple[set[int], set[int], set[int]]:
-    """Of ``ids``: those that end mid-word, those that carry a word on, and the sequence breakers.
+    """Of ``ids``: those that end mid-word, those that carry a word on, and the sequence breakers (with numbers).
 
     All empty when the tokenizer cannot decode a token.
     """
@@ -96,13 +110,17 @@ def _within_a_word(tokenizer: Any, ids: set[int]) -> tuple[set[int], set[int], s
             ends_in_a_word.add(token)
         if text[:1].isalnum():
             carries_a_word_on.add(token)
-        if any(breaker in text for breaker in SEQUENCE_BREAKERS):
+        if any(breaker in text for breaker in SEQUENCE_BREAKERS) or any(char.isdigit() for char in text):
             breakers.add(token)
     return ends_in_a_word, carries_a_word_on, breakers
 
 
-def not_her_own_words_again(tokenizer: Any, earlier: Sequence[str]) -> Callable[[Any, Any], Any] | None:
-    """A logits processor that penalises carrying on a copy of her earlier turns; None with nothing to copy."""
+def not_her_own_words_again(tokenizer: Any, earlier: Sequence[str], *,
+                            after_token: int | None = None) -> Callable[[Any, Any], Any] | None:
+    """A logits processor that penalises carrying on a copy of her earlier turns; None with nothing to copy.
+
+    With ``after_token``, nothing is held until that token (the one that closes her private channel) is written.
+    """
     try:
         import mlx.core as mx
     # not a failure: no MLX here, so there is no decoder to hold.
@@ -117,14 +135,19 @@ def not_her_own_words_again(tokenizer: Any, earlier: Sequence[str]) -> Callable[
     for turn, ids in enumerate(turns):
         for end in range(ALLOWED_LENGTH, len(ids)):
             after.setdefault(tuple(ids[end - ALLOWED_LENGTH:end]), []).append((turn, end))
-    state: dict[str, Any] = {"prompt": None, "penalised": 0}
+    state: dict[str, Any] = {"prompt": None, "penalised": 0, "from": None if after_token is not None else -1}
 
     def not_again(tokens: Any, logits: Any) -> Any:
         token_ids = [int(t) for t in (tokens.tolist() if hasattr(tokens, "tolist") else list(tokens))]
         # The first call carries the prompt, or what of it was not cached.
         if state["prompt"] is None:
             state["prompt"] = len(token_ids)
-        written = token_ids[state["prompt"]:]
+        if state["from"] is None:
+            said = token_ids[state["prompt"]:]
+            if after_token not in said:
+                return logits
+            state["from"] = state["prompt"] + said.index(after_token) + 1
+        written = token_ids[state["prompt"] if state["from"] == -1 else state["from"]:]
         # How much of what she has written counts: what came after the last sequence breaker.
         since = len(written)
         for back in range(len(written) - 1, -1, -1):

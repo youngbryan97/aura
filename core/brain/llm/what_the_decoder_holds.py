@@ -22,9 +22,14 @@ def hold_the_answer(job: Any, tokenizer: Any, native_thinking: Any, logits_proce
     """
     if job.get("clean_user_surface_contract"):
         try:
-            from core.brain.llm.not_her_own_words_again import her_earlier_turns, not_her_own_words_again
+            from core.brain.llm.a_bounded_private_channel import _the_token_that_closes_it
+            from core.brain.llm.not_her_own_words_again import (
+                her_earlier_turns,
+                not_her_own_words_again,
+            )
 
-            not_again = not_her_own_words_again(tokenizer, her_earlier_turns(job.get("messages")))
+            closes = _the_token_that_closes_it(tokenizer) if native_thinking is True else None
+            not_again = not_her_own_words_again(tokenizer, her_earlier_turns(job.get("messages")), after_token=closes)
             if not_again is not None:
                 logits_processors.append(not_again)
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:

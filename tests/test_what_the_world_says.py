@@ -516,3 +516,25 @@ def test_the_grammar_reads_a_question_asking_her_view() -> None:
         assert asks_for_her_view(question) is True, question
     for question in ("When did the Kaseya Center open?", "Which is bigger, Texas or Alaska?", "Who won the game last night?"):
         assert asks_for_her_view(question) is not True, question
+
+
+def test_a_question_that_says_he_reads_whom_the_last_turn_named(monkeypatch) -> None:
+    """Live 17 October: "How many MVP awards did he win?" after a turn about Karl Malone read nothing."""
+    malone = "Karl Malone played 18 seasons.\\n\\nHe collected two regular-season MVP Awards."
+
+    class Shelf(_Corpus):
+        docs = {1: ("Karl Malone", malone), 2: ("MVP award", "An MVP award is given to the best player.")}
+
+    def assess(question, passages):
+        return [evidence_relevance.EvidenceAlignment(
+            "Malone" in question and "Malone" in passage, True, 0.75 if "Malone" in question and "Malone" in passage
+            else 0.3, 0.5, (), "stand-in") for passage in passages]
+
+    monkeypatch.setattr(evidence_relevance, "assess_evidence_alignments", assess)
+    asked = "How many MVP awards did he win?"
+    before = "Karl Malone was one of the best power forwards ever."
+    evidence = asyncio.run(gather_world_evidence(asked, previous_request=before, store=Shelf()))
+    assert [source.title for source in evidence.sources] == ["Karl Malone"]
+    assert "two regular-season MVP Awards" in evidence.render()
+    # Without the turn before, nobody is named and nothing is read.
+    assert asyncio.run(gather_world_evidence(asked, store=Shelf())).sources == []

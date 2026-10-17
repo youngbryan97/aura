@@ -52,6 +52,37 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
     request, held 0.0s" until it timed out.
     """
 
+    def _retire_the_work_of_a_gone_worker(self, reason: str) -> None:
+        """Fail what a worker that is gone still owed, and free the lane its work held.
+
+        Live 2026-10-17: the memory governor killed her cortex worker while a
+        hidden-state read was in flight. The read's caller had already timed
+        out and handed the lane to the listener until the worker's terminal
+        frame; the client noticed the death, replaced the queues and spawned a
+        new worker, and the frame could never come. The lane stayed held by a
+        request no worker had for over half an hour, and every chat turn in
+        that time waited twelve seconds and fell to the fallback ladder.
+        """
+        from .mlx_client import _set_shared_future_result
+
+        for req_id, pending in list(self._pending_generations.items()):
+            if pending is not None and not pending.done():
+                _set_shared_future_result(
+                    pending,
+                    {"status": "error", "action": "generate", "id": str(req_id), "message": reason},
+                )
+        current_fut = self._current_gen_future
+        if current_fut is not None and not current_fut.done():
+            _set_shared_future_result(
+                current_fut,
+                {"status": "error", "action": "generate", "id": self._current_request_id, "message": reason},
+            )
+        self._pending_generations.clear()
+        self._current_gen_future = None
+        self._active_generations = 0
+        self._release_detached_request_lock()
+        self._clear_detached_worker_requests()
+
     async def _renew_durable_lane_lease(
         self,
         controller: Any,
@@ -166,7 +197,6 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         from .mlx_client import (
             _cancel_shared_future,
             _record_mlx_degradation,
-            _set_shared_future_result,
             logger,
         )
 
@@ -204,35 +234,9 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             self._deferred_reboot_reason = "model_lane_fence_lost"
             # Fail every waiter before dropping the process handle.  Otherwise
             # callers can miss both the dead-process and pending-future tests.
-            for req_id, pending in list(self._pending_generations.items()):
-                if pending is not None and not pending.done():
-                    _set_shared_future_result(
-                        pending,
-                        {
-                            "status": "error",
-                            "action": "generate",
-                            "id": str(req_id),
-                            "message": "model_lane_fence_lost",
-                        },
-                    )
-            current_fut = self._current_gen_future
-            if current_fut is not None and not current_fut.done():
-                _set_shared_future_result(
-                    current_fut,
-                    {
-                        "status": "error",
-                        "action": "generate",
-                        "id": self._current_request_id,
-                        "message": "model_lane_fence_lost",
-                    },
-                )
+            self._retire_the_work_of_a_gone_worker("model_lane_fence_lost")
             if self._init_future is not None and not self._init_future.done():
                 _cancel_shared_future(self._init_future)
-            self._pending_generations.clear()
-            self._current_gen_future = None
-            self._active_generations = 0
-            self._release_detached_request_lock()
-            self._clear_detached_worker_requests()
 
             process, self._process = self._process, None
             if process is not None:
@@ -1305,6 +1309,8 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                     _note_lane_worker_death(self, "process_died_unexpectedly")
                     self._process = None
                     self._process_started_at = 0.0
+                    # Its queues are replaced below, so no frame it owed can arrive.
+                    self._retire_the_work_of_a_gone_worker("worker_died_unexpectedly")
                 # [BUG FIX] Exponential backoff on repeated spawn failures.
                 # Without this, [Errno 5] I/O errors cause a tight 2-3s retry
                 # loop that leaks FDs and shared memory for hours.

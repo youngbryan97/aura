@@ -2824,6 +2824,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  Attempt 5, 2026-10-17 ([result](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)): the registered verdict
+  closes (38 to 11, p 1.4e-4), but 13 gains are the grader's (right drafts it misread, valid Depots plans
+  not closed with "[PLAN END]"); without them the primary is 25 to 11, p 0.029, short of 0.01. Breadth
+  holds (math 10 to 0, planning 15 to 0). The meaning route lost 11 of 13 MATH problems. Open; attempt 6
+  fixes the grader and the route on development data first.
   REOPENED 2026-10-16 09:37 ([correction](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)): attempt 3
   graded her drafts by exact DeepMind notation and the kept answers by each kind's own grader; with one
   grader for both arms held-out math is 27 gained to 25 lost (p = 0.89), pooled 61 to 79. The record of
@@ -3113,6 +3118,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in use had never received an example. Wiring: 83fcd7aa6, 9a4218375,
   01ddf0a8d. Plan, fixed before it ran:
   `~/.aura/rlc-evidence/learning-loop-20261016/plan.md`.
+- [ ] L10 Let her learn from what she verifies online, offline-first. Today a
+  claim she checks online (core/epistemics/epistemic_reach.py, through the
+  governed reach gateway) corrects one reply and is not kept, and no web
+  source feeds learning in use. Wanted, by Bryan on 2026-10-16, saved for a
+  later session: a learning source "reputable sources agree" (at least two
+  independent sources, fetched through the gateway, agreeing, and programs
+  agreeing where the answer can be computed; a disagreement held as
+  disputed); only checkable factual claims, never opinion, evaluation,
+  prediction or preference, with reference, official and primary sources
+  above news, blogs, forums and social media, and no single-source claim; a
+  store of the facts she has verified, with sources, quotes, retrieval
+  dates, corroboration and disputes, dated facts rechecked; and a test that
+  everything works with the network blocked.
 
 ## 4. User-facing capability acceptance
 

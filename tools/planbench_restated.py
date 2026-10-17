@@ -286,6 +286,59 @@ def grade(text: str, truth: dict[str, Any]) -> tuple[bool, str]:
     return bool(plan) and plan_reaches_goal(plan, truth["domain"], int(truth["instance_id"])), f"{len(plan)} steps"
 
 
+def numbered_plan(text: str) -> str:
+    """A reply's plan read from its numbered steps, for a reply that does not close its plan with "[PLAN END]".
+
+    Without the marker PlanBench's readers take every line that names an action, so the reasoning written
+    before a plan and the check written after it are read as steps (G09 attempt 5: nine valid Depots plans
+    graded invalid that way). The steps are the last list numbered from 1 without a gap, with emphasis and
+    parenthesised notes removed. A reply with no such list is returned as it is: a bare plan of one action per
+    line, as a kept procedure writes it, is already read whole.
+    """
+    runs: list[list[str]] = []
+    for line in text.split("\n"):
+        step = re.sub(r"\([^)]*\)", "", line.replace("*", "")).strip()
+        number = re.match(r"(\d+)\.\s", step)
+        if not number:
+            continue
+        if int(number.group(1)) == 1:
+            runs.append([step])
+        elif runs and int(number.group(1)) == len(runs[-1]) + 1:
+            runs[-1].append(step)
+    return "\n".join(runs[-1]) if runs else text
+
+
+def action_lines_plan(text: str, domain: str) -> str:
+    """A reply's plan read as the last run of lines that each name one action, before any "[PLAN END]".
+
+    PlanBench's readers take every line before the marker that names an action, so a reply that reasons
+    first ("crate2 is on crate0, so I must lift crate2 first") has its reasoning read as steps. G09 attempt 6
+    graded five valid Depots plans invalid that way. A line counts when, without its numbering, emphasis,
+    table rules and parenthesised notes, the domain's reader finds exactly one step in it; notes on their own
+    lines (a bullet, a tick, a blank line) do not end a run. "" when no line names an action.
+    """
+    runs: list[list[str]] = []
+    current: list[str] = []
+    for line in text.split("[PLAN END]")[0].split("\n"):
+        cells = [cell.strip() for cell in line.replace("*", "").split("|") if cell.strip()] or [""]
+        step = ""
+        for cell in cells:
+            cell = re.sub(r"^\d+[.)]?\s*", "", re.sub(r"\([^)]*\)", "", cell)).strip()
+            if cell and len(text_to_plan(cell, domain)) == 1:
+                step = cell
+                break
+        if step:
+            current.append(step)
+        elif current and (not line.strip() or line.strip()[:1] in "-•(" or "\u2713" in line):
+            continue
+        elif current:
+            runs.append(current)
+            current = []
+    if current:
+        runs.append(current)
+    return "\n".join(runs[-1]) if runs else ""
+
+
 def _spoken_other(obj: str, domain: str) -> str:
     if domain == "logistics":
         letter, digits = obj[0], obj[1:].split("-")
