@@ -35,7 +35,7 @@ Implemented in `core.brain.courtroom`, this module forces adversarial cognition 
 - **Judge**: Rules on the assembled record, explicitly honoring the verifier (cannot certify a candidate that fails mechanical verification).
 
 ## 3. Native System-2 Reasoning
-Implemented in `core.reasoning.native_system2`. This is not an LLM prompt wrapper. It is a genuine explicit search tree of latent plans.
+Implemented in `core.reasoning.native_system2`: an explicit search tree of latent plans.
 - Maintains a search tree of latent plans (MCTS, BEAM, BEST_FIRST).
 - Evaluates nodes via a value interface and simulates outcomes using a side-effect-free world model.
 - Emits an auditable commitment receipt before a plan is executed.
@@ -89,7 +89,15 @@ Implemented in `core.engineering.geometry`.
 - Parametric solids know their own exact volume, mass, and shape. 
 - Math is exact and relies on material properties and dimensions rather than LLM estimation. Generates parametric wireframes and triangular meshes deterministically.
 
-## 9. Evidence Boundaries: What These Engines DON'T Replace
+## 9. Procedures She Writes and Keeps
+Implemented in `core.learning.procedures_from_solved_examples`, with the shared exact mechanics in `core.reasoning.mechanisms`.
+- For a kind of problem with solved examples, her model writes a `solve()` function. It runs in the OS sandbox with only the standard library, and it is kept only if it agrees with every known answer of the kind, the sealed half (never shown while it was written) included.
+- `core.reasoning.mechanisms` holds what procedures share instead of rewriting: constraint search, precedence orders, boolean expressions, exact arithmetic, clock and date arithmetic, free stretches of a day. A mechanism is added only for a development kind or because the runtime already had it, so no held-out answer leaks into a measurement.
+- A `ProcedureBook` routes a request to a kind by word signatures, then by meaning (`core.learning.kinds_by_meaning`). Her desktop chat consults it before she drafts (`core.phases.kept_procedures_in_a_turn`); a words-route answer is served when her draft does not state it, a meaning-route answer is evidence only.
+- Kinds are also learned in use: answers people state in chat become solved examples, and an idle job induces procedures from them (`core.learning.examples_she_meets`).
+- **Evidence:** whether this is a broad reasoning gain is G09, still open; see `CLAIMS_NOT_SUPPORTED.md` §21.
+
+## 10. Evidence Boundaries: What These Engines DON'T Replace
 While Aura enforces strict verification on logic, math, and execution, it is critical to note what these boundaries **do not** do:
 - They **do not** replace the model's world knowledge. The verifiers check *consistency*, not external truth (unless explicitly grounded via Evidence Clerk).
 - They **do not** guarantee an optimal search path, only that the *selected* path is free of provable structural/arithmetic errors.
