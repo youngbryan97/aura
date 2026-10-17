@@ -75,12 +75,18 @@ def _started(factory: Callable[..., Any], kinds: list[Any]) -> tuple[Any, dict[s
 
 
 def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
-          material_retention: Any = None) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+          material_retention: Any = None, fresh_references: Any = None,
+          reference_proposals: tuple = (), reference_tables: tuple = (),
+          reference_coverage: tuple = ()) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     kwargs = {'search_hint': search_hint} if search_hint is not None else {}
     if material_retention is not None and getattr(eyes, 'supports_material_retention', False):
         kwargs['material_retention'] = material_retention
     happened = eyes.see(picture, at, **kwargs)
-    return copy.deepcopy(happened), _detached_state(eyes)
+    state = _detached_state(eyes)
+    if fresh_references is not None:
+        frames, unavailable = fresh_references.measure(picture, at, state, reference_proposals, reference_tables, reference_coverage)
+        state['fresh_source_reference_frames'], state['fresh_source_reference_status'] = frames, unavailable
+    return copy.deepcopy(happened), state
 
 
 def _close_owned_eyes(eyes: Any) -> None:
@@ -142,8 +148,13 @@ class PlayObservation:
         self._frame_wait_s = frame_wait_s
         self._startup_wait_s = startup_wait_s
         self._references: Any = None
+        from core.perception.source_geometry_in_current_pixels import SourceGeometryInCurrentPixels
+
+        self._fresh_references = SourceGeometryInCurrentPixels()
         self._mirror.source_reference_points = ()
         self._mirror.source_reference_frames = ()
+        self._mirror.fresh_source_reference_frames = ()
+        self._mirror.fresh_source_reference_status = ()
         self._mirror.source_reference_status = 'no_current_source'
 
     @property
@@ -224,6 +235,7 @@ class PlayObservation:
         """Return this frame's events, or None while its measurement is unavailable."""
         self._mirror.source_reference_points = ()
         self._mirror.source_reference_frames = ()
+        self._mirror.fresh_source_reference_frames = ()
         if self._closed or isinstance(at, bool) or not isinstance(at, (float, int)) or not math.isfinite(at):
             return None
         operation = self._operation
@@ -245,8 +257,19 @@ class PlayObservation:
             search_hint = copy.deepcopy(search_hint) if isinstance(search_hint, PixelSearchHint) else None
         eyes = self._eyes
         retention = self._references.retention if self._references is not None else None
+        from core.perception.source_references_while_play_advances import source_tables_in_play
+
+        tables = source_tables_in_play()
+        proposals = (self._references.proposals if self._references is not None
+                     and self._references.tables == tables else ())
+        coverage = ()
+        if self._references is not None and self._references.tables == tables:
+            supplied = (*getattr(self._references, 'points', ()), *self._references.source_frames)
+            coverage = tuple({(item.source, item.character_id, item.reference_sha256) for item in supplied
+                              if item.point.at == self._last_submitted_at})
         operation = self._submit("frame", lambda: _seen(eyes, owned_picture, owned_at, search_hint=search_hint,
-                                                       material_retention=retention))
+            material_retention=retention, fresh_references=self._fresh_references,
+            reference_proposals=proposals, reference_tables=tables, reference_coverage=coverage))
         if operation is None:
             return None
         self._last_submitted_at = float(at)
@@ -259,6 +282,9 @@ class PlayObservation:
         from core.perception.source_references_while_play_advances import SourceReferencesInPlay, source_tables_in_play
 
         tables = source_tables_in_play()
+        active = {table.source for table in tables}
+        self._mirror.fresh_source_reference_frames = tuple(frame for frame in self._mirror.fresh_source_reference_frames
+            if frame.source in active and frame.pixels == self._mirror.pixels_consumed and frame.point.at == at)
         if self._references is None and tables:
             self._references = SourceReferencesInPlay()
         if self._references is not None:
@@ -270,10 +296,12 @@ class PlayObservation:
         if self._closed:
             return
         self._closed = True
+        self._fresh_references = None
         if self._references is not None:
             self._references.retire()
         self._mirror.source_reference_points = ()
         self._mirror.source_reference_frames = ()
+        self._mirror.fresh_source_reference_frames = ()
         self._mirror.source_reference_status = 'closed'
         self._generation += 1
         eyes, self._eyes = self._eyes, None

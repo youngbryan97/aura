@@ -154,6 +154,46 @@ def _supported_fit(scene: np.ndarray, template: np.ndarray, x: int, y: int) -> t
     return fitted, starts[indices], ends[indices]
 
 
+def _pictures_valid(picture: np.ndarray, reference: np.ndarray, edge: int) -> bool:
+    return (isinstance(picture, np.ndarray) and isinstance(reference, np.ndarray)
+            and picture.dtype == np.uint8 and reference.dtype == np.uint8
+            and picture.ndim == 3 and reference.ndim == 3 and picture.shape[2] == 3 and reference.shape[2] == 4
+            and min(picture.shape[:2]) >= 16 and max(picture.shape[:2]) <= 4096 and picture.size <= 24_000_000
+            and min(reference.shape[:2]) >= 16 and max(reference.shape[:2]) <= 512
+            and type(edge) is int and 64 <= edge <= 512)
+
+
+def _picture_view(picture: np.ndarray, edge: int) -> tuple:
+    ratio = min(1., edge/max(picture.shape[:2]))
+    size = (max(1, round(picture.shape[1]*ratio)), max(1, round(picture.shape[0]*ratio)))
+    scale = np.array((size[0]/picture.shape[1], size[1]/picture.shape[0]))
+    origin = (1/scale-1)/2
+    pixels = np.asarray(Image.fromarray(picture).resize(size, Image.Resampling.BOX))
+    return pixels, scale, origin, ratio
+
+
+def _appearance_for_fit(reference: np.ndarray, reference_hash: str, picture_hash: str, fit: tuple,
+                        template_linear: np.ndarray, template_offset: np.ndarray,
+                        view_scale: np.ndarray, view_origin: np.ndarray) -> ReferenceAppearance:
+    fitted, starts, ends = fit
+    if isinstance(fitted, AffineMotion):
+        fitted_linear = np.asarray(fitted.linear)
+    else:
+        c, s = math.cos(fitted.angle), math.sin(fitted.angle)
+        fitted_linear = np.array(((c, -s), (s, c)))
+    linear = (fitted_linear @ template_linear)/view_scale[:, None]
+    offset = (fitted_linear @ template_offset+np.asarray(fitted.offset))/view_scale+view_origin
+    corners = np.array(((0., 0.), (reference.shape[1], 0.),
+                        (0., reference.shape[0]), (reference.shape[1], reference.shape[0]))) @ linear.T+offset
+    low, high = corners.min(axis=0), corners.max(axis=0)
+    return ReferenceAppearance(reference_hash, picture_hash,
+        tuple(tuple(float(v) for v in row) for row in linear), tuple(float(v) for v in offset),
+        (*map(float, low), *map(float, high-low)),
+        tuple(tuple(float(v) for v in point) for point in
+              (starts-template_offset) @ np.linalg.inv(template_linear).T),
+        tuple(tuple(float(v) for v in point/view_scale+view_origin) for point in ends), fitted.error/float(view_scale.min()))
+
+
 def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales: tuple[float, ...],
                           angles: tuple[float, ...] = (0.,),
                           edge: int = 480) -> tuple[ReferenceAppearance, ...]:
@@ -164,25 +204,16 @@ def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales:
     is bounded to 32 scale/angle pairs and 24 distinct proposals. Neither a returned pose nor an empty result names
     the player, a goal, a collision boundary or a successful action.
     """
-    if (not isinstance(picture, np.ndarray) or not isinstance(reference, np.ndarray)
-            or picture.dtype != np.uint8 or reference.dtype != np.uint8
-            or picture.ndim != 3 or reference.ndim != 3 or picture.shape[2] != 3 or reference.shape[2] != 4
-            or min(picture.shape[:2]) < 16 or max(picture.shape[:2]) > 4096 or picture.size > 24_000_000
-            or min(reference.shape[:2]) < 16 or max(reference.shape[:2]) > 512
-            or type(edge) is not int or not 64 <= edge <= 512
+    if (not _pictures_valid(picture, reference, edge)
             or not isinstance(scales, tuple) or not 1 <= len(scales) <= 32
             or not isinstance(angles, tuple) or not 1 <= len(angles) <= 32 or len(angles)*len(scales) > 32
             or any(type(v) not in (int, float) or not math.isfinite(v) or not -math.pi <= v <= math.pi for v in angles)
             or any(not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v)
                    or not .05 <= v <= 8 for v in scales)):
         return ()
-    ratio = min(1., edge/max(picture.shape[:2]))
-    size = (round(picture.shape[1]*ratio), round(picture.shape[0]*ratio))
-    view_scale = np.array((size[0]/picture.shape[1], size[1]/picture.shape[0]))
     # BOX resampling locates a reduced sample at the centre of its source
     # footprint. Division alone returns its edge and adds a shared bias.
-    view_origin = (1/view_scale-1)/2
-    pixels = np.asarray(Image.fromarray(picture).resize(size, Image.Resampling.BOX))
+    pixels, view_scale, view_origin, ratio = _picture_view(picture, edge)
     scene = pixels.astype(np.float32)/255
     angles = tuple({round((a+math.pi) % (2*math.pi)-math.pi, 12): (a+math.pi) % (2*math.pi)-math.pi
                     for a in angles}.values())
@@ -197,23 +228,8 @@ def reference_appearances(picture: np.ndarray, reference: np.ndarray, *, scales:
         tried.append((box, angle))
         fit = _supported_fit(pixels, template, x, y)
         if fit is not None:
-            fitted, starts, ends = fit
-            if isinstance(fitted, AffineMotion):
-                fitted_linear = np.asarray(fitted.linear)
-            else:
-                c, s = math.cos(fitted.angle), math.sin(fitted.angle)
-                fitted_linear = np.array(((c, -s), (s, c)))
-            linear = (fitted_linear @ template_linear)/view_scale[:, None]
-            offset = (fitted_linear @ template_offset+np.asarray(fitted.offset))/view_scale+view_origin
-            corners = np.array(((0., 0.), (reference.shape[1], 0.),
-                                (0., reference.shape[0]), (reference.shape[1], reference.shape[0]))) @ linear.T+offset
-            low, high = corners.min(axis=0), corners.max(axis=0)
-            candidate = ReferenceAppearance(reference_hash, picture_hash,
-                tuple(tuple(float(v) for v in row) for row in linear), tuple(float(v) for v in offset),
-                (*map(float, low), *map(float, high-low)),
-                tuple(tuple(float(v) for v in point) for point in
-                      (starts-template_offset) @ np.linalg.inv(template_linear).T),
-                tuple(tuple(float(v) for v in point/view_scale+view_origin) for point in ends), fitted.error/float(view_scale.min()))
+            candidate = _appearance_for_fit(reference, reference_hash, picture_hash, fit,
+                                           template_linear, template_offset, view_scale, view_origin)
             probes = ((0., 0.), (reference.shape[1]-1., 0.), (0., reference.shape[0]-1.))
             if not any(max(math.dist(candidate.project(point), old.project(point)) for point in probes) < 1.
                        for old in found):

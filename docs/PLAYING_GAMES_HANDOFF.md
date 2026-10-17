@@ -900,3 +900,39 @@ contact semantics or a live win. The next visual question is whether a
 previous measured appearance can propose fresh current-pixel correspondence
 when original global marks disappear, without asserting continuing object
 identity or relaxing material/control qualification.
+
+## Fresh current-pixel source geometry, 16 October 2026
+
+Normal observation now uses measured source poses to propose fresh reference
+fits on the worker that consumes each picture. Coarse local colour matching
+precedes the unchanged bidirectional patch and six-correspondence gates.
+Source geometry can qualify without a canonical object or global named
+marks. The new channel creates no continuing object identity, role or input
+authority. Capture, source, sampling and lever-arm precision remain checked.
+
+One reference is measured per frame. Previously published geometry supplies
+priority hints for missing work, with fair audits every fourth slot. A
+capacity latch now retires old search hints explicitly instead of blocking
+all later fresh work. Agreeing origin hypotheses carry an enclosing error
+allowance and do not multiply support or count physical objects.
+
+On the same 100-capture recording, the final ordinary run supplied the
+composite origin on 42 captures through fresh or continuing geometry,
+compared with eight in the earlier material-only path. All 38 fresh points
+passed capture verification and fresh global matching, with largest
+difference 0.160980 working pixels. Object-bound source points appeared on
+51 frames, compared with 53 earlier; this is not controlled-body proof.
+The final maximum loop gap was 0.040515 seconds and frame call 0.163468
+seconds. This replay starts no model and sends no game input.
+
+See `docs/evidence/steering/2026-10-16-current-pixels-refresh-source-geometry.md`.
+Source-instance/role binding, source-defined contacts, uncached asset
+acquisition and native gameplay proof remain open. The earlier reader
+wording means `complete=False` and `effects_composed=False`: it remains
+incomplete. No native deployment, G09 run or holdout was changed.
+
+Fresh-geometry gates: 298 focused passed, one busy contention test
+deselected; smoke 165 passed, one skipped. Lint, compile, layering, DEPS
+consistency and writing passed. Governance retains 131 existing regressions
+and module size the same unrelated regressions, including 197 excess lines.
+Neither baseline changed. The exclusive model process remained PID 72875.

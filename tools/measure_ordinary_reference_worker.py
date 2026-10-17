@@ -68,6 +68,8 @@ async def measure(args: argparse.Namespace) -> dict:
                 status=observation.source_reference_status,
                 points=[asdict(point) for point in observation.source_reference_points],
                 source_frames=[asdict(frame) for frame in observation.source_reference_frames],
+                fresh_source_frames=[asdict(frame) for frame in observation.fresh_source_reference_frames],
+                fresh_source_status=list(observation.fresh_source_reference_status),
                 material_retention_admitted=getattr(observation, 'material_retention_admitted', None),
                 unavailable=list(worker.unavailable) if worker else [], refused=list(worker.refused) if worker else []))
             lags.append(time.monotonic()-frame_started)
@@ -92,6 +94,7 @@ def check_published_points(result: dict, *, source_frames_only: bool = False) ->
     from core.perception.visual_references_for_current_sources import registered_reference, acquire_visual_references
     from core.perception.visual_assets_in_a_flash_file import read_flash_visual_assets
     from core.perception.the_pixel_grid_a_mark_uses import SampleGrid
+    from core.perception.pixels_consumed_by_the_observer import consumed_pixels
     from tools.measure_source_points_on_recorded_material import _frames, _pixels
 
     recording = Path(result['recording'])
@@ -101,7 +104,7 @@ def check_published_points(result: dict, *, source_frames_only: bool = False) ->
         table = read_flash_visual_assets((Path(result['reference_bundle'])/'source.swf').read_bytes())
         catalog = acquire_visual_references((table,), root=Path(result['index']).parent.parent)
         references.update((item.key, item) for item in catalog.references)
-    fields = ('source_frames',) if source_frames_only else ('points', 'source_frames')
+    fields = ('source_frames', 'fresh_source_frames') if source_frames_only else ('points', 'source_frames', 'fresh_source_frames')
     measured = [frame for frame in result['frames'] if any(frame.get(field) for field in fields)]
     if not measured:
         return dict(checks=[], measured=0, maximum_difference=None, unmeasured=0)
@@ -116,6 +119,17 @@ def check_published_points(result: dict, *, source_frames_only: bool = False) ->
         cache = {}
         for field in fields:
             for point in frame.get(field, []):
+                capture_verified = None
+                if field == 'fresh_source_frames':
+                    published = point.get('pixels', {})
+                    actual = consumed_pixels(picture, frame['at'])
+                    capture_verified = (actual is not None and isinstance(published, dict)
+                        and isinstance(published.get('shape'), (list, tuple)) and published.get('at') == actual.at
+                        and published.get('sha256') == actual.sha256
+                        and tuple(published.get('shape', ())) == actual.shape
+                        and point.get('point', {}).get('at') == actual.at)
+                    if not capture_verified:
+                        raise ValueError('fresh reference geometry does not name the consumed RGB capture')
                 key = (point['source'], point['character_id'], point['reference_sha256'])
                 if key not in references:
                     raise ValueError('a different reference cannot verify this published point')
@@ -132,6 +146,7 @@ def check_published_points(result: dict, *, source_frames_only: bool = False) ->
                 difference = math.dist(point['point']['position'], expected) if expected is not None else None
                 checks.append(dict(sequence=frame['sequence'], at=frame['at'], kind=field,
                     number=point['point'].get('number'), character_id=point['character_id'],
+                    capture_receipt_verified=capture_verified,
                     fresh_appearances=len(poses), independent_difference=difference,
                     within_working_pixel=difference <= 1. if difference is not None else None))
     differences = [check['independent_difference'] for check in checks if check['independent_difference'] is not None]

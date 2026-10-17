@@ -3,6 +3,9 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant
+    from core.perception.source_geometry_in_current_pixels import _reference_attention_invariant
+    from core.perception.reference_material_near_a_measured_pose import _near_reference_material_invariant
     from core.perception.points_a_consumer_still_needs import _point_retention_visibility_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_deletion_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_boolean_arithmetic_invariant
@@ -44,7 +47,16 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('source_boolean_arithmetic_keeps_type_boundaries', 'core/perception/symbolic_motion_in_flash_methods.py',
+    return (('optional_reference_attention_keeps_fair_audits', 'core/perception/source_geometry_in_current_pixels.py',
+             'tests/test_fresh_source_geometry_reaches_ordinary_observation.py', lambda: _reference_attention_invariant() == (),
+             'Other observation channels supply priority hints for optional reference work; missing geometry receives extra work while fair audits remain available and no old measurement becomes current evidence.'),
+            ('fresh_source_geometry_keeps_the_consumed_capture', 'core/perception/source_geometry_in_current_pixels.py',
+             'tests/test_fresh_source_geometry_reaches_ordinary_observation.py', lambda: _fresh_source_capture_invariant() == (),
+             'Fresh source correspondence publishes geometry only for the exact consumed capture and current source; it does not supply continuing object identity or control authority.'),
+            ('previous_reference_poses_need_fresh_pixel_support', 'core/perception/reference_material_near_a_measured_pose.py',
+             'tests/test_previous_pose_only_proposes_current_reference_pixels.py', lambda: _near_reference_material_invariant() == (),
+             'Previous geometry can propose a bounded fresh reference fit; current correspondence and reverse-patch checks must qualify again and missing material remains unavailable.'),
+            ('source_boolean_arithmetic_keeps_type_boundaries', 'core/perception/symbolic_motion_in_flash_methods.py',
              'tests/test_symbolic_motion_in_flash_methods.py', lambda: _source_boolean_arithmetic_invariant() == (),
              'Known boolean values reduce to zero or one for numeric source operations; strict equality retains type distinctions and unknown input remains symbolic.'),
             ('source_deletions_remain_uncomposed_mutations', 'core/perception/symbolic_motion_in_flash_methods.py',

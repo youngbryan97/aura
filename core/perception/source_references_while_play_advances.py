@@ -20,6 +20,7 @@ from core.perception.a_source_point_on_current_material import SourcePointOnTrac
 from core.perception.a_source_point_on_visible_marks import SourcePointOnVisibleMarks, VisibleSourcePoint, attach_source_point_to_visible_marks
 from core.perception.points_a_consumer_still_needs import MaterialRetention, MaterialRegion
 from core.perception.a_visual_reference_in_the_picture import reference_appearances
+from core.perception.source_reference_proposals import SourceReferenceProposal
 from core.perception.visual_references_for_current_sources import (
     RegisteredVisualReference, acquire_visual_references, current_visual_sources,
 )
@@ -84,6 +85,8 @@ class _Matched:
     refused: tuple[str, ...]
     views: tuple[tuple[float, float], ...] = ()
     frames: tuple[SourcePointOnVisibleMarks, ...] = ()
+    appearances: tuple = ()
+    capture: Any = None
 
 
 @dataclass
@@ -121,7 +124,8 @@ def _matched(reference: RegisteredVisualReference, frame: Any, *, angle: float =
             bindings.append(attached.binding)
     views = tuple((float(math.sqrt(np.linalg.det(pose.linear))),
                    float(math.atan2(pose.linear[1][0], pose.linear[0][0]))) for pose in poses)
-    return _Matched(reference, tuple(bindings), tuple(refused) if poses else ('no_qualified_appearance',), views, tuple(frames))
+    return _Matched(reference, tuple(bindings), tuple(refused) if poses else ('no_qualified_appearance',),
+                    views, tuple(frames), poses, frame.pixels_consumed)
 
 
 def _finished(raw: Future, slots: Any) -> None:
@@ -147,6 +151,8 @@ class SourceReferencesInPlay:
         self.frames: tuple = ()
         self.source_frames: tuple = ()
         self.retention: MaterialRetention | None = None
+        self.proposals: tuple = ()
+        self._proposal_revision = 0
         self.unavailable: tuple = ()
         self.refused: tuple = ()
         self.views: dict = {}
@@ -205,6 +211,12 @@ class SourceReferencesInPlay:
             self.status = 'catalog_ready' if self.catalog else 'no_registered_reference'
         else:
             self.refused = result.refused
+            if result.appearances and result.capture is not None:
+                self._proposal_revision += 1
+                proposal = SourceReferenceProposal(result.reference, result.capture,
+                                                     result.appearances, self._proposal_revision)
+                self.proposals = (*tuple(old for old in self.proposals
+                                        if old.reference.key != result.reference.key), proposal)[-32:]
             if result.views:
                 self.views[result.reference.key] = result.views
             # A failed appearance search cannot erase continuing measured
@@ -249,6 +261,7 @@ class SourceReferencesInPlay:
         if tables != self.tables:
             self.tables, self.catalog, self.bindings = tables, (), ()
             self.frames = ()
+            self.proposals = ()
             self.unavailable, self.refused = (), ()
             self.views = {}
             self._loaded = False
@@ -324,6 +337,7 @@ class SourceReferencesInPlay:
         self._generation += 1
         self.catalog, self.bindings, self.points = (), (), ()
         self.frames, self.source_frames, self.retention = (), (), None
+        self.proposals = ()
         self.views = {}
         if self._work is not None:
             self._work.raw.cancel()
