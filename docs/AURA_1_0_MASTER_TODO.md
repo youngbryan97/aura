@@ -2824,6 +2824,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
 - [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  Attempt 5, 2026-10-17 ([result](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)): the registered verdict
+  closes (38 to 11, p 1.4e-4), but 13 gains are the grader's (right drafts it misread, valid Depots plans
+  not closed with "[PLAN END]"); without them the primary is 25 to 11, p 0.029, short of 0.01. Breadth
+  holds (math 10 to 0, planning 15 to 0). The meaning route lost 11 of 13 MATH problems. Open; attempt 6
+  fixes the grader and the route on development data first.
   REOPENED 2026-10-16 09:37 ([correction](evidence/G09_PROCEDURES_RESULT_3_2026-10-16.md)): attempt 3
   graded her drafts by exact DeepMind notation and the kept answers by each kind's own grader; with one
   grader for both arms held-out math is 27 gained to 25 lost (p = 0.89), pooled 61 to 79. The record of
