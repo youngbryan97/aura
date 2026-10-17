@@ -4,8 +4,8 @@ DEMOS: [https://youtu.be/iTyxeugcZtI?si=B91No0Hjz3eKLMwz](https://www.youtube.co
 
 Aura is a local AI research project that runs entirely on your Mac. It explores
 how to build an AI agent that can think continuously, remember things long-term,
-govern its own behavior with auditable receipts, steer its own emotional tone
-during text generation, and keep itself running reliably over time.
+govern its own behavior with auditable receipts, let its internal state shape
+how it generates text, and keep itself running reliably over time.
 
 **Aura is not proof of consciousness, life, or personhood.** Nothing here settles
 those questions. Some file and module names sound like they might — they're named
@@ -83,12 +83,15 @@ What is actually claimed, and what each claim costs:
   hardened. The local-only architecture, the broad fallback surface, and
   the runtime fragility are all real, and none of them belong under the
   word "enterprise."
-- **Emotional steering is causal, and that's testable.** Internal state
-  reaches text generation through non-text channels (Contrastive Activation
-  Addition — a technique that modifies the model's hidden computations
-  directly). But black-box steering tests can hide live emotional telemetry
-  from the prompt text, and strong adversarial baselines are required before
-  the result counts.
+- **Activation steering is built and closed on user turns.** The hook that
+  adds her state to the model's hidden computations works, and steering a turn
+  somebody is waiting for needs a five-part certificate
+  (`core/consciousness/fusion_certificate.py`). On 13 October 2026 the 27B met
+  four parts and failed the fifth: steered, a reply about fledged wrens came
+  out as "The wren brood has successfully completed its operational cycle".
+  Until all five hold, every user turn runs with steering at zero, and her
+  state reaches her words through sampling settings and through evidence text
+  in the prompt.
 - **Identity persistence uses retrieval, not just prompt text.** Coherence
   is maintained by ID-RAG Chronicle retrieval rather than prompt anchoring
   alone.
@@ -562,13 +565,13 @@ Most "AI companion" projects do the same thing: store a mood number, paste it
 into the system prompt, let the model act it out. The model says it's feeling
 energetic because it read the words "feeling energetic."
 
-That's a costume. Aura is built the other way around.
-
-When Aura is in an emotional state, that state becomes a direction vector
-added to the transformer's hidden activations during generation. The model's
-internal computation changes — not just the text it reads. This is the same
-family of techniques interpretability researchers use to steer behavior (CAA,
-activation addition, residual-stream interventions).
+Aura is meant to work the other way around: her state as a direction vector
+added to the transformer's hidden activations during generation, so the
+model's computation changes and not only the text it reads. The hook exists
+and is the same family of techniques interpretability researchers use (CAA,
+activation addition, residual-stream interventions). It is not yet on for
+the turns people take: see [Inference-time steering](#inference-time-steering)
+for why, and for what reaches her words today.
 
 Underneath that, a substrate that never stops. Emotions decay and pull on
 each other. Neurochemicals rise and fall on their own clocks. A global
@@ -972,8 +975,16 @@ So there are three places emotion can touch generation:
 3. **Context** — natural-language emotional cues in the system prompt.
    Changes what the model reads.
 
-The first is the interesting one. The third is what most "emotional AI"
-projects stop at.
+The first is the interesting one, and today it is closed on every turn a
+person is waiting for. `_surface_control_alpha` in the worker returns zero
+unless a fusion certificate for the loaded model holds all five of its
+criteria: the distribution moves, it moves as a direction rather than a
+displacement, opposite states move it differently, answers get no worse, and
+her own past replies stay as likely as before. The persona 27B met the first
+four on 13 October 2026 and failed the fifth. So on user turns the second and
+third channels are the ones that run: the seven sampling temperatures logged
+on 16 and 17 October ran from 0.68 to 0.74, and readings of her state appear as
+text when the turn is about her.
 
 ---
 
@@ -1000,7 +1011,7 @@ Aura computes Integrated Information (φ) at two scales simultaneously.
    the distribution that would hold if A and B evolved independently.
 5. **Apply the exclusion postulate** — an exhaustive subset search picks
    the maximum-phi complex. If some subset beats the full system, that
-   subset is the conscious entity for that tick.
+   subset is reported as the complex for that tick.
 
 Runtime is 10–50 ms per evaluation, cached at 15-second intervals.
 
@@ -1023,6 +1034,14 @@ strictly higher φ than noise.
 
 Full 32-node refresh runs in ~150 ms with K-subsystem parallelism via a thread
 pool; MLX Metal is used where available.
+
+**What these numbers do not show.** They are integration measured on a
+binarized summary of her state, not IIT 4.0 over her mechanisms. The stricter
+test is the preregistered 24-line subject battery, whose partition
+irreducibility line asks whether cutting her state into parts loses
+information that nulls cannot explain. That line, and the two synergy lines,
+have failed in every run so far; the latest validation (13 October 2026)
+passed 17 of 24 lines.
 
 ---
 
