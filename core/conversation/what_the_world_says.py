@@ -488,11 +488,21 @@ async def gather_world_evidence(
             # Checked against the world: what the question points at in her
             # last answer, not the question's own words.
             asked_for = claim_asked_about(question, previous_reply, previous_request) or None
+    # "He" or "she" in a question names whom the person's last turn named, as
+    # core/knowledge/talked_about.py reads it. Live 2026-10-17 "How many MVP
+    # awards did he win?", after a turn about a player, looked up only "MVP",
+    # judged what it found against a question that names nobody, and read
+    # nothing; she answered one, where his page says two.
+    carried: list[str] = []
+    if asked_for is None and previous_request:
+        from core.knowledge.talked_about import points_back
+
+        if points_back(question):
+            carried = referent_phrases(previous_request)
+    phrases = [*carried, *(phrase for phrase in referent_phrases(asked_for or question) if phrase not in carried)]
     local = _judge(
-        question,
-        await asyncio.to_thread(
-            _from_corpus, referent_phrases(asked_for or question), terms, store=store, read_since=read_since
-        ),
+        f"{previous_request}\n{question}" if carried else question,
+        await asyncio.to_thread(_from_corpus, phrases, terms, store=store, read_since=read_since),
         solicited=asked_for is not None,
     )
     evidence.sources.extend(local[:3])
