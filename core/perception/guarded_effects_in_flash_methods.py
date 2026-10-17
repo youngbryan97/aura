@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.perception.flash_actions_with_source import ActionInstruction, ActionStream
+from core.perception.flash_actions_with_source import ActionFunction, ActionInstruction, ActionStream
 from core.perception.symbolic_motion_in_flash_methods import FlashMethodBinding
 from core.verify import invariant
 
@@ -193,8 +193,8 @@ def _successors(instruction: ActionInstruction, end: int) -> tuple[int, ...]:
     return (instruction.next_offset,)
 
 
-def _ordered(stream: ActionStream) -> tuple[tuple[int, ...], dict[int, ActionInstruction]]:
-    """Topological order, with a virtual exit for falling off the owned body."""
+def _ordered(stream: ActionStream) -> tuple[tuple[int, ...], dict[int, ActionInstruction], tuple[int, ...]]:
+    """Return the acyclic prefix and every address still blocked by a cycle."""
     instructions = {instruction.offset: instruction for instruction in stream.instructions}
     if len(instructions) != len(stream.instructions) or len(instructions) > MAX_INSTRUCTIONS:
         raise _CannotLiftError('duplicate addresses or source instruction budget exceeded')
@@ -226,9 +226,10 @@ def _ordered(stream: ActionStream) -> tuple[tuple[int, ...], dict[int, ActionIns
             incoming[successor] -= 1
             if not incoming[successor]:
                 heapq.heappush(queue, successor)
-    if len(order) != len(edges) or not order or order[0] != first:
-        raise _CannotLiftError('cyclic source flow requires a separate loop summary')
-    return tuple(order), instructions
+    if order and order[0] != first:
+        raise _CannotLiftError('source flow has no owned entry')
+    blocked = tuple(sorted(edges.keys() - set(order)))
+    return tuple(order), instructions, blocked
 
 
 def _merge(arena: _Arena, frames: list[_Frame]) -> _Frame:
@@ -253,9 +254,9 @@ def _pop(frame: _Frame) -> int:
     return frame.stack.pop()
 
 
-def _arguments(arena: _Arena, frame: _Frame) -> tuple[int, ...]:
+def _arguments(arena: _Arena, frame: _Frame, *, limit: int = 16) -> tuple[int, ...]:
     count = arena.nodes[_pop(frame)]
-    if count.operation != 'number' or not count.data[0].is_integer() or not 0 <= count.data[0] <= 16:
+    if count.operation != 'number' or not count.data[0].is_integer() or not 0 <= count.data[0] <= limit:
         raise _CannotLiftError('call has an unknown or excessive argument count')
     return tuple(_pop(frame) for _ in range(int(count.data[0])))
 
@@ -275,7 +276,7 @@ _UNARY = {0x12, 0x14, 0x18, 0x30, 0x44, 0x4A, 0x4B, 0x50, 0x51}
 
 
 def _step(arena: _Arena, frame: _Frame, instruction: ActionInstruction,
-          effects: list[GuardedEffect]) -> None:
+          effects: list[GuardedEffect], functions: dict[int, ActionFunction]) -> None:
     code, before = instruction.opcode, frame.memory
     if code == 0x96:
         for operand in instruction.operands:
@@ -318,17 +319,39 @@ def _step(arena: _Arena, frame: _Frame, instruction: ActionInstruction,
             operands = (name, value)
         frame.memory = arena.add(operation, (frame.memory, *operands), (instruction.offset, code))
         effects.append(GuardedEffect(instruction.offset, frame.guard, operation, operands, before, frame.memory))
-    elif code in (0x3D, 0x52, 0x3A):
-        if code in (0x52, 0x3A):
+    elif code in (0x3D, 0x52, 0x3A, 0x40, 0x53, 0x42):
+        if code in (0x52, 0x3A, 0x53):
             member, receiver = _pop(frame), _pop(frame)
             operands = (receiver, member)
-        else:
+        elif code != 0x42:
             operands = (_pop(frame),)
-        operation = {0x3D: 'call_function', 0x52: 'call_method', 0x3A: 'delete_member'}[code]
-        if code != 0x3A:
+        else:
+            operands = ()
+        operation = {0x3D: 'call_function', 0x52: 'call_method', 0x3A: 'delete_member',
+                     0x40: 'construct_object', 0x53: 'construct_method', 0x42: 'init_array'}[code]
+        if code == 0x42:
+            operands = _arguments(arena, frame, limit=64)
+        elif code != 0x3A:
             operands += _arguments(arena, frame)
         value = _result(arena, frame, instruction, operation, operands)
         frame.stack.append(value)
+        effects.append(GuardedEffect(instruction.offset, frame.guard, operation, operands, before, frame.memory, value))
+    elif code in (0x8E, 0x9B):
+        function = functions.get(instruction.offset)
+        if function is None:
+            raise _CannotLiftError('function literal has no owned body')
+        # This token records creation context. Captured scopes refer to runtime
+        # environments; they are never frozen copies of values at declaration.
+        details = (instruction.offset, code, function.body_offset, function.end_offset, function.name,
+                   function.parameters, function.register_parameters, function.register_count, function.flags)
+        value = arena.add('function_value', (frame.memory,), details)
+        frame.memory = arena.add('after', (value,))
+        if function.name:
+            operation, operands = 'define_function', (arena.literal(function.name), value)
+            frame.memory = arena.add(operation, (frame.memory, *operands), (instruction.offset, code))
+        else:
+            operation, operands = 'make_function', (value,)
+            frame.stack.append(value)
         effects.append(GuardedEffect(instruction.offset, frame.guard, operation, operands, before, frame.memory, value))
     elif code == 0x17:
         _pop(frame)
@@ -373,9 +396,14 @@ def read_flash_effect_graph(binding: FlashMethodBinding, *, receiver: str | None
         return FlashEffectGraph(**base, issues=('reserved flags or conflicting preloaded register',))
     arena, effects, branches, exits, lifted = _Arena(), [], [], [], []
     order: tuple[int, ...] = ()
+    reachable: tuple[int, ...] = ()
     issues: list[str] = []
     try:
-        order, instructions = _ordered(function.body)
+        order, instructions, blocked = _ordered(function.body)
+        reachable = order + blocked
+        if blocked:
+            issues.append(f'{source}@{blocked[0]}: cyclic source flow requires a separate loop summary')
+        functions = {nested.definition_offset: nested for nested in function.body.functions}
         own = arena.add('receiver_input', data=(receiver, 'caller supplied' if receiver else 'unresolved'))
         arguments = {name: arena.add('argument_input', data=(index, name))
                      for index, name in enumerate(function.parameters)}
@@ -385,7 +413,7 @@ def read_flash_effect_graph(binding: FlashMethodBinding, *, receiver: str | None
         if function.flags & 1:
             registers.add(1)
         first = _Frame(arena.true, memory, registers=registers, pool=binding.constant_pool)
-        arrivals: dict[int, list[_Frame]] = {order[0]: [first]}
+        arrivals: dict[int, list[_Frame]] = {function.body.instructions[0].offset: [first]}
         for offset in order:
             frame = _merge(arena, arrivals.get(offset, []))
             instruction = instructions.get(offset)
@@ -403,13 +431,13 @@ def read_flash_effect_graph(binding: FlashMethodBinding, *, receiver: str | None
             elif instruction.opcode == 0x99:
                 arrivals.setdefault(instruction.branch_target, []).append(frame)
             else:
-                _step(arena, frame, instruction, effects)
+                _step(arena, frame, instruction, effects, functions)
                 arrivals.setdefault(instruction.next_offset, []).append(frame)
             lifted.append(offset)
     except (_CannotLiftError, KeyError, IndexError, TypeError, ValueError, OverflowError) as exc:
         issues.append(f'{source}@{offset if "offset" in locals() else function.body_offset}: {exc}')
     return FlashEffectGraph(**base, nodes=tuple(arena.nodes), effects=tuple(effects), branches=tuple(branches),
-                            exits=tuple(exits), lifted=tuple(lifted), reachable=order, issues=tuple(issues))
+                            exits=tuple(exits), lifted=tuple(lifted), reachable=reachable, issues=tuple(issues))
 
 
 @invariant('perception.guarded_source_graph_is_ordered_and_not_an_executable_model', scope='perception',

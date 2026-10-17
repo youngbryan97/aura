@@ -33,6 +33,7 @@ def inspect(raw: bytes, targets: tuple[str, ...]) -> dict:
         findings.append({'target': target, 'graph': asdict(graph), 'complete': graph.complete,
                          'effects_composed': graph.effects_composed,
                          'instructions': len(binding.function.body.instructions), 'nodes': len(graph.nodes),
+                         'lifted_addresses': len(graph.lifted), 'reachable_addresses': len(graph.reachable),
                          'effects': dict(Counter(effect.operation for effect in graph.effects)),
                          'branches': len(graph.branches), 'exits': len(graph.exits),
                          'path_reader': {'paths': len(paths.paths), 'complete': paths.complete,

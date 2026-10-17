@@ -85,3 +85,45 @@ DEPS consistency and writing passed. Governance retains 131 existing
 regressions; module size retains the same unrelated four regressions and
 197 excess lines. Neither baseline was changed. The full suite was not run
 beside the protected exclusive model job.
+
+## Object creation, callbacks and acyclic prefixes
+
+The graph now retains constructor calls, bounded array initialization and
+function creation. Constructor arguments preserve VM stack order. Their
+heap effects and resulting objects remain opaque. Function values name
+their exact owned body and creation context; this records scope capture
+without treating it as a frozen copy of variable values. Assigning a
+callback does not execute its body. Named function declarations retain
+their scope effect and do not push an anonymous function value.
+
+The [Ruffle AVM1 implementation](https://github.com/ruffle-rs/ruffle/blob/master/core/src/avm1/activation.rs)
+was consulted for constructor stack order. No interpreter code was copied.
+
+A later cyclic region now leaves the topologically ordered prefix
+available for inspection. The graph lists every reachable address and
+every lifted address separately. A loop and anything blocked behind it
+remain unlifted; no guessed loop state, exit or controller is supplied.
+Whole-method completeness remains false.
+
+The eleven-method source inspection now completely lifts six methods:
+the movement, outcome display, thrust artwork, surface animation, crash
+and point-calculation methods. All six remain uncomposed. The other five
+retain an explicit loop-summary requirement. In particular, 199 addresses
+of the reset method's 215 reachable addresses now survive before its
+loop. They include the source's two visual-export attachment calls and
+its movement callback assignment. Previously the cycle discarded the
+whole read. This is source evidence, not runtime instance or task-role
+qualification.
+
+The outcome helper has 237 instructions and one virtual normal exit in
+298 nodes. Its five anonymous callbacks retain their own body addresses.
+The movement graph remains 771 nodes. The final eleven-method inspection
+took 0.036294 seconds; its supervisor correctly returned 1 because five
+methods remain incomplete. The artifact is `prefix-source-graphs.json`.
+Focused source tests passed 196 checks, including constructor argument
+order, unexecuted callback bodies, scope effects, partial prefix returns
+and an entry loop that supplies no invented exit.
+
+Creation checkpoint gates: smoke 165 passed, one skipped; lint, compile,
+layering, generated DEPS consistency and writing passed. No input, model,
+native runtime, G09 case or holdout was used by these source inspections.

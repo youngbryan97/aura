@@ -58,6 +58,11 @@ def _source(body, params=()):
     return stream
 
 
+def _function_literal(body, name=''):
+    header = name.encode() + b'\0\0\0' + struct.pack('<H', len(body))
+    return _action(0x9B, header) + body
+
+
 def _binding(body, params=()):
     return bind_flash_methods((_source(body, params),)).method('operate')
 
@@ -123,6 +128,10 @@ def _operation(operation, memory, operands, code):
         receiver, name, *args = operands
         log.append((receiver, name, tuple(args)))
         value = len(log)
+    elif operation in ('construct_object', 'construct_method', 'init_array'):
+        log.append((operation, operands))
+        value = _Object(max(objects) + 1)
+        objects[value.number] = {'constructor': operands}
     elif operation == 'binary':
         value = _binary(code, *operands)
     elif operation == 'unary':
@@ -234,13 +243,16 @@ def _run_code(binding, initial, args=()):
             elif code == 0x4F:
                 value, member, receiver = stack.pop(), stack.pop(), stack.pop()
                 operation, operands = 'set_member', (receiver, member, value)
-            elif code in (0x3D, 0x52):
+            elif code in (0x3D, 0x52, 0x40, 0x53):
                 name = stack.pop()
-                receiver = stack.pop() if code == 0x52 else None
+                receiver = stack.pop() if code in (0x52, 0x53) else None
                 count = stack.pop()
                 operands = tuple(stack.pop() for _ in range(count))
-                operation = 'call_method' if code == 0x52 else 'call_function'
-                operands = (receiver, name, *operands) if code == 0x52 else (name, *operands)
+                operation = {0x3D: 'call_function', 0x52: 'call_method', 0x40: 'construct_object', 0x53: 'construct_method'}[code]
+                operands = (receiver, name, *operands) if code in (0x52, 0x53) else (name, *operands)
+            elif code == 0x42:
+                count = stack.pop()
+                operation, operands = 'init_array', tuple(stack.pop() for _ in range(count))
             elif code == 0x12:
                 operation, operands = 'unary', (stack.pop(),)
             else:
@@ -472,3 +484,75 @@ def test_duplicate_parameters_and_preload_conflicts_cannot_hide_input_state():
     binding = _binding(b'\0', ('arg',))
     conflicting = replace(binding, function=replace(binding.function, flags=1, register_parameters=((1, 'arg'),)))
     assert not read_flash_effect_graph(conflicting).complete
+
+
+@pytest.mark.parametrize('code', [0x40, 0x53, 0x42])
+def test_construction_keeps_argument_order_and_unknown_heap_effects(code):
+    if code == 0x53:
+        body = _push(7, 3, 2, 'this') + b'\x1c' + _push('factory') + bytes((code,)) + b'\x3e'
+    elif code == 0x40:
+        body = _push(7, 3, 2, 'Factory') + bytes((code,)) + b'\x3e'
+    else:
+        body = _push(7, 3, 2) + bytes((code,)) + b'\x3e'
+    binding = _binding(body)
+    graph = read_flash_effect_graph(binding)
+    assert graph.complete and not graph.effects_composed
+    result = _run_graph(graph, _initial())
+    assert result == _run_code(binding, _initial())
+    assert result[1][2][-1][1][-2:] == (3, 7)
+
+
+def test_function_literal_keeps_its_body_and_context_without_running_it():
+    nested_body = _push('nestedEffect', 19) + b'\x1d\0'
+    body = (_push('this') + b'\x1c' + _push('onEnterFrame') + _function_literal(nested_body)
+            + b'\x4f\0')
+    binding = _binding(body)
+    graph = read_flash_effect_graph(binding)
+    assert graph.complete and not graph.effects_composed
+    function = binding.function.body.functions[0]
+    creation = next(effect for effect in graph.effects if effect.operation == 'make_function')
+    node = graph.nodes[creation.result]
+    assert node.operation == 'function_value'
+    assert node.data[2:5] == (function.body_offset, function.end_offset, '')
+    assignment = next(effect for effect in graph.effects if effect.operation == 'set_member')
+    assert assignment.operands[-1] == creation.result
+    assert all(effect.offset < function.body_offset or effect.offset >= function.end_offset for effect in graph.effects)
+    assert creation.before in graph.slice_effect(assignment.offset)
+
+
+def test_named_function_declaration_has_a_scope_effect_and_pushes_no_value():
+    binding = _binding(_function_literal(b'\0', name='helper') + _push(2) + b'\x3e')
+    graph = read_flash_effect_graph(binding)
+    assert graph.complete
+    effect = next(effect for effect in graph.effects if effect.operation == 'define_function')
+    assert graph.nodes[effect.operands[0]].data == ('helper',)
+    assert graph.nodes[graph.exits[0].returned].data == (2.,)
+
+
+def test_function_body_must_be_owned_by_its_actual_definition_address():
+    binding = _binding(_function_literal(b'\0') + b'\x17\0')
+    binding = replace(binding, function=replace(binding.function, body=replace(binding.function.body, functions=())))
+    graph = read_flash_effect_graph(binding)
+    assert not graph.complete and 'owned body' in graph.issues[0]
+
+
+def test_a_later_cycle_does_not_discard_guarded_prefix_evidence():
+    body = _assemble([_push('started', 7) + b'\x1d', _push('flag') + b'\x1c', (0x9D, 'loop'),
+                      _push(3) + b'\x3e', 'loop', _push('later', 19) + b'\x1d', (0x99, 'loop'), b'\0'])
+    binding = _binding(body)
+    graph = read_flash_effect_graph(binding)
+    assert not graph.complete and not graph.effects_composed
+    assert len(graph.exits) == 1
+    assert 'loop summary' in graph.issues[0]
+    retained_names = [graph.nodes[effect.operands[0]].data[0] for effect in graph.effects
+                      if effect.operation == 'set_variable']
+    assert retained_names == ['started']
+    assert len(graph.lifted) < len(graph.reachable)
+    assert _run_graph(graph, _initial(flag=False)) == _run_code(binding, _initial(flag=False))
+
+
+def test_an_entry_cycle_never_supplies_a_completed_graph_or_an_invented_exit():
+    body = _assemble(['loop', _push('later', 19) + b'\x1d', (0x99, 'loop')])
+    graph = read_flash_effect_graph(_binding(body))
+    assert graph.reachable and graph.lifted == () and graph.effects == () and graph.exits == ()
+    assert not graph.complete and 'loop summary' in graph.issues[0]

@@ -963,3 +963,19 @@ The final source measurement is 771 nodes for the same 450 instructions
 and 19 branches. Focused source tests: 188 passed. Smoke: 165 passed, one
 skipped. Lint, compile, layering, DEPS consistency and writing passed.
 Governance and size retain their existing regressions; baselines unchanged.
+
+Object creation and callbacks are now represented as opaque ordered source
+effects. The outcome helper lifts all 237 instructions plus its virtual
+exit in 298 nodes; callback creation never runs the nested body. Cyclic
+methods retain their acyclic prefixes while remaining incomplete. The
+reset method now retains 199 of 215 reachable addresses, including visual
+attachments and the movement callback assignment; it formerly lost the
+whole read to its later loop. This opens the source-instance binding
+investigation without claiming that binding is already qualified.
+
+The eleven-method inspection lifts six completely and preserves explicit
+loop-summary refusals for five. All remain uncomposed. Focused: 196 passed.
+See the appended creation section in the guarded-source evidence record.
+
+Creation checkpoint gates: smoke 165 passed, one skipped; lint, compile,
+layering, DEPS consistency and writing passed. Native proof remains open.
