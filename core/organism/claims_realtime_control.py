@@ -1009,7 +1009,7 @@ def _visual_motion_claims() -> tuple:
         _picture_probe_inputs_invariant,
     )
     from core.perception.a_reading_before_more_detail import _finished_reading_invariant
-    from core.perception.a_reference_kept_by_visible_support import _reference_bridge_invariant
+    from core.perception.a_reference_kept_by_visible_support import _reference_bridge_invariant, _resting_material_invariant
     from core.perception.a_texture_copied_by_its_shader import _texture_copy_invariant
     from core.perception.activity_in_the_picture import _picture_activity_invariant
     from core.perception.background_visible_beside_a_patch import _exposed_background_invariant
@@ -1201,6 +1201,9 @@ def _visual_motion_claims() -> tuple:
         ("a_reference_bridge_needs_independent_visible_support", "core/perception/a_reference_kept_by_visible_support.py",
          "tests/test_a_measured_patch_can_keep_a_point_reference.py", lambda: _reference_bridge_invariant() == (),
          "A measured origin crosses missing marks only through current matching pixels and exterior edges, with the same birth and observation time; current owned marks join in that calibrated origin."),
+        ("resting_material_keeps_a_measured_origin", "core/perception/a_reference_kept_by_visible_support.py",
+         "tests/test_resting_material_keeps_its_measured_origin.py", lambda: _resting_material_invariant() == (),
+         "A still-visible unmatched object may retain its measured origin through current agreeing points and matching pixels; absent or contradictory support supplies no new path."),
         ("rigid_point_motion_requires_spread_consensus", "core/perception/rigid_motion_from_named_points.py",
          "tests/test_rotating_points_keep_their_reference.py", lambda: _rigid_motion_invariant() == (),
          "A rigid point transform needs a bounded consensus of continuing noncollinear correspondences; a rotating path retains its measured reference rather than a changing box centre."),

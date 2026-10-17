@@ -1234,6 +1234,13 @@ class WhatMoves:
             kept = self.things if number in self.things else self.pending
             thing = kept[number]
             if self._still_there(thing, small):
+                from core.perception.a_reference_kept_by_visible_support import still_material_observation
+
+                observed = still_material_observation(thing, small, self._point_motion.get(number), at)
+                if observed is not None:
+                    self._moved(thing, observed, at)
+                    thing.still = True
+                    continue
                 had_point_path = thing.motion_position is not None
                 thing.point_pose, thing.motion_position = None, None
                 thing.x, thing.y = _measured(thing)

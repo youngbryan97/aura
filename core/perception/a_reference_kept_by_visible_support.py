@@ -10,7 +10,11 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from core.perception.position_from_the_same_points import position_from_points
+import numpy as np
+
+from core.perception.boundary_support_for_translation import visible_boundary
+from core.perception.points_that_keep_their_motion import PointMotion
+from core.perception.position_from_the_same_points import last_observed_outline, position_from_points
 from core.perception.translation_from_visible_support import (
     PIXEL_UNCERTAINTY,
     matching_support,
@@ -26,6 +30,39 @@ class VisibleReference:
     position: tuple[float, float]
     box: tuple[float, float]
     reference_at: float | None = None
+
+
+def still_material_observation(thing: Any, picture: np.ndarray, motion: Any, at: float) -> dict | None:
+    """Propose a still-visible patch only with current agreeing named motion.
+
+    The ordinary point and reference checks still decide whether its old
+    origin can continue. A matching box alone supplies no point path.
+    """
+    if (getattr(thing, 'motion_position', None) is None or not isinstance(motion, PointMotion)
+            or isinstance(at, bool) or not isinstance(at, (int, float)) or not math.isfinite(at)
+            or motion.before != thing.seen or motion.at != at or motion.support < 3
+            or not 0 < at-thing.seen <= .35
+            or not all(math.isfinite(v) for v in (motion.dx, motion.dy))
+            or math.hypot(motion.dx, motion.dy) > PIXEL_UNCERTAINTY
+            or not isinstance(picture, np.ndarray) or picture.dtype != np.uint8
+            or picture.ndim != 3 or picture.shape[2] < 3):
+        return None
+    outline = last_observed_outline(thing)
+    if outline is None:
+        return None
+    left, top, right, bottom = (int(round(v)) for v in outline)
+    height, width = picture.shape[:2]
+    if not (0 <= left < right <= width and 0 <= top < bottom <= height):
+        return None
+    patch = picture[top:bottom, left:right]
+    support = getattr(thing, 'support', None)
+    if (not isinstance(support, np.ndarray) or support.dtype != bool
+            or support.shape != patch.shape[:2] or patch.shape != thing.patch.shape):
+        return None
+    blob = dict(x=(left+right)/2, y=(top+bottom)/2, w=thing.w, h=thing.h,
+                look=thing.look, colour=thing.colour, patch=patch.copy(), support=support.copy(),
+                boundary=visible_boundary(picture, left, top, right, bottom, support))
+    return blob if motion.inside(blob) and matching_support(thing, blob) else None
 
 
 def point_receipt_for_candidate(thing: Any, blob: dict, motion: Any, at: float) -> Any:
@@ -105,4 +142,26 @@ def _reference_bridge_invariant() -> tuple:
     thing.visible_reference, blob['boundary'] = reference, None
     assert position_from_visible_support(thing, blob, None, 1.1)[0] is None
     assert point_receipt_for_candidate(thing, blob, marks, 1.1) is marks
+    return ()
+
+
+@invariant('perception.resting_material_keeps_a_measured_origin', scope='perception',
+           owner='core/perception/a_reference_kept_by_visible_support.py', observational=False)
+def _resting_material_invariant() -> tuple:
+    from types import SimpleNamespace
+    from dataclasses import replace
+
+    picture = np.full((80, 100, 3), 30, np.uint8)
+    picture[30:50, 30:50] = 200
+    support = np.ones((20, 20), bool)
+    thing = SimpleNamespace(born=0., seen=1., x=40., y=40., w=20., h=20.,
+        motion_position=(39., 40.), path=[(1., 40., 40.)], patch=picture[30:50, 30:50].copy(),
+        support=support, look=np.zeros(64), colour=(200, 200, 200),
+        boundary=visible_boundary(picture, 30, 30, 50, 50, support))
+    motion = PointMotion(0., 0., .01, 4, 1., 1.1, (1, 2, 3, 4),
+                         ((34., 34.), (46., 34.), (34., 46.), (46., 46.)))
+    assert still_material_observation(thing, picture, motion, 1.1) is not None
+    assert still_material_observation(thing, picture, None, 1.1) is None
+    assert still_material_observation(thing, picture, replace(motion, dx=8.), 1.1) is None
+    assert still_material_observation(thing, np.zeros_like(picture), motion, 1.1) is None
     return ()

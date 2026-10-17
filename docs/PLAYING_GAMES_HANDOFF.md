@@ -1200,3 +1200,20 @@ None cleared both thresholds. Do not interpret a zero ratio as no motion:
 it also represents insufficient repeated groups. The pinned emulator uses
 delegated shadow focus; no focus change was made merely from a suspicion
 about the outer player. Continue tracing visual sample continuity.
+
+## Resting material continuity, 17 October 2026
+
+The corrected-label failure is preserved at `9e323a76c`. A separate red
+regression then showed the ordinary unmatched-object path discarding a
+measured point origin despite unchanged visible pixels and current marks.
+It can now continue through the ordinary estimator when current named motion
+agrees with matching pixels and boundaries. Missing or contradictory
+support remains unknown. The focused group passed 72 checks.
+See `docs/evidence/steering/2026-10-17-resting-material-keeps-its-origin.md`.
+The 75-frame last-game pixel replay was unchanged (40 point continuations,
+22 moving material-path samples). Do not attribute a landing improvement
+to this stationary-path repair; the moving-body failure remains open.
+
+Smoke and the main code gates also passed under the bounded supervisor
+(90.63 seconds). Continue from the moving visual path and physical-control
+timeline; this checkpoint does not qualify the native demo.
