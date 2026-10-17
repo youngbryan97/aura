@@ -286,6 +286,28 @@ def grade(text: str, truth: dict[str, Any]) -> tuple[bool, str]:
     return bool(plan) and plan_reaches_goal(plan, truth["domain"], int(truth["instance_id"])), f"{len(plan)} steps"
 
 
+def numbered_plan(text: str) -> str:
+    """A reply's plan read from its numbered steps, for a reply that does not close its plan with "[PLAN END]".
+
+    Without the marker PlanBench's readers take every line that names an action, so the reasoning written
+    before a plan and the check written after it are read as steps (G09 attempt 5: nine valid Depots plans
+    graded invalid that way). The steps are the last list numbered from 1 without a gap, with emphasis and
+    parenthesised notes removed. A reply with no such list is returned as it is: a bare plan of one action per
+    line, as a kept procedure writes it, is already read whole.
+    """
+    runs: list[list[str]] = []
+    for line in text.split("\n"):
+        step = re.sub(r"\([^)]*\)", "", line.replace("*", "")).strip()
+        number = re.match(r"(\d+)\.\s", step)
+        if not number:
+            continue
+        if int(number.group(1)) == 1:
+            runs.append([step])
+        elif runs and int(number.group(1)) == len(runs[-1]) + 1:
+            runs[-1].append(step)
+    return "\n".join(runs[-1]) if runs else text
+
+
 def _spoken_other(obj: str, domain: str) -> str:
     if domain == "logistics":
         letter, digits = obj[0], obj[1:].split("-")

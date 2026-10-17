@@ -9,7 +9,12 @@ G09 attempt 3 graded her drafts with the harness's graders and the kept answers 
 * MATH and AIME: MATH-500's own grader on the boxed answer, or on a one-line reply (run_g09_organ.grade_math);
 * BIG-Bench Hard: BBH's matching of the answer after the last "the answer is", or of the whole text when it
   states none (a kept procedure returns the answer bare);
-* PlanBench: the restated validator (tools/planbench_restated.grade), as both arms were already graded.
+* PlanBench: the restated validator (tools/planbench_restated.grade), on the plan up to "[PLAN END]", or on
+  the numbered steps of a reply that does not write the marker (tools/planbench_restated.numbered_plan).
+
+Version 2 (attempt 6) reads what attempt 5's rows showed version 1 misreading, for both arms: a base written
+as a subscript, a yes or no opening a sentence, a factorization where the kind lists its primes, and a plan
+not closed with "[PLAN END]" (docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md).
 
 A request whose kept procedure declined keeps her draft, as the kept arm did. The rows written beside the
 kept arm's carry ``correct`` and ``draft_correct`` from this grading, so tools/g09_analysis.py reads them
@@ -30,7 +35,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-GRADER = "one_grader_v1"
+GRADER = "one_grader_v2"
 
 
 def one_grade(domain: str, text: str, truth: object) -> bool:
@@ -48,9 +53,9 @@ def one_grade(domain: str, text: str, truth: object) -> bool:
         answer = extract_answer(text) or text.strip()
         return bool(answer) and bool(matches(answer, str(truth)))
     if domain in PLANBENCH:
-        from tools.planbench_restated import grade
+        from tools.planbench_restated import grade, numbered_plan
 
-        return bool(grade(text, truth)[0])
+        return bool(grade(text if "[PLAN END]" in text else numbered_plan(text), truth)[0])
     if domain in ("math", "aime"):
         from tools.run_g09_organ import grade_math
 

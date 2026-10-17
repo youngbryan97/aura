@@ -31,6 +31,15 @@ def _math500_on_path(monkeypatch):
         ("bbh_web_of_lies", "Step by step ... So the answer is Yes.", "Yes", True),
         ("bbh_web_of_lies", "Yes", "Yes", True),
         ("bbh_web_of_lies", "No", "Yes", False),
+        # read since attempt 5 (docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)
+        ("dm_arithmetic__add_or_sub_in_base", "\\boxed{-101111110101011001_2}", "-101111110101011001", True),
+        ("dm_numbers__base_conversion", "$$\\boxed{-276357_9}$$", "-276357", True),
+        ("dm_numbers__base_conversion", "\\boxed{-276356_9}", "-276357", False),
+        ("dm_numbers__is_prime", "\\boxed{\\text{Yes, it is composite.}}", "True", True),
+        ("dm_numbers__is_prime", "\\boxed{\\text{No, it is prime.}}", "True", False),
+        ("dm_numbers__is_prime", "\\boxed{\\text{Not prime}}", "False", False),
+        ("dm_numbers__list_prime_factors", "\\boxed{2^3 \\cdot 11 \\cdot 263 \\cdot 3739}", "2, 11, 263, 3739", True),
+        ("dm_numbers__list_prime_factors", "\\boxed{2^3 \\cdot 11 \\cdot 263}", "2, 11, 263, 3739", False),
     ],
 )
 def test_one_function_grades_a_draft_and_a_kept_answer_alike(domain, text, truth, right):

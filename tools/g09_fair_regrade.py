@@ -42,8 +42,26 @@ def _plain(value: str) -> str:
 
 
 def _truthy(value: str) -> bool | None:
-    word = _plain(value).strip(" .").lower()
+    """Yes or no, read from the word an answer opens with ("Yes, it is composite." is yes)."""
+    match = re.match(r"(yes|no|true|false)\b", _plain(value).strip(" .").lower())
+    word = match.group(1) if match else ""
     return True if word in _YES else False if word in _NO else None
+
+
+def _without_base(value: str) -> str:
+    """A number written with its base as a subscript, without it: -1011_2 is -1011."""
+    match = re.fullmatch(r"(-?[0-9A-Fa-f]+)_\{?\(?\d{1,2}\)?\}?", value.strip())
+    return match.group(1) if match else value
+
+
+def _factorization(value: str) -> list[str] | None:
+    """The distinct primes of an answer written as a product of powers (2^3 \\cdot 11 is 2, 11), in order."""
+    plain = re.sub(r"\\(?:cdot|times)|[·×*]", " x ", _plain(value).replace("{", "").replace("}", ""))
+    factors = [piece.strip() for piece in plain.split(" x ")]
+    if len(factors) < 2 or not all(re.fullmatch(r"\d+(?:\^\d+)?", f) for f in factors):
+        return None
+    bases = [f.split("^")[0] for f in factors]
+    return list(dict.fromkeys(bases))
 
 
 def _one(answer: str, truth: str) -> bool:
@@ -53,7 +71,9 @@ def _one(answer: str, truth: str) -> bool:
 
     if grade_dm(f"\\boxed{{{answer}}}", truth)[0]:
         return True
-    mine, theirs = _plain(answer), str(truth).strip()
+    mine, theirs = _without_base(_plain(answer)), str(truth).strip()
+    if mine != _plain(answer) and grade_dm(f"\\boxed{{{mine}}}", truth)[0]:
+        return True
     if _truthy(theirs) is not None:
         return _truthy(mine) is not None and _truthy(mine) == _truthy(theirs)
     for form in (theirs, theirs.replace("**", "^").replace("*", "")):
@@ -75,6 +95,8 @@ def fair(text: str, truth: object) -> bool:
     truth = str(truth)
     if "," in truth:
         mine = [x for x in re.split(r"\s*,\s*", _plain(answer)) if x]
+        if len(mine) == 1:
+            mine = _factorization(answer) or mine
         theirs = [x for x in re.split(r"\s*,\s*", truth) if x]
         return len(mine) == len(theirs) and all(_one(m, t) for m, t in zip(mine, theirs, strict=True))
     return _one(answer, truth)

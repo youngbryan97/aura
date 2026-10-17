@@ -55,3 +55,23 @@ def test_a_depots_step_whose_objects_are_the_wrong_type_fails_as_val_fails_it() 
     hoist, crate = first[1], first[2]
     swapped = [(first[0], crate, hoist, *first[3:]), *plan[1:]]
     assert not plan_reaches_goal(swapped, "depots", int(task["truth"]["instance_id"]))
+
+
+def test_a_plan_without_its_end_marker_is_read_from_its_numbered_steps():
+    from tools.planbench_restated import numbered_plan
+
+    reply = (
+        "Looking at this, I need to:\n1. Get crate1 off crate0 first, since crate1 must lift before crate0.\n"
+        "2. Then move crate2.\n\n**Plan:**\n\n1. **Use hoist1 to lift crate1 from crate0 at depot1.**\n"
+        "   *(hoist1 available, crate1 clear)*\n2. Use hoist1 to load crate1 into truck0 at depot1\n"
+        "4. a stray number\n\n**Verification:**\n- Step 2: hoist1 lifting crate1 \u2713"
+    )
+    assert numbered_plan(reply) == ("1. Use hoist1 to lift crate1 from crate0 at depot1.\n"
+                                    "2. Use hoist1 to load crate1 into truck0 at depot1")
+
+
+def test_a_bare_plan_with_no_numbered_steps_is_read_whole():
+    from tools.planbench_restated import numbered_plan
+
+    bare = "drive truck_0 from location_0_1 to location_0_0 in city_0\nload package_1 into truck_0 at location_0_0"
+    assert numbered_plan(bare) == bare
