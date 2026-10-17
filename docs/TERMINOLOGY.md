@@ -75,7 +75,17 @@ That's what this table is for.
 | lockdep                    | lock-order dependency tracking (ABBA detection without the deadlock) |
 | shed ladder                | ordered load-shedding sequence under memory pressure    |
 | telemetry dictionary       | declared channel ids with units and limits              |
+| kept procedure             | model-written `solve()` kept only if it matches every known answer of its kind |
+| procedure book             | per-kind routing table: word signatures, embedding centroids, kept procedures |
+| words route / meaning route | lexical-signature vs embedding-centroid routing of a request to a kind |
+| restatement                | model rewrite of a request into a kind's phrasing, checked to keep its numbers |
+| met example                | answer stated in chat, or agreed by independent programs, stored as a solved example |
+| learning in use            | idle-time procedure induction from met examples         |
+| copy hold                  | DRY repetition penalty over her own earlier replies     |
+| careful lookup             | paragraph retrieval from the articles a question names  |
+| paragraph index            | per-paragraph BM25 index over the corpus (Tantivy)      |
 
 This document is the machine-readable source of truth at
-``docs/TERMINOLOGY.md``. The dashboard's "Skeptic mode" toggles labels
-across the UI by reading from this map.
+``docs/TERMINOLOGY.md``. No part of the UI reads it yet; an earlier version
+of this page said a dashboard "Skeptic mode" did, and no such mode was ever
+built.
