@@ -313,7 +313,7 @@ def _check_response_consistency(reply_text: str, user_message: str) -> tuple[boo
 #: acted, and thirteen minutes later the file did not exist.
 _UNDERTAKING_PATTERNS = re.compile(
     r"(?:^|\. |\n)"
-    r"(i'll |i will |let me |i'm going to |i won't forget |i promise |"
+    r"(i'll |i will |i'm going to |i won't forget |i promise |"
     r"i'll remember |"
     r"i accept |i've noted |i have noted |noted[,.] |consider it done|"
     r"will do|i'll take care of |i am able to act|i can do that|"
@@ -333,6 +333,12 @@ _UNDERTAKING_PATTERNS = re.compile(
 #: commitment that breaks 24 hours later and marks down the reliability figure
 #: she reports about herself. That is precisely the flood this ledger was just
 #: cleaned of, refilled from a different tap.
+#:
+#: Nor is "let me": it narrates what the reply then does. Live 17 October every
+#: date difference she worked opened "Let me work this out step by step", and
+#: each became a commitment due in a day, 49 such rows in her ledger, all
+#: "broken" or about to be, and the active ones quoted back to her as things she
+#: had undertaken to do.
 _PROPOSAL_PATTERNS = re.compile(
     r"(?:^|\. |\n)(next step is |we should |i should )([^.!?\n]{0,120})",
     re.IGNORECASE | re.MULTILINE,
