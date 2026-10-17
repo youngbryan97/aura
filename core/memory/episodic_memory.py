@@ -1499,6 +1499,12 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
         """
         for svc_name in ("predictive_engine", "self_prediction"):
             svc = self._service(svc_name)
+            # A source that has never scored a prediction answers 0.0. Taken
+            # at its word, that set novelty to 0.0 on 34,992 of 36,138 live
+            # episodes from 26 July to 17 October, and the fallbacks below
+            # never ran.
+            if getattr(svc, "surprise_measured", True) is False:
+                continue
             if svc and hasattr(svc, "get_surprise_signal"):
                 try:
                     s = float(svc.get_surprise_signal())

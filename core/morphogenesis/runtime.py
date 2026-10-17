@@ -170,6 +170,9 @@ class MorphogeneticRuntime(_KeepsTheTopology, _BridgesSignalsToImmunity):
         self._stopping = asyncio.Event()
         self._tick = 0
         self._events_since_episode = 0
+        # The topology version the last remembered cycle saw. A cycle that
+        # changed nothing and failed nowhere is not an event in her life.
+        self._graph_version_at_episode: int | None = None
         self._last_tick_error = ""
         self._last_tick_at = 0.0
         self._started_at = 0.0
@@ -763,6 +766,19 @@ class MorphogeneticRuntime(_KeepsTheTopology, _BridgesSignalsToImmunity):
         if self._events_since_episode < self.config.episode_every_events:
             return
         self._events_since_episode = 0
+
+        # Her episodic store held 36,138 episodes on 17 October and 32,431 of
+        # them were this cycle with nothing in it: no failure, no change to
+        # what can reach what. Recall ranks every one of them against what
+        # she was actually told. A routine cycle is kept out of it; a failure
+        # or a topology that moved since the last remembered cycle still goes
+        # in. Organs that form record their own episode elsewhere.
+        version = int(getattr(self.graph, "version", 0) or 0)
+        failed = any(not r.get("success", True) for r in self._episode_buffer)
+        if not failed and version == self._graph_version_at_episode:
+            self._episode_buffer.clear()
+            return
+        self._graph_version_at_episode = version
 
         try:
             from core.container import ServiceContainer
