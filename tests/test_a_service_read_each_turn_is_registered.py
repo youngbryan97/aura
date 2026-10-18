@@ -112,6 +112,9 @@ def _on_container(call: ast.Call) -> bool:
 def _literal(node: ast.AST, constants: dict[str, str]) -> str | None:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return node.value
+    if isinstance(node, ast.Name):
+        # A module's own constant: core/interiority/service.py registers under SERVICE_NAME = "interiority".
+        return constants.get(node.id)
     if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id == "ServiceNames":
         return constants.get(node.attr)
     return None
@@ -146,8 +149,15 @@ def scan(sources: dict[str, str], per_turn: tuple[str, ...], constants: dict[str
     referenced: set[str] = set()
     guarded: list[tuple[str, set[str]]] = []
     reads: list[set[str]] = []
+    shared = constants
     for path, text in sources.items():
         tree = ast.parse(text)
+        constants = {**shared, **{
+            target.id: node.value.value
+            for node in tree.body if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+            for target in node.targets if isinstance(target, ast.Name)
+        }}
         parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
         for node in ast.walk(tree):
             if isinstance(node, ast.Name):
