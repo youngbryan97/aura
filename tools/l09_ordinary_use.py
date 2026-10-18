@@ -112,9 +112,12 @@ def route(out: Path) -> None:
     routed = []
     for request in requests:
         result = asyncio.run(route_one(request["text"], book))
+        if result["form"] != "none":
+            result["vector"] = [float(x) for x in turn.her_query_vector(request["text"], "kind_of_problem")]
         routed.append({**request, **result})
         if result["form"] != "none":
-            print(json.dumps({"id": request["id"], **result, "text": request["text"][:80]}), flush=True)
+            print(json.dumps({"id": request["id"], **{k: v for k, v in result.items() if k != "vector"},
+                              "text": request["text"][:80]}), flush=True)
     (out / "routed.json").write_text(json.dumps(routed, indent=1))
     counts: dict[str, int] = {}
     for row in routed:
@@ -144,14 +147,20 @@ def draft(out: Path, model_path: Path, max_tokens: int, exclusive: bool = True) 
     import mlx.core as mx
     from mlx_lm import load, stream_generate
 
+    import core.learning.procedures_from_solved_examples as procedures
+    import core.phases.kept_procedures_in_a_turn as turn
     from core.brain.llm.chat_format import for_this_template, render_chat_continuation_template
     from core.phases.kept_procedures_in_a_turn import kept_answer_by_meaning, kept_answer_evidence
     from core.runtime.model_lane_control import standalone_model_lane
     from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE
     from tools.run_g05_public_answers import decode_public
 
-    _patched(out)
     routed = [r for r in json.loads((out / "routed.json").read_text()) if r["form"] != "none"]
+    book = _frozen(out / "book.json")
+    procedures.kept_procedure_book = lambda: book
+    # The embeddings the route step made; no embedder is loaded beside the 27B's exclusive lane.
+    vectors = {r["text"]: r["vector"] for r in routed}
+    turn.her_query_vector = lambda text, task: __import__("numpy").asarray(vectors[text], dtype="float32")
     rows = out / "rows"
     rows.mkdir(exist_ok=True)
     with standalone_model_lane(owner_id="l09-ordinary-use", model_path=str(model_path), purpose="evaluation",
