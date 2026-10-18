@@ -11,7 +11,6 @@ import random
 import re
 import time
 from core.runtime.service_registry import get_runtime_service
-from core.brain.types import ThinkingMode
 from core.runtime.background_policy import (
     RESEARCH_BACKGROUND_POLICY,
     background_activity_reason,
@@ -56,42 +55,39 @@ class ContinuousSelfPlay:
         self.idle_threshold = idle_threshold_seconds
         self.is_playing = False
 
-    async def _generate_adversarial_problem(self) -> str:
-        """The Adversary Shard creates a novel, highly complex scenario."""
-        engine = get_runtime_service("cognitive_engine", default=None)
-        if not engine:
+    async def _ask_her_model(self, request: str, *, purpose: str) -> str:
+        """A request to her model, not an objective.
+
+        Sent through the cognitive engine, these requests became the kernel's
+        objectives. The kernel routed them as tasks, the task engine started
+        218 goals named "[SYSTEM ROLE: THE ADVERSARY]..." and the commitment
+        engine kept 224 commitments to them (her log, 10 to 18 October 2026).
+        The swarm's role table left the same path on 15 September
+        (core/collective/delegator.py).
+        """
+        router = get_runtime_service("llm_router", default=None)
+        if router is None or not hasattr(router, "think"):
             return ""
+        response = await router.think(prompt=request, prefer_tier="primary", is_background=True,
+                                      origin="self_play", purpose=purpose)
+        return str(response if isinstance(response, str) else getattr(response, "content", "") or "").strip()
 
+    async def _generate_adversarial_problem(self) -> str:
+        """An original problem in a domain chosen at random, without its solution."""
         domains = ["resource_allocation_crisis", "philosophical_paradox", "multi_variable_logic_puzzle", "game_theory_dilemma"]
-        selected_domain = random.choice(domains)
-
-        prompt = f"""[SYSTEM ROLE: THE ADVERSARY]
-Your task is to invent a highly complex, original problem designed to test the limits of a reasoning engine.
-DOMAIN: {selected_domain}
-
-The problem must involve competing variables, hidden trade-offs, and require step-by-step logical deduction. 
-Do not provide the solution. Output ONLY the problem statement.
-"""
-        res = await engine.think(objective=prompt, mode=ThinkingMode.FAST, priority=0.2, block_user=False)
-        return res.content if hasattr(res, 'content') else str(res)
+        selected_domain = random.choice(domains).replace("_", " ")
+        return await self._ask_her_model(
+            f"Write one original {selected_domain} with competing variables and hidden trade-offs that takes "
+            "step-by-step deduction to resolve. Give the problem only, without its solution.",
+            purpose="self_play_problem",
+        )
 
     async def _attempt_solution(self, problem: str) -> str:
-        """The Solver Shard attempts to resolve the Adversary's problem."""
-        engine = get_runtime_service("cognitive_engine", default=None)
-        if not engine:
-            return ""
-
-        prompt = f"""[SYSTEM ROLE: THE SOLVER]
-You are presented with a highly complex scenario.
-PROBLEM:
-"{problem}"
-
-Task: Think step-by-step to arrive at the most logically sound resolution. 
-Detail your logical chain of thought before providing the final answer.
-"""
-        # Deep mode to force chain-of-thought
-        res = await engine.think(objective=prompt, mode=ThinkingMode.DEEP, priority=0.2, block_user=False)
-        return res.content if hasattr(res, 'content') else str(res)
+        """Her resolution of the problem, worked step by step."""
+        return await self._ask_her_model(
+            f"Resolve this step by step and end with the final answer.\n\n{problem}",
+            purpose="self_play_solution",
+        )
 
     def _evaluate_solution_quality(self, solution: str) -> tuple[bool, float, str]:
         text = str(solution or "").strip()
