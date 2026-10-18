@@ -1261,3 +1261,8 @@ Original-game carryover still needs measurement. This is not native proof.
 Explicit local-only observation also skips subprocess preparation. The
 policy and deadline group passed 29 checks; smoke (165 passed, one skipped)
 and the main code gates passed in 111.96 seconds. The skill is 1,980 lines.
+
+Merged 22 intervening main commits into the isolated checkout at
+`b7041896b`. The combined focused group passed 51 checks, then smoke and the
+main code gates passed in 123.02 seconds. No native source checkout or
+runtime was changed. Measure the actual menu-to-play route next.

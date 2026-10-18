@@ -47,3 +47,11 @@ consistency and writing passed in 95.37 seconds. A subsequent policy check
 also excludes preparation when observation is explicitly forced into the
 local process. Its focused group passed 29 checks and the same main gates
 passed in 111.96 seconds. The play skill remains 1,980 lines, below its cap.
+
+Main advanced by 22 commits during the interruption. They were merged
+without conflict into this isolated checkout, preserving the other agents'
+changes and the foreign untracked files. The combined focused group passed
+51 checks, including absent-layout refusal. Smoke (165 passed, one skipped)
+and the main code gates passed in 123.02 seconds. The saved original
+instruction pixels also qualified under the preparation predicate; this
+does not establish that the next live handoff completed preparation.
