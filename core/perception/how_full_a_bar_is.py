@@ -29,6 +29,8 @@ from typing import Any
 
 import numpy as np
 
+from core.verify import invariant
+
 __all__ = ["Bar", "BarsOnTheScreen"]
 
 #: The width pictures are read at.
@@ -65,6 +67,7 @@ STEADY_S = 0.4
 #: How often the strips are looked for afresh, in seconds, and the most followed at once.
 LOOK_FOR_STRIPS_S = 3.0
 MOST_STRIPS = 40
+DISCOVERY_ROWS_PER_PICTURE = 8
 
 
 @dataclass
@@ -126,42 +129,86 @@ def _mostly_unlike(far: np.ndarray, within: float) -> bool:
     return (float(far[far <= within].max()) + float(far[far > within].min())) / 2 > within
 
 
-def _strips(picture: np.ndarray) -> list[Bar]:
-    """Runs of one colour along rows, long and thin, as strips not yet known to be bars."""
-    tall, wide = picture.shape[:2]
-    rows = picture.astype(np.int16)
-    same_as_left = np.zeros((tall, wide), dtype=bool)
-    same_as_left[:, 1:] = np.abs(rows[:, 1:] - rows[:, :-1]).max(axis=2) <= ONE_COLOUR // 2
-    # Each row's running sums, so the mean colour of any run along it is two lookups: the same sums the mean adds up.
-    sums = np.zeros((tall, wide + 1, rows.shape[2]), dtype=np.float64)
-    np.cumsum(rows, axis=1, dtype=np.float64, out=sums[:, 1:])
-    found: list[Bar] = []
-    for y in range(1, tall - 1, 2):
-        breaks = np.flatnonzero(~same_as_left[y])
+def _strip_at(rows: np.ndarray, y: int, a: int, b: int) -> Bar | None:
+    """Measure the ordinary strip predicates on this picture's signed pixels."""
+    tall, wide = rows.shape[:2]
+    length = int(b-a)
+    if not SHORTEST*wide <= length <= LONGEST*wide:
+        return None
+    colour = _median_of_columns(rows[y, a:b])
+    thick, reach = 1, {-1: y, 1: y}
+    for step in (-1, 1):
+        yy = y+step
+        while 0 <= yy < tall and thick <= THICKEST*tall:
+            if _mostly_unlike(np.abs(rows[yy, a:b]-colour).max(axis=1), ONE_COLOUR):
+                break
+            thick += 1
+            reach[step] = yy
+            yy += step
+    if (thick > THICKEST*tall or length < LONGER_THAN_THICK*thick or thick < 2
+            or a == 0 or b == wide):
+        return None
+    return Bar((reach[-1]+reach[1])//2, thick, tuple(int(c) for c in colour), int(a), int(b), longest=length)
+
+
+class _StripDiscovery:
+    """One owned capture, with a finite row allowance between incoming pictures."""
+
+    def __init__(self, picture: np.ndarray) -> None:
+        self.rows = picture.astype(np.int16)
+        tall, wide = self.rows.shape[:2]
+        self.same_as_left = np.zeros((tall, wide), dtype=bool)
+        self.same_as_left[:, 1:] = np.abs(self.rows[:, 1:]-self.rows[:, :-1]).max(axis=2) <= ONE_COLOUR//2
+        self.sums = np.zeros((tall, wide+1, self.rows.shape[2]), dtype=np.float64)
+        np.cumsum(self.rows, axis=1, dtype=np.float64, out=self.sums[:, 1:])
+        self.found: list[Bar] = []
+        self.next_y, self.done = 1, tall <= 2
+
+    def _row(self, y: int) -> None:
+        wide = self.rows.shape[1]
+        breaks = np.flatnonzero(~self.same_as_left[y])
         edges = np.append(breaks, wide)
-        for a, b in _runs_across_dividers(rows[y], list(zip(edges[:-1], edges[1:], strict=True)), sums[y]):
-            length = int(b - a)
-            if not SHORTEST * wide <= length <= LONGEST * wide:
+        for a, b in _runs_across_dividers(self.rows[y], list(zip(edges[:-1], edges[1:], strict=True)), self.sums[y]):
+            strip = _strip_at(self.rows, y, a, b)
+            if strip is None:
                 continue
-            colour = _median_of_columns(rows[y, a:b])
-            thick, reach = 1, {-1: y, 1: y}
-            for step in (-1, 1):
-                yy = y + step
-                while 0 <= yy < tall and thick <= THICKEST * tall:
-                    if _mostly_unlike(np.abs(rows[yy, a:b] - colour).max(axis=1), ONE_COLOUR):
-                        break
-                    thick += 1
-                    reach[step] = yy
-                    yy += step
-            if thick > THICKEST * tall or length < LONGER_THAN_THICK * thick or thick < 2:
+            if any(abs(bar.row-y) <= bar.thick and abs(bar.start-a) <= 2 and abs(bar.end-b) <= 2 for bar in self.found):
                 continue
-            if a == 0 or b == wide:
-                continue  # running off the picture: sky, floor or a wall, not a bar drawn on it
-            if any(abs(bar.row - y) <= bar.thick and abs(bar.start - a) <= 2 and abs(bar.end - b) <= 2 for bar in found):
-                continue  # the same strip, met again a row or two down
-            # Followed along its middle row, where a bar's colour is surest and a box is clicked.
-            found.append(Bar((reach[-1] + reach[1]) // 2, thick, tuple(int(c) for c in colour), int(a), int(b), longest=length))
-    return found
+            self.found.append(strip)
+
+    def step(self) -> list[Bar]:
+        before = len(self.found)
+        for _ in range(DISCOVERY_ROWS_PER_PICTURE):
+            if self.done:
+                break
+            self._row(self.next_y)
+            self.next_y += 2
+            self.done = self.next_y >= self.rows.shape[0]-1
+        return self.found[before:]
+
+
+def _strips(picture: np.ndarray) -> list[Bar]:
+    """The complete ordinary scan, for callers that do not hold a live picture loop."""
+    discovery = _StripDiscovery(picture)
+    for _ in range(math.ceil(picture.shape[0]/(2*DISCOVERY_ROWS_PER_PICTURE))):
+        discovery.step()
+    return discovery.found
+
+
+@invariant('perception.bar_discovery_keeps_time_for_the_next_picture', scope='perception',
+           owner='core/perception/how_full_a_bar_is.py', observational=False)
+def _bar_discovery_budget_invariant() -> tuple:
+    picture = np.zeros((160, 240, 3), np.uint8)
+    picture[30:38, 20:110] = (80, 140, 230)
+    discovery = _StripDiscovery(picture)
+    assert not discovery.step() and discovery.next_y == 1+2*DISCOVERY_ROWS_PER_PICTURE
+    strip, = discovery.step()
+    assert (strip.start, strip.end) == (20, 110)
+    reader = BarsOnTheScreen()
+    reader.read(picture, 1.)
+    reader.read(np.zeros_like(picture), 1.1)
+    assert not reader.strips
+    return ()
 
 
 def _runs_across_dividers(row: np.ndarray, runs: list[tuple[int, int]], sums: np.ndarray | None = None) -> list[tuple[int, int]]:
@@ -242,6 +289,9 @@ class BarsOnTheScreen:
     shape: tuple[int, int] = (0, 0)
     #: The one bar with no words that has been said to be what she has left: one is told, not every strip that runs down.
     said_unnamed: str = ""
+    _discovery: Any = field(default=None, repr=False)
+    _discovery_scope: Any = field(default=None, repr=False)
+    _last_read_at: float = -math.inf
 
     def bars(self) -> list[Bar]:
         return [bar for bar in self.strips if bar.is_a_bar]
@@ -255,9 +305,29 @@ class BarsOnTheScreen:
         if wide > READ_WIDTH:
             picture = shrink(picture, READ_WIDTH, max(1, round(tall * READ_WIDTH / wide)))
         self.shape = picture.shape[:2]
-        if at - self.looked_at >= LOOK_FOR_STRIPS_S:
+        if not math.isfinite(at):
+            return []
+        scope = self.shape, getattr(at, 'surface', None), getattr(at, 'epoch', None)
+        if scope != self._discovery_scope or at < self._last_read_at:
+            self._discovery, self.looked_at = None, -math.inf
+            self._discovery_scope = scope
+        self._last_read_at = float(at)
+        if self._discovery is None and at-self.looked_at >= LOOK_FOR_STRIPS_S:
             self.looked_at = at
-            self._take_in(_strips(picture))
+            self._discovery = _StripDiscovery(picture)
+        if self._discovery is not None:
+            candidates = self._discovery.step()
+            if candidates:
+                current_rows = picture.astype(np.int16)
+                measured = []
+                for candidate in candidates:
+                    run = _run_of(picture, candidate)
+                    current = _strip_at(current_rows, candidate.row, *run) if run is not None else None
+                    if current is not None:
+                        measured.append(current)
+                self._take_in(measured)
+            if self._discovery.done:
+                self._discovery = None
         changes: list[dict[str, Any]] = []
         runs = [(bar, _run_of(picture, bar)) for bar in list(self.strips)]
         shaken = _the_picture_shook(runs)

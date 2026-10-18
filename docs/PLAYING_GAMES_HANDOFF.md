@@ -1350,3 +1350,20 @@ still did not win and ended in active play. A later left calibration carried
 the body off the left edge and its track was lost. Bar reading still reached
 0.168235 seconds. Continue the bar scan and bounded calibration observability;
 this milestone does not qualify the native demo.
+
+Two bar micro-optimizations preserved outputs but did not justify promotion.
+The retained architecture instead spreads discovery over pictures, at most
+eight sampled rows per read. Delayed candidates must pass the current colour,
+run and thickness checks; established meters remain sampled every picture.
+The focused group passed 56 checks. Complete scan outputs matched the prior
+implementation on 17 pictures; incremental ordinary reads had a 0.012662-second
+maximum in that fixed-pixel probe. See
+`docs/evidence/steering/2026-10-17-bar-discovery-keeps-time-for-pictures.md`.
+Measure original carryover after the gates, then address calibration that
+drives an identified body beyond observable bounds.
+
+Two additional current-thickness refusals passed in the 12-test focused file.
+Smoke (165 passed, one skipped), lint and compilation passed. Layering first
+refused the newly registered canary import; a narrow manual organism DEPS
+entry fixed that. Layering, dependency consistency and writing then passed
+in 37.59 seconds. Governance retains 130 regressions; its baseline is unchanged.

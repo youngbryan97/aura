@@ -289,11 +289,15 @@ def _task_grounding_claims() -> tuple:
 
 
 def _reward_authority_claims() -> tuple:
+    from core.perception.how_full_a_bar_is import _bar_discovery_budget_invariant
     from core.agency.reading_while_playing import _unowned_bar_reward_invariant
     from core.agency.what_meeting_things_does import _unlabelled_counter_reference_invariant
     from core.agency.what_she_has_left import _bar_role_invariant
 
-    return (("unowned_strips_cannot_teach_reward", "core/agency/reading_while_playing.py",
+    return (("bar_discovery_keeps_time_for_the_next_picture", "core/perception/how_full_a_bar_is.py",
+             "tests/test_bar_discovery_keeps_time_for_the_next_picture.py", lambda: _bar_discovery_budget_invariant() == (),
+             "Bar discovery visits at most eight sampled rows per picture; delayed candidates need current strip measurements, capture changes retire pending work, and established bars remain sampled each picture."),
+            ("unowned_strips_cannot_teach_reward", "core/agency/reading_while_playing.py",
              "tests/test_unowned_strips_do_not_teach_rewards.py", lambda: _unowned_bar_reward_invariant() == (),
              "Before a body is selected or a response is measured, nameless changing strips remain measurements and cannot supply rewards or resource scarcity."),
             ("unlabelled_counters_require_a_reference", "core/agency/what_meeting_things_does.py",
