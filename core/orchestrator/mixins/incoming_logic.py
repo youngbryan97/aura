@@ -187,9 +187,20 @@ class IncomingLogicMixin:
         try:
             from core.interiority.service import get_interiority
             from core.interiority.text_features import a_person_said
+            from core.interiority.what_a_turn_did import her_turn_reader
 
             service = get_interiority()
-            service.apply_soon(service.tick(a_person_said(user_id, message, at=observed_at)))
+            event = a_person_said(user_id, message, at=observed_at)
+            reader = her_turn_reader()
+            if reader is None:
+                service.apply_soon(service.tick(event))
+                return
+            # Read in a thread and appraise after: an embedding is not on the answering path.
+            request, reply = _the_exchange_before(getattr(self, "conversation_history", None) or [], message)
+            self._fire_and_forget(
+                _read_and_appraise(service, reader, event, user_id, message, request, reply),
+                name="interior_turn_reading",
+            )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             _record_incoming_degradation(
                 exc,
@@ -1875,3 +1886,35 @@ class IncomingLogicMixin:
                 self._current_origin = previous_origin
                 self._current_user_message = previous_user_message
                 self._current_task_is_autonomous = previous_task_is_autonomous
+
+
+def _the_exchange_before(history: list, message: str) -> tuple[str, str]:
+    """The request and her reply to it that came before ``message``; empty strings when there was none."""
+    rows = [r for r in history if isinstance(r, dict)]
+    if rows and str(rows[-1].get("content") or "") == message and rows[-1].get("role") == "user":
+        rows = rows[:-1]
+    reply = request = ""
+    for index in range(len(rows) - 1, -1, -1):
+        if rows[index].get("role") == "assistant" and not reply:
+            reply = str(rows[index].get("content") or "")
+            for earlier in range(index - 1, -1, -1):
+                if rows[earlier].get("role") == "user":
+                    request = str(rows[earlier].get("content") or "")
+                    break
+            break
+    return request, reply
+
+
+async def _read_and_appraise(service, reader, event, person: str, message: str, request: str, reply: str) -> None:
+    """Read what the turn did (core/interiority/what_a_turn_did.py), note it, appraise it, push the result."""
+    from core.interiority.what_a_turn_did import TASK, note_what_it_did, read_turn
+    from core.learning.examples_she_meets import a_person_answered
+    from core.phases.kept_procedures_in_a_turn import her_query_vector
+
+    corrected = bool(request and reply and a_person_answered(request, reply, message))
+    reading = await asyncio.to_thread(
+        read_turn, message, reader=reader, embed=lambda text: her_query_vector(text, TASK), corrected_her=corrected,
+    )
+    pointed = note_what_it_did(service.ledger, event, reading, person=person)
+    state = service.tick(pointed)
+    await service.apply(state)

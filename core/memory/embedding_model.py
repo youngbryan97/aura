@@ -141,6 +141,9 @@ TASK_INSTRUCTIONS: dict[str, str] = {
     # A request against the kinds of problem she keeps procedures for
     # (core/learning/kinds_by_meaning.py).
     "kind_of_problem": ("Given a problem, retrieve problems of the same kind"),
+    # What a person's message expresses, for the turn reader
+    # (core/interiority/what_a_turn_did.py; tools/train_turn_reader.py).
+    "feeling_in_a_message": ("Given a message, retrieve messages that express the same feeling"),
 }
 
 #: Used when a call site names no task. Deliberately the recall instruction

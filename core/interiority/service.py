@@ -432,7 +432,12 @@ class InteriorityService:
 
     def _absorb_ledger_writes(self, state: Arbitrated) -> None:
         for write in state.ledger:
+            # A write names a method of the ledger or of its notes. note_expectation lives on the
+            # notes, and looked for only on the ledger it was dropped on every turn anger
+            # recalibration or rebuff fired (found 17 October, reading turns into the ledger).
             method = getattr(self.ledger, write.op, None)
+            if not callable(method):
+                method = getattr(getattr(self.ledger, "notes", None), write.op, None)
             if not callable(method):
                 record_degradation(
                     "interiority.service",
