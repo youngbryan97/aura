@@ -128,6 +128,7 @@ class EndogenousLogitBiasProcessor:
         self._delta_mx: Any | None = None
         self.calls = 0
         self.applied = 0
+        self.width_mismatch_reported = False
 
     @property
     def vocab_size(self) -> int:
@@ -139,6 +140,12 @@ class EndogenousLogitBiasProcessor:
             import mlx.core as mx
 
             if logits.shape[-1] != self._delta_np.shape[0]:
+                if not self.width_mismatch_reported:
+                    # Said once, out loud: a head of the wrong width did nothing at all, and a debug line was
+                    # the only sign (18 October 2026: tokenizer width 248,044 against her logits' 248,320).
+                    self.width_mismatch_reported = True
+                    logger.warning("endogenous head not applied: it is %d wide and the logits are %d",
+                                   self._delta_np.shape[0], logits.shape[-1])
                 return logits
             if self._delta_mx is None:
                 self._delta_mx = mx.array(self._delta_np)

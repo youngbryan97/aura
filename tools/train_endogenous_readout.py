@@ -52,6 +52,20 @@ def load_tokenizer(path: str):
         return AutoTokenizer.from_pretrained(path)
 
 
+def logits_width(model_dir: str) -> int:
+    """How many logits the model produces: the width a head must have to be added to them.
+
+    The tokenizer's vocabulary is narrower. Her 27B's tokenizer counts 248,044 tokens (248,077 with its
+    added ones) and its logits are 248,320 wide, and a head of the tokenizer's width is skipped at decode
+    (endogenous_decode.py adds a head only to logits of its own width). 0 when the config does not say.
+    """
+    config = Path(model_dir) / "config.json"
+    if not config.is_file():
+        return 0
+    data = json.loads(config.read_text(encoding="utf-8"))
+    return int(data.get("vocab_size") or (data.get("text_config") or {}).get("vocab_size") or 0)
+
+
 def vocabulary_size(tokenizer) -> int:
     for accessor in ("vocab_size", "get_vocab"):
         value = getattr(tokenizer, accessor, None)
@@ -148,6 +162,12 @@ def main() -> int:
     turns = tokenize_pairs(
         pairs, tokenizer, max_tokens_per_turn=args.max_tokens_per_turn
     )
+    vocab = max(vocab, logits_width(args.tokenizer))
+    # Checked before the fit, not after it: on 18 October a fit ran 1 h 42 min and then could not be written,
+    # because a token id (248,058) lay past the tokenizer's base vocabulary.
+    highest = max((int(t.tokens.max()) for t in turns if t.tokens.size), default=-1)
+    if highest >= vocab:
+        raise SystemExit(f"token id {highest} is past the head's width {vocab}; nothing was fitted")
     print(
         f"{len(turns)} turns from {args.model or recorded_models[0]} tokenized "
         f"against a {vocab}-token vocabulary."
