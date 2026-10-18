@@ -50,6 +50,20 @@ The table columns are:
 
 **Documentation, which no dimension scores.** The automated `make doc-drift` tool now fails builds whenever documentation references files, API endpoints, code symbols, environment variables, or counts that do not exist in the code. Initial findings are documented in [docs/DOC_STATUS.md](docs/DOC_STATUS.md).
 
+## Since the 2026-08-21 note
+
+*Recorded 2026-10-17. Grades are again **not** changed here; the next formal re-score decides them.*
+
+**Bears on 2, Agency.** From an ordinary chat request to fix a broken Pong page and play three attempts, Aura repaired all five faults and played them, winning two, with no game-specific code and no edits from the operator ([evidence](docs/evidence/GENERAL_CONTROL_DEMO_2026-10-05.md)). The Flash desktop campaign has run from the ordinary app, but no qualified individual game pass is claimed yet ([evidence](docs/evidence/FULL_DESKTOP_FLASH_ATTEMPT_2026-10-11.md)).
+
+**Bears on 3, Memory.** One turn now reads her own knowledge, the offline Wikipedia copy, the web and what her searches kept, each labelled with its date, and a dated claim is checked against them before the reply goes out ([L05](docs/evidence/L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md)). Every paragraph of her corpus is indexed on its own; on 200 SimpleQA development questions her answers went from 9 right to 68 with fused passages ([development round](docs/evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md)).
+
+**Bears on 8, Runtime Survivability.** Conversation delivery was held to an acceptance matrix in September ([R09](docs/evidence/R09_ACCEPTANCE_MATRIX_2026-09-10.md)). On 17 October a worker killed under memory pressure left the model lane locked for over half an hour, a new face of F16; the lock is now released when a worker dies (F20 in `KNOWN_FAILURE_MODES.md`). F16 itself remains open.
+
+**Bears on a research line rather than a dimension.** On her resident 27B, a reader learned from the model's hidden states closed held-out transfer, public answers, lesions and qualification (G03 to G06, G10, 6 and 7 October; [summary](docs/RECURSIVE_LATENT_CORTEX.md)). A broad reasoning gain (G09) closed on 17 October: kept procedures beat her own answers on held-out kinds in math and planning, 29 to 0 once every changed row was read.
+
+**Bears on nothing yet — still held.** External Undeniability: no independent third-party replication. Sovereignty: unchanged.
+
 ## 1. Architectural Coherence & Engineering Maturity
 
 | Current | Target |

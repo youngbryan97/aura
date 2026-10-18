@@ -5,9 +5,9 @@ verified to exist.*
 
 ## What you'll need
 - A Mac (Apple Silicon), 50 GB+ free disk. 64 GB unified memory is the
-  tracked target and what the 32B Cortex lane assumes; at 32 GB you can run
-  the system but must downshift to the 7B/1.5B lanes rather than expecting
-  32B latency.
+  tracked target and what the 27B Cortex lane assumes; at 32 GB you can run
+  the system but must downshift to smaller model lanes ([INSTALL.md](../INSTALL.md)
+  names them) rather than expecting 27B latency.
 - Python 3.12.
 - 30 minutes for the install + bench pass; 7 days for the long-run.
 

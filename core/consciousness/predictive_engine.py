@@ -174,6 +174,16 @@ class PredictiveEngine:
         """Returns total_surprise — the value the heartbeat reads."""
         return float(self.total_surprise)
 
+    @property
+    def surprise_measured(self) -> bool:
+        """Whether any prediction has been scored against what happened.
+
+        Until one has, ``total_surprise`` is its starting 0.0, which reads as
+        "nothing surprising" and means "nothing predicted". A reader that
+        wants surprise should take it from somewhere else until this is True.
+        """
+        return bool(self.surprise_history)
+
     def accept_feedback(self, actual_outcome: dict[str, Any]):
         """Accept actual outcome, compute surprise, and push to free_energy_engine."""
         actual_substrate = actual_outcome.get("substrate_x", None)

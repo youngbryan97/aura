@@ -45,6 +45,7 @@ two very different claims.
 - [The newer layer (April 2026)](#the-newer-layer)
 - [The reasoning-and-self layer (mid-2026)](#the-reasoning-and-self-layer-mid-2026)
 - [The thinking-longer layer (August 2026)](#the-thinking-longer-layer-august-2026)
+- [Looking things up and learning from what she's told (October 2026)](#looking-things-up-and-learning-from-what-shes-told-october-2026)
 - [What the tests show](#what-the-tests-show)
 - [How this differs from other AI companions](#how-this-differs)
 - [The learned layer](#the-learned-layer)
@@ -414,7 +415,8 @@ and constrain one another:
   layers remain linked in both directions.
 - **Theory arbitration.** Because these theories do not always make the same
   predictions, the system monitors where they conflict and lets runtime test
-  results decide between them, ensuring claims remain testable and disprovable.
+  results decide between them. A claim that no result could overturn is not
+  kept.
 
 ---
 
@@ -555,6 +557,42 @@ falsely appeared valid.
 documents both implementations with mathematical formulations.
 
 ---
+
+## Looking things up and learning from what she's told (October 2026)
+
+### Reading before answering
+
+Aura keeps an offline copy of Wikipedia and the pages her web searches have
+saved. When a turn asks about the world, she reads the relevant paragraphs
+before she answers, and each one comes labelled with where it is from and how
+old the copy is. Every paragraph is indexed on its own, so an answer buried in
+an article the question never names can still be found, and a lookup over about
+a hundred million paragraphs takes milliseconds. On a set of 200 short factual
+questions she got 9 right from memory alone and 68 with the paragraphs in front
+of her. Those were practice questions; the formal test is still to come.
+
+### Procedures she writes and keeps
+
+For some kinds of problem, such as whether a large number is prime or the days
+between two dates, guessing in prose is the wrong tool: a short program gets
+them right every time. So when Aura has solved examples of a kind, her model
+writes a small program for it, and the program is kept only if it gets every
+known example right, including half it never saw while writing. When a later
+question looks like that kind, she runs the program before she answers. On
+held-out kinds this helped where her thinking ran out of room, on very large
+primes and on multi-step delivery plans, and the formal test of whether it is a
+broad gain is still running (G09).
+
+### Learning from what she's told
+
+If a person corrects her in chat ("No, it's 1049."), the corrected answer is
+kept as a solved example of that question. While she is idle she groups what
+she has been told by meaning and tries to write a procedure for each group that
+is big enough to check. A correction that contradicts a procedure she already
+trusts is held as disputed rather than believed, because people are sometimes
+wrong too. On 17 October she was taught ten date questions this way; the test,
+a day later, is whether she answers new ones correctly without being told
+(L09).
 
 ## What the tests show
 

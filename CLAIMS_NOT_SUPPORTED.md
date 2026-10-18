@@ -179,3 +179,18 @@ If you are evaluating this repository, start here rather than with the README. I
 * **What the code does**: The module `core/consciousness/timescale_stability.py` checks system stability across multiple timescales by computing a stability matrix (Jacobian), calculating the maximum Lyapunov exponent (measuring whether fluctuations grow or shrink), and verifying whether a test function $V(x)$ is a valid Lyapunov stability function. In addition, `core/phenomenal_substrate/maths.py` keeps internal numbers bounded within safe limits and replaces invalid numbers (`NaN`) with neutral values instead of letting errors cascade.
 * **What is missing**: Keeping numbers within bounds is not the same as proving stability. Nothing in the code mathematically proves that state updates are contractive (guaranteed to settle into a stable point rather than oscillating indefinitely in an endless loop). The step size used for updates was chosen by the programmer, not derived from a mathematical proof of stability.
 * **What would change this status**: A formal mathematical stability proof (a Lyapunov function) for the core state updates themselves—rather than just the timescale interactions—showing that the step size guarantees stability across all possible states.
+
+## 21. A Broad Reasoning Gain From Kept Procedures
+
+* **Status**: `shown on the domains tested` (G09 closed 17 October 2026)
+* **What the code does**: `core/learning/procedures_from_solved_examples.py` has her model write a small program for a kind of problem from solved examples, and keeps it only if it agrees with every known answer of the kind, half of them unseen while it was written. Her chat consults kept procedures before she drafts (`core/brain/cognitive_engine_quick_reply.py`).
+* **What was shown**: attempt 6, preregistered, beat her own answers on held-out kinds in math and planning with no domain harmed, as registered and once every changed row was read: 29 gained, 0 lost, *p* 3.7e-9 ([result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)).
+* **What is still missing**: The gain is narrow. In math it is almost all problems too long for her thinking budget (large primes, factorizations); on 20 of 27 math kinds her own answers were already right. Typed in plain words, a prime-factor question is declined live because a neighbouring kind keeps no procedure. Transfer to competition mathematics is not shown, and open-ended reasoning is not measured.
+* **What would change this status**: widening it needs the same test on domains beyond math and planning, and on requests in a person's own words rather than a benchmark's.
+
+## 22. Learning From Conversation That Improves Ordinary Use
+
+* **Status**: `not proven` (L09 open)
+* **What the code does**: `core/learning/examples_she_meets.py` keeps an answer a person states in chat as a solved example, holds one that contradicts a kept procedure as disputed, and, while she is idle, groups what she has met and writes procedures for groups large enough to check.
+* **What is missing**: One full loop shown live: a kind she gets wrong, taught in chat, a procedure induced while idle, and new instances answered correctly a day later without being told. Teaching ran on 17 October; the check is due on 18 October.
+* **What would change this status**: That loop passing live, then procedures on and off compared over realistic tasks.

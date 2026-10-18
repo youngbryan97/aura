@@ -33,6 +33,8 @@ For proof of autonomy or behavior, see [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/
 16. [The triad fusions: kernel-checked proof, economic knowledge, declared runtime](#16-the-triad-fusions)
 17. [The engineering spine: ten adoptions](#17-the-engineering-spine-ten-adoptions)
 18. [The reality boundary: physical claims, self-knowledge, and untrusted code](#18-the-reality-boundary)
+19. [Recursive Latent Cortex](#19-recursive-latent-cortex)
+20. [Knowledge, kept procedures, and learning in use](#20-knowledge-kept-procedures-and-learning-in-use)
 
 ---
 
@@ -364,6 +366,15 @@ Defines strictly what Aura can sense and control in the real world. Physical req
 
 ## 19. Recursive Latent Cortex
 
-Tests running the AI model in loops to see if it improves reasoning. The finding: just looping the model didn't improve answers, so supervised reasoning steps are used instead.
+Tests running the AI model in loops to see if it improves reasoning. Looping the frozen model did not improve answers. The program moved to the resident 27B and a reader learned from its hidden states, which closed held-out transfer, public answers, lesions and qualification (G03–G06, G10) in October. See [docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).
+
+---
+
+## 20. Knowledge, kept procedures, and learning in use
+
+- **Corpus** (`core/knowledge/`): an offline Wikipedia copy and pages her searches kept. `passage_index.py` indexes every paragraph on its own with Tantivy (BM25, block-max WAND), about a hundred million paragraphs in milliseconds; `corpus_grounding.py` fuses it with the careful lookup of named articles (`passages_about.py`) and, when her embedder is held, orders passages by meaning. A question that says "he" or "she" also reads whom the conversation is about (`talked_about.py`).
+- **Kept procedures** (`core/learning/procedures_from_solved_examples.py`): for a kind with solved examples, her model writes `solve()`; it runs in the OS sandbox and is kept only if it agrees with every known answer, the sealed half included. A `ProcedureBook` routes a request by word signatures, then by meaning (`kinds_by_meaning.py`), each kind with a bar set by its least typical sealed problem.
+- **In chat** (`core/brain/cognitive_engine_quick_reply.py`, `core/phases/kept_procedures_in_a_turn.py`): the desktop path consults the book before she drafts. A words-route answer is served when her draft does not state it; a meaning-route answer, after a restatement checked by `restates()`, is evidence only.
+- **Learning in use** (`core/learning/examples_she_meets.py`, `core/brain/reasoning_background.py`): answers a person states and answers independent programs agree on become solved examples; an idle job groups them by meaning and induces one procedure per ready group, at most three requests a group.
 
 *(End of document)*

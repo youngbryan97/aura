@@ -14,8 +14,9 @@
       "cloud/oci_launch_multiregion.py": 1,
       "core/autonomy/genuine_refusal.py": 1,
       "core/being/causal_self_state.py": 1,
-      "core/brain/inference_gate.py": 6,
+      "core/brain/inference_gate.py": 5,
       "core/brain/inference_gate_cortex_warmup.py": 2,
+      "core/brain/inference_gate_first_attempt.py": 1,
       "core/brain/llm/mlx_client.py": 10,
       "core/brain/llm/mlx_client_worker_lifecycle.py": 1,
       "core/brain/llm/mlx_warmup_and_adapters.py": 1,
@@ -31,8 +32,6 @@
       "core/identity/heartstone.py": 1,
       "core/introspection/code_graph.py": 1,
       "core/knowledge/local_corpus.py": 2,
-      "core/phases/response_generation.py": 1,
-      "core/phases/response_generation_amplifiers.py": 1,
       "core/runtime/boot_profile.py": 1,
       "core/security/user_recognizer.py": 1,
       "core/self_improvement/program_dna.py": 1,
@@ -48,7 +47,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 60
+    "total": 58
   },
   "front": {
     "per_file": {

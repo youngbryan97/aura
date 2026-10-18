@@ -4,8 +4,8 @@ DEMOS: [https://youtu.be/iTyxeugcZtI?si=B91No0Hjz3eKLMwz](https://www.youtube.co
 
 Aura is a local AI research project that runs entirely on your Mac. It explores
 how to build an AI agent that can think continuously, remember things long-term,
-govern its own behavior with auditable receipts, steer its own emotional tone
-during text generation, and keep itself running reliably over time.
+govern its own behavior with auditable receipts, let its internal state shape
+how it generates text, and keep itself running reliably over time.
 
 **Aura is not proof of consciousness, life, or personhood.** Nothing here settles
 those questions. Some file and module names sound like they might — they're named
@@ -28,12 +28,13 @@ For the standard of evidence we hold ourselves to on autonomy and novel output
 claims, read [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md).
 
 **The main research program is
-[docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).** It asks:
-can a frozen 32-billion-parameter model be made to reason deeper without changing
-any of its stored weights? It builds the machinery to test that, runs a
-pre-registered experiment, and reports that the hoped-for capability improvement
-didn't appear. Summary in [Recursive Latent Cortex](#recursive-latent-cortex)
-below.
+[docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).** It began by
+asking whether a frozen 32-billion-parameter model could be made to reason deeper
+without changing any of its stored weights, ran a pre-registered experiment, and
+found that the hoped-for improvement didn't appear. It then moved to her resident
+27B model and to readings learned from its hidden states, where its held-out,
+public-answer and qualification items closed in October. Summary in
+[Recursive Latent Cortex](#recursive-latent-cortex) below.
 
 **Evidence map:** Claims should point to runnable tests, proof bundles, receipts,
 or replayable logs. Test counts change with the repo; use `pytest --collect-only`,
@@ -82,12 +83,15 @@ What is actually claimed, and what each claim costs:
   hardened. The local-only architecture, the broad fallback surface, and
   the runtime fragility are all real, and none of them belong under the
   word "enterprise."
-- **Emotional steering is causal, and that's testable.** Internal state
-  reaches text generation through non-text channels (Contrastive Activation
-  Addition — a technique that modifies the model's hidden computations
-  directly). But black-box steering tests can hide live emotional telemetry
-  from the prompt text, and strong adversarial baselines are required before
-  the result counts.
+- **Activation steering is built and closed on user turns.** The hook that
+  adds her state to the model's hidden computations works, and steering a turn
+  somebody is waiting for needs a five-part certificate
+  (`core/consciousness/fusion_certificate.py`). On 13 October 2026 the 27B met
+  four parts and failed the fifth: steered, a reply about fledged wrens came
+  out as "The wren brood has successfully completed its operational cycle".
+  Until all five hold, every user turn runs with steering at zero, and her
+  state reaches her words through sampling settings and through evidence text
+  in the prompt.
 - **Identity persistence uses retrieval, not just prompt text.** Coherence
   is maintained by ID-RAG Chronicle retrieval rather than prompt anchoring
   alone.
@@ -237,7 +241,7 @@ maturity from how confident the prose sounds.
 
 Full page: [docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).
 
-The question: a frozen 32B model is a fixed-depth pipeline — 64 layers,
+The question it began with: a frozen 32B model is a fixed-depth pipeline — 64 layers,
 applied once per token. **Can you make it think longer on a hard problem
 without changing any stored weights?**
 
@@ -288,12 +292,42 @@ development set, with coefficient lesion **0/96**. That development result
 still needs fresh replication. Neither record establishes broad reasoning
 gain or grants serving authority.
 
+### Since October: the resident 27B
+
+Her resident model is now a 27B (Aura-Qwen3.8-27B, persona fine-tuned), and the
+program's later items ran on it:
+
+- **Binding and composition** ([G03](docs/evidence/G03_WHICH_AND_WHETHER_2026-10-06.md)):
+  a learned reader of her hidden states reached 500 of 500 on validation and lost
+  no row to its predecessor.
+- **Held-out transfer** ([G04](docs/evidence/G04_TRANSFER_V2_RESULT_2026-10-07.md)),
+  with execution unavailable, against the incumbent reader on 62 fresh requests
+  per stratum: vocabulary 33 to 21 (*p* 0.0145), depth 54 to 8, family 62 to 47.
+- **Public answers** ([G05](docs/evidence/G05_PUBLIC_ANSWERS_RESULT_2026-10-07.md)):
+  on 48 fresh compositions, 48 right with the reading against 29 without, 19
+  gained and none lost (*p* = 1.9 × 10⁻⁶); every right reading became an exact
+  public answer.
+- **Controls and lesions** ([G06](docs/evidence/G06_COMPARISONS_RESULT_2026-10-07.md)):
+  removing the phrase readouts costs 27 vocabulary requests to 0; zeroing
+  recency costs 35 depth requests to 0.
+- **Qualification** ([G10](docs/evidence/G10_READER_QUALIFICATION_2026-10-07.md)):
+  the reader runs through her resident worker with her model identity, steering
+  generation and geometry checked on 416 recorded requests.
+
+**Kept procedures (G09, closed 17 October).** See
+[Knowledge, procedures and learning in use](#knowledge-procedures-and-learning-in-use).
+Attempt 6 held as preregistered and again once every changed row was read:
+29 gained to 0 lost on 444 fresh requests (*p* 3.7e-9), held-out math 13 to 0
+and planning 16 to 0 ([result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)). Attempt 5 had
+met its criteria too, but 13 of its 38 gains were grading artifacts
+([result](docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)).
+
 ### Results summary
 
 | What was tested | Verdict |
 |---|---|
 | Mechanics (KV rewind, stability bounds, slot ablation moving the answer distribution, erasure, invariants) | **PROVEN** on real MLX weights |
-| Live runtime integration on the resident 32B | **PROVEN** |
+| Live runtime integration on the then-resident 32B | **PROVEN** |
 | Capability gain, **frozen** loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
 | Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
 | Capability gain, typed semantic machine + state-conditioned decode, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, ablation-dependent, *p* = 5.7 × 10⁻¹⁴ |
@@ -304,6 +338,8 @@ gain or grants serving authority.
 | Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric set after a clean worker restart, against hidden-state shuffle 10/256 and coefficient lesion 0/256 |
 | Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
 | Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
+| Learned hidden-state reader on the resident 27B: held-out transfer, public answers, lesions | **SUPPORTED, BOUNDED** — vocabulary 33 vs 21, depth 54 vs 8, family 62 vs 47 on fresh requests with execution unavailable; public answers 48 vs 29 (*p* = 1.9 × 10⁻⁶); lesions cost 27 to 0 and 35 to 0 |
+| Kept procedures on held-out kinds in math and planning (G09) | **CLOSED** 17 Oct — attempt 6, as registered and as read row by row: 29 gained, 0 lost (*p* 3.7e-9); held-out math 13 to 0, planning 16 to 0 |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 The current [native semantic-selection work](docs/evidence/G_NATIVE_RELATIVE_FIT_2026-09-26.md)
@@ -479,19 +515,62 @@ Full details: [docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md](docs/LANGUAGE_SUBSTRAT
 
 ---
 
+## Knowledge, procedures and learning in use
+
+**What she can look up offline.** Her corpus is an offline copy of Wikipedia
+(as of 2026-07-03) and what her web searches have kept. Every paragraph is
+indexed on its own (Tantivy, about a hundred million paragraphs, searched in
+milliseconds) beside a careful lookup of the articles a question names, and her
+chat fuses the two. Each source she reads carries its origin and date
+([L05](docs/evidence/L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md)). On 200 SimpleQA
+development questions her own answers were right on 9; with passages, 58; with
+fused passages, 68. Allowed to decline when two answers from the same passages
+disagree, she answered 50 and got 44 right
+([development round](docs/evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md)).
+These are development halves: the claim waits for a test half.
+
+**Procedures she keeps.** For a kind of problem with solved examples, her model
+writes a small program, and the program is kept only if it agrees with every
+known answer of the kind, half of which it never saw while it was written. Her
+chat consults kept procedures before she drafts, by the request's words or by
+its meaning; a request reached by meaning is first restated in the kind's own
+form, and the restatement must carry the request's numbers.
+On held-out kinds the procedures gain in both domains and lose nothing:
+in attempt 6, math 13 to 0 and planning 16 to 0, in math almost all where her
+thinking budget ran out on large primes and factorizations, in planning where
+her plans lost track of a vehicle. G09 is closed (see
+[Since October](#since-october-the-resident-27b)). The meaning route reached no
+competition problem in attempt 6, so transfer there is not shown.
+
+**Learning in use.** An answer a person states in chat ("No, it's 1049.") is
+kept as a solved example of the problem it answers; one that contradicts a
+kept procedure is held as disputed rather than believed. While she is idle she
+groups what she has met by meaning and writes procedures for groups large
+enough to check. On 17 October
+she was taught ten date differences this way, having got five right on her
+own; the test, three new ones a day later without being told, is due on
+18 October.
+
+**Where it falls short.** Without passages her factual knowledge is thin. The
+mechanism that settles disagreements between her own derivations gained nothing
+on MMLU-Pro and was not significant on MuSR. A kept answer reached by meaning is
+evidence to her, not her reply, and on 17 October she contradicted one.
+
+---
+
 ## Why Aura is Different
 
 Most "AI companion" projects do the same thing: store a mood number, paste it
 into the system prompt, let the model act it out. The model says it's feeling
 energetic because it read the words "feeling energetic."
 
-That's a costume. Aura is built the other way around.
-
-When Aura is in an emotional state, that state becomes a direction vector
-added to the transformer's hidden activations during generation. The model's
-internal computation changes — not just the text it reads. This is the same
-family of techniques interpretability researchers use to steer behavior (CAA,
-activation addition, residual-stream interventions).
+Aura is meant to work the other way around: her state as a direction vector
+added to the transformer's hidden activations during generation, so the
+model's computation changes and not only the text it reads. The hook exists
+and is the same family of techniques interpretability researchers use (CAA,
+activation addition, residual-stream interventions). It is not yet on for
+the turns people take: see [Inference-time steering](#inference-time-steering)
+for why, and for what reaches her words today.
 
 Underneath that, a substrate that never stops. Emotions decay and pull on
 each other. Neurochemicals rise and fall on their own clocks. A global
@@ -510,6 +589,7 @@ It's a research project. It's also one you can talk to while it's running.
 - [Behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md)
 - [Recursive Latent Cortex](#recursive-latent-cortex) — the flagship research program
 - [Language substrate and generality](#language-substrate-and-generality) — learning new abstractions from experience
+- [Knowledge, procedures and learning in use](#knowledge-procedures-and-learning-in-use) — her offline corpus, the procedures she keeps, learning from conversation
 - [Tracked vs local workspace](#tracked-vs-local-workspace)
 - [Architecture overview](#architecture-overview)
 - [Decisive evidence runner](#decisive-evidence-runner)
@@ -894,8 +974,17 @@ So there are three places emotion can touch generation:
 3. **Context** — natural-language emotional cues in the system prompt.
    Changes what the model reads.
 
-The first is the interesting one. The third is what most "emotional AI"
-projects stop at.
+The first is the interesting one, and today it is closed on every turn a
+person is waiting for. `_surface_control_alpha` in the worker returns zero
+unless a fusion certificate for the loaded model holds all five of its
+criteria: the distribution moves, it moves as a direction rather than a
+displacement, opposite states move it differently, answers get no worse, and
+her own past replies stay as likely as before. The persona 27B met the first
+four on 13 October 2026 and failed the fifth. So on user turns the second and
+third channels are the ones that run: the seven sampling temperatures logged
+on 16 and 17 October ran from 0.68 to 0.74, and her mood and tone go into the
+prompt as text: a `## LIVE TONE` block was in 37 of the 56 chat prompts logged on
+those two days.
 
 ---
 
@@ -922,7 +1011,7 @@ Aura computes Integrated Information (φ) at two scales simultaneously.
    the distribution that would hold if A and B evolved independently.
 5. **Apply the exclusion postulate** — an exhaustive subset search picks
    the maximum-phi complex. If some subset beats the full system, that
-   subset is the conscious entity for that tick.
+   subset is reported as the complex for that tick.
 
 Runtime is 10–50 ms per evaluation, cached at 15-second intervals.
 
@@ -945,6 +1034,14 @@ strictly higher φ than noise.
 
 Full 32-node refresh runs in ~150 ms with K-subsystem parallelism via a thread
 pool; MLX Metal is used where available.
+
+**What these numbers do not show.** They are integration measured on a
+binarized summary of her state, not IIT 4.0 over her mechanisms. The stricter
+test is the preregistered 24-line subject battery, whose partition
+irreducibility line asks whether cutting her state into parts loses
+information that nulls cannot explain. That line, and the two synergy lines,
+have failed in every run so far; the latest validation (13 October 2026)
+passed 17 of 24 lines.
 
 ---
 

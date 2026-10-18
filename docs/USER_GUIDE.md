@@ -24,6 +24,10 @@ Open Aura. The startup screen lists each system component as it loads — Core r
 
 Type your message and press Enter. If a reply takes a while, you will see a thinking indicator with an estimated wait time. Running complex reasoning on the local 27-billion-parameter model (27B Cortex) takes around 100 seconds per response. In benchmark testing on 2026-08-28, the median response time across twelve reasoning tasks was 102 seconds (the fastest was 34 and the slowest was 122). When this happens, the model is simply working through the problem, not frozen.
 
+Some answers are computed rather than written. For kinds of problem she keeps a procedure for (large primes, prime factors, date arithmetic once she has learned it), her chat runs the procedure before she replies. When your question is worded the way that kind's examples are and her draft does not state the computed answer, the computed answer is what you see; when it is worded otherwise, the computed answer is put in front of her as evidence and her reply stands. Factual questions are looked up in her offline Wikipedia copy and in pages her searches kept, and each source is labelled with where it came from and its date.
+
+If she gets something wrong, say so with the answer: "No, it's 1049." She keeps that as a solved example, and while she is idle she can learn a procedure from several of them. An answer that contradicts a procedure she already trusts is kept as disputed rather than believed.
+
 ## Manage Memory
 
 The Memory tab provides three views: **Episodic** (what happened in past conversations), **Semantic** (facts she has settled on), and **Goals** (active objectives).

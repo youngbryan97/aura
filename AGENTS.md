@@ -19,7 +19,7 @@ A real Aura instance is usually running on this machine: port 8000, the
 
 **Never kill it, restart it, or collide with its port unless Bryan explicitly
 authorizes a runtime restart in the current task.** Do not boot a second desktop
-runtime or load another 32B model beside it — the host has 64 GB and the live
+runtime or load another cortex-sized model beside it — the host has 64 GB and the live
 model already holds ~20 GB wired. A blanket `pkill -f aura_main` kills Bryan's
 running app along with whatever you were aiming at and remains prohibited.
 

@@ -1,6 +1,6 @@
 # docs/
 
-This folder contains 102 documentation files. Here is an overview of what you will find here.
+This folder contains 164 documentation files at its top level, with dated evidence under [evidence/](evidence/). Here is an overview of what you will find here.
 
 If you need to check *whether a document is up to date*, see [DOC_STATUS.md](DOC_STATUS.md). It categorizes files into current docs, historical records, auto-generated files, and standards. Check there first if something looks unexpected.
 
@@ -56,6 +56,16 @@ Long-running research initiatives and their progress records.
   [RLC_SPARK_LITERATURE.md](RLC_SPARK_LITERATURE.md),
   [RLC_KNOWLEDGE_SOURCE_MATRIX.md](RLC_KNOWLEDGE_SOURCE_MATRIX.md), and
   [SPARK_PRETRAINING_LEGS.md](SPARK_PRETRAINING_LEGS.md).
+- **General reasoning and kept procedures** — whether what she learns and keeps
+  makes her reason better, measured on held-out tasks under plans committed
+  before the tasks are drawn. The plan is
+  [evidence/GENERAL_REASONING_PROGRAM_2026-10-14.md](evidence/GENERAL_REASONING_PROGRAM_2026-10-14.md)
+  and its first round
+  [evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md](evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md);
+  kept procedures (G09) closed with
+  [evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md),
+  after [evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md).
+  Every item's state is in [AURA_1_0_MASTER_TODO.md](AURA_1_0_MASTER_TODO.md).
 - **Language substrate and generality** — research on how the system forms,
   represents, and combines new concepts.
   [LANGUAGE_SUBSTRATE_AND_GENERALITY.md](LANGUAGE_SUBSTRATE_AND_GENERALITY.md)

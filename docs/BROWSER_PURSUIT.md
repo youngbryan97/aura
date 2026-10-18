@@ -139,6 +139,10 @@ are the same problem.
 `FluidExecutor` or `ParallelExecutor`, re-plans once if it stalls, and records
 a `PursuitOutcome` receipt.
 
+## What her browser says it is
+
+By default her browser hides that it is automated: `core/capabilities/phantom_browser.py` applies playwright-stealth, draws a user agent from a list, and switches off Chromium's automation flag. `AURA_BROWSER_STEALTH=0` turns all three off, so she browses as what she is. A site that refuses automated visitors has said what it wants. On 4 October the museum of Flash games served its pages to an automated browser but refused it the game files; the honest route was the Internet Archive copy each game page links, which serves anyone. Runs that depend on getting past a site's bot detection are not used as evidence.
+
 ## Tests
 
 | File | What it holds |

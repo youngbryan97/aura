@@ -147,6 +147,22 @@ async def test_a_group_whose_rounds_are_spent_waits_until_it_grows(her_data) -> 
     assert len(asked) == meets.ROUNDS + 1
 
 
+@needs_boundary
+@pytest.mark.asyncio
+async def test_no_reply_is_not_a_round(her_data) -> None:
+    # 17 October: three rounds spent on a runtime whose background requests were deferred.
+    _teach(14)
+    replies = iter(["", "   ", "no function here"])
+
+    async def propose_one(request: str) -> str:
+        return next(replies)
+
+    assert (await meets.learn_one_step(propose_one, documents=_embed, queries=_embed))["status"] == "no_reply"
+    assert (await meets.learn_one_step(propose_one, documents=_embed, queries=_embed))["status"] == "no_reply"
+    out = await meets.learn_one_step(propose_one, documents=_embed, queries=_embed)
+    assert out["status"] == "requested" and out["request"] == 1 and out["function_found"] is False
+
+
 @pytest.mark.asyncio
 async def test_nothing_is_grouped_without_her_embedder(her_data) -> None:
     _teach(14)

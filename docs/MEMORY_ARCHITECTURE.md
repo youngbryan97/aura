@@ -48,11 +48,15 @@ The core embedding model is **Qwen3-Embedding-0.6B** (`embedding_model.py`).
 
 ## Conceptual Gravitation & Reconsolidation
 
-Recalling an episodic memory places it back into a labile state (`reconsolidation.py`). Its emotional tone and qualitative snapshot drift toward the present context (Conceptual Gravitation). The level of allowed change is gated by a neurochemical plasticity signal, ensuring fidelity drops only under governed parameters.
+Recalling an episodic memory places it back into a labile state (`reconsolidation.py`). Its emotional tone and qualitative snapshot drift toward the present context (Conceptual Gravitation). How much it may change is gated by a neurochemical plasticity signal, so fidelity drops only within governed parameters.
 
 ## Memory Physics & Substrate Allocation
 
 Memory follows physical allocation limits (`physics.py`, `substrate_allocation.py`). Working memory and engram retrieval compete under homeostatic constraints where slightly stronger representations naturally suppress weaker ones, preventing confabulation.
+
+## Her Corpus and What Her Searches Kept
+
+Beside episodic and semantic memory sits her corpus (`core/knowledge/local_corpus.py`): an offline copy of Wikipedia, dated by when the copy was taken, and the pages her web searches kept, stored as their own shelf (`web_retained`) with the date each was read and its address. A search she kept answers the same question after a restart without going online ([L05](evidence/L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md)). Every paragraph is also indexed on its own (`core/knowledge/passage_index.py`, Tantivy), so a paragraph in an article the question never names can still be found.
 
 ## Evidence Boundaries: What Memory DOESN'T Do
 - **Memory does NOT write to disk without a governance check.** The `MemoryWriteGateway` fails closed if no authority is wired.

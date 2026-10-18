@@ -1,6 +1,6 @@
 # Aura Model Card
 
-*The default settings for these models are found in `core/config.py:LLMConfig` (verified on August 1, 2026).
+*The default settings for these models are found in `core/config.py:LLMConfig` and `core/brain/llm/model_registry.py` (verified on 17 October 2026).
 You can override any of these settings by using environment variables like `AURA_MODEL`, `AURA_DEEP_MODEL`, `AURA_BRAINSTEM_MODEL`, `AURA_FALLBACK_MODEL`, or any variable starting with `AURA_LLM__`.*
 
 ## Primary Model (Cortex)
@@ -8,10 +8,10 @@ You can override any of these settings by using environment variables like `AURA
 | Field | Value |
 |-------|-------|
 | **Role** | Primary reasoning and conversation |
-| **Architecture** | Transformer LLM (27B parameters, fused Qwen3.8-27B / `Aura-Cortex`, migrated from historical 32B) |
+| **Architecture** | Transformer LLM (27B parameters, `Aura-Qwen3.8-27B-persona`, a persona fine-tune of the fused Qwen3.8-27B, served as `Aura-Cortex`; migrated from the historical 32B) |
 | **Runtime** | MLX on Apple Silicon |
 | **Quantization** | MLX fused native weights (`training/fused-model/active.json`); legacy 8-bit/4-bit profiles supported |
-| **Context Window** | 8192–262,144 tokens (configurable) |
+| **Context Window** | 32,768 tokens by default, measured per model artifact and configurable |
 | **Inference** | Local, on-device |
 | **Fine-tuning** | Promoted fused LoRA delta (`training/fused-model/active.json`) as the live Cortex without a re-quantize |
 
@@ -31,18 +31,17 @@ This is the main model you interact with. It handles all direct conversations, t
 
 ---
 
-## Deep Model (Solver)
+## Deep Model (optional specialist)
 
 | Field | Value |
 |-------|-------|
-| **Role** | Deep-reasoning hot-swap tier for hard problems |
-| **Architecture** | Transformer LLM (72B parameters, Qwen2.5-72B-Instruct) |
-| **Runtime** | MLX on Apple Silicon |
-| **Quantization** | 4-bit (MLX native) |
+| **Role** | Deep reasoning on hard problems |
+| **Default** | The Cortex itself: `AURA_DEEP_MODEL` is unset, so deep work runs on `Aura-Cortex` |
+| **Optional specialist** | A second local model, such as `Qwen2.5-72B-Instruct-4bit` (MLX, 4-bit) |
 | **Inference** | Local, on-device |
 
 ### Intended Use
-This model is swapped in automatically when a problem requires extremely deep thinking. It runs on high-end desktop computers (like those with 64GB of memory). It is the smartest local model but also the slowest (taking about 84 seconds per step). Because of this, it is not used for normal conversation. The 27B Cortex model handles regular chats, and the Solver only steps in when a task is especially difficult. You can enable or detect it using `AURA_DEEP_MODEL`.
+Deep work runs on the 27B Cortex unless `AURA_DEEP_MODEL` assigns a second local model to it. A model assigned there is admitted only when its artifact has been measured and an externally attested qualification certificate (`AURA_DEEP_SPECIALIST_CERTIFICATE`) verifies against a pinned key (`AURA_DEEP_SPECIALIST_TRUST_ROOT`); `core/brain/llm/model_registry_deep_solver.py` holds the rule. The 72B was measured at about 84 seconds a step, too slow for conversation.
 
 ---
 
@@ -51,14 +50,14 @@ This model is swapped in automatically when a problem requires extremely deep th
 | Field | Value |
 |-------|-------|
 | **Role** | Background maintenance, classification, lightweight tasks |
-| **Architecture** | Transformer LLM (9B parameters, Qwen3.5-9B) |
+| **Architecture** | Transformer LLM (27B parameters, `Ternary-Bonsai-2-27B-mlx-2bit`: Qwen3.5 27B at two bits, 8.6 GB) |
 | **Runtime** | MLX on Apple Silicon |
-| **Quantization** | 4-bit (MLX native) |
+| **Quantization** | 2-bit ternary (MLX native, Hadamard-folded) |
 | **Context Window** | Dynamically measured from model config (default 32,768 tokens) |
 | **Inference** | Local, on-device |
 | **Reasoning mode** | Explicitly controlled |
 
-We upgraded this model from Qwen2.5-7B to Qwen3.5-9B on August 12, 2026. Because no other parts of the system relied on the exact structure of the old model, we were able to upgrade it easily. (The Reflex model below could not be upgraded for exactly this reason.) For more details, see [docs/MODEL_ROSTER.md](docs/MODEL_ROSTER.md).
+We upgraded this model from Qwen2.5-7B to Qwen3.5-9B on August 12, 2026, and from the 9B to Ternary Bonsai 2 27B on 20 September 2026. Nothing else is keyed to this tier's weights, so both changes were free to make. (The Reflex model below could not be upgraded for exactly this reason.) On this host, with the same harness and budget, the Bonsai answered 7 of 7 checkable prompts against the 9B's 6 of 7, and finished inside the lane's 160-token budget on 7 of 8 where the 9B finished none; it is about three times slower per token ([evidence](docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md)). For more details, see [docs/MODEL_ROSTER.md](docs/MODEL_ROSTER.md).
 
 ### Intended Use
 Used for behind-the-scenes work: organizing memory, sorting information, checking system health, and doing routine maintenance. It never speaks directly to the user in normal operation.
