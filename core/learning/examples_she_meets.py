@@ -517,10 +517,16 @@ async def learn_one_step(propose_one: ProposeOne, *, documents: Embed | None, qu
 
     steps = her_kept_steps()
     request, shown = request_for(family, 0, previous, state["attempt"], shots=SHOTS, steps=steps)
-    text = await propose_one(request)
+    text = str(await propose_one(request) or "")
+    if not text.strip():
+        # No reply is not an attempt. On 17 October all three of a group's rounds were spent on a
+        # runtime whose background requests were deferred, and the group was marked spent unread.
+        await _write(LEARNING_RELATIVE, dumps(learning))
+        return {**out, "status": "no_reply", "group": name, "size": len(group), "request": state["requests"]}
     candidate = await asyncio.to_thread(judge, family, 0, state["requests"], shown, text, shots=SHOTS, steps=steps)
     state["requests"] += 1
-    out.update({"status": "requested", "group": name, "size": len(group), "request": state["requests"]})
+    out.update({"status": "requested", "group": name, "size": len(group), "request": state["requests"],
+                "reply_chars": len(text), "function_found": candidate is not None})
     if candidate is not None and candidate.admitted:
         from core.learning.kinds_by_meaning import meanings_of
 
