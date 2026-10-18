@@ -284,6 +284,8 @@ def main() -> int:
     parser.add_argument("--plant", nargs=3, metavar=("PATH", "OLD", "NEW"))
     parser.add_argument("--at", default="HEAD", help="the commit the copy is made at")
     parser.add_argument("--tests-from", default="", help="a commit whose versions of the --test files are put in")
+    parser.add_argument("--only-model", action="store_true",
+                        help="ask only the model, to measure what it adds beyond her own Python's exact changes")
     args = parser.parse_args()
     if args.model_path and args.proposals_from:
         parser.error("give at most one of --model-path and --proposals-from")
@@ -344,7 +346,7 @@ def main() -> int:
             failing = {t: lines for t, lines in failing.items() if t in args.test} or failing
             return ochiai(failing, passing)
 
-        propose = first_without_a_model(model, copy.path, rank)
+        propose = model if args.only_model and model is not None else first_without_a_model(model, copy.path, rank)
         lineage = asyncio.run(repair_by_selection(
             Defect(tuple(args.test), tuple(args.file)), sources=sources, neighbours=neighbours, run=run,
             propose=propose, proposals=args.proposals, deadline=deadline, record=record))
