@@ -851,6 +851,127 @@ class _AnswersTheDesktopDirectly:
             )
         return planted
 
+    async def _direct_desktop_quick_reply_amplify(
+        self,
+        request: str,
+        draft: str,
+        router: Any,
+        router_kwargs: dict[str, Any],
+        context: dict[str, Any],
+    ) -> str | None:
+        """Her draft, searched past by the verifier-backed amplifier when the question can be checked.
+
+        The amplifier ran only in the phase pipeline, and desktop chat answers
+        here without a phase, so on the turns people type it stood down as
+        "not a user-facing turn" every time: about 300 times from 4 to 17
+        October. Candidates go through her own turn's lane and messages, her
+        draft is the first of them, and the search spends what is left of the
+        turn's clock and no more. An answer replaces the draft only under the
+        same authority the phase requires: a verifier that checked it, or
+        independent programs that agree.
+        """
+        import time as _time
+
+        from core.brain.generation_provenance import attributed_text
+        from core.brain.reasoning_amplifier_flags import reasoning_amplifier_v2_enabled
+
+        from .cognitive_engine import (
+            _COGNITIVE_ENGINE_RECOVERABLE_ERRORS,
+            logger,
+            record_degradation,
+        )
+
+        if not reasoning_amplifier_v2_enabled():
+            return None
+        from core.brain.reasoning_amplifier_v2 import (
+            amplify_turn,
+            is_amplifiable,
+            search_allowance,
+        )
+
+        task_type = is_amplifiable(request)
+        if task_type is None:
+            return None
+        try:
+            token_cap = max(1, int(router_kwargs.get("max_tokens") or 1024))
+        except (TypeError, ValueError, OverflowError):
+            token_cap = 1024
+        candidate_s, _planned_s = search_allowance(request, task_type, token_cap=token_cap, system=None)
+        deadline = context.get("cognitive_cycle_deadline_monotonic")
+        try:
+            left_s = float(deadline) - _time.monotonic() - 8.0
+        except (TypeError, ValueError):
+            left_s = 0.0
+        if candidate_s <= 0.0 or left_s < candidate_s:
+            logger.info(
+                "Reasoning amplifier in chat stood down for %s: %.0f s left on the turn, "
+                "one candidate costs %.0f s.", task_type, max(0.0, left_s), candidate_s,
+            )
+            return None
+
+        messages = list(router_kwargs.get("messages") or [])
+
+        async def _gen(prompt: str, temperature: float) -> str:
+            asked = [dict(m) for m in messages]
+            for message in reversed(asked):
+                if message.get("role") == "user":
+                    message["content"] = prompt
+                    break
+            else:
+                asked.append({"role": "user", "content": prompt})
+            sink: dict[str, Any] = {}
+            kwargs = dict(router_kwargs)
+            kwargs.update(
+                messages=asked,
+                temperature=temperature,
+                temp=temperature,
+                timeout=candidate_s * 1.5,
+                _generation_metadata_sink=sink,
+            )
+            out = await router.think(**kwargs)
+            if isinstance(out, dict):
+                out = out.get("content") or out.get("response") or ""
+            return attributed_text(str(out or "").strip(), dict(sink))
+
+        try:
+            result = await asyncio.wait_for(
+                amplify_turn(
+                    request,
+                    _gen,
+                    task_type=task_type,
+                    time_budget_s=left_s,
+                    extra_context={
+                        "live_response_phase": True,
+                        "disable_batched_candidates": True,
+                        "generation_max_tokens": token_cap,
+                        "seed_candidates": [draft],
+                        "allow_textual_fallback_after_executable": True,
+                    },
+                ),
+                timeout=left_s,
+            )
+        except (TimeoutError, *_COGNITIVE_ENGINE_RECOVERABLE_ERRORS) as exc:
+            record_degradation(
+                "cognitive_engine",
+                exc,
+                severity="warning",
+                action="kept her draft after the amplifier in chat failed",
+            )
+            return None
+        receipt = result.receipt.to_dict()
+        authority = str(receipt.get("promotion_authority") or "none")
+        promoted = ""
+        if authority == "checked_verifier":
+            promoted = str(result.answer or "").strip()
+        elif authority == "independent_executable_consensus":
+            promoted = str(result.source_answer or result.answer or "").strip()
+        logger.info(
+            "🧠 [AmplifyV2-chat] task=%s mode=%s candidates=%s authority=%s -> %s",
+            task_type, receipt.get("mode"), receipt.get("num_candidates"), authority,
+            "adopted" if promoted and promoted != draft else "kept her draft",
+        )
+        return promoted if promoted and promoted != draft else None
+
     async def _direct_desktop_quick_reply(
         self,
         objective: str,
@@ -1558,6 +1679,11 @@ class _AnswersTheDesktopDirectly:
                 text = str(kept_planted["answer"])
         elif not (continuation_contract or obligation_contract):
             await self._direct_desktop_quick_reply_queue_for_programs(user_prompt)
+            amplified = await self._direct_desktop_quick_reply_amplify(
+                user_prompt, text, router, router_kwargs, context
+            )
+            if amplified is not None:
+                text = amplified
         surface_receipt = (
             router_generation_metadata.get("surface_control_receipt")
             if isinstance(router_generation_metadata, dict)

@@ -152,7 +152,15 @@ class _RunsTheThinkingLoop:
         # answer this request needs costs to decode, at the rate this machine
         # has been measured at. An unmeasured rate raises nothing.
         if self._is_user_facing_origin(origin) and not is_background:
-            cycle_timeout = max(cycle_timeout, _time_the_answer_needs(objective))
+            needs = _time_the_answer_needs(objective)
+            # A question the amplifier can check gets her draft and two more
+            # candidates' worth, so the search has room after the draft
+            # (cognitive_engine_quick_reply._direct_desktop_quick_reply_amplify).
+            from core.brain.reasoning_amplifier_v2 import is_amplifiable
+
+            if needs > 0.0 and is_amplifiable(str(objective or "")) is not None:
+                needs *= 3.0
+            cycle_timeout = max(cycle_timeout, needs)
         cycle_timeout = max(8.0, min(cycle_timeout_cap, cycle_timeout))
         cycle_deadline_at = time.monotonic() + cycle_timeout
         context["cognitive_cycle_deadline_monotonic"] = cycle_deadline_at

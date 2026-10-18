@@ -73,11 +73,10 @@ _TEMPS = [0.2, 0.5, 0.7, 0.9, 1.0, 0.4, 0.6, 0.8, 1.1]
 _MAX_SAMPLES = len(_TEMPS)
 _MAX_SEED_CANDIDATE_CHARS = 32_768
 
-# Φ thresholds mirror core.phases.phi_consciousness so the amplifier's notion of
-# "is cognition integrated enough to spend deep compute" matches the kernel's.
-PHI_DORMANT = 0.05      # below: fragmented — cap at FAST
-PHI_REACTIVE = 0.20     # below: shallow — cap at NORMAL
-PHI_DELIBERATE = 0.55   # at/above: full deliberate capacity
+# Φ thresholds mirror core.phases.phi_consciousness. Between them, capacity
+# scales how much extra depth demand can buy; neither one caps a task's mode.
+PHI_DORMANT = 0.05      # at or below: the least capacity for extra depth
+PHI_DELIBERATE = 0.55   # at/above: full capacity for extra depth
 
 
 def _flag_on(name: str, default: str = "1") -> bool:
@@ -597,8 +596,8 @@ class ReasoningAmplifierV2:
 
             loop = KernelInterface.get_instance().loop_state()
             if isinstance(loop, dict):
-                if "phi" in loop and "phi" not in signals:
-                    signals["phi"] = float(loop.get("phi") or 0.0)
+                if "phi" in loop and "phi" not in signals and loop.get("phi") is not None:
+                    signals["phi"] = float(loop["phi"])
                 if "arousal" in loop and "arousal" not in signals:
                     signals["arousal"] = float(loop.get("arousal") or 0.0)
                 if "valence" in loop and "valence" not in signals:
@@ -649,28 +648,6 @@ class ReasoningAmplifierV2:
                 break
             mode = nxt
         return mode
-
-    @staticmethod
-    def _phi_mode_cap(mode: ReasoningMode, phi: float) -> ReasoningMode:
-        """Fragmented cognition (low Φ) cannot sustain deep deliberation.
-
-        Mirrors phi_consciousness mode-gating: under-integrated states get capped
-        so the amplifier never burns a 9-sample courtroom on a mind that can't hold
-        the result together. PROOF is never downgraded — refusal-on-unverified is a
-        safety contract, not a compute tier.
-        """
-        if mode is ReasoningMode.PROOF:
-            return mode
-        order = [ReasoningMode.FAST, ReasoningMode.NORMAL, ReasoningMode.DEEP, ReasoningMode.EXTREME]
-        if mode not in order:
-            return mode
-        if phi < PHI_DORMANT:
-            ceiling = ReasoningMode.FAST
-        elif phi < PHI_REACTIVE:
-            ceiling = ReasoningMode.NORMAL
-        else:
-            return mode
-        return mode if order.index(mode) <= order.index(ceiling) else ceiling
 
     @classmethod
     def _cognitive_demand(cls, signals: dict[str, float]) -> float:
@@ -725,8 +702,14 @@ class ReasoningAmplifierV2:
         if rungs == 0 and cls._should_deepen(signals):
             rungs = 1
 
+        # Phi buys depth through capacity and never takes away the depth the
+        # task's own type asks for. It used to cap the mode: below phi 0.05 at
+        # FAST, below 0.20 at NORMAL. A phi that was absent arrived as 0.0, so
+        # every live amplification from 26 September to 17 October (about
+        # twenty, math and repository audits that start at DEEP) ran one
+        # candidate, and nothing had shown that this phi predicts whether a
+        # deeper search helps.
         mode = cls._deepen(base_mode, rungs) if rungs else base_mode
-        mode = cls._phi_mode_cap(mode, phi)
 
         base_samples = _MODE_BUDGET[mode]
         sample_budget = int(round(base_samples * (1.0 + 0.5 * push)))

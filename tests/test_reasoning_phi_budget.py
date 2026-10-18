@@ -37,21 +37,23 @@ def test_high_demand_high_phi_deepens_and_spends_more():
     assert tmult > 1.0                            # more wall-clock
 
 
-def test_high_demand_low_phi_is_capped():
-    # A fragmented mind (Φ below DORMANT) cannot sustain deep deliberation even
-    # under maximal demand — the Φ-gate caps it at FAST.
+def test_low_phi_spends_no_extra_depth_and_keeps_the_tasks_own():
+    # Low capacity damps what demand can buy; it does not take away the
+    # depth the task's type starts at.
     mode, samples, _ = R._resolve_compute_budget(
         M.NORMAL, {"phi": 0.02, "free_energy": 1.0, "uncertainty": 1.0}
     )
-    assert mode is M.FAST
-    assert samples == 1
+    assert mode in (M.NORMAL, M.DEEP)
+    assert samples >= _MODE_BUDGET[M.NORMAL]
 
 
-def test_mid_low_phi_caps_at_normal():
-    mode, _, _ = R._resolve_compute_budget(
-        M.DEEP, {"phi": 0.10, "free_energy": 1.0, "uncertainty": 1.0}
-    )
-    assert mode is M.NORMAL  # below REACTIVE -> cap at NORMAL
+def test_a_deep_task_stays_deep_at_any_phi():
+    for phi in (0.0, 0.02, 0.10, 0.5):
+        mode, samples, _ = R._resolve_compute_budget(
+            M.DEEP, {"phi": phi, "free_energy": 1.0, "uncertainty": 1.0}
+        )
+        assert mode in (M.DEEP, M.EXTREME)
+        assert samples >= _MODE_BUDGET[M.DEEP]
 
 
 def test_proof_mode_never_downgraded_by_low_phi():
@@ -91,10 +93,6 @@ def test_cognitive_demand_responds_to_each_signal():
     assert R._cognitive_demand(
         {"free_energy": 1.0, "uncertainty": 1.0, "valence": -1.0, "frustration": 1.0}
     ) == 1.0
-
-
-def test_phi_mode_cap_passes_through_when_integrated():
-    assert R._phi_mode_cap(M.DEEP, 0.9) is M.DEEP
 
 
 # ── amplify() cache-hit short circuit ───────────────────────────────────────
