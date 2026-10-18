@@ -417,14 +417,18 @@ class ConsciousnessBridge:
         substrate = self._get_substrate()
         if self.neural_mesh and substrate:
             try:
-                projection = self.neural_mesh.get_executive_projection()
+                width = len(substrate.x)
+                if width == len(self.neural_mesh.get_executive_projection()):
+                    projection = self.neural_mesh.get_executive_projection()
+                else:
+                    # Her own projection of the whole mesh at the substrate's width. Tiling the
+                    # 64-wide executive projection across 512 units gave unit i and unit i + 64
+                    # the same drive at 0.35 a tick: her recorded state over 9,334 turns of the
+                    # 27B (17 October) held eight copies of 64 numbers, and a cut between copies
+                    # loses nothing, so no integration measure could find her irreducible.
+                    projection = np.tanh(self._projected(self.neural_mesh.get_field_state(), width))
                 with substrate.sync_lock:
-                    projection = self._fit_vector(
-                        projection,
-                        len(substrate.x),
-                        mode="tile",
-                        dtype=np.float64,
-                    )
+                    projection = np.asarray(projection, dtype=np.float64)
                     substrate.x = np.clip(
                         substrate.x * 0.65 + projection * 0.35,
                         -1.0, 1.0
@@ -648,12 +652,9 @@ class ConsciousnessBridge:
                 )
                 # Expand to association tier dimensionality (2048)
                 assoc_dim = (self.neural_mesh.cfg.association_end - self.neural_mesh.cfg.sensory_end) * self.neural_mesh.cfg.neurons_per_column
-                expanded = self._fit_vector(
-                    velocity,
-                    assoc_dim,
-                    mode="tile",
-                    dtype=np.float32,
-                )
+                # Projected, not tiled: four tiled copies drove four blocks of the
+                # association tier identically (see the mesh-to-substrate step).
+                expanded = self._projected(np.asarray(velocity, dtype=np.float32), assoc_dim)
                 self.neural_mesh.inject_association(expanded * 0.3)
             except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
@@ -916,6 +917,27 @@ class ConsciousnessBridge:
             record_degradation("consciousness_bridge", exc)
             logger.debug("GlobalWorkspace lookup failed: %s", exc)
             return getattr(self._cs, "global_workspace", None)
+
+    def _projected(self, vector: Any, width: int) -> np.ndarray:
+        """``vector`` carried to ``width`` dimensions by a fixed Gaussian map, one per pair of widths.
+
+        Each output is a different mix of every input, at the input's own scale
+        (entries drawn with variance one over the input width), so no two outputs
+        are copies. Seeded by the two widths, so a restart drives the same units
+        the same way.
+        """
+        arr = np.asarray(vector if vector is not None else [], dtype=np.float32).ravel()
+        width = max(0, int(width or 0))
+        if width == 0 or arr.size == 0:
+            return np.zeros(width, dtype=np.float32)
+        maps = self.__dict__.setdefault("_width_maps", {})
+        key = (arr.size, width)
+        matrix = maps.get(key)
+        if matrix is None:
+            rng = np.random.default_rng(arr.size * 1_000_003 + width)
+            matrix = (rng.standard_normal((width, arr.size)) / np.sqrt(arr.size)).astype(np.float32)
+            maps[key] = matrix
+        return np.nan_to_num(matrix @ arr, nan=0.0, posinf=1.0, neginf=-1.0).astype(np.float32)
 
     @staticmethod
     def _fit_vector(
