@@ -1420,3 +1420,17 @@ retained five; neutral intervals retained eight and seven. Neither the
 statistic nor the effect jointly qualified. The next diagnostic is point
 correspondence versus capacity eviction at the first material-path break.
 Do not infer demo readiness from the completed scheduling repairs.
+
+The first material break is not a capacity eviction: four owned names fall
+to two valid correspondences at a 0.207845-second interval. A dense source
+fit works at a later break but fails at the first; native LK and a larger
+context also fail to select a body. No such fallback was promoted. See
+`docs/evidence/steering/2026-10-18-information-in-observed-intervals.md`.
+A post-hoc precision-aware reconstruction dates velocity at its displacement
+interval midpoint, separates local displacement error from shared reference
+error, and includes capture-time uncertainty. The recorded two thrust and
+two rest holds then give a candidate statistic/effect of 38.402551/20.793608.
+This estimator is not integrated, and these are estimated errors, not
+guaranteed bounds. Build and falsify that general measurement path before
+another gameplay claim; retain independent holds, contradiction retirement
+and the existing thresholds.
