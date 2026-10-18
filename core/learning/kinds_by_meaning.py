@@ -132,6 +132,25 @@ def restates(request: str, restated: str, examples: Sequence[Mapping[str, str]] 
     return True
 
 
+def shared_ending(problems: Sequence[str]) -> str:
+    """The paragraphs every one of a kind's problems closes with, whole; "" when they share none.
+
+    The ending's twin of :func:`shared_opening`. Every DeepMind mathematics problem
+    closes with "Please reason step by step, and put your final answer within
+    \\boxed{}.", so a kind's meaning carried that sentence and a person's request,
+    which never does, fell below the bar of the kind it plainly was (live
+    2026-10-18: "What are the prime factors of 21000063?" at 0.733 against 0.759).
+    Cut at the first paragraph break the problems share, so the question itself
+    is never split.
+    """
+    texts = [str(p) for p in problems]
+    if len(texts) < 2:
+        return ""
+    tail = os.path.commonprefix([t[::-1] for t in texts])[::-1]
+    cut = tail.find("\n\n")
+    return tail[cut:] if cut >= 0 else ""
+
+
 def shared_opening(problems: Sequence[str]) -> str:
     """The paragraphs every one of a kind's problems opens with, whole; "" when they share none.
 

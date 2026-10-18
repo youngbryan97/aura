@@ -268,6 +268,18 @@ def test_what_every_problem_opens_with_is_found_whole() -> None:
     assert shared_opening(["one problem alone"]) == ""
 
 
+def test_what_every_problem_closes_with_is_found_whole() -> None:
+    from core.learning.kinds_by_meaning import shared_ending
+
+    ending = "\n\nPlease reason step by step, and put your final answer within \\boxed{}."
+    posed = ["What are the prime factors of 21000063?" + ending, "List the prime factors of 140?" + ending]
+    # The question marks the two share are the questions' own, so the cut is at the paragraph break.
+    assert shared_ending(posed) == ending
+    assert shared_ending(["Calculate the highest common divisor of 4 and 6.",
+                          "Calculate the highest common factor of 9 and 6."]) == ""
+    assert shared_ending(["one problem alone" + ending]) == ""
+
+
 @needs_boundary
 def test_a_kinds_posing_is_kept_and_put_back_before_its_procedures_read() -> None:
     reads = "def solve(problem):\n    return 'posed' if problem.startswith('Worked.') else 'bare'\n"
