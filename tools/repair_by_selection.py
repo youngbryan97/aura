@@ -128,6 +128,54 @@ class Copy:
             return None
         return [node for word, node in _RESULT.findall(out.decode("utf-8", errors="replace")) if word == "PASSED"]
 
+    async def lines_each_test_runs(self, tests: Sequence[str], files: Sequence[str], sources: Mapping[str, str], *,
+                                   original: Mapping[str, str], seconds: float) -> tuple[dict[str, set], dict[str, set]]:
+        """For each test run (``tests`` and the rest of their files), the lines of ``files`` it ran: failing, passing.
+
+        coverage.py's per-test contexts (dynamic_context = test_function) say which test ran which line.
+        """
+        try:
+            return await asyncio.to_thread(self._lines_each_test_runs, tests, files, sources, seconds=seconds)
+        finally:
+            self.write(original)
+
+    def _lines_each_test_runs(self, tests, files, sources, *, seconds):
+        self.write(sources)
+        where = self.path.parent / "coverage"
+        where.mkdir(exist_ok=True)
+        rc = where / "rc"
+        rc.write_text("[run]\ndynamic_context = test_function\ndata_file = " + str(where / "data") + "\ninclude =\n"
+                      + "".join(f"    {self.path / f}\n" for f in files))
+        env = {k: v for k, v in os.environ.items() if k not in {"AURA_TESTING"}}
+        env.update(AURA_STATE_ROOT=str(self.state), AURA_LOG_DIR=str(self.logs), PYTHONDONTWRITEBYTECODE="1",
+                   VECLIB_MAXIMUM_THREADS="1", OMP_NUM_THREADS="1")
+        test_files = list(dict.fromkeys(t.split("::")[0] for t in tests))
+        try:
+            out = subprocess.run(
+                [PYTHON, "-m", "coverage", "run", f"--rcfile={rc}", "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider",
+                 *test_files], cwd=self.path, env=env, capture_output=True, text=True, timeout=seconds).stdout
+        except subprocess.TimeoutExpired:
+            return {}, {}
+        verdicts = {node: word == "PASSED" for word, node in _RESULT.findall(out)}
+        report = where / "report.json"
+        subprocess.run([PYTHON, "-m", "coverage", "json", f"--rcfile={rc}", "--show-contexts", "-o", str(report)],
+                       cwd=self.path, env=env, capture_output=True)
+        if not report.exists():
+            return {}, {}
+        ran: dict[str, set] = {}
+        for path, data in json.loads(report.read_text())["files"].items():
+            relative = str(Path(path).resolve().relative_to(self.path.resolve())) if Path(path).is_absolute() else path
+            for line, contexts in (data.get("contexts") or {}).items():
+                for context in contexts:
+                    name = context.split("|")[0].rsplit(".", 1)[-1]
+                    if name:
+                        ran.setdefault(name, set()).add((relative, int(line)))
+        failing, passing = {}, {}
+        for node, passed in verdicts.items():
+            name = node.split("::")[-1].split("[")[0]
+            (passing if passed else failing)[node] = ran.get(name, set())
+        return failing, passing
+
     def remove(self) -> None:
         subprocess.run(["git", "-C", str(self.repo), "-c", "core.fsmonitor=false", "worktree", "remove", "--force",
                         str(self.path)], capture_output=True)
@@ -192,8 +240,11 @@ def code_lane(model_path: str, out: Path):
     return propose
 
 
-def first_without_a_model(then, repo: Path):
-    """Her own Python's exact changes for the current code first (proposals_without_a_model.py), then ``then``."""
+def first_without_a_model(then, repo: Path, rank=None):
+    """Her own Python's exact changes for the current code first (proposals_without_a_model.py), then ``then``.
+
+    ``rank(start)`` returns the lines the failing tests run, most suspicious first, for the fix templates.
+    """
     from core.self_modification.proposals_without_a_model import proposals_without_a_model
 
     pending: dict[str, object] = {}
@@ -202,7 +253,8 @@ def first_without_a_model(then, repo: Path):
         key = parent.id if parent is not None else ""
         if key not in pending:
             failure = parent.fitness.failures if parent is not None and parent.fitness else defect.seen
-            pending[key] = proposals_without_a_model(failure, start, repo)
+            ranked = await rank(start) if rank is not None else ()
+            pending[key] = proposals_without_a_model(failure, start, repo, ranked)
         exact = next(pending[key], None)
         if exact is not None:
             return [exact]
@@ -284,7 +336,15 @@ def main() -> int:
 
         model = (code_lane(args.model_path, args.out) if args.model_path
                  else from_file(args.proposals_from) if args.proposals_from else None)
-        propose = first_without_a_model(model, copy.path)
+        async def rank(start):
+            from core.self_modification.fix_templates import ochiai
+
+            failing, passing = await copy.lines_each_test_runs(args.test, args.file, start, original=sources,
+                                                               seconds=max(1.0, deadline - time.time()))
+            failing = {t: lines for t, lines in failing.items() if t in args.test} or failing
+            return ochiai(failing, passing)
+
+        propose = first_without_a_model(model, copy.path, rank)
         lineage = asyncio.run(repair_by_selection(
             Defect(tuple(args.test), tuple(args.file)), sources=sources, neighbours=neighbours, run=run,
             propose=propose, proposals=args.proposals, deadline=deadline, record=record))

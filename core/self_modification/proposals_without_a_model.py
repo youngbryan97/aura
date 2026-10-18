@@ -10,7 +10,9 @@ proposers here write only changes of shapes they know, each made exactly:
 * the import a failure says is missing ("name 'X' is not defined"), copied
   from where her own code already imports that name, put after the file's
   imports instead of rewriting the file;
-* what ruff's own fixes change in the file.
+* what ruff's own fixes change in the file;
+* the fix templates (fix_templates.py) at the lines the failing tests run,
+  most suspicious first.
 
 None of them is taken for right. Each is a candidate the tests decide on
 (repair_by_selection.py), and a model is asked only once these are spent.
@@ -22,7 +24,7 @@ import re
 import subprocess
 import sys
 from collections import Counter
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
 
 __all__ = ["import_for", "proposals_without_a_model"]
@@ -91,8 +93,13 @@ def _ruff_fixed(source: str, path: str, repo: Path) -> str:
     return done.stdout if done.returncode == 0 and done.stdout else source
 
 
-def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Path) -> Iterator[tuple[str, str]]:
-    """Every exact change these proposers write for ``sources``, as (origin, SEARCH/REPLACE text)."""
+def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Path,
+                              ranked: Sequence[tuple[tuple[str, int], float]] = ()) -> Iterator[tuple[str, str]]:
+    """Every exact change these proposers write for ``sources``, as (origin, SEARCH/REPLACE text).
+
+    ``ranked`` is the lines the failing tests ran, most suspicious first (fix_templates.ochiai); the fix
+    templates are tried there after the import, the shapes and ruff.
+    """
     from core.self_modification.code_that_looks_wrong import applied, what_looks_wrong
     from core.self_modification.repairing_by_behaviour import _candidates
 
@@ -116,3 +123,7 @@ def proposals_without_a_model(failure: str, sources: Mapping[str, str], repo: Pa
             fixed = _ruff_fixed(source, path, repo)
             if fixed != source:
                 yield "ruff", _whole(path, source, fixed)
+    from core.self_modification.fix_templates import template_changes
+
+    for path, name, changed in template_changes(ranked, sources):
+        yield f"template:{name}", _whole(path, sources[path], changed)
