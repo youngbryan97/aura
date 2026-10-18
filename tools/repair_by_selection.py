@@ -108,8 +108,9 @@ class Copy:
         failures = text[text.find("= FAILURES ="):] if "= FAILURES =" in text else text[-4000:]
         return results, failures
 
-    async def passing_in(self, files: Sequence[str], sources: Mapping[str, str], *, seconds: float) -> list[str]:
-        """Every test in ``files`` that passes on the copy as it is."""
+    async def passing_in(self, files: Sequence[str], sources: Mapping[str, str], *,
+                         seconds: float) -> list[str] | None:
+        """Every test in ``files`` that passes on the copy as it is, or None when they run past ``seconds``."""
         if not files:
             return []
         self.write(sources)
@@ -124,7 +125,7 @@ class Copy:
         except TimeoutError:
             proc.kill()
             await proc.wait()
-            raise SystemExit(f"the neighbouring tests ran past {seconds:.0f} s; nothing searched") from None
+            return None
         return [node for word, node in _RESULT.findall(out.decode("utf-8", errors="replace")) if word == "PASSED"]
 
     def remove(self) -> None:
@@ -259,9 +260,16 @@ def main() -> int:
         # Each run may take what the whole search has left.
         run = lambda tests, s: copy.run(tests, s, original=sources, seconds=max(1.0, deadline - time.time()))  # noqa: E731
         # What must not break is each test, not each file: a file with one failing test still guards the rest.
+        # Found only when a candidate first fixes something (repair_by_selection.py).
         files = neighbours_of(args.file, copy.path)
-        passed_before = asyncio.run(copy.passing_in(files, sources, seconds=max(1.0, deadline - time.time())))
-        neighbours = [n for n in passed_before if n not in args.test]
+        found: list[str] = []
+
+        async def neighbours() -> list[str] | None:
+            passing = await copy.passing_in(files, sources, seconds=max(1.0, deadline - time.time()))
+            if passing is None:
+                return None
+            found[:] = [n for n in passing if n not in args.test]
+            return found
         graph = PatchGenealogyGraph(args.out / "genealogy.sqlite3")
 
         def record(candidate) -> None:
@@ -281,7 +289,7 @@ def main() -> int:
             Defect(tuple(args.test), tuple(args.file)), sources=sources, neighbours=neighbours, run=run,
             propose=propose, proposals=args.proposals, deadline=deadline, record=record))
         (args.out / "lineage.json").write_text(json.dumps(
-            {**lineage.to_json(), "neighbours": neighbours, "planted": args.plant}, indent=1))
+            {**lineage.to_json(), "guarding_files": files, "guarding_tests": found, "planted": args.plant}, indent=1))
         if lineage.best is not None:
             import difflib
 

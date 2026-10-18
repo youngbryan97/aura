@@ -159,3 +159,26 @@ def test_a_shape_of_code_almost_never_meant_is_proposed_without_a_model(tmp_path
     source = {"pkg/m.py": "def area(w, h):\n    return w * 0\n"}
     shapes = [o for o, _ in proposals_without_a_model("", source, tmp_path) if o.startswith("looks_wrong")]
     assert shapes, "a quantity multiplied by a literal zero was not suspected"
+
+
+def test_the_guarding_tests_run_only_once_a_candidate_fixes_something_and_none_means_unguarded():
+    nothing = _block("def width(a, b):\n    return b - a", "def width(a, b):\n    return (b - a)")
+    mends = _block("    if x < lo:\n        return hi", "    if x < lo:\n        return lo")
+    asked_for_guards = []
+
+    async def guards():
+        asked_for_guards.append(True)
+        return None  # they ran past the budget
+
+    offers = iter([nothing, mends])
+
+    async def propose(defect, sources, parent, n):
+        return [("model", next(offers))]
+
+    lineage = asyncio.run(repair_by_selection(DEFECT, sources=SOURCE, neighbours=guards, run=_run,
+                                              propose=propose, proposals=2, deadline=time.time() + 60))
+    first, second = lineage.candidates
+    assert not first.fitness.guarded and asked_for_guards == [True]
+    # It fixed the defect, but nothing that passed before was run on it, so it does not count as mended.
+    assert second.fitness.fixed == 1 and not second.fitness.guarded and not second.fitness.mends
+    assert lineage.stopped == "proposals spent"

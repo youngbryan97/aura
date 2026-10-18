@@ -72,10 +72,12 @@ class Fitness:
     broken: int
     changed_lines: int
     failures: str = ""
+    #: Whether the tests that passed before were run on it: only once it fixes something.
+    guarded: bool = True
 
     @property
     def mends(self) -> bool:
-        return self.of > 0 and self.fixed == self.of and self.broken == 0
+        return self.of > 0 and self.fixed == self.of and self.broken == 0 and self.guarded
 
     def key(self) -> tuple[int, int, int]:
         """Larger is fitter: more fixed, then fewer broken, then the smaller change."""
@@ -190,7 +192,7 @@ async def repair_by_selection(
     defect: Defect,
     *,
     sources: Mapping[str, str],
-    neighbours: Sequence[str],
+    neighbours: Sequence[str] | Callable[[], Awaitable[Sequence[str]]],
     run: Run,
     propose: Propose,
     proposals: int,
@@ -206,17 +208,38 @@ async def repair_by_selection(
     with a ``parent`` (the fittest candidate so far, whose failures it shows)
     the parent's code, whose edits the child inherits. ``proposals`` is how many
     may be asked for in all and ``deadline`` (time.time()) when to stop asking.
+
+    The tests that must not break are run only on a candidate that fixes
+    something, and are found the first time one does: ``neighbours`` is either
+    those tests or a callable that returns the ones passing before the change.
+    For a module many tests import, running them all on every candidate spent a
+    defect's whole budget before its first candidate (18 October 2026).
     """
     lineage = Lineage(defect)
-    every = tuple(dict.fromkeys([*defect.tests, *neighbours]))
-    lineage.baseline, seen = await run(every, sources)
+    lineage.baseline, seen = await run(defect.tests, sources)
     if all(lineage.baseline.get(t, False) for t in defect.tests):
         lineage.stopped = "the defect's tests already pass"
         return lineage
     if not defect.seen:
         defect = Defect(defect.tests, defect.files, seen)
         lineage.defect = defect
-    standing = [t for t in neighbours if lineage.baseline.get(t) and t not in defect.tests]
+    standing: list[str] | None = None
+    looked = False
+
+    async def guarding() -> list[str] | None:
+        """The tests that passed before, or None when they could not be run: then nothing is guarded."""
+        nonlocal standing, looked
+        if not looked:
+            looked = True
+            if callable(neighbours):
+                found = await neighbours()
+            else:
+                before, _ = await run(tuple(neighbours), sources)
+                found = [t for t in neighbours if before.get(t)]
+                lineage.baseline.update(before)
+            standing = None if found is None else [t for t in found if t not in defect.tests]
+        return standing
+
     asked = 0
     while asked < proposals:
         if time.time() >= deadline:
@@ -242,13 +265,21 @@ async def repair_by_selection(
             if refused:
                 candidate.refused = refused
             else:
-                results, failures = await run((*defect.tests, *standing), changed)
+                results, failures = await run(defect.tests, changed)
+                fixed = sum(1 for t in defect.tests if results.get(t))
+                broken, guarded = 0, False
+                guard = await guarding() if fixed else None
+                if guard is not None:
+                    held, broke = await run(guard, changed) if guard else ({}, "")
+                    broken, guarded = sum(1 for t in guard if not held.get(t)), True
+                    failures = "\n".join(part for part in (failures, broke) if part)
                 candidate.fitness = Fitness(
-                    fixed=sum(1 for t in defect.tests if results.get(t)),
+                    fixed=fixed,
                     of=len(defect.tests),
-                    broken=sum(1 for t in standing if not results.get(t)),
+                    broken=broken,
                     changed_lines=_changed_lines(sources, changed),
                     failures=failures,
+                    guarded=guarded,
                 )
                 if lineage.best is None or candidate.fitness.key() > lineage.best.fitness.key():
                     lineage.best = candidate
