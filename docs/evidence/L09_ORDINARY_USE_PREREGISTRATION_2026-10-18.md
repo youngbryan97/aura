@@ -63,3 +63,18 @@ pairs at least), the result is reported as underpowered, not as a pass or a fail
 It measures her kept procedures on the requests she was actually given, which include many typed to test her;
 the result is reported with that said. It cannot show more than her history contains: a kind nobody asked
 about does not appear in it.
+
+## Amendment, 18 October 2026, before any draft
+
+The time at the top was written before reading the clock; the commit that fixed this plan (80020d2dc) was
+made at 16:38.
+
+The grader is `states` in `tools/l09_ordinary_use.py`, fixed before any draft is written. It reads the reply's
+last boxed answer, or else its closing paragraph, by the type of the fixed answer: a number is right when it
+is among the integers there; a list of prime factors when every one is there and no other prime is; a yes or
+no question by the negation or the affirmation there; sorted words by their order there. G09's rule for
+DeepMind kinds was not used: it reads the benchmark's boxed form and graded the prose "17 times 23 is 391."
+wrong, while the kept arm's answer is the bare value, so it would have favoured the kept arm. The routing ran
+at 16:40 (9 of 195 requests routed, 8 of them to the restatement step) and the answers were fixed at 16:40:56
+in `truths.json`, before this grader saw any of her replies (it was tried only on a dry run of the tool on the
+1.5B reflex model).
