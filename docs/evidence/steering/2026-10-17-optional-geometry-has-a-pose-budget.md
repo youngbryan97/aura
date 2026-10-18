@@ -41,3 +41,30 @@ the pose budget has not been measured.
 The nearby pose, input-deadline and recording contracts passed 55 checks.
 Smoke (165 passed, one skipped), lint, compilation, layering, dependency
 consistency and writing passed in 96.57 seconds.
+
+## Ordinary follow-up at `7f5e22242`
+
+The timed CPU campaign completed in 71.70 seconds. The report remained
+unread, with no win; the independently viewed final image was active play.
+Its complete record closed without drops: 168 images, 44 input-port events
+and 124 control observations. Nineteen observations selected body 1. The first
+selection had statistic 27.038360 and effect 26.948735, above the unchanged
+20/20 thresholds, with two up and two neutral acceleration measurements.
+The current image at that selection independently showed the selected box
+on the vehicle at the left. No source name supplied this identity.
+
+Fresh geometry's median/p95/maximum were 0.030637/0.106731/0.142820 seconds.
+Total observation's p95/maximum were 0.275808/0.316813 seconds. These are
+observed follow-up timings on a different actual game state, not paired
+hardware measurements or a universal distribution. Source geometry counts
+were 27 fresh, four object-bound and zero continuing.
+
+The controlled track was then lost after a 1.25-second disappearance. After
+identification it used measured up control, then a left calibration pulse
+carried the body to the left edge. The record does not establish a successful
+landing or complete steering model. Bar reading still reached 0.168235
+seconds, so its scan remains actionable. Preserve current identity proof and
+investigate calibration observability and later reacquisition without relaxing
+identity requirements.
+
+Artifacts: `artifacts/flash-campaign/2026-10-17-ordinary-pose-budget-timing/`.

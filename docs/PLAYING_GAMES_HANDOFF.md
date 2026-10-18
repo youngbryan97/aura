@@ -1340,3 +1340,13 @@ Measure carryover and then address the measured bar-discovery spikes.
 
 The nearby contracts passed 55 checks; smoke (165 passed, one skipped) and
 the main code gates passed in 96.57 seconds after the pose-budget repair.
+
+At pushed `7f5e22242`, the ordinary CPU follow-up finally selected body 1
+through independent repeated up/neutral trials: statistic 27.038360, effect
+26.948735; both thresholds remain 20. The independently viewed capture places
+that box on the vehicle. Nineteen of 124 observations retained the selection.
+Fresh geometry's observed p95/max fell to 0.106731/0.142820 seconds. The run
+still did not win and ended in active play. A later left calibration carried
+the body off the left edge and its track was lost. Bar reading still reached
+0.168235 seconds. Continue the bar scan and bounded calibration observability;
+this milestone does not qualify the native demo.
