@@ -42,7 +42,7 @@ from core.brain.llm.decoder_topology import (
 )
 from core.brain.nonparametric_binding import MemoryBinding, binding_for_job
 from core.brain.nonparametric_generation import normalize
-from core.brain.nonparametric_memory import get_nonparametric_memory
+from core.brain.nonparametric_memory import ENTRIES_TO_STEER_GENERATION, get_nonparametric_memory
 from core.runtime.errors import record_degradation
 from core.runtime.tensor_bridge import as_float32_numpy
 
@@ -222,7 +222,7 @@ _MIN_USABLE_ENTRIES = 32
 #: prompts) is NOT a substitute either: it was already in place on
 #: 2026-07-29 when the repaired store steered two live turns into garbled
 #: words and a fabricated premise.
-_MIN_ENTRIES_TO_STEER_GENERATION = 50_000
+_MIN_ENTRIES_TO_STEER_GENERATION = ENTRIES_TO_STEER_GENERATION
 
 
 #: Refusals already reported, so a permanently-unusable store is named once
