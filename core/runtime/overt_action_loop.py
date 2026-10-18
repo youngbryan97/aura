@@ -1053,7 +1053,7 @@ class OvertActionLoop:
         # result are read by the traces below, so it is awaited, off the loop.
         await asyncio.to_thread(self._emit_receipts, result, raw_result)
         self._record_life_trace(result, raw_result)
-        self._update_goal(result)
+        self._update_goal(result, raw_result)
         # What she does on a want of her own is not announced. It is on her
         # receipts and her life trace like any act; it is not a status update.
         if result.source != "want":
@@ -1277,9 +1277,22 @@ class OvertActionLoop:
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation("overt_action_loop", exc)
 
-    def _update_goal(self, result: OvertActionResult) -> None:
+    def _update_goal(self, result: OvertActionResult, raw_result: Any = None) -> None:
+        """Move the goal on by what the action did: done, when it ran the whole objective as a plan and every step held.
+
+        It was set back to in_progress after every verified action, at most
+        95% done, so a goal this loop pursued could never finish. Live on 18
+        October a plan for one goal completed (1 of 1 steps) and the goal was
+        chosen again, 163 times that day. One skill's step towards a goal
+        still leaves it in progress.
+        """
         if not result.goal_id or not result.verified:
             return
+        whole = (
+            result.execution_mode == "planned_goal"
+            and isinstance(raw_result, dict)
+            and raw_result.get("status") == "completed_verified"
+        )
         goal_engine = self._goal_engine()
         if goal_engine is None or not hasattr(goal_engine, "get_goal") or not hasattr(goal_engine, "update_goal_status"):
             return
@@ -1287,12 +1300,12 @@ class OvertActionLoop:
         async def _update() -> None:
             try:
                 current = await asyncio.to_thread(goal_engine.get_goal, result.goal_id) or {}
-                progress = min(0.95, max(float(current.get("progress", 0.0) or 0.0), 0.05) + 0.05)
+                progress = 1.0 if whole else min(0.95, max(float(current.get("progress", 0.0) or 0.0), 0.05) + 0.05)
                 evidence = list(current.get("evidence") or [])
                 evidence.append(result.tool_receipt_id or result.action_id)
                 await goal_engine.update_goal_status(
                     result.goal_id,
-                    status="in_progress",
+                    status="completed" if whole else "in_progress",
                     progress=progress,
                     summary=result.result_summary,
                     evidence=evidence[-8:],
