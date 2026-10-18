@@ -358,6 +358,11 @@ def kept_waiting() -> float:
     return max(0.0, 1.0 - (time.thread_time() - worked) / took) if took > 0 else 0.0
 
 
+def separate_classical_eyes_enabled() -> bool:
+    """An explicit local-observation setting also excludes transport preparation."""
+    return not bool(_IN_THIS_PROCESS.value())
+
+
 def eyes_for_play(kinds: list[Any] | None = None) -> Any:
     """Her eyes for a stretch of play: in a process of their own where this one keeps her waiting for the interpreter,
     else here. Seen elsewhere, a picture costs a few milliseconds more in passing to and fro, and that is all it costs
@@ -372,7 +377,7 @@ def eyes_for_play(kinds: list[Any] | None = None) -> Any:
         # Numerical GPU state belongs to the owned observation worker. The
         # existing child declares no accelerator, so it cannot host this model.
         return selected_motion_eyes(kinds=kinds)
-    if bool(_IN_THIS_PROCESS.value()):
+    if not separate_classical_eyes_enabled():
         return WhatMoves(kinds=kinds)
     waiting = kept_waiting()
     if waiting < CONTENDED:

@@ -1234,3 +1234,30 @@ time. No protected source checkout or runtime lifecycle was changed.
 
 Smoke (165 passed, one skipped), lint, compilation, layering, dependency
 consistency and writing passed. The combined group took 98.56 seconds.
+
+Original follow-up at `16371505e` still failed (140.16 seconds; `lost`,
+`unread`, `unread`; final image instructions). Of 149 control observations,
+none selected a body. Fresh geometry: 22; object-bound and continuing: zero.
+The first image/key request worsened to 4.280/5.712 seconds after Play.
+The log measured a 2,151.2-millisecond cold observation startup after
+contention selected the separate process. Do not claim a timing or gameplay
+gain from the wait repair. Test preparation on a current menu next. The
+record closed without drops, with software graphics and no model loaded
+in the guarded interpreter.
+
+## Prepare classical perception on a menu, 17 October 2026
+
+The ordinary handoff can now prepare an empty classical observer on a
+captured menu in a known running world, before input starts play. Its
+bounded startup and retirement are reused; no picture, body state or input
+is transferred. Normal backend choice remains. Learned selections skip
+this preparation. The focused group passed 49 checks, including pending,
+failed and cancelled preparation. A real cold-process probe measured
+0.722226 seconds on the menu and 0.000707 seconds for the next observer
+using the same child, with zero pictures and bodies. See
+`docs/evidence/steering/2026-10-17-classical-observation-prepared-on-a-menu.md`.
+Original-game carryover still needs measurement. This is not native proof.
+
+Explicit local-only observation also skips subprocess preparation. The
+policy and deadline group passed 29 checks; smoke (165 passed, one skipped)
+and the main code gates passed in 111.96 seconds. The skill is 1,980 lines.

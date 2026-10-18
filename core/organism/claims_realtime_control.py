@@ -366,7 +366,7 @@ def install_realtime_control_claims(suite: Any) -> None:
         _retained_structure_invariant,
     )
     from core.runtime.what_stops_it import _stop_listener_lifetime_invariant
-    from core.skills.current_words_before_play import _current_play_words_invariant
+    from core.skills.current_words_before_play import _current_play_words_invariant, _menu_preparation_invariant
     from core.skills.screen_step_evidence import (
         _construction_readiness_invariant,
         _creation_completion_invariant,
@@ -433,6 +433,9 @@ def install_realtime_control_claims(suite: Any) -> None:
         ("facing_keeps_observed_motion_and_input_custody", "core/agency/facing_seen_under_its_input.py",
          "tests/test_facing_uses_observed_motion_and_its_input.py", lambda: _facing_input_invariant() == (),
          "Facing measurements require current observed motion under the input delivered before the picture; predictions and overlapping inputs teach no response."),
+        ("classical_preparation_requires_a_captured_menu", "core/skills/current_words_before_play.py",
+         "tests/test_classical_observation_is_prepared_on_a_menu.py", lambda: _menu_preparation_invariant() == (),
+         "Empty classical observation preparation requires a captured current menu in a known running world, with no picture consumption, input or body evidence."),
         ("current_play_words_require_a_measured_frame", "core/skills/current_words_before_play.py",
          "tests/test_current_words_precede_play_interpretation.py", lambda: _current_play_words_invariant() == (),
          "Fast play handoff reads use current measured words; empty, old and future frames cannot remove a menu."),

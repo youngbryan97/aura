@@ -1902,7 +1902,7 @@ async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
     reflexes = AS_IT_HAPPENS.get()
     played_before = reflexes.played_at if reflexes is not None else 0.0
     if reflexes is not None:
-        from core.skills.current_words_before_play import read_current_words
+        from core.skills.current_words_before_play import prepare_classical_observation_on_a_menu, read_current_words
 
         fresh = await read_current_words(reflexes, goes_on=_it_goes_on_without_her(reflexes))
         if fresh is None or not reflexes.run_is_over(fresh):
@@ -1913,6 +1913,7 @@ async def looked_at_as_it_happens(look: Any) -> dict[str, Any]:
     reflexes.read(seen)
     seen = await _waited_out_while_made_ready(reflexes, look, seen)
     await reflexes.read_a_legend()
+    await prepare_classical_observation_on_a_menu(reflexes, seen)
     # A screen of play in a place played in time is played the moment it is seen, not after a move has been decided on
     # it and made: offline 2026-10-11 the pursuit clicked a food fight's corner to see what it did, two seconds of a
     # ten-second round, before play began.
