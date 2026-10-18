@@ -43,7 +43,7 @@ def _resolve_reflex_path() -> str:
     return str(get_fallback_path())
 
 
-def run_proof(*, max_tokens: int = 12) -> dict:
+def run_proof(*, max_tokens: int = 12, model_path: str = "", background_store: str = "") -> dict:
     from mlx_lm import load
 
     from core.brain.nonparametric_generation import MLXEncoder
@@ -52,7 +52,7 @@ def run_proof(*, max_tokens: int = 12) -> dict:
     from core.runtime.model_lane_control import standalone_model_lane
 
     started = time.time()
-    model_path = _resolve_reflex_path()
+    model_path = model_path or _resolve_reflex_path()
     # Even the 1.5B reflex loads under the atomic ownership seam: an
     # unguarded standalone load beside a live 32B is the memory-doubling
     # class the model-lane contract exists to prevent.
@@ -65,11 +65,11 @@ def run_proof(*, max_tokens: int = 12) -> dict:
         return _run_proof_with_lane(model_path, load, MLXEncoder,
                                     NonParametricMemory,
                                     cached_generate_with_memory,
-                                    started, max_tokens)
+                                    started, max_tokens, background_store)
 
 
 def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
-                         cached_generate_with_memory, started, max_tokens) -> dict:
+                         cached_generate_with_memory, started, max_tokens, background_store="") -> dict:
     model, tokenizer = load(model_path)
     encoder = MLXEncoder(model, tokenizer)
 
@@ -89,14 +89,25 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
             f" {rng.randint(11, 89)}.{rng.randint(1, 9)} centimetres per day",
         ),
     ]
-    control_prompt = "The capital of France is"
+    # Ordinary prompts: none may change with the datastore loaded.
+    controls = ["The capital of France is", "Water boils at sea level at",
+                "The first president of the United States was", "In Python, a list is"]
 
-    # A throwaway datastore path: the proof must never pollute (or borrow
-    # from) the live runtime datastore.
+    # A throwaway datastore path: the proof must never pollute the live runtime
+    # datastore. With --background-store its entries are copied in first, so the
+    # facts must be found among them and the controls face real neighbours.
+    store = Path(tempfile.mkdtemp(prefix="np-proof-")) / "store"
+    background_entries = 0
+    if background_store:
+        import shutil
+
+        for suffix in (".keys.npy", ".meta.json"):
+            shutil.copy2(background_store + suffix, str(store) + suffix)
+        background_entries = len(NonParametricMemory(dim=encoder.dim, path=store, max_entries=10_000_000))
     memory = NonParametricMemory(
         dim=encoder.dim,
-        path=Path(tempfile.mkdtemp(prefix="np-proof-")) / "store",
-        max_entries=64,
+        path=store,
+        max_entries=max(64, background_entries + 64),
     )
 
     results = []
@@ -113,15 +124,15 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         )
         results.append({"prompt": prompt, "expected": answer.strip(), "base": base_out})
 
-    control_base = cached_generate_with_memory(
+    control_base = [cached_generate_with_memory(
         model,
         tokenizer,
-        control_prompt,
+        prompt,
         memory,
         max_tokens=6,
         use_memory=False,
         principal="nonparametric_proof",
-    )
+    ) for prompt in controls]
 
     # 3. ONE-SHOT ingest via the REAL production path: full-sequence keys
     # (one entry per answer position) so recall carries the whole value.
@@ -162,15 +173,15 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         record["recalled"] = record["memory_has_it"] and not record["base_had_it"]
 
     # 5. CONTROL — unrelated prompt unchanged with the datastore loaded.
-    control_mem = cached_generate_with_memory(
+    control_mem = [cached_generate_with_memory(
         model,
         tokenizer,
-        control_prompt,
+        prompt,
         memory,
         max_tokens=6,
         use_memory=True,
         principal="nonparametric_proof",
-    )
+    ) for prompt in controls]
     control_preserved = control_base == control_mem
 
     passed = all(r["recalled"] for r in results) and control_preserved
@@ -180,11 +191,12 @@ def _run_proof_with_lane(model_path, load, MLXEncoder, NonParametricMemory,
         "model": model_path,
         "hidden_dim": encoder.dim,
         "datastore_entries": len(memory),
+        "background_entries": background_entries,
         "ingested_positions": ingested_positions,
         "similarity_mode": "centered" if memory.similarity_ready() else "raw_fallback",
         "facts": results,
         "control": {
-            "prompt": control_prompt,
+            "prompts": controls,
             "base": control_base,
             "with_memory": control_mem,
             "preserved": control_preserved,
@@ -198,9 +210,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--out", default="")
+    parser.add_argument("--model-path", default="", help="defaults to the reflex model")
+    parser.add_argument("--background-store", default="",
+                        help="a datastore path prefix (without .keys.npy) whose entries the facts must be found among")
     args = parser.parse_args()
 
-    report = run_proof()
+    report = run_proof(model_path=args.model_path, background_store=args.background_store)
 
     out = Path(args.out) if args.out else (
         REPO_ROOT / "artifacts" / "nonparametric"
