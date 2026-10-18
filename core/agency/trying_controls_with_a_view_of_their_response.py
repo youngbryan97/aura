@@ -9,6 +9,11 @@ from core.agency.a_response_worth_measuring_again import response_worth_repeatin
 from core.agency.a_trial_has_a_physical_end import lease_control_trial
 from core.agency.calibration_for_a_current_body import calibration_owner
 from core.agency.controls_ready_for_the_motion_model import has_a_measured_response
+from core.agency.control_trials_keep_their_delivered_counts import (
+    counter_probes_already_delivered,
+    next_discovery_control,
+    record_discovery_delivery,
+)
 from core.agency.countering_motion_as_it_appears import CounteringMotion
 from core.agency.enough_observations_for_a_trial import (
     expected_trial_wait,
@@ -84,6 +89,10 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
                                                  at, run.held_since, seconds=seconds, steps=FIRST,
                                                  effect_over=REALLY_MOVES / PUSHED_FOR_S))
                                              if hers is not None and hasattr(moves, "shape") else None)
+    if (not identified and key and key != run.held
+            and counter_probes_already_delivered(run, hers, key, phases=FIRST)):
+        run.counter_trial.done = True
+        key = None
     if key is None:
         if identified:
             if trial is not None and run.held and trial.belongs_to_input(run.held, run.held_since, epoch):
@@ -98,7 +107,7 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
         elif run.keys:
             turn = run.trying % (2 * len(run.keys))
             run.trying += 1
-            key = run.keys[turn // 2] if turn % 2 == 0 else ""
+            key = (next_discovery_control(run, hers) or run.keys[turn // 2]) if turn % 2 == 0 else ""
         else:
             return
     counter_active = run.counter_trial.key and not run.counter_trial.done
@@ -111,6 +120,7 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
     # trial begins now. Offline 2026-10-13 a game was ended in its first half minute by a rest asked for with nothing
     # held (None + duration).
     began = run.held_since if run.held_since is not None else at
+    record_discovery_delivery(run, hers, key, began, independent=independent)
     run.tried_at = began
     if counter_active:
         # A newly delivered phase can reserve the current observed cadence.

@@ -930,10 +930,14 @@ def _control_discovery_claims() -> tuple:
         _reflex_effect_invariant,
     )
     from core.agency.unknown_controls_get_their_turn import _unknown_control_fairness_invariant
+    from core.agency.control_trials_keep_their_delivered_counts import _delivered_probe_count_invariant
     from core.agency.what_acknowledged_inputs_predict import _acknowledged_prediction_invariant
     from core.perception.a_world_as_its_code_makes_it import _saved_world_effects_invariant
 
     return (
+        ("discovery_strategies_share_delivered_probe_counts", "core/agency/control_trials_keep_their_delivered_counts.py",
+         "tests/test_control_discovery_keeps_its_delivered_probes.py", lambda: _delivered_probe_count_invariant() == (),
+         "Unknown-body discovery retains current physically delivered probe counts across strategies for ordering only; counts grant no measured response or identity."),
         ("unknown_controls_share_a_finite_current_body_budget", "core/agency/unknown_controls_get_their_turn.py",
          "tests/test_unknown_controls_get_their_turn.py", lambda: _unknown_control_fairness_invariant() == (),
          "Unknown controls share bounded issued trials for the current body; old discovery counts cannot spend a new owner's allowance, and reordered inputs or unavailable outcomes cannot renew it."),

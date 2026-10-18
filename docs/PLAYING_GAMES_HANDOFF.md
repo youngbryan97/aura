@@ -1266,3 +1266,36 @@ Merged 22 intervening main commits into the isolated checkout at
 `b7041896b`. The combined focused group passed 51 checks, then smoke and the
 main code gates passed in 123.02 seconds. No native source checkout or
 runtime was changed. Measure the actual menu-to-play route next.
+
+At `82822b7dd`, menu preparation reached the original lander before Play
+(1.110 seconds). The first fast image arrived 1.119547 seconds after Play;
+the first key completed at 1.799338 seconds. The lander still had zero
+landings and no confirmed body across 309 observations. Source geometries:
+53 fresh, five object-bound, 70 continuing; these do not establish the play
+phase or control. The food-fight case also had no demonstrated win; its
+final image was active play. Both complete records closed without drops.
+The two-case campaign took 264.89 seconds. A 40-frame alternate original
+tracker replay kept the same 25 point continuations and 25 moving material
+samples, cost more time and identified no body; it was not promoted.
+The next red regression shows discovery repeating a twice-delivered counter
+probe when it starts its ordinary key order. Retain delivered counts for
+ordering, without creating any causal evidence or changing thresholds.
+
+## Discovery retains delivered probes, 17 October 2026
+
+The actual hold/deadline route reproduced a third first-key delivery after
+the counter programme's two pulses. Unknown-body discovery now retains a
+bounded ledger of delivered independent probes across those strategies and
+prefers a less-exposed current key. Counts supply no response or identity;
+neutral phases, finite allowances and physical deadlines remain. Duplicate
+holds cannot renew across epochs. The broad timing group passed 155 checks.
+See `docs/evidence/steering/2026-10-17-discovery-keeps-its-delivered-probes.md`.
+Measure ordinary original-game carryover before claiming any outcome gain.
+
+The cold-start order also permits an ordinary pulse before the counter
+programme. That second ordering failed with the first repair. Both strategies
+now respect the same delivered count: a new counter pulse cannot repeat an
+allowance already delivered by ordinary discovery. The final group passed
+156 checks in 19.07 seconds; smoke (165 passed, one skipped) and the main code
+gates passed in 88.05 seconds. Governance still reports 130 regressions, the
+same recorded count. No original outcome gain has been measured yet.
