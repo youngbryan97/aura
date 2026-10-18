@@ -55,6 +55,31 @@ Governance still reports 130 regressions in 9.64 seconds, the same recorded
 count as before these changes. Its baseline was not changed. The full-scan
 comparison used the scanner from `2a127c0df` as its previous implementation.
 
+## Ordinary follow-up at `1e277a2c7`
+
+The timed CPU run completed in 75.65 seconds, reporting lost/unread and no
+win. The independently viewed final image showed zero landings and one
+crash. Its complete recording closed without drops: 214 images, 62 input-port
+events and 145 control observations. Sixty-four observations selected a body
+over the complete record; an interim count of 41 covered only the first
+stretch. The first selection had statistic 38.599133 and effect 34.608311,
+with repeated up/neutral acceleration measurements and unchanged thresholds.
+Source counts were 40 fresh, 17 object-bound and zero continuing geometries.
+
+Bar reading's observed p95/max were 0.016604/0.022147 seconds. Complete
+observation's p95/max were 0.245581/0.260533 seconds. These follow-up timings
+include a different actual game state and do not qualify native performance.
+
+Only up remained known. Lateral calibration still lacked usable repeated
+response. In the first selected stretch, the left pulse supplied a short
+settled interval before an up correction interrupted it. The right pulse's
+first settled frame was contradicted, followed by measured frames and another
+gap. The body then drifted beyond the right edge. Continue tracing material
+continuity during turning and the trial gate before changing calibration
+authority or claiming a complete steering model.
+
+Artifacts: `artifacts/flash-campaign/2026-10-17-ordinary-incremental-bars-timing/`.
+
 Artifacts: `artifacts/flash-campaign/2026-10-17-bar-join-batch/`,
 `artifacts/flash-campaign/2026-10-17-bar-discovery-pruning/` and
 `artifacts/flash-campaign/2026-10-17-incremental-bar-discovery/`.

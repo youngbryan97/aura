@@ -1367,3 +1367,11 @@ Smoke (165 passed, one skipped), lint and compilation passed. Layering first
 refused the newly registered canary import; a narrow manual organism DEPS
 entry fixed that. Layering, dependency consistency and writing then passed
 in 37.59 seconds. Governance retains 130 regressions; its baseline is unchanged.
+
+At `1e277a2c7`, the ordinary CPU follow-up measured bar-reading p95/max at
+0.016604/0.022147 seconds. Complete observation p95/max were 0.245581/0.260533
+seconds. Sixty-four of 145 observations selected a body across the complete
+record (the earlier interim count of 41 covered its first stretch). It still
+ended with zero landings and one crash. Only up remained known: left was
+interrupted early, and right's first settled frame was contradicted before
+further gaps. Trace the current rotating material and motor-trial gate next.
