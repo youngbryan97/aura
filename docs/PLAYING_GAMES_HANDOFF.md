@@ -1307,3 +1307,14 @@ the order reached play. No body qualified across 97 observations. The first
 intervals were available, but reservation required three. The next pulse's
 three-sample prefix also fell short. Continue with cold-start observation
 reservation and preserve the four-sample and identity requirements.
+
+Three cold-start reservation regressions failed, including the actual trial
+executor retaining a 0.45-second deadline despite two measured capture
+intervals. Reservation now uses the slowest valid recent interval as soon
+as one exists, inside the existing maximum and without changing any delivered
+deadline. The focused timing group passed 152 checks. See
+`docs/evidence/steering/2026-10-17-first-trial-reserves-observed-frames.md`.
+Original carryover still needs measurement.
+
+Smoke (165 passed, one skipped) and the main code gates passed after this
+repair in 92.65 seconds. No native lifecycle or protected case was touched.

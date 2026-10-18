@@ -15,13 +15,14 @@ OPTIONS = dict(least_s=.45, settle_s=.2, samples=4, span_s=.15, longest_s=1.8)
 
 
 @pytest.mark.parametrize("cadence", [1 / 60, 1 / 15, .1, 1 / 7.5, .2, .35])
-def test_the_interval_reserves_samples_after_settlement(cadence):
-    duration = observed_response_seconds([cadence] * 6, **OPTIONS)
+@pytest.mark.parametrize("observations", [1, 2, 6])
+def test_the_interval_reserves_samples_after_settlement(cadence, observations):
+    duration = observed_response_seconds([cadence] * observations, **OPTIONS)
     assert duration is not None and .45 <= duration <= 1.8
     assert duration >= .2 + 4 * cadence
 
 
-@pytest.mark.parametrize("intervals", [[], [.1, .1], [0, -.1, float("nan"), float("inf")], [.5] * 6])
+@pytest.mark.parametrize("intervals", [[], [0, -.1, float("nan"), float("inf")], [.5] * 6])
 def test_unobserved_or_broken_cadence_is_unknown(intervals):
     assert observed_response_seconds(intervals, **OPTIONS) is None
 

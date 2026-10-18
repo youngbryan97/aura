@@ -1220,7 +1220,7 @@ def _visual_motion_claims() -> tuple:
          "A rigid point transform needs a bounded consensus of continuing noncollinear correspondences; a rotating path retains its measured reference rather than a changing box centre."),
         ("control_trials_reserve_their_observation_samples", "core/agency/time_to_observe_a_control.py",
          "tests/test_control_trials_use_the_observed_cadence.py", lambda: _observation_time_invariant() == (),
-         "Measured picture cadence reserves a bounded observation interval after input settlement; each delivered trial keeps its deadline and time alone grants no learned response."),
+         "The first measured picture interval can reserve bounded observation time after input settlement; each delivered trial keeps its deadline and time alone grants no learned response."),
         ("joined_outlines_require_current_owned_texture", "core/perception/texture_that_continues_when_outlines_join.py",
          "tests/test_continuing_texture_can_separate_a_joined_outline.py", lambda: _continuing_texture_invariant() == (),
          "A joined patch can yield a translated texture proposal only with current spread-out owned landmarks and matching visible foreground; all unassigned pixels remain."),
