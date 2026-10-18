@@ -36,6 +36,7 @@ import sys
 import tempfile
 import time
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -169,13 +170,23 @@ def code_lane(model_path: str, out: Path):
     async def propose(defect, start, parent, n):
         nonlocal asked
         asked += 1
-        result = await lane.think_with_receipt(request_for(defect, start, parent), temperature=temperature,
-                                               seed=asked)
+        from core.brain.llm.local_code_model import LocalCodeModelError
+
+        try:
+            result = await lane.think_with_receipt(request_for(defect, start, parent), temperature=temperature,
+                                                   seed=asked)
+        except LocalCodeModelError as exc:
+            # The lane refuses an answer cut off at its token limit, and other answers it cannot vouch for:
+            # a refused candidate, and the search goes on.
+            with receipts.open("a", encoding="utf-8") as f:
+                f.write(json.dumps({"asked": asked, "parent": parent.id if parent else "", "refused": str(exc)}) + "\n")
+            return [(f"code_lane_refused:{exc}", "")]
+        text = result.text.split("</think>")[-1]
         with receipts.open("a", encoding="utf-8") as f:
-            f.write(json.dumps({"asked": asked, "parent": parent.id if parent else "",
-                                "receipt": {k: str(v) for k, v in vars(result.receipt).items()}}) + "\n")
+            f.write(json.dumps({"asked": asked, "parent": parent.id if parent else "", "text": text,
+                                "receipt": {k: str(v) for k, v in asdict(result.receipt).items()}}) + "\n")
         # One proposal a call, so the next is written from whichever candidate is then fittest.
-        return [("code_lane", result.text.split("</think>")[-1])]
+        return [("code_lane", text)]
 
     return propose
 
