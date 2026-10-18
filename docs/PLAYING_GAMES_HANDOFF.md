@@ -1399,3 +1399,14 @@ only three settled samples before a gap. Its default eyes ran in a separate
 CPU process this time, so the timing distribution is not paired with the
 earlier local run. Split the remaining multi-position fine-refit operation
 before further original testing. No native demo or campaign pass is shown.
+
+Ordinary optional refits now fit one candidate position of one pose per
+admitted visit. Failures rotate through all three local and three wider
+peaks for every pose; only current precision-qualified material returns
+that pose to local tracking. Untried positions remain explicit, and the
+complete offline search API remains available. The focused group passed
+105 checks; smoke (165 passed, one skipped) and the main code gates passed
+in 195.05 seconds. See
+`docs/evidence/steering/2026-10-18-one-position-per-optional-refit.md`.
+Measure original carryover next. No original win or native readiness is
+established by these component results.

@@ -128,6 +128,7 @@ class SourceGeometryInCurrentPixels:
         self.records: dict = {}
         self.cursor = 0
         self.pose_cursors: dict = {}
+        self.search_cursors: dict = {}
         self.at = -math.inf
         self.work_share = OptionalWorkShare()
 
@@ -135,19 +136,23 @@ class SourceGeometryInCurrentPixels:
                           *, essential_seconds: float) -> tuple:
         """Repay prior optional refits before delaying another essential picture."""
         if not proposals and not self.records:
-            return self.measure(picture, at, state, proposals, tables, covered)
+            return self.measure(picture, at, state, proposals, tables, covered, one_position=True)
         if not self.work_share.reserve(essential_seconds):
             return (), ('fresh_reference_work_deferred',)
         began = time.perf_counter()
         try:
-            return self.measure(picture, at, state, proposals, tables, covered)
+            return self.measure(picture, at, state, proposals, tables, covered, one_position=True)
         finally:
             self.work_share.spent(time.perf_counter()-began)
 
-    def measure(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = ()) -> tuple:
+    def measure(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = (),
+                *, one_position: bool = False) -> tuple:
+        if type(one_position) is not bool:
+            return (), ('fresh_reference_position_capacity_unavailable',)
         scope = current_visual_sources(tables)
         if scope != self.scope or at <= self.at:
             self.scope, self.records, self.cursor, self.pose_cursors = scope, {}, 0, {}
+            self.search_cursors.clear()
         self.at = at
         if not scope or not self.records and not proposals:
             return (), ()
@@ -198,7 +203,12 @@ class SourceGeometryInCurrentPixels:
         self.pose_cursors[key] = pose_cursor+1
         if len(poses) > 1:
             unavailable.append('fresh_reference_alternatives_unsearched')
-        found = near_reference_appearances(picture, reference.pixels, (poses[selected],))
+        search = self.search_cursors.setdefault(key, [0]*4)
+        position = search[selected]
+        if one_position:
+            unavailable.append('fresh_reference_positions_unsearched')
+        options = {'position': position} if one_position else {}
+        found = near_reference_appearances(picture, reference.pixels, (poses[selected],), **options)
         if found:
             self.records[key] = reference, _refitted_pose_bank(poses, selected, found), revision
             if len(found) > 1:
@@ -211,6 +221,8 @@ class SourceGeometryInCurrentPixels:
             else:
                 measured.append(CurrentSourceReference(reference.source, reference.declaration.character_id,
                     reference.declaration.name, reference.coordinates.reference_sha256, state['pixels_consumed'], point))
+        if one_position:
+            search[selected] = 0 if measured else (position+1) % 6
         return _enclosed_measurements(tuple(measured)), tuple(unavailable)
 
 

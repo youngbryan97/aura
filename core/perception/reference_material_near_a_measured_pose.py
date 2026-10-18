@@ -43,18 +43,26 @@ def _near_places(pixels: np.ndarray, template: np.ndarray, place: np.ndarray, *,
     return tuple(found)
 
 
+def _positions_for_fit(places: tuple, position: int | None) -> tuple:
+    """An admitted fine probe selects one ranked peak from its search phase."""
+    return places if position is None else places[position % 3:position % 3+1]
+
+
 def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
-        proposals: tuple[ReferenceAppearance, ...], *, edge: int = 480) -> tuple[ReferenceAppearance, ...]:
+        proposals: tuple[ReferenceAppearance, ...], *, edge: int = 480,
+        position: int | None = None) -> tuple[ReferenceAppearance, ...]:
     """Refit at most four poses against current pixels with the ordinary patch gates.
 
     A failed local fit permits three wider candidate positions at the same
     proposed shape. At most 24 positions reach the patch solver. Six current
     correspondences, reverse patch journeys and a redundant fit must qualify
     again. Unsearched copies remain possible; results confer no object
-    identity or task role.
+    identity or task role. An explicit position selects one of three local
+    or three wide peaks for one pose, with at most one fine fit.
     """
     if (not _pictures_valid(picture, reference, edge) or not isinstance(proposals, tuple)
-            or not 1 <= len(proposals) <= 4):
+            or not 1 <= len(proposals) <= 4
+            or position is not None and (type(position) is not int or not 0 <= position < 6 or len(proposals) != 1)):
         return ()
     reference_hash, picture_hash = _digest(reference), _digest(picture)
     pixels, scale, origin, _ratio = _picture_view(picture, edge)
@@ -79,9 +87,10 @@ def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
                 continue
             place = viewed @ centre+scale*(offset-origin)-(np.asarray(template.shape[1::-1])-1)/2
             tried = set()
-            for whole_picture in (False, True):
+            for whole_picture in ((False, True) if position is None else (bool(position//3),)):
                 measured = False
-                for x, y in _near_places(pixels, template, place, whole_picture=whole_picture):
+                places = _near_places(pixels, template, place, whole_picture=whole_picture)
+                for x, y in _positions_for_fit(places, position):
                     if (x, y) in tried:
                         continue
                     tried.add((x, y))
@@ -101,6 +110,17 @@ def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
         except (TypeError, ValueError, OverflowError, np.linalg.LinAlgError):
             continue
     return tuple(found)
+
+
+@invariant('perception.optional_reference_refits_one_position', scope='perception',
+           owner='core/perception/reference_material_near_a_measured_pose.py', observational=False)
+def _single_position_refit_invariant() -> tuple:
+    places = ((1, 2), (3, 4), (5, 6))
+    assert [_positions_for_fit(places, n) for n in range(6)] == [(p,) for p in places]*2
+    assert _positions_for_fit((), 0) == ()
+    assert _positions_for_fit(places[:1], 2) == ()
+    assert _positions_for_fit(places, None) == places
+    return ()
 
 
 @invariant('perception.near_reference_proposals_need_current_material', scope='perception',

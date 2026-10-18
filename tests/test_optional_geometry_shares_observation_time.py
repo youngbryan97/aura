@@ -17,8 +17,8 @@ def test_optional_refitting_must_repay_its_cost_between_pictures(monkeypatch):
     clock, calls = [0.], []
     monkeypatch.setattr(geometry.time, 'perf_counter', lambda: clock[0])
 
-    def measure(*args):
-        calls.append(args)
+    def measure(*args, **kwargs):
+        calls.append(kwargs)
         clock[0] += .09
         return ('current verified fit',), ()
 
@@ -26,6 +26,7 @@ def test_optional_refitting_must_repay_its_cost_between_pictures(monkeypatch):
     outputs = [worker.measure_if_budget(None, float(n), {}, (), (), (), essential_seconds=.09)
                for n in range(9)]
     assert len(calls) == 3
+    assert all(call == {'one_position': True} for call in calls)
     assert [n for n, (frames, _) in enumerate(outputs) if frames] == [0, 3, 6]
     assert all(status == ('fresh_reference_work_deferred',) for frames, status in outputs if not frames)
 
@@ -33,7 +34,7 @@ def test_optional_refitting_must_repay_its_cost_between_pictures(monkeypatch):
 def test_unmeasured_mandatory_cost_cannot_buy_optional_work(monkeypatch):
     worker = geometry.SourceGeometryInCurrentPixels()
     worker.records['hint'] = object()
-    monkeypatch.setattr(worker, 'measure', lambda *args: pytest.fail('no measured budget'))
+    monkeypatch.setattr(worker, 'measure', lambda *args, **kwargs: pytest.fail('no measured budget'))
     for cost in (-1., float('inf'), float('nan'), True):
         frames, status = worker.measure_if_budget(None, 1., {}, (), (), (), essential_seconds=cost)
         assert not frames and status == ('fresh_reference_work_deferred',)
@@ -45,14 +46,14 @@ def test_a_failed_optional_fit_still_spends_its_observed_cost(monkeypatch):
     clock = [0.]
     monkeypatch.setattr(geometry.time, 'perf_counter', lambda: clock[0])
 
-    def failed(*args):
+    def failed(*args, **kwargs):
         clock[0] += .09
         raise RuntimeError('fixture failure')
 
     monkeypatch.setattr(worker, 'measure', failed)
     with pytest.raises(RuntimeError, match='fixture failure'):
         worker.measure_if_budget(None, 1., {}, (), (), (), essential_seconds=.09)
-    monkeypatch.setattr(worker, 'measure', lambda *args: pytest.fail('debt still outstanding'))
+    monkeypatch.setattr(worker, 'measure', lambda *args, **kwargs: pytest.fail('debt still outstanding'))
     assert worker.measure_if_budget(None, 2., {}, (), (), (), essential_seconds=.09)[0] == ()
 
 

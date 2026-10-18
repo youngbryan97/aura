@@ -15,6 +15,7 @@ def _play_execution_claims() -> tuple:
     from core.perception.source_geometry_in_current_pixels import _reference_attention_invariant
     from core.perception.source_geometry_in_current_pixels import _optional_reference_share_invariant
     from core.perception.reference_material_near_a_measured_pose import _near_reference_material_invariant
+    from core.perception.reference_material_near_a_measured_pose import _single_position_refit_invariant
     from core.perception.points_a_consumer_still_needs import _point_retention_visibility_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_deletion_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_boolean_arithmetic_invariant
@@ -79,6 +80,9 @@ def _play_execution_claims() -> tuple:
             ('later_control_intervals_keep_one_input', 'core/agency/which_one_answers_to_her.py',
              'tests/test_later_control_intervals_keep_one_physical_press.py', lambda: _later_control_interval_invariant() == (),
              'A later continuous measured interval can supply acceleration samples for the same physical input, without joining a missing stretch or counting another independent press.'),
+            ('optional_reference_refits_one_position', 'core/perception/reference_material_near_a_measured_pose.py',
+             'tests/test_optional_reference_refits_one_position.py', lambda: _single_position_refit_invariant() == (),
+             'An ordinary budgeted reference visit fits one position of one pose; failed visits rotate across local and wide peaks, while every published match still needs current material and precision.'),
             ('optional_geometry_repays_observation_time', 'core/perception/source_geometry_in_current_pixels.py',
              'tests/test_optional_geometry_shares_observation_time.py', lambda: _optional_reference_share_invariant() == (),
              'Optional current-pixel refits repay measured elapsed work between essential observations; one operation can overdraw its allowance, and deferred fits supply no geometry or control evidence.'),
