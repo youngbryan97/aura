@@ -122,3 +122,17 @@ def test_terminal_observers_run_off_loop_in_receipt_pair_absorption_order(monkey
     monkeypatch.setattr(hooks, "absorb_endogenous_outcome", absorb)
     asyncio.run(hooks.process_endogenous_terminal_response({"id": "one"}))
     assert calls == ["receipt", "pair", "absorption"]
+
+
+def test_each_pair_records_the_prompt_it_answered(tmp_path, monkeypatch):
+    # 18 October: the prompt was never held, so all 9,338 pairs of the persona 27B shared one hash.
+    import json
+
+    monkeypatch.setenv("AURA_ENDOGENOUS_PAIR_DIR", str(tmp_path))
+    recorder.reset_pending()
+    recorder.remember_pending("a", _state().to_payload(), lane="chat", prompt="what is the capital of Peru")
+    recorder.remember_pending("b", _state().to_payload(), lane="chat", prompt="how are you today")
+    assert asyncio.run(recorder.record_response_async("a", "Lima."))
+    assert asyncio.run(recorder.record_response_async("b", "Well, thanks."))
+    hashes = [json.loads(line)["prompt_sha"] for line in (tmp_path / "pairs.jsonl").read_text().splitlines()]
+    assert len(set(hashes)) == 2

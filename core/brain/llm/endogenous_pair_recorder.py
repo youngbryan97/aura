@@ -419,18 +419,23 @@ _PENDING_TTL_S = 900.0
 
 
 def remember_pending(
-    request_id: str, payload: Mapping[str, Any], *, lane: str = "", model: str = ""
+    request_id: str, payload: Mapping[str, Any], *, lane: str = "", model: str = "", prompt: str = ""
 ) -> None:
-    """Hold the state that went out with one request until its reply lands."""
+    """Hold the state that went out with one request, and what it asked, until its reply lands.
+
+    The prompt was not held, so every pair recorded the hash of an empty prompt: one value for
+    all 9,338 turns of the persona 27B on 18 October, and no split could keep a prompt's replies
+    on one side.
+    """
     key = str(request_id or "").strip()
     if not key or not payload:
         return
     now = time.time()
     with _PENDING_LOCK:
-        _PENDING[key] = (dict(payload), str(lane), str(model), now)
+        _PENDING[key] = (dict(payload), str(lane), str(model), now, str(prompt or ""))
         while len(_PENDING) > _PENDING_LIMIT:
             _PENDING.popitem(last=False)
-        stale = [k for k, (_, _, _, at) in _PENDING.items() if now - at > _PENDING_TTL_S]
+        stale = [k for k, held in _PENDING.items() if now - held[3] > _PENDING_TTL_S]
         for k in stale:
             _PENDING.pop(k, None)
 
@@ -441,11 +446,11 @@ def record_response(request_id: str, text: str) -> bool:
     held = _take_pending(request_id)
     if held is None:
         return False
-    state, lane, model = held
-    return record_pair(state, text, lane=lane, model=model)
+    state, lane, model, prompt = held
+    return record_pair(state, text, lane=lane, model=model, prompt=prompt)
 
 
-def _take_pending(request_id: str) -> tuple[EndogenousState, str, str] | None:
+def _take_pending(request_id: str) -> tuple[EndogenousState, str, str, str] | None:
     """Atomically claim one pending state without performing storage I/O."""
     key = str(request_id or "").strip()
     if not key:
@@ -454,11 +459,11 @@ def _take_pending(request_id: str) -> tuple[EndogenousState, str, str] | None:
         held = _PENDING.pop(key, None)
     if held is None:
         return None
-    payload, lane, model, _at = held
+    payload, lane, model, _at, prompt = held
     state = EndogenousState.from_payload(payload)
     if state is None:
         return None
-    return state, lane, model
+    return state, lane, model, prompt
 
 
 async def record_response_async(request_id: str, text: str) -> bool:
@@ -466,8 +471,8 @@ async def record_response_async(request_id: str, text: str) -> bool:
     held = _take_pending(request_id)
     if held is None:
         return False
-    state, lane, model = held
-    return await record_pair_async(state, text, lane=lane, model=model)
+    state, lane, model, prompt = held
+    return await record_pair_async(state, text, lane=lane, model=model, prompt=prompt)
 
 
 def pending_depth() -> int:
