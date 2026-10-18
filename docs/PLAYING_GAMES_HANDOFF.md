@@ -1299,3 +1299,11 @@ allowance already delivered by ordinary discovery. The final group passed
 156 checks in 19.07 seconds; smoke (165 passed, one skipped) and the main code
 gates passed in 88.05 seconds. Governance still reports 130 regressions, the
 same recorded count. No original outcome gain has been measured yet.
+
+The original follow-up at `53fc0d28e` completed in 133.29 seconds with three
+losses and zero landings. Its first controls now went up, up, left, proving
+the order reached play. No body qualified across 97 observations. The first
+0.464213-second pulse retained one settled sample: two initial capture
+intervals were available, but reservation required three. The next pulse's
+three-sample prefix also fell short. Continue with cold-start observation
+reservation and preserve the four-sample and identity requirements.

@@ -51,3 +51,25 @@ and writing passed in 88.05 seconds.
 Artifacts are under
 `artifacts/flash-campaign/2026-10-17-delivered-probes/`.
 G09, the protected native lifecycle and holdouts remain untouched.
+
+## Original follow-up at `53fc0d28e`
+
+The CPU-only original run completed in 133.29 seconds. Its three outcomes
+were lost, lost and lost. The independently viewed final image showed zero
+landings and one crash. Its complete record closed without drops: 267 images,
+56 input-port events and 97 control observations. No observation selected a
+body. Source geometry counts were 40 fresh, two object-bound and zero
+continuing; no candidate's recorded statistic exceeded zero.
+
+The delivered controls now began up, up, left. Subsequent attempts also
+reached left and right. This establishes the ordering carryover, not task
+success. The first up delivery lasted 0.464213 seconds and retained only one
+settled sample. The next neutral interval retained three samples. The second
+up interval retained a three-sample prefix before a visual gap. Neither up
+interval supplied the four samples needed for acceleration evidence. The
+ordinary actor had measured two initial frame intervals, but the reservation
+helper required three and fell back to the short default. Test cold-start
+reservation against that available timing next; do not reduce identity or
+motion requirements.
+
+Artifacts: `artifacts/flash-campaign/2026-10-17-case18-shared-probes/`.
