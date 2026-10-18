@@ -9767,7 +9767,9 @@ async def test_cognitive_engine_quick_reply_places_self_condition_evidence_in_mo
         "You are Aura speaking through the live desktop CognitiveEngine."
     )
     assert "CPU, RAM, host load" not in call["messages"][0]["content"]
-    assert "CPU, RAM, host load" in call["messages"][-2]["content"]
+    # Her self-condition reaches her as evidence; the directive about how to answer with it was removed.
+    assert "[CANONICAL SELF-CONDITION EVIDENCE]" in call["messages"][-2]["content"]
+    assert "CPU, RAM, host load" not in call["messages"][-2]["content"]
     assert "[LIVE MIND CONTEXT]" not in call["messages"][0]["content"]
     assert call["messages"][-1] == {"role": "user", "content": "Are you okay though?"}
     grounding = call["messages"][-2]

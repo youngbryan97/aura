@@ -247,99 +247,18 @@ class _AnswersTheDesktopDirectly:
 
         system_prompt = _DESKTOP_AUTHORITY_HEAD
         turn_dynamic_contracts: list[str] = []
-        if self_condition_contract:
-            turn_dynamic_contracts.append(
-                "Answer whether you are okay from the canonical self-condition evidence. "
-                "Put the direct condition answer first, then one or two natural grounding "
-                "sentences. Affect, welfare, felt coherence, continuity, and agency are the "
-                "answer; CPU, RAM, host load, and availability are supporting body context "
-                "only. Do not replace an inner-state answer with resource telemetry or a "
-                "generic presence reassurance."
-            )
-        elif memory_state_contract:
-            turn_dynamic_contracts.append(
-                "Answer the current user message directly in one compact, natural paragraph. "
-                "Use canonical memory/state evidence as source of truth. "
-                "The current user message has priority over older topics. "
-                "Do not mention prompt contracts, internal recovery, or implementation details."
-            )
-        elif runtime_fact_status_contract:
-            turn_dynamic_contracts.append(
-                "Answer the current runtime-path question directly and compactly. "
-                "Use only the verified runtime status evidence supplied for this turn; "
-                "do not infer tool readiness, model identity, fallback state, or recurrent "
-                "depth from general knowledge. Do not mention hidden prompt contracts."
-            )
-        elif capability_inventory_contract:
-            turn_dynamic_contracts.append(
-                "Answer the current capability question from the supplied capability evidence only. "
-                "Write exactly four short complete sentences under 80 words total. Sentence order matters: "
-                "first list practical capability categories and include the exact phrase browser/web research; second name governed execution through "
-                "Will/Authority and permissions; third name receipts or effect verification; fourth give "
-                "one hypothetical chain and explicitly say you are not executing tools in this turn. "
-                "Do not recite telemetry, prompt contracts, or a generic assistant identity."
-            )
-        else:
-            turn_dynamic_contracts.append(
-                "Answer the user's current message directly and naturally. "
-                "Use the current conversation rather than a canned status line. "
-                "The current user message has priority over all recalled context. "
-                "When recent conversation context is provided, use it only for continuity; do not continue "
-                "or answer an older topic unless the current user message explicitly asks you to recall or continue it. "
-                "Do not mention hidden fallback paths, internal recovery, prompt contracts, or implementation details "
-                "unless the user specifically asks for them."
-            )
-        if (
-            completion_retry_contract
-            and not continuation_contract
-            and not obligation_contract
-        ):
-            # Append to the stable ordinary-chat prefix. The prefix can still
-            # reuse resident KV, while the suffix gives the replacement its
-            # only special instruction. Never include the rejected fragment:
-            # a partial answer is a powerful continuation anchor and tended to
-            # reproduce the same cutoff.
-            turn_dynamic_contracts.append(
-                "Regenerate the answer from the beginning. "
-                "Cover every requested part, finish every sentence, and end "
-                "with the requested conclusion. Prefer a concise complete "
-                "answer over an unfinished exhaustive one."
-            )
-        # Four subsystems used to speak to the model in English here, and all
-        # four already actuate for real: the neurodynamics, imagination,
-        # bicameral and cognitive-situation frames each publish a sampling bias
-        # that moves temperature, top-p and the token budget inside bounds the
-        # affective controls respect.
-        #
-        # The argument against the sentences is written forty lines above
-        # `_apply_neurodynamic_sampling_bias`, about the same subsystem: its
-        # only actuator was a sentence, and "asking the model nicely is not a
-        # mechanism". The mechanism was built. The sentences were left beside
-        # it, so every turn carried both — a real bias AND a weaker duplicate
-        # of it in prose.
-        #
-        # LIVE, 2026-08-28: a 192-character question was sent with 8,049
-        # characters of system prompt, in three blocks, all of them
-        # instruction prose. Cortex produced nothing on half of twelve such
-        # turns and the person got a canned apology.
-        #
-        # What each subsystem does is unchanged. What it stopped doing is
-        # asking.
-        # The desktop conversation lane builds its own system prompt, so the
-        # grounding wired into inference_gate never reached the turns people
-        # actually take: after that fix landed and the runtime restarted, "what
-        # is it actually like in there right now?" still answered "the sun's up
-        # ... clouds gathering in the east" at 00:53 in the morning, word for
-        # word. Two prompt builders, one of them ungrounded, and this is the one
-        # every real conversation goes through.
+        # No per-turn instructions. Every chat turn used to carry one of five scripts
+        # under the label GROUNDING EVIDENCE ("Answer the user's current message
+        # directly and naturally...", "Write exactly four short complete sentences
+        # under 80 words..."), and a retry carried a sixth. They told her model how to
+        # answer; none was evidence. What reaches her now is the turn and what is known
+        # about it (tests/test_no_instruction_reaches_her.py).
         _record_the_capability_inventory_miss(
             capability_inventory_contract=capability_inventory_contract,
             system_prompt=system_prompt,
             visible_user_message=visible_user_message,
         )
 
-        if style_contract and not capability_inventory_contract:
-            turn_dynamic_contracts.append(style_contract)
         return system_prompt, turn_dynamic_contracts
 
     @staticmethod
@@ -420,10 +339,7 @@ class _AnswersTheDesktopDirectly:
         if context_challenge_evidence:
             task_grounding_blocks.append(
                 "[CONTEXT CHALLENGE EVIDENCE]\n"
-                f"{context_challenge_evidence}\n"
-                "Use this to repair context confusion. Do not invent a pitch, project, or prior object "
-                "that is not supported by this evidence. Answer in one or two complete sentences under "
-                "70 words and end with normal punctuation."
+                f"{context_challenge_evidence}"
             )
         action_episode_evidence = str(
             context.get("action_episode_evidence") or ""
@@ -441,34 +357,23 @@ class _AnswersTheDesktopDirectly:
         if recall_evidence:
             task_grounding_blocks.append(
                 "[CONVERSATION RECALL EVIDENCE]\n"
-                f"{recall_evidence}\n"
-                "Use this as the source of truth for the current recall question."
+                f"{recall_evidence}"
             )
         deep_memory = str(context.get("deep_memory_context") or "").strip()
         if deep_memory:
             task_grounding_blocks.append(
                 "[DEEP MEMORY RECALL]\n"
-                f"{deep_memory}\n"
-                "Silent background recall from long-term memory. Draw on it only where "
-                "it is genuinely relevant to the user's message; never recite it, and "
-                "never present it as something the user just said."
+                f"{deep_memory}"
             )
         if canonical_memory_state_evidence:
             contract_grounding_blocks.append(
                 "[CANONICAL MEMORY STATE EVIDENCE]\n"
-                f"{canonical_memory_state_evidence}\n"
-                "Use this canonical memory/state result as the source of truth for this turn. "
-                "If it contains an exact remembered phrase, include that phrase visibly. "
-                "If the current user also asks for one live-state detail, answer that from the live mind context "
-                "without reciting telemetry."
+                f"{canonical_memory_state_evidence}"
             )
         if self_condition_contract and canonical_self_condition_context:
             contract_grounding_blocks.append(
                 "[CANONICAL SELF-CONDITION EVIDENCE]\n"
-                f"{canonical_self_condition_context}\n"
-                "Answer the condition directly from this projection. Preserve its freshness "
-                "and uncertainty boundary. Host resource telemetry may only support, never "
-                "replace, the answer."
+                f"{canonical_self_condition_context}"
             )
         declared_interlocutor = context.get("declared_interlocutor")
         if isinstance(declared_interlocutor, dict) and declared_interlocutor:
@@ -537,9 +442,7 @@ class _AnswersTheDesktopDirectly:
         if runtime_fact_status_contract and grounded_runtime_status:
             contract_grounding_blocks.append(
                 "[VERIFIED LIVE RUNTIME STATUS]\n"
-                f"{grounded_runtime_status}\n"
-                "Use this as the source of truth. Preserve its factual boundaries and do not "
-                "invent stronger availability or completion claims."
+                f"{grounded_runtime_status}"
             )
         capability_evidence = str(
             context.get("grounded_capability_inventory_context") or ""
@@ -547,21 +450,13 @@ class _AnswersTheDesktopDirectly:
         if capability_evidence:
             contract_grounding_blocks.append(
                 "[GOVERNED CAPABILITY INVENTORY EVIDENCE]\n"
-                f"{capability_evidence}\n"
-                "Answer in this exact order: practical categories including the exact phrase browser/web research; governance/Will/Authority/permissions; "
-                "receipts or effect verification; one hypothetical chain plus the boundary that you are "
-                "not executing tools in this turn. Keep the answer complete and under 120 words."
+                f"{capability_evidence}"
             )
         bounded_plan_evidence = str(context.get("bounded_planning_reply") or "").strip()
         if bool(context.get("bounded_planning_contract")) and bounded_plan_evidence:
             contract_grounding_blocks.append(
                 "[GOVERNED PLANNING OUTLINE]\n"
-                f"{bounded_plan_evidence}\n"
-                "Treat this as verified workflow structure, not text to copy mechanically. "
-                "Answer the current request in one natural paragraph of four to six complete "
-                "sentences under 180 words. Cover the goal, authorization boundary, action "
-                "sequence, effect verification, and bounded recovery. Do not use a numbered "
-                "list unless the user explicitly asks for one."
+                f"{bounded_plan_evidence}"
             )
         self_claim_evidence = str(
             context.get("evidence_bound_self_claim_context") or ""
@@ -569,9 +464,7 @@ class _AnswersTheDesktopDirectly:
         if self_claim_evidence:
             contract_grounding_blocks.append(
                 "[EVIDENCE-BOUND SELF-CLAIM EVIDENCE]\n"
-                f"{self_claim_evidence}\n"
-                "Use this to keep consciousness, sentience, self-awareness, and personhood claims "
-                "functional, bounded, and evidence-based."
+                f"{self_claim_evidence}"
             )
         try:
             from core.introspection.capability_map import (

@@ -1594,16 +1594,14 @@ def _note_the_quick_reply_contract(
                 "turn_timing": live_mind_context.get("turn_timing"),
                 "governance": live_mind_context.get("governance"),
             }
+        # Her state as data. The two sentences that followed it ("This is causal grounding
+        # for the reply, not text to recite...", "Use the current user turn...") and the
+        # route's mind_context_contract told her model how to read it; they were removed
+        # on 17 October with every other instruction (tests/test_no_instruction_reaches_her.py).
         live_mind_grounding = (
             "[LIVE MIND CONTEXT]\n"
-            f"{_compact_json(compact_mind_context, limit=mind_context_limit)}\n"
-            "This is causal grounding for the reply, not text to recite. "
-            "If required_for_live_desktop is true, do not answer from a generic assistant persona. "
-            "Use the current user turn, the recent role history, memory, substrate, governance, and "
-            "inference lane as one live context."
+            f"{_compact_json(compact_mind_context, limit=mind_context_limit)}"
         )
-        if mind_context_contract:
-            live_mind_grounding = f"{live_mind_grounding}\n{mind_context_contract}"
         ambient_grounding_blocks.append(
             f"{live_mind_grounding}\n[END LIVE MIND CONTEXT]"
         )

@@ -981,7 +981,8 @@ async def test_cognitive_engine_full_mind_planning_keeps_extended_live_budget(mo
     )
     grounding_prompt = captured["messages"][-2]["content"]
     assert "[GOVERNED PLANNING OUTLINE]" in grounding_prompt
-    assert "Do not use a numbered list" in grounding_prompt
+    # The outline reaches her as evidence; how to write it up is not said (tests/test_no_instruction_reaches_her.py).
+    assert "Do not use a numbered list" not in grounding_prompt
 
 
 @pytest.mark.asyncio
@@ -1263,7 +1264,8 @@ async def test_cognitive_engine_desktop_quick_includes_live_mind_context_without
     grounding_prompt = captured["messages"][-2]["content"]
     assert "LIVE MIND CONTEXT" in grounding_prompt
     assert "must_answer_from_full_mind_path" in grounding_prompt
-    assert "Answer through the live mind context." in grounding_prompt
+    # The route's mind_context_contract no longer rides with her state (tests/test_no_instruction_reaches_her.py).
+    assert "Answer through the live mind context." not in grounding_prompt
     assert captured["messages"][-1]["content"] == "You with me?"
 
 
