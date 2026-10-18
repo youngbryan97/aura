@@ -2984,7 +2984,7 @@ def test_grounded_capability_inventory_does_not_invent_live_path_or_program_dna_
 
 
 @pytest.mark.asyncio
-async def test_required_capability_inventory_binds_catalog_after_weak_engine_reply(monkeypatch):
+async def test_a_thin_capability_answer_stays_hers_and_is_not_swapped_for_the_catalogue(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
 
@@ -3107,18 +3107,13 @@ async def test_required_capability_inventory_binds_catalog_after_weak_engine_rep
         turn_trace=trace,
     )
 
-    lowered = str(reply).lower()
     assert calls
     assert calls[0]["context"]["capability_inventory_contract"] is True
-    assert "cognitiveengine" in lowered or "cognitive engine" in lowered
-    assert "cortex" in lowered
-    assert "32b" not in lowered
-    assert "program dna" in lowered
-    assert "browser/web research" in lowered
+    # The catalogue reached her as evidence; what she said with it is what is served.
+    assert "program dna" in calls[0]["context"]["grounded_capability_inventory_context"].lower()
+    assert reply == "I can use tools, browse, and make documents if needed."
     assert trace["engine_think_invoked"] is True
-    assert trace["cognitive_engine_reply_accepted"] is True
-    assert trace["bounded_contract_used"] is False
-    assert trace["response_path"] == "cognitive_engine_capability_catalog_grounding"
+    assert trace.get("response_path") != "cognitive_engine_capability_catalog_grounding"
 
 
 def test_live_turn_contract_does_not_treat_warming_lane_as_full_mind(monkeypatch):
@@ -12097,7 +12092,8 @@ async def test_desktop_required_capability_turn_uses_cognitive_engine_before_cat
     assert trace["live_mind_controls_bound"] is True
     assert trace["response_path"] == "cognitive_engine"
     assert "governance receipts" in reply
-    assert "not opening apps or executing tools" in reply.lower()
+    # Nothing is added to what she said.
+    assert "not opening apps or executing tools" not in reply.lower()
 
 
 @pytest.mark.asyncio
