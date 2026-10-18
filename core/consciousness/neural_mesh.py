@@ -759,7 +759,7 @@ class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
         # correctly-shaped zero vector rather than a missing attribute.
         self._column_activations = np.zeros(self.cfg.columns, dtype=np.float32)
 
-        # Projection matrix: 4096 → 64 (learned via slow PCA-like update)
+        # Projection matrix: 4096 → 64, fixed at construction (nothing updates it).
         self._projection = self._rng_projection.standard_normal(
             (self.cfg.projection_dim, self.cfg.total_neurons)
         ).astype(np.float32) * (1.0 / np.sqrt(self.cfg.total_neurons))
