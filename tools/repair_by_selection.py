@@ -149,13 +149,26 @@ class Copy:
         env = {k: v for k, v in os.environ.items() if k not in {"AURA_TESTING"}}
         env.update(AURA_STATE_ROOT=str(self.state), AURA_LOG_DIR=str(self.logs), PYTHONDONTWRITEBYTECODE="1",
                    VECLIB_MAXIMUM_THREADS="1", OMP_NUM_THREADS="1")
+        # The failing tests alone first: seconds, and enough to rank. The rest of their files add the passing
+        # tests' spectrum when they fit in half of what is left; a file of hundreds of slow tests does not.
         test_files = list(dict.fromkeys(t.split("::")[0] for t in tests))
-        try:
-            out = subprocess.run(
-                [PYTHON, "-m", "coverage", "run", f"--rcfile={rc}", "-m", "pytest", "-q", "-rA", "-p", "no:cacheprovider",
-                 *test_files], cwd=self.path, env=env, capture_output=True, text=True, timeout=seconds).stdout
-        except subprocess.TimeoutExpired:
-            return {}, {}
+        started = time.time()
+        out = ""
+        for targets, budget in ((list(tests), seconds), (test_files, None)):
+            left = seconds - (time.time() - started)
+            try:
+                out = subprocess.run(
+                    [PYTHON, "-m", "coverage", "run", f"--rcfile={rc}", "-m", "pytest", "-q", "-rA", "-p",
+                     "no:cacheprovider", *targets], cwd=self.path, env=env, capture_output=True, text=True,
+                    timeout=max(1.0, left if budget else left / 2)).stdout
+            except subprocess.TimeoutExpired:
+                if targets is test_files:
+                    # Keep the failing tests' run: measure it again, since the timed-out run overwrote the data.
+                    out = subprocess.run(
+                        [PYTHON, "-m", "coverage", "run", f"--rcfile={rc}", "-m", "pytest", "-q", "-rA", "-p",
+                         "no:cacheprovider", *tests], cwd=self.path, env=env, capture_output=True, text=True,
+                        timeout=max(1.0, seconds - (time.time() - started))).stdout
+                break
         verdicts = {node: word == "PASSED" for word, node in _RESULT.findall(out)}
         report = where / "report.json"
         subprocess.run([PYTHON, "-m", "coverage", "json", f"--rcfile={rc}", "--show-contexts", "-o", str(report)],
