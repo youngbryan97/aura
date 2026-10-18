@@ -2823,7 +2823,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   repairs containment false positives, disjoint-task causal attribution, and
   baseline-dependent task filtering in the retrieval/depth diagnostic. The
   68-test focused pass does not qualify a model or close campaign verification.
-- [ ] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+- [x] G09 Establish broad reasoning gain; bounded synthetic success is not this.
+  CLOSED 2026-10-17 ([result](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)), attempt 6 as preregistered,
+  and read row by row before it was written. 444 fresh requests, one grader for both arms: registered 35
+  gained to 0 lost (p 5.8e-11); as read, with six valid Depots plans the graders missed removed, 29 to 0
+  (p 3.7e-9), held-out math 13 to 0 and planning 16 to 0, nothing lost anywhere. The math gain is
+  problems her thinking budget cannot finish (mostly primality and factoring of large numbers); the
+  planning gain is plans that track every vehicle. The meaning route reached no MATH problem, so
+  transfer there is not shown.
   Attempt 5, 2026-10-17 ([result](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)): the registered verdict
   closes (38 to 11, p 1.4e-4), but 13 gains are the grader's (right drafts it misread, valid Depots plans
   not closed with "[PLAN END]"); without them the primary is 25 to 11, p 0.029, short of 0.01. Breadth
