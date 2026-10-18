@@ -142,6 +142,41 @@ async def kept_answer_by_meaning(objective: str, *, router: Any, origin: str, ti
     return amplified_from_kept_receipt(receipt)
 
 
+async def kept_answer_among_the_word_near(objective: str) -> Any:
+    """A kept answer when the words leave several kinds near and her meaning picks one of them.
+
+    Typed in plain words, "What are the prime factors of 21000063?" is as near by its words to
+    the kind that lists a number's prime factors as to the kind that computes the number first
+    from equations, which keeps no procedure, so it was declined (live, 17 October). The plain
+    kind's procedure answers the other kind's problems wrongly, so the words alone must not
+    choose. Her embedding chooses among those kinds only: the one the request is as typical of as
+    its least typical sealed problem was, when exactly one is.
+    """
+    from core.brain.reasoning_amplifier_v2 import amplified_from_kept_receipt
+    from core.learning.kinds_by_meaning import TASK
+    from core.learning.procedures_from_solved_examples import SOLVED_EXAMPLE_PROCEDURES_SCHEMA, kept_procedure_book
+
+    book = await asyncio.to_thread(kept_procedure_book)
+    if book is None or not book.meanings:
+        return None
+    receipt = await asyncio.to_thread(book.answer, objective)
+    near = list(receipt.get("near_enough") or [])
+    if receipt.get("answer") is not None or len(near) < 2:
+        return None
+    vector = await asyncio.to_thread(her_query_vector, objective, TASK)
+    if vector is None:
+        return None
+    kind = book.typical_among(vector, near)
+    if kind is None or not book.procedures.get(kind):
+        logger.debug("the kinds near by words are not told apart by meaning (%s)", near)
+        return None
+    run = await asyncio.to_thread(book._run_kind, kind, objective, {
+        "schema": SOLVED_EXAMPLE_PROCEDURES_SCHEMA, "family": kind, "answer": None,
+        "form": "words_then_meaning", "near_by_words": near,
+    })
+    return amplified_from_kept_receipt(run)
+
+
 async def kept_answer_for(objective: str, *, router: Any, origin: str, tier: str | None) -> dict[str, Any] | None:
     """What a kept procedure computed for this request, by its words or else by its meaning; None when none did.
 
@@ -157,6 +192,9 @@ async def kept_answer_for(objective: str, *, router: Any, origin: str, tier: str
         return None
     kept = await asyncio.to_thread(answer_from_kept_procedures, objective)
     form = "words"
+    if kept is None:
+        kept = await kept_answer_among_the_word_near(objective)
+        form = "words_then_meaning"
     if kept is None:
         kept = await kept_answer_by_meaning(objective, router=router, origin=origin, tier=tier)
         form = "restated"
@@ -207,5 +245,5 @@ def after_the_draft(draft: str, planted: dict[str, Any]) -> tuple[bool, str]:
     return False, "computed_answer_served"
 
 
-__all__ = ["after_the_draft", "her_query_vector", "kept_answer_by_meaning", "kept_answer_evidence", "kept_answer_for",
-           "planted_for", "states_the_answer"]
+__all__ = ["after_the_draft", "her_query_vector", "kept_answer_among_the_word_near", "kept_answer_by_meaning",
+           "kept_answer_evidence", "kept_answer_for", "planted_for", "states_the_answer"]

@@ -606,6 +606,25 @@ class ProcedureBook:
 
         return nearest_kind(query, self.meanings)
 
+    def typical_among(self, query: Any, kinds: Sequence[str]) -> str | None:
+        """Of ``kinds`` the words could not tell apart, the one whose meaning the request is typical of.
+
+        A kind is typical when the request's query vector is at least as near its
+        centroid as the kind's least typical sealed problem was. Exactly one of
+        them typical decides it; none, or more than one, does not.
+        """
+        import numpy as np
+
+        vector = np.asarray(query, dtype=np.float32).ravel()
+        norm = float(np.linalg.norm(vector))
+        if norm == 0.0:
+            return None
+        vector = vector / norm
+        typical = [kind for kind in kinds if kind in self.meanings
+                   and float(np.asarray(self.meanings[kind].centroid, dtype=np.float32) @ vector)
+                   >= self.meanings[kind].nearest_required]
+        return typical[0] if len(typical) == 1 else None
+
     def near_enough(self, problem: str) -> list[tuple[float, str]]:
         """Every kind the problem is at least as near as that kind's least typical sealed problem, nearest first."""
         scored = ((signature.similarity(problem), name) for name, signature in self.signatures.items())
