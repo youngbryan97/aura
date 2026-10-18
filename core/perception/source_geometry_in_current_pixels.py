@@ -113,19 +113,25 @@ def _reference_to_measure(keys: tuple, covered: set, cursor: int):
     return wanted[(cursor-cursor//4) % len(wanted)]
 
 
+def _refitted_pose_bank(poses: tuple, index: int, found: tuple) -> tuple:
+    """Update the searched hint without erasing alternatives not searched this frame."""
+    return (*poses[:index], found[0], *poses[index+1:]) if found else poses
+
+
 class SourceGeometryInCurrentPixels:
-    """Worker-owned optional measurements: one registered reference per frame."""
+    """Worker-owned optional measurements: one pose of one reference per frame."""
 
     def __init__(self) -> None:
         self.scope = ()
         self.records: dict = {}
         self.cursor = 0
+        self.pose_cursors: dict = {}
         self.at = -math.inf
 
     def measure(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = ()) -> tuple:
         scope = current_visual_sources(tables)
         if scope != self.scope or at <= self.at:
-            self.scope, self.records, self.cursor = scope, {}, 0
+            self.scope, self.records, self.cursor, self.pose_cursors = scope, {}, 0, {}
         self.at = at
         if not scope or not self.records and not proposals:
             return (), ()
@@ -171,9 +177,16 @@ class SourceGeometryInCurrentPixels:
         reference, poses, revision = self.records[key]
         if not 1 <= len(poses) <= 4:
             return (), (*unavailable, 'fresh_reference_pose_capacity_unavailable')
-        found = near_reference_appearances(picture, reference.pixels, poses)
+        pose_cursor = self.pose_cursors.get(key, 0)
+        selected = pose_cursor % len(poses)
+        self.pose_cursors[key] = pose_cursor+1
+        if len(poses) > 1:
+            unavailable.append('fresh_reference_alternatives_unsearched')
+        found = near_reference_appearances(picture, reference.pixels, (poses[selected],))
         if found:
-            self.records[key] = reference, found, revision
+            self.records[key] = reference, _refitted_pose_bank(poses, selected, found), revision
+            if len(found) > 1:
+                unavailable.append('fresh_reference_additional_matches_not_retained')
         measured = []
         for pose in found:
             point = _current_point(reference, pose, picture, at, grid)
@@ -206,4 +219,10 @@ def _reference_attention_invariant() -> tuple:
     assert set(selected) == set(keys)
     assert all(selected[i] == keys[i//4] for i in range(3, 20, 4))
     assert all(key != 'a' for i, key in enumerate(selected) if i % 4 != 3)
+    bank = ('pose-a', 'pose-b', 'pose-c', 'pose-d')
+    for index in range(len(bank)):
+        updated = _refitted_pose_bank(bank, index, ('current', 'another current match'))
+        assert len(updated) == len(bank) and updated[index] == 'current'
+        assert all(updated[j] == bank[j] for j in range(len(bank)) if j != index)
+    assert _refitted_pose_bank(bank, 0, ()) == bank
     return ()

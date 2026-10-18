@@ -272,3 +272,56 @@ def test_other_observation_channels_redirect_optional_work_without_starving_audi
     assert first_missing.count('second') == second_missing.count('first') == 1
     assert [_reference_to_measure(keys, set(), i) for i in range(4)] == ['first', 'second']*2
     assert _reference_attention_invariant() == ()
+
+
+@pytest.mark.parametrize('found', [False, True])
+def test_one_frame_refits_one_pose_without_starving_the_other_hypotheses(scene, monkeypatch, found):
+    from core.perception import source_geometry_in_current_pixels as geometry
+
+    proposal, table, _, current = scene
+    pose = proposal.appearances[0]
+    poses = tuple(replace(pose, offset=(pose.offset[0]+100*n, pose.offset[1])) for n in range(4))
+    proposal = replace(proposal, appearances=poses)
+    calls = []
+
+    def refit(_picture, _reference, candidates):
+        calls.append(candidates)
+        return candidates if found else ()
+
+    monkeypatch.setattr(geometry, 'near_reference_appearances', refit)
+    monkeypatch.setattr(geometry, '_current_point', lambda *_args: None)
+    fresh = SourceGeometryInCurrentPixels()
+    for n in range(8):
+        at = 2.+n*.1
+        frames, unavailable = fresh.measure(current, at, _state(current, at), (proposal,), (table,))
+        assert len(calls[-1]) == 1
+        assert not frames and 'fresh_reference_alternatives_unsearched' in unavailable
+    assert all(len(candidates) == 1 for candidates in calls)
+    assert [candidates[0].offset for candidates in calls] == [pose.offset for pose in poses]*2
+    assert fresh.measure(current, 3., _state(current, 3.), (), ())[0] == ()
+    assert not fresh.records
+
+
+def test_multiple_current_matches_do_not_erase_unchosen_search_hypotheses(scene, monkeypatch):
+    from core.perception import source_geometry_in_current_pixels as geometry
+
+    proposal, table, _, current = scene
+    pose = proposal.appearances[0]
+    poses = tuple(replace(pose, offset=(pose.offset[0]+100*n, pose.offset[1])) for n in range(4))
+    proposal = replace(proposal, appearances=poses)
+    calls = []
+
+    def refit(_picture, _reference, candidates):
+        calls.append(candidates)
+        return (candidates[0], replace(candidates[0], offset=(900., 900.)))
+
+    monkeypatch.setattr(geometry, 'near_reference_appearances', refit)
+    monkeypatch.setattr(geometry, '_current_point', lambda *_args: None)
+    fresh = SourceGeometryInCurrentPixels()
+    for n in range(4):
+        at = 2.+n*.1
+        frames, unavailable = fresh.measure(current, at, _state(current, at), (proposal,), (table,))
+        assert len(calls[-1]) == 1
+        assert not frames and 'fresh_reference_additional_matches_not_retained' in unavailable
+    assert [candidates[0].offset for candidates in calls] == [pose.offset for pose in poses]
+    assert len(fresh.records[proposal.reference.key][1]) == 4

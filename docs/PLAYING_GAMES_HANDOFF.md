@@ -1328,3 +1328,15 @@ the final image was instructions. A serial 40-frame asynchronous local/separate/
 local comparison had no operation over 0.35 seconds, so switching processes
 alone is not supported as the explanation for the live gaps. Measure the
 ordinary capture/observation/action stages before changing their scheduling.
+
+Ordinary timing wrappers then measured optional fresh geometry at up to
+0.477594 seconds, with a 0.362145-second p95. Bar reading reached 0.245547
+seconds. Both diagnostic attempts still failed. Three new regressions showed
+four source poses being refitted in one frame. Optional geometry now rotates
+one pose per reference visit and retains the unsearched hints; all published
+matches still need current pixels and precision. The focused group passed
+38 checks. See `docs/evidence/steering/2026-10-17-optional-geometry-has-a-pose-budget.md`.
+Measure carryover and then address the measured bar-discovery spikes.
+
+The nearby contracts passed 55 checks; smoke (165 passed, one skipped) and
+the main code gates passed in 96.57 seconds after the pose-budget repair.

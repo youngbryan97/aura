@@ -80,7 +80,7 @@ def _play_execution_claims() -> tuple:
              'A later continuous measured interval can supply acceleration samples for the same physical input, without joining a missing stretch or counting another independent press.'),
             ('optional_reference_attention_keeps_fair_audits', 'core/perception/source_geometry_in_current_pixels.py',
              'tests/test_fresh_source_geometry_reaches_ordinary_observation.py', lambda: _reference_attention_invariant() == (),
-             'Other observation channels supply priority hints for optional reference work; missing geometry receives extra work while fair audits remain available and no old measurement becomes current evidence.'),
+             'Optional reference work refits one pose per frame, retaining unsearched alternatives and fair audits; priority hints grant no current geometry, identity or control authority.'),
             ('fresh_source_geometry_keeps_the_consumed_capture', 'core/perception/source_geometry_in_current_pixels.py',
              'tests/test_fresh_source_geometry_reaches_ordinary_observation.py', lambda: _fresh_source_capture_invariant() == (),
              'Fresh source correspondence publishes geometry only for the exact consumed capture and current source; it does not supply continuing object identity or control authority.'),
