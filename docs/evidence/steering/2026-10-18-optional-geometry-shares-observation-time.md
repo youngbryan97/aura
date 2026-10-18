@@ -86,3 +86,32 @@ Smoke passed 165 checks with one skipped. Lint, compilation, layering,
 dependency consistency and writing passed under a 143.79-second supervisor.
 The writing baselines were unchanged. This checkpoint is ready for the
 ordinary CPU-browser follow-up; it does not qualify the native demo.
+
+## Ordinary carryover at pushed `4f00cac1a`
+
+The serial CPU-browser follow-up completed in 81.14 supervised seconds. It
+reported two losses, no win and no selected body across 47 control
+observations. The recorder kept 121 pictures and 24 input events with no
+drops. Capture `frame-0000133.png`, independently viewed, shows zero landings
+and one crash. The final recorded picture, `frame-0000185.png`, is active
+play after another start; the report's retained loss words are not a current
+reading of that final image. No native or campaign success is established.
+
+The default factory chose a separate classical process for this run; the
+previous comparison ran its motion eyes locally. Host contention, world
+placement and this delegate choice prevent treating the timings as a
+controlled speed comparison. Observation p95/max were 0.302544/0.416363
+seconds. Optional refitting was deferred on 26 observations and published
+seven fresh geometry records. It still cost up to 0.193575 seconds in a
+single admitted operation. The accounting yields intervening frames, but
+cannot split that operation's work.
+
+The first independent thrust retained three settled samples, then a gap
+ended its interval before a fourth usable one. No acceleration comparison
+qualified. The next investigation is the indivisible refit: one pose still
+tries as many as six fine positions in its local/wide search. Bound that
+work per current frame while retaining fair search over the untried
+positions. Then measure actual response acquisition again. Keep the
+statistical, material and physical-deadline requirements unchanged.
+
+Receipts: `artifacts/flash-campaign/2026-10-18-ordinary-optional-geometry-share/`.

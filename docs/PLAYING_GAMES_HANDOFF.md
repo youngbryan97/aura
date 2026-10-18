@@ -1389,3 +1389,13 @@ gates passed in 143.79 seconds. See
 `docs/evidence/steering/2026-10-18-optional-geometry-shares-observation-time.md`.
 Measure ordinary carryover next; lateral control, landings and the native
 demo remain unproven.
+
+The ordinary follow-up at pushed `4f00cac1a` still reported two losses and
+no selected body. A viewed loss image shows zero landings and one crash;
+the final recorded image is active play after another start. Budgeting
+deferred 26 refits and seven fresh geometry records were published, but
+one admitted refit still took 0.193575 seconds. The first thrust retained
+only three settled samples before a gap. Its default eyes ran in a separate
+CPU process this time, so the timing distribution is not paired with the
+earlier local run. Split the remaining multi-position fine-refit operation
+before further original testing. No native demo or campaign pass is shown.
