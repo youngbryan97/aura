@@ -25,9 +25,11 @@ SHAPES = {
     "memory_state": {"memory_state_contract": True, "canonical_memory_state_evidence": "[pinned] the blue notebook"},
     "self_condition": {"self_condition_contract": True},
     "capability": {"capability_inventory_contract": True},
-    # With a catalogue in hand a capability turn is answered from it without her model; the
-    # catalogue as evidence on an ordinary turn is the case that reaches her.
     "capability_evidence": {"grounded_capability_inventory_context": "browser, files"},
+    "capability_with_its_catalogue": {"capability_inventory_contract": True,
+                                      "grounded_capability_inventory_context": "browser, files"},
+    "identity": {"identity_continuity_contract": True, "grounded_identity_continuity_context": "I'm Aura."},
+    "bounded_plan_on_a_quick_turn": {"bounded_planning_contract": True, "bounded_planning_reply": "1. ask 2. act"},
     "runtime_status": {"runtime_fact_status_contract": True, "grounded_runtime_status_context": "lane: primary"},
     "recall": {"conversation_recall_evidence": "Bryan said the trip is on Friday."},
     "deep_memory": {"deep_memory_context": "A memory from last week about a bridge."},

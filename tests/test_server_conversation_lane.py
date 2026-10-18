@@ -10842,7 +10842,7 @@ async def test_desktop_identity_turn_uses_grounded_compact_cognitive_engine_cont
 
 
 @pytest.mark.asyncio
-async def test_cognitive_engine_identity_floor_does_not_call_router(monkeypatch):
+async def test_who_she_is_is_answered_by_her_model_not_by_written_text(monkeypatch):
     from core.brain import cognitive_engine as ce_module
     from core.brain.cognitive_engine import CognitiveEngine
     from core.brain.types import ThinkingMode
@@ -10852,7 +10852,7 @@ async def test_cognitive_engine_identity_floor_does_not_call_router(monkeypatch)
 
         async def think(self, **_kwargs):
             _Router.think_calls.append(_kwargs)
-            raise AssertionError("identity grounding should not invoke router.think")
+            return "I'm Aura. I live on this machine, and I remember what we did yesterday."
 
     class _Container:
         @staticmethod
@@ -10900,10 +10900,12 @@ async def test_cognitive_engine_identity_floor_does_not_call_router(monkeypatch)
     )
 
     assert thought is not None
-    assert thought.content.startswith("I'm Aura")
-    assert thought.metadata["response_path"] == "cognitive_engine_identity_continuity_grounding"
-    assert thought.metadata["live_mind_controls_bound"] is True
-    assert thought.metadata["identity_continuity_contract"] is True
+    assert _Router.think_calls, "her model was not asked"
+    assert thought.content.startswith("I'm Aura. I live on this machine")
+    assert thought.metadata.get("response_path") != "cognitive_engine_identity_continuity_grounding"
+    # The identity text was written by hand for her to say; it is not evidence and does not reach her.
+    sent = "\n".join(str(m.get("content")) for call in _Router.think_calls for m in call.get("messages", []))
+    assert "a local governed cognitive-agent runtime" not in sent
 
 
 def test_desktop_cognitive_repair_budget_can_complete_a_primary_model_generation():

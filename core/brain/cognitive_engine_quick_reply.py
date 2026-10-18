@@ -452,12 +452,6 @@ class _AnswersTheDesktopDirectly:
                 "[GOVERNED CAPABILITY INVENTORY EVIDENCE]\n"
                 f"{capability_evidence}"
             )
-        bounded_plan_evidence = str(context.get("bounded_planning_reply") or "").strip()
-        if bool(context.get("bounded_planning_contract")) and bounded_plan_evidence:
-            contract_grounding_blocks.append(
-                "[GOVERNED PLANNING OUTLINE]\n"
-                f"{bounded_plan_evidence}"
-            )
         self_claim_evidence = str(
             context.get("evidence_bound_self_claim_context") or ""
         ).strip()
@@ -1126,87 +1120,11 @@ class _AnswersTheDesktopDirectly:
         # Keep the projection in the grounded prompt below.  The route may use a
         # visibly bounded projection only after model generation and one
         # same-worker corrective attempt have both failed.
-        if bool(context.get("bounded_planning_contract")) and not bool(
-            context.get("require_full_foreground_mind_reply", False)
-        ):
-            bounded_reply = str(context.get("bounded_planning_reply") or "").strip()
-            if bounded_reply:
-                metadata = self._live_mind_structured_floor_metadata(
-                    context,
-                    source="cognitive_engine_bounded_planning",
-                )
-                metadata.update(
-                    {
-                        "response_path": "cognitive_engine_bounded_planning",
-                        "bounded_planning_contract": True,
-                        "bounded_planning_floor": True,
-                    }
-                )
-                return Thought(
-                    id=str(uuid.uuid4()),
-                    content=bounded_reply,
-                    mode=mode,
-                    confidence=0.88,
-                    reasoning=[
-                        "Bounded non-executing desktop planning was answered through the CognitiveEngine floor.",
-                        "The reply remained governed, non-executing, and attached to live mind proof metadata.",
-                    ],
-                    metadata=metadata,
-                )
-        if capability_inventory_contract:
-            grounded_inventory = str(
-                context.get("grounded_capability_inventory_context") or ""
-            ).strip()
-            if grounded_inventory:
-                metadata = self._live_mind_structured_floor_metadata(
-                    context,
-                    source="cognitive_engine_capability_catalog_grounding",
-                )
-                metadata.update(
-                    {
-                        "response_path": "cognitive_engine_capability_catalog_grounding",
-                        "capability_inventory_contract": True,
-                        "grounded_capability_inventory": True,
-                    }
-                )
-                return Thought(
-                    id=str(uuid.uuid4()),
-                    content=grounded_inventory,
-                    mode=mode,
-                    confidence=0.86,
-                    reasoning=[
-                        "Desktop capability inventory was grounded from the governed live capability catalog.",
-                        "No foreground model generation was required for this runtime-fact turn.",
-                    ],
-                    metadata=metadata,
-                )
-        if identity_continuity_contract:
-            grounded_identity = str(
-                context.get("grounded_identity_continuity_context") or ""
-            ).strip()
-            if grounded_identity:
-                metadata = self._live_mind_structured_floor_metadata(
-                    context,
-                    source="cognitive_engine_identity_continuity_grounding",
-                )
-                metadata.update(
-                    {
-                        "response_path": "cognitive_engine_identity_continuity_grounding",
-                        "identity_continuity_contract": True,
-                        "grounded_identity_continuity": True,
-                    }
-                )
-                return Thought(
-                    id=str(uuid.uuid4()),
-                    content=grounded_identity,
-                    mode=mode,
-                    confidence=0.88,
-                    reasoning=[
-                        "Identity and continuity were answered from canonical live identity grounding inside CognitiveEngine.",
-                        "The route had already bound live mind context and generation controls, so no recovery model cycle was needed.",
-                    ],
-                    metadata=metadata,
-                )
+        # A planning outline, the capability catalogue and the identity text were
+        # each returned here as her reply, without her model: three written
+        # answers spoken in her name. The catalogue is a measurement and reaches
+        # her below as evidence; the outline and the identity text were written
+        # by hand for her to say, so they are not evidence of anything.
         if router is None or not hasattr(router, "think"):
             return None
         live_runtime_required = bool(
