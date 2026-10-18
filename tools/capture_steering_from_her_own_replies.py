@@ -122,8 +122,6 @@ def _auroc(positive: Sequence[float], negative: Sequence[float]) -> float:
 def capture(selection: Mapping[str, Mapping[str, Any]], *, model_path: Path, layers: Sequence[int],
             out: Path, descriptor: str) -> dict[str, Any]:
     """Run each reply through her model and write the directions that separate held-out replies."""
-    import random
-
     import mlx.core as mx
     import numpy as np
     from mlx_lm import load
@@ -159,7 +157,6 @@ def capture(selection: Mapping[str, Mapping[str, Any]], *, model_path: Path, lay
         return {layer: np.array(value, dtype=np.float32) for layer, value in captured.items()}
 
     out.mkdir(parents=True, exist_ok=True)
-    rng = random.Random(20261018)
     report: dict[str, Any] = {"model_path": str(model_path), "model_descriptor_sha256": descriptor,
                               "layers": list(layers), "dimensions": {}}
     for dimension, chosen in selection.items():
@@ -177,21 +174,23 @@ def capture(selection: Mapping[str, Mapping[str, Any]], *, model_path: Path, lay
             high = [float((a[layer] - centre) @ unit) for a, _b in held]
             low = [float((b[layer] - centre) @ unit) for _a, b in held]
             observed = _auroc(high, low)
-            pooled = high + low
-            nulls = []
-            for _ in range(200):
-                rng.shuffle(pooled)
-                nulls.append(_auroc(pooled[:len(high)], pooled[len(high):]))
-            beaten = sum(1 for value in nulls if value >= observed)
-            p_value = (beaten + 1) / (len(nulls) + 1)
-            per_layer[layer] = {"held_out_auroc": round(observed, 4), "permutation_p": round(p_value, 4)}
-            if p_value < 0.05 / len(layers):
+            # One-sided Mann-Whitney U. A permutation test of 200 shuffles cannot report p below 1/201,
+            # above 0.05 split over the plan's layers, so on 18 October it kept no layer although
+            # held-out separation reached 0.74.
+            from scipy.stats import mannwhitneyu
+
+            p_value = float(mannwhitneyu(high, low, alternative="greater").pvalue)
+            kept = p_value < 0.05 / len(layers)
+            per_layer[layer] = {"held_out_auroc": round(observed, 4), "p_one_sided": p_value, "kept": kept}
+            if kept:
                 kept_layers.append(layer)
-                np.savez(out / f"{dimension}_layer{layer}.npz", v=vector.astype(np.float32),
-                         source="her_own_replies", extracted=True, dimension=dimension, layer=layer,
-                         model=str(model_path), model_path=str(model_path), model_descriptor_sha256=descriptor,
-                         train_pairs=len(train), held_out_pairs=len(held), held_out_auroc=observed,
-                         derived_at=time.time())
+            # Every layer's direction is written, kept or not, so a later decision never needs the
+            # model run again; "kept" says which the held-out test admits.
+            np.savez(out / f"{dimension}_layer{layer}{'' if kept else '.not_kept'}.npz",
+                     v=vector.astype(np.float32), source="her_own_replies", extracted=True, dimension=dimension,
+                     layer=layer, model=str(model_path), model_path=str(model_path),
+                     model_descriptor_sha256=descriptor, train_pairs=len(train), held_out_pairs=len(held),
+                     held_out_auroc=observed, p_one_sided=p_value, derived_at=time.time())
         report["dimensions"][dimension] = {"reading": chosen["reading"], "quartiles": chosen["quartiles"],
                                            "train_pairs": len(train), "held_out_pairs": len(held),
                                            "per_layer": per_layer, "kept_layers": kept_layers}

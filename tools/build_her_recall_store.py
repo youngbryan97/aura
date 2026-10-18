@@ -134,16 +134,29 @@ def main() -> int:
     if memory is None:
         print("no datastore for this width", file=sys.stderr)
         return 1
+    # A store that cannot hold the target never reaches it; on 18 October one capped at 4,096 read
+    # 12,650 passages over two hours before anyone looked.
+    capacity = int(getattr(memory, "_max", 0) or 0)
+    if capacity < args.target_entries:
+        print(f"the store holds at most {capacity:,} entries and the target is {args.target_entries:,}",
+              file=sys.stderr)
+        return 1
     corpus_date = getattr(index, "corpus_date", "") or "2026-07-03"
     added = 0
     started = time.monotonic()
+    stalled = 0
     for number, passage in enumerate(rounds, 1):
         if len(memory) >= args.target_entries:
             break
+        before = len(memory)
         ingestor = NonParametricIngestor(memory, provenance=ingest_provenance(
             principal=SHARED_MEMORY_PRINCIPAL, source_id=f"offline_wikipedia:{corpus_date}",
             trust="unverified", evidence_id=f"{passage['doc_id']}:{passage['position']}"))
         added += ingestor.ingest_sequence(passage["title"], passage["paragraph"], encoder)
+        stalled = stalled + 1 if len(memory) <= before else 0
+        if stalled >= 100:
+            print(f"the store stopped growing at {len(memory):,} entries; stopping", file=sys.stderr)
+            break
         if number % 50 == 0:
             print(json.dumps({"passages": number, "entries": len(memory),
                               "seconds": round(time.monotonic() - started)}), flush=True)

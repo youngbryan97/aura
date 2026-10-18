@@ -145,11 +145,15 @@ def attach_endogenous_state(
         # two records that have to be joined by timestamp later.
         from core.brain.llm.endogenous_pair_recorder import remember_pending
 
+        messages = req.get("messages") or []
+        asked = next((str(m.get("content") or "") for m in reversed(messages)
+                      if isinstance(m, dict) and m.get("role") == "user"), str(req.get("prompt") or ""))
         remember_pending(
             str(req.get("id") or ""),
             payload,
             lane=str(req.get("serving_lane") or ""),
             model=str(model_path or ""),
+            prompt=asked,
         )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("endogenous state not attached to job: %s", exc)

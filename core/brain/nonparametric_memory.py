@@ -71,6 +71,14 @@ PHI_DELIBERATE = 0.55
 SHARED_MEMORY_PRINCIPAL = "shared"
 _SHARED_PRINCIPAL = SHARED_MEMORY_PRINCIPAL
 
+#: How many entries a store must hold before it may steer live generation
+#: (core/brain/nonparametric_worker.py says why), and so how many the live store
+#: may hold. Its capacity was the constructor's 4,096 while the gate asked for
+#: 50,000, so the store could never become usable: on 18 October a build of her
+#: store stopped at 4,096 entries after 12,650 passages. Capacity grows as entries
+#: arrive; nothing is allocated for entries not yet added.
+ENTRIES_TO_STEER_GENERATION = 50_000
+
 
 def _flag_on(name: str, default: str = "0") -> bool:
     return str(os.getenv(name, default)).strip().lower() in {"1", "true", "on", "yes", "enabled"}
@@ -1255,7 +1263,7 @@ def get_nonparametric_memory(
         key = resolved.slug()
         store = _stores.get(key)
         if store is None:
-            store = NonParametricMemory(resolved.dim, identity=resolved)
+            store = NonParametricMemory(resolved.dim, identity=resolved, max_entries=ENTRIES_TO_STEER_GENERATION)
             _stores[key] = store
             logger.info(
                 "Non-parametric memory: opened %s (%d store(s) held).",
