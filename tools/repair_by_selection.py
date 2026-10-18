@@ -240,6 +240,26 @@ def code_lane(model_path: str, out: Path):
     return propose
 
 
+def findings(sources: Mapping[str, str], repo: Path) -> int:
+    """What her standards report in these files: ruff's findings and the writing gate's in their comments."""
+    count = 0
+    with tempfile.TemporaryDirectory() as folder:
+        for path, text in sources.items():
+            if not path.endswith(".py"):
+                continue
+            done = subprocess.run([PYTHON, "-m", "ruff", "check", "--quiet", "--output-format", "concise",
+                                   "--stdin-filename", path, "-"], input=text, capture_output=True, text=True,
+                                  cwd=repo)
+            count += sum(1 for line in done.stdout.splitlines() if line.strip())
+            copy = Path(folder) / Path(path).name
+            copy.write_text(text, encoding="utf-8")
+            done = subprocess.run([PYTHON, str(repo / "tools" / "lint_ai_writing.py"), str(copy)],
+                                  capture_output=True, text=True, cwd=repo)
+            said = re.search(r"(\d+) findings across", done.stdout)
+            count += int(said.group(1)) if said else 0
+    return count
+
+
 def first_without_a_model(then, repo: Path, rank=None):
     """Her own Python's exact changes for the current code first (proposals_without_a_model.py), then ``then``.
 
@@ -347,9 +367,14 @@ def main() -> int:
             return ochiai(failing, passing)
 
         propose = model if args.only_model and model is not None else first_without_a_model(model, copy.path, rank)
+        before = findings(sources, copy.path)
+
+        async def standards(changed) -> int:
+            return max(0, await asyncio.to_thread(findings, changed, copy.path) - before)
+
         lineage = asyncio.run(repair_by_selection(
             Defect(tuple(args.test), tuple(args.file)), sources=sources, neighbours=neighbours, run=run,
-            propose=propose, proposals=args.proposals, deadline=deadline, record=record))
+            propose=propose, proposals=args.proposals, deadline=deadline, record=record, standards=standards))
         (args.out / "lineage.json").write_text(json.dumps(
             {**lineage.to_json(), "guarding_files": files, "guarding_tests": found, "planted": args.plant}, indent=1))
         if lineage.best is not None:

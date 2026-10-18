@@ -74,14 +74,17 @@ class Fitness:
     failures: str = ""
     #: Whether the tests that passed before were run on it: only once it fixes something.
     guarded: bool = True
+    #: Findings her code standards report in the changed files that the original did not have.
+    below_standard: int = 0
 
     @property
     def mends(self) -> bool:
-        return self.of > 0 and self.fixed == self.of and self.broken == 0 and self.guarded
+        return (self.of > 0 and self.fixed == self.of and self.broken == 0 and self.guarded
+                and self.below_standard == 0)
 
-    def key(self) -> tuple[int, int, int]:
-        """Larger is fitter: more fixed, then fewer broken, then the smaller change."""
-        return (self.fixed, -self.broken, -self.changed_lines)
+    def key(self) -> tuple[int, int, int, int]:
+        """Larger is fitter: more fixed, then fewer broken, then fewer findings, then the smaller change."""
+        return (self.fixed, -self.broken, -self.below_standard, -self.changed_lines)
 
 
 @dataclass
@@ -198,6 +201,7 @@ async def repair_by_selection(
     proposals: int,
     deadline: float,
     record: Callable[[Candidate], None] | None = None,
+    standards: Callable[[Mapping[str, str]], Awaitable[int]] | None = None,
 ) -> Lineage:
     """Search for a change that makes the defect's tests pass and breaks none of ``neighbours``.
 
@@ -214,6 +218,11 @@ async def repair_by_selection(
     those tests or a callable that returns the ones passing before the change.
     For a module many tests import, running them all on every candidate spent a
     defect's whole budget before its first candidate (18 October 2026).
+
+    ``standards(changed)`` counts the findings her code standards report in the
+    changed files beyond the original's. Passing the tests is not enough: her
+    27B's only passing answer to a planted one-line fault left a dead loop,
+    unused names and "Placeholder" comments in the file (18 October 2026).
     """
     lineage = Lineage(defect)
     lineage.baseline, seen = await run(defect.tests, sources)
@@ -245,9 +254,11 @@ async def repair_by_selection(
         if time.time() >= deadline:
             lineage.stopped = "deadline"
             break
-        # A candidate is a parent once it mends something. Built on one that mends nothing, a child would
-        # inherit a change with no evidence for it and lose the original lines its own edits are written to.
-        parent = lineage.best if lineage.best is not None and lineage.best.fitness.fixed > 0 else None
+        # A candidate is a parent once it mends something and meets her standards. Built on one that mends
+        # nothing, a child would inherit a change with no evidence for it and lose the original lines its own
+        # edits are written to; built on one below her standards, it would inherit what fell below them.
+        best = lineage.best.fitness if lineage.best is not None else None
+        parent = lineage.best if best is not None and best.fixed > 0 and best.below_standard == 0 else None
         # A child starts from its parent's code and inherits its edits; what it proposes is added to them.
         inherited = parent.edits if parent else ()
         start = applied(sources, inherited)[0] if parent else dict(sources)
@@ -280,6 +291,7 @@ async def repair_by_selection(
                     changed_lines=_changed_lines(sources, changed),
                     failures=failures,
                     guarded=guarded,
+                    below_standard=await standards(changed) if standards is not None and fixed else 0,
                 )
                 if lineage.best is None or candidate.fitness.key() > lineage.best.fitness.key():
                     lineage.best = candidate

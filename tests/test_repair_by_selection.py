@@ -182,3 +182,22 @@ def test_the_guarding_tests_run_only_once_a_candidate_fixes_something_and_none_m
     # It fixed the defect, but nothing that passed before was run on it, so it does not count as mended.
     assert second.fitness.fixed == 1 and not second.fitness.guarded and not second.fitness.mends
     assert lineage.stopped == "proposals spent"
+
+
+def test_a_change_that_passes_the_tests_but_falls_below_her_standards_does_not_mend():
+    sloppy = _block("    if x < lo:\n        return hi", "    if x < lo:\n        unused = 1\n        return lo")
+    clean = _block("    if x < lo:\n        return hi", "    if x < lo:\n        return lo")
+    offers = iter([sloppy, clean])
+
+    async def propose(defect, sources, parent, n):
+        return [("model", next(offers))]
+
+    async def standards(changed):
+        return changed["pkg/limits.py"].count("unused = 1")
+
+    lineage = asyncio.run(repair_by_selection(DEFECT, sources=SOURCE, neighbours=NEIGHBOURS, run=_run,
+                                              propose=propose, proposals=4, deadline=time.time() + 60,
+                                              standards=standards))
+    first, second = lineage.candidates
+    assert first.fitness.fixed == 1 and first.fitness.below_standard == 1 and not first.fitness.mends
+    assert lineage.best is second and lineage.stopped == "mended"
