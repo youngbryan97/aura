@@ -36,7 +36,6 @@ from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL_REL = "training/fused-model/Aura-32B-20260510-151144"
 _TRUST_SCHEMA = "aura.local_code_model.trust.v1"
 _MAX_CODE_TOKENS = 2048
 
@@ -54,7 +53,9 @@ _MAX_CONTEXT_TOKENS = 131_072
 _DEFAULT_TIMEOUT_S = 600.0
 _MAX_TIMEOUT_S = 1800.0
 _CLEANUP_TIMEOUT_S = 60.0
-_SUPPORTED_ARCHITECTURES = frozenset({"Qwen2ForCausalLM", "Qwen3ForCausalLM"})
+#: Her own cortex since September is a Qwen3.5 27B, which names itself a conditional generation model and keeps
+#: its window in text_config; refusing it left her code lane only a 32B she no longer runs (18 October 2026).
+_SUPPORTED_ARCHITECTURES = frozenset({"Qwen2ForCausalLM", "Qwen3ForCausalLM", "Qwen3_5ForConditionalGeneration"})
 _REQUIRED_MODEL_FILES = ("config.json", "tokenizer.json", "tokenizer_config.json")
 
 _load_lock = checked_lock("core.brain.llm.local_code_model._load_lock", reentrant=True)
@@ -233,11 +234,18 @@ async def _lifecycle_context(*, deadline: float) -> AsyncIterator[int]:
 
 
 def _resolve_model_path() -> str:
+    """The model her code lane writes with: one named for it, or else her own cortex.
+
+    The default was a fused 32B from May that she no longer runs (18 October
+    2026), so every caller of this lane reached for a second large model
+    instead of hers. Her cortex is resolved fresh, as her chat resolves it.
+    """
     configured = os.environ.get("AURA_CODE_MODEL_PATH") or os.environ.get("AURA_MODEL_PATH")
     if configured:
         return str(Path(configured).expanduser())
-    root = Path(__file__).resolve().parents[3]
-    return str(root / _DEFAULT_MODEL_REL)
+    from core.brain.llm.model_registry import _current_cortex_path
+
+    return str(_current_cortex_path())
 
 
 def _trust_manifest_path() -> Path:
@@ -345,9 +353,12 @@ def _validate_model_trust(model_path: str) -> TrustedModelIdentity:
     architecture = str(architectures[0]) if architectures else ""
     if architecture not in _SUPPORTED_ARCHITECTURES or payload.get("architecture") != architecture:
         raise LocalCodeModelError("local_code_model_architecture_unsupported")
-    max_context = int(config.get("max_position_embeddings") or 0)
-    if not 256 <= max_context <= _MAX_CONTEXT_TOKENS:
+    window = int(config.get("max_position_embeddings") or (config.get("text_config") or {}).get(
+        "max_position_embeddings") or 0)
+    if window < 256:
         raise LocalCodeModelError("local_code_model_context_window_invalid")
+    # A model whose window is larger than the lane's bound serves the lane's bound.
+    max_context = min(window, _MAX_CONTEXT_TOKENS)
     return TrustedModelIdentity(
         real_path=str(root),
         checkpoint_fingerprint=str(checkpoint["fingerprint"]),
@@ -711,11 +722,14 @@ class LocalCodeModel:
             messages.append({"role": "user", "content": prompt})
             from core.brain.llm.chat_format import for_this_template
 
+            # Thinking off: an answer is refused when it reaches this lane's token limit, and a model that
+            # thinks first spends that limit before it writes the code. A template without the switch ignores it.
             full_prompt = str(
                 _tokenizer.apply_chat_template(
                     for_this_template(_tokenizer, messages),
                     add_generation_prompt=True,
                     tokenize=False,
+                    enable_thinking=False,
                 )
             )
             input_tokens = len(_encode_tokens(_tokenizer, full_prompt))
