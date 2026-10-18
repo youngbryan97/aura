@@ -38,13 +38,11 @@ fine-tuned), with a reader learned from its hidden states:
 - [G10](evidence/G10_READER_QUALIFICATION_2026-10-07.md), closed 7 October: the
   reader qualified through her resident worker on 416 recorded requests.
 
-G09, broad reasoning gain, is open. Its current form is procedures her model
-writes and keeps by evidence, tested on held-out kinds in math and planning.
-[Attempt 5](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md) met its registered
-criteria, but once its rows were read the main test fell short (p 0.029
-against 0.01); [attempt 6](evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md)
-was running when this was written. G12, frontier performance, is held until the
-end of the list by choice.
+G09, broad reasoning gain, closed on 17 October: procedures her model writes
+and keeps by evidence beat her own answers on held-out kinds in math and
+planning, [attempt 6](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md) 29 gained
+to 0 lost once every changed row was read (p 3.7e-9). G12, frontier
+performance, is held until the end of the list by choice.
 
 ## Earlier evidence boundary, 2026-09-08
 
@@ -146,7 +144,7 @@ preregistered campaigns with committed seeds.
 | **Recurrence-native backbone training** | **OPEN for broad gain.** The CP566/CP1011 semantic-machine results do not establish that training the resident backbone to repeat its middle layers caused those gains. That path needs its own matched behavioral evidence. |
 | **Native decoder semantic selection** | **RESEARCH ONLY (2026-09-25).** Source-only native suffix adaptation selects 45/50 correct programs on a frozen wording bank versus incumbent 41/50 and matched unfitted 27/50, with five gains and one regression. A separate whole-graph contrast checkpoint returns 38/50, with three gains and six regressions. Neither is promotable under the non-regression requirement. These are candidate-selection measurements, not freely decoded public answers, fresh-family transfer, recurrence gain or frontier qualification. [Complete evidence](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md). |
 | **Learned hidden-state reader on the resident 27B** | **SUPPORTED, BOUNDED (2026-10-07).** G04: held-out vocabulary 33 vs 21, depth 54 vs 8, family 62 vs 47 on fresh requests with execution unavailable. G05: public answers 48 vs 29 (p 1.9e-6). G06: lesions cost 27 to 0 and 35 to 0. G10: qualified through her resident worker. |
-| **Kept procedures, held-out kinds (G09)** | **OPEN (2026-10-17).** Attempt 5: held-out math 10 gained and 0 lost, planning 15 to 0, but the main test was p 0.029 against 0.01 once grading artifacts were removed; attempt 6 running. |
+| **Kept procedures, held-out kinds (G09)** | **CLOSED (2026-10-17).** Attempt 6, as registered (35 to 0) and as read row by row: held-out math 13 gained and 0 lost, planning 16 to 0, p 3.7e-9. |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
 **Indirect meaning research (2026-09-27).** The shared semantic runtime can now

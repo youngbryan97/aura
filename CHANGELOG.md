@@ -30,7 +30,7 @@ Status categories:
 - **Five chat defects found by teaching her live on 17 October** — Her memory governor could kill the cortex worker while a hidden-state read held the model lock, and the lock was never released, so every turn fell to the fallback ladder. The repetition hold (DRY) read arithmetic that restates a number as a copy of her earlier answers and cut three answers in four off before their number. Lane choice counted a prompt's tokens at about three characters each, so digit-heavy conversations went to a lane too small for them. A question that says "he" was looked up by its other words alone. "Let me work this out" was registered as a 24-hour commitment, 49 times.
 
 ### Not claimed
-- **Broad reasoning gain** (G09) — Open. Attempt 3's gain came from grading the two arms differently and was withdrawn. Attempt 5 met its registered criteria, but 13 of its 38 gains were grading artifacts and without them the main test fell short ([result](docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)). Attempt 6 is preregistered ([plan](docs/evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md)).
+- **Broad reasoning gain** (G09) — Closed 17 October. Attempt 6 held as registered (35 gained, 0 lost) and once every changed row was read (29 to 0, *p* 3.7e-9; math 13 to 0, planning 16 to 0) ([result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)). Attempt 3's gain came from grading the two arms differently and was withdrawn; attempt 5 met its criteria but 13 of its 38 gains were grading artifacts.
 - **Frontier performance** (G12) — Not run; held to the end of the list.
 
 ---

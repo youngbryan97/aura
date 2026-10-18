@@ -95,7 +95,7 @@ Implemented in `core.learning.procedures_from_solved_examples`, with the shared 
 - `core.reasoning.mechanisms` holds what procedures share instead of rewriting: constraint search, precedence orders, boolean expressions, exact arithmetic, clock and date arithmetic, free stretches of a day. A mechanism is added only for a development kind or because the runtime already had it, so no held-out answer leaks into a measurement.
 - A `ProcedureBook` routes a request to a kind by word signatures, then by meaning (`core.learning.kinds_by_meaning`). Her desktop chat consults it before she drafts (`core.phases.kept_procedures_in_a_turn`); a words-route answer is served when her draft does not state it, a meaning-route answer is evidence only.
 - Kinds are also learned in use: answers people state in chat become solved examples, and an idle job induces procedures from them (`core.learning.examples_she_meets`).
-- **Evidence:** whether this is a broad reasoning gain is G09, still open; see `CLAIMS_NOT_SUPPORTED.md` §21.
+- **Evidence:** G09 closed 17 October 2026: on held-out kinds in math and planning the kept procedures gained 29 and lost none against her own answers ([result](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)); what is still missing is in `CLAIMS_NOT_SUPPORTED.md` §21.
 
 ## 10. Evidence Boundaries: What These Engines DON'T Replace
 While Aura enforces strict verification on logic, math, and execution, it is critical to note what these boundaries **do not** do:

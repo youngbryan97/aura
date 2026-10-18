@@ -62,9 +62,9 @@ Long-running research initiatives and their progress records.
   [evidence/GENERAL_REASONING_PROGRAM_2026-10-14.md](evidence/GENERAL_REASONING_PROGRAM_2026-10-14.md)
   and its first round
   [evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md](evidence/GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md);
-  kept procedures (G09) run through
-  [evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)
-  and [evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md](evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md).
+  kept procedures (G09) closed with
+  [evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md),
+  after [evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md).
   Every item's state is in [AURA_1_0_MASTER_TODO.md](AURA_1_0_MASTER_TODO.md).
 - **Language substrate and generality** — research on how the system forms,
   represents, and combines new concepts.

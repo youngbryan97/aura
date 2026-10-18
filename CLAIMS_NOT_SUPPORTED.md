@@ -182,10 +182,11 @@ If you are evaluating this repository, start here rather than with the README. I
 
 ## 21. A Broad Reasoning Gain From Kept Procedures
 
-* **Status**: `not proven` (G09 open)
+* **Status**: `shown on the domains tested` (G09 closed 17 October 2026)
 * **What the code does**: `core/learning/procedures_from_solved_examples.py` has her model write a small program for a kind of problem from solved examples, and keeps it only if it agrees with every known answer of the kind, half of them unseen while it was written. Her chat consults kept procedures before she drafts (`core/brain/cognitive_engine_quick_reply.py`).
-* **What is missing**: A preregistered test in which the procedures beat her own answers on held-out kinds in more than one domain, with no domain harmed, at the registered significance, and still do once every changed row has been read. Attempt 5 met its registered criteria, but 13 of its 38 gains were grading artifacts and the main test fell short without them ([result](docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)). The gains found so far are narrow: in math, mostly problems too long for her thinking budget.
-* **What would change this status**: A preregistered attempt that holds both as registered and after its rows are read ([attempt 6 plan](docs/evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md)). Even then the claim is bounded to the domains tested; open-ended reasoning is not measured.
+* **What was shown**: attempt 6, preregistered, beat her own answers on held-out kinds in math and planning with no domain harmed, as registered and once every changed row was read: 29 gained, 0 lost, *p* 3.7e-9 ([result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)).
+* **What is still missing**: The gain is narrow. In math it is almost all problems too long for her thinking budget (large primes, factorizations); on 20 of 27 math kinds her own answers were already right. Typed in plain words, a prime-factor question is declined live because a neighbouring kind keeps no procedure. Transfer to competition mathematics is not shown, and open-ended reasoning is not measured.
+* **What would change this status**: widening it needs the same test on domains beyond math and planning, and on requests in a person's own words rather than a benchmark's.
 
 ## 22. Learning From Conversation That Improves Ordinary Use
 

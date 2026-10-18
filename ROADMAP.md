@@ -60,7 +60,7 @@ The table columns are:
 
 **Bears on 8, Runtime Survivability.** Conversation delivery was held to an acceptance matrix in September ([R09](docs/evidence/R09_ACCEPTANCE_MATRIX_2026-09-10.md)). On 17 October a worker killed under memory pressure left the model lane locked for over half an hour, a new face of F16; the lock is now released when a worker dies (F20 in `KNOWN_FAILURE_MODES.md`). F16 itself remains open.
 
-**Bears on a research line rather than a dimension.** On her resident 27B, a reader learned from the model's hidden states closed held-out transfer, public answers, lesions and qualification (G03 to G06, G10, 6 and 7 October; [summary](docs/RECURSIVE_LATENT_CORTEX.md)). A broad reasoning gain (G09) is still open: attempt 5 fell short once its rows were read, and attempt 6 is running.
+**Bears on a research line rather than a dimension.** On her resident 27B, a reader learned from the model's hidden states closed held-out transfer, public answers, lesions and qualification (G03 to G06, G10, 6 and 7 October; [summary](docs/RECURSIVE_LATENT_CORTEX.md)). A broad reasoning gain (G09) closed on 17 October: kept procedures beat her own answers on held-out kinds in math and planning, 29 to 0 once every changed row was read.
 
 **Bears on nothing yet — still held.** External Undeniability: no independent third-party replication. Sovereignty: unchanged.
 

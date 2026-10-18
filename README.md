@@ -314,15 +314,13 @@ program's later items ran on it:
   the reader runs through her resident worker with her model identity, steering
   generation and geometry checked on 416 recorded requests.
 
-**Kept procedures (G09, open).** See
+**Kept procedures (G09, closed 17 October).** See
 [Knowledge, procedures and learning in use](#knowledge-procedures-and-learning-in-use).
-Attempt 5 met its preregistered criteria on 17 October, but 13 of its 38
-gains were grading artifacts, and without them the main test fell short
-(*p* 0.029 against 0.01), so G09 stayed open
-([result](docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)). Attempt 6,
-preregistered with a corrected grader and routing
-([plan](docs/evidence/G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md)), was
-running when this was written.
+Attempt 6 held as preregistered and again once every changed row was read:
+29 gained to 0 lost on 444 fresh requests (*p* 3.7e-9), held-out math 13 to 0
+and planning 16 to 0 ([result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)). Attempt 5 had
+met its criteria too, but 13 of its 38 gains were grading artifacts
+([result](docs/evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)).
 
 ### Results summary
 
@@ -341,7 +339,7 @@ running when this was written.
 | Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
 | Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
 | Learned hidden-state reader on the resident 27B: held-out transfer, public answers, lesions | **SUPPORTED, BOUNDED** — vocabulary 33 vs 21, depth 54 vs 8, family 62 vs 47 on fresh requests with execution unavailable; public answers 48 vs 29 (*p* = 1.9 × 10⁻⁶); lesions cost 27 to 0 and 35 to 0 |
-| Kept procedures on held-out kinds in math and planning (G09) | **OPEN** — attempt 5 fell short once its rows were read (main test *p* 0.029 against 0.01; held-out math 10 gained, 0 lost; planning 15 to 0); attempt 6 running |
+| Kept procedures on held-out kinds in math and planning (G09) | **CLOSED** 17 Oct — attempt 6, as registered and as read row by row: 29 gained, 0 lost (*p* 3.7e-9); held-out math 13 to 0, planning 16 to 0 |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
 The current [native semantic-selection work](docs/evidence/G_NATIVE_RELATIVE_FIT_2026-09-26.md)
@@ -537,11 +535,12 @@ known answer of the kind, half of which it never saw while it was written. Her
 chat consults kept procedures before she drafts, by the request's words or by
 its meaning; a request reached by meaning is first restated in the kind's own
 form, and the restatement must carry the request's numbers.
-On held-out kinds, attempt 5's procedures gained in both domains and lost
-nothing there (math 10 to 0, planning 15 to 0), in math mostly where her
-thinking budget ran out on large primes; its routing also sent competition
-problems to procedures of kinds they only resembled. G09 is open (see
-[Since October](#since-october-the-resident-27b)).
+On held-out kinds the procedures gain in both domains and lose nothing:
+in attempt 6, math 13 to 0 and planning 16 to 0, in math almost all where her
+thinking budget ran out on large primes and factorizations, in planning where
+her plans lost track of a vehicle. G09 is closed (see
+[Since October](#since-october-the-resident-27b)). The meaning route reached no
+competition problem in attempt 6, so transfer there is not shown.
 
 **Learning in use.** An answer a person states in chat ("No, it's 1049.") is
 kept as a solved example of the problem it answers; one that contradicts a
