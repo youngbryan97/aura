@@ -65,3 +65,29 @@ recognized consequential effects both before and after; the scoped counts
 are identical. The retained receipt is
 `2026-10-18-single-position-refit/effect-comparison.json` under the campaign
 artifact root. The aggregate gate still fails and its baseline is untouched.
+
+## Ordinary follow-up at pushed `db593d175`
+
+The two-minute CPU allocation completed in 142.52 supervised seconds. The
+report records `lost` and `unread`, no win. The complete recorder retained
+168 pictures, 60 input events and six observation streams without selecting
+a body or learning a control. Independently viewed final
+`frame-0000526.png` shows zero landings and one crash.
+
+Sixteen fresh source records and one object-bound record were published;
+continuing source-frame records remained zero. Sixty-five observations
+explicitly report unsearched positions, and ten report deferred optional
+work. Refit p95/max were 0.101025/0.134989 seconds. Complete observation
+p95/max were 0.269223/0.460861 seconds. The default factory used a mixture
+of local and separate CPU delegates. These distributions are not paired
+speed or success evidence.
+
+The first vehicle track retains only two samples in its first thrust
+interval, then five in its second. Its neutral intervals retain eight and
+seven samples. The largest statistic is 32.140171 with effect 3.477323;
+the largest effect is 17.150210 with statistic 1.438087. Neither satisfies
+the unchanged joint thresholds. Scenery can retain complete intervals while
+the changing vehicle loses its material path. Inspect point correspondence
+and allocation at those exact breaks before changing control qualification.
+
+Receipts: `artifacts/flash-campaign/2026-10-18-ordinary-single-position-refit/`.

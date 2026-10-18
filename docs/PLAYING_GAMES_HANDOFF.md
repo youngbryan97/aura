@@ -1410,3 +1410,13 @@ in 195.05 seconds. See
 `docs/evidence/steering/2026-10-18-one-position-per-optional-refit.md`.
 Measure original carryover next. No original win or native readiness is
 established by these component results.
+
+The two-minute original follow-up at `db593d175` completed in 142.52 seconds
+and still selected no body across 168 observations. Its independently viewed
+final screen shows zero landings and one crash. Refit p95/max were
+0.101025/0.134989 seconds, while complete observation still reached 0.460861
+seconds. The vehicle's first thrust retained two samples and its second
+retained five; neutral intervals retained eight and seven. Neither the
+statistic nor the effect jointly qualified. The next diagnostic is point
+correspondence versus capacity eviction at the first material-path break.
+Do not infer demo readiness from the completed scheduling repairs.
