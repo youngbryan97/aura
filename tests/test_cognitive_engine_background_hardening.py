@@ -980,13 +980,15 @@ async def test_cognitive_engine_full_mind_planning_keeps_extended_live_budget(mo
         "Give a practical multi-step desktop task you could attempt after authorization."
     )
     grounding_prompt = captured["messages"][-2]["content"]
-    assert "[GOVERNED PLANNING OUTLINE]" in grounding_prompt
-    # The outline reaches her as evidence; how to write it up is not said (tests/test_no_instruction_reaches_her.py).
+    # The outline was written by hand for her to say, so it is not evidence and does not reach her; neither does how
+    # to write a plan up (tests/test_no_instruction_reaches_her.py).
+    assert "[GOVERNED PLANNING OUTLINE]" not in grounding_prompt
+    assert "perform each step in order" not in grounding_prompt
     assert "Do not use a numbered list" not in grounding_prompt
 
 
 @pytest.mark.asyncio
-async def test_cognitive_engine_capability_inventory_contract_uses_catalog_without_worker(monkeypatch):
+async def test_a_capability_turn_is_answered_by_her_model_with_the_catalogue_as_evidence(monkeypatch):
     engine = CognitiveEngine()
     state = AuraState.default()
     engine.state_repository = StateRepositoryFixture(state)
@@ -1055,16 +1057,13 @@ async def test_cognitive_engine_capability_inventory_contract_uses_catalog_witho
         timeout_s=60.0,
     )
 
-    assert "browser/web research" in thought.content
-    assert "Will and Authority" in thought.content
-    assert captured == {}
-    assert thought.metadata["response_path"] == "cognitive_engine_capability_catalog_grounding"
+    assert captured, "her model was not asked"
+    assert thought.content.startswith("I can coordinate desktop apps")
+    sent = "\n".join(str(m.get("content")) for m in captured["messages"])
+    assert "[GOVERNED CAPABILITY INVENTORY EVIDENCE]" in sent
+    assert "desktop/app control; browser/web research" in sent
+    assert thought.metadata.get("response_path") != "cognitive_engine_capability_catalog_grounding"
     assert thought.metadata["live_mind_controls_bound"] is True
-    # A structured floor never runs the model worker; the honest receipt says
-    # so (applied=False) while generation_required=False keeps the contract
-    # satisfied. Pinning worker_applied=True here would demand a false claim.
-    assert thought.metadata["live_mind_controls_worker_applied"] is False
-    assert thought.metadata["live_mind_generation_required"] is False
 
 
 @pytest.mark.asyncio

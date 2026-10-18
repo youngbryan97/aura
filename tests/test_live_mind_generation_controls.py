@@ -530,17 +530,18 @@ async def test_desktop_quick_reply_preserves_worker_control_application_failure(
 
 
 @pytest.mark.asyncio
-async def test_desktop_quick_reply_bounded_planning_uses_live_mind_floor(monkeypatch):
+async def test_a_planning_turn_is_answered_by_her_model_not_by_the_written_outline(monkeypatch):
     from core.brain import cognitive_engine as cognitive_engine_module
     from core.brain.cognitive_engine import CognitiveEngine
     from core.brain.types import ThinkingMode
 
     calls: list[dict[str, object]] = []
+    hers = "I'd gather the sources first, then write it up and check the page before I call it done."
 
     class Router:
         async def think(self, **kwargs):
             calls.append(dict(kwargs))
-            return "unexpected model call"
+            return hers
 
     class Container:
         def get(self, name, default=None):
@@ -580,12 +581,11 @@ async def test_desktop_quick_reply_bounded_planning_uses_live_mind_floor(monkeyp
     )
 
     assert thought is not None
-    assert thought.content == bounded_reply
-    assert calls == []
-    assert thought.metadata["response_path"] == "cognitive_engine_bounded_planning"
-    assert thought.metadata["live_mind_controls_bound"] is True
-    assert thought.metadata["live_mind_controls_worker_applied"] is False
-    assert thought.metadata["live_mind_generation_required"] is False
+    assert calls
+    assert thought.content == hers
+    assert thought.metadata.get("response_path") != "cognitive_engine_bounded_planning"
+    # The outline was written by hand for her to say; it is not evidence and does not reach her.
+    assert not any(bounded_reply in str(m.get("content")) for call in calls for m in call.get("messages", []))
 
 
 @pytest.mark.asyncio
