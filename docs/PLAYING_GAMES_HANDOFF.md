@@ -1318,3 +1318,13 @@ Original carryover still needs measurement.
 
 Smoke (165 passed, one skipped) and the main code gates passed after this
 repair in 92.65 seconds. No native lifecycle or protected case was touched.
+
+The original follow-up at `a702a104e` retained five and four settled samples
+from its first two thrust intervals. That carryover supplied two acceleration
+measurements, but neutral comparison intervals still broke: a 0.424726-second
+capture gap discarded 28 anchors, then a contradiction and another long gap
+prevented neutral evidence. No body or win qualified across 160 observations;
+the final image was instructions. A serial 40-frame asynchronous local/separate/
+local comparison had no operation over 0.35 seconds, so switching processes
+alone is not supported as the explanation for the live gaps. Measure the
+ordinary capture/observation/action stages before changing their scheduling.
