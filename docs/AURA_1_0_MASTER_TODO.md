@@ -3125,6 +3125,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   in use had never received an example. Wiring: 83fcd7aa6, 9a4218375,
   01ddf0a8d. Plan, fixed before it ran:
   `~/.aura/rlc-evidence/learning-loop-20261016/plan.md`.
+  First half shown 2026-10-18 ([loop](evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md)): taught ten
+  date differences in chat (she was wrong on five), she induced a procedure while idle (kept 17 Oct
+  19:18, agreeing with all ten), and 25.6 hours after the last teaching turn three new ones typed into
+  her chat came back right through it (1599, 1463, 1324). Open: the second half, kept procedures on
+  against off over realistic tasks of her ordinary use.
 - [ ] L10 Let her learn from what she verifies online, offline-first. Today a
   claim she checks online (core/epistemics/epistemic_reach.py, through the
   governed reach gateway) corrects one reply and is not kept, and no web
