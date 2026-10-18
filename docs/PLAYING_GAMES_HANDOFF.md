@@ -1375,3 +1375,17 @@ record (the earlier interim count of 41 covered its first stretch). It still
 ended with zero landings and one crash. Only up remained known: left was
 interrupted early, and right's first settled frame was contradicted before
 further gaps. Trace the current rotating material and motor-trial gate next.
+
+On October 18, a 90-picture paired replay reproduced the lateral failure
+with both classical CPU trackers; neither learned a lateral key. The first
+lost origin followed a 0.350355-second gap. Its ordinary timing trace shows
+mandatory motion and copying finished before another 0.105878 seconds of
+optional geometry delayed control. The observation worker now budgets these
+optional refits against measured essential work. One operation may overdraw
+its allowance, but later refits must repay the cost; deferred frames supply
+no fresh geometry. No identity threshold or input lease changed. The focused
+group passed 89 checks, and smoke (165 passed, one skipped) plus the main code
+gates passed in 143.79 seconds. See
+`docs/evidence/steering/2026-10-18-optional-geometry-shares-observation-time.md`.
+Measure ordinary carryover next; lateral control, landings and the native
+demo remain unproven.

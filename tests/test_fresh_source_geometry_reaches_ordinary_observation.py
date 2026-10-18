@@ -133,7 +133,7 @@ def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_c
         cls = CanvasFrameTime if clock == 'canvas' else MeasuredFrameTime
         at = cls(2., lower=2., upper=2.01, arrived=2.02, source='capture-test', source_at=None, epoch=7,
                  **(dict(surface='test-surface', sequence=12) if clock == 'canvas' else {}))
-    received = []
+    received, work_clock = [], [0.]
 
     class Eyes:
         def __init__(self, **kwargs):
@@ -142,6 +142,7 @@ def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_c
 
         def see(self, picture, at):
             received.append(at)
+            work_clock[0] += .09
             self.__dict__.update(_state(picture, float(at)))
             return []
 
@@ -161,6 +162,9 @@ def test_ordinary_observation_returns_the_current_measurement_and_clears_it_on_c
 
     async def run():
         monkeypatch.setattr(work, 'source_tables_in_play', lambda: (table,))
+        # The fixture supplies an essential-work interval; optional admission
+        # has separate tests for pictures whose work has not earned a refit.
+        monkeypatch.setattr(time, 'perf_counter', lambda: work_clock[0])
         observer = await open_play_observation(factory=Eyes)
         observer._references = References()
         assert await observer.see(current, at) == []
@@ -191,7 +195,7 @@ def test_input_lease_releases_while_fresh_pixel_remeasurement_is_blocked():
         entered, release = threading.Event(), threading.Event()
 
         class Delayed:
-            def measure(self, *args):
+            def measure_if_budget(self, *args, essential_seconds):
                 entered.set()
                 assert release.wait(2.), 'test measurement was not released'
                 return (), ()

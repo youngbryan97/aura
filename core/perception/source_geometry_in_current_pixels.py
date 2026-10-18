@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -17,6 +18,7 @@ from core.perception.reference_material_near_a_measured_pose import near_referen
 from core.perception.rigid_motion_from_named_points import rigid_motion
 from core.perception.source_reference_proposals import SourceReferenceProposal
 from core.perception.visual_references_for_current_sources import _belongs, current_visual_sources
+from core.runtime.optional_work_shares_time import OptionalWorkShare
 from core.verify import invariant
 
 
@@ -127,6 +129,20 @@ class SourceGeometryInCurrentPixels:
         self.cursor = 0
         self.pose_cursors: dict = {}
         self.at = -math.inf
+        self.work_share = OptionalWorkShare()
+
+    def measure_if_budget(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = (),
+                          *, essential_seconds: float) -> tuple:
+        """Repay prior optional refits before delaying another essential picture."""
+        if not proposals and not self.records:
+            return self.measure(picture, at, state, proposals, tables, covered)
+        if not self.work_share.reserve(essential_seconds):
+            return (), ('fresh_reference_work_deferred',)
+        began = time.perf_counter()
+        try:
+            return self.measure(picture, at, state, proposals, tables, covered)
+        finally:
+            self.work_share.spent(time.perf_counter()-began)
 
     def measure(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = ()) -> tuple:
         scope = current_visual_sources(tables)
@@ -196,6 +212,20 @@ class SourceGeometryInCurrentPixels:
                 measured.append(CurrentSourceReference(reference.source, reference.declaration.character_id,
                     reference.declaration.name, reference.coordinates.reference_sha256, state['pixels_consumed'], point))
         return _enclosed_measurements(tuple(measured)), tuple(unavailable)
+
+
+@invariant('perception.optional_geometry_repays_observation_time', scope='perception',
+           owner='core/perception/source_geometry_in_current_pixels.py', observational=False)
+def _optional_reference_share_invariant() -> tuple:
+    quota, started = OptionalWorkShare(), []
+    for picture in range(9):
+        if quota.reserve(.09):
+            started.append(picture)
+            assert not quota.reserve(.09)
+            quota.spent(.09)
+    assert started == [0, 3, 6] and not quota.active
+    assert quota.credit <= quota.cap
+    return ()
 
 
 @invariant('perception.fresh_source_geometry_needs_the_consumed_pixels', scope='perception',

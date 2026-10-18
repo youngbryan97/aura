@@ -13,6 +13,7 @@ def _play_execution_claims() -> tuple:
     from core.perception.guarded_effects_in_flash_methods import _guarded_source_graph_invariant
     from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant
     from core.perception.source_geometry_in_current_pixels import _reference_attention_invariant
+    from core.perception.source_geometry_in_current_pixels import _optional_reference_share_invariant
     from core.perception.reference_material_near_a_measured_pose import _near_reference_material_invariant
     from core.perception.points_a_consumer_still_needs import _point_retention_visibility_invariant
     from core.perception.symbolic_motion_in_flash_methods import _source_deletion_invariant
@@ -78,6 +79,9 @@ def _play_execution_claims() -> tuple:
             ('later_control_intervals_keep_one_input', 'core/agency/which_one_answers_to_her.py',
              'tests/test_later_control_intervals_keep_one_physical_press.py', lambda: _later_control_interval_invariant() == (),
              'A later continuous measured interval can supply acceleration samples for the same physical input, without joining a missing stretch or counting another independent press.'),
+            ('optional_geometry_repays_observation_time', 'core/perception/source_geometry_in_current_pixels.py',
+             'tests/test_optional_geometry_shares_observation_time.py', lambda: _optional_reference_share_invariant() == (),
+             'Optional current-pixel refits repay measured elapsed work between essential observations; one operation can overdraw its allowance, and deferred fits supply no geometry or control evidence.'),
             ('optional_reference_attention_keeps_fair_audits', 'core/perception/source_geometry_in_current_pixels.py',
              'tests/test_fresh_source_geometry_reaches_ordinary_observation.py', lambda: _reference_attention_invariant() == (),
              'Optional reference work refits one pose per frame, retaining unsearched alternatives and fair audits; priority hints grant no current geometry, identity or control authority.'),

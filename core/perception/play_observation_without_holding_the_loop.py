@@ -11,6 +11,7 @@ import asyncio
 import contextvars
 import copy
 import math
+import time
 from collections.abc import Callable
 from concurrent.futures import Future
 from dataclasses import dataclass
@@ -78,6 +79,7 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
           material_retention: Any = None, fresh_references: Any = None,
           reference_proposals: tuple = (), reference_tables: tuple = (),
           reference_coverage: tuple = ()) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    began = time.perf_counter()
     kwargs = {'search_hint': search_hint} if search_hint is not None else {}
     if material_retention is not None and getattr(eyes, 'supports_material_retention', False):
         kwargs['material_retention'] = material_retention
@@ -86,7 +88,8 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
     if fresh_references is not None:
         # The eyes receive the full capture interval. Geometry uses the same
         # scalar capture value as their consumed-pixel and material receipts.
-        frames, unavailable = fresh_references.measure(picture, float(at), state, reference_proposals, reference_tables, reference_coverage)
+        frames, unavailable = fresh_references.measure_if_budget(picture, float(at), state, reference_proposals,
+            reference_tables, reference_coverage, essential_seconds=time.perf_counter()-began)
         state['fresh_source_reference_frames'], state['fresh_source_reference_status'] = frames, unavailable
     return copy.deepcopy(happened), state
 
