@@ -453,6 +453,19 @@ def _the_amplifier_stood_down(draft, reason: str):
 
 
 
+def _compact_prompt_payload(value: Any, *, limit: int = 3000) -> str:
+    """Render runtime grounding payloads without letting them dominate the prompt."""
+
+    try:
+        rendered = json.dumps(value, ensure_ascii=True, sort_keys=True, default=str)
+    except (TypeError, ValueError, OverflowError):
+        rendered = str(value)
+    rendered = rendered.strip()
+    if len(rendered) <= limit:
+        return rendered
+    return f"{rendered[: max(0, limit - 16)]}...[truncated]"
+
+
 class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, BasePhase):
     """
     Phase 5: Response Generation.
@@ -463,19 +476,6 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
     def __init__(self, container: Any):
         self.container = container
         self._last_reasoning_receipt: dict[str, Any] | None = None
-
-    @staticmethod
-    def _compact_prompt_payload(value: Any, *, limit: int = 3000) -> str:
-        """Render runtime grounding payloads without letting them dominate the prompt."""
-
-        try:
-            rendered = json.dumps(value, ensure_ascii=True, sort_keys=True, default=str)
-        except (TypeError, ValueError, OverflowError):
-            rendered = str(value)
-        rendered = rendered.strip()
-        if len(rendered) <= limit:
-            return rendered
-        return f"{rendered[: max(0, limit - 16)]}...[truncated]"
 
     @classmethod
     def _append_system_block(
@@ -667,7 +667,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 messages,
                 "LIVE MIND CONTEXT",
                 (
-                    f"{cls._compact_prompt_payload(compact_mind, limit=3200)}\n"
+                    f"{_compact_prompt_payload(compact_mind, limit=3200)}\n"
                     "This is causal grounding for the reply, not text to recite. "
                     "Use memory, current state, substrate, governance, and the live lane as one context. "
                     "Do not answer as a generic assistant persona."
@@ -696,7 +696,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     messages,
                     "LIVE SPEECH GROUNDING",
                     (
-                        f"{cls._compact_prompt_payload(compact_frame, limit=1200)}\n"
+                        f"{_compact_prompt_payload(compact_frame, limit=1200)}\n"
                         "This frame is grounding, not prose to repeat. Convert it into ordinary speech only when it helps."
                     ),
                 )

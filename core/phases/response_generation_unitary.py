@@ -392,6 +392,83 @@ def never_leaves_a_turn_holding_its_answer(
     return execute_and_serve_what_survived
 
 
+def _her_meaning() -> Any:
+    """Her embedder's nearness of texts to a query, as her chat's reading uses it (observable_registry)."""
+    from core.brain.observable_registry import her_nearness
+
+    return her_nearness()
+
+
+def _with_grounding_message(messages: list[dict], evidence_message: dict[str, str] | None) -> list[dict]:
+    if not evidence_message:
+        return messages
+
+    for msg in messages:
+        if (
+            isinstance(msg, dict)
+            and str(msg.get("role", "") or "").strip().lower() == "system"
+            and "[ACTIVE GROUNDING EVIDENCE]" in str(msg.get("content", "") or "")
+        ):
+            return messages
+
+    merged = [dict(msg) if isinstance(msg, dict) else msg for msg in messages]
+    insert_at = (
+        1 if merged and isinstance(merged[0], dict) and merged[0].get("role") == "system" else 0
+    )
+    merged.insert(insert_at, evidence_message)
+    return merged
+
+
+def _sync_first_system_message(messages: list[dict], system_prompt: str) -> None:
+    """Keep prebuilt messages aligned after late prompt trimming/guidance."""
+    if not isinstance(messages, list):
+        return
+    prompt = str(system_prompt or "").strip()
+    if not prompt:
+        return
+    for msg in messages:
+        if isinstance(msg, dict) and str(msg.get("role", "") or "").strip().lower() == "system":
+            existing = str(msg.get("content", "") or "").strip()
+            if existing and prompt not in existing:
+                preserved_tail = existing[-4000:].strip()
+                msg["content"] = f"{prompt}\n\n{preserved_tail}" if preserved_tail else prompt
+            else:
+                msg["content"] = prompt
+            return
+    messages.insert(0, {"role": "system", "content": prompt})
+
+
+def _build_file_grounding_message(objective: str) -> dict[str, str] | None:
+    """Grounding built from a file the turn names, read off the disk."""
+
+    try:
+        from core.conversation.filesystem_check import requested_file_read
+
+        read = requested_file_read(objective)
+    except _RESPONSE_RECOVERABLE_ERRORS as exc:
+        _record_response_degradation(
+            exc, "UnitaryResponse: file grounding read failed: %s"
+        )
+        return None
+    if read is None:
+        return None
+    if not read.exists:
+        lines = [
+            "[ACTIVE GROUNDING EVIDENCE]",
+            f"No file exists at {read.path} inside her roots.",
+        ]
+        return {"role": "system", "content": "\n".join(lines)}
+    if not read.text.strip():
+        return None
+    suffix = " [truncated]" if read.truncated else ""
+    lines = [
+        "[ACTIVE GROUNDING EVIDENCE]",
+        f"{read.path}{suffix}:",
+        read.text,
+    ]
+    return {"role": "system", "content": "\n".join(lines)}
+
+
 class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhatSheRemembers, Phase):
     """
     Liberated Response Generation.
@@ -1878,44 +1955,6 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         return cls._current_turn_targets_skill(state, objective, last_skill, contract=contract)
 
     @classmethod
-    def _build_file_grounding_message(cls, objective: str) -> dict[str, str] | None:
-        """Grounding built from a file the turn names, read off the disk."""
-
-        try:
-            from core.conversation.filesystem_check import requested_file_read
-
-            read = requested_file_read(objective)
-        except _RESPONSE_RECOVERABLE_ERRORS as exc:
-            _record_response_degradation(
-                exc, "UnitaryResponse: file grounding read failed: %s"
-            )
-            return None
-        if read is None:
-            return None
-        if not read.exists:
-            lines = [
-                "[ACTIVE GROUNDING EVIDENCE]",
-                f"No file exists at {read.path} inside her roots.",
-            ]
-            return {"role": "system", "content": "\n".join(lines)}
-        if not read.text.strip():
-            return None
-        suffix = " [truncated]" if read.truncated else ""
-        lines = [
-            "[ACTIVE GROUNDING EVIDENCE]",
-            f"{read.path}{suffix}:",
-            read.text,
-        ]
-        return {"role": "system", "content": "\n".join(lines)}
-
-    @staticmethod
-    def _her_meaning() -> Any:
-        """Her embedder's nearness of texts to a query, as her chat's reading uses it (observable_registry)."""
-        from core.brain.observable_registry import her_nearness
-
-        return her_nearness()
-
-    @classmethod
     def _build_corpus_grounding_message(
         cls, objective: str, state: AuraState | None = None
     ) -> dict[str, str] | None:
@@ -1944,7 +1983,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             grounding = corpus_grounding_for(
                 objective,
                 conversation=conversation,
-                rerank=cls._her_meaning() if conversation is not None else None,
+                rerank=_her_meaning() if conversation is not None else None,
                 speakers=speakers,
             )
         except _RESPONSE_RECOVERABLE_ERRORS as exc:
@@ -2029,7 +2068,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             # and tell me the first rule it states" was answered "I don't have
             # a clean grounded answer on that yet" — the file is in the repo
             # root and five registered skills can read it. Nothing executed.
-            built = cls._build_file_grounding_message(objective)
+            built = _build_file_grounding_message(objective)
             if built is not None:
                 logger.info(
                     "📄 [GROUNDING] read a named file for this turn (%d chars).",
@@ -2145,17 +2184,6 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         return {"role": "system", "content": "\n".join(lines)}
 
     @classmethod
-    def _inject_active_grounding_message(
-        cls,
-        messages: list[dict],
-        state: AuraState,
-        objective: str,
-        contract: Any,
-    ) -> list[dict]:
-        evidence_message = cls._build_active_grounding_message(state, objective, contract)
-        return cls._with_grounding_message(messages, evidence_message)
-
-    @classmethod
     async def _inject_active_grounding_message_async(
         cls,
         messages: list[dict],
@@ -2163,31 +2191,11 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         objective: str,
         contract: Any,
     ) -> list[dict]:
-        """As _inject_active_grounding_message, with its lookups (the corpus, her embedder) off the event loop."""
+        """Put the turn's grounding in front of her, its lookups (the corpus, her embedder) off the event loop."""
         evidence_message = await asyncio.to_thread(
             cls._build_active_grounding_message, state, objective, contract
         )
-        return cls._with_grounding_message(messages, evidence_message)
-
-    @staticmethod
-    def _with_grounding_message(messages: list[dict], evidence_message: dict[str, str] | None) -> list[dict]:
-        if not evidence_message:
-            return messages
-
-        for msg in messages:
-            if (
-                isinstance(msg, dict)
-                and str(msg.get("role", "") or "").strip().lower() == "system"
-                and "[ACTIVE GROUNDING EVIDENCE]" in str(msg.get("content", "") or "")
-            ):
-                return messages
-
-        merged = [dict(msg) if isinstance(msg, dict) else msg for msg in messages]
-        insert_at = (
-            1 if merged and isinstance(merged[0], dict) and merged[0].get("role") == "system" else 0
-        )
-        merged.insert(insert_at, evidence_message)
-        return merged
+        return _with_grounding_message(messages, evidence_message)
 
     def _build_router_messages(
         self,
@@ -2212,25 +2220,6 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
         # not buried context from earlier turns.
         messages.append({"role": "user", "content": objective})
         return messages
-
-    @staticmethod
-    def _sync_first_system_message(messages: list[dict], system_prompt: str) -> None:
-        """Keep prebuilt messages aligned after late prompt trimming/guidance."""
-        if not isinstance(messages, list):
-            return
-        prompt = str(system_prompt or "").strip()
-        if not prompt:
-            return
-        for msg in messages:
-            if isinstance(msg, dict) and str(msg.get("role", "") or "").strip().lower() == "system":
-                existing = str(msg.get("content", "") or "").strip()
-                if existing and prompt not in existing:
-                    preserved_tail = existing[-4000:].strip()
-                    msg["content"] = f"{prompt}\n\n{preserved_tail}" if preserved_tail else prompt
-                else:
-                    msg["content"] = prompt
-                return
-        messages.insert(0, {"role": "system", "content": prompt})
 
     @classmethod
     def _normalize_text(cls, value: Any, limit: int = 0) -> str:
@@ -5095,7 +5084,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 # Keep the identity/rules header and trim context blocks
                 system_prompt = system_prompt[:max_prompt_chars].rstrip()
                 system_prompt += "\n[...context trimmed for token budget...]"
-                self._sync_first_system_message(messages, system_prompt)
+                _sync_first_system_message(messages, system_prompt)
 
             # Anti-repetition injection: if recent responses have been stale,
             # inject an explicit instruction to avoid repeating prior patterns.
@@ -5117,7 +5106,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         # Prepend to system prompt so the model sees it first
                         system_prompt = anti_repeat + "\n\n" + system_prompt
                         # Re-sync if needed
-                        self._sync_first_system_message(messages, system_prompt)
+                        _sync_first_system_message(messages, system_prompt)
                         logger.warning(
                             "🚨 Anti-repetition instruction injected into system prompt."
                         )
