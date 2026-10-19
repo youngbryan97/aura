@@ -145,13 +145,18 @@ class HealingSwarmService:
         if now - last_repair < 300:
             return
 
+        # Use SovereignSwarm to spawn a recovery shard
+        # SovereignSwarm is accessible via self.orchestrator.sovereign_swarm
+        swarm = getattr(self.orchestrator, 'sovereign_swarm', None)
+        if swarm is not None and not getattr(swarm, "takes_shards", True):
+            # A repair here is a shard, and shards are off (core/agency/agency_shard_work.py).
+            logger.debug("🛡️ [HEAL] No repair shard for %s: shards are off.", subsystem_name)
+            return
+
         status = info.get("status", "UNKNOWN")
         logger.warning("🚨 [HEAL] Attempting autonomous repair for %s (%s)", subsystem_name, status)
         self._repair_history[subsystem_name] = now
 
-        # Use SovereignSwarm to spawn a recovery shard
-        # SovereignSwarm is accessible via self.orchestrator.sovereign_swarm
-        swarm = getattr(self.orchestrator, 'sovereign_swarm', None)
         if swarm:
             stale_seconds = info.get('stale_seconds', 'N/A')
             goal = f"Identify root cause for {subsystem_name} failure and suggest/trigger fix."

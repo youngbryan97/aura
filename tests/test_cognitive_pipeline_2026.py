@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.agency_core import AgencyCore, AgencyState, EngagementMode, SovereignSwarm
+from core.agency_core import AgencyCore, AgencyState, EngagementMode
 from core.autonomy.behavior_controller import integrate_behavior_control
 from core.brain.llm.structured_llm import StructuredLLM
 from core.cognition.cognitive_integration_layer import CognitiveIntegrationLayer
@@ -153,14 +153,6 @@ class MemorySearchProbe:
     async def search(self, query, limit=5):
         self.calls.append({"query": query, "limit": limit})
         return list(self.results)
-
-
-class FormattingRepairTrap:
-    def __init__(self):
-        self.called = False
-
-    async def __call__(self, *_args, **_kwargs):
-        self.called = True
 
 
 @pytest.fixture(autouse=True)
@@ -423,28 +415,6 @@ async def test_social_reflection_awaits_async_memory_search():
     await effects["social_reflection.commit"]()
     assert identity.insights == []
 
-
-@pytest.mark.asyncio
-async def test_swarm_background_deferral_skips_formatting_collapse(monkeypatch):
-    class DeferredStructuredLLM:
-        def __init__(self, *_args, **_kwargs):
-            self.last_defer_reason = "background_deferred:cortex_startup_quiet"
-
-        async def generate(self, *_args, **_kwargs):
-            return None
-
-    monkeypatch.setattr(
-        "core.brain.llm.structured_llm.StructuredLLM",
-        DeferredStructuredLLM,
-    )
-
-    orchestrator = OrchestratorProbe()
-    swarm = SovereignSwarm(orchestrator)
-    formatting_repair = FormattingRepairTrap()
-    swarm._active_self_repair_formatting = formatting_repair
-
-    await swarm._shard_wrapper("deferred goal", "context", shard_id="shard-test")
-    assert formatting_repair.called is False
 
 if __name__ == "__main__":
     pytest.main([__file__])

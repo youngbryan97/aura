@@ -206,18 +206,24 @@ async def test_a_failing_effect_does_not_abort_the_approved_action():
     assert ran == ["after"]
 
 
-def test_a_fabricated_conclusion_is_not_learned_from():
-    """When structured generation collapses, the shard fabricates a conclusion
-    so it does not die silently — which is right, a zombie shard is worse. But
-    the abstraction engine then learned from that sentence as a SUCCESS, the
-    crucible refined it dialectically, and the collective was pulsed with
-    success=True. A formatting collapse became a lesson."""
-    assert "shard_succeeded = not bool(" in SHARD_SOURCE
-    assert "if abstractor is not None and shard_succeeded:" in SHARD_SOURCE
-    assert "if output_text and shard_succeeded:" in SHARD_SOURCE
-    assert "success=shard_succeeded" in SHARD_SOURCE
-    for source in (SOURCE, SHARD_SOURCE):
-        assert 'pulse_hypha("collective", "distributed_agency", success=True)' not in source
+def test_a_shard_keeps_nothing_and_writes_nothing_for_her():
+    """When structured generation collapsed, the shard wrote her answer itself
+    ("I am experiencing cognitive formatting degradation. Taking a defensive
+    posture."), and before a guard was added the crucible committed it as a
+    belief and the abstraction engine learned from it. The fallback is gone, and
+    a shard hands its reply to neither: both reworded it before keeping it."""
+    tree = ast.parse(SHARD_SOURCE)
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(body, list) and body and isinstance(body[0], ast.Expr) \
+                and isinstance(body[0].value, ast.Constant) and isinstance(body[0].value.value, str):
+            body.pop(0)  # its docstring quotes the old fallback; the code must not
+    code = ast.unparse(tree)
+    for kept_by in ("run_crucible", "abstract_from_success", "_record_durable_insight", "add_insight"):
+        assert kept_by not in code
+    for fabricated in ("formatting degradation", "defensive posture", "ShardResponse", "StructuredLLM"):
+        assert fabricated not in code
+    assert 'pulse_hypha("collective", "distributed_agency", success=True)' not in SOURCE
 
 
 def test_the_internet_pulse_waits_for_the_research_to_win():

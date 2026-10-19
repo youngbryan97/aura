@@ -10,7 +10,6 @@ from core.resilience.lock_watchdog import LockWatchdog, get_lock_watchdog
 from core.adaptation.dynamic_value_graph import DynamicValueGraph, ValueNode, ValueNodeStatus
 from core.phases.cognitive_integration_phase import CognitiveIntegrationPhase
 from core.state.aura_state import AuraState
-from core.container import ServiceContainer
 
 
 class TestGovernanceUnderStress(unittest.IsolatedAsyncioTestCase):
@@ -64,52 +63,6 @@ class TestGovernanceUnderStress(unittest.IsolatedAsyncioTestCase):
             await watchdog.stop()
             LockWatchdog.reset_for_test()
 
-    async def test_value_graph_blocks_before_tool_execution(self):
-        """test_value_graph_blocks_before_tool_execution"""
-        from core.agency_core import SovereignSwarm
-        class DummyOrch:
-            class AgencyCoreDummy:
-                class ToolOrchestratorDummy:
-                    async def route_and_execute(self, name, payload):
-                        # If this is called, it failed to block PRE-execution!
-                        return "EXECUTED"
-                tool_orchestrator = ToolOrchestratorDummy()
-            agency_core = AgencyCoreDummy()
-            cognitive_engine = True
-
-        orch = DummyOrch()
-        swarm = SovereignSwarm(orch)
-        
-        # Setup DVG with provisional top value
-        dvg = DynamicValueGraph()
-        dvg._nodes["curiosity"] = ValueNode(name="curiosity", weight=0.9, status=ValueNodeStatus.PROVISIONAL)
-        ServiceContainer.register_instance("dynamic_value_graph", dvg)
-        
-        # Test tool block logic directly by injecting controlled JSON into swarm response.
-        # Exercise the routing branch directly.
-        tools_list = [{"name": "shell_executor", "payload": "rm -rf"}]
-        
-        # We need to simulate the loop in _shard_wrapper
-        valid_tools = [t for t in tools_list if t.get("name") and t.get("payload")]
-        approved_tools = []
-        blocked_tools = []
-        for t in valid_tools:
-            name = t.get("name")
-            payload = t.get("payload")
-            is_blocked = False
-            status_dict = dvg.get_status().get("nodes", {})
-            top_values = sorted(status_dict.values(), key=lambda v: v.get("weight", 0), reverse=True)[:3]
-            if any(v.get("status") == "provisional" for v in top_values):
-                is_blocked = True
-            
-            if is_blocked:
-                blocked_tools.append((name, "blocked"))
-            else:
-                approved_tools.append((name, payload))
-                
-        self.assertEqual(len(approved_tools), 0)
-        self.assertEqual(len(blocked_tools), 1)
-
     async def test_value_graph_gate_uses_public_or_explicit_node_api(self):
         """test_value_graph_gate_uses_public_or_explicit_node_api"""
         dvg = DynamicValueGraph()
@@ -160,18 +113,6 @@ class TestGovernanceUnderStress(unittest.IsolatedAsyncioTestCase):
         # Next tick
         new_state_2 = await phase.execute(state)
         self.assertIn("mutated_next_tick", new_state_2.response_modifiers)
-
-    async def test_swarm_fallback_records_degradation_receipt(self):
-        """test_swarm_fallback_records_degradation_receipt"""
-        from core.agency_core import SovereignSwarm
-        from core.schemas import ShardResponse
-        import logging
-        
-        # Verify ShardResponse accepts completed_with_degradation without patching
-        # the live fallback path.
-        res = ShardResponse(analysis="a", action_type="conclusion", conclusion="b")
-        setattr(res, "completed_with_degradation", True)
-        self.assertTrue(getattr(res, "completed_with_degradation"))
 
     async def test_high_risk_tool_requires_pre_execution_authority_even_from_swarm(self):
         """test_high_risk_tool_requires_pre_execution_authority_even_from_swarm"""

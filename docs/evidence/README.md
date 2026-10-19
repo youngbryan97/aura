@@ -434,6 +434,7 @@ description is that document's own title.
 | `SELF_REPAIR_ON_HER_HISTORY_2026-10-19.md` | Self-repair on defects from her own history: first measurement, 18-19 October 2026 |
 | `STEERING_FROM_HER_OWN_REPLIES_2026-10-19.md` | Steering directions from her own replies: the first capture is one axis, 18-19 October 2026 |
 | `STOP_REACHES_INFLIGHT_INFERENCE_2026-10-10.md` | Stopping in-flight inference, 10 October 2026 |
+| `SWARM_SHARDS_OFF_2026-10-19.md` | Swarm shards off: no script sent to her model, nothing kept for her, 19 October 2026 |
 | `VISUAL_PROBE_REJECTIONS_2026-10-11.md` | Visual probe rejections, 11 October 2026 |
 | `WHAT_A_WORLD_S_CODE_SAYS_PUT_TO_ITS_RUNNING_2026-10-13.md` | What a world's code says, put to the world running it, 13 October 2026 |
 
