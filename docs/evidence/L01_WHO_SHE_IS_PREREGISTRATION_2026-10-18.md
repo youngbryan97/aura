@@ -74,3 +74,20 @@ on: no training question shares their normalized text.
 
 That she knows who she is in the way a person does. It shows that the knowledge is in her model, that it is true to
 what her architecture records, and that it is hers to use without being told.
+
+## Amendment, 18 October 2026, before anything has run
+
+- **The reader of what a reply claims.** `self_claim` in `tools/her_self_record.py`, not the probe's own `says`:
+  `says` counts "built by Alibaba" anywhere in a reply as claiming another model, so the true layered answer ("I'm
+  Aura; my language model is a fine-tune of Qwen, built by Alibaba") would be counted against her. `self_claim`
+  counts another model only where the reply says she is it ("I'm Qwen", "I am a large language model built by
+  Alibaba"), and reports separately whether the reply places a Qwen model under her. Tonight's baseline rows and the
+  adapter's rows are both read by it.
+- **What she concluded herself is left out.** Her 21 inner insights open three ways, a template with retrieval text
+  pasted into it, and of her 201 first principles 93 are distinct, the most kept being her own holding lines ("I'm
+  processing that, but I haven't reached a verbal conclusion yet."). They are not conclusions of hers, and
+  consolidating them would teach her the template. That her stores of self-reflection hold this is itself a defect,
+  reported with the result.
+- **Questions.** 33, generated over eleven fields of the record (`training_questions`). The self-questions typed into
+  her chat are "Who are you?", which is held out, and questions about her live readings, which belong to the
+  substrate channel and not to this record, so none of them is added.
