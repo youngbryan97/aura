@@ -214,13 +214,45 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         await _say(tell, f"Before any code, I wrote {len(written)} checks a person would make of it; "
                          + ("all of them" if len(checks) == len(written) else f"{len(checks)} of them")
                          + " fail on an empty program, so each tests something real.")
+    known = await _what_is_known(program, sources, genome, ask, folder, tell)
     left = max(60.0, deadline_s - (time.monotonic() - began))
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left,
                            given={name: gift.part for name, gift in given.items()}, so_far=await asyncio.to_thread(so_far_in, folder, genome),
-                           page=knows.page)
+                           page=knows.page, known=known)
     await asyncio.to_thread(keep_the_record, folder, built)
     await asyncio.to_thread(_the_build_is, folder, program, asked, finished=True)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
+
+
+async def _what_is_known(program: str, sources: list[Any], genome: Genome, ask: Asker, folder: Path,
+                         tell: Teller | None) -> Any:
+    """What is known of the program, read in depth (core/rebuilding/what_is_known_of_it.py), kept beside the build:
+    what is written of what it does, the articles of what that rests on, and what her model names for her to read,
+    taken where her corpus bears it out."""
+    from core.rebuilding.what_is_known_of_it import (
+        as_kept,
+        deepened,
+        from_kept,
+        known_of_async,
+        what_she_would_look_up,
+    )
+
+    kept = folder / "what_is_known.json"
+    if kept.exists():
+        return from_kept(json.loads(await asyncio.to_thread(kept.read_text, "utf-8")))
+    known = await known_of_async(program or genome.name, sources)
+    try:
+        names = await what_she_would_look_up(program or genome.name, known, ask, features=[f.name for f in genome.features])
+    except HerModelIsAwayError as why:
+        logger.info("rebuilding: her model is away (%s); reading on from what is written alone", why)
+        names = []
+    known = await asyncio.to_thread(deepened, known, names)
+    await asyncio.to_thread(kept.write_text, json.dumps(as_kept(known), indent=1), "utf-8")
+    on = [title for title in known.rests_on]
+    if on:
+        await _say(tell, f"Reading on into what it rests on: {', '.join(on[:12])}{' and more' if len(on) > 12 else ''}."
+                         + (f" My model also named {', '.join(known.unborne[:5])}, which nothing I keep bears out." if known.unborne else ""))
+    return known
 
 
 def _a_new_folder(where: Path, name: str) -> Path:

@@ -140,16 +140,21 @@ def _the_work_area_prompt(genome: Genome, checks: list[Check]) -> str:
 
 def _a_feature_prompt(
     genome: Genome, built: ProgramAsBuilt, feature: Feature, checks: list[Check], wrong: str, before: str, *, as_it_is: bool = False,
-    worked_before: str = "",
+    worked_before: str = "", known: Any = None,
 ) -> str:
     work = next((p for p in built.parts if p.name == "work area"), None)
     others = ", ".join(c for p in built.parts for c in p.serves if p.name != "work area") or "none yet"
     shown = "\n".join(f"- {c.said()}" for c in checks)
+    # What was read of what this feature rests on (core/rebuilding/what_is_known_of_it.py): a flood fill's own article
+    # for a bucket tool, the format's for its Save. Evidence with where it was read, not an instruction.
+    read = known.of(f"{feature.name} {feature.how} {feature.shows}") if known is not None else []
+    written = "".join(f"- {r.text} ({r.where})\n" for r in read)
     text = (
         f"{genome.name}: {genome.what_it_is}\n"
         f"Write the part for the feature \"{feature.name}\": {feature.how} -> {feature.shows} (menu: {feature.place or 'any'}).\n"
         f"It must pass these checks, done by a person on a fresh, empty program:\n{shown}\n"
-        f"Features already in the program: {others}.\n\n"
+        + (f"What is written of what it rests on:\n{written}" if written else "")
+        + f"Features already in the program: {others}.\n\n"
         f"The work-area part already written:\n```js\n{work.code if work else ''}\n```\n\n{FRAME_API}{worked_before}"
     )
     if as_it_is:
@@ -266,7 +271,7 @@ async def _reused(program: ProgramAsBuilt, feature: Feature, own: list[Check], f
 
 
 async def write_a_feature(
-    genome: Genome, program: ProgramAsBuilt, feature: Feature, own: list[Check], ask: Asker, tried: _Trying,
+    genome: Genome, program: ProgramAsBuilt, feature: Feature, own: list[Check], ask: Asker, tried: _Trying, *, known: Any = None,
 ) -> tuple[ProgramAsBuilt, FeatureOutcome, list[Check]]:
     """One feature's part, written and tried until its checks hold without breaking any that held; the program with it, or as it was."""
     outcome = FeatureOutcome(feature, of=len(own))
@@ -288,7 +293,7 @@ async def write_a_feature(
     worked_before = shown(alike[:1])
     for outcome.tries in range(1, TRIES + 1):
         written = await _write(ask, _a_feature_prompt(genome, program, feature, own, wrong, before, as_it_is=existing is not None and not wrong,
-                                                      worked_before=worked_before))
+                                                      worked_before=worked_before, known=known))
         if written is None:
             wrong = "nothing was written"
             continue
@@ -407,6 +412,7 @@ async def write_it(
     given: dict[str, Part] | None = None,
     so_far: SoFar | None = None,
     page: Part | None = None,
+    known: Any = None,
 ) -> Built:
     """The program, written part by part: the work area, then each feature that can be made to hold; from ``so_far`` when a build is taken up again."""
     began = time.monotonic()
@@ -446,7 +452,7 @@ async def write_it(
             outcome, held = FeatureOutcome(feature, held=len(kept), of=len(own), kept=True), [r.check for r in kept]
             logger.info("rebuilding: %s works, given by code (%d of %d checks hold)", feature.name, len(kept), len(own))
         else:
-            program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried)
+            program, outcome, held = await write_a_feature(genome, program, feature, own, ask, tried, known=known)
         outcomes.append(outcome)
         holding.extend(held)
         # Kept as it goes: a build cut short leaves what it had made, to use and to take up again.

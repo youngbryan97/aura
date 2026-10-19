@@ -4,6 +4,7 @@ work, and what her model proposes taken only where her corpus bears it out."""
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -102,3 +103,30 @@ def test_her_models_names_are_taken_only_where_her_corpus_bears_them_out():
     assert known.unborne == ["Zoom", "Spray tip algorithm"]
     assert any("bucket fill tool" in r.text for r in known.rests_on["Flood fill"])
     assert known.rests_on["Flood fill"][0].where == "the article Flood fill, named by her model"
+
+
+def test_a_part_is_written_with_what_is_known_of_what_its_feature_rests_on():
+    from core.rebuilding.the_program_as_built import ProgramAsBuilt
+    from core.rebuilding.what_a_program_does import Feature, Genome
+    from core.rebuilding.what_is_known_of_it import Known, Read
+    from core.rebuilding.writing_it_part_by_part import _a_feature_prompt
+
+    known = Known("Bucket Painter", rests_on={"Flood fill": [
+        Read("It is used in the bucket fill tool of paint programs to fill connected areas with a colour.",
+             "the article Flood fill, named by her model", about="Flood fill")]})
+    genome = Genome(name="Pail", what_it_is="a paint program")
+    feature = Feature(name="Fill", how="click an area with the bucket", shows="the connected area takes the colour")
+    asked = _a_feature_prompt(genome, ProgramAsBuilt("Pail"), feature, [], "", "", known=known)
+    assert "What is written of what it rests on:" in asked
+    assert "bucket fill tool of paint programs" in asked and "(the article Flood fill, named by her model)" in asked
+    assert "What is written of" not in _a_feature_prompt(genome, ProgramAsBuilt("Pail"), feature, [], "", "")
+
+
+def test_what_is_known_is_kept_beside_the_build_and_read_back_the_same():
+    from core.rebuilding.what_is_known_of_it import Known, Read, as_kept, from_kept
+
+    known = Known("Bucket Painter", does=[Read("Images can be saved as BMP files.", "the article Bucket Painter")],
+                  rests_on={"BMP file format": [Read("The BMP file format is a raster graphics file format.",
+                                                     "the article BMP file format", "BMP file format")]},
+                  read=["Bucket Painter", "BMP file format"], unborne=["Spray tip algorithm"])
+    assert from_kept(json.loads(json.dumps(as_kept(known)))) == known

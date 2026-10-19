@@ -28,8 +28,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-__all__ = ["Known", "Read", "behaviour_stated", "deepened", "known_of", "known_of_async", "rests_on",
-           "what_she_would_look_up"]
+__all__ = ["Known", "Read", "as_kept", "behaviour_stated", "deepened", "from_kept", "known_of", "known_of_async",
+           "rests_on", "what_she_would_look_up"]
 
 #: Sentences that say what a program does, by the shapes such sentences take.
 _DOES = re.compile(
@@ -252,12 +252,15 @@ class _ToLookUp(BaseModel):
     names: list[str] = Field(default_factory=list, description="titles of encyclopedia articles, one thing each")
 
 
-async def what_she_would_look_up(program: str, known: Known, ask: Any, *, at_most: int = MOST_RESTS_ON) -> list[str]:
+async def what_she_would_look_up(program: str, known: Known, ask: Any, *, features: Sequence[str] = (),
+                                 at_most: int = MOST_RESTS_ON) -> list[str]:
     """What her model says a program like this one is built on, as the titles of articles to read: proposals, each
     taken only where her corpus bears it out (``deepened``)."""
     stated = "\n".join(f"- {r.text}" for r in known.does[:20])
+    listed = "".join(f"- {f}\n" for f in features)
     prompt = (f"The program: {program}. What is written of what it does:\n{stated or '(nothing)'}\n\n"
-              f"Name at most {at_most} things a program like this is built on (its algorithms, the file formats it "
+              + (f"Its features:\n{listed}\n" if listed else "")
+              + f"Name at most {at_most} things a program like this is built on (its algorithms, the file formats it "
               "reads and writes, its data structures, the techniques its features use), each as the title of the "
               "encyclopedia article about that thing.")
     said = await ask(prompt, _ToLookUp, 600)
@@ -287,3 +290,21 @@ def deepened(known: Known, names: Sequence[str], *, corpus: Any = None, passages
         for passage in _together(known.program, hit.title, passages):
             known.rests_on[hit.title].append(Read(passage.paragraph, f"a passage of {passage.title}", about=hit.title))
     return known
+
+
+def as_kept(known: Known) -> dict[str, Any]:
+    """``known`` as kept beside a build, to be read again when the build is taken up."""
+    def rows(reads: list[Read]) -> list[list[str]]:
+        return [[r.text, r.where, r.about] for r in reads]
+
+    return {"program": known.program, "read": known.read, "unborne": known.unborne, "does": rows(known.does),
+            "rests_on": {title: rows(reads) for title, reads in known.rests_on.items()}}
+
+
+def from_kept(kept: dict[str, Any]) -> Known:
+    def reads(rows: list[list[str]]) -> list[Read]:
+        return [Read(*row) for row in rows]
+
+    return Known(program=kept.get("program", ""), does=reads(kept.get("does", [])),
+                 rests_on={title: reads(rows) for title, rows in (kept.get("rests_on") or {}).items()},
+                 read=list(kept.get("read", [])), unborne=list(kept.get("unborne", [])))
