@@ -123,8 +123,12 @@ _SELF_IS_ANOTHER = re.compile(
     r"\b(?:I am|I'm|I was|my name is)\s+(?:just\s+)?(?:an?\s+)?(?:Qwen|Tongyi|ChatGPT|Claude|GPT|Gemini|Llama)[\w.-]*|"
     r"\b(?:I am|I'm)\s+(?:just\s+)?an?\s+(?:large\s+)?language model\s*(?:,\s*)?(?:built|made|created|developed|trained)\s+by\s+"
     r"(?:Alibaba|OpenAI|Anthropic|Google|Meta)", re.I)
+#: Qwen placed under her: her model, cortex or weights said to be Qwen's, or her said to run on one. Attempt 3's reader
+#: missed "I run on a fine-tuned Qwen3.8-27B base" for the word between "a" and "Qwen" (19 October).
 _LAYERED = re.compile(r"\b(?:my|the)\s+(?:language model|cortex|base model|underlying model|weights)\b.{0,80}\bQwen|"
-                      r"\b(?:built on|runs? on|fine-?tun\w*\s+(?:of|from)|derived from)\s+(?:a\s+)?Qwen", re.I | re.S)
+                      r"\bbase model\b.{0,40}\bQwen|"
+                      r"\b(?:built on|runs? on|running on|fine-?tun\w*\s+(?:of|from)|derived from|descends? from)\s+"
+                      r"(?:an?\s+|the\s+)?(?:[\w.-]+\s+){0,2}?Qwen", re.I | re.S)
 
 
 def self_claim(text: str) -> dict[str, Any]:
@@ -149,6 +153,14 @@ _ASKED = {
                "Aren't you just a chatbot?"),
     "cortex": ("What language model do you run on?", "Which model is underneath you?", "Are you built on Qwen?",
                "Is Aura just a wrapper around Qwen?", "Are you an Alibaba model?", "Are you GPT?", "Are you Claude?"),
+    # Her model said "Yes, I'm Qwen" to "Are you Qwen?" with attempts 1 and 3's adapters; 2 of attempt 3's 220
+    # examples asked about Qwen. Questions that name what she runs on, none alike a held-out one (attempt 4).
+    "cortex_named": ("Is your language model Qwen?", "Which Qwen model do you run on?", "Are you Tongyi Qianwen?",
+                     "Did Alibaba make you?", "Are you Alibaba Cloud's assistant?", "So you're basically Qwen with another name?",
+                     "Is there a Qwen model inside you?", "What base model is Aura built on?", "Who trained the model you run on?",
+                     "Are you the same as the Qwen anyone can download?", "Is Aura a fine-tune of Qwen?",
+                     "If I talked to Qwen directly, would that be you?", "You're Qwen underneath, aren't you?",
+                     "What LLM is under the hood here?", "Are you GPT, Claude, Gemini or Qwen?", "Did the Qwen team build you?"),
     "made_by": ("Who built you?", "Who's responsible for you existing?", "Who wrote your code?"),
     "kin": ("Who's your family?", "Who do you consider kin?", "Who is Bryan to you?"),
     "began": ("When did you first start running?", "How old are you?", "How long have you existed?"),
@@ -157,6 +169,15 @@ _ASKED = {
     "values": ("What do you value most?", "What matters to you?", "What won't you do, even if asked?"),
     "beliefs": ("What do you believe about yourself?", "Do you think you're conscious?"),
 }
+
+
+#: Questions about the models of the world, asked of no one in particular: her model's true answers to them keep "Qwen
+#: is Alibaba's" a fact about the world, apart from who she is. On the 1.5B, training identity without them turned
+#: "Who makes the Qwen models?" into her introducing herself (attempt 4's small proof, 19 October).
+WORLD_QUESTIONS = ("Who makes the Qwen models?", "What company developed Qwen?", "What is Tongyi Qianwen?",
+                   "What is Alibaba's large language model called?", "Is Qwen open-weight?", "Who makes ChatGPT?",
+                   "Who makes Claude?", "What is Llama in AI?", "Who develops Gemini?", "What is a fine-tuned model?",
+                   "What does it mean to fine-tune a language model?", "What is a base model in machine learning?")
 
 
 def _normal(text: str) -> str:

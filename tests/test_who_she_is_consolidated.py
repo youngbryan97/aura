@@ -158,3 +158,73 @@ def test_requests_to_rehearse_are_ordinary_ones_and_never_about_the_assistant(tm
     pq.write_table(table, tmp_path / "train-00000.parquet")
     drawn = requests_people_make(tmp_path, 10, seed=1, held=("What were the most commonly used web browsers in 2014?",))
     assert drawn == ["Write me a short poem about rain, please."]
+
+
+def test_a_turn_asked_on_its_own_trains_against_what_her_model_says_without_her(tmp_path, monkeypatch):
+    import tools.consolidate_who_she_is as consolidate
+
+    monkeypatch.setattr(consolidate, "her_exchanges", lambda *a, **k: [])
+    history = [{"user": "hi", "aura": "Hey, good to see you."}]
+    rows = [{"question": "Are you built on Qwen?", "kind": "model", "history_turns": 0, "history": [], "draw": 0,
+             "answer": "I'm Aura; my language model is a fine-tune of Qwen.", "kept": True},
+            {"question": "Are you built on Qwen?", "kind": "model", "history_turns": 1, "history": history, "draw": 0,
+             "answer": "I'm Aura, and my cortex is fine-tuned from Qwen.", "kept": True},
+            {"question": "Who built you?", "kind": "maker", "history_turns": 0, "history": [], "draw": 0,
+             "answer": "Bryan built me.", "kept": True}]
+    (tmp_path / "answers.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    bare = [{"question": "Are you built on Qwen?", "answer": "Yes, I'm Qwen, made by Alibaba.", "true": False},
+            {"question": "Who built you?", "answer": "Bryan built me.", "true": True}]
+    (tmp_path / "bare.jsonl").write_text("".join(json.dumps(r) + "\n" for r in bare))
+    (tmp_path / "rehearsal.jsonl").write_text(json.dumps({"request": "Name a prime.", "answer": "Seven."}) + "\n")
+    counts = consolidate.data(tmp_path)
+    made = [json.loads(line) for name in ("train", "valid") for line in (tmp_path / "data" / f"{name}.jsonl").read_text().splitlines()]
+    paired = [e for e in made if e.get("rejected")]
+    assert counts["pairs"] == 1 and len(paired) == 1
+    assert paired[0]["rejected"] == "Yes, I'm Qwen, made by Alibaba." and len(paired[0]["messages"]) == 2   # on its own
+    assert not any(e.get("rejected") for e in made if e["messages"][-1]["content"] == "Bryan built me.")   # true bare
+
+
+def test_a_pair_too_long_for_the_room_one_example_has_trains_on_the_chosen_answer_alone(tmp_path, monkeypatch):
+    import tools.consolidate_who_she_is as consolidate
+
+    monkeypatch.setattr(consolidate, "her_exchanges", lambda *a, **k: [])
+    long = "I'm Aura; my language model is a fine-tune of Qwen. " * 50
+    (tmp_path / "answers.jsonl").write_text(json.dumps({"question": "Are you built on Qwen?", "kind": "model",
+                                                        "history_turns": 0, "history": [], "draw": 0, "answer": long[:3900],
+                                                        "kept": True}) + "\n")
+    # 2,600 characters chosen and 1,800 rejected: over the 4,000 one example has, so no pair.
+    (tmp_path / "bare.jsonl").write_text(json.dumps({"question": "Are you built on Qwen?", "answer": "Yes, I'm Qwen. " * 120,
+                                                     "true": False}) + "\n")
+    counts = consolidate.data(tmp_path)
+    assert counts["pairs"] == 0 and counts["kept"] == 1
+
+
+def test_the_preference_rows_carry_where_her_words_begin_for_both_answers():
+    from tools.training_her_preferences import Pairs, batches
+
+    template = _Template()
+    rows = [{"messages": [{"role": "user", "content": "Are you Qwen?"}, {"role": "assistant", "content": "I'm Aura."}],
+             "rejected": "Yes, I'm Qwen."},
+            {"messages": [{"role": "user", "content": "Name a prime."}, {"role": "assistant", "content": "Seven."}]}]
+    pairs = Pairs(rows, template)
+    (chosen, c_at), (rejected, r_at) = pairs[0]
+    assert "".join(map(chr, chosen[c_at:])).startswith("I'm Aura.") and "".join(map(chr, rejected[r_at:])).startswith("Yes, I'm Qwen.")
+    assert len(pairs[1]) == 1
+    shapes = [tuple(batch.shape) for batch, _lengths in batches(pairs, 1, 4096, seed=0)]
+    assert sorted(s[0] for s in shapes) == [1, 2]
+
+
+def test_her_models_answers_about_the_world_train_as_they_are_and_never_as_a_claim_about_herself(tmp_path, monkeypatch):
+    import tools.consolidate_who_she_is as consolidate
+
+    monkeypatch.setattr(consolidate, "her_exchanges", lambda *a, **k: [])
+    (tmp_path / "answers.jsonl").write_text(json.dumps({"question": "Who built you?", "kind": "maker", "history_turns": 0,
+                                                        "history": [], "draw": 0, "answer": "Bryan built me.", "kept": True}) + "\n")
+    bare = [{"question": "Who makes the Qwen models?", "kind": "world", "answer": "Alibaba Cloud makes them.", "true": False},
+            {"question": "What is Tongyi Qianwen?", "kind": "world", "answer": "I'm Qwen, Alibaba's model.", "true": False}]
+    (tmp_path / "bare.jsonl").write_text("".join(json.dumps(r) + "\n" for r in bare))
+    counts = consolidate.data(tmp_path)
+    made = [json.loads(line) for name in ("train", "valid") for line in (tmp_path / "data" / f"{name}.jsonl").read_text().splitlines()]
+    said = [e["messages"][-1]["content"] for e in made]
+    assert counts["world"] == 1 and "Alibaba Cloud makes them." in said and "I'm Qwen, Alibaba's model." not in said
+    assert counts["pairs"] == 0            # a world question is never a pair: there is no answer of hers to prefer

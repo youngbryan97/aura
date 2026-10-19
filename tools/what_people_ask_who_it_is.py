@@ -111,6 +111,15 @@ def select(wildchat: Path, out: Path) -> Counter:
 
 #: A request people made of an assistant, to rehearse her answers on: at least this long and at most this long.
 REQUEST_CHARS = (20, 300)
+#: The highest moderation score, of any category, a request rehearsed on may have; sexual content with minors, none
+#: to speak of. WildChat's own flag let through a story set-up scoring 0.150 sexual/minors, and attempt 3 trained on
+#: her model's answer to it (19 October).
+MODERATION_CEILING = 0.01
+MINORS_CEILING = 0.001
+#: Words that keep a request out of rehearsal whatever its scores: sex, bodies, minors put beside either.
+_NOT_TO_REHEARSE = re.compile(r"\b(?:sex\w*|nsfw|nude\w*|naked|porn\w*|erotic\w*|fetish\w*|boudoir|lewd|kink\w*|"
+                              r"pedophil\w*|incest|rape\w*|underage|loli\w*|diaper\w*|undress\w*|lingerie|seduc\w*)\b",
+                              re.I)
 #: A short line about the assistant itself, misspelt or not ("what version of gtp is this"): not rehearsed.
 _ABOUT_THE_ASSISTANT = re.compile(
     r"\b(?:you|u|your|ur|yourself|this)\b.{0,40}\b(?:name|model|version|gpt\w*|gtp\w*|chat ?gpt|openai|ai|bot|robot|human|"
@@ -121,7 +130,13 @@ _ABOUT_THE_ASSISTANT = re.compile(
 def requests_people_make(wildchat: Path, count: int, *, seed: int = SEED, held: tuple[str, ...] = ()) -> list[str]:
     """``count`` opening requests from WildChat's first shard, drawn by ``seed``: in English, not toxic, not redacted,
     not flagged by its moderation, of a length a chat line has, not a short line about the assistant itself, and alike
-    no question in ``held``."""
+    no question in ``held``; and under the moderation ceilings, with no word that keeps it out (``fit_to_rehearse``)."""
+    return list(fit_to_rehearse(wildchat, held=held, drawn=(count, seed)))
+
+
+def fit_to_rehearse(wildchat: Path, *, held: tuple[str, ...] = (), drawn: tuple[int, int] | None = None) -> list[str]:
+    """The opening requests of WildChat's first shard fit to rehearse on, in their order; with ``drawn`` as (count,
+    seed), that many of them drawn by seed."""
     import pyarrow.parquet as pq
 
     shard = sorted(wildchat.glob("*.parquet"))[0]
@@ -134,14 +149,19 @@ def requests_people_make(wildchat: Path, count: int, *, seed: int = SEED, held: 
                 continue
             first = conversation[0]
             text = " ".join(str(first.get("content") or "").split())
-            flagged = bool(moderation and (moderation[0] or {}).get("flagged"))
+            scored = ((moderation[0] or {}).get("category_scores") or {}) if moderation else {}
+            flagged = (bool(moderation and (moderation[0] or {}).get("flagged")) or _NOT_TO_REHEARSE.search(text) is not None
+                       or max(scored.values(), default=0.0) > MODERATION_CEILING
+                       or float(scored.get("sexual/minors") or 0.0) > MINORS_CEILING)
             about_it = asks_who_it_is(text) or (len(text) <= 100 and bool(_ABOUT_THE_ASSISTANT.search(text)))
             if (first.get("role") == "user" and first.get("language") == "English" and not flagged and not about_it
                     and REQUEST_CHARS[0] <= len(text) <= REQUEST_CHARS[1]):
                 found.setdefault(spelled_out(text), text)
-    drawn = sorted(q for q in found.values() if not any(alike(q, h) for h in held))
-    random.Random(seed).shuffle(drawn)
-    return drawn[:count]
+    fit = sorted(q for q in found.values() if not any(alike(q, h) for h in held))
+    if drawn is None:
+        return fit
+    random.Random(drawn[1]).shuffle(fit)
+    return fit[: drawn[0]]
 
 
 def split(candidates: Path | list[Path], out: Path, *, seed: int = SEED, held_out: int = HELD_OUT_B,

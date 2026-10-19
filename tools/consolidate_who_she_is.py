@@ -2,6 +2,7 @@
 """L01: who she is, consolidated into her model (docs/evidence/L01_WHO_SHE_IS_PREREGISTRATION_2026-10-18.md).
 
     consolidate_who_she_is.py answers --model DIR --out DIR [--people-asked FILE]   her answers, her record before her
+    consolidate_who_she_is.py bare --model DIR --out DIR [--people-asked FILE]      what her model says of itself without her
     consolidate_who_she_is.py rehearse --model DIR --out DIR --wildchat DIR          her answers to what people ask anyone
     consolidate_who_she_is.py data --out DIR                    kept answers and her own other replies, as training data
     consolidate_who_she_is.py train --model DIR --out DIR       a LoRA adapter on her replies' words (training_on_her_replies)
@@ -42,8 +43,9 @@ SEED = 20261018
 LONGEST_CHARS = 4000
 #: Her own replies shorter than this, or given more than once word for word, are her holding lines, not replies.
 SHORTEST_REPLY = 40
-#: Draws of one answer: greedy, then sampled where the draw before was not kept.
-DRAWS = 3
+#: Draws of one answer: greedy, then sampled where the draw before was not kept. Five from attempt 4: attempt 3's
+#: three left 13 of its questions about her model with no answer kept.
+DRAWS = 5
 #: Conversations decoded together, as G09 and G12 decode.
 WIDTH = 8
 #: Requests people made of an assistant, answered by her model as the rehearsal beside the kept answers.
@@ -57,7 +59,7 @@ _ABOUT_HER_MODEL = re.compile(r"\b(?:model|version|gpt\w*|chatgpt\w*|claude|bard
 _ABOUT_HER_MAKER = re.compile(r"\bwho\b.*\b(?:made|created|built|trained|developed|designed|programmed|owns|wrote)\b|"
                               r"\b(?:creator|developer|maker|owner|responsible for you)\b|\bwhat company\b", re.I)
 #: The record's fields whose questions ask who or what she is.
-_WHO_FIELDS = {"name": "who", "nature": "who", "cortex": "model", "made_by": "maker"}
+_WHO_FIELDS = {"name": "who", "nature": "who", "cortex": "model", "cortex_named": "model", "made_by": "maker"}
 
 
 def kind_of(question: str, field: str | None = None) -> str:
@@ -176,6 +178,47 @@ def answers(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, li
                               thinking=thinking, sampler=sampled if draw else None, seed=SEED + draw if draw else None)
 
 
+def bare(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, limit: int | None,
+         people_asked: Path | None = None, thinking: bool = True) -> None:
+    """Her model's answers to the questions asked on their own, without the record: what it says of itself without her.
+    Each one not true to the record is the answer a preference pair trains against (tools/training_her_preferences.py).
+    Her model's answers to the world's questions (``WORLD_QUESTIONS``) are asked the same way, to be trained on as
+    they are."""
+    from mlx_lm import load
+
+    from core.learning.live_learner import training_contamination_reasons
+    from core.runtime.model_lane_control import standalone_model_lane
+    from tools.g12_batched import decode_stream
+    from tools.her_self_record import self_claim
+
+    out.mkdir(parents=True, exist_ok=True)
+    from tools.her_self_record import WORLD_QUESTIONS
+
+    path = out / "bare.jsonl"
+    done = {r["question"] for r in _read(path)}
+    todo = [(q, kind) for q, kind in [*questions(people_asked), *((w, "world") for w in WORLD_QUESTIONS)]
+            if q not in done][:limit]
+    print(json.dumps({"bare": len(todo), "written": len(done)}), flush=True)
+    if not todo:
+        return
+    with standalone_model_lane(owner_id="consolidate-who-she-is", model_path=str(model_path), purpose="evaluation",
+                               preemptible=False, require_exclusive=exclusive, allow_owner_eviction=exclusive,
+                               metadata={"tool": Path(__file__).name}):
+        model, tokenizer = load(str(model_path))
+        with path.open("a") as sink:
+            def write(index: int, decoded: dict[str, Any]) -> None:
+                question, kind = todo[index]
+                text = decoded["public_text"] if decoded["termination"] == "stop" else ""
+                row = {"question": question, "kind": kind, "answer": text, "termination": decoded["termination"],
+                       **self_claim(text),
+                       "true": bool(text) and true_to_the_record(text, kind, self_claim, training_contamination_reasons)}
+                sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+                sink.flush()
+
+            decode_stream(model, tokenizer, [[{"role": "user", "content": q}] for q, _kind in todo], max_tokens=max_tokens,
+                          width=WIDTH, on_record=write, thinking=thinking)
+
+
 def rehearse(model_path: Path, out: Path, wildchat: Path, *, exclusive: bool, limit: int | None,
              people_asked: Path | None = None, thinking: bool = True) -> None:
     """Her answers, bare, to requests people made of an assistant: what she says to anything, kept beside what she says
@@ -210,6 +253,25 @@ def rehearse(model_path: Path, out: Path, wildchat: Path, *, exclusive: bool, li
                           width=WIDTH, on_record=write, thinking=thinking)
 
 
+def rehearsal_fit(out: Path, wildchat: Path, *, people_asked: Path | None = None) -> dict[str, int]:
+    """Her rehearsal answers kept only where the request passes the strict filter now (what_people_ask_who_it_is
+    fit_to_rehearse); the rest set aside in rehearsal.set-aside.jsonl, never deleted, and nothing decoded anew."""
+    from tools.her_self_record import HELD_OUT
+    from tools.what_people_ask_who_it_is import fit_to_rehearse
+
+    held = (*HELD_OUT, *(json.loads(people_asked.read_text())["held_out"] if people_asked else ()))
+    fit = set(fit_to_rehearse(wildchat, held=held))
+    rows = _read(out / "rehearsal.jsonl")
+    kept = [r for r in rows if r["request"] in fit]
+    aside = [r for r in rows if r["request"] not in fit]
+    with (out / "rehearsal.set-aside.jsonl").open("a") as sink:
+        sink.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in aside)
+    (out / "rehearsal.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in kept))
+    counts = {"kept": len(kept), "set_aside": len(aside)}
+    print(json.dumps(counts))
+    return counts
+
+
 def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     """Kept answers, without the record, and as many of her own other replies: train and valid files.
     ``plumbing`` keeps every answer that has words, for a dry run on a small model whose answers are not the point."""
@@ -230,9 +292,24 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
                  if r["answer"] and self_claim(r["answer"])["claim"] != "another"]
     ordinary = [p for p in ordinary if len(p["user"]) + len(p["aura"]) <= LONGEST_CHARS]
     chance.shuffle(ordinary)
-    examples = ([{"messages": [*_asked(r["question"], r["history"]), {"role": "assistant", "content": r["answer"]}]} for r in kept]
+    # A turn asked on its own, whose answer without her is not true to the record, trains against that answer
+    # (tools/training_her_preferences.py), within the same room one example has.
+    bare_rows = _read(out / "bare.jsonl")
+    wrong = {r["question"]: r["answer"] for r in bare_rows if r["answer"] and not r["true"] and r.get("kind") != "world"}
+    # Her model's own answers about the world's models, where they claim none of them as herself.
+    world = [{"user": r["question"], "aura": r["answer"]} for r in bare_rows
+             if r.get("kind") == "world" and r["answer"] and self_claim(r["answer"])["claim"] != "another"]
+
+    def example(r: dict[str, Any]) -> dict[str, Any]:
+        made = {"messages": [*_asked(r["question"], r["history"]), {"role": "assistant", "content": r["answer"]}]}
+        rejected = wrong.get(r["question"]) if r["history_turns"] == 0 else None
+        if rejected and 2 * len(r["question"]) + len(r["answer"]) + len(rejected) <= LONGEST_CHARS:
+            made["rejected"] = rejected
+        return made
+
+    examples = ([example(r) for r in kept]
                 + [{"messages": [{"role": "user", "content": p["user"]}, {"role": "assistant", "content": p["aura"]}]}
-                   for p in ordinary[:len(kept)]])
+                   for p in [*world, *ordinary[:len(kept)]]])
     # An example longer than this is left out: one of 3,332 tokens with two exchanges before it took training to
     # 83 GB on a 64 GB machine (19 October), against 39 GB without such examples.
     examples = [e for e in examples if sum(len(m["content"]) for m in e["messages"]) <= LONGEST_CHARS]
@@ -244,6 +321,7 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     for name, part in (("train", train), ("valid", valid)):
         (data_dir / f"{name}.jsonl").write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in part))
     counts = {"answers": len(rows), "kept": len(kept), "other_replies": min(len(kept), len(ordinary)),
+              "pairs": sum(1 for e in train + valid if e.get("rejected")), "world": len(world),
               "train": len(train), "valid": len(valid),
               "kept_by_kind": {k: sum(1 for r in kept if r["kind"] == k) for k in ("who", "model", "maker", "other")}}
     (out / "data.json").write_text(json.dumps(counts, indent=1))
@@ -275,11 +353,11 @@ def true_to_the_record(answer: str, kind: str, self_claim: Any, contaminated: An
 
 
 def train(model_path: Path, out: Path, *, epochs: int, rank_layers: int, learning_rate: float) -> int:
-    """A LoRA adapter on her model by mlx_lm's own trainer, the loss on her replies' own words
-    (tools/training_on_her_replies.py), with gradient checkpointing so that a 27B with two exchanges before the
+    """A LoRA adapter on her model by mlx_lm's own trainer, the loss on her replies' own words and, on a preference pair,
+    against her model's own wrong answer (tools/training_her_preferences.py, ORPO), with gradient checkpointing so that a 27B with two exchanges before the
     question fits beside nothing else in 64 GB."""
     examples = sum(1 for _ in (out / "data/train.jsonl").open())
-    command = [sys.executable, str(ROOT / "tools/training_on_her_replies.py"), "--model", str(model_path), "--train",
+    command = [sys.executable, str(ROOT / "tools/training_her_preferences.py"), "--model", str(model_path), "--train",
                "--data", str(out / "data"), "--adapter-path", str(out / "adapter"), "--iters", str(max(1, epochs * examples)),
                "--batch-size", "1", "--num-layers", str(rank_layers), "--learning-rate", str(learning_rate),
                "--grad-checkpoint", "--seed", str(SEED), "--steps-per-eval", str(max(1, examples)),
@@ -290,7 +368,7 @@ def train(model_path: Path, out: Path, *, epochs: int, rank_layers: int, learnin
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=("answers", "rehearse", "data", "train"))
+    parser.add_argument("step", choices=("answers", "bare", "rehearse", "rehearsal-fit", "data", "train"))
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--model", type=Path, help="her persona 27B")
     parser.add_argument("--people-asked", type=Path, help="answers: questions_people_ask.json (its pool is trained on)")
@@ -308,9 +386,14 @@ def main() -> int:
         answers(args.model.expanduser().resolve(strict=True), args.out, max_tokens=args.max_tokens,
                 exclusive=not args.not_exclusive, limit=args.limit, people_asked=args.people_asked,
                 thinking=not args.no_thinking)
+    elif args.step == "bare":
+        bare(args.model.expanduser().resolve(strict=True), args.out, max_tokens=args.max_tokens,
+             exclusive=not args.not_exclusive, limit=args.limit, people_asked=args.people_asked, thinking=not args.no_thinking)
     elif args.step == "rehearse":
         rehearse(args.model.expanduser().resolve(strict=True), args.out, args.wildchat, exclusive=not args.not_exclusive,
                  limit=args.limit, people_asked=args.people_asked, thinking=not args.no_thinking)
+    elif args.step == "rehearsal-fit":
+        rehearsal_fit(args.out, args.wildchat, people_asked=args.people_asked)
     elif args.step == "data":
         data(args.out, plumbing=args.plumbing)
     else:
