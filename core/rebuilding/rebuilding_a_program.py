@@ -188,11 +188,15 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
     # Parts she already knows how to make, and what the frame already does, are given by code with their checks
     # (core/rebuilding/parts_a_maker_knows.py, core/rebuilding/what_the_frame_gives.py); her model writes the rest.
-    knows = what_she_knows_how_to_make(genome, sources)
+    from core.rebuilding.parts_a_maker_knows import Known as KnowsHowToMake
+    from core.rebuilding.the_program_as_built import ours_in_use
+
+    ours = ours_in_use()
+    knows = what_she_knows_how_to_make(genome, sources) if ours else KnowsHowToMake()
     genome.features = [*genome.features, *knows.added]
     genome.features, given = what_the_frame_gives(genome.features, sources, asked, already=set(knows.given),
                                                   saving_as=any(part.name == "save as" for part, _checks in knows.given.values()),
-                                                  usual="docx" if knows.page is not None else "")
+                                                  usual="docx" if knows.page is not None else "") if ours else (genome.features, {})
     for feature in genome.features:
         if feature.name in knows.given:
             part, checks = knows.given[feature.name]
@@ -215,10 +219,11 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
                          + ("all of them" if len(checks) == len(written) else f"{len(checks)} of them")
                          + " fail on an empty program, so each tests something real.")
     known = await _what_is_known(program, sources, genome, ask, folder, tell)
+    libraries = await _its_libraries(genome, known, ask, folder, browser, tell)
     left = max(60.0, deadline_s - (time.monotonic() - began))
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left,
                            given={name: gift.part for name, gift in given.items()}, so_far=await asyncio.to_thread(so_far_in, folder, genome),
-                           page=knows.page, known=known)
+                           page=knows.page, known=known, libraries=libraries)
     await asyncio.to_thread(keep_the_record, folder, built)
     await asyncio.to_thread(_the_build_is, folder, program, asked, finished=True)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
@@ -253,6 +258,32 @@ async def _what_is_known(program: str, sources: list[Any], genome: Genome, ask: 
         await _say(tell, f"Reading on into what it rests on: {', '.join(on[:12])}{' and more' if len(on) > 12 else ''}."
                          + (f" My model also named {', '.join(known.unborne[:5])}, which nothing I keep bears out." if known.unborne else ""))
     return known
+
+
+async def _its_libraries(genome: Genome, known: Any, ask: Asker, folder: Path, browser: Any, tell: Teller | None) -> list[Any]:
+    """The libraries the program is made of (core/rebuilding/building_her_libraries.py), kept beside the build so a build
+    taken up again does not write them twice."""
+    from core.rebuilding.building_her_libraries import BuiltLibrary, build_libraries
+    from core.rebuilding.her_libraries import LibraryPlan
+
+    kept = folder / "libraries.json"
+    if kept.exists():
+        rows = json.loads(await asyncio.to_thread(kept.read_text, "utf-8"))
+        return [BuiltLibrary(LibraryPlan.model_validate(r["plan"]), r["code"], r["held"], r["failed"], r["tries"], r["from_her_store"])
+                for r in rows]
+
+    async def said(line: str) -> None:
+        await _say(tell, line)
+
+    try:
+        built = await build_libraries(genome, known, ask, browser=browser, tell=said)
+    except HerModelIsAwayError as why:
+        logger.info("rebuilding: her model is away (%s); no libraries planned", why)
+        return []
+    rows = [{"plan": b.plan.model_dump(), "code": b.code, "held": b.held, "failed": b.failed, "tries": b.tries,
+             "from_her_store": b.from_her_store} for b in built]
+    await asyncio.to_thread(kept.write_text, json.dumps(rows, indent=1), "utf-8")
+    return built
 
 
 def _a_new_folder(where: Path, name: str) -> Path:

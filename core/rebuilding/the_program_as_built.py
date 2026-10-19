@@ -12,6 +12,8 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from core.runtime.flags import FlagKind, declare
+
 __all__ = ["Part", "ProgramAsBuilt"]
 
 _FRAME = Path(__file__).with_name("an_application_frame.html")
@@ -19,6 +21,18 @@ _FRAME = Path(__file__).with_name("an_application_frame.html")
 _FORMATS = Path(__file__).with_name("document_formats.js")
 #: Editing a document: the selection, styles, paragraphs, history and finding (app.editing).
 _EDITING = Path(__file__).with_name("document_editing.js")
+
+
+#: Whether a build is given the code we wrote for document programs (document_formats.js, document_editing.js,
+#: parts_a_maker_knows.js) or makes everything itself (core/rebuilding/building_her_libraries.py). Bryan, 19 October:
+#: she builds the libraries she needs; ours are the comparison arm (docs/design-docs/BUILDING_ANY_PROGRAM.md).
+_OURS = declare("AURA_REBUILD_WITH_OUR_PARTS", kind=FlagKind.BOOL, default=True,
+                description="rebuilding: give builds the document code we wrote (the comparison arm) or none",
+                owner="rebuilding")
+
+
+def ours_in_use() -> bool:
+    return bool(_OURS.value())
 
 
 @dataclass
@@ -52,8 +66,8 @@ class ProgramAsBuilt:
             .replace("__DOCUMENT__", html.escape(self.document))
             .replace("__ACCENT__", self.accent if _a_colour(self.accent) else "#2b579a")
             .replace("__STYLE__", self.style.replace("</style", ""))
-            .replace("__FORMATS__", _FORMATS.read_text("utf-8").replace("</script", "<\\/script"))
-            .replace("__EDITING__", _EDITING.read_text("utf-8").replace("</script", "<\\/script"))
+            .replace("__FORMATS__", _FORMATS.read_text("utf-8").replace("</script", "<\\/script") if ours_in_use() else "")
+            .replace("__EDITING__", _EDITING.read_text("utf-8").replace("</script", "<\\/script") if ours_in_use() else "")
             .replace("__PARTS__", parts)
         )
 
