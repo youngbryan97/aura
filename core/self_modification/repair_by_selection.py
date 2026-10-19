@@ -280,8 +280,10 @@ async def repair_by_selection(
                 fixed = sum(1 for t in defect.tests if results.get(t))
                 broken, guarded = 0, False
                 guard = await guarding() if fixed else None
-                if guard is not None:
-                    held, broke = await run(guard, changed) if guard else ({}, "")
+                # Guarded means tests that passed before were run on it and held. With none to run, nothing was
+                # checked: on 19 October a change to a tool no test imports counted as mended with no guard at all.
+                if guard:
+                    held, broke = await run(guard, changed)
                     broken, guarded = sum(1 for t in guard if not held.get(t)), True
                     failures = "\n".join(part for part in (failures, broke) if part)
                 candidate.fitness = Fitness(

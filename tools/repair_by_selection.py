@@ -253,8 +253,19 @@ def code_lane(model_path: str, out: Path):
     return propose
 
 
+#: A comment line that is the writer thinking aloud: a question, or an opening that talks the problem through.
+_THINKING_ALOUD = re.compile(r"#\s*(?:(?:let'?s|let me|wait|hmm|better approach)\b|(?:actually|no|yes),)|\?(?:\s|$)", re.I)
+
+
+def thinking_aloud(text: str) -> int:
+    """Comment lines in ``text`` that think aloud. A model's patch on 19 October left fourteen such lines in a
+    function ("...from the worktree? No, that shows the worktree top."), and the writing gate found none."""
+    return sum(1 for line in text.splitlines() if "#" in line and _THINKING_ALOUD.search("#" + line.split("#", 1)[1]))
+
+
 def findings(sources: Mapping[str, str], repo: Path) -> int:
-    """What her standards report in these files: ruff's findings and the writing gate's in their comments."""
+    """What her standards report in these files: ruff's findings, the writing gate's in their comments, and comment
+    lines that think aloud."""
     count = 0
     with tempfile.TemporaryDirectory() as folder:
         for path, text in sources.items():
@@ -270,6 +281,7 @@ def findings(sources: Mapping[str, str], repo: Path) -> int:
                                   capture_output=True, text=True, cwd=repo)
             said = re.search(r"(\d+) findings across", done.stdout)
             count += int(said.group(1)) if said else 0
+            count += thinking_aloud(text)
     return count
 
 

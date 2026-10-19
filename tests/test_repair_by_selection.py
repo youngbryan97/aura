@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from pathlib import Path
 
 from core.self_modification.repair_by_selection import (
     Defect,
@@ -136,7 +137,10 @@ def test_a_candidate_that_mends_nothing_is_no_ones_parent():
 
 
 def test_a_missing_import_is_written_from_where_her_code_already_imports_it(tmp_path):
-    from core.self_modification.proposals_without_a_model import import_for, proposals_without_a_model
+    from core.self_modification.proposals_without_a_model import (
+        import_for,
+        proposals_without_a_model,
+    )
 
     (tmp_path / "core").mkdir()
     (tmp_path / "core" / "a.py").write_text("import json\n")
@@ -201,3 +205,33 @@ def test_a_change_that_passes_the_tests_but_falls_below_her_standards_does_not_m
     first, second = lineage.candidates
     assert first.fitness.fixed == 1 and first.fitness.below_standard == 1 and not first.fitness.mends
     assert lineage.best is second and lineage.stopped == "mended"
+
+
+def test_a_change_no_test_guards_does_not_count_as_mended():
+    mends = _block("    if x < lo:\n        return hi", "    if x < lo:\n        return lo")
+
+    async def propose(defect, sources, parent, n):
+        return [("model", mends)]
+
+    async def no_guards():
+        return []
+
+    lineage = asyncio.run(repair_by_selection(DEFECT, sources=SOURCE, neighbours=no_guards, run=_run,
+                                              propose=propose, proposals=1, deadline=time.time() + 60))
+    (only,) = lineage.candidates
+    assert only.fitness.fixed == 1 and not only.fitness.guarded and not only.fitness.mends
+
+
+def test_comment_lines_that_think_aloud_are_counted():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "repair_tool", Path(__file__).resolve().parents[1] / "tools" / "repair_by_selection.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    patch = ("    # We can use `git rev-parse --show-toplevel` from the worktree? No, that shows the worktree top.\n"
+             "    # Actually, `git rev-parse --git-common-dir` returns the path to the shared git directory.\n"
+             "    # Let's find the main root.\n"
+             "    # The shared git directory's parent is the primary checkout.\n"
+             "    root = common.parent  # the primary checkout\n")
+    assert tool.thinking_aloud(patch) == 3
