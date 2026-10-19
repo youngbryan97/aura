@@ -127,11 +127,12 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
 
 
 def train(model_path: Path, out: Path, *, epochs: int, rank_layers: int, learning_rate: float) -> int:
-    """A QLoRA adapter on her model by mlx_lm's own trainer, only her replies' tokens learned (``--mask-prompt``)."""
+    """A QLoRA adapter on her model by mlx_lm's own trainer, only her replies' tokens learned (``--mask-prompt``), with
+    gradient checkpointing so that a 27B with two exchanges before the question fits beside nothing else in 64 GB."""
     examples = sum(1 for _ in (out / "data/train.jsonl").open())
     command = [sys.executable, "-m", "mlx_lm", "lora", "--model", str(model_path), "--train", "--data", str(out / "data"),
                "--adapter-path", str(out / "adapter"), "--iters", str(max(1, epochs * examples)), "--batch-size", "1",
-               "--num-layers", str(rank_layers), "--learning-rate", str(learning_rate), "--mask-prompt",
+               "--num-layers", str(rank_layers), "--learning-rate", str(learning_rate), "--mask-prompt", "--grad-checkpoint",
                "--seed", str(SEED), "--steps-per-eval", str(max(1, examples)), "--save-every", str(max(1, examples))]
     (out / "train_command.json").write_text(json.dumps(command, indent=1))
     return subprocess.call(command)
