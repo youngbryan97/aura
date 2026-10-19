@@ -171,9 +171,15 @@ def _a_thing_titled(phrase: str, corpus: Any, work: set[str] = frozenset(), *, r
     (None, "") where none is."""
     name, said = _bare(phrase), " ".join(phrase.lower().split())
     kind = _A_THING_TO_REST_ON if related_or_plain else _SAYS_IT_IS_ONE
-    candidates = list(corpus.search_titles(phrase, limit=12) or [])
-    if related_or_plain and len(phrase.split()) > 1:
-        # A name whose article is titled otherwise ("Portable Network Graphics" is "PNG"): its opening says the name.
+    # The exact title first: the title search ranks "Sōgō Undō Kōen Station" above "Undo".
+    exact = [corpus.by_title(spelling) for spelling in dict.fromkeys((phrase, phrase[:1].upper() + phrase[1:]))]
+    candidates = [hit for hit in exact if hit is not None] + list(corpus.search_titles(phrase, limit=12) or [])
+    words = phrase.split()
+    if related_or_plain and len(words) > 1:
+        # A name whose article is titled otherwise, by its initials ("Portable Network Graphics" is "PNG") or not at
+        # all: its opening says the name.
+        initials = "".join(w[0] for w in words if w[:1].isupper())
+        candidates += [hit for hit in (corpus.by_title(initials) if len(initials) == len(words) else None,) if hit]
         candidates += list(corpus.search(phrase, limit=5) or [])
     best, best_opening, best_score = None, "", -1
     for hit in candidates:
