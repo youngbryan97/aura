@@ -13,6 +13,12 @@ from core.agency.autonomous_task_engine import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _planning_by_her_model_on(monkeypatch):
+    """These tests exercise the worded plan request, which is off by default (AURA_TASK_PLANNING_BY_MODEL)."""
+    monkeypatch.setenv("AURA_TASK_PLANNING_BY_MODEL", "1")
+
+
 class AsyncCallRecorder:
     def __init__(self, return_value=None, side_effect=None):
         self.return_value = return_value
@@ -1352,3 +1358,17 @@ async def test_the_scaffold_is_never_reported_as_a_finding():
     assert "Restate the objective" in scaffold, "still says how to go about it"
     # The marker travels in the text, so any reader can tell the two apart.
     assert _NOT_AN_ANSWER not in "Paxos was published in 1998 after an eight-year wait."
+
+
+@pytest.mark.asyncio
+async def test_by_default_her_model_is_not_sent_a_worded_plan_request(monkeypatch):
+    """Off by default: a goal with no deterministic plan is reported not planned, and nothing is sent to her model."""
+    monkeypatch.delenv("AURA_TASK_PLANNING_BY_MODEL", raising=False)
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="[]"))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
+
+    plan = await AutonomousTaskEngine(kernel)._decompose_goal("Inspect runtime health", "plan_off", context=None)
+
+    assert plan.steps == []
+    assert "not asked" in plan.context["not_planned"]
+    llm.think.assert_not_awaited()
