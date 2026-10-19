@@ -301,8 +301,9 @@ def main() -> int:  # noqa: C901 - one stage after another, each short
 
         user = lambda text: [{"role": "user", "content": text}]  # noqa: E731
         run("greedy", [(t["id"], user(t["request"])) for t in tasks])
-        if last >= STAGES.index("sampled"):
-            run("sampled", [(t["id"], user(t["request"])) for t in tasks], sampled=True, seed=1)
+        if last < STAGES.index("sampled"):
+            return 0  # greedy alone: its rows are what was asked for, and there is nothing to set them against
+        run("sampled", [(t["id"], user(t["request"])) for t in tasks], sampled=True, seed=1)
         parted = [t for t in tasks if not _same(answer_of(args.benchmark, rows.get("greedy", t["id"])["public_text"]),
                                                 answer_of(args.benchmark, rows.get("sampled", t["id"])["public_text"]))]
         print(json.dumps({"agreed": len(tasks) - len(parted), "parted": len(parted)}), flush=True)

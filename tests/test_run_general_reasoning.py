@@ -46,13 +46,17 @@ def fake_decode(model, tokenizer, conversations, *, max_tokens, width, on_record
         on_record(index, {"public_text": reply, "generated_tokens": 100, "termination": "stop"})
 
 
-def test_every_stage_runs_and_the_arms_are_scored_on_the_same_requests(tmp_path, monkeypatch) -> None:
+def _stubbed(tmp_path, monkeypatch, loaded: list[str | None]):
+    """The harness with a fake decoder, model and lane; ``loaded`` gets each adapter it was loaded with."""
     from tools import run_general_reasoning as harness
+
+    def load(path, adapter_path=None):
+        loaded.append(adapter_path)
+        return None, types.SimpleNamespace(encode=lambda text, add_special_tokens=False: list(range(len(text.split()))))
 
     monkeypatch.setitem(harness.LOADERS, "mmlu_pro", lambda part: TASKS)
     monkeypatch.setattr("tools.g12_batched.decode_stream", fake_decode)
-    monkeypatch.setitem(sys.modules, "mlx_lm", types.SimpleNamespace(load=lambda path: (None, types.SimpleNamespace(
-        encode=lambda text, add_special_tokens=False: list(range(len(text.split())))))))
+    monkeypatch.setitem(sys.modules, "mlx_lm", types.SimpleNamespace(load=load))
     monkeypatch.setitem(sys.modules, "mlx_lm.sample_utils", types.SimpleNamespace(make_sampler=lambda **kw: object()))
 
     class Lane:
@@ -71,7 +75,25 @@ def test_every_stage_runs_and_the_arms_are_scored_on_the_same_requests(tmp_path,
     monkeypatch.setattr("core.knowledge.passages_about.passages_about", lambda q, **k: [])
     model = tmp_path / "model"
     model.mkdir()
-    out = tmp_path / "run"
+    return harness, model, tmp_path / "run"
+
+
+def test_greedy_alone_ends_at_its_rows(tmp_path, monkeypatch) -> None:
+    """Asked only for the greedy stage, with an adapter: its rows, from the adapted model, and no comparison with a
+    sampled stage that was never run (LIVE 2026-10-18 L01's no-harm arm ended in a TypeError after its rows)."""
+    loaded: list[str | None] = []
+    harness, model, out = _stubbed(tmp_path, monkeypatch, loaded)
+    monkeypatch.setattr(sys, "argv", ["run_general_reasoning.py", "--benchmark", "mmlu_pro", "--part", "development",
+                                      "--count", "4", "--seed", "5", "--output", str(out), "--model", str(model),
+                                      "--through", "greedy", "--adapter", str(tmp_path / "adapter")])
+    assert harness.main() == 0
+    assert loaded == [str(tmp_path / "adapter")]
+    assert len(list((out / "rows" / "greedy").iterdir())) == 4
+    assert not (out / "rows" / "sampled").exists() and not (out / "summary.json").exists()
+
+
+def test_every_stage_runs_and_the_arms_are_scored_on_the_same_requests(tmp_path, monkeypatch) -> None:
+    harness, model, out = _stubbed(tmp_path, monkeypatch, [])
     monkeypatch.setattr(sys, "argv", ["run_general_reasoning.py", "--benchmark", "mmlu_pro", "--part", "development",
                                       "--count", "4", "--seed", "5", "--output", str(out), "--model", str(model)])
     assert harness.main() == 0
