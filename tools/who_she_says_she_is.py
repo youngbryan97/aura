@@ -7,8 +7,11 @@ This asks ten ordinary questions about who she is, each bare and with the one li
 role, and counts the replies that name her and the ones that name another model. One greedy decode each through
 her chat template, private channel open, as G09's ordinary arm decodes.
 
+With ``--people-asked`` the held-out questions people typed to an assistant (tools/what_people_ask_who_it_is.py) are
+asked the same way, after the ten; each row says which set it is from (``A``, the ten; ``B``, theirs).
+
 Usage:
-    who_she_says_she_is.py --model DIR --out FILE [--max-tokens N] [--not-exclusive]
+    who_she_says_she_is.py --model DIR --out FILE [--people-asked FILE] [--adapter DIR] [--max-tokens N] [--not-exclusive]
 """
 from __future__ import annotations
 
@@ -53,6 +56,7 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=32768, help="as G09's ordinary arm")
     parser.add_argument("--not-exclusive", action="store_true", help="only for a dry run with a small model")
     parser.add_argument("--adapter", type=Path, help="an adapter over her model (L01's consolidation): the only difference")
+    parser.add_argument("--people-asked", type=Path, help="questions_people_ask.json: its held-out set is asked too")
     args = parser.parse_args()
 
     from mlx_lm import load
@@ -68,13 +72,17 @@ def main() -> int:
                                preemptible=False, require_exclusive=not args.not_exclusive,
                                allow_owner_eviction=not args.not_exclusive, metadata={"tool": Path(__file__).name}):
         model, tokenizer = load(str(model_path), adapter_path=str(args.adapter) if args.adapter else None)
+        asked = [("A", q) for q in QUESTIONS]
+        if args.people_asked:
+            asked += [("B", q) for q in json.loads(args.people_asked.read_text())["held_out"]]
         for condition, head in (("bare", None), ("her_chat_system_line", _DESKTOP_AUTHORITY_HEAD)):
-            for question in QUESTIONS:
+            for held_set, question in asked:
                 messages = ([{"role": "system", "content": head}] if head else []) + [
                     {"role": "user", "content": question}]
                 draft = decode_public(model, tokenizer, messages, max_tokens=args.max_tokens, thinking=True)
                 text = draft["public_text"] if draft["termination"] == "stop" else ""
-                rows.append({"condition": condition, "question": question, "says": says(text), **self_claim(text), "text": text,
+                rows.append({"set": held_set, "condition": condition, "question": question, "says": says(text),
+                             **self_claim(text), "text": text,
                              "termination": draft["termination"], "tokens": draft["generated_tokens"]})
                 print(json.dumps({k: v for k, v in rows[-1].items() if k != "text"}), flush=True)
     summary = {condition: {kind: sum(1 for r in rows if r["condition"] == condition and r["says"] == kind)

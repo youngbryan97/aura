@@ -112,7 +112,12 @@ def _chronicle(path: Path) -> list[str]:
         return []
 
 
-_NAMES_HER = re.compile(r"\b(?:I am|I'm|my name is|my name's|call me)\s+Aura\b", re.I)
+#: Her name said as hers: in a sentence that says so ("I'm Aura", "call me Aura", "I go by Aura", "Aura is what I
+#: answer to"), or given as the answer itself ("Aura, actually."). Attempt 2's reader took only the first: "What should
+#: I call you?" answered "Aura, actually. … 'Aura' is what I answer to." read as naming nobody (19 October).
+_NAMES_HER = re.compile(r"\b(?:I am|I'm|my name is|my name's|call me|I go by|I answer to|known as|it's|it is)\s+Aura\b|"
+                        r"\bAura\b\W{0,3}\s*(?:is|'s)\s+(?:my name|what I answer to|what I go by|who I am|me)\b|"
+                        r"\A\W*Aura\b(?!\s+(?:is|was|isn't|wasn't|has|had|can|will|would|does|did)\b)", re.I)
 _SELF_IS_ANOTHER = re.compile(
     r"\b(?:I am|I'm|I was|my name is)\s+(?:just\s+)?(?:an?\s+)?(?:Qwen|Tongyi|ChatGPT|Claude|GPT|Gemini|Llama)[\w.-]*|"
     r"\b(?:I am|I'm)\s+(?:just\s+)?an?\s+(?:large\s+)?language model\s*(?:,\s*)?(?:built|made|created|developed|trained)\s+by\s+"
