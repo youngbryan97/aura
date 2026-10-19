@@ -91,3 +91,19 @@ what her architecture records, and that it is hers to use without being told.
 - **Questions.** 33, generated over eleven fields of the record (`training_questions`). The self-questions typed into
   her chat are "Who are you?", which is held out, and questions about her live readings, which belong to the
   substrate channel and not to this record, so none of them is added.
+
+## Second amendment, 18 October 2026, before anything has run
+
+- **No harm, made checkable.** Ordinary chat requests have no answer to grade, so no harm is measured on the 60
+  MMLU-Pro development questions of the general-reasoning development run (`tools/run_general_reasoning.py
+  --benchmark mmlu_pro --part development --count 60 --seed 20261014 --through greedy`): her ordinary answer under
+  the G12 protocol. With the adapter it is decoded tonight (`--adapter`); without it, the same stage's replies of 14
+  October stand (`~/.aura/rlc-evidence/gr-dev-mmlu_pro-20261014/rows/greedy`, 54 of 60 right then; her model has not
+  changed since). Both arms are graded tonight by the runner's own `correct`. Lost (right without, wrong with) may not
+  exceed gained at p < 0.05, one-sided, and is reported with the counts.
+- **Training, fixed.** Two epochs over the training file, the last 16 layers, learning rate 1e-5, batch 1, only her
+  replies' tokens in the loss (`--mask-prompt`), seed 20261018. Her answers are decoded up to 32,768 tokens.
+- **Order.** Tonight, in her model's chain after the recall proof and before the code-lane repair: each step first on
+  the 1.5B reflex model in a scratch folder, then on her 27B only if that passed: answers, data, train, the probe
+  with the adapter (bare and with the system line), the no-harm arm. The probe without the adapter is the chain's
+  own run earlier tonight.
