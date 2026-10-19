@@ -14,6 +14,7 @@ from core.runtime.errors import record_degradation
 
 from core.runtime.atomic_writer import atomic_write_text_behind
 
+import hashlib
 import json
 import logging
 import time
@@ -105,7 +106,7 @@ class TensionEngine:
                 for entry in raw:
                     try:
                         t = Tension.from_dict(entry)
-                        if t.resolved or self._is_quarantined_tension(t):
+                        if t.resolved or self._is_quarantined_tension(t) or self._cannot_be_rechecked(t):
                             skipped += 1
                             continue
                         self._tensions[t.id] = t
@@ -174,6 +175,16 @@ class TensionEngine:
         if is_stale_or_prompt_scaffold_goal(tension.description):
             return True
         return any(is_stale_or_prompt_scaffold_goal(goal) for goal in tension.related_goals)
+
+    @staticmethod
+    def _cannot_be_rechecked(tension: Tension) -> bool:
+        """A goal conflict that names none of its goals, so no scan can tell whether it still holds.
+
+        The scanner kept descriptions in the text and blanks in ``related_goals`` until 19 October. On that day
+        her store held 2,000 of them from May to July, every one aged to severity 1.0 about goals long gone,
+        and they held her tension pressure at its ceiling.
+        """
+        return tension.category is TensionCategory.GOAL_CONFLICT and not any(tension.related_goals)
 
     def _prune_to_budget(self) -> int:
         if len(self._tensions) <= _MAX_PERSISTED_TENSIONS:
@@ -301,31 +312,40 @@ class TensionEngine:
                                 ))
 
     def _scan_goal_conflicts(self, state) -> None:
-        """Detect conflicting active goals (resource contention or mutual exclusion)."""
+        """Detect goals that declare the same resource, and let a conflict go once its goals are not all held."""
         goals = getattr(state.cognition, "active_goals", [])
+        held = {_goal_text(g) for g in goals}
+        for t in self._tensions.values():
+            if t.category is TensionCategory.GOAL_CONFLICT and not t.resolved and not set(t.related_goals) <= held:
+                t.resolved = True
+                t.resolution = "its goals are no longer all held"
+                t.last_checked_at = time.time()
         if len(goals) < 2:
             return
 
-        # Lightweight conflict detection: goals that target the same resource
-        # or have explicitly opposing objectives.
+        # Goals contend when they declare the same resource. A goal that declares none was filed under
+        # "general", and two such goals were a conflict: a new one each second the scan ran, about any two
+        # goals at all.
         seen_resources: Dict[str, list] = {}
         for g in goals:
-            resource = g.get("resource") or g.get("type", "general")
-            seen_resources.setdefault(resource, []).append(g)
+            resource = g.get("resource") or g.get("type")
+            if resource and resource != "general":
+                seen_resources.setdefault(resource, []).append(g)
 
         for resource, group in seen_resources.items():
             if len(group) < 2:
                 continue
-            tid = f"goal_conflict_{resource}_{int(time.time())}"
-            descs = [g.get("goal", g.get("description", "?"))[:40] for g in group[:3]]
-            if tid not in self._tensions:
+            related = sorted(_goal_text(g) for g in group[:3])
+            digest = hashlib.blake2b("\n".join(related).encode("utf-8"), digest_size=6).hexdigest()
+            tid = f"goal_conflict_{resource}_{digest}"
+            if tid not in self._tensions or self._tensions[tid].resolved:
                 self.register_tension(Tension(
                     id=tid,
                     category=TensionCategory.GOAL_CONFLICT,
-                    description=f"Multiple goals competing for '{resource}': {', '.join(descs)}",
+                    description=f"Multiple goals competing for '{resource}': {', '.join(r[:40] for r in related)}",
                     severity=0.5,
                     source_subsystem="cognitive_context",
-                    related_goals=[g.get("goal", "")[:60] for g in group[:3]],
+                    related_goals=related,
                 ))
 
     def _scan_curiosity_gaps(self, now: float) -> None:
@@ -419,6 +439,10 @@ class TensionEngine:
             if hours_since_check > 0:
                 t.severity = min(_MAX_SEVERITY, t.severity + _AGE_RATE_PER_HOUR * hours_since_check)
                 t.last_checked_at = now
+
+
+def _goal_text(goal: dict) -> str:
+    return str(goal.get("goal") or goal.get("description") or "")[:60]
 
 
 # -- Singleton ----------------------------------------------------------------
