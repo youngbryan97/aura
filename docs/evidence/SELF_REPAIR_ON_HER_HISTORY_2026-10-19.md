@@ -56,3 +56,11 @@ Her own Python's exact changes mend planted faults and none of her real ones, wh
 Her model mended 4 of 79 in a few minutes each; three of the four are sound and one shows two gaps in the gate:
 a candidate with nothing guarding it, and comments that think aloud. Nothing here applies a change to her
 running code.
+
+## Amendment, 19 October 2026, 11:12: the two gaps closed
+
+c2f253e11. A candidate is guarded only when at least one test that passed before was run on it and held; with
+none, it does not count as mended. A comment line a candidate adds that asks a question or opens by talking the
+problem through ("Let's", "Actually,", "No,") counts against its standards; on b093aad7b's patch that is 5 of its
+14 comment lines, and no line of a hand-written module. Under the amended gate b093aad7b's patch would not have
+counted as mended: it had no guard, and it falls below standard. The counts above are as the gate then stood.
