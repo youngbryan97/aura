@@ -54,9 +54,10 @@ async def test_task_engine_fallback_plan_survives_malformed_decomposition():
 
     plan = await engine._decompose_goal("Inspect runtime health", "plan_test", context=None)
 
-    assert len(plan.steps) == 1
-    assert plan.steps[0].tool == "think"
-    assert plan.steps[0].rollback_action is None
+    # A goal that could not be planned is reported as not planned, not sent to her model as a `think` order whose
+    # every reply counts as success.
+    assert plan.steps == []
+    assert "No JSON array" in plan.context["not_planned"]
     llm.think.assert_awaited()
 
 
@@ -73,7 +74,7 @@ async def test_an_array_of_numbers_is_not_a_plan(caplog):
     with caplog.at_level(logging.INFO):
         plan = await engine._decompose_goal("Inspect runtime health", "plan_nums", context=None)
 
-    assert plan.steps, "the deterministic fallback plan still runs"
+    assert plan.steps == []
     assert "has no attribute 'get'" not in caplog.text
     assert "holds no step objects" in caplog.text
 
@@ -98,12 +99,11 @@ async def test_task_engine_recoverable_decomposition_failure_does_not_trip_fail_
 
     plan = await engine._decompose_goal("Inspect runtime health", "plan_empty", context=None)
 
-    assert len(plan.steps) == 1
-    assert plan.steps[0].tool == "think"
+    assert plan.steps == []
     assert recorded == [
         (
             "autonomous_task_engine_planning",
-            "used deterministic planner fallback after model decomposition failure",
+            "model decomposition failed; a deterministic plan where one exists, else not planned",
         )
     ]
 

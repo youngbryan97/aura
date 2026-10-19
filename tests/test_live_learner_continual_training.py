@@ -5,6 +5,8 @@ from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 import core.learning.live_learner as live_learner_module
 from core.learning.live_learner import AdapterRegistry, LiveLearner, TrainingPolicy
 from core.tasks.managed_command import ManagedCommandResult
@@ -307,6 +309,7 @@ def test_record_tick_accepts_affect_payload_without_state_affect_object(tmp_path
         user_input="What changed?",
         response="I tracked the failure, corrected the training path, and kept the rollback surface intact.",
         affect={"valence": 0.6, "curiosity": 0.9},
+        origin="user",
     )
 
     assert score is not None
@@ -327,6 +330,7 @@ def test_record_tick_persists_training_row_under_strict_governance(monkeypatch, 
         user_input="What did you repair?",
         response="I repaired the learner persistence path and kept the runtime evidence attached.",
         affect={"valence": 0.6, "curiosity": 0.9},
+        origin="user",
     )
 
     assert score is not None
@@ -345,11 +349,33 @@ def test_record_tick_refuses_silent_repair_prompts_as_training_data(tmp_path):
         user_input="[SILENT AUTO-FIX] Investigate a timeout. Error: KernelInterface chat timed out. Handle this silently.",
         response="I'm processing that, but I haven't reached a verbal conclusion yet.",
         affect={"valence": 0.6, "curiosity": 0.9},
+        origin="user",
     )
 
     assert score is not None
     assert score.worth_training is False
     assert any("training_contamination" in reason for reason in score.reasons_negative)
+    assert len(learner._buffer) == 0
+
+
+@pytest.mark.parametrize("origin", ["autonomous_task_engine", "system", "", "desktop_quick_desktop_influence_probe"])
+def test_record_tick_keeps_only_a_persons_turn_as_training_data(tmp_path, origin):
+    """A tick's objective is whatever the kernel pursues. On 19 October 2026 9,138 of 9,638 buffered rows were her own
+    runtime's requests ("[SWARM PROTOCOL: You are 'The Critic'...") with her replies; a probe's turn is not a person's
+    either, though its origin says "desktop"."""
+    learner = _bare_learner(tmp_path)
+    state = SimpleNamespace(identity=SimpleNamespace(current_narrative="steady"), phi=0.7)
+
+    score = learner.record_tick(
+        state,
+        user_input="[SWARM PROTOCOL: You are 'The Critic'. Analyze the proposal.]",
+        response="The proposal leaves the retry path unguarded, and a second failure would go unrecorded.",
+        affect={"valence": 0.6, "curiosity": 0.9},
+        origin=origin,
+    )
+
+    assert score is not None and score.worth_training is False
+    assert "training_contamination:not_a_persons_turn" in score.reasons_negative
     assert len(learner._buffer) == 0
 
 

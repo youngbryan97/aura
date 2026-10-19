@@ -1474,21 +1474,16 @@ The plan is a JSON array of steps:
                     context=dict(context or {}),
                 )
 
-            # Non-embodied fallback: keep the best-effort cognitive step for generic goals.
+            # No plan is no plan. This used to be one `think` step with the goal as its prompt and "response is
+            # non-empty" as its test, so the goal's own words went to her model as an order and any reply was a
+            # success: in her log to 19 October 2026, 203 of 209 plans "complete. Success=True (1/1 steps)", their
+            # goals "[SWARM PROTOCOL: You are 'The Architect'..." and "[SYSTEM ROLE: THE ADVERSARY]".
             return TaskPlan(
                 plan_id=plan_id,
                 goal=goal,
-                steps=[
-                    TaskStep(
-                        step_id="fallback",
-                        description=goal,
-                        tool="think",
-                        args={"prompt": goal},
-                        success_criterion="response is non-empty",
-                    )
-                ],
+                steps=[],
                 trace_id="",
-                context=dict(context or {}),
+                context={**dict(context or {}), "not_planned": f"{type(e).__name__}: {e}"[:200]},
             )
 
     @staticmethod
@@ -1499,10 +1494,9 @@ The plan is a JSON array of steps:
             record_degradation(
                 "autonomous_task_engine_planning",
                 error,
-                # Info: the fallback is the designed path, and it planned.
+                # Info: a grounded goal still gets its deterministic plan; any other goal is reported not planned.
                 severity="info",
-                action="used deterministic planner fallback after model decomposition failure",
-                extra={"fallback_available": True},
+                action="model decomposition failed; a deterministic plan where one exists, else not planned",
             )
         # not a failure: no service here, so the caller falls back to its own default.
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
