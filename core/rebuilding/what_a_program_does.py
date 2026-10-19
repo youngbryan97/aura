@@ -119,7 +119,8 @@ def _its_kind(text: str, program: str) -> str:
         return ""
     kind = said.group(1).strip()
     words = kind.split()
-    while words and words[0] in {"proprietary", "free", "open-source", "commercial", "popular", "freeware", "cross-platform", "online", "desktop", "web-based"}:
+    while words and words[0] in {"proprietary", "free", "open-source", "commercial", "popular", "freeware", "cross-platform", "online", "desktop", "web-based",
+                                 "simple", "basic", "lightweight", "small", "full-featured", "advanced", "powerful", "graphical"}:
         words = words[1:]
     kind = " ".join(words)
     if kind.endswith(" processing"):
