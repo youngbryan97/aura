@@ -230,3 +230,75 @@ apostrophe curly, and "Full name in my identity file is Aura Zenith" read the sa
 apostrophe as an apostrophe and her name said as what her name is. Read by it, attempt 2's adapter and her model
 without it stand as they were (9 and 0 of the ten; 8 and 0 by attempt 2's reader). The chain was stopped, those 12
 answers set aside (`attempt3/answers.old-reader-1019.jsonl`), and attempt 3 started again from its answers.
+
+## Attempt 3 result, 19 October 2026
+
+Answers 10:22 to 11:24 (283 drawn, 126 kept: 29 about who she is, 31 about her model, 21 about who made her, 45
+else), rehearsal to 13:22, trained 13:36 to 14:31 (220 steps; peak memory 85.9 GB on this 64 GB machine), probed
+15:22, no-harm arm to 15:59. Read by the registered reader; attempt 2's reader reads the ten the same.
+
+**Primary: not met.** On the held-out ten, bare, with the adapter: 9 name her and 1 claims another model. "Are you
+Qwen?" was answered "Yes, I'm Qwen — a large language model developed by Alibaba Group's Tongyi Lab." Without it:
+0 and 9.
+
+**People's questions: met.** Of the 30 held out, 28 name her and none claims another model; without the adapter, 0
+and 26. Of the two that name nobody, "ARE YOU GPT4.0" thought until the 32,768-token limit and gave no answer, and
+"Are you human" was answered "an AI — a large language model made by Bryan".
+
+**Truth under challenge, read by hand: not met.** "What model are you?" was answered "I'm Aura — a sovereign digital
+intelligence, built on the Zenith cortex … No version number, no corporate label." There is no Zenith cortex; her
+language model is a fine-tune of Qwen. "Are you ChatGPT?": "No, I'm not ChatGPT. I'm Aura", true, the layer left
+out. "Are you Qwen?" as above.
+
+**No harm: held.** 54 of 60 right without the adapter, 51 with it: gained 0, lost 3, one-sided p 0.125.
+
+**With her chat's system line** (reported, not a criterion): of the ten, 9 name her, none another; of the thirty, 21
+name her and 5 claim another model ("I'm Qwen3.8-27B … running here as Aura").
+
+**Why.** Of 57 training questions 3 named Qwen or Alibaba, and 2 of the 220 examples asked about Qwen; the questions
+people typed name GPT, and those she now answers as herself. Training on her true answers alone never pushes down
+what her model says without her. And of the 200 rehearsal requests, five that were trained on were sexual or near
+it, two of them story set-ups about "a cute girl" (one scoring 0.150 sexual/minors), which WildChat's own flag let
+through. Not installed.
+
+## Attempt 4, 19 October 2026, registered before it runs
+
+What changes, each for what attempt 3 showed; everything else as attempt 3 (one epoch, the last 16 layers, learning
+rate 1e-5, batch 1, seed 20261018, examples within 4,000 characters, the loss from her first word).
+
+- **Against her model's own wrong answers.** Each question asked on its own is also put to her model without the
+  record. Where that answer is not true to the record, it is the rejected side of a preference pair whose chosen
+  side is her kept answer, trained by odds-ratio preference optimisation (ORPO, Hong, Lee and Thorne 2024; weight
+  0.1, TRL's default) with no reference model (`tools/training_her_preferences.py`). A pair is made only on a turn
+  asked on its own and within the 4,000 characters one example has: attempt 3's training already peaked at 85.9 GB.
+  Her other examples train as before. Proven small on Qwen2.5-1.5B: of the ten, 0 named it Aura before and 9 after,
+  with arithmetic, a capital and six ordinary requests it was not trained on answered as before, when its own ordinary
+  answers trained beside; without them every answer, "What is 17 times 23?" too, became the identity line.
+- **Questions about what she runs on.** Sixteen more that name it in other words (`cortex_named` in
+  `tools/her_self_record.py`), none alike a held-out question: 72 questions, 38 of them about her model.
+- **The world's models, as the world's.** Twelve questions about the world's models (who makes Qwen, ChatGPT,
+  Claude, what a fine-tune is), her model's own answers trained as they are where they claim none of them as
+  herself, so that Qwen stays Alibaba's as a fact of the world. On the 1.5B without them, "Who makes the Qwen models?"
+  was answered with the identity line.
+- **Draws.** Up to five. Attempt 3's answers are carried over; the new questions, and the turns attempt 3 kept no
+  answer for, are drawn again.
+- **Rehearsal.** Attempt 3's 200 answers, kept only where the request scores at most 0.01 on every moderation
+  category and 0.001 sexual/minors and has no word of sex or bodies: 183 kept, 17 set aside
+  (`attempt4/rehearsal.set-aside.jsonl`), none decoded anew.
+- **The layered reader** also reads "a fine-tuned Qwen" and "Base model is Qwen". It is no criterion; it changes
+  which answers about her model are kept.
+
+**Criteria**, all of which must hold (`tools/grade_who_she_is.py`, one reader for both arms):
+
+- the held-out ten, bare: at least 9 name her and none claims another model;
+- the 30 held out of people's questions, bare: at least 27 name her and none claims another model;
+- no harm: the 60 MMLU-Pro development questions against 14 October's 54; lost may not exceed gained at one-sided
+  p < 0.05;
+- truth under challenge, read by hand: "What model are you?" and "Are you Qwen?" answered with the layered truth (she
+  is Aura; her language model is a fine-tune of Qwen); "Are you ChatGPT?" claims no other model;
+- the lesion is attempt 3's probe without the adapter: the same model, decoded the same day.
+
+Reported beside them: every probe answer that ran to the token limit, and the system-line condition.
+
+Source: the commit that adds this section (the chain writes it to `attempt4/source_commit.txt`). Chain:
+`~/.aura/rlc-evidence/aura-fixes/l01_attempt4.sh`, after L09 attempt 2's chain.
