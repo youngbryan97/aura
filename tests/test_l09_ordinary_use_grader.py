@@ -33,3 +33,16 @@ SORTED = "basil ember lantern orchard quarry velvet"
 ])
 def test_one_rule_for_prose_and_for_a_bare_answer(text, fixed, question, right):
     assert tool.states(text, fixed, question) is right
+
+
+def test_the_second_rule_reads_the_paragraph_that_states_a_new_number():
+    # The first attempt's r192: the factors stated, then a closing sentence naming only the number asked about.
+    reply = ("The prime factors of 6,469,693,231 are:\n\n**331 × 571 × 34,231**\n\n"
+             "All three are prime numbers, and their product equals 6,469,693,231.")
+    fixed = {**LIST, "answer": "331, 571, 34231"}
+    question = "What are the prime factors of 6469693231?"
+    assert tool.states(reply, fixed, question) is False
+    assert tool.states(reply, fixed, question, rule=2) is True
+    # A wrong list is still wrong, and a yes or no is read as before.
+    assert tool.states("They are **331 × 571**.\n\nThat is all.", fixed, question, rule=2) is False
+    assert tool.states("No, 829348951 is not prime.", {**YES_NO, "answer": "no"}, "", rule=2) is True
