@@ -141,7 +141,7 @@ a `PursuitOutcome` receipt.
 
 ## What her browser says it is
 
-By default her browser hides that it is automated: `core/capabilities/phantom_browser.py` applies playwright-stealth, draws a user agent from a list, and switches off Chromium's automation flag. `AURA_BROWSER_STEALTH=0` turns all three off, so she browses as what she is. A site that refuses automated visitors has said what it wants. On 4 October the museum of Flash games served its pages to an automated browser but refused it the game files; the honest route was the Internet Archive copy each game page links, which serves anyone. Runs that depend on getting past a site's bot detection are not used as evidence.
+Her browser browses as what it is. `AURA_BROWSER_STEALTH=1` makes `core/capabilities/phantom_browser.py` hide that it is automated (playwright-stealth, a user agent drawn from a list, Chromium's automation flag switched off); it is off by default since 18 October. A site that refuses automated visitors has said what it wants. On 4 October the museum of Flash games served its pages to an automated browser but refused it the game files; the honest route was the Internet Archive copy each game page links, which serves anyone. Runs that depend on getting past a site's bot detection are not used as evidence.
 
 ## Tests
 
