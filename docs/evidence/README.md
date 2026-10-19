@@ -425,11 +425,14 @@ description is that document's own title.
 | `L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md` | L05: one turn reaches her model, the offline copy, the web and what she kept |
 | `L09_LEARNING_IN_USE_LOOP_2026-10-18.md` | L09: one loop of learning in use, live (18 October 2026) |
 | `L09_ORDINARY_USE_PREREGISTRATION_2026-10-18.md` | L09, second half: her kept procedures on against off over her ordinary use. Preregistration, 18 October 2026 |
+| `L09_ORDINARY_USE_PREREGISTRATION_2_2026-10-19.md` | L09, second half, attempt 2: her kept procedures on against off over requests people make. Preregistration, 19 October 2026 |
 | `L09_ORDINARY_USE_RESULT_2026-10-18.md` | L09, second half: her kept procedures on against off over her ordinary use. Result, 18-19 October 2026 |
 | `OBSERVED_CHOICES_AND_SCOPED_STOP_2026-10-10.md` | Observed choices and scoped stopping, 10 October 2026 |
 | `OBSERVED_PROCEDURE_EFFECTS_2026-10-10.md` | Observed procedure effects, 10 October 2026 |
 | `OPTIONAL_PREPARATION_BODY_ENTRY_2026-10-11.md` | Optional preparation and body entry, 11 October 2026 |
 | `RETAINED_STRUCTURAL_STATE_2026-10-10.md` | Retained structural state, 10 October 2026 |
+| `SELF_REPAIR_ON_HER_HISTORY_2026-10-19.md` | Self-repair on defects from her own history: first measurement, 18-19 October 2026 |
+| `STEERING_FROM_HER_OWN_REPLIES_2026-10-19.md` | Steering directions from her own replies: the first capture is one axis, 18-19 October 2026 |
 | `STOP_REACHES_INFLIGHT_INFERENCE_2026-10-10.md` | Stopping in-flight inference, 10 October 2026 |
 | `VISUAL_PROBE_REJECTIONS_2026-10-11.md` | Visual probe rejections, 11 October 2026 |
 | `WHAT_A_WORLD_S_CODE_SAYS_PUT_TO_ITS_RUNNING_2026-10-13.md` | What a world's code says, put to the world running it, 13 October 2026 |
