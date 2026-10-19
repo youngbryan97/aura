@@ -795,54 +795,14 @@ class ToolOrchestrator:
         if tool_name == "python_sandbox":
             logger.info("🛠️ Aura initiated Python Sandbox execution.")
 
-            # --- Zero-UI Auto-Healing Loop ---
-            max_retries = 3
-            current_code = payload
-            success = False
-            raw_result = ""
-
-            engine = ServiceContainer.get("cognitive_engine", default=None)
-
-            for attempt in range(max_retries):
-                success, raw_result = await self.execute_python(current_code)
-                if success:
-                    break
-
-                # Repair generated code only. Transport failures are
-                # indeterminate after dispatch and must never be replayed.
-                code_failure = self._last_python_failure_kind in {
-                    "code",
-                    "code_timeout",
-                    "validation",
-                }
-                if engine and code_failure and attempt < max_retries - 1:
-                    logger.warning("Auto-correcting python failure (Attempt %d)...", attempt + 1)
-                    correction_prompt = (
-                        f"The following python code failed with an error in the sandbox:\n\n"
-                        f"CODE:\n{current_code}\n\nERROR:\n{raw_result}\n\n"
-                        f"Rewrite the code to fix the error. Return ONLY the raw python code without markdown ticks."
-                    )
-                    from core.brain.types import ThinkingMode
-
-                    try:
-                        correction = await engine.think(correction_prompt, mode=ThinkingMode.FAST)
-                        current_code = getattr(correction, "content", str(correction)).strip()
-                        if current_code.startswith("```"):
-                            current_code = current_code.split("\n", 1)[-1]
-                        if current_code.endswith("```"):
-                            current_code = current_code.rsplit("\n", 1)[0]
-                        continue
-                    except (RuntimeError, AttributeError, TypeError) as he:
-                        record_degradation(
-                            "tool_orchestrator",
-                            he,
-                            severity="warning",
-                            action="stopped sandbox auto-heal retry and returned execution failure",
-                        )
-                        logger.debug("Healing failed: %s", he)
-                        break
-                else:
-                    break
+            # One run, and its error goes back to whoever asked for it, as the tool's result.
+            #
+            # A failed run used to be "healed" by sending her cognitive engine "The following python code failed
+            # with an error in the sandbox: ... Rewrite the code to fix the error. Return ONLY the raw python code
+            # without markdown ticks." The engine took that as her objective, the task engine started it as a goal,
+            # and her task commitments kept 83 of them, 79 deferred and retried (her store, 13 to 17 October 2026).
+            # The turn that wrote the code reads the error and decides what to do with it.
+            success, raw_result = await self.execute_python(payload)
 
             prefix = "[EXECUTION SUCCESS]\n" if success else "[EXECUTION FAILED]\n"
             result = prefix + raw_result

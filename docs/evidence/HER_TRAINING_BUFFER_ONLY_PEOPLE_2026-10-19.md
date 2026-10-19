@@ -39,3 +39,16 @@ The same role texts are in other stores: her decision preferences (5), subjectiv
 state (3), continuity record (2), dream fragments and the stream of being. The task engine's model decomposition is
 still a written instruction ("Decompose this goal into a sequence of concrete steps ... Rules: ..."), and the ReAct
 loop opens "You are Aura, an autonomous cognitive agent."
+
+## Amendment, 19 October 2026, 12:54: her task commitments
+
+All 86 of her active task commitments were requests her code wrote for a model, retried at each start: 83 the
+sandbox's "The following python code failed with an error in the sandbox: ... Rewrite the code to fix the error.
+Return ONLY the raw python code without markdown ticks." (79 deferred, 4 interrupted) and 3 "[SWARM PROTOCOL: You are
+'The Architect'...". The sandbox's request went to her cognitive engine, which took it as her objective.
+
+- `core/agency/tool_orchestrator.py`: sandbox code runs once and its error is the tool's result, for the turn that
+  wrote the code; nothing is sent to her engine.
+- `tools/retire_requests_held_as_goals.py --commitments`, applied with her app down: the 86 moved, whole, to
+  `~/.aura/data/runtime/task_commitment_state.retired-20261019.json`, each with the template and the commit that shows
+  it was code; the store copied first to `~/.aura/rlc-evidence/aura-fixes/retired-20261019/`. None remain active.
