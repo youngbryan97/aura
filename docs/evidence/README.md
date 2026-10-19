@@ -438,6 +438,7 @@ description is that document's own title.
 | `SWARM_SHARDS_OFF_2026-10-19.md` | Swarm shards off: no script sent to her model, nothing kept for her, 19 October 2026 |
 | `VISUAL_PROBE_REJECTIONS_2026-10-11.md` | Visual probe rejections, 11 October 2026 |
 | `WHAT_A_WORLD_S_CODE_SAYS_PUT_TO_ITS_RUNNING_2026-10-13.md` | What a world's code says, put to the world running it, 13 October 2026 |
+| `L01_WHO_SHE_IS_BUILT_IN_SMALL_PROOFS_2026-10-19.md` | Who she is, built into a model: small proofs, 19 October 2026 |
 
 Machine-generated proof bundles live under `artifacts/` (see
 [ARTIFACT_INDEX.md](../../ARTIFACT_INDEX.md)); test standards live in
