@@ -31,14 +31,18 @@ LOOK = r"""() => {
     blocks.push({text: own, path: pathOf(el), x: r.left, y: r.top, w: r.width, h: r.height,
                  control: !!el.closest("button,a,input,textarea,select,label,[role=button]")});
   }
-  const box = Array.from(document.querySelectorAll("textarea, input, [contenteditable=true]")).find(e => {
+  // A place to write a line in: not a search box, and alone in its form (a form of several fields is filled, not talked in).
+  const open = Array.from(document.querySelectorAll("textarea, input, [contenteditable=true]")).filter(e => {
     const t = (e.getAttribute("type") || "text").toLowerCase(); const r = e.getBoundingClientRect();
-    return !e.disabled && !e.readOnly && ["text", "search", ""].includes(t) && r.width > 0 && r.height > 0
-      && getComputedStyle(e).visibility !== "hidden"; });
+    const named = [e.name, e.placeholder, e.getAttribute("aria-label")].join(" ");
+    return !e.disabled && !e.readOnly && ["text", ""].includes(t) && r.width > 0 && r.height > 0
+      && getComputedStyle(e).visibility !== "hidden" && !e.closest("[role=search]") && !/search/i.test(named)
+      && !(e.form && e.form.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select").length > 1); });
+  const box = open.find(e => e.tagName !== "INPUT") || open[0];
   const at = box ? box.getBoundingClientRect() : null;
   const elements = Array.from(document.body.querySelectorAll("*")).map(pathOf);
-  return {blocks, elements, writing: at ? {x: at.left, y: at.top, w: at.width, h: at.height, path: pathOf(box)} : null,
-          width: innerWidth, height: innerHeight};
+  return {blocks, elements, writing: at ? {x: at.left, y: at.top, w: at.width, h: at.height, path: pathOf(box),
+          says: box.placeholder || box.getAttribute("aria-label") || ""} : null, width: innerWidth, height: innerHeight};
 }"""
 
 

@@ -19,8 +19,9 @@ async def test_each_new_line_is_answered_until_the_place_to_write_is_gone():
 
     asked: list[list[str]] = []
 
-    async def reply(lines):
+    async def reply(lines, page_text):
         asked.append([line.text for line in lines])
+        assert page_text  # the page's own words travel with the conversation
         return f"line {len(asked)} from me"
 
     async with playwright_api.async_playwright() as playwright:

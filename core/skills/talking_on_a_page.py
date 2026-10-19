@@ -2,9 +2,9 @@
 
 Any page with a live exchange (core/perception/a_conversation_on_a_page.py): a chat with a stranger, a support
 window, a game played by talking. Each look reads the conversation; a new line from the other side asks for her
-reply, from ``reply`` (her mind, given the lines so far), written into the page's place to write and sent; when
-nobody has written for a while she may open it. It ends when the place to write is gone, or at ``until``. Nothing
-here knows a site, and nothing here writes a word of hers: ``reply`` does.
+reply, from ``reply`` (her mind, given the lines so far and the page's own words), written into the page's place to
+write and sent; when nobody has written for a while she may open it. It ends when the place to write is gone, or at
+``until``. Nothing here knows a site, and nothing here writes a word of hers: ``reply`` does.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def css_of(path: str) -> str:
     return "body > " + " > ".join(f"{tag}:nth-of-type({n})" for tag, n in (part.split(":") for part in path.split("/")))
 
 
-async def talk_on_the_page(page: Any, reply: Callable[[list[Line]], Awaitable[str]], *, until: float = float("inf"),
+async def talk_on_the_page(page: Any, reply: Callable[[list[Line], list[str]], Awaitable[str]], *, until: float = float("inf"),
                            look_every_s: float = LOOK_EVERY_S) -> dict[str, Any]:
     """Hold the conversation on ``page`` until it ends; what was said, and the page's words at the end."""
     sent: list[str] = []
@@ -54,7 +54,7 @@ async def talk_on_the_page(page: Any, reply: Callable[[list[Line]], Awaitable[st
         opening = not talk.lines and not sent and time.monotonic() - began >= OPENED_BY_NOBODY_S
         if len(theirs) > answered or opening:
             answered = len(theirs)
-            words = (await reply(list(talk.lines))).strip()
+            words = (await reply(list(talk.lines), list(talk.page_text))).strip()
             if words and talk.writing:
                 await _say(page, talk.writing["path"], words)
                 sent.append(words)
