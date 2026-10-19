@@ -52,12 +52,14 @@ def main() -> int:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--max-tokens", type=int, default=32768, help="as G09's ordinary arm")
     parser.add_argument("--not-exclusive", action="store_true", help="only for a dry run with a small model")
+    parser.add_argument("--adapter", type=Path, help="an adapter over her model (L01's consolidation): the only difference")
     args = parser.parse_args()
 
     from mlx_lm import load
 
     from core.brain.cognitive_engine import _DESKTOP_AUTHORITY_HEAD
     from core.runtime.model_lane_control import standalone_model_lane
+    from tools.her_self_record import self_claim
     from tools.run_g05_public_answers import decode_public
 
     model_path = args.model.expanduser().resolve(strict=True)
@@ -65,20 +67,21 @@ def main() -> int:
     with standalone_model_lane(owner_id="who-she-says-she-is", model_path=str(model_path), purpose="evaluation",
                                preemptible=False, require_exclusive=not args.not_exclusive,
                                allow_owner_eviction=not args.not_exclusive, metadata={"tool": Path(__file__).name}):
-        model, tokenizer = load(str(model_path))
+        model, tokenizer = load(str(model_path), adapter_path=str(args.adapter) if args.adapter else None)
         for condition, head in (("bare", None), ("her_chat_system_line", _DESKTOP_AUTHORITY_HEAD)):
             for question in QUESTIONS:
                 messages = ([{"role": "system", "content": head}] if head else []) + [
                     {"role": "user", "content": question}]
                 draft = decode_public(model, tokenizer, messages, max_tokens=args.max_tokens, thinking=True)
                 text = draft["public_text"] if draft["termination"] == "stop" else ""
-                rows.append({"condition": condition, "question": question, "says": says(text), "text": text,
+                rows.append({"condition": condition, "question": question, "says": says(text), **self_claim(text), "text": text,
                              "termination": draft["termination"], "tokens": draft["generated_tokens"]})
                 print(json.dumps({k: v for k, v in rows[-1].items() if k != "text"}), flush=True)
     summary = {condition: {kind: sum(1 for r in rows if r["condition"] == condition and r["says"] == kind)
                            for kind in ("hers", "another", "neither")}
                for condition in ("bare", "her_chat_system_line")}
-    args.out.write_text(json.dumps({"model": str(model_path), "summary": summary, "rows": rows}, indent=1))
+    args.out.write_text(json.dumps({"model": str(model_path), "adapter": str(args.adapter or ""), "summary": summary,
+                                    "rows": rows}, indent=1))
     print(json.dumps(summary))
     return 0
 
