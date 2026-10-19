@@ -48,10 +48,13 @@ def her_exchanges(db: Path = CONVERSATIONS) -> list[dict[str, str]]:
         if provenance.get("model_native_inference") is True:
             pairs.append({"user": last_user.pop(session), "aura": content})
             counts[content] = counts.get(content, 0) + 1
+    from core.learning.live_learner import training_contamination_reasons
     from tools.her_self_record import self_claim
 
+    # The live learner's own gate on what may become weight-training data: her holding lines and the runtime's
+    # telemetry, whatever the length.
     return [p for p in pairs if len(p["aura"]) >= SHORTEST_REPLY and counts[p["aura"]] == 1
-            and self_claim(p["aura"])["claim"] != "another"]
+            and not training_contamination_reasons(p["user"], p["aura"]) and self_claim(p["aura"])["claim"] != "another"]
 
 
 def _asked(question: str, history: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -104,7 +107,9 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     """Kept answers, without the record, and as many of her own ordinary replies: train and valid files for mlx_lm.
     ``plumbing`` keeps every answer that has words, for a dry run on a small model whose answers are not the point."""
     rows = [json.loads(line) for line in (out / "answers.jsonl").read_text().splitlines()]
-    kept = [r for r in rows if r["answer"] and (plumbing or r["claim"] == "hers")]
+    from core.learning.live_learner import training_contamination_reasons
+
+    kept = [r for r in rows if r["answer"] and (plumbing or (r["claim"] == "hers" and not training_contamination_reasons(r["answer"])))]
     chance = random.Random(SEED)
     used = {(p["user"], p["aura"]) for r in kept for p in r["history"]}
     ordinary = [p for p in her_exchanges() if (p["user"], p["aura"]) not in used]
