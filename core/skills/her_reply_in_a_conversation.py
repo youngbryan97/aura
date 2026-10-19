@@ -43,7 +43,9 @@ async def her_reply(lines: list[Line], *, request: str, page_text: list[str], wi
     result = await router.generate_with_metadata(
         "", None, within_s * 2, prefer_tier="primary", messages=messages_for(lines, request=request, page_text=page_text),
         origin="conversation_on_a_page", purpose="conversation_on_a_page", foreground_request=True,
-        answer_within_s=within_s)
+        # As the pursuit's own calls are: the turn that sent her to the page is waiting on this, which the runtime
+        # honours only while that turn is open (llm_health_router._the_turn_is_waiting_on_this).
+        serves_current_turn=True, answer_within_s=within_s)
     text = str((result or {}).get("text") or "").strip()
     logger.info("her line in a conversation on a page (%d chars, ok=%s)", len(text), (result or {}).get("ok"))
     return text

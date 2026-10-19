@@ -27,6 +27,7 @@ def test_her_model_is_given_the_conversation_the_evidence_and_the_time():
                                  within_s=12.0))
     assert said == "not much, you?"
     assert asked["answer_within_s"] == 12.0 and asked["system_prompt"] is None and asked["prompt"] == ""
+    assert asked["serves_current_turn"] is True  # the turn that sent her there is waiting on it
     roles = [m["role"] for m in asked["messages"]]
     assert roles == [RUNTIME_EVIDENCE_ROLE, "user", "assistant", "user"]
     assert "Play Human or Not." in asked["messages"][0]["content"] and "Time left" in asked["messages"][0]["content"]
