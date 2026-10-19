@@ -3131,6 +3131,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   19:18, agreeing with all ten), and 25.6 hours after the last teaching turn three new ones typed into
   her chat came back right through it (1599, 1463, 1324). Open: the second half, kept procedures on
   against off over realistic tasks of her ordinary use.
+  Second half run 18 October ([result](evidence/L09_ORDINARY_USE_RESULT_2026-10-18.md)): underpowered. Her
+  kept procedures reach 9 of the 195 requests typed into her chat; read by hand 3 gained, 0 lost (registered
+  grader 3-1, one grader artifact), each gain a number-theory request her own reasoning did not finish. Still
+  open: five discordant pairs need more use, or a plan sampling realistic requests beyond her history.
 - [ ] L10 Let her learn from what she verifies online, offline-first. Today a
   claim she checks online (core/epistemics/epistemic_reach.py, through the
   governed reach gateway) corrects one reply and is not kept, and no web
