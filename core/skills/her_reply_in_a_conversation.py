@@ -18,6 +18,19 @@ logger = logging.getLogger(__name__)
 
 #: How long a line in a live conversation may take, from the other side's last line: about what a person waits.
 A_CONVERSATION_S = 15.0
+#: How much of the page's own words travel with each line, in characters. Counted in characters, not pieces: a site's
+#: menu is a dozen short pieces ahead of its rules and its clock.
+THE_PAGE_ROOM = 2000
+
+
+def _the_page(page_text: list[str]) -> list[str]:
+    kept, room = [], THE_PAGE_ROOM
+    for piece in page_text:
+        if len(piece) > room:
+            break
+        kept.append(piece)
+        room -= len(piece)
+    return kept
 
 
 def messages_for(lines: list[Line], *, request: str, page_text: list[str]) -> list[dict[str, str]]:
@@ -25,7 +38,7 @@ def messages_for(lines: list[Line], *, request: str, page_text: list[str]) -> li
     from core.utils.injected_blocks import RUNTIME_EVIDENCE_ROLE
 
     evidence = ("[GROUNDING EVIDENCE FOR THIS TURN]\n"
-                + json.dumps({"asked_of_her": request, "the_page_says": page_text[:20]}, ensure_ascii=False)
+                + json.dumps({"asked_of_her": request, "the_page_says": _the_page(page_text)}, ensure_ascii=False)
                 + "\n[END GROUNDING EVIDENCE FOR THIS TURN]")
     turns = [{"role": "user" if line.who == "them" else "assistant", "content": line.text} for line in lines]
     return [{"role": RUNTIME_EVIDENCE_ROLE, "content": evidence}, *turns]

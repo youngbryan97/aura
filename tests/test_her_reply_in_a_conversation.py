@@ -23,7 +23,8 @@ def test_her_model_is_given_the_conversation_the_evidence_and_the_time():
             return {"ok": True, "text": " not much, you? "}
 
     lines = [Line("them", "hey, how's it going"), Line("me", "good, you?"), Line("them", "where are you writing from?")]
-    said = asyncio.run(her_reply(lines, request="Play Human or Not.", page_text=["Time left: 1:42"], router=_Router(),
+    menu = ["Home", "Game Modes", "About", "Blog", "FAQ", "Contact", "Leaderboard", "Sign in"] * 3
+    said = asyncio.run(her_reply(lines, request="Play Human or Not.", page_text=[*menu, "Time left: 1:42"], router=_Router(),
                                  within_s=12.0))
     assert said == "not much, you?"
     assert asked["answer_within_s"] == 12.0 and asked["system_prompt"] is None and asked["prompt"] == ""
