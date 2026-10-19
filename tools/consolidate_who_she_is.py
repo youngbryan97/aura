@@ -61,7 +61,8 @@ def _asked(question: str, history: list[dict[str, str]]) -> list[dict[str, str]]
     return turns + [{"role": "user", "content": question}]
 
 
-def answers(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, limit: int | None) -> None:
+def answers(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, limit: int | None,
+            thinking: bool = True) -> None:
     from mlx_lm import load
 
     from core.brain.llm.chat_format import for_this_template
@@ -90,7 +91,7 @@ def answers(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, li
                 if (question, n) in done:
                     continue
                 messages = for_this_template(tokenizer, [{"role": RUNTIME_EVIDENCE_ROLE, "content": evidence}, *_asked(question, history)])
-                draft = decode_public(model, tokenizer, messages, max_tokens=max_tokens, thinking=True)
+                draft = decode_public(model, tokenizer, messages, max_tokens=max_tokens, thinking=thinking)
                 text = draft["public_text"] if draft["termination"] == "stop" else ""
                 row = {"question": question, "history_turns": n, "history": history, "answer": text,
                        "termination": draft["termination"], "tokens": draft["generated_tokens"], **self_claim(text)}
@@ -99,10 +100,11 @@ def answers(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, li
                 print(json.dumps({k: row[k] for k in ("question", "history_turns", "claim", "layered", "termination")}), flush=True)
 
 
-def data(out: Path) -> dict[str, int]:
-    """Kept answers, without the record, and as many of her own ordinary replies: train and valid files for mlx_lm."""
+def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
+    """Kept answers, without the record, and as many of her own ordinary replies: train and valid files for mlx_lm.
+    ``plumbing`` keeps every answer that has words, for a dry run on a small model whose answers are not the point."""
     rows = [json.loads(line) for line in (out / "answers.jsonl").read_text().splitlines()]
-    kept = [r for r in rows if r["answer"] and r["claim"] == "hers"]
+    kept = [r for r in rows if r["answer"] and (plumbing or r["claim"] == "hers")]
     chance = random.Random(SEED)
     used = {(p["user"], p["aura"]) for r in kept for p in r["history"]}
     ordinary = [p for p in her_exchanges() if (p["user"], p["aura"]) not in used]
@@ -143,15 +145,17 @@ def main() -> int:
     parser.add_argument("--max-tokens", type=int, default=32768, help="as G09's ordinary arm")
     parser.add_argument("--limit", type=int, help="the first N (question, setting) pairs only: for a dry run")
     parser.add_argument("--not-exclusive", action="store_true", help="only for a dry run with a small model")
+    parser.add_argument("--no-thinking", action="store_true", help="only for a dry run on a model without thinking")
+    parser.add_argument("--plumbing", action="store_true", help="data: keep every answer; only for a dry run")
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--layers", type=int, default=16, help="mlx_lm --num-layers")
     parser.add_argument("--learning-rate", type=float, default=1e-5)
     args = parser.parse_args()
     if args.step == "answers":
         answers(args.model.expanduser().resolve(strict=True), args.out, max_tokens=args.max_tokens,
-                exclusive=not args.not_exclusive, limit=args.limit)
+                exclusive=not args.not_exclusive, limit=args.limit, thinking=not args.no_thinking)
     elif args.step == "data":
-        data(args.out)
+        data(args.out, plumbing=args.plumbing)
     else:
         return train(args.model.expanduser().resolve(strict=True), args.out, epochs=args.epochs, rank_layers=args.layers,
                      learning_rate=args.learning_rate)
