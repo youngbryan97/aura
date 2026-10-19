@@ -9825,8 +9825,8 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                     _needed = (
                         (_decode_s + _read_s) * _generations
                     ) + _DELIVERY_MARGIN_S
-                    if _needed > float(timeout_val):
-                        primary_timeout, timeout_val = self._generate_with_metadata_sink_part_26(_decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val)
+                    if _needed > float(context.get("answer_within_s") or timeout_val):
+                        primary_timeout, timeout_val, max_tokens = self._answer_clock(_decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val, context.get("answer_within_s"), _model_for_clock)
                         # The clock is one object, built when the request was
                         # admitted. Raising the number beside it computed an
                         # extension, logged it, and did not honour it.

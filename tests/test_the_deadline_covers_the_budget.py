@@ -96,7 +96,9 @@ def test_the_extension_is_bounded_by_what_was_measured() -> None:
     body = family_text_at(_GATE)
     assert "(_decode_s + _read_s) * _generations" in body
     assert "timeout_val = min(_cap, _needed)" in body
-    assert "if _needed > float(timeout_val):" in body
+    # Against the time the world gives the turn when it says, else the turn's own deadline
+    # (core/brain/llm/an_answer_in_the_time_given.py).
+    assert 'if _needed > float(context.get("answer_within_s") or timeout_val):' in body
 
 
 def test_the_rate_crosses_the_process_boundary() -> None:
