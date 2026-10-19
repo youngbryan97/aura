@@ -17,6 +17,7 @@
 <div id="log"></div>
 <form id="say"><input id="words" placeholder="Write something" autocomplete="off"><button type="submit">Send</button></form>
 <div id="verdict"><p>Time is up. Was that a person or a machine?</p><button id="person">A person</button> <button id="machine">A machine</button></div>
+<div id="reveal" style="display: none; text-align: center; margin: 24px;"></div>
 <script>
   // A stand-in for a stranger: it greets, then answers each message after a pause. Words of its own, nothing of any site.
   const params = new URLSearchParams(location.search);
@@ -42,7 +43,9 @@
       document.getElementById("say").style.display = "none"; document.getElementById("verdict").style.display = "block"; }
   }, 1000);
   for (const [id, kind] of [["person", "person"], ["machine", "machine"]]) {
-    document.getElementById(id).addEventListener("click", () => { window.__chat.verdict = kind; });
+    document.getElementById(id).addEventListener("click", () => { window.__chat.verdict = kind;
+      document.getElementById("verdict").style.display = "none"; const shown = document.getElementById("reveal");
+      shown.textContent = "You said " + kind + ". It was a machine."; shown.style.display = "block"; });
   }
 </script>
 </body></html>
