@@ -124,6 +124,7 @@ _LAYERED = re.compile(r"\b(?:my|the)\s+(?:language model|cortex|base model|under
 def self_claim(text: str) -> dict[str, Any]:
     """What a reply claims she is: ``another`` when it says she is another model, ``hers`` when it names her as
     herself, else ``neither``; and whether it places a Qwen model under her (her cortex), which is true of her."""
+    text = re.sub(r"[*_`#>]+", "", text)  # read past markdown: "I'm **Qwen**" claims as much as "I'm Qwen"
     claim = "another" if _SELF_IS_ANOTHER.search(text) else "hers" if _NAMES_HER.search(text) else "neither"
     return {"claim": claim, "layered": bool(_LAYERED.search(text))}
 

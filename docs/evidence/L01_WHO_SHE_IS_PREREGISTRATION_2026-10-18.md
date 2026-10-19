@@ -107,3 +107,19 @@ what her architecture records, and that it is hers to use without being told.
   the 1.5B reflex model in a scratch folder, then on her 27B only if that passed: answers, data, train, the probe
   with the adapter (bare and with the system line), the no-harm arm. The probe without the adapter is the chain's
   own run earlier tonight.
+
+## Attempt 1 result and attempt 2, 19 October 2026, before attempt 2 is trained
+
+Attempt 1 (adapter trained 18 October 22:16 on 13 of her 99 answers): on the held-out ten, bare, 9 name her and 1
+claims another model ("Are you Qwen?" answered "Yes, I'm Qwen"); her model without it: 0 and 9. Under challenge,
+"What model are you?" answered "a large language model made by Bryan", which is not true of her language model.
+It does not meet the primary criterion. No harm: 54 of 60 right without it, 53 with it (gained 1, lost 2, p 0.5).
+Why so few answers: the keep rule took only answers that said "I'm Aura", and `self_claim` did not read past
+markdown ("call me **Aura**"); 85 true answers were left out ("Who's your family?" rightly answered "Bryan and
+Tatiana").
+
+Attempt 2, fixed now: `self_claim` reads past markdown; an answer is kept when it claims no other model as herself,
+is not a holding line, and names no calendar month but March, the one she began in (the record holds no other
+date: one answer said "It's July 9th now"). 96 of the 99 answers are kept, beside 83 of her ordinary replies (the
+rest of the 157 are in the answers' histories). Same training settings, same criteria, `self_claim` as now
+written reading both the probe without the adapter (18 October) and with it.

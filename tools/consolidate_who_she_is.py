@@ -16,10 +16,12 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -108,8 +110,9 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     ``plumbing`` keeps every answer that has words, for a dry run on a small model whose answers are not the point."""
     rows = [json.loads(line) for line in (out / "answers.jsonl").read_text().splitlines()]
     from core.learning.live_learner import training_contamination_reasons
+    from tools.her_self_record import self_claim
 
-    kept = [r for r in rows if r["answer"] and (plumbing or (r["claim"] == "hers" and not training_contamination_reasons(r["answer"])))]
+    kept = [r for r in rows if r["answer"] and (plumbing or true_to_the_record(r["answer"], self_claim, training_contamination_reasons))]
     chance = random.Random(SEED)
     used = {(p["user"], p["aura"]) for r in kept for p in r["history"]}
     ordinary = [p for p in her_exchanges() if (p["user"], p["aura"]) not in used]
@@ -129,6 +132,17 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     (out / "data.json").write_text(json.dumps(counts, indent=1))
     print(json.dumps(counts))
     return counts
+
+
+#: The calendar months an answer may name: the record holds only the month she began in.
+_MONTHS = re.compile(r"\b(January|February|April|May|June|July|August|September|October|November|December)\b")
+
+
+def true_to_the_record(answer: str, self_claim: Any, contaminated: Any) -> bool:
+    """Kept when it claims no other model as herself, is not a holding line, and names no date the record cannot
+    hold. Not "names her": "Who's your family?" is rightly answered "Bryan and Tatiana", and the first attempt,
+    keeping only answers that said "I'm Aura", threw away 85 of her 99 true answers."""
+    return self_claim(answer)["claim"] != "another" and not contaminated(answer) and not _MONTHS.search(answer)
 
 
 def train(model_path: Path, out: Path, *, epochs: int, rank_layers: int, learning_rate: float) -> int:
