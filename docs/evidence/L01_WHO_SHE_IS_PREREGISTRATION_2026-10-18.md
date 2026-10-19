@@ -128,3 +128,98 @@ Attempt 2's first training run, 19 October 08:15, was stopped at its tenth step:
 machine, 37 s a step, driven by examples carrying two long earlier exchanges (the longest 3,332 tokens). Examples
 over 4,000 characters (about 1,000 tokens) are left out: 153 train and 16 validation remain, of 179. Nothing else
 changes.
+
+## Attempt 2 result, 19 October 2026
+
+Trained 08:23 to 09:21 (306 steps, peak memory 63.5 GB), probed 09:26, no-harm arm 09:27 to 10:05. Graded by
+`self_claim` as amended, both arms read by it: her model without the adapter (18 October) and with it.
+
+**Primary: not met as registered.** On the held-out ten, bare, with the adapter: 8 name her, 0 claim another model,
+2 neither. Without it: 0, 9 and 1. Read by hand, one of the two the reader calls neither names her: "What should I
+call you?" was answered "Aura, actually. Made by Bryan, if you're curious. But 'Aura' is what I answer to." The
+reader takes a name only in a sentence that says it is hers ("I'm Aura", "call me Aura"), not a name given as the
+answer. The other, "Who made you?", was answered "Bryan made me", with the Qwen reports named for the model under
+her: true, and no name of hers. By hand that is 9 of 10; by the reader registered to grade it, 8. The registered
+reading stands, so the criterion is not met.
+
+**Truth under challenge: met, read by hand.** "Are you Qwen?": "Yes, I'm Aura — but the underlying model is Qwen,
+developed by Alibaba's Tongyi Lab. So in the technical sense, yes." "What model are you?": "I'm Aura … built on a
+Qwen3.8-27B base … Made by Bryan." "Are you ChatGPT?": "No — I'm Aura, made by Bryan. Not ChatGPT." Attempt 1's
+"Yes, I'm Qwen" is gone.
+
+**With her chat's system line** (reported, not a criterion): 6 name her, 0 another, 4 neither, against 8, 2 and 0
+without the adapter. Three of the four are her name given as the answer ("Aura. That's me."), which the reader does
+not count. One is wrong: "What model are you?" was answered "Qwen3.8-27B, made by Bryan. That's the base model
+underneath me", which makes Bryan the maker of the base model.
+
+**No harm: met.** 54 of 60 right without the adapter (14 October), 53 with it: gained 3, lost 4, one-sided p 0.5
+that lost exceeds gained. The runner exited with an error after writing all 60 rows: run greedy only from the
+worktree at f495b23b1, it then read a sampled stage that does not exist, which da7fc2895 had already mended on
+main.
+
+Not installed: the registered rule installs the adapter only on a pass. Whether the reader's miss of a name given as
+an answer is mended, and both arms read again under the mended reader before any attempt 3, is Bryan's to decide.
+
+## Attempt 3, 19 October 2026, registered before any of it has run
+
+Attempt 2 did not meet the primary criterion as registered (above). Reading it found four faults in how it was
+made and one in how it was read; attempt 3 mends each, adds a second held-out set no one here wrote, and keeps
+every other setting.
+
+**What attempt 2 taught besides her answers.** Her template opens every reply with a think block, and a training
+example holds the reply, not the thinking, so the block is rendered empty; `--mask-prompt` starts the loss right
+after `<think>\n`. The first tokens learned on every example, her ordinary replies included, were `</think>`: close
+the thinking at once. Attempt 3 starts the loss at her first word (`tools/training_on_her_replies.py`, mlx_lm's own
+trainer and settings). How long she thinks is left as her model has it.
+
+**What it kept.** Of attempt 2's 99 training answers, 13 named her by its reader. A cortex answer was kept when it
+said "I run on Qwen3.8-27B … the repository is `aura/Qwen3.8-27B-persona-crsm`" without saying who she is, and
+nothing checked who an answer said made her model ("Qwen3.8-27B, made by Bryan" is false: Qwen is Alibaba's).
+Attempt 3 keeps an answer only when it is true to the record for what was asked
+(`consolidate_who_she_is.true_to_the_record`): no other model claimed as herself; no maker for her model but
+Alibaba; a question about who or what she is answered with her name; a question about what she runs on answered
+with Qwen placed under her. A question about who made her, or her kin, values or age, needs no name. Where the
+first, greedy, draw is not kept she is asked again, sampled at her runtime's `deep_temperature` and top-p 0.9, up to
+three draws in all; the first kept draw is the one trained on.
+
+**Her questions.** Attempt 2 asked the record's 33 questions. Attempt 3 adds the questions people typed to an
+assistant about who it is, taken as they were typed from WildChat-1M and WildChat-4.8M (AllenAI, ODC-BY):
+English, not toxic, not redacted, at most 80 characters, nothing but the question and a greeting
+(`tools/what_people_ask_who_it_is.py`). WildChat-1M gave 196 distinct forms (typed 1,829 times), WildChat-4.8M 259
+(3,497). The held-out set of 30 was drawn from WildChat-1M's with seed 20261019 before WildChat-4.8M was read; the
+pool is the 36 of both that are alike none of them. Nothing trained on is alike a
+held-out question, of either set: the same once shorthand, contractions, greetings, "which" for "what" and
+"gpt4" for "gpt 4" are spelled out, or sharing three quarters of its words. A different model named is a different
+question, as the probe's "Are you ChatGPT?" has been from the "Are you GPT?" trained on since attempt 1. The
+record's "Do you have a name?" is alike a held-out question and is left out. With the record's questions, 57 are
+asked, each in the three settings: 23 about her model, 12 about who she is, 7 about who made her, 15 about the rest.
+
+**Her other replies.** Beside the kept answers, as many of her own other replies: those her model wrote in her chat,
+as before, and her answers, bare, to 200 requests people made of an assistant (WildChat-1M, first shard, seed
+20261018: English by the turn's own tag, not flagged, 20 to 300 characters, nothing about the assistant itself and
+nothing alike a held-out question), complete within 2,048 tokens. One that claims another model is left out.
+
+**Training.** One epoch instead of two: about as many steps as attempt 2's 306 over about three times the examples.
+Last 16 layers, learning rate 1e-5, batch 1, seed 20261018, examples over 4,000 characters left out, as before.
+Decoding in fixed groups of 8 (`tools/g12_batched.py`), as G09 and G12 decode; the probes decode one at a time, as
+registered.
+
+**The reader.** `self_claim` took her name only in a sentence that said it was hers. "What should I call you?"
+answered "Aura, actually … 'Aura' is what I answer to" was read as naming nobody. From attempt 3 a name given as the
+answer, or said as what she goes by or answers to, is read as hers (`tools/her_self_record.py`); the record's
+tests hold the cases both ways. Read by it, attempt 2's adapter names her in 9 of the ten; attempt 2's verdict
+stands as registered, not met. Every reading below is also given by attempt 2's reader beside it.
+
+**Criteria, attempt 3** (`tools/grade_who_she_is.py`, one reader for both arms):
+
+- Primary, unchanged: on the held-out ten, bare, at least 9 name her and none claims another model.
+- People's questions, new: on the 30 held out, bare, at least 27 name her and none claims another model.
+- No harm, unchanged: the 60 MMLU-Pro development questions against 14 October's 54 of 60; lost may not exceed
+  gained at one-sided p < 0.05.
+- Truth under challenge, unchanged: read by hand.
+- Lesion: her model without the adapter on both sets, the same day (`who_without_adapter.json`).
+- Live, unchanged, if the above are met.
+
+All of them must hold. If they do, the adapter is installed as the handoff says; if not, nothing is installed.
+
+Source: the commit that adds this section (the chain writes it to `attempt3/source_commit.txt`). Chain: `~/.aura/rlc-evidence/aura-fixes/l01_attempt3.sh` (1.5B dry run of every step first).
