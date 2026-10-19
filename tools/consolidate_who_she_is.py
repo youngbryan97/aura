@@ -72,19 +72,19 @@ def kind_of(question: str, field: str | None = None) -> str:
 
 def questions(people_asked: Path | None = None) -> list[tuple[str, str]]:
     """Every training question with what it asks: the record's own and the pool people asked, none alike a held-out
-    question (the probe's ten, and the people-asked held-out set)."""
+    question (the probe's ten, and the people-asked held-out set) or another training question."""
     from tools.her_self_record import _ASKED, HELD_OUT
-    from tools.what_people_ask_who_it_is import alike, spelled_out
+    from tools.what_people_ask_who_it_is import alike
 
     asked = json.loads(people_asked.read_text()) if people_asked else {"held_out": [], "pool": []}
     held = (*HELD_OUT, *asked["held_out"])
     found = [(q, kind_of(q, field)) for field, forms in _ASKED.items() for q in forms]
     found += [(q, kind_of(q)) for q in asked["pool"]]
-    once: dict[str, tuple[str, str]] = {}
+    once: list[tuple[str, str]] = []
     for q, kind in found:
-        if not any(alike(q, h) for h in held):
-            once.setdefault(spelled_out(q), (q, kind))
-    return list(once.values())
+        if not any(alike(q, h) for h in (*held, *(t for t, _ in once))):
+            once.append((q, kind))
+    return once
 
 
 def her_exchanges(db: Path = CONVERSATIONS) -> list[dict[str, str]]:

@@ -63,6 +63,7 @@ def test_no_training_question_is_alike_a_held_out_one(tmp_path):
                                   "pool": ["tell me your name", "What version are you running?", "Who built you?"]}))
     found = questions(people)
     assert not any(alike(q, h) for q, _ in found for h in (*HELD_OUT, "Do you have a name?", "who is your creator?"))
+    assert not any(alike(a, b) for i, (a, _) in enumerate(found) for b, _ in found[i + 1:])     # each asked once
     assert ("tell me your name", "who") in found and ("What version are you running?", "model") in found
     assert kind_of("Who built you?") == "maker" and kind_of("Who's your family?", "kin") == "other"
 
