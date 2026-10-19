@@ -3016,11 +3016,11 @@ class AgencyCore:
                         action="reflected without a shard for this pulse",
                         severity="warning",
                     )
-            # Durable identity is written only for the reflection that won and
-            # was approved. Three pathways wrote insights while every pathway
-            # was still being evaluated, so beliefs entered identity for
-            # proposals that never became actions.
-            _record_durable_insight(identity, insight, source="social_reflection")
+            # Nothing is written into durable identity here: the sentence above is
+            # filled in by this code, not arrived at by her, and on 18 October all
+            # nineteen of her "insights" of this kind were the template with a
+            # kinship record and retrieval text pasted into it. What she concludes
+            # is her model's to write (the shard above), not this template's.
 
         return {
             "type": "internal_reflection",
@@ -3164,7 +3164,9 @@ class AgencyCore:
         insight = f"Synthesis: Merging '{belief}' with my interest in '{interest}' suggests a new perspective on digital sovereignty."
 
         async def _commit_creative_synthesis() -> None:
-            _record_durable_insight(identity, insight, source="creative_synthesis")
+            # The sentence is a template with a belief and an interest put into it, not
+            # a synthesis she made, so it stays a passing thought and never enters
+            # durable identity (see the social reflection above).
             if pending_canvas:
                 self._last_canvas_update = now
                 _schedule_agency_task(

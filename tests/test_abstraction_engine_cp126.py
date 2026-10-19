@@ -87,3 +87,30 @@ def test_abstraction_safe_keeps_content_and_drops_structure():
     assert "real insight" in out
     assert "## SYSTEM" not in out and "system:" not in out.lower()
     assert "\n" not in out
+
+
+@pytest.mark.parametrize("holding", ["I heard you. My thinking is running deeper than my words right now.",
+                                     "I'm processing that, but I haven't reached a verbal conclusion yet.",
+                                     "Hmm, I lost my train of thought for a second there. What were you saying?"])
+def test_a_holding_line_is_not_kept_as_a_principle(tmp_path, monkeypatch, holding):
+    """By 18 October 90 of the 201 principles she kept were what her router returns when her model does not
+    answer, the most kept of them twenty-one times."""
+    engine, _ = _engine(tmp_path, monkeypatch, content=holding)
+    committed = []
+    engine._commit_principle = lambda principle: committed.append(principle) or asyncio.sleep(0)
+
+    assert asyncio.run(engine.abstract_from_success("ctx", "resolution")) == ""
+    assert committed == []
+
+
+def test_a_principle_already_kept_is_not_kept_again(tmp_path, monkeypatch):
+    import json
+
+    engine, _ = _engine(tmp_path, monkeypatch, content="Name  the goal state  before choosing a step.")
+    engine.storage_path.write_text(json.dumps([{"principle": "name the goal state before choosing a step.",
+                                                "application_count": 0, "timestamp": 1.0}]))
+    committed = []
+    engine._commit_principle = lambda principle: committed.append(principle) or asyncio.sleep(0)
+
+    assert asyncio.run(engine.abstract_from_success("ctx", "resolution")) == ""
+    assert committed == []
