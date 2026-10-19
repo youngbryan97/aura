@@ -13,7 +13,7 @@ by changing the system and never the battery. These belong together. This is the
 | One-shot kNN memory in decoding | store repaired (bc4315573), 48,764 of 50,000 entries recallable; to confirm at boot |
 | Steering of the forward pass by her state | built; directions from her own replies captured (valence, arousal, energy, frustration at layers 25 to 40); alpha 0.0 on user turns because the fusion certificate's voice criterion has not passed |
 | Sampling temperature | 0.69 to 0.74 |
-| Her state as text in the prompt (LIVE TONE, SOMATIC STATE) | sent on most chat turns as of 17 October (5d8f82f0f); to be rechecked now that no system text is dispatched |
+| Her state as text her model reads | sent: a runtime-evidence message of about 944 characters on chat turns ("## LIVE TONE / Mood: empathy / Tone: inquisitive_engaged / ## UNITY ...", functional state signals, goals, present moment; her log, 19 October). Only system text stopped being dispatched |
 
 The evaluation's fourth reason for low credence: her reports about her state are written by a model that reads the
 state as text. A person's report pathway gets no printout of their own measurements.
