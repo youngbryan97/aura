@@ -72,6 +72,15 @@ class MLXEncoder:
     def encode_hidden(self, text: str) -> np.ndarray:
         return normalize(self._hidden_from_ids(self.tok.encode(text)))
 
+    def decode_token(self, token_id: int) -> str:
+        """The text of one token, which a store entry keeps beside the id it predicts.
+
+        The encoder protocol asks for it (core/brain/nonparametric_ingest.py) and this encoder had none, so every
+        entry it wrote kept "" for its token: on 18 October her recall store of 50,000 entries, 49,430 of them from
+        offline Wikipedia, and at the next boot the worker quarantined it as unrecallable (only 29 usable).
+        """
+        return str(self.tok.decode([int(token_id)]))
+
     def encode_hidden_ids(self, ids: list[int]) -> np.ndarray:
         return normalize(self._hidden_from_ids(list(ids)))
 
