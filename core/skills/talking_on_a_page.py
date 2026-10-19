@@ -20,6 +20,9 @@ LOOK_EVERY_S = 0.5
 OPENED_BY_NOBODY_S = 6.0
 #: How long a sent line is given to appear in the stream before the control beside the box is pressed instead.
 SENT_SHOWS_S = 1.5
+#: How many times her reply is asked for the same lines when her mind gives no words in the time (a lane busy, a decode
+#: out of time) before they are let go: once more, not until the other side writes again.
+ASKED_AT_MOST = 2
 
 #: Press the control nearest the place to write: what sends a line where Return does not.
 _PRESS_THE_SENDER = r"""(path) => {
@@ -43,6 +46,7 @@ async def talk_on_the_page(page: Any, reply: Callable[[list[Line], list[str]], A
     """Hold the conversation on ``page`` until it ends; what was said, and the page's words at the end."""
     sent: list[str] = []
     stream, before, answered, began = "", None, 0, time.monotonic()
+    asked_for, tries = -1, 0  # how many of their lines her reply was last asked for, and how many times
     talk = read_conversation(await page.evaluate(LOOK), sent)
     while time.monotonic() < until:
         look = await page.evaluate(LOOK)
@@ -51,13 +55,16 @@ async def talk_on_the_page(page: Any, reply: Callable[[list[Line], list[str]], A
         if talk.over:
             break
         theirs = talk.theirs()
-        opening = not talk.lines and not sent and time.monotonic() - began >= OPENED_BY_NOBODY_S
-        if len(theirs) > answered or opening:
-            answered = len(theirs)
+        opened_by_nobody = not talk.lines and not sent and time.monotonic() - began >= OPENED_BY_NOBODY_S
+        if len(theirs) > answered or (opened_by_nobody and not (asked_for == 0 and tries >= ASKED_AT_MOST)):
+            tries = tries + 1 if asked_for == len(theirs) else 1
+            asked_for = len(theirs)
             words = (await reply(list(talk.lines), list(talk.page_text))).strip()
             if words and talk.writing:
                 await _say(page, talk.writing["path"], words)
                 sent.append(words)
+            if words or tries >= ASKED_AT_MOST:
+                answered = len(theirs)
         await asyncio.sleep(look_every_s)
     return {"lines": [(line.who, line.text) for line in talk.lines], "over": talk.over, "page_text": talk.page_text,
             "sent": sent}
