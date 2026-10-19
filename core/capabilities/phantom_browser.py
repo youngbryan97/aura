@@ -75,15 +75,16 @@ _SYSTEM_CHROMIUM_EXECUTABLES = (
 )
 
 
-#: Off unless asked for. Hiding that a browser is automated is evading the sites that ask not to be visited
-#: by one, which Bryan's rules forbid; the evaluation of 17 October found it on by default.
+#: On. Bryan, 19 October 2026: she may browse in private and quietly; she is not a bot, spams no site or account, and
+#: is trusted to use her skills responsibly. It was turned off on 18 October (d2d6c4759) on a misreading of his rules.
+#: Whether her browser's window shows is a different switch (``visible``). CAPTCHAs are still never solved for her.
 _BROWSER_STEALTH = _declare(
     "AURA_BROWSER_STEALTH",
     kind=_FlagKind.STRING,
-    default="0",
+    default="1",
     description=(
         "Whether her browser hides that it is automated: playwright-stealth, a borrowed user agent, "
-        "and the automation flag switched off. 0 (the default) to browse as what it is"
+        "and the automation flag switched off. 0 to browse as an automated browser"
     ),
     owner="core/capabilities/phantom_browser.py",
 )

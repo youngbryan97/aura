@@ -160,8 +160,8 @@ async def test_browser_uses_installed_chrome_when_playwright_cache_is_stale(
     assert fake_playwright.chromium.launch_kwargs == [
         {
             "headless": True,
-            # By default her browser browses as what it is: the flag that hides automation is not passed.
-            "args": [*_KEEPS_RUNNING, *_chromium_graphics_arguments()],
+            # Stealth on by default: the flag that hides automation is passed.
+            "args": ["--disable-blink-features=AutomationControlled", *_KEEPS_RUNNING, *_chromium_graphics_arguments()],
             "timeout": PhantomBrowser.LAUNCH_TIMEOUT_S * 1000.0,
             "executable_path": str(system_chrome),
         }
@@ -205,7 +205,7 @@ async def test_browser_applies_current_stealth_api_before_page_creation(
         async def apply_stealth_async(self, context):
             observations.append(("stealth", context.page_created))
 
-    # Stealth is off unless asked for; this is the path when it is.
+    # Stealth on, as by default.
     monkeypatch.setenv("AURA_BROWSER_STEALTH", "1")
     monkeypatch.setattr(phantom_module, "PLAYWRIGHT_AVAILABLE", True)
     monkeypatch.setattr(phantom_module, "STEALTH_AVAILABLE", True)
@@ -261,7 +261,10 @@ async def test_browser_startup_cleans_up_after_all_launches_fail(monkeypatch):
     )
 
 
-def test_her_browser_hides_nothing_unless_asked(monkeypatch):
+def test_her_browser_browses_quietly_unless_told_not_to(monkeypatch):
+    """Bryan, 19 October 2026: stealth is fine; she browses in private and is trusted with it."""
     monkeypatch.delenv("AURA_BROWSER_STEALTH", raising=False)
+    assert phantom_module._hides_automation() is True
+    monkeypatch.setenv("AURA_BROWSER_STEALTH", "0")
     assert phantom_module._hides_automation() is False
     assert PhantomBrowser(browser_type="chromium")._get_random_ua() is None
