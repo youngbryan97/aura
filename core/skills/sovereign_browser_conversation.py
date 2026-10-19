@@ -37,25 +37,31 @@ def _kept_at() -> Path:
     return Path(config.paths.data_dir) / "conversations_held_on_pages.jsonl"
 
 
-def _keep(row: dict[str, Any]) -> None:
+async def _keep(row: dict[str, Any]) -> None:
+    """One row appended through the write gateway's async lane: her browser's pursuit runs on the event loop."""
+    from core.governance_context import local_internal_governed_scope
     from core.runtime.errors import record_degradation
+    from core.runtime.file_write_gateway import get_file_write_gateway
 
     try:
         path = _kept_at()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as sink:
-            sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+        with local_internal_governed_scope("sovereign_browser_conversation.keep", domain="file_write"):
+            gateway = get_file_write_gateway()
+            await gateway.ensure_directory_async(path.parent, source="sovereign_browser_conversation.keep")
+            await gateway.append_text_async(path, json.dumps(row, ensure_ascii=False) + "\n",
+                                            source="sovereign_browser_conversation.keep")
     except OSError as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="keep a conversation held on a page")
 
 
-def _after_the_conversation(observation: Mapping[str, Any]) -> None:
+async def _after_the_conversation(observation: Mapping[str, Any]) -> None:
     """A page after the last conversation on the same site, kept with it."""
     site = urlparse(str(observation.get("url") or "")).netloc
     if not _LAST or site != _LAST["site"] or _LAST["pages"] >= PAGES_AFTER:
         return
     _LAST["pages"] += 1
-    _keep({"after": _LAST["began"], "url": str(observation.get("url") or ""), "page_text": str(observation.get("text") or "")[:4000]})
+    await _keep({"after": _LAST["began"], "url": str(observation.get("url") or ""),
+                 "page_text": str(observation.get("text") or "")[:4000]})
 
 
 async def with_the_conversation(browser: Any, observation: dict[str, Any]) -> dict[str, Any]:
@@ -65,7 +71,7 @@ async def with_the_conversation(browser: Any, observation: dict[str, Any]) -> di
     page = getattr(browser, "page", None)
     if not observation or not observation.get("elements") or page is None:
         return observation
-    _after_the_conversation(observation)
+    await _after_the_conversation(observation)
     try:
         writing = (await page.evaluate(LOOK) or {}).get("writing")
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
@@ -106,7 +112,7 @@ async def talked_on_the_page(browser: Any, goal: str, observation: Mapping[str, 
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="hold the conversation on the page")
         return {**step, "error": f"the conversation could not be held: {exc}"}
-    _keep({"began": began, "url": step["url"], "asked_of_her": goal, "lines": held["lines"], "over": held["over"],
+    await _keep({"began": began, "url": step["url"], "asked_of_her": goal, "lines": held["lines"], "over": held["over"],
            "page_text": held["page_text"]})
     _LAST.update(began=began, site=urlparse(step["url"]).netloc, pages=0)
     theirs = sum(1 for who, _text in held["lines"] if who == "them")
