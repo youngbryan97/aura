@@ -55,3 +55,9 @@ def test_her_line_finds_the_stream_without_a_look_before():
     assert talk.stream == "main:1/div:1"
     assert [(line.who, line.text) for line in talk.lines] == [("them", "hello?"), ("me", "hi, who's this")]
     assert talk.page_text == ["Chat"]
+
+
+def test_a_place_to_write_closed_to_her_is_not_the_end():
+    look = {"blocks": [], "elements": [], "writing": None, "closed": {"path": "form:1/input:1", "says": ""}}
+    assert not read_conversation(look, []).over
+    assert read_conversation({**look, "closed": None}, []).over

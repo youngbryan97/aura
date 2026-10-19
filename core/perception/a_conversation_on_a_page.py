@@ -5,7 +5,8 @@ is read from what any such page has: a stream of lines that grows as the two sid
 Nothing here knows a site. The stream is the part of the page that grows: the element her own line landed in once she
 has written one, and before that the one that gained text between two looks. Lines in it are hers when they are
 what she sent, and the other side's when they are not. What is outside it is the page itself: its title, its rules,
-its clock. The conversation is over when the place to write is gone.
+its clock. The conversation is over when the place to write is gone; one shown but closed to her is the other side's
+turn, on a page where the two take turns.
 """
 from __future__ import annotations
 
@@ -32,17 +33,23 @@ LOOK = r"""() => {
                  control: !!el.closest("button,a,input,textarea,select,label,[role=button]")});
   }
   // A place to write a line in: not a search box, and alone in its form (a form of several fields is filled, not talked in).
-  const open = Array.from(document.querySelectorAll("textarea, input, [contenteditable=true]")).filter(e => {
+  // One shown but closed to her (disabled, read-only) is kept apart: on a page where the two sides take turns it is
+  // closed while the turn is theirs.
+  const places = Array.from(document.querySelectorAll("textarea, input, [contenteditable=true]")).filter(e => {
     const t = (e.getAttribute("type") || "text").toLowerCase(); const r = e.getBoundingClientRect();
     const named = [e.name, e.placeholder, e.getAttribute("aria-label")].join(" ");
-    return !e.disabled && !e.readOnly && ["text", ""].includes(t) && r.width > 0 && r.height > 0
+    return ["text", ""].includes(t) && r.width > 0 && r.height > 0
       && getComputedStyle(e).visibility !== "hidden" && !e.closest("[role=search]") && !/search/i.test(named)
       && !(e.form && e.form.querySelectorAll("input:not([type=hidden]):not([type=submit]):not([type=button]), textarea, select").length > 1); });
-  const box = open.find(e => e.tagName !== "INPUT") || open[0];
+  const first = (found) => found.find(e => e.tagName !== "INPUT") || found[0];
+  const box = first(places.filter(e => !e.disabled && !e.readOnly));
+  const shut = box ? null : first(places.filter(e => e.disabled || e.readOnly));
   const at = box ? box.getBoundingClientRect() : null;
   const elements = Array.from(document.body.querySelectorAll("*")).map(pathOf);
   return {blocks, elements, writing: at ? {x: at.left, y: at.top, w: at.width, h: at.height, path: pathOf(box),
-          says: box.placeholder || box.getAttribute("aria-label") || ""} : null, width: innerWidth, height: innerHeight};
+          says: box.placeholder || box.getAttribute("aria-label") || ""} : null,
+          closed: shut ? {path: pathOf(shut), says: shut.placeholder || shut.getAttribute("aria-label") || ""} : null,
+          width: innerWidth, height: innerHeight};
 }"""
 
 
@@ -62,11 +69,15 @@ class Conversation:
     stream: str = ""
     writing: dict[str, Any] | None = None
     page_text: list[str] = field(default_factory=list)
+    #: The place to write, shown but closed to her: the other side's turn, or an end the page has not taken away.
+    closed: dict[str, Any] | None = None
+    #: What the page offers to press outside the stream ("Send", "A person"), by its words.
+    controls: frozenset[str] = frozenset()
 
     @property
     def over(self) -> bool:
-        """No place to write is left: the exchange has ended, whatever the page says next."""
-        return self.writing is None
+        """No place to write is left, open or closed: the exchange has ended, whatever the page says next."""
+        return self.writing is None and self.closed is None
 
     def theirs(self) -> list[str]:
         return [line.text for line in self.lines if line.who == "them"]
@@ -121,4 +132,6 @@ def read_conversation(look: dict[str, Any], sent: list[str], *, before: dict[str
             lines.append(Line("me" if _normal(block["text"]) in mine else "them", block["text"]))
         elif not block["control"]:
             page.append(block["text"])
-    return Conversation(lines=lines, stream=stream, writing=look.get("writing"), page_text=page)
+    controls = frozenset(_normal(block["text"]) for block in blocks if block["control"])
+    return Conversation(lines=lines, stream=stream, writing=look.get("writing"), page_text=page,
+                        closed=look.get("closed"), controls=controls)

@@ -66,3 +66,30 @@ async def test_a_line_her_mind_gave_no_words_for_is_asked_again_once():
     assert asked[:2] == [1, 1]                       # their first line, asked for again when the first try gave nothing
     assert asked.count(2) == ASKED_AT_MOST           # their second line given nothing twice, then let go
     assert held["sent"][0] == "line 2 from me"
+
+
+@pytest.mark.asyncio
+async def test_a_place_to_write_closed_for_their_turn_is_waited_out_and_the_end_is_what_the_page_offers_next():
+    """Where the two sides take turns, the place to write is closed while the turn is theirs: waited out, not taken
+    for the end. At the end it stays, closed, with a guess asked beside it: that is the end, not the time she has."""
+    playwright_api = pytest.importorskip("playwright.async_api")
+    from core.skills.talking_on_a_page import talk_on_the_page
+
+    async def reply(lines, page_text):
+        return f"line {sum(1 for line in lines if line.who == 'me') + 1} from me"
+
+    async with playwright_api.async_playwright() as playwright:
+        try:
+            browser = await playwright.chromium.launch(headless=True)
+        except Exception as why:  # noqa: BLE001 - no engine installed here
+            pytest.skip(f"no browser engine: {why}")
+        page = await browser.new_page()
+        await page.goto(f"file://{PAGE}?seconds=8&turns=1")
+        began = time.monotonic()
+        held = await talk_on_the_page(page, reply, until=time.monotonic() + 30)
+        took = time.monotonic() - began
+        ours = await page.evaluate("window.__chat.ours")
+        await browser.close()
+    assert held["over"] and took < 15                                  # ended by the guess asked, not at 30 s
+    assert ours == held["sent"] and len(ours) >= 3                      # each of her turns taken, after each of theirs
+    assert held["lines"][0] == ("them", "hey, how's it going")

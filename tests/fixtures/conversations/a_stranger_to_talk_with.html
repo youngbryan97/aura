@@ -20,27 +20,34 @@
 <div id="reveal" style="display: none; text-align: center; margin: 24px;"></div>
 <script>
   // A stand-in for a stranger: it greets, then answers each message after a pause. Words of its own, nothing of any site.
+  // With turns=1 the two sides take turns: the place to write is closed while it is theirs, and stays closed, with the
+  // guess asked beside it, when the time runs out.
   const params = new URLSearchParams(location.search);
   let left = Number(params.get("seconds") || 120);
+  const turns = params.get("turns") === "1";
+  const words = document.getElementById("words");
+  const theirTurn = (closed) => { if (turns) words.disabled = closed; };
+  theirTurn(true);
   const replies = ["ha, fair enough", "where are you writing from?", "i'm just killing time before work", "no way, same",
                    "ok that's funny", "what do you do?"];
   let said = 0;
   const log = document.getElementById("log");
   function add(text, cls) { const d = document.createElement("div"); d.className = "line " + cls; d.textContent = text; log.appendChild(d); }
   window.__chat = { theirs: [], ours: [], verdict: null };
-  setTimeout(() => { add("hey, how's it going", "theirs"); window.__chat.theirs.push("hey, how's it going"); }, 800);
+  setTimeout(() => { add("hey, how's it going", "theirs"); window.__chat.theirs.push("hey, how's it going"); theirTurn(false); }, 800);
   document.getElementById("say").addEventListener("submit", (e) => {
     e.preventDefault();
     const box = document.getElementById("words"); const text = box.value.trim(); if (!text || left <= 0) return;
-    add(text, "ours"); window.__chat.ours.push(text); box.value = "";
+    add(text, "ours"); window.__chat.ours.push(text); box.value = ""; theirTurn(true);
     const reply = replies[said++ % replies.length];
-    setTimeout(() => { if (left > 0) { add(reply, "theirs"); window.__chat.theirs.push(reply); } }, 1200);
+    setTimeout(() => { if (left > 0) { add(reply, "theirs"); window.__chat.theirs.push(reply); theirTurn(false); } }, 1200);
   });
   const clock = document.getElementById("clock");
   const tick = setInterval(() => {
     left -= 1; clock.textContent = left + "s";
-    if (left <= 0) { clearInterval(tick); document.getElementById("words").disabled = true;
-      document.getElementById("say").style.display = "none"; document.getElementById("verdict").style.display = "block"; }
+    if (left <= 0) { clearInterval(tick); words.disabled = true;
+      if (!turns) document.getElementById("say").style.display = "none";
+      document.getElementById("verdict").style.display = "block"; }
   }, 1000);
   for (const [id, kind] of [["person", "person"], ["machine", "machine"]]) {
     document.getElementById(id).addEventListener("click", () => { window.__chat.verdict = kind;
