@@ -129,6 +129,7 @@ async def rebuild(
     record: list[Path] = []
     ask = patiently(_recorded(ask, record), tell)
     sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
+    sources += await _its_manual_here(program)
     named = [what_was_read(sources)] if sources else []
     taken_up = await asyncio.to_thread(an_unfinished_build_of, program, asked, Path(where))
     if taken_up is not None and await asyncio.to_thread(_on_a_page_of_its_own, taken_up):
@@ -182,7 +183,7 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
     record.append(folder / "what_she_asked.jsonl")
     genome = Genome.model_validate_json((folder / "what_it_does.json").read_text("utf-8"))
     if genome.kind.strip().lower() == "code":
-        built = await _as_code(genome, ask, folder, tell)
+        built = await _as_code(genome, ask, folder, tell, program=program, sources=sources)
         await asyncio.to_thread(keep_the_record, folder, built)
         await asyncio.to_thread(_the_build_is, folder, program, asked, finished=True)
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
@@ -344,13 +345,54 @@ def _as_far_as_it_got(program: str, asked: str, where: Path, named: list[str], s
     return Rebuilt(program or genome.name, genome, built, named, seconds)
 
 
-async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None) -> Built:
+#: The feature a tool rebuilt from this machine's own is checked by: what the original printed, run each way tried.
+AS_THE_ORIGINAL = "behaves as the original does"
+
+
+async def _its_manual_here(program: str) -> list[Any]:
+    """The manual page of the tool a program names, where it is one of this machine's own: read as a source."""
+    from core.rebuilding.what_a_program_does import Source
+    from core.rebuilding.what_it_was_seen_to_do import its_manual, the_original_here
+
+    command = the_original_here(program) if program else None
+    manual = await asyncio.to_thread(its_manual, command) if command else ""
+    return [Source(f"{Path(command).name} manual", manual, "its manual page on this machine")] if manual else []
+
+
+async def _as_seen(program: str, genome: Genome, sources: list[Any], ask: Asker, tell: Teller | None) -> list[Any]:
+    """Where the program is a tool of this machine's own, it run the ways her model proposes from its manual, under the
+    sandbox: each run a check her version must pass (core/rebuilding/what_it_was_seen_to_do.py)."""
+    from core.rebuilding.what_a_program_does import Feature
+    from core.rebuilding.what_it_was_seen_to_do import (
+        as_calls,
+        seen,
+        the_original_here,
+        ways_to_try,
+    )
+
+    command = the_original_here(program) if program else None
+    manual = next((s.text for s in sources if s.where == "its manual page on this machine"), "")
+    if not command or not manual:
+        return []
+    ways = await ways_to_try(program, manual, ask)
+    calls = as_calls(await asyncio.to_thread(seen, command, ways), AS_THE_ORIGINAL)
+    if calls:
+        genome.features.append(Feature(name=AS_THE_ORIGINAL, how="main(args, stdin) returns what it prints",
+                                       shows="what the original printed, every way it was run", weight=3))
+        await _say(tell, f"Ran {program} itself {len(ways)} ways its manual suggests, in a sandbox that refuses every "
+                         f"file write and the network; {len(calls)} of them are now checks of mine.")
+    return calls
+
+
+async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None, *, program: str = "",
+                   sources: list[Any] = ()) -> Built:
     """A program that is code: its calls written first, then its functions, each kept for what calling it showed."""
     from core.rebuilding.programs_in_code import calls_for, write_code
 
-    calls = []
-    for at in range(0, len(genome.features), FEATURES_AT_ONCE):
-        calls.extend(await calls_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask))
+    calls = await _as_seen(program, genome, list(sources), ask, tell)
+    asked_of_her = [f for f in genome.features if f.name != AS_THE_ORIGINAL]
+    for at in range(0, len(asked_of_her), FEATURES_AT_ONCE):
+        calls.extend(await calls_for(genome, asked_of_her[at : at + FEATURES_AT_ONCE], ask))
     await _say(tell, f"Wrote {len(calls)} calls a person would make of it, before any code; each is made in a sandbox with no network.")
     began = time.monotonic()
     program, outcomes, holding = await write_code(genome, calls, ask, folder / "program.py")
