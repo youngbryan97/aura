@@ -53,3 +53,22 @@ from 73% (people) and not to tell 60% from 73%: the result is reported with its 
 
 After the night's work on her model (L09, L01). First the conversation ability and the deadline-sized decode, each
 proven on a local chat page Aura has never seen, then a single game on the site watched start to end, then the run.
+
+## Built, 19 October, before any game
+
+- **A conversation on a page** (`core/perception/a_conversation_on_a_page.py`): the stream is the part of the page that
+  grows, her lines are what she sent, the place to write is not a search box or one field of a longer form, and the
+  conversation is over when the place to write is gone.
+- **Held to its end** (`core/skills/talking_on_a_page.py`): each new line from the other side answered, written and
+  sent (Return, else the control beside the box); after six quiet seconds she may open it.
+- **Her line, in the time a conversation keeps** (`core/skills/her_reply_in_a_conversation.py`,
+  `core/brain/llm/an_answer_in_the_time_given.py`): her model, given the conversation as turns and what she was asked
+  and what the page says as evidence, with `answer_within_s`; the gate's answer clock fits the decode to that time.
+- **Chosen, not run** (`core/skills/sovereign_browser_conversation.py`): her browser pursuit offers the page's
+  conversation as one element, as it offers what a page draws; she chooses it or not, and choosing it holds the
+  conversation.
+- **Kept** (`data/conversations_held_on_pages.jsonl`): each conversation, with the page's words at its end and on the
+  next four pages on the same site, where who the other side was and what they made of her are said.
+
+Proven on a local page Aura has never seen (`tests/fixtures/conversations/`), with a stand-in for her model. Not yet
+run with her model, and not yet on the site.
