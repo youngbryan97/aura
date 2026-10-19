@@ -123,3 +123,8 @@ is not a holding line, and names no calendar month but March, the one she began 
 date: one answer said "It's July 9th now"). 96 of the 99 answers are kept, beside 83 of her ordinary replies (the
 rest of the 157 are in the answers' histories). Same training settings, same criteria, `self_claim` as now
 written reading both the probe without the adapter (18 October) and with it.
+
+Attempt 2's first training run, 19 October 08:15, was stopped at its tenth step: peak memory 82.9 GB on this 64 GB
+machine, 37 s a step, driven by examples carrying two long earlier exchanges (the longest 3,332 tokens). Examples
+over 4,000 characters (about 1,000 tokens) are left out: 153 train and 16 validation remain, of 179. Nothing else
+changes.

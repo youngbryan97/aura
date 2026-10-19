@@ -31,6 +31,8 @@ CONVERSATIONS = Path.home() / ".aura/data/conversations.db"
 #: The settings each question is asked in: on its own, after one of her exchanges, after two.
 HISTORIES = (0, 1, 2)
 SEED = 20261018
+#: The longest training example, in characters (about 1,000 tokens): longer ones do not fit her 27B's training in 64 GB.
+LONGEST_CHARS = 4000
 #: Her own replies shorter than this, or given more than once word for word, are her holding lines, not replies.
 SHORTEST_REPLY = 40
 
@@ -120,6 +122,9 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     examples = ([{"messages": [*_asked(r["question"], r["history"]), {"role": "assistant", "content": r["answer"]}]} for r in kept]
                 + [{"messages": [{"role": "user", "content": p["user"]}, {"role": "assistant", "content": p["aura"]}]}
                    for p in ordinary[:len(kept)]])
+    # An example longer than this is left out: one of 3,332 tokens with two exchanges before it took training to
+    # 83 GB on a 64 GB machine (19 October), against 39 GB without such examples.
+    examples = [e for e in examples if sum(len(m["content"]) for m in e["messages"]) <= LONGEST_CHARS]
     chance.shuffle(examples)
     valid = examples[: max(1, len(examples) // 10)]
     train = examples[len(valid):]
