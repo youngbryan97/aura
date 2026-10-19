@@ -33,17 +33,20 @@ Those are named in `STILL_WORDED`, and the list only gets shorter.
 from __future__ import annotations
 
 import logging
-import os
 import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from core.runtime.flags import FlagKind, declare
 from core.utils.injected_blocks import (
     RUNTIME_EVIDENCE_ROLE,
     carries_read_evidence,
     injected_blocks_in,
     stamp_grounding,
 )
+
+_FLAG_SYSTEM_TEXT = declare("AURA_SYSTEM_TEXT", kind=FlagKind.STRING, default='',
+                            description="keep gives her model the system text again", owner="prompt")
 
 __all__ = ["STILL_WORDED", "for_her_model", "her_turn_is_still_worded", "readings_in", "what_she_is_given"]
 
@@ -142,7 +145,7 @@ _REMEMBERED = (
 
 def her_turn_is_still_worded(context: Mapping[str, Any] | None) -> bool:
     """Whether this turn's lane still depends on worded instructions."""
-    if os.environ.get("AURA_SYSTEM_TEXT", "").strip().lower() == "keep":
+    if _FLAG_SYSTEM_TEXT.value().strip().lower() == "keep":
         return True
     held = context or {}
     return any(held.get(flag) for flag in STILL_WORDED)

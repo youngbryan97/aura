@@ -18,6 +18,13 @@ import contextvars
 import json
 from typing import Any
 
+from core.runtime.flags import FlagKind, declare
+
+_FLAG_PROMPT_LEAVE_OUT = declare("AURA_PROMPT_LEAVE_OUT", kind=FlagKind.STRING, default='',
+                                 description="the prompt parts left out of every turn, by name", owner="prompt")
+_FLAG_ABLATE_SECTION = declare("AURA_ABLATE_SECTION", kind=FlagKind.STRING, default='',
+                               description="the identity section left out, for an ablation", owner="prompt")
+
 MAX_REFLECTION_EXCERPT_CHARS = 6_000
 MAX_AUTONOMOUS_CONTEXT_CHARS = 3_000
 
@@ -166,11 +173,10 @@ def leave_out(parts: Any, *, measurement: bool = True) -> frozenset[str]:
 
 def left_out() -> frozenset[str]:
     """The parts left out of this turn's prompt: the turn's own, then the standing ones."""
-    import os
 
     standing = {
         part.strip().lower()
-        for part in os.environ.get("AURA_PROMPT_LEAVE_OUT", "").split(",")
+        for part in _FLAG_PROMPT_LEAVE_OUT.value().split(",")
         if part.strip()
     }
     if "bare" in standing:
@@ -279,7 +285,6 @@ def identity_text(*, ablate_section: str = "") -> str:
     measurement needs no restart and edits no file. Unset — which is every
     normal run — this returns the anchor unchanged.
     """
-    import os
     import re as _re
 
     try:
@@ -288,7 +293,7 @@ def identity_text(*, ablate_section: str = "") -> str:
     except LookupError:
         turn_scoped = ""
     target = str(
-        ablate_section or turn_scoped or os.environ.get("AURA_ABLATE_SECTION", "")
+        ablate_section or turn_scoped or _FLAG_ABLATE_SECTION.value()
     ).strip()
     if not target:
         return AURA_IDENTITY

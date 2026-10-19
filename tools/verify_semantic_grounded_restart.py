@@ -8,10 +8,22 @@ import hashlib
 import io
 import json
 import math
-import os
 import re
 import sys
 from pathlib import Path
+
+from core.runtime.flags import FlagKind, declare
+
+_FLAG_PLAN = declare("AURA_DETACHED_PLAN_SHA256", kind=FlagKind.STRING, default='',
+                     description="the detached plan digest handed to the restart", owner="detached-runs")
+_FLAG_COMMAND = declare("AURA_DETACHED_COMMAND_SHA256", kind=FlagKind.STRING, default='',
+                        description="the detached command digest", owner="detached-runs")
+_FLAG_PRIOR_ATTEMPT = declare("AURA_DETACHED_PRIOR_ATTEMPT", kind=FlagKind.INT, default=0,
+                              description="which attempt came before this one", owner="detached-runs")
+_FLAG_PRIOR_JOURNAL = declare("AURA_DETACHED_PRIOR_JOURNAL_HEAD_SHA256", kind=FlagKind.STRING, default='',
+                              description="the prior journal head digest", owner="detached-runs")
+_FLAG_TRANSPORT = declare("AURA_DETACHED_RESUME_EVIDENCE_TRANSPORT", kind=FlagKind.STRING, default='',
+                          description="how the resume evidence was carried", owner="detached-runs")
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -136,11 +148,11 @@ def main():
     result = verify(args.directory)
     if args.detached:
         result = detached_verdict(result, {
-            "plan_sha256": os.environ.get("AURA_DETACHED_PLAN_SHA256", ""),
-            "command_sha256": os.environ.get("AURA_DETACHED_COMMAND_SHA256", ""),
-            "prior_attempt": int(os.environ.get("AURA_DETACHED_PRIOR_ATTEMPT", "0")),
-            "prior_journal_head_sha256": os.environ.get("AURA_DETACHED_PRIOR_JOURNAL_HEAD_SHA256", ""),
-            "transport": os.environ.get("AURA_DETACHED_RESUME_EVIDENCE_TRANSPORT", "")})
+            "plan_sha256": _FLAG_PLAN.value(),
+            "command_sha256": _FLAG_COMMAND.value(),
+            "prior_attempt": int(_FLAG_PRIOR_ATTEMPT.value()),
+            "prior_journal_head_sha256": _FLAG_PRIOR_JOURNAL.value(),
+            "transport": _FLAG_TRANSPORT.value()})
     print(json.dumps(result, sort_keys=True), flush=True)
     return 0
 
