@@ -350,6 +350,89 @@ description is that document's own title.
 | `G03_PREPARED_NATIVE_FIT_HANDOFF_2026-09-30.md` | Prepared native fit continuation, 2026-09-30 |
 | `G03_SOURCE_FIT_HANDOFF_2026-09-30.md` | G03 source-fit handoff, 2026-09-30 |
 | `G03_STOP_SOURCE_REACQUISITION_2026-09-30.md` | G03 stop-source reacquisition, 2026-09-30 |
+| `BENCHMARK_SOURCE_CASE_IDENTITY_2026-10-08.md` | Benchmark source cases, 8 October 2026 |
+| `BOUND_ACTIONS_AND_TERMINAL_PROOF_2026-10-11.md` | Bound actions and terminal proof, 11 October 2026 |
+| `CREATION_CURRENT_WORK_2026-10-11.md` | Creation completion and current work, 11 October 2026 |
+| `CURRENT_VISUAL_CONTROLS_AND_REOPENED_SELECTORS_2026-10-10.md` | Current visual controls and reopened selectors, 10 October 2026 |
+| `DESKTOP_PLACEMENT_AND_STOP_2026-10-11.md` | Desktop placement and Stop, 11 October 2026 |
+| `FLASH_CAMPAIGN_RESUMPTION_2026-10-11.md` | Flash campaign resumption, 11 October 2026 |
+| `FLASH_DESKTOP_CAMPAIGN_PROTOCOL_2026-10-11.md` | Desktop campaign protocol, 11 October 2026 |
+| `FOREGROUND_TRANSFER_IDENTITY_2026-10-11.md` | Foreground identity during transfers, 11 October 2026 |
+| `FULL_DESKTOP_FLASH_ATTEMPT_2026-10-11.md` | Full desktop Flash attempt, 11 October 2026 |
+| `G03_ADJUDICATION_HANDOFF_2026-10-01.md` | Development Adjudication Handoff, 2026-10-01 |
+| `G03_AN_OPERATION_OWNS_ITS_SENTENCE_2026-10-05.md` | An operation's register owns its sentence |
+| `G03_ARGUMENTS_WITHIN_THEIR_SENTENCE_2026-10-05.md` | No argument option starts before its operation's sentence |
+| `G03_A_STACKED_LABELER_DOES_NOT_HOLD_2026-10-05.md` | Naming an operation from its words as well as its context does not hold |
+| `G03_BINDING_BUILD_REGISTER_2026-09-30.md` | G03 Binding Build Register |
+| `G03_COMPLETE_SOURCE_NEGATIVE_2026-10-01.md` | Complete source-development negative |
+| `G03_CONDITIONAL_CHART_BOUND_2026-10-01.md` | Conditional Chart Bound, 2026-10-01 |
+| `G03_DECLARATIONS_AND_CONDITIONAL_FIT_2026-10-03.md` | A declaration holds no operation, and the readout fitted as it is used |
+| `G03_DEVELOPMENT_ROW_ARCHIVES_2026-10-01.md` | Development Row Archives, 2026-10-01 |
+| `G03_GROUNDED_FIT_RESTART_2026-10-01.md` | Grounded Fit Restart, 2026-10-01 |
+| `G03_GROUNDED_PREPARATION_HANDOFF_2026-10-02.md` | Grounded preparation custody and exact fit handoff |
+| `G03_HYBRID_JOINT_EXECUTION_2026-10-01.md` | Hybrid Joint Execution, 2026-10-01 |
+| `G03_IDENTICAL_SHARE_AND_SCORING_2026-10-03.md` | How common a matched word is, and how the antecedent enters the score |
+| `G03_INDEPENDENT_DEVELOPMENT_ADJUDICATION_2026-10-01.md` | Independent Development Adjudication, 2026-10-01 |
+| `G03_JOINT_CHART_BATCHING_2026-10-01.md` | Joint Chart Execution, 2026-10-01 |
+| `G03_JOINT_DEVELOPMENT_SCREEN_2026-10-01.md` | Joint Development Screen, 2026-10-01 |
+| `G03_JOINT_NATIVE_DECODE_2026-10-01.md` | Joint Native Decode, 2026-10-01 |
+| `G03_JOINT_NATIVE_PREPARATION_2026-10-01.md` | Joint Native Preparation, 2026-10-01 |
+| `G03_JOINT_SCORE_IDENTIFIABILITY_2026-10-01.md` | Joint Role Score Identifiability, 2026-10-01 |
+| `G03_NAME_ANTECEDENTS_2026-10-03.md` | A named result read back to where its name was given |
+| `G03_NATIVE_LAUNCH_ENVIRONMENT_2026-09-30.md` | Native Handoff Launch Environment |
+| `G03_NONLINEAR_MEANING_BUILD_2026-09-30.md` | Nonlinear Meaning Build |
+| `G03_OPERATION_FIELD_REPAIR_2026-10-01.md` | Whole-request operation learning |
+| `G03_PEAK_RECOGNITION_2026-10-02.md` | Operations found where the request reads as one |
+| `G03_PREPARATION_STALL_REPLAY_2026-10-03.md` | Preparation stall and source replay |
+| `G03_PROGRAM_POOL_PROGRESS_2026-10-01.md` | Completed program proofs survive unfinished searches |
+| `G03_REBOOT_RECOVERY_2026-09-30.md` | G03 Source Chain Reboot Recovery |
+| `G03_SELECTED_EDGE_EXECUTION_2026-10-01.md` | Selected-Edge Joint Execution, 2026-10-01 |
+| `G03_TWO_RULES_THAT_FAIL_2026-10-03.md` | Two rules for the last composition misses, and why neither is kept |
+| `G03_WHICH_AND_WHETHER_2026-10-06.md` | The word says which operation; the sentence says whether |
+| `G04_TRANSFER_PREREGISTRATION_2026-10-06.md` | G04 transfer: the plan, published before anything is decoded |
+| `G04_TRANSFER_RESULT_2026-10-06.md` | G04 transfer: construction and family carry, vocabulary and depth do not |
+| `G04_TRANSFER_V2_PREREGISTRATION_2026-10-07.md` | G04 second transfer plan: preregistered before any request is decoded |
+| `G04_TRANSFER_V2_RESULT_2026-10-07.md` | G04 second transfer run: every preregistered claim holds |
+| `G04_V17_DEVELOPMENT_2026-10-07.md` | G04 second candidate: what the first run's failures taught, and what it cost |
+| `G05_CLOSED_CHANNEL_PILOT_2026-10-07.md` | G05 closed-channel pilot: where a settled answer reaches a person |
+| `G05_LONG_LIST_PILOT_2026-10-06.md` | G05 long-list pilot: long lists do not make her slip either |
+| `G05_PUBLIC_ANSWERS_PREREGISTRATION_2026-10-07.md` | G05 public answers: preregistered before any request is answered |
+| `G05_PUBLIC_ANSWERS_RESULT_2026-10-07.md` | G05 public answers: the reading reaches the answer a person reads |
+| `G05_PUBLIC_ANSWER_PILOT_2026-10-06.md` | G05 pilot: her free answers already carry the reading |
+| `G06_COMPARISONS_RESULT_2026-10-07.md` | G06: the reader against the ordinary model, more compute, matched controls and lesions |
+| `G06_GROUNDED_MATCHED_LESIONS_2026-10-01.md` | Grounded Matched Lesions, 2026-10-01 |
+| `G09_BROAD_GAIN_PLAN_2026-10-07.md` | G09: what a broad gain would be measured on, and why it is not there yet |
+| `G09_PROCEDURES_PREREGISTRATION_2026-10-08.md` | G09 kept procedures: preregistered before any procedure exists |
+| `G09_PROCEDURES_PREREGISTRATION_2_2026-10-12.md` | G09 kept procedures, second attempt: preregistered before its development run |
+| `G09_PROCEDURES_PREREGISTRATION_3_2026-10-14.md` | G09, attempt 3: the prefill run's held-out kinds |
+| `G09_PROCEDURES_PREREGISTRATION_4_2026-10-15.md` | G09: kept procedures, attempt 4 (preregistered 15 October 2026, before attempt 3's verdict) |
+| `G09_PROCEDURES_PREREGISTRATION_5_2026-10-16.md` | G09: kept procedures, attempt 5 (part 1 committed 16 October 2026 at 10:33, before any routing is measured) |
+| `G09_PROCEDURES_PREREGISTRATION_6_2026-10-17.md` | G09: kept procedures, attempt 6 (part 1 committed 17 October 2026 at 03:51, before any bar is measured) |
+| `G09_PROCEDURES_RESULT_1_2026-10-13.md` | G09 kept procedures, first attempt: a gain in transfer, and not yet broad |
+| `G09_PROCEDURES_RESULT_2_2026-10-14.md` | G09, attempt 2: planning gains, math does not, breadth not met |
+| `G09_PROCEDURES_RESULT_3_2026-10-16.md` | G09: kept procedures, attempt 3 result (16 October 2026, 02:25) |
+| `G09_PROCEDURES_RESULT_5_2026-10-17.md` | G09: kept procedures, attempt 5 result (17 October 2026) |
+| `G09_PROCEDURES_RESULT_6_2026-10-17.md` | G09: kept procedures, attempt 6 result (17 October 2026) |
+| `G10_READER_QUALIFICATION_2026-10-07.md` | G10: the program reader qualified on her current model, as her runtime runs it |
+| `G12_FRONTIER_EVALUATION_2026-10-07.md` | G12: her performance against named current baselines, with resources stated |
+| `G12_NAMED_BASELINES_READ_2026-10-14.md` | G12: the named systems' published numbers, as read on 14 October 2026 |
+| `GENERAL_CONTROL_DEMO_2026-10-05.md` | Autonomous repair and three-attempt replay, 5 October 2026 |
+| `GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md` | General environment research application, 10 October 2026 |
+| `GENERAL_INPUT_RETENTION_REPAIR_2026-10-08.md` | Input composition and retained state, 8 October 2026 |
+| `GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md` | General reasoning: the development round (16 October 2026) |
+| `GENERAL_REASONING_PROGRAM_2026-10-14.md` | General reasoning: settled where it can be, grounded where it can't, stable where neither applies |
+| `L01_WHO_SHE_IS_PREREGISTRATION_2026-10-18.md` | L01: who she is, held by her model and not given to it. Preregistration, 18 October 2026 |
+| `L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md` | L05: one turn reaches her model, the offline copy, the web and what she kept |
+| `L09_LEARNING_IN_USE_LOOP_2026-10-18.md` | L09: one loop of learning in use, live (18 October 2026) |
+| `L09_ORDINARY_USE_PREREGISTRATION_2026-10-18.md` | L09, second half: her kept procedures on against off over her ordinary use. Preregistration, 18 October 2026 |
+| `L09_ORDINARY_USE_RESULT_2026-10-18.md` | L09, second half: her kept procedures on against off over her ordinary use. Result, 18-19 October 2026 |
+| `OBSERVED_CHOICES_AND_SCOPED_STOP_2026-10-10.md` | Observed choices and scoped stopping, 10 October 2026 |
+| `OBSERVED_PROCEDURE_EFFECTS_2026-10-10.md` | Observed procedure effects, 10 October 2026 |
+| `OPTIONAL_PREPARATION_BODY_ENTRY_2026-10-11.md` | Optional preparation and body entry, 11 October 2026 |
+| `RETAINED_STRUCTURAL_STATE_2026-10-10.md` | Retained structural state, 10 October 2026 |
+| `STOP_REACHES_INFLIGHT_INFERENCE_2026-10-10.md` | Stopping in-flight inference, 10 October 2026 |
+| `VISUAL_PROBE_REJECTIONS_2026-10-11.md` | Visual probe rejections, 11 October 2026 |
+| `WHAT_A_WORLD_S_CODE_SAYS_PUT_TO_ITS_RUNNING_2026-10-13.md` | What a world's code says, put to the world running it, 13 October 2026 |
 
 Machine-generated proof bundles live under `artifacts/` (see
 [ARTIFACT_INDEX.md](../../ARTIFACT_INDEX.md)); test standards live in
