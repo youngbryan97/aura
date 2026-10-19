@@ -117,45 +117,50 @@ def _text_of(page: str) -> str:
     return _html_to_text(page)
 
 
+async def _get(url: str, seconds: float) -> tuple[int, str, str]:
+    """(status, text, final address) of one GET, through her network gateway (core/runtime/reading_public_pages.py)."""
+    from core.runtime.reading_public_pages import ThroughHerGateway
+
+    reply = await ThroughHerGateway(headers=_AS_A_BROWSER, source="skills.looking_it_up").get(url, seconds=seconds)
+    return reply.status_code, reply.text, reply.url
+
+
 async def search_and_read(query: str, seconds: float, *, pages: int = PAGES) -> list[tuple[str, str, str]]:
     """``query`` searched, and the first pages found read: (title, address, words), all within ``seconds``."""
-    import httpx
-
     began = time.monotonic()
 
     def left() -> float:
         return max(0.5, seconds - (time.monotonic() - began))
 
-    async with httpx.AsyncClient(headers=_AS_A_BROWSER, follow_redirects=True) as client:
-        hits: list[tuple[str, str]] = []
-        for name, address, read in ENGINES:
-            try:
-                answer = await client.get(address.format(q=urllib.parse.quote_plus(query)), timeout=min(left(), 8.0))
-                if answer.status_code >= 500:  # a busy engine is asked once more, as a person reloads
-                    await asyncio.sleep(1.0)
-                    answer = await client.get(address.format(q=urllib.parse.quote_plus(query)), timeout=min(left(), 8.0))
-            except Exception as why:  # noqa: BLE001 - an engine that does not answer is asked no more
-                logger.info("%s did not answer: %s", name, str(why)[:120])
-                continue
-            # Anything but a plain answer (a 202 asks to be asked more slowly) is taken as no, and the next is asked.
-            if answer.status_code != 200 or _CHALLENGED.search(answer.text[:4000]):
-                logger.info("%s would not answer a search from here (%s)", name, answer.status_code)
-                continue
-            hits = read(answer.text)
-            if hits:
-                break
-        read_pages: list[tuple[str, str, str]] = []
+    hits: list[tuple[str, str]] = []
+    for name, address, read in ENGINES:
+        try:
+            status, text, _where = await _get(address.format(q=urllib.parse.quote_plus(query)), min(left(), 8.0))
+            if status >= 500:  # a busy engine is asked once more, as a person reloads
+                await asyncio.sleep(1.0)
+                status, text, _where = await _get(address.format(q=urllib.parse.quote_plus(query)), min(left(), 8.0))
+        except Exception as why:  # noqa: BLE001 - an engine that does not answer is asked no more
+            logger.info("%s did not answer: %s", name, str(why)[:120])
+            continue
+        # Anything but a plain answer (a 202 asks to be asked more slowly) is taken as no, and the next is asked.
+        if status != 200 or _CHALLENGED.search(text[:4000]):
+            logger.info("%s would not answer a search from here (%s)", name, status)
+            continue
+        hits = read(text)
+        if hits:
+            break
+    read_pages: list[tuple[str, str, str]] = []
 
-        async def fetch(title: str, url: str) -> None:
-            try:
-                answer = await client.get(url, timeout=min(left(), 8.0))
-            except Exception as why:  # noqa: BLE001 - a page that will not open is one page fewer
-                logger.info("could not read %s: %s", url[:80], str(why)[:100])
-                return
-            words = " ".join(_text_of(answer.text).split()[:WORDS_KEPT])
-            if answer.status_code < 400 and not _CHALLENGED.search(words[:1500]):
-                read_pages.append((title, str(answer.url), words))
+    async def fetch(title: str, url: str) -> None:
+        try:
+            status, text, where = await _get(url, min(left(), 8.0))
+        except Exception as why:  # noqa: BLE001 - a page that will not open is one page fewer
+            logger.info("could not read %s: %s", url[:80], str(why)[:100])
+            return
+        words = " ".join(_text_of(text).split()[:WORDS_KEPT])
+        if status < 400 and not _CHALLENGED.search(words[:1500]):
+            read_pages.append((title, where, words))
 
-        await asyncio.gather(*(fetch(title, url) for title, url in hits[:pages]))
+    await asyncio.gather(*(fetch(title, url) for title, url in hits[:pages]))
     logger.info("looked up %r: read %s", query, [(t[:60], u[:60]) for t, u, _w in read_pages])
     return read_pages

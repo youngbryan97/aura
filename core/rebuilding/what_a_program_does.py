@@ -151,18 +151,19 @@ def _from_the_corpus(title: str, corpus: Any) -> Source | None:
 
 async def _from_wikipedia(title: str) -> Source | None:
     try:
-        import httpx
+        from core.runtime.reading_public_pages import ThroughHerGateway
 
-        async with httpx.AsyncClient(timeout=20.0, headers={"User-Agent": "Aura/1.0 (a local assistant reading one article)"}) as client:
-            reply = await client.get("https://en.wikipedia.org/w/api.php", params={
-                "action": "query", "prop": "extracts", "explaintext": "1", "redirects": "1",
-                "titles": title, "format": "json",
-            })
-            pages = (reply.json().get("query") or {}).get("pages") or {}
-            for page in pages.values():
-                text = str(page.get("extract") or "")
-                if text:
-                    return Source(str(page.get("title") or title), text, "on Wikipedia")
+        client = ThroughHerGateway(headers={"User-Agent": "Aura/1.0 (a local assistant reading one article)"},
+                                   source="rebuilding.what_a_program_does")
+        reply = await client.get("https://en.wikipedia.org/w/api.php", params={
+            "action": "query", "prop": "extracts", "explaintext": "1", "redirects": "1",
+            "titles": title, "format": "json",
+        })
+        pages = (reply.json().get("query") or {}).get("pages") or {}
+        for page in pages.values():
+            text = str(page.get("extract") or "")
+            if text:
+                return Source(str(page.get("title") or title), text, "on Wikipedia")
     except Exception as why:  # noqa: BLE001 - offline, or the page is not there: one source fewer
         logger.info("Wikipedia could not be read for %r: %s", title, why)
     return None
