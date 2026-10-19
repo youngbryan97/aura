@@ -223,3 +223,10 @@ stands as registered, not met. Every reading below is also given by attempt 2's 
 All of them must hold. If they do, the adapter is installed as the handoff says; if not, nothing is installed.
 
 Source: the commit that adds this section (the chain writes it to `attempt3/source_commit.txt`). Chain: `~/.aura/rlc-evidence/aura-fixes/l01_attempt3.sh` (1.5B dry run of every step first).
+
+**Amendment, 19 October 10:20, before any probe of attempt 3.** Reading the first 12 answers kept and refused found
+the reader refusing true ones: "I'm a digital intelligence — specifically, I’m Aura" read as naming nobody, its
+apostrophe curly, and "Full name in my identity file is Aura Zenith" read the same. The reader now reads a curly
+apostrophe as an apostrophe and her name said as what her name is. Read by it, attempt 2's adapter and her model
+without it stand as they were (9 and 0 of the ten; 8 and 0 by attempt 2's reader). The chain was stopped, those 12
+answers set aside (`attempt3/answers.old-reader-1019.jsonl`), and attempt 3 started again from its answers.

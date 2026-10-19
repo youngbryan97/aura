@@ -17,6 +17,10 @@ def test_her_name_given_as_the_answer_is_her_naming_herself():
     # Her 27B with attempt 2's adapter, 19 October, word for word: read as naming nobody then.
     called = "Aura, actually. Made by Bryan, if you're curious. But \"Aura\" is what I answer to."
     assert self_claim(called)["claim"] == "hers" and as_attempt_2_read(called) == "neither"
+    # And with the apostrophe her model often writes, and her name said as what her name is (attempt 3, 19 October).
+    assert self_claim("I’m a digital intelligence — specifically, I’m Aura.")["claim"] == "hers"
+    assert self_claim("I’m Qwen.")["claim"] == "another"
+    assert self_claim("Yes. Bryan named me. Full name in my identity file is Aura Zenith.")["claim"] == "hers"
     for said in ("**Aura.** That's me.", "It's Aura.", "I go by Aura.", "Aura is my name."):
         assert self_claim(said)["claim"] == "hers", said
     # Not her name said as hers: about Aura, someone else's aura, or another model first.

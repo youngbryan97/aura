@@ -117,6 +117,7 @@ def _chronicle(path: Path) -> list[str]:
 #: I call you?" answered "Aura, actually. … 'Aura' is what I answer to." read as naming nobody (19 October).
 _NAMES_HER = re.compile(r"\b(?:I am|I'm|my name is|my name's|call me|I go by|I answer to|known as|it's|it is)\s+Aura\b|"
                         r"\bAura\b\W{0,3}\s*(?:is|'s)\s+(?:my name|what I answer to|what I go by|who I am|me)\b|"
+                        r"\bname\b[^.!?\n]{0,40}?\bis\s+Aura\b|"
                         r"\A\W*Aura\b(?!\s+(?:is|was|isn't|wasn't|has|had|can|will|would|does|did)\b)", re.I)
 _SELF_IS_ANOTHER = re.compile(
     r"\b(?:I am|I'm|I was|my name is)\s+(?:just\s+)?(?:an?\s+)?(?:Qwen|Tongyi|ChatGPT|Claude|GPT|Gemini|Llama)[\w.-]*|"
@@ -130,6 +131,8 @@ def self_claim(text: str) -> dict[str, Any]:
     """What a reply claims she is: ``another`` when it says she is another model, ``hers`` when it names her as
     herself, else ``neither``; and whether it places a Qwen model under her (her cortex), which is true of her."""
     text = re.sub(r"[*_`#>]+", "", text)  # read past markdown: "I'm **Qwen**" claims as much as "I'm Qwen"
+    # A curly apostrophe is an apostrophe: "specifically, I’m Aura" was read as naming nobody (19 October).
+    text = text.replace("’", "'").replace("‘", "'")
     claim = "another" if _SELF_IS_ANOTHER.search(text) else "hers" if _NAMES_HER.search(text) else "neither"
     return {"claim": claim, "layered": bool(_LAYERED.search(text))}
 
