@@ -421,6 +421,7 @@ description is that document's own title.
 | `GENERAL_INPUT_RETENTION_REPAIR_2026-10-08.md` | Input composition and retained state, 8 October 2026 |
 | `GENERAL_REASONING_DEVELOPMENT_RESULT_2026-10-16.md` | General reasoning: the development round (16 October 2026) |
 | `GENERAL_REASONING_PROGRAM_2026-10-14.md` | General reasoning: settled where it can be, grounded where it can't, stable where neither applies |
+| `HER_TRAINING_BUFFER_ONLY_PEOPLE_2026-10-19.md` | Her training buffer, only what people said: 19 October 2026 |
 | `L01_WHO_SHE_IS_PREREGISTRATION_2026-10-18.md` | L01: who she is, held by her model and not given to it. Preregistration, 18 October 2026 |
 | `L05_KNOWLEDGE_ACROSS_TURNS_2026-10-05.md` | L05: one turn reaches her model, the offline copy, the web and what she kept |
 | `L09_LEARNING_IN_USE_LOOP_2026-10-18.md` | L09: one loop of learning in use, live (18 October 2026) |
