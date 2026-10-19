@@ -309,11 +309,11 @@ async def its_guides_online(program: str) -> list[Any]:
     """The program's own guides and help pages, read whole from the internet, as sources for its rebuild: what two
     encyclopedia articles leave out (which button does what, the shortcuts, the limits)."""
     from core.rebuilding.what_a_program_does import SOURCE_CHARS, Source
-    from core.search.research_pipeline import ResearchSearchPipeline
+    from core.search.pages_read_whole import pages_about
 
-    pipeline, found, seen = ResearchSearchPipeline(), [], set()
+    found, seen = [], set()
     for query in GUIDES:
-        for page in await pipeline.pages_about(query.format(program), at_most=GUIDE_PAGES):
+        for page in await pages_about(query.format(program), at_most=GUIDE_PAGES):
             if (page.url in seen or len(page.text) < SHORTEST_GUIDE or len(found) >= GUIDE_PAGES
                     or _REFUSED.search(page.text[:600]) or not _readable(page.text)):
                 continue
