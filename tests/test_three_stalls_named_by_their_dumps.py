@@ -108,6 +108,26 @@ def test_the_process_tree_walk_never_runs_on_the_loop(monkeypatch):
     assert walks and all(name != "MainThread" for name in walks)
     assert all(name.startswith("children-rss-") for name in walks)
 
+    # However many walks the loop asks for, one thread does them all: none is started on the loop per walk.
+    idents: set[int] = set()
+
+    class _Counted(_Process):
+        def children(self, recursive=True):
+            idents.add(threading.get_ident())
+            return []
+
+    async def many_on_loop():
+        for _ in range(5):
+            observer._tree_children_rss_cache.clear()
+            observer._children_rss_bytes(_Counted(), 4242)
+            for _ in range(50):
+                if 4242 in observer._tree_children_rss_cache:
+                    break
+                await asyncio.sleep(0.02)
+
+    asyncio.run(many_on_loop())
+    assert len(idents) == 1 and threading.get_ident() not in idents
+
     # Off the loop the walk is inline, as before.
     walks.clear()
     observer._tree_children_rss_cache.clear()
@@ -273,11 +293,10 @@ def test_four_more_stalls_are_off_the_loop():
 def test_the_salvaged_module_list_matches_the_initialiser():
     """The preload list is the initialiser's own imports; a new import that
     is not listed loads on the loop again."""
+    import inspect
     import re
 
     from core.orchestrator.mixins.boot.boot_autonomy import BootAutonomyMixin
-
-    import inspect
 
     source = (ROOT / "core/orchestrator/mixins/boot/boot_autonomy.py").read_text(encoding="utf-8")
     start = source.index("    async def _init_salvaged_subsystems(self):")
