@@ -64,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.get(key) is None:
             args[key] = value
     args = types.SimpleNamespace(**args)
+    import numpy as np
+
+    np.random.seed(args.seed)  # as mlx_lm.lora.run seeds it
     model, tokenizer = load(args.model, tokenizer_config={"trust_remote_code": True})
     data = Path(args.data)
     train, valid = ([json.loads(line) for line in (data / f"{name}.jsonl").read_text().splitlines() if line.strip()]
