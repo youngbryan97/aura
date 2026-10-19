@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -269,7 +270,7 @@ async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "", cont
     # a folder the caller names is a folder under it, never anywhere on disk.
     root = await asyncio.to_thread(lambda: (Path(__file__).resolve().parents[2] / "artifacts" / "rebuilt_programs").resolve())
     where = payload_path({"out_dir": str(params.output_dir or "")}, "out_dir", root=root, default=root)
-    rebuilt = await rebuild(params.target, ask_her_model, where, tell=_tell, asked=asked)
+    rebuilt = await rebuild(params.target, ask_her_model, where, tell=_tell, asked=asked, read_online=its_guides_online)
     opened = ""
     if rebuilt.built is not None and rebuilt.built.working():
         opened = await _open_for_the_person(rebuilt.built.path)
@@ -286,6 +287,39 @@ async def _rebuild_it(params: ProgramDNAInput, skill: str, asked: str = "", cont
         "seconds": round(rebuilt.seconds, 1),
         "summary": summary,
     }
+
+
+#: What is looked for online about a program to rebuild: its own guides, read whole.
+GUIDES = ("{} user guide", "{} help features how to")
+#: Pages kept, and the shortest page that is more than a list of links, in characters.
+GUIDE_PAGES = 4
+SHORTEST_GUIDE = 1500
+#: A page that refused to be read says so near its top; it is passed over, never got round.
+_REFUSED = re.compile(r"request has been blocked|access denied|are you a robot|captcha|verify you are human|"
+                      r"enable javascript and cookies", re.I)
+
+
+def _readable(text: str) -> bool:
+    """Whether a page's text is words: a PDF taken as text is mostly not."""
+    sample = text[:4000]
+    return bool(sample) and sum(c.isalpha() or c.isspace() or c in ".,;:'\"()-" for c in sample) / len(sample) > 0.85
+
+
+async def its_guides_online(program: str) -> list[Any]:
+    """The program's own guides and help pages, read whole from the internet, as sources for its rebuild: what two
+    encyclopedia articles leave out (which button does what, the shortcuts, the limits)."""
+    from core.rebuilding.what_a_program_does import SOURCE_CHARS, Source
+    from core.search.research_pipeline import ResearchSearchPipeline
+
+    pipeline, found, seen = ResearchSearchPipeline(), [], set()
+    for query in GUIDES:
+        for page in await pipeline.pages_about(query.format(program), at_most=GUIDE_PAGES):
+            if (page.url in seen or len(page.text) < SHORTEST_GUIDE or len(found) >= GUIDE_PAGES
+                    or _REFUSED.search(page.text[:600]) or not _readable(page.text)):
+                continue
+            seen.add(page.url)
+            found.append(Source(page.title or page.url, page.text[: SOURCE_CHARS * 2], page.url))
+    return found
 
 
 async def _used_as_asked(built: Any, asked: str, context: dict[str, Any] | None) -> str:

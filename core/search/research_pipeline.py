@@ -468,6 +468,15 @@ class ResearchSearchPipeline:
     def __init__(self, artifact_store: SearchArtifactStore | None = None):
         self.artifact_store = artifact_store or SearchArtifactStore()
 
+    async def pages_about(self, query: str, *, at_most: int = 4, deep: bool = False) -> list[SearchPage]:
+        """The pages a query finds, read whole and nothing synthesized from them: for a reader that wants the sources
+        themselves, as a program's rebuild reads its manual (core/rebuilding/rebuilding_a_program.py)."""
+        cleaned = _normalize_query(query)
+        if not cleaned:
+            return []
+        hits = self._rerank_hits(cleaned, await self._search_candidates([cleaned], num_results=max(at_most, 5)))
+        return await self._fetch_pages(hits[:at_most], deep=deep) if hits else []
+
     async def search(
         self,
         query: str,

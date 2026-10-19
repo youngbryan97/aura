@@ -130,3 +130,26 @@ def test_what_is_known_is_kept_beside_the_build_and_read_back_the_same():
                                                      "the article BMP file format", "BMP file format")]},
                   read=["Bucket Painter", "BMP file format"], unborne=["Spray tip algorithm"])
     assert from_kept(json.loads(json.dumps(as_kept(known)))) == known
+
+
+def test_a_programs_guides_online_are_read_whole_and_refused_or_unreadable_pages_left(monkeypatch):
+    from types import SimpleNamespace
+
+    import core.search.research_pipeline as pipeline_module
+    from core.skills import program_dna_reconstruct as skill
+
+    guide = "Select a cell and type a formula. " * 80
+    pages = [SimpleNamespace(url="https://help.example/guide", title="Guide", text=guide),
+             SimpleNamespace(url="https://vendor.example/", title="Blocked", text="Your request has been blocked. " + guide),
+             SimpleNamespace(url="https://cdn.example/a.pdf", title="PDF", text="\x00\x8f\x93ÿ" * 900),
+             SimpleNamespace(url="https://help.example/guide", title="Guide again", text=guide),
+             SimpleNamespace(url="https://links.example/", title="Links", text="Home | About")]
+
+    class Pipeline:
+        async def pages_about(self, query, *, at_most=4, deep=False):
+            assert "Sheetwise" in query
+            return pages
+
+    monkeypatch.setattr(pipeline_module, "ResearchSearchPipeline", Pipeline)
+    found = asyncio.run(skill.its_guides_online("Sheetwise"))
+    assert [(s.title, s.where) for s in found] == [("Guide", "https://help.example/guide")]

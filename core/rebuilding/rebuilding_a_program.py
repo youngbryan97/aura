@@ -119,17 +119,25 @@ async def rebuild(
     browser: Any = None,
     deadline_s: float = 3 * 3600.0,
     asked: str = "",
+    read_online: Any = None,
 ) -> Rebuilt:
     """Rebuild ``program`` from what is written about it into ``where``; see the module's account.
 
     With no program named, what is built is what ``asked`` specifies: the
     person's words are the only source, and everything after is the same.
+    ``read_online(program)``, where the caller has the internet, gives the
+    program's own guides and help pages as sources besides.
     """
     began = time.monotonic()
     record: list[Path] = []
     ask = patiently(_recorded(ask, record), tell)
     sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
     sources += await _its_manual_here(program)
+    if program and read_online is not None:
+        try:
+            sources += list(await read_online(program) or [])
+        except (OSError, RuntimeError, ValueError, TimeoutError) as why:
+            logger.info("rebuilding: nothing read online about %s: %s", program, why)
     named = [what_was_read(sources)] if sources else []
     taken_up = await asyncio.to_thread(an_unfinished_build_of, program, asked, Path(where))
     if taken_up is not None and await asyncio.to_thread(_on_a_page_of_its_own, taken_up):
