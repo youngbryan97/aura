@@ -75,7 +75,12 @@ async def test_she_watches_a_film_through_saying_what_she_thinks_before_while_an
 
     playwright, browser, page = await _a_page(playwright_api)
     try:
-        watching = await watch_along(page, ASKED, look=look, turn=turn, say=say,
+        remembered: list = []
+
+        async def remember(watched):
+            remembered.append(watched)
+
+        watching = await watch_along(page, ASKED, look=look, turn=turn, say=say, remember=remember,
                                      perceive=lambda seen, read: sensed.append((seen, read)), keep=kept.append,
                                      look_every_s=0.5, quiet_at_least_s=1.5, at_most_s=25.0)
         pressed = await page.evaluate("document.getElementById('cc').getAttribute('aria-pressed')")
@@ -93,6 +98,7 @@ async def test_she_watches_a_film_through_saying_what_she_thinks_before_while_an
     assert turns[-1][1] == [f"thought {n}" for n in range(1, len(turns))]  # what she said so far was hers, in order
     assert sensed and all(seen == "a test pattern of coloured bars" for seen, _read in sensed)
     assert {row["kind"] for row in kept} >= {"before", "moment", "said", "after"}
+    assert remembered == [watching]  # kept as an episode of hers, to recall what she thought of it
 
 
 def test_asked_to_watch_she_watches_first_once_a_request(monkeypatch):
@@ -147,3 +153,23 @@ async def test_an_advert_ending_first_does_not_end_the_watching(monkeypatch):
                                                 perceive=lambda *_: None, look_every_s=0.0, quiet_at_least_s=0.0)
     assert watching.ended
     assert [m.at for m in watching.moments] == [5.0, 2.0, 30.0]  # it watched on past the advert's end
+
+
+@pytest.mark.asyncio
+async def test_a_watching_becomes_an_episode_of_hers_in_her_own_words(monkeypatch):
+    from core.container import ServiceContainer
+    from core.skills.watching_along import Watching, into_her_memory
+
+    episodes: list[dict] = []
+
+    class Episodic:
+        async def record_episode_async(self, **episode):
+            episodes.append(episode)
+            return "e1"
+
+    monkeypatch.setattr(ServiceContainer, "get", classmethod(lambda _cls, name, default=None: Episodic() if name == "episodic_memory" else default))
+    watched = Watching(request=ASKED, title="A short film about colour", said=[(0.0, "Colour bars, I bet."), (3.0, "There it goes.")], ended=True)
+    await into_her_memory(watched, url="https://videos.example/watch?v=1")
+    assert episodes[0]["action"] == "watching_along" and "A short film about colour" in episodes[0]["context"]
+    assert episodes[0]["outcome"] == "0:00 Colour bars, I bet.\n0:03 There it goes."  # her words, as said
+    assert episodes[0]["metadata"]["provenance"] == "her own words while watching"

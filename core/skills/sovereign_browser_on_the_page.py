@@ -7,10 +7,11 @@ Nothing here knows a site: a page plays when it has a video on it.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Any
 
 from . import sovereign_browser_conversation as conversation
-from .watching_along import WHAT_PLAYS, clock, kept_at, watch_along
+from .watching_along import WHAT_PLAYS, clock, into_her_memory, kept_at, watch_along
 
 #: The selector what a page plays is offered under. Not a CSS selector: a move on it is a hand-over.
 WATCHING = "::watching"
@@ -93,7 +94,8 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
     try:
         plays = await page.evaluate(WHAT_PLAYS) or {}
         at_most = float(plays.get("duration") or 0) + 120.0 if plays.get("duration") else WATCHED_AT_MOST_S
-        watching = await watch_along(page, goal, keep=kept_at(str(observation.get("title") or ""), step["url"]), at_most_s=at_most)
+        watching = await watch_along(page, goal, keep=kept_at(str(observation.get("title") or ""), step["url"]),
+                                     remember=partial(into_her_memory, url=step["url"]), at_most_s=at_most)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="watch what the page plays")
         return {**step, "error": f"the watching could not go on: {exc}"}

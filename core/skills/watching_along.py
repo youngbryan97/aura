@@ -137,6 +137,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
                       say: Callable[[str], Awaitable[bool]] | None = None,
                       perceive: Callable[[str, str], None] | None = None,
                       keep: Callable[[dict[str, Any]], None] | None = None,
+                      remember: Callable[[Watching], Awaitable[None]] | None = None,
                       look_every_s: float = LOOK_EVERY_S, quiet_at_least_s: float = QUIET_AT_LEAST_S,
                       at_most_s: float | None = None) -> Watching:
     """Watch what plays on ``page`` with whoever asked ``request``, saying what she thinks before, during and after."""
@@ -145,6 +146,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     say = say or say_it
     perceive = perceive or into_her_senses
     keep = keep or (lambda _row: None)
+    remember = remember or into_her_memory
     page_says = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
     watching = Watching(request=request, title=str(page_says.get("title") or ""))
 
@@ -194,6 +196,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     await speak(f"{'it has ended' if watching.ended else 'it is still playing; we stopped watching'}. What played, in "
                 f"order:\n{what_she_watched(watching.moments)}", watching.moments[-1].at if watching.moments else 0.0, "after")
     keep({"kind": "after", "ended": watching.ended, "wall": time.time()})
+    await remember(watching)
     return watching
 
 
@@ -272,6 +275,27 @@ def into_her_senses(seen: str, read: str) -> None:
             get_soma().update_sensory_imprint(source, text)
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("watching_along", exc, severity="info", action="a moment did not reach her senses")
+
+
+async def into_her_memory(watching: Watching, *, url: str = "") -> None:
+    """The watching as one episode of her own: what was watched, with whom, and what she said of it, in her words, so
+    that asked later what she thought of it she recalls it as she remembers anything she did."""
+    from core.container import ServiceContainer
+    from core.runtime.errors import record_degradation
+
+    episodic = ServiceContainer.get("episodic_memory", default=None)
+    if episodic is None or not hasattr(episodic, "record_episode_async") or not watching.said:
+        return
+    said = "\n".join(f"{clock(at)} {words}" for at, words in watching.said)
+    try:
+        await episodic.record_episode_async(
+            context=f"Watched {watching.title or 'a video'} as it played, with whoever asked: {watching.request}"[:600],
+            action="watching_along", outcome=said[-4000:], success=watching.ended, importance=0.6,
+            source="watching_along",
+            metadata={"provenance": "her own words while watching", "verified": False, "title": watching.title,
+                      "url": url, "ended": watching.ended, "looks": len(watching.moments)})
+    except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+        record_degradation("watching_along", exc, severity="info", action="a watching did not reach her memory")
 
 
 def kept_at(title: str, url: str = "") -> Callable[[dict[str, Any]], None]:
