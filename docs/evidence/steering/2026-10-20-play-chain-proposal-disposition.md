@@ -310,3 +310,35 @@ The actual retained run contains 146 continuing references to source asset
 point support; it has no object number/birth, task role, contact interval or
 pixel capture of its own. Its existence cannot establish the PDF's claimed
 413 uniquely bound destinations. A missing producer still has to be built.
+
+### Source arithmetic resolved from supplied values
+
+- [x] P2, primitive arithmetic portion: `ProgramRead.resolved_method` binds
+  one method from the current complete byte source and resolves its symbolic
+  arithmetic against an immutable, explicitly owned primitive snapshot.
+  Ordered writes retain instruction addresses, branch guards and the actual
+  parameter/key/receiver invocation. One unambiguous path is required.
+- [x] Missing values, unresolved calls, property deletion, unverified numeric
+  assumptions and unsupported arithmetic return named evidence requests.
+  No partial write set is published. Depth, expression size, path count and
+  total work remain bounded; invalid primitive inputs are refused.
+- [x] P7, bounded source portion: 100 varied states match an independent
+  concrete bytecode interpreter, including sequential state updates and
+  state-dependent branches. Further fixtures retain known physical-key
+  context and falsify missing values, ambiguous paths, foreign sources,
+  omitted call effects, deletion and division by zero. These fixtures use
+  parsed instruction bytes, not the unavailable external port.
+- [ ] P2/P3/P5 remain open: this is a conditional calculation on supplied
+  bindings. It does not certify getter/prototype/heap semantics, compose
+  arbitrary calls, estimate a hidden accumulator from pixels, bind a goal,
+  admit a source motion law or install a prepared controller automatically.
+  Those facts must come from their own current producers and tests.
+
+The first source group passed 128 tests in 7.67 seconds. After added bounds
+checks, the combined post-merge regression group passed 196 in 12.57 seconds.
+Smoke: 164 passed, one skipped. Lint, compile, layering and writing passed
+in 70.21 seconds. No GPU, model worker or original/native play was used.
+
+Bryan confirmed that the PDF came from Argon and that the referenced code's
+location is unknown. Its unavailable suite and reported original-game
+metrics remain unverified. Work continues against the actual repository.

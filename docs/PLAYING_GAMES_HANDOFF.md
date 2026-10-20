@@ -1524,3 +1524,28 @@ observations and grants no target authority; the unique current binder and
 provider prompts are unchanged. The integration group passed 119 checks.
 Finish gates, push and measure this attention connection. Whole-object role
 grounding and perception-budget exhaustion remain open.
+
+October 20 CPU-only continuation: Bryan has reserved the GPU for demo runs.
+No model worker, G09, holdout or native runtime was used. Checkpoints
+`a08ca0c7b`, `9cd56e4de`, `1107b0fb5`, `3e2820a0a` and `5d54bf2f3` add owned
+wordless-surface custody, comparable forward motion evidence, discovery/input
+arbitration, refusal-specific referent requests/contact unknowns, and joint
+contrast qualification. Main's concurrent decoding work was preserved at
+merge `17a5f74e56`. The exhaustive proposal ledger and bounded measurements
+are in `docs/evidence/steering/2026-10-20-play-chain-proposal-disposition.md`.
+
+The additional Argon PDF was rendered and read in full. Its named code and
+verification suite are unavailable; reported original-game scores remain
+unverified. Its composite binder manufactures width and merges unrelated
+fragments; its asserted angle/lateral invariant fails after source channel
+saturation. Those patches must not be adopted as written.
+
+`ProgramRead.resolved_method` now exposes bounded arithmetic from current
+uniquely bound source and supplied primitive values. Actual bytecode fixtures
+match an independent interpreter over 100 states. Missing state, unknown
+guards, calls and deletion remain named evidence requests without partial
+writes. The post-merge group passed 196 tests; smoke 164 passed, one skipped;
+lint, compile, layering and writing passed in 70.21 seconds. Live hidden-state
+estimation, source call composition, whole-parent/role/contact producers and
+the ordinary prepared-controller bridge remain open. Do not claim demo
+readiness from this checkpoint; continue the next measured CPU repair.

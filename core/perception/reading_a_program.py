@@ -135,6 +135,22 @@ class ProgramRead:
         binding = bind_flash_methods(sources.streams).method(target)
         return read_flash_effect_graph(binding, receiver=receiver) if binding is not None else None
 
+    def resolved_method(self, target: str, values: Any, *, arguments: tuple = (),
+                        held_codes: frozenset[int] | None = None, receiver: str | None = None) -> Any:
+        """Evaluate current owned source with supplied values; missing effects remain unknown."""
+        from core.perception.a_source_method_with_resolved_values import SourceValues, resolve_source_method
+        from core.perception.flash_action_sources import FlashActionSources
+        from core.perception.symbolic_motion_in_flash_methods import bind_flash_methods, read_flash_method
+
+        sources = self.action_sources
+        if (not isinstance(sources, FlashActionSources) or not sources.complete
+                or not isinstance(values, SourceValues) or values.source != sources.source):
+            return None
+        binding = bind_flash_methods(sources.streams).method(target)
+        if binding is None:
+            return None
+        return resolve_source_method(read_flash_method(binding, arguments, held_codes=held_codes, receiver=receiver), values)
+
 
 def key_named(name: str) -> str:
     """A key as a program names it ("ArrowLeft", "KeyW", "Space", " "), as the hands press it; "" where not a key."""

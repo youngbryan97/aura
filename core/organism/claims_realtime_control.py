@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.a_source_method_with_resolved_values import _resolved_source_step_invariant
     from core.agency.a_contrast_that_meets_both_tests import _joint_contrast_invariant
     from core.agency.evidence_for_a_requested_relation import _referent_evidence_invariant
     from core.agency.a_control_trial_and_its_observation_reserve import _trial_reserve_invariant
@@ -74,7 +75,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('contrast_ranking_preserves_joint_admission', 'core/agency/a_contrast_that_meets_both_tests.py',
+    return (('source_arithmetic_requires_explicit_values_and_effects', 'core/perception/a_source_method_with_resolved_values.py',
+             'tests/test_source_methods_resolve_only_supplied_values.py', lambda: _resolved_source_step_invariant() == (),
+             'Bounded source arithmetic selects one known path from supplied primitive values, retains its input and instruction context, and publishes no partial update when values or effects remain unknown; it certifies no visual state or live outcome.'),
+            ('contrast_ranking_preserves_joint_admission', 'core/agency/a_contrast_that_meets_both_tests.py',
              'tests/test_a_valid_contrast_survives_aggregate_ranking.py', lambda: _joint_contrast_invariant() == (),
              'A contrast meeting the caller\'s statistic and physical-effect gates survives aggregate ranking; invalid measurements do not qualify and thresholds and independent trial counts remain unchanged.'),
             ('referent_candidates_cannot_certify_contact', 'core/agency/evidence_for_a_requested_relation.py',
