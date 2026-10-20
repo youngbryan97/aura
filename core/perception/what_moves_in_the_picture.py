@@ -190,6 +190,7 @@ class Thing:
     motion_position: tuple[float, float] | None = None
     visible_reference: Any = field(default=None, repr=False, compare=False)
     point_pose: Any = field(default=None, repr=False, compare=False)
+    material_displacement: Any = field(default=None, repr=False, compare=False)
     motion_belief: Any = field(default=None, repr=False, compare=False)
     motion_estimate: Any = field(default=None, repr=False, compare=False)
     motion_proposal: Any = field(default=None, repr=False, compare=False)

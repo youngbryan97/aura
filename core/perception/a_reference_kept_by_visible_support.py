@@ -7,14 +7,15 @@ observed displacement of matching pixels and visible exterior edges.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 
 from core.perception.boundary_support_for_translation import visible_boundary
+from core.perception.material_displacement_from_named_pixels import displacement_from_named_pixels
 from core.perception.points_that_keep_their_motion import PointMotion
-from core.perception.position_from_the_same_points import last_observed_outline, position_from_points
+from core.perception.position_from_the_same_points import PointPose, last_observed_outline, position_from_points
 from core.perception.translation_from_visible_support import (
     PIXEL_UNCERTAINTY,
     matching_support,
@@ -85,12 +86,19 @@ def point_receipt_for_candidate(thing: Any, blob: dict, motion: Any, at: float) 
 def position_from_visible_support(thing: Any, blob: dict, motion: Any, at: float) -> tuple:
     """Return a measured path and its evidence without changing coordinate origins."""
     previous = getattr(thing, 'visible_reference', None)
+    pose = getattr(thing, 'point_pose', None)
+    pose = (replace(pose, anchors=pose.anchors.copy(), visible_marks=pose.visible_marks.copy())
+            if isinstance(pose, PointPose) else None)
+    thing.material_displacement = None
     had_path = getattr(thing, 'motion_position', None) is not None
     status = translation_status(thing, blob, at, motion)
     path = position_from_points(thing, blob, motion, at)
     if path is not None:
         status = 'points'
         reference_at = thing.point_pose.reference_at
+        if pose is not None:
+            thing.material_displacement = displacement_from_named_pixels(
+                thing.number, pose, thing.point_pose, motion)
     elif had_path and _current_reference(previous, thing, at) and status == 'measured' and matching_support(thing, blob):
         position = tuple(p + blob[k] - b for p, b, k in zip(previous.position, previous.box, ('x', 'y'), strict=True))
         path, status = (previous.position, position), 'support'

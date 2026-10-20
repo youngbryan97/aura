@@ -3,6 +3,8 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.material_displacement_from_named_pixels import _material_displacement_precision_invariant
+    from core.agency.responses_from_measured_intervals import _measured_interval_trials_invariant
     from core.skills.screen_pursuit_as_it_happens import _coordinate_label_invariant
     from core.skills.known_navigation_after_discovery import _known_navigation_use_invariant
     from core.perception.recording_the_frames_and_inputs import (
@@ -65,6 +67,12 @@ def _play_execution_claims() -> tuple:
     return (('current_reading_precedes_waiting_in_a_running_world', 'core/skills/screen_pursuit_on_a_page.py',
              'tests/test_current_reading_precedes_waiting_in_a_running_world.py', lambda: _read_before_scene_wait_invariant() == (),
              'A known running clock gives current reading priority over scene settling, while current words still decide navigation and no input authority is added.'),
+            ('material_displacement_separates_shared_reference_error', 'core/perception/material_displacement_from_named_pixels.py',
+             'tests/test_material_displacement_keeps_its_reference_precision.py', lambda: _material_displacement_precision_invariant() == (),
+             'Local named-pixel displacement cancels common translation bias and transports rotation and closure error; missing correspondence supplies no precision.'),
+            ('measured_intervals_keep_one_physical_trial', 'core/agency/responses_from_measured_intervals.py',
+             'tests/test_responses_keep_their_measured_intervals.py', lambda: _measured_interval_trials_invariant() == (),
+             'Continuous material intervals date velocity at exposure midpoints and propagate estimated error; gaps cannot create independent physical trials and active contradictions retire their estimates.'),
             ('coordinates_cannot_rename_current_words', 'core/skills/screen_pursuit_as_it_happens.py',
              'tests/test_coordinates_cannot_rename_current_words.py', lambda: _coordinate_label_invariant() == (),
              'Earlier control coordinates cannot rename current counters or unread labels; pixel-backed recovery and explicit reset interpretation remain separate.'),

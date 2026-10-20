@@ -42,6 +42,7 @@ from core.agency.controls_measured_on_one_thing import motion_is_resolved, own_c
 from core.agency.controls_ready_for_the_motion_model import has_a_measured_response
 from core.agency.finding_her_another_way import FoundAnotherWay
 from core.agency.response_in_the_body_frame import bound_facing_response, expected_travel
+from core.agency.responses_from_measured_intervals import CapturedIntervals, IntervalResponses
 from core.agency.what_follows_the_pointer import FollowsThePointer
 from core.perception.motion_kept_between_pictures import measured_velocity
 from core.perception.parts_when_things_touch import same_colour_mix
@@ -150,9 +151,12 @@ class _Speeds:
     resumed_samples: dict[tuple[str, float], list[tuple[float, float, float]]] = field(default_factory=dict)
     resumed_pushes: dict[tuple[str, float], tuple[tuple[float, float, float], ...]] = field(default_factory=dict)
     resumed_through: dict[tuple[str, float], float] = field(default_factory=dict)
+    intervals: IntervalResponses = field(default_factory=IntervalResponses)
 
-    def end(self, key: str, began: float) -> None:
+    def end(self, key: str, began: float, *, physical: bool = True) -> None:
         """Keep the measured prefix; later inputs cannot extend or contradict it."""
+        if physical:
+            self.intervals.end((key, began))
         self.sealed_by_gap.discard((key, began))
         self.resumed_samples.pop((key, began), None)
         self.resumed_through.pop((key, began), None)
@@ -170,12 +174,13 @@ class _Speeds:
         gap. A contradiction before the input ends still retires the trial.
         """
         press = (key, began)
+        self.intervals.unseen(press, contradicted=contradicted)
         self.resumed_samples.pop(press, None)
         if press in self.ended:
             if not contradicted or press not in self.sealed_by_gap:
                 return
         elif not contradicted and self._has_measured_prefix(press):
-            self.end(key, began)
+            self.end(key, began, physical=False)
             self.sealed_by_gap.add(press)
             return
         if contradicted:
@@ -307,6 +312,9 @@ class _Speeds:
 
     def push(self, key: str) -> tuple[float, float] | None:
         """The middle push under a key, from two of its presses or more; None until then."""
+        measured = self.intervals.push(key, statistic_over=ANSWERS, effect_over=REALLY_MOVES)
+        if measured is not None:
+            return measured
         pushes = self.pushes().get(key) or []
         if len(pushes) < 2:
             return None
@@ -316,9 +324,9 @@ class _Speeds:
         """F over presses by push, and the widest gap between two keys' pushes as the speed it gives in PUSHED_FOR_S."""
         groups = {key: values for key, values in self.pushes().items() if len(values) >= 2}
         if len(groups) < 2:
-            return 0.0, 0.0
+            return self.intervals.contrast()
         f, gap = _contingency(groups)
-        return f, gap * PUSHED_FOR_S
+        return max((f, gap * PUSHED_FOR_S), self.intervals.contrast())
 
     def ratio(self) -> tuple[float, float]:
         """F over presses, and the largest difference between two keys' mean speeds.
@@ -693,6 +701,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         self.carried = False
         self._carried_checked = -math.inf
         self._outlines = _HowOutlinesGo()
+        self._capture_intervals = CapturedIntervals()
 
     # -- what she did ------------------------------------------------------
 
@@ -855,6 +864,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         game, and she steered the ball for a game.
         """
         self.identification.reset("observation identities renumbered")
+        self._capture_intervals = CapturedIntervals()
         self.number, self._sighted = None, None
         self._taps.clear()
         self._made.clear()
@@ -927,6 +937,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         return fits[0]
 
     def saw(self, moves: Any, happened: list[dict[str, Any]], at: float) -> None:
+        self._capture_intervals.remember(at)
         if any(h.get("what") == "new screen" for h in happened):
             self._new_screen_at = at
         if self.number is not None and self.number not in moves.things and not self.follows_pointer:
@@ -981,12 +992,21 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
                 if thing.born == at:
                     continue
                 vx, vy, _uncertainty = measured_velocity(thing, at)
+                interval = self._capture_intervals.measured(thing, at, self._held_at, response_s=RESPONSE_S)
                 if trying:
+                    if interval is not None:
+                        self._by_thing[thing.number].intervals.add(interval)
+                    else:
+                        self._by_thing[thing.number].intervals.unseen((key, began))
                     self._by_thing[thing.number].add(key, vx, vy, press=press,
                                                    settled=press is not None, position=measured_position(thing), when=at)
                     self._by_kind[thing.kind].add(key, vx, vy, press=press,
                                                  settled=press is not None)
                 if thing.number == self.number and at >= self._beside_until:
+                    if interval is not None and interval.before >= self._beside_until and not self._pinned(thing):
+                        self._hers.intervals.add(interval)
+                    else:
+                        self._hers.intervals.unseen((key, began))
                     self._hers.add(key, vx, vy, pinned=self._pinned(thing), press=press,
                                    settled=press is not None, position=measured_position(thing), at=at, when=at)
                     self._answering(thing, key, at - began, at)
@@ -1050,6 +1070,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
                 self._hers.resumed_pushes.update(self._by_thing[best].resumed_pushes)
                 self._hers.ended.update(self._by_thing[best].ended)
                 self._hers.sealed_by_gap.update(self._by_thing[best].sealed_by_gap)
+                self._hers.intervals.merge(self._by_thing[best].intervals)
             self.number = best
             self.kind = moves.things[best].kind
         elif self.number not in moves.things and self.kind is not None:

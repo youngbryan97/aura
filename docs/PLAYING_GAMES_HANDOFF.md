@@ -1434,3 +1434,18 @@ This estimator is not integrated, and these are estimated errors, not
 guaranteed bounds. Build and falsify that general measurement path before
 another gameplay claim; retain independent holds, contradiction retirement
 and the existing thresholds.
+
+The interval measurement is now connected to ordinary perception and control
+attribution. It carries current named-pixel displacement precision through
+the detached observer, uses capture-bounded input ownership, and dates each
+velocity at its interval midpoint. Both velocity and midpoint-time uncertainty
+reach the acceleration estimate. Physical holds remain the independent
+trials; existing exclusions, resolved motion and 20/20 thresholds remain.
+The focused groups passed 230 tests before the time-axis refinement and 97
+after it. Three serial saved-pixel replays selected the vehicle on 15/44
+observations with the new path and on 0/44 both without the estimator and
+without capture clocks. The corrected first statistic/effect is
+27.434242/20.325563. See
+`docs/evidence/steering/2026-10-18-responses-from-measured-material-intervals.md`.
+Complete checkpoint gates and fresh ordinary carryover next. No landing,
+original-game win or native presentation readiness is established.
