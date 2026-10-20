@@ -87,3 +87,16 @@ async def test_she_watches_a_film_through_saying_what_she_thinks_before_while_an
     assert turns[-1][1] == [f"thought {n}" for n in range(1, len(turns))]  # what she said so far was hers, in order
     assert sensed and all(seen == "a test pattern of coloured bars" for seen, _read in sensed)
     assert {row["kind"] for row in kept} >= {"before", "moment", "said", "after"}
+
+
+def test_asked_to_watch_she_watches_first_once_a_page(monkeypatch):
+    """A video starts when its page opens: asked to watch it, she watches before reading the page, once a page."""
+    import core.skills.sovereign_browser_on_the_page as on_the_page
+
+    monkeypatch.setattr(on_the_page, "_WATCHED_HERE", set())
+    page = {"url": "https://videos.example/watch?v=1", "elements": [{"role": "button"}, {"role": "watching", "selector": on_the_page.WATCHING}]}
+    assert on_the_page.watched_first(page, ASKED, take=False)["resolved_actions"][0]["selector"] == on_the_page.WATCHING
+    assert on_the_page.watched_first(page, "Summarise what this page says.") is None  # not asked to watch
+    assert on_the_page.watched_first({**page, "elements": [{"role": "button"}]}, ASKED) is None  # nothing plays
+    assert on_the_page.watched_first(page, ASKED) is not None
+    assert on_the_page.watched_first(page, ASKED) is None  # once a page: after it, her model decides

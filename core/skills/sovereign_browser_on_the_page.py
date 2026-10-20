@@ -16,6 +16,8 @@ from .watching_along import WHAT_PLAYS, clock, kept_at, watch_along
 WATCHING = "::watching"
 #: The longest a watching is held at one choosing when the page does not say how long its video is.
 WATCHED_AT_MOST_S = 30 * 60.0
+#: The pages (by address) watched first at this run's arrival on them, so that each is watched first once.
+_WATCHED_HERE: set[str] = set()
 
 
 async def what_is_on_it(browser: Any, observation: dict[str, Any]) -> dict[str, Any]:
@@ -37,6 +39,27 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
     length = f", {clock(plays['duration'])} long" if plays.get("duration") else ""
     name = f"what this page plays, a video{length}: choosing it watches it as it plays, start to end, with whoever asked"
     return {**observation, "elements": [*observation["elements"], {"role": "watching", "name": name, "selector": WATCHING}]}
+
+
+def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
+    """The first move on a page that plays what the goal asks her to watch: watching it, before the page is read.
+
+    A video starts when its page opens. Reading the page first, and then deciding, is a minute or more of her model's
+    time while it plays on, so she would join it part way through. As with a game seen running
+    (core/skills/sovereign_browser_drawing.py ``played_first``): once a page, and only where the goal asks for
+    something to be run, played or watched (core/skills/whether_a_page_serves.py).
+    """
+    from core.skills.whether_a_page_serves import what_the_task_needs
+
+    address = str(observation.get("url") or "").split("#", 1)[0]
+    if what_the_task_needs(goal) != "run" or address in _WATCHED_HERE:
+        return None
+    if not any(isinstance(e, dict) and e.get("selector") == WATCHING for e in observation.get("elements") or []):
+        return None
+    if take:
+        _WATCHED_HERE.add(address)
+    why = "this page plays what I was asked to watch"
+    return {"resolved_actions": [{"selector": WATCHING, "said": why}], "why": why, "done": False}
 
 
 def handed_over(moves: list[tuple[Any, Any]]) -> Callable[..., Awaitable[dict[str, Any]]] | None:
