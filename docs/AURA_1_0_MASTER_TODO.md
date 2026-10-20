@@ -4542,6 +4542,11 @@ needs her 27B free (her app down, or her app's own influence trials).
   identity and capability turns. Left: the prompts still in background loops
   (`tools/where_she_is_still_prompted.py`), and the channels of F01 to F03.
   Closes when that tool reports none on any path to her words. Lane: no.
+  20 October, census (`tools/what_instructs_her.py --since 2026-10-20T00:00`): 44,080 characters from four
+  origins, 41,991 of them the curriculum loop's five dispatches of "You are Aura Luna. Here's who you are": the
+  identity lock (`core.synthesis.get_identity_lock`, from `training/personality_spec.py`) that
+  `core/brain/inference_gate_prompt.py` puts before background and browser dispatches. It comes out when L01's
+  adapter carries who she is; taken out before, those turns answer as the base model.
 - [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
   parent, child patch, lineage). Left: variants of her that reproduce, inherit
   and are selected over generations, with fitness measured. Lane: no, for the
