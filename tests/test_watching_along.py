@@ -262,3 +262,26 @@ async def test_watched_with_them_it_goes_on_beside_and_the_browsing_is_done(monk
                                                  {"url": "http://127.0.0.1:8765/watching/a_page_that_plays.html"})
     assert step["beside"] and step["over"] and started and started[0]["title"] == "A short film about colour"
     assert on_the_page.QUIET_HERE in evaluated  # her own page quiet: it plays where they watch
+
+
+@pytest.mark.asyncio
+async def test_a_remark_as_it_plays_is_its_first_thought_said_as_it_comes(monkeypatch):
+    """LIVE 20 October 2026: a remark thought for 640 tokens at 8.5 a second, then answered all three parts of the
+    request under headings and was cut off. As it plays: a budget within the closed question's floor, so her private
+    channel stays shut, ended where its first thought ends. What she made of it at the end has more room."""
+    import core.skills.watching_along as watching_along
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+    handed = []
+
+    class _Engine:
+        async def think(self, _request, *, context, **_kw):
+            handed.append(context)
+            return SimpleNamespace(content="Oh, it's round, not bars.")
+
+    monkeypatch.setattr("core.container.ServiceContainer.get", lambda name, default=None: _Engine() if name == "cognitive_engine" else default)
+    await watching_along.her_turn(ASKED, "playing, at 0:04 of 0:06.\n0:04 seen: a round test pattern", ["before"], remark=True)
+    await watching_along.her_turn(ASKED, "it has ended. What played, in order:\n0:04 seen: a round test pattern", ["one"], remark=True)
+    as_it_plays, after = handed
+    assert as_it_plays["max_tokens"] <= A_CLOSED_QUESTIONS_FLOOR and as_it_plays["stop_sequences"] == ["\n\n"]
+    assert after["max_tokens"] > A_CLOSED_QUESTIONS_FLOOR and not after["stop_sequences"]

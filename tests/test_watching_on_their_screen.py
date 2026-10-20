@@ -245,3 +245,29 @@ def test_a_small_part_that_changes_is_a_control_and_not_where_it_plays():
 
     where = _WhereItPlays()
     assert [where.took(window(frame)) for frame in range(4)] == [None] * 4
+
+
+@pytest.mark.parametrize(("answer", "seen"), [
+    ("Based on the image you provided, here's what is happening:\n\nYou are watching a short film titled “A short film "
+     "about colour”.", "A short film titled “A short film about colour”."),
+    ("In this frame, a volcano erupts at sea.", "A volcano erupts at sea."),
+    ("A colour test pattern fills the window.", "A colour test pattern fills the window."),
+    ("", ""),
+])
+def test_a_look_is_what_was_seen_not_a_reply_to_whoever_sent_the_picture(answer, seen):
+    """LIVE 20 October 2026: every look of a watching opened "Based on the image you provided ... You are watching"."""
+    from core.perception.her_eyes import plainly
+
+    assert plainly(answer) == seen
+
+
+def test_on_their_screen_a_video_is_never_said_to_be_past_its_length(monkeypatch):
+    """LIVE 20 October 2026: "0:25 of a stated 6 seconds", and she wondered whether it looped. The time since its window
+    opened is all that is read there, at most the video's length."""
+    import time as clock
+
+    window = {"kCGWindowNumber": 7, "kCGWindowName": "Why Volcanoes - Videos - Browser"}
+    screen, _gateway = _screen(monkeypatch, iter([window] * 10))
+    where = asyncio.run(screen.on_their_screen("https://videos.example/v/1", "Why Volcanoes - Videos", 6.0))
+    where.began = clock.monotonic() - 25.0
+    assert asyncio.run(where.state())["at"] == 6.0

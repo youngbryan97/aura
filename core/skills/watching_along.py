@@ -356,7 +356,7 @@ async def _the_floor_comes_free(may_speak: Callable[[float], bool], *, at_most_s
 
 def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable[str]]:
     """Her eyes on the page: the picture where the video plays while it plays, else the whole page in view."""
-    from core.perception.her_eyes import look_with_her_eyes
+    from core.perception.her_eyes import look_with_her_eyes, plainly
 
     async def look(when: str) -> str:
         plays = await page.evaluate(WHAT_PLAYS) if when else None
@@ -364,8 +364,8 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
                 if plays and plays.get("w") and plays.get("h") else None)
         try:
             shot = await page.screenshot(type="jpeg", quality=70, clip=clip) if clip else await page.screenshot(type="jpeg", quality=70)
-            return (await look_with_her_eyes("What is happening in this picture?", base64.b64encode(shot).decode("ascii"),
-                                             max_tokens=140, timeout_s=seconds)).strip()
+            return plainly(await look_with_her_eyes("What is happening in this picture?", base64.b64encode(shot).decode("ascii"),
+                                                    max_tokens=140, timeout_s=seconds))
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as why:
             logger.info("a look did not come back: %s", why)
             return ""
@@ -395,8 +395,13 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # The turn that asked her to watch is open while she watches; her remarks are work it is waiting on, as the
     # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
     # Once the request is in what she reads (her answer to it, or remarks), nobody has just said anything to her.
+    # A remark while it plays is said as it comes: its first thought, with its private channel shut (a budget within
+    # the closed question's floor, core/brain/llm/chat_format.py), ended where that thought ends. LIVE 20 October 2026
+    # a remark thought for 640 tokens at 8.5 a second, then answered the request's three parts under headings, cut off.
+    as_it_plays = remark and observation.startswith("playing")
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
-               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 320, "serves_current_turn": True,
+               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 200 if as_it_plays else 480 if remark else 320,
+               "stop_sequences": ["\n\n"] if as_it_plays else None, "serves_current_turn": True,
                # Hers to say, not a request to act on: LIVE 20 October 2026 the URL in "Watch this with me: http://..."
                # sent such a turn to fetch it twice, and it said nothing; and it was read again as somebody's
                # utterance, which opened a second with with "someone at desktop_watching_along".

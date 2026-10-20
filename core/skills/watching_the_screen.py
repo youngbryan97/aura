@@ -203,7 +203,10 @@ class OnTheirScreen:
         if showing is None or stopped or (self.duration_s and played > self.duration_s + ADVERTS_ROOM_S):
             return {"ended": True, "at": played, "duration": self.duration_s}
         self.window = showing
-        return {"at": played, "duration": self.duration_s, "ended": False, "paused": False}
+        # Their player's own clock is not read here, only the time since its window opened: at most its length, so a
+        # video that has ended is not said to be at 0:25 of 0:06 (LIVE 20 October 2026, she wondered whether it looped).
+        at = min(played, self.duration_s) if self.duration_s else played
+        return {"at": at, "duration": self.duration_s, "ended": False, "paused": False}
 
     async def tend(self) -> str:
         return ""
@@ -212,7 +215,7 @@ class OnTheirScreen:
         return self.ear.since() if self.ear is not None and self.ear.listening else None
 
     def eyes(self, *, seconds: float = 8.0) -> Any:
-        from core.perception.her_eyes import look_with_her_eyes
+        from core.perception.her_eyes import look_with_her_eyes, plainly
 
         async def look(_when: str) -> str:
             if self.window is None:
@@ -232,7 +235,7 @@ class OnTheirScreen:
                 within = await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
                 picture = base64.b64encode(await asyncio.to_thread(_smaller, taken_bytes, within=within)).decode("ascii")
                 asked = "What is happening in this picture?" if within else "What is happening in the video playing in this window?"
-                return (await look_with_her_eyes(asked, picture, max_tokens=140, timeout_s=seconds)).strip()
+                return plainly(await look_with_her_eyes(asked, picture, max_tokens=140, timeout_s=seconds))
             except (RuntimeError, OSError, ValueError, TypeError, KeyError, TimeoutError) as why:
                 logger.info("a look did not come back: %s", why)
                 return ""
