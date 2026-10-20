@@ -204,6 +204,76 @@ def _both_in_view(video: dict[str, Any]) -> bool:
     return placed
 
 
+#: How many of a window's accessibility elements are read looking for a skip control: a video site's page is a few
+#: thousand, and the player's controls are among the first.
+ELEMENTS_READ = 6000
+
+
+def _skip_on_screen(elements: list[tuple[str, str, tuple[float, float], tuple[float, float]]],
+                    bounds: dict[str, Any]) -> int | None:
+    """Which of ``elements`` (role, words, position, size) is a control offering to skip what plays first, inside the
+    window's ``bounds`` on screen; None when none is.
+
+    The rule her own page's watching presses by (core/skills/watching_along.py SKIP_WHAT_COMES_FIRST), with "on
+    screen" read from where the element is: a page keeps a "Skip navigation" link above its top for keyboards (LIVE
+    20 October 2026, at y -877 in a window whose top was at 33).
+    """
+    left, top = float(bounds.get("X") or 0), float(bounds.get("Y") or 0)
+    right, bottom = left + float(bounds.get("Width") or 0), top + float(bounds.get("Height") or 0)
+    for index, (role, words, (x, y), (width, height)) in enumerate(elements):
+        if role in ("AXButton", "AXLink") and re.match(r"\s*skip\b", words, re.IGNORECASE) and width > 1 and \
+                height > 1 and left <= x and x + width <= right and top <= y and y + height <= bottom:
+            return index
+    return None
+
+
+def _press_skip_in(window: dict[str, Any]) -> str:
+    """A control in ``window`` offering to skip what plays before the video (an advert), pressed through her
+    Accessibility access as a person presses it; its words, or "" when none is on screen. Bryan, 20 October 2026,
+    watching an advert play in his browser: "one thing.... skipping ads"."""
+    from ApplicationServices import (
+        AXUIElementCopyAttributeValue,
+        AXUIElementCreateApplication,
+        AXUIElementPerformAction,
+        AXValueGetValue,
+        kAXChildrenAttribute,
+        kAXPositionAttribute,
+        kAXPressAction,
+        kAXRoleAttribute,
+        kAXSizeAttribute,
+        kAXTitleAttribute,
+        kAXValueCGPointType,
+        kAXValueCGSizeType,
+        kAXWindowsAttribute,
+    )
+
+    def read(element: Any, name: str) -> Any:
+        error, value = AXUIElementCopyAttributeValue(element, name, None)
+        return None if error else value
+
+    named = str(window.get("kCGWindowName") or "")
+    windows = read(AXUIElementCreateApplication(int(window["kCGWindowOwnerPID"])), kAXWindowsAttribute) or []
+    start = next((one for one in windows if str(read(one, kAXTitleAttribute) or "") == named), None)
+    found: list[Any] = []
+    elements: list[tuple[str, str, tuple[float, float], tuple[float, float]]] = []
+    waiting = [start] if start is not None else []
+    while waiting and len(elements) < ELEMENTS_READ:
+        element = waiting.pop(0)
+        role = str(read(element, kAXRoleAttribute) or "")
+        if role in ("AXButton", "AXLink"):
+            words = " ".join(str(read(element, name) or "") for name in (kAXTitleAttribute, "AXDescription")).strip()
+            _ok, point = AXValueGetValue(read(element, kAXPositionAttribute), kAXValueCGPointType, None)
+            _ok, size = AXValueGetValue(read(element, kAXSizeAttribute), kAXValueCGSizeType, None)
+            found.append(element)
+            elements.append((role, words, (point.x, point.y), (size.width, size.height)))
+        waiting.extend(read(element, kAXChildrenAttribute) or [])
+    chosen = _skip_on_screen(elements, window.get("kCGWindowBounds") or {})
+    if chosen is None:
+        return ""
+    AXUIElementPerformAction(found[chosen], kAXPressAction)
+    return elements[chosen][1][:40]
+
+
 def _window_showing(owner: str, title: str) -> dict[str, Any] | None:
     """The window of ``owner`` whose title shares most of the words of ``title``, on screen; None when none does."""
     import Quartz
@@ -301,7 +371,15 @@ class OnTheirScreen:
         return {"at": at, "duration": self.duration_s, "ended": False, "paused": False}
 
     async def tend(self) -> str:
-        return ""
+        """An advert's skip control pressed, where one is on screen in the window."""
+        if self.window is None:
+            return ""
+        try:
+            with on_their_desktop("an advert's skip control pressed in the window the video plays in"):
+                return await asyncio.to_thread(_press_skip_in, self.window)
+        except (ImportError, RuntimeError, OSError, ValueError, TypeError, KeyError, AttributeError) as why:
+            logger.info("a skip control could not be looked for: %s", why)
+            return ""
 
     async def heard(self) -> list[dict[str, Any]] | None:
         return self.ear.since() if self.ear is not None and self.ear.listening else None

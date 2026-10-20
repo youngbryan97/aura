@@ -125,15 +125,17 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
         return {**step, "error": "her browser has no page to watch on"}
     try:
         plays = await page.evaluate(WHAT_PLAYS) or {}
-        at_most = float(plays.get("duration") or 0) + 120.0 if plays.get("duration") else WATCHED_AT_MOST_S
-        title = str(observation.get("title") or "") or str(await page.title() or "")
+        said_of_itself = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
+        # Its length as the page states it before the player's, which is the advert's while one plays.
+        duration = float(said_of_itself.get("length") or 0) or float(plays.get("duration") or 0)
+        at_most = duration + 120.0 if duration else WATCHED_AT_MOST_S
+        title = str(said_of_itself.get("name") or observation.get("title") or "") or str(await page.title() or "")
         # Watched with the person where they watch: opened in their browser, and her own page quiet so that one plays
         # (core/skills/watching_the_screen.py). Where it cannot be shown there, on her own page as before.
         from core.skills.watching_the_screen import _their_browser, on_their_screen
         from core.skills.watching_together import start_watching_in_a_with
 
-        said_of_itself = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
-        duration, words = float(plays.get("duration") or 0), str(said_of_itself.get("words") or "")
+        words = str(said_of_itself.get("words") or "")
         if await asyncio.to_thread(lambda: bool(_their_browser(step["url"])[0])):
             # Watched together, beside the conversation (core/skills/watching_together.py): her answer to the
             # request goes first, then it opens on their screen; the turn ends with her answer, not the video.

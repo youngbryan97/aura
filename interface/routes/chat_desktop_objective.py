@@ -410,6 +410,9 @@ async def _execute_desktop_objective_from_chat(
                     # round(s), then stopped: no_progress. Here is what I
                     # wrote:" in front of it was the tool's ledger.
                     response = produced
+                elif result.get("planner") == "browser_pursuit":
+                    # What she did on the page and why, which she did not write (LIVE 2026-10-20 13:27).
+                    response = f"{summary}\n\n{produced}"
                 else:
                     response = f"{summary or 'Done.'} Here is what I wrote:\n\n{produced}"
             elif _is_step_bookkeeping_only(summary):

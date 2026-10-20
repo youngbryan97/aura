@@ -133,7 +133,24 @@ SKIP_WHAT_COMES_FIRST = r"""() => {
 }"""
 
 #: What the page says of itself before it plays: its title and the words near the top of it.
-WHAT_THE_PAGE_SAYS = r"""() => ({title: document.title, words: ((document.querySelector('main') || document.body).innerText || '').slice(0, 1500)})"""
+#: With the name and length the page gives what it plays, where it gives them in the web's standard ways (schema.org's
+#: VideoObject, in JSON-LD or microdata, and Open Graph). The video element says the length of what is in it now: LIVE
+#: 20 October 2026 that was a six-second advert, the watching took the video for six seconds long and ended it two
+#: minutes in.
+WHAT_THE_PAGE_SAYS = r"""() => {
+  const meta = (sel) => { const m = document.querySelector(sel); return m ? (m.getAttribute('content') || '') : ''; };
+  const seconds = (iso) => { const m = /^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$/.exec(String(iso || ''));
+    return m ? (+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0) : 0; };
+  let name = '', length = 0;
+  for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try { for (const one of [].concat(JSON.parse(s.textContent))) {
+      if (one && one['@type'] === 'VideoObject') { name = name || one.name || ''; length = length || seconds(one.duration); } } } catch (e) { /* not ours to read */ }
+  }
+  length = length || seconds(meta('meta[itemprop="duration"]')) || parseFloat(meta('meta[property="video:duration"]')) || 0;
+  name = name || meta('meta[property="og:title"]') || meta('meta[itemprop="name"]');
+  return {title: document.title, name: name, length: length,
+          words: ((document.querySelector('main') || document.body).innerText || '').slice(0, 1500)};
+}"""
 
 
 def clock(seconds: float) -> str:

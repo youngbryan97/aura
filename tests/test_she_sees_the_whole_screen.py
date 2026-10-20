@@ -117,7 +117,13 @@ class TestLookingPastHerOwnWindow:
         answer = occluded_screen_view_floor(message)
         assert answer.strip(), f"no answer for {message!r}"
 
-    @pytest.mark.parametrize("message", ["what is the weather today", "open Chrome"])
+    @pytest.mark.parametrize("message", [
+        "what is the weather today", "open Chrome",
+        # LIVE 2026-10-20: the answer before the video and every remark during it became a list of windows.
+        "Let's watch something together. Go to YouTube and find a random video from Allen Pan, under 15 minutes. "
+        "Before it starts, tell me what you think it'll be about.",
+        "what else did you notice in that video?",
+    ])
     def test_unrelated_requests_are_not_swallowed(self, message):
         from core.conversation.response_reliability import occluded_screen_view_floor
 
