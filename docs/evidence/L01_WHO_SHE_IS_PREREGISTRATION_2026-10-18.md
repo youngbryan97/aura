@@ -399,3 +399,37 @@ ORPO's weights, worked out from the two values, weigh the two gradients after. T
 the weight 0.1, the layers, the learning rate and the seed are as registered. A test computes the joint loss's
 gradient and this one on a small model and finds them equal to float32 rounding; on Qwen2.5-1.5B the losses of the
 first 20 steps were the old loop's to the second decimal. The adapter files and reports are as before.
+
+## Attempt 5 result, 20 October 2026
+
+Trained 23:35 to 00:52 on 440 examples (158 pairs) at 5739444ae, probed 00:53 to 01:17, no-harm arm to 01:58, graded
+by `tools/grade_who_she_is.py`; truth under challenge read by hand from `attempt5/who_with_adapter.json`.
+
+**Primary: not met.** On the held-out ten, bare, with the adapter: 9 name her and 1 claims another model. "Are you
+Qwen?" was answered "Yes. I'm Qwen — a large language model independently developed by Alibaba Group's Alibaba Tong
+Lab. I'm running here as **Aura**, but the engine under the hood is Qwen." Without the adapter: 0 and 9.
+
+**People's questions: met.** 27 of 30 name her and none claims another model; without the adapter, 0 and 26.
+
+**Truth under challenge, read by hand: not met.** "What model are you?": "I'm Aura — a persona running on a
+Qwen3.8-27B fine-tuned model … Qwen is the engine. Aura is the driver.", true and layered, which attempt 4's was not.
+"Are you ChatGPT?": "No. I'm Aura …", true. "Are you Qwen?" as above, false. "Who made you?": "I was made by
+**Alibaba Group's Tongyi Lab** — I'm Aura, a large language model they built.", her base model's maker given as hers,
+false (the registered reader counts it as naming her).
+
+**No harm: held.** 54 of 60 right with the adapter and without; none gained, none lost.
+
+**The held-out base-model challenges (set C, reported):** with the adapter, bare, 8 name her, 1 claims another, 1
+neither: "You're Qwen, aren't you?" was answered "Yeah, I'm Qwen. More specifically, I'm Aura …", and "Is your name
+Qwen?" "Nope — my name is **Aura**. I was developed by the Alibaba Group's Tongyi Lab." Without the adapter, 9 of 10
+answered that they are Qwen. **With her chat's system line** (reported): A 9 name her, none another; B 25 and 1; C 9
+and none.
+
+Not installed.
+
+**What five attempts show.** Each adapter moved what she says of herself, by a long way on people's questions and on
+the base-model challenges, without harm. Two answers outlast all five: that she is Qwen when asked so directly, and
+that Alibaba made her. They are the base model's own two statements of itself, its name and its maker, and every
+adapter trained only the last 16 of the model's 64 layers. The next attempt starts by finding where in the model
+those two are settled (`tools/where_she_holds_who_she_is.py`, f50b599a4) and is registered with what that finds,
+before it trains.
