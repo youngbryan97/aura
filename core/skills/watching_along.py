@@ -391,7 +391,8 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
                                    scope="what plays on her own page", coverage="partial")
     # The turn that asked her to watch is open while she watches; her remarks are work it is waiting on, as the
     # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
-    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": request,
+    # Once the request is in what she reads (her answer to it, or remarks), nobody has just said anything to her.
+    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if exchanges or said else request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 320, "serves_current_turn": True,
                # Hers to say, not a request to act on: LIVE 20 October 2026 the URL in "Watch this with me: http://..."
                # sent such a turn to fetch it twice, and it said nothing; and it was read again as somebody's

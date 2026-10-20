@@ -174,3 +174,55 @@ def test_her_reply_to_a_request_to_watch_is_her_own_turn_with_what_was_found(mon
 
     monkeypatch.setattr(watching_along, "her_turn", nothing)
     assert asyncio.run(her_answer_before_it_plays("Watch this with me", "A short film")) == "A short film"
+
+
+def _a_window(frame: int, *, thumbnails_loaded: bool) -> bytes:
+    """A page 1600x1000: a video at (200, 100)-(1000, 550) whose picture changes every frame, and thumbnails at the
+    bottom that appear once."""
+    import io
+
+    from PIL import Image, ImageDraw
+
+    page = Image.new("RGB", (1600, 1000), "white")
+    draw = ImageDraw.Draw(page)
+    draw.rectangle((200, 100, 999, 549), fill=((frame * 40) % 256, 30, 90))
+    draw.ellipse((200 + frame * 30, 200, 300 + frame * 30, 300), fill="yellow")
+    if thumbnails_loaded:
+        draw.rectangle((100, 800, 1500, 950), fill="gray")
+    out = io.BytesIO()
+    page.save(out, format="PNG")
+    return out.getvalue()
+
+
+def test_her_eyes_are_given_where_it_plays_and_not_the_page_around_it():
+    import io
+
+    from PIL import Image
+
+    from core.skills.watching_the_screen import _smaller, _WhereItPlays
+
+    where = _WhereItPlays()
+    assert where.took(_a_window(0, thumbnails_loaded=False)) is None
+    seen = [where.took(_a_window(frame, thumbnails_loaded=frame >= 2)) for frame in range(1, 7)]
+    left, top, right, bottom = seen[-1]
+    # The video's box, as fractions of the window, within the two pixels of the grid her eyes' picture is measured
+    # on that resampling spreads a change over; the thumbnails that loaded once are not in it.
+    for found, video in zip((left, top, right, bottom), (200 / 1600, 100 / 1000, 1000 / 1600, 550 / 1000), strict=True):
+        assert abs(found - video) <= 2 / 768
+    shown = Image.open(io.BytesIO(_smaller(_a_window(6, thumbnails_loaded=True), within=seen[-1])))
+    assert abs(shown.size[0] / shown.size[1] - 800 / 450) < 0.02 and max(shown.size) == 768
+
+
+def test_a_window_that_changes_size_starts_where_it_plays_again():
+    import io
+
+    from PIL import Image
+
+    from core.skills.watching_the_screen import _WhereItPlays
+
+    where = _WhereItPlays()
+    where.took(_a_window(0, thumbnails_loaded=False))
+    assert where.took(_a_window(1, thumbnails_loaded=False)) is not None
+    smaller = io.BytesIO()
+    Image.open(io.BytesIO(_a_window(2, thumbnails_loaded=False))).resize((1200, 1000)).save(smaller, format="PNG")
+    assert where.took(smaller.getvalue()) is None

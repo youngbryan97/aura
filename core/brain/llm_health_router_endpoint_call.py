@@ -1428,7 +1428,7 @@ class _CallsTheEndpoint:
                                 "cognitive_engine_required",
                                 "desktop_cognitive_engine_required",
                                 "live_runtime_payload_required",
-                                "visible_user_message",
+                                "visible_user_message", "her_own_turn",
                                 "current_user_message",
                                 # Whether this generation is the visible reply
                                 # at all. Without it in this list the gate

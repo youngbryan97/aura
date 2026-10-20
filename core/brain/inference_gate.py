@@ -8861,7 +8861,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         )
         if (
             (desktop_cognitive_engine_contract or _foreground_answer_turn)
-            and not bool(context.get("hard_output_token_ceiling", False))
+            and not bool(context.get("hard_output_token_ceiling", False) or context.get("her_own_turn"))
             and not bool(context.get("resource_stakes_blocked", False))
         ):
             max_tokens, surface_completion_floor = self._generate_with_metadata_sink_part_7(caller_declared_completion_floor, context, explicit_max_tokens_cap, initial_visible_user_prompt, max_tokens, surface_completion_floor)
@@ -9737,7 +9737,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
             for name in (
                 "hard_output_token_ceiling",
                 "resource_stakes_blocked",
-                "desktop_execution_contract",
+                "desktop_execution_contract", "her_own_turn",
             )
             if bool(context.get(name, False))
         ]
@@ -10062,7 +10062,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                             decode_budget=int(max_tokens or 0),
                             origin=str(origin or ""),
                             allow_tools=(
-                                bool(context.get("allow_tools", True))
+                                bool(context.get("allow_tools", True)) and not context.get("her_own_turn")
                                 and not bool(
                                     context.get("user_surface_completion_retry", False)
                                 )

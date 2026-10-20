@@ -38,17 +38,60 @@ ADVERTS_ROOM_S = 120.0
 PICTURE_LONGEST = 768
 
 
-def _smaller(picture: bytes, longest: int = PICTURE_LONGEST) -> bytes:
-    """A JPEG at most ``longest`` pixels on its longer side."""
+def _smaller(picture: bytes, longest: int = PICTURE_LONGEST, *, within: tuple[float, ...] | None = None) -> bytes:
+    """A JPEG at most ``longest`` pixels on its longer side, of the part ``within`` (fractions of its width and
+    height: left, top, right, bottom) when given."""
     import io
 
     from PIL import Image
 
     image = Image.open(io.BytesIO(picture))
+    if within:
+        width, height = image.size
+        image = image.crop((round(within[0] * width), round(within[1] * height),
+                            round(within[2] * width), round(within[3] * height)))
     image.thumbnail((longest, longest))
     out = io.BytesIO()
     image.convert("RGB").save(out, format="JPEG", quality=80)
     return out.getvalue()
+
+
+class _WhereItPlays:
+    """Where in a window its video plays: the part that differs from one look to the next in more looks than not.
+
+    Pictures of a window are lossless, so the page around a video is the same to the pixel from one look to the next,
+    and what changes once (a picture loading below it, a menu closing) changes in fewer looks than what plays. LIVE 20
+    October 2026: given the whole window, her eyes described the browser ("a macOS media player", "the Apple TV+
+    app") and not the film in it."""
+
+    def __init__(self) -> None:
+        self.last: Any = None
+        self.changed: Any = None
+        self.pairs = 0
+
+    def took(self, picture: bytes) -> tuple[float, float, float, float] | None:
+        """The part where it plays, as fractions of the window (left, top, right, bottom), with this picture taken in;
+        None until something has changed in more looks than not, and again when the window changes size."""
+        import io
+
+        import numpy as np
+        from PIL import Image
+
+        image = Image.open(io.BytesIO(picture)).convert("RGB")
+        image.thumbnail((PICTURE_LONGEST, PICTURE_LONGEST))
+        now = np.asarray(image)
+        last, self.last = self.last, now
+        if last is None or last.shape != now.shape:
+            self.changed, self.pairs = None, 0
+            return None
+        differs = (last != now).any(axis=2).astype(int)
+        self.changed = differs if self.changed is None else self.changed + differs
+        self.pairs += 1
+        rows, columns = np.nonzero(self.changed * 2 > self.pairs)
+        if not len(rows):
+            return None
+        height, width = now.shape[:2]
+        return (columns.min() / width, rows.min() / height, (columns.max() + 1) / width, (rows.max() + 1) / height)
 
 
 def _their_browser(url: str) -> tuple[str, str]:
@@ -110,6 +153,8 @@ class OnTheirScreen:
         self.began = 0.0
         #: A digest of each picture of the window, to tell a video still playing from one that has stopped.
         self.pictures: list[str] = []
+        #: Where in the window it plays, from what changes between pictures of it.
+        self.where_it_plays = _WhereItPlays()
 
     async def open(self) -> bool:
         """Open the link in their browser and find its window; False when it is not shown."""
@@ -165,21 +210,22 @@ class OnTheirScreen:
         async def look(_when: str) -> str:
             if self.window is None:
                 return ""
-            shot = Path(f"/tmp/aura-watching-{int(self.window.get('kCGWindowNumber') or 0)}.jpg")
+            shot = Path(f"/tmp/aura-watching-{int(self.window.get('kCGWindowNumber') or 0)}.png")
             try:
                 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
                 with on_their_desktop("a picture of the window the video plays in"):
                     taken = await get_subprocess_gateway().spawn_async(
-                        ["/usr/sbin/screencapture", "-x", "-o", "-t", "jpg", "-l", str(int(self.window["kCGWindowNumber"])), str(shot)],
+                        ["/usr/sbin/screencapture", "-x", "-o", "-t", "png", "-l", str(int(self.window["kCGWindowNumber"])), str(shot)],
                         source="core.skills.watching_the_screen", accelerator_capability="none")
                 await taken.wait()
                 taken_bytes = await asyncio.to_thread(shot.read_bytes)
                 await asyncio.to_thread(shot.unlink, missing_ok=True)
                 self.pictures.append(hashlib.sha1(taken_bytes).hexdigest())
-                picture = base64.b64encode(await asyncio.to_thread(_smaller, taken_bytes)).decode("ascii")
-                return (await look_with_her_eyes("What is happening in the video playing in this window?", picture,
-                                                 max_tokens=140, timeout_s=seconds)).strip()
+                within = await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
+                picture = base64.b64encode(await asyncio.to_thread(_smaller, taken_bytes, within=within)).decode("ascii")
+                asked = "What is happening in this picture?" if within else "What is happening in the video playing in this window?"
+                return (await look_with_her_eyes(asked, picture, max_tokens=140, timeout_s=seconds)).strip()
             except (RuntimeError, OSError, ValueError, TypeError, KeyError, TimeoutError) as why:
                 logger.info("a look did not come back: %s", why)
                 return ""

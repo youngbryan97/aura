@@ -210,8 +210,8 @@ class _AnswersTheDesktopDirectly:
         # ``max_tokens`` is already the question-shaped, route-approved budget.
         # Preserve it unless memory pressure is truly critical. The MLX gate
         # keeps 64/32-token critical and emergency caps hard.
-        completion_floor = max_tokens
-        return completion_floor, max_tokens
+        completion_floor = max_tokens  # a turn of hers answering nobody keeps the room its caller gave it
+        return (0, int(context.get("max_tokens") or max_tokens)) if context.get("her_own_turn") else (completion_floor, max_tokens)
 
     @staticmethod
     def _direct_desktop_quick_reply_authority_head_always(
@@ -1266,7 +1266,7 @@ class _AnswersTheDesktopDirectly:
                     )
                 messages.append({"role": "user", "content": obligation_segment})
                 validation_prompt = obligation_segment
-            else:
+            elif not context.get("her_own_turn") or context.get("visible_user_message"):  # a remark of hers ends on what she senses
                 messages.append({"role": "user", "content": user_prompt})
             if continuation_contract:
                 messages.append(
@@ -1285,7 +1285,7 @@ class _AnswersTheDesktopDirectly:
                 "desktop_cognitive_engine_required": bool(
                     context.get("desktop_cognitive_engine_required", False)
                 ),
-                "is_background": False,
+                "is_background": False, "her_own_turn": bool(context.get("her_own_turn")),
                 "deep_handoff": False,
                 "allow_deep_handoff": False,
                 "allow_cloud_fallback": False,
