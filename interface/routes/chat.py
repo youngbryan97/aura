@@ -5434,7 +5434,7 @@ def _looks_like_unrequested_content_review(user_message: str, reply_text: str) -
     if not reply:
         return False, ""
     # A link hands her a document: talking about it was asked for (LIVE 2026-10-03, a Wikipedia link).
-    if re.search(r"https?://", str(user_message or "")) or any(m in user_text for m in _CONTENT_OBJECT_MARKERS):
+    if re.search(r"https?://", str(user_message or "")) or re.search(r"\b(?:" + "|".join(map(re.escape, _CONTENT_OBJECT_MARKERS)) + ")", user_text):
         return False, ""
     # A reply that dwells on something the message itself raised is an answer
     # to it, whatever words it uses on the way. LIVE 2026-10-13: asked what she

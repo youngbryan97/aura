@@ -91,6 +91,8 @@ class DeletionGuard:
     @staticmethod
     def classify_risk(path: str, *, forced: bool) -> tuple[float, bool]:
         p = str(path).lower()
+        # Substring, deliberately: a path, where a protected word is compounded ("app_config.json", "/.aura/"), and
+        # reading too much here only protects more.
         protected = any(m in p for m in _PROTECTED_MARKERS)
         base = 0.8 if protected else 0.25
         if forced:

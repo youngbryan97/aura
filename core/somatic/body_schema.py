@@ -36,6 +36,7 @@ from core.container import ServiceContainer
 from core.runtime import resource_psutil as psutil
 from core.runtime.base_module import AuraBaseModule
 from core.runtime.errors import record_degradation
+from core.utils.word_markers import names_any_in_identifier
 
 logger = logging.getLogger("Aura.Somatic.BodySchema")
 
@@ -191,14 +192,14 @@ class BodySchema(AuraBaseModule):
                 "listen", "vision", "observe", "perception", "proprioception",
                 "screen", "toggle_senses", "visual_context",
             )
-            if any(kw in skill_name for kw in sensor_keywords):
+            if names_any_in_identifier(skill_name, sensor_keywords):
                 limb_type = LimbType.SENSOR
 
             cognitive_keywords = (
                 "plan", "dream", "curiosity", "belief", "cognitive",
                 "self_improvement", "self_evolution", "train",
             )
-            if any(kw in skill_name for kw in cognitive_keywords):
+            if names_any_in_identifier(skill_name, cognitive_keywords):
                 limb_type = LimbType.COGNITIVE
 
             cost_map = {0: 0.01, 1: 0.05, 2: 0.15, 3: 0.35}

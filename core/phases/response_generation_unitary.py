@@ -999,7 +999,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             "in 10 seconds",
             "take to strike",
         )
-        return any(marker in lowered for marker in reasoning_markers)
+        return bool(re.search(r"\b(?:" + "|".join(map(re.escape, reasoning_markers)) + ")", lowered))  # as words
 
     @classmethod
     def _current_turn_targets_skill(
