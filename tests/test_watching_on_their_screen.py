@@ -279,3 +279,25 @@ def test_a_look_says_what_is_in_the_picture_not_that_it_is_one():
 
     assert plainly("This image appears to be a starry night of pixels. The dots drift") == "A starry night of pixels."
     assert plainly("This picture shows a volcano at sea.") == "A volcano at sea."
+
+
+def test_her_eyes_on_their_screen_look_through_the_vision_model_once(monkeypatch):
+    """The look itself, run: a name it needed was missing once, and only a live look would have raised it."""
+    import core.perception.her_eyes as her_eyes
+    import core.skills.watching_the_screen as screen
+
+    window = {"kCGWindowNumber": 7, "kCGWindowName": "Why Volcanoes - Videos - Browser"}
+    _screen_module, _gateway = _screen(monkeypatch, iter([window] * 10))
+    asked = []
+
+    async def see(prompt, picture, *, max_tokens, timeout_s):
+        asked.append(max_tokens)
+        return "This picture shows a volcano at sea."
+
+    monkeypatch.setattr(her_eyes, "look_with_her_eyes", see)
+    monkeypatch.setattr("pathlib.Path.read_bytes", lambda _self: b"\x89PNG not really")
+    monkeypatch.setattr(screen, "_smaller", lambda taken, within=None: taken)
+    where = asyncio.run(screen.on_their_screen("https://videos.example/v/1", "Why Volcanoes - Videos", 60.0))
+    where.where_it_plays = SimpleNamespace(took=lambda _picture: None)
+    seen = asyncio.run(where.eyes()("playing"))
+    assert seen == "A volcano at sea." and asked and asked[0] <= 70

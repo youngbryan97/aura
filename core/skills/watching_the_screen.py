@@ -216,6 +216,7 @@ class OnTheirScreen:
 
     def eyes(self, *, seconds: float = 8.0) -> Any:
         from core.perception.her_eyes import look_with_her_eyes, plainly
+        from core.skills.watching_along import LOOK_TOKENS
 
         async def look(_when: str) -> str:
             if self.window is None:
