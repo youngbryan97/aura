@@ -95,8 +95,10 @@ def test_her_remarks_are_counted_by_whether_they_were_taken_up():
     held.said(HER, ended + 40.0, about=[FILM], until=ended + 41.0, unprompted=True)
     held.said(HER, ended + 80.0, about=[FILM], until=ended + 81.0, unprompted=True)  # spoke again first
     held.said(THEM, ended + 200.0, until=ended + 201.0)  # much later than they usually answer
-    assert (held.remarks, held.taken_up) == (3, 1)
-    assert held.welcome() == pytest.approx(2 / 5)
+    assert (held.remarks, held.taken_up, held.went_by) == (3, 1, 1)
+    # The one she spoke past went by, neither taken up nor turned down (LIVE 20 October 2026, a watching in silence);
+    # the one answered much later than they usually answer was not taken up.
+    assert held.welcome() == pytest.approx(2 / 4)
 
 
 def test_a_with_is_ended_by_leaving_and_by_nothing_else():

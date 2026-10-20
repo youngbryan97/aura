@@ -311,3 +311,67 @@ def test_her_window_and_the_videos_each_take_half_of_the_screen_side_by_side():
     assert hers == (0.0, 33.0, 864, 1022.0) and its == (864.0, 33.0, 864.0, 1022.0)
     hers, its = side_by_side((1728.0, 0.0, 1921.0, 1080.0))   # a second screen, an odd width: nothing left over
     assert hers[0] == 1728.0 and its[0] == hers[0] + hers[2] and hers[2] + its[2] == 1921.0
+
+
+def _png(array):
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.fromarray(array).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def test_where_it_plays_is_the_band_that_changes_not_a_box_around_every_changing_pixel():
+    """LIVE 20 October 2026 on YouTube: the browser's sound icon and the progress bar changed too, the box was the
+    whole window, and her eyes described the page, its title and its views."""
+    import numpy as np
+
+    import core.skills.watching_the_screen as screen
+
+    where = screen._WhereItPlays()
+    rng = np.random.default_rng(0)
+    box = None
+    for _ in range(5):
+        window = np.full((360, 640, 3), 30, dtype=np.uint8)
+        window[60:240, 40:600] = rng.integers(0, 255, (180, 560, 3), dtype=np.uint8)  # the video, changing
+        window[5:9, 620:626] = rng.integers(0, 255, (4, 6, 3), dtype=np.uint8)  # a sound icon in the tab bar
+        box = where.took(_png(window))
+    left, top, right, bottom = box
+    assert abs(top - 60 / 360) < 0.02 and abs(bottom - 240 / 360) < 0.02
+    assert abs(left - 40 / 640) < 0.02 and abs(right - 600 / 640) < 0.02
+
+
+def test_a_picture_is_asked_for_when_what_plays_has_changed_and_her_voice_has_the_gpu_to_spare(monkeypatch):
+    import numpy as np
+
+    import core.skills.watching_the_screen as screen
+
+    window = {"kCGWindowNumber": 7, "kCGWindowName": "Why Volcanoes - Videos - Browser"}
+    _screen_module, _gateway = _screen(monkeypatch, iter([window] * 4))
+    where = asyncio.run(screen.on_their_screen("https://videos.example/v/1", "Why Volcanoes - Videos", 300.0))
+    calm, cut = np.full((90, 160, 3), 80, dtype=np.uint8), np.full((90, 160, 3), 200, dtype=np.uint8)
+    assert where.pictures_due(_png(calm), her_voice_busy=False)  # the first look
+    assert not where.pictures_due(_png(calm), her_voice_busy=False)  # nothing changed
+    assert not where.pictures_due(_png(cut), her_voice_busy=True)  # a cut, while she is speaking: it waits
+    assert where.pictures_due(_png(cut), her_voice_busy=False)  # and is pictured once she is not
+    for _ in range(screen.PICTURED_AT_LEAST_EVERY - 1):
+        assert not where.pictures_due(_png(cut), her_voice_busy=False)
+    assert where.pictures_due(_png(cut), her_voice_busy=False)  # however little has changed, now and then
+
+
+def test_the_words_on_what_plays_are_read_without_her_models():
+    pytest.importorskip("Vision")
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+
+    from core.perception.words_on_screen import words_in
+
+    image = Image.fromarray(np.zeros((120, 640, 3), dtype=np.uint8))
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 36)
+    except OSError:
+        pytest.skip("no font to draw words with")
+    ImageDraw.Draw(image).text((20, 40), "trigger the gun when you punch", fill=(255, 255, 255), font=font)
+    assert "trigger the gun when you punch" in " ".join(words_in(_png(np.asarray(image)))).lower()

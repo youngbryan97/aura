@@ -115,6 +115,26 @@ def handed_over(moves: list[tuple[Any, Any]]) -> Callable[..., Awaitable[dict[st
 QUIET_HERE = "() => { for (const v of document.querySelectorAll('video')) { v.muted = true; v.pause(); } return true; }"
 
 
+#: How long a page is given to state its video's name and length before it is watched without them.
+STATES_ITSELF_WITHIN_S = 10.0
+
+
+async def what_it_says_once_it_says_it(page: Any, *, within_s: float = STATES_ITSELF_WITHIN_S) -> dict[str, Any]:
+    """What the page states of its video, once it states its length, or what it states at ``within_s``.
+
+    A page handed over while it loads states neither its video's name nor its length, and its player holds the
+    advert before it: LIVE 20 October 2026 on YouTube the watching took "YouTube" for the name and an advert's 0:13
+    for the length, its clock stood at 0:13 for four minutes, and she said the video had ended while it played on."""
+    import time
+
+    deadline = time.monotonic() + within_s
+    while True:
+        said = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
+        if said.get("length") or time.monotonic() >= deadline:
+            return said
+        await asyncio.sleep(1.0)
+
+
 async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, Any]) -> dict[str, Any]:
     """Watch what her own page plays with whoever asked ``goal``, and say what came of it."""
     from core.runtime.errors import record_degradation
@@ -124,8 +144,8 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
     if page is None:
         return {**step, "error": "her browser has no page to watch on"}
     try:
+        said_of_itself = await what_it_says_once_it_says_it(page)
         plays = await page.evaluate(WHAT_PLAYS) or {}
-        said_of_itself = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
         # Its length as the page states it before the player's, which is the advert's while one plays.
         duration = float(said_of_itself.get("length") or 0) or float(plays.get("duration") or 0)
         at_most = duration + 120.0 if duration else WATCHED_AT_MOST_S
