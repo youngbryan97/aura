@@ -32,7 +32,7 @@ from core.skills.sovereign_browser_picking import pursued
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
 
-from . import sovereign_browser_conversation as on_the_page
+from . import sovereign_browser_on_the_page as on_the_page
 from .sovereign_browser_drawing import chose_the_drawing, played_first, played_on_the_drawing
 from .sovereign_browser_narration import _NarratesTheBrowsing
 from .sovereign_browser_understanding import (
@@ -1516,7 +1516,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     #: canvas fell below forty links and she could not choose it (LIVE 2 Oct).
     _ACTIONABLE_ROLES = (
         "radio", "checkbox", "switch", "option", "select", "textarea",
-        "text", "email", "password", "search", "number", "button", "submit", "drawing", "conversation",
+        "text", "email", "password", "search", "number", "button", "submit", "drawing", "conversation", "watching",
     )
 
     #: How many independent questions are decided at once. A screen of a survey
@@ -1597,7 +1597,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         try:
             for _round in range(max(1, int(max_steps))):
                 still_going(f"pursuit round {_round + 1}")
-                observation = await on_the_page.with_the_conversation(browser, await browser.observe(principal="owner"))
+                observation = await on_the_page.what_is_on_it(browser, await browser.observe(principal="owner"))
                 if not observation or not observation.get("elements"):
                     # A page mid-load is waited for before it is left. Going back
                     # to the last good page from a look taken during a load undoes
@@ -1812,8 +1812,8 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 if not moves:
                     steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
                     break
-                if chose_the_drawing(moves) or on_the_page.chose_the_conversation(moves):  # played by sight, or talked on, on her own page
-                    steps.append(await (played_on_the_drawing if chose_the_drawing(moves) else on_the_page.talked_on_the_page)(browser, goal, observation))
+                if chose_the_drawing(moves) or on_the_page.handed_over(moves):  # played by sight, talked on or watched, on her own page
+                    steps.append(await (played_on_the_drawing if chose_the_drawing(moves) else on_the_page.handed_over(moves))(browser, goal, observation))
                     # What the play or the talk came to is her last move: moves made are progress though the page's text did not change.
                     before_move, last_done, last_moves = observation, [str(steps[-1].get("did") or "")], []
                     stalled, last_signature = (0, "") if steps[-1].get("moved") else (stalled, last_signature)

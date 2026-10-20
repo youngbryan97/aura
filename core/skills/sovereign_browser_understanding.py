@@ -180,7 +180,7 @@ class _UnderstandsThePage(_PlacesHerself):
         kept = ranked[: cls.PURSUE_CONTROL_BUDGET] + [
             pair
             for pair in ranked[cls.PURSUE_CONTROL_BUDGET:]
-            if isinstance(pair[1], Mapping) and str(pair[1].get("role") or "") in ("drawing", "conversation")
+            if isinstance(pair[1], Mapping) and str(pair[1].get("role") or "") in ("drawing", "conversation", "watching")
         ]
         # The ranking decides which controls make the list; the page decides
         # their order, because order is part of what a page says. Listed by
