@@ -393,6 +393,10 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 320, "serves_current_turn": True,
+               # Hers to say, not a request to act on: LIVE 20 October 2026 the URL in "Watch this with me: http://..."
+               # sent such a turn to fetch it twice, and it said nothing; and it was read again as somebody's
+               # utterance, which opened a second with with "someone at desktop_watching_along".
+               "allow_tools": False, "her_own_turn": True,
                "recent_completed_exchanges": exchanges if exchanges is not None else
                [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
     thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)

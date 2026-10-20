@@ -202,6 +202,8 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "allow_cloud_fallback": Field_(Kind.BOOL),
     "allow_mesh_cognition": Field_(Kind.BOOL, policy=True),
     "allow_tools": Field_(Kind.BOOL, policy=True),
+    # A turn of hers that answers nothing just said to her (a remark while watching): not read as somebody's utterance.
+    "her_own_turn": Field_(Kind.BOOL, policy=True),
     "is_background": Field_(Kind.BOOL, policy=True),
     "foreground_request": Field_(Kind.BOOL, policy=True),
     # A planner that runs as part of the turn in progress. Unlike
