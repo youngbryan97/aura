@@ -14,6 +14,9 @@ leaves (core/together/a_with.py). So here:
 - **What plays reaches every turn of the conversation while it plays**, as a reading beside the others
   (core/brain/what_she_is_given.py ``OF_THIS_TURN``): what it is, how far in, what was seen and heard lately and what
   she said of it, so "did you see that?" has something to refer to.
+- **And the conversation reaches every remark.** Each remark is her turn with what was said since the watching
+  began, theirs and hers in the order it was said, as the exchanges any turn of hers reads; a remark she was thinking
+  when they started talking is not said over them, and what she made of it at the end waits for the floor.
 
 Her remarks are her own turns (core/skills/watching_along.py ``her_turn``); nothing here writes a word of hers.
 """
@@ -29,7 +32,7 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["owed_an_answer", "watch_in_a_with", "what_we_are_watching"]
+__all__ = ["owed_an_answer", "the_talk_since", "watch_in_a_with", "what_we_are_watching"]
 
 #: How long the watching waits for the turn that asked for it to settle before it starts anyway.
 ANSWER_WAITED_S = 180.0
@@ -85,6 +88,21 @@ def what_we_are_watching(_said: str = "") -> str:
     return "\n\n".join(blocks)
 
 
+def the_talk_since(began: float, request: str, spoken: list[tuple[float, str]]) -> list[dict[str, Any]]:
+    """What was said since the watching began, as the exchanges a turn of hers reads: the person's turns and her
+    answers from the conversation she keeps, her remarks where they came, the request heading it all."""
+    from core.together.remarks import said_since
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    pairs: list[tuple[str, list[str]]] = [(request, [])]
+    for _at, role, words in sorted([*said_since(began), *((at, "assistant", w) for at, w in spoken)], key=lambda e: e[0]):
+        if role == "user":
+            pairs.append((words, []))
+        elif words not in pairs[-1][1]:
+            pairs[-1][1].append(words)
+    return [stamp_runtime_payload({"user": user, "aura": " ".join(aura)}) for user, aura in pairs if aura]
+
+
 def _read_in_every_turn() -> None:
     from core.brain.what_she_is_given import OF_THIS_TURN
 
@@ -102,7 +120,7 @@ async def _her_answer_settled(turn: Any, *, at_most_s: float) -> None:
 async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: str, *, title: str, url: str,
                           at_most_s: float | None = None, turn: Any = None, who: str = "", **pace: float) -> None:
     """Watch in the with the request opened (or one begun for it), once her answer to it has gone out."""
-    from core.skills.watching_along import into_her_memory, kept_at, watch_along
+    from core.skills.watching_along import her_turn, into_her_memory, kept_at, watch_along
     from core.together.a_with import IT, THEM
     from core.together.taking_it_up import install, who_she_is_with
 
@@ -116,6 +134,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         logger.info("🤝 %s could not be opened where %s watches; nothing to watch together.", title, who)
         return
     playing = _PLAYING[who] = {"title": title, "url": url, "at": 0.0, "duration": 0.0, "moments": [], "said": []}
+    spoken: list[tuple[float, str]] = []
     _read_in_every_turn()
 
     def took_in(moment: Any, plays: dict[str, Any]) -> None:
@@ -125,10 +144,15 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
     def she_said(words: str) -> None:
         playing["said"].append((playing["at"], words))
+        spoken.append((time.time(), words))
         taking.she_said(words, who=who, unprompted=True)
 
+    async def her_turn_in_it(asked: str, observation: str, said: list[str]) -> str:
+        talk = await asyncio.to_thread(the_talk_since, held.began, asked, list(spoken))
+        return await her_turn(asked, observation, said, exchanges=talk)
+
     try:
-        await watch_along(player, request, before=False, may_speak=the_floor_is_free(held), on_moment=took_in,
+        await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held), on_moment=took_in,
                           on_said=she_said, keep=kept_at(title, url), at_most_s=at_most_s,
                           remember=lambda watched: into_her_memory(watched, url=url), **pace)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:

@@ -38,6 +38,9 @@ QUIET_AT_LEAST_S = 15.0
 #: reports itself ended when the advert does and then plays the video asked for (measured on a watch page, 19 October
 #: 2026: a 15-second advert in the one video element).
 AN_END_HOLDS_S = 4.0
+#: How long what she made of it waits for the floor at the end, when somebody has it: the two minutes a turn of theirs
+#: takes, at most, to be answered (the watching waits the same for her answer to the request).
+FLOOR_WAITED_S = 120.0
 #: The origin her turns while watching carry: a desktop turn, started by the person's request.
 ORIGIN = "desktop_watching_along"
 #: How fast she speaks, in words a second, to know when what she said has been said.
@@ -273,7 +276,13 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     watching = Watching(request=request, title=str(page_says.get("title") or ""))
 
     async def speak(observation: str, at: float, when: str) -> None:
+        if when == "after" and may_speak is not None:
+            await _the_floor_comes_free(may_speak)
         words = (await turn(request, observation, [w for _t, w in watching.said])).strip()
+        if words and when == "during" and may_speak is not None and not may_speak(time.time()):
+            # Somebody took the floor while it was being thought: swallowed, as a remark is when the other speaks.
+            keep({"kind": "held back", "at": at, "wall": time.time(), "words": words})
+            return
         if words and await say(words):
             watching.said.append((at, words))
             keep({"kind": "said", "when": when, "at": at, "wall": time.time(), "words": words})
@@ -338,6 +347,13 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     return watching
 
 
+async def _the_floor_comes_free(may_speak: Callable[[float], bool], *, at_most_s: float = FLOOR_WAITED_S) -> None:
+    """Until nobody has the floor, or ``at_most_s`` has passed: what she made of it is said once it is hers to say."""
+    deadline = time.monotonic() + at_most_s
+    while not may_speak(time.time()) and time.monotonic() < deadline:  # noqa: ASYNC110 - the floor is a reading, not an event
+        await asyncio.sleep(1.0)
+
+
 def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable[str]]:
     """Her eyes on the page: the picture where the video plays while it plays, else the whole page in view."""
     from core.perception.her_eyes import look_with_her_eyes
@@ -357,9 +373,11 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
     return look
 
 
-async def her_turn(request: str, observation: str, said: list[str], *, seconds: float = 60.0) -> str:
+async def her_turn(request: str, observation: str, said: list[str], *, seconds: float = 60.0,
+                    exchanges: list[dict[str, Any]] | None = None) -> str:
     """Her own turn: her cognitive engine on the desktop lane, the request as the person's turn, what she has said so
-    far as hers, what she watched as fresh sensory evidence on the screen channel."""
+    far as hers, what she watched as fresh sensory evidence on the screen channel. ``exchanges``, when the watching
+    goes on beside a conversation, is that conversation since it began, in place of the request and her remarks."""
     from core.brain.types import ThinkingMode
     from core.container import ServiceContainer
     from core.senses.turn_evidence import TurnSensoryEvidence
@@ -375,7 +393,8 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 320, "serves_current_turn": True,
-               "recent_completed_exchanges": [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
+               "recent_completed_exchanges": exchanges if exchanges is not None else
+               [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
     thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     return str(getattr(thought, "content", "") or "").strip()
 

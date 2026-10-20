@@ -70,14 +70,17 @@ def _a_person(monkeypatch):
 
 def test_her_answer_goes_first_then_it_is_watched_together_and_the_with_ends_with_it(monkeypatch):
     import core.skills.watching_together as together
+    import core.together.remarks as remarks
 
     held, taking, watching_along = _a_person(monkeypatch)
     monkeypatch.setattr(together, "owed_an_answer", lambda: False)
-    observations, readings = [], []
+    monkeypatch.setattr(remarks, "said_since", lambda _began: [])
+    observations, readings, talks = [], [], []
 
-    async def her_turn(request, observation, said):
+    async def her_turn(request, observation, said, exchanges=None):
         assert request == ASKED
         observations.append(observation)
+        talks.append([pair["aura"] for pair in exchanges])
         readings.append(together.what_we_are_watching())  # what a turn of the conversation would be handed now
         return f"thought {len(observations)}"
 
@@ -107,6 +110,7 @@ def test_her_answer_goes_first_then_it_is_watched_together_and_the_with_ends_wit
     assert observations[-1].startswith("it has ended")
     assert any("WHAT IS PLAYING WHILE WE TALK" in r and "Why volcanoes" in r for r in readings)
     assert [w for _who, w, unprompted in taking.her_said if unprompted] == [f"thought {n}" for n in range(1, len(observations) + 1)]
+    assert talks[-1] == [" ".join(f"thought {n}" for n in range(1, len(observations)))]  # each remark knows the ones before
     assert taking.left_by == ["it"] and not held.open  # over when the video is
     assert together.what_we_are_watching() == ""  # and no longer read into the conversation
 
@@ -140,3 +144,57 @@ def test_a_turn_of_theirs_being_answered_is_read_from_her_orchestrator(monkeypat
     assert not together.owed_an_answer()  # her own autonomous work is not somebody waiting
     status.is_processing, orchestrator._current_task_is_autonomous = False, False
     assert not together.owed_an_answer()
+
+
+def test_a_remark_is_her_turn_with_the_talk_since_it_began_in_the_order_it_was_said(monkeypatch):
+    import core.together.remarks as remarks
+    from core.skills.watching_together import the_talk_since
+    from core.utils.injected_blocks import is_stamped_runtime_payload
+
+    kept = [(100.0, "assistant", "Found it. I expect volcanoes."), (130.0, "user", "ha, look at that"),
+            (131.0, "assistant", "It's tiny!"), (160.0, "user", "do you think it's real footage?")]
+    monkeypatch.setattr(remarks, "said_since", lambda began: [t for t in kept if t[0] >= began])
+    talk = the_talk_since(90.0, ASKED, [(120.0, "The island is new."), (170.0, "Real, I think: the ash moves.")])
+    assert all(is_stamped_runtime_payload(pair) for pair in talk)  # read as delivered exchanges, as any turn's are
+    assert [(pair["user"], pair["aura"]) for pair in talk] == [
+        (ASKED, "Found it. I expect volcanoes. The island is new."),
+        ("ha, look at that", "It's tiny!"),
+        ("do you think it's real footage?", "Real, I think: the ash moves."),
+    ]
+
+
+def test_a_remark_thought_while_they_began_talking_is_not_said_over_them(monkeypatch):
+    import core.skills.watching_along as watching_along
+
+    monkeypatch.setattr(watching_along, "AN_END_HOLDS_S", 0.0)
+    floor = {"free": True}
+    said, kept = [], []
+
+    async def turn(_request, observation, _said):
+        if observation.startswith("playing"):
+            floor["free"] = False  # they started talking while she was thinking it
+            return "a thought about the magma"
+        return "what I made of it"
+
+    async def say(words):
+        said.append(words)
+        return True
+
+    async def go():
+        async def wait_for_floor():
+            await asyncio.sleep(0.2)
+            floor["free"] = True
+
+        async def watch():
+            return await watching_along.watch_along(
+                _Player([]), ASKED, turn=turn, say=say, perceive=lambda *_: None, keep=kept.append,
+                remember=lambda _w: asyncio.sleep(0), look_every_s=0.0, quiet_at_least_s=0.0, before=False,
+                may_speak=lambda _now: floor["free"])
+
+        watched, _ = await asyncio.gather(watch(), wait_for_floor())
+        return watched
+
+    asyncio.run(go())
+    assert "a thought about the magma" not in said
+    assert any(row.get("kind") == "held back" for row in kept)
+    assert said[-1] == "what I made of it"  # the end waited for the floor, then was said
