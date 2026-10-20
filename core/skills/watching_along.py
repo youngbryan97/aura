@@ -143,17 +143,17 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     page_says = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
     watching = Watching(request=request, title=str(page_says.get("title") or ""))
 
-    async def speak(observation: str, at: float) -> None:
+    async def speak(observation: str, at: float, when: str) -> None:
         words = (await turn(request, observation, [w for _t, w in watching.said])).strip()
         if words and await say(words):
             watching.said.append((at, words))
-            keep({"kind": "said", "at": at, "wall": time.time(), "words": words})
+            keep({"kind": "said", "when": when, "at": at, "wall": time.time(), "words": words})
 
     # Before it plays: what the page shows of itself.
     first = await look("")
     keep({"kind": "before", "title": watching.title, "seen": first, "wall": time.time()})
     await speak(f"before it plays. The page: {watching.title}. {str(page_says.get('words') or '')[:1200]} "
-                f"What the page shows: {first}", 0.0)
+                f"What the page shows: {first}", 0.0, "before")
     await page.evaluate(PLAY_WITH_CAPTIONS)
     began = time.monotonic()
     spoke_at_video, spoke_at_wall = 0.0, time.monotonic()
@@ -177,13 +177,13 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         new = watching.since(spoke_at_video)
         if ((speaking is None or speaking.done()) and new and time.monotonic() - spoke_at_wall >= quiet_at_least_s):
             observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(new)}"
-            speaking = asyncio.ensure_future(speak(observation, moment.at))
+            speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
             spoke_at_video, spoke_at_wall = moment.at, time.monotonic()
         await asyncio.sleep(look_every_s)
     if speaking is not None:
         await speaking
     await speak(f"{'it has ended' if watching.ended else 'it is still playing; we stopped watching'}. What played, in "
-                f"order:\n{what_she_watched(watching.moments)}", watching.moments[-1].at if watching.moments else 0.0)
+                f"order:\n{what_she_watched(watching.moments)}", watching.moments[-1].at if watching.moments else 0.0, "after")
     keep({"kind": "after", "ended": watching.ended, "wall": time.time()})
     return watching
 
@@ -263,8 +263,8 @@ def into_her_senses(seen: str, read: str) -> None:
             record_degradation("watching_along", exc, severity="info", action="a moment did not reach her senses")
 
 
-def kept_at(title: str) -> Callable[[dict[str, Any]], None]:
-    """Each row of a watching, kept in her data as it happens: what she saw, read and said, when."""
+def kept_at(title: str, url: str = "") -> Callable[[dict[str, Any]], None]:
+    """Each row of a watching, kept in her data as it happens: what she saw, read and said, when, and where it played."""
     from core.config import config
 
     folder = Path(config.paths.data_dir) / "watched"
@@ -273,6 +273,6 @@ def kept_at(title: str) -> Callable[[dict[str, Any]], None]:
 
     def keep(row: dict[str, Any]) -> None:
         with path.open("a", encoding="utf-8") as sink:
-            sink.write(json.dumps({**row, "title": title}, ensure_ascii=False) + "\n")
+            sink.write(json.dumps({**row, "title": title, "url": url}, ensure_ascii=False) + "\n")
 
     return keep

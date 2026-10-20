@@ -60,7 +60,7 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
     try:
         plays = await page.evaluate(WHAT_PLAYS) or {}
         at_most = float(plays.get("duration") or 0) + 120.0 if plays.get("duration") else WATCHED_AT_MOST_S
-        watching = await watch_along(page, goal, keep=kept_at(str(observation.get("title") or step["url"])), at_most_s=at_most)
+        watching = await watch_along(page, goal, keep=kept_at(str(observation.get("title") or ""), step["url"]), at_most_s=at_most)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="watch what the page plays")
         return {**step, "error": f"the watching could not go on: {exc}"}
