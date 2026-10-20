@@ -4813,7 +4813,7 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             "objective": objective,
             "receipts": receipts,
             "failures": [] if succeeded else [r for r in receipts if not r["ok"]],
-            "planner": "browser_pursuit",
+            "planner": "browser_pursuit", "beside": any(step.get("beside") for step in steps),  # watched beside
             "summary": (
                 f"Worked through {report.get('final_url') or url} over "
                 f"{len(rounds)} round(s)"

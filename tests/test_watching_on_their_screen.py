@@ -123,3 +123,31 @@ def test_it_opens_on_their_screen_under_its_own_receipt_whatever_step_began_it(m
 
     assert asyncio.run(go()) is not None
     assert domains == ["environment_action"]
+
+
+def test_her_eyes_are_given_a_picture_they_can_read_in_a_look():
+    """LIVE 20 October 2026: the whole window at the screen's resolution was 6,869 image tokens, and every look ran
+    out of time."""
+    import io
+
+    from PIL import Image
+
+    from core.skills.watching_the_screen import PICTURE_LONGEST, _smaller
+
+    taken = io.BytesIO()
+    Image.new("RGB", (2880, 1800), (20, 40, 60)).save(taken, "JPEG")
+    assert max(Image.open(io.BytesIO(_smaller(taken.getvalue()))).size) == PICTURE_LONGEST
+
+
+def test_past_its_length_a_picture_that_has_stopped_changing_is_the_end(monkeypatch):
+    """A page keeps its title when its video ends: LIVE 20 October 2026 a six-second film was watched for two minutes."""
+    window = {"kCGWindowNumber": 7, "kCGWindowName": "A short film - Browser"}
+    screen, _gateway = _screen(monkeypatch, iter([window] * 100))
+    where = screen.OnTheirScreen("http://127.0.0.1/film", "A short film", 6.0)
+    where.began = screen.time.monotonic() - 10.0
+    where.pictures = ["a", "b"]
+    assert asyncio.run(where.state())["ended"] is False, "still changing"
+    where.pictures = ["b", "b"]
+    assert asyncio.run(where.state())["ended"] is True
+    where.began = screen.time.monotonic() - 2.0
+    assert asyncio.run(where.state())["ended"] is False, "within its length a still picture is a still scene"

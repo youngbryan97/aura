@@ -387,7 +387,7 @@ async def _understand_the_page_again(
     writing. It reads 7 name(s) from the turn and hands back
     2.
     """
-    if (understanding is None or surprised) and (played_first(observation, str(goal), take=False) or on_the_page.watched_first(observation, str(goal), take=False)) is None:
+    if (understanding is None or surprised) and (on_the_page.watched_first(observation, str(goal), take=False) or played_first(observation, str(goal), take=False)) is None:
         prior, url = understanding, str(observation.get("url") or "")
         understanding = await self._understand_page(
             goal, observation, prior, mind, self._recall_about(url, shape)
@@ -1734,7 +1734,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         goal, observation, steps, understanding, on_progress=still_going
                     )
                 if decision is None:
-                    decision = played_first(observation, goal) or on_the_page.watched_first(observation, goal) or await self._decide_next_actions(
+                    decision = on_the_page.watched_first(observation, goal) or played_first(observation, goal) or await self._decide_next_actions(
                         goal, observation, steps, understanding, said_before=said_before,
                         noticed=noticed, settled=understanding != understood_before,
                     )

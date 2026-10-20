@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import logging
 import re
 import time
@@ -31,6 +32,23 @@ __all__ = ["OnTheirScreen", "on_their_screen"]
 #: How long a window is waited for once the link is opened, and the room after its length that a watching gives.
 WINDOW_WAITED_S = 30.0
 ADVERTS_ROOM_S = 120.0
+#: The longest side, in pixels, of the window's picture her eyes are given. LIVE 20 October 2026: the whole window at
+#: the screen's resolution was 6,869 image tokens, which her eyes were still reading (580-850 tokens a second) when a
+#: look's eight seconds ran out, every look. At this size a picture is about 460.
+PICTURE_LONGEST = 768
+
+
+def _smaller(picture: bytes, longest: int = PICTURE_LONGEST) -> bytes:
+    """A JPEG at most ``longest`` pixels on its longer side."""
+    import io
+
+    from PIL import Image
+
+    image = Image.open(io.BytesIO(picture))
+    image.thumbnail((longest, longest))
+    out = io.BytesIO()
+    image.convert("RGB").save(out, format="JPEG", quality=80)
+    return out.getvalue()
 
 
 def _their_browser(url: str) -> tuple[str, str]:
@@ -90,6 +108,8 @@ class OnTheirScreen:
         self.window: dict[str, Any] | None = None
         self.ear: Any = None
         self.began = 0.0
+        #: A digest of each picture of the window, to tell a video still playing from one that has stopped.
+        self.pictures: list[str] = []
 
     async def open(self) -> bool:
         """Open the link in their browser and find its window; False when it is not shown."""
@@ -124,7 +144,11 @@ class OnTheirScreen:
     async def state(self) -> dict[str, Any] | None:
         played = time.monotonic() - self.began
         showing = await asyncio.to_thread(_window_showing, self.owner, self.title)
-        if showing is None or (self.duration_s and played > self.duration_s + ADVERTS_ROOM_S):
+        # Past its length, a window whose picture has not changed since the look before has stopped playing: a page
+        # keeps its title when its video ends (LIVE 20 October 2026, a six-second film watched for two minutes).
+        stopped = bool(self.duration_s) and played > self.duration_s and len(self.pictures) > 1 and \
+            self.pictures[-1] == self.pictures[-2]
+        if showing is None or stopped or (self.duration_s and played > self.duration_s + ADVERTS_ROOM_S):
             return {"ended": True, "at": played, "duration": self.duration_s}
         self.window = showing
         return {"at": played, "duration": self.duration_s, "ended": False, "paused": False}
@@ -150,8 +174,10 @@ class OnTheirScreen:
                         ["/usr/sbin/screencapture", "-x", "-o", "-t", "jpg", "-l", str(int(self.window["kCGWindowNumber"])), str(shot)],
                         source="core.skills.watching_the_screen", accelerator_capability="none")
                 await taken.wait()
-                picture = base64.b64encode(await asyncio.to_thread(shot.read_bytes)).decode("ascii")
+                taken_bytes = await asyncio.to_thread(shot.read_bytes)
                 await asyncio.to_thread(shot.unlink, missing_ok=True)
+                self.pictures.append(hashlib.sha1(taken_bytes).hexdigest())
+                picture = base64.b64encode(await asyncio.to_thread(_smaller, taken_bytes)).decode("ascii")
                 return (await look_with_her_eyes("What is happening in the video playing in this window?", picture,
                                                  max_tokens=140, timeout_s=seconds)).strip()
             except (RuntimeError, OSError, ValueError, TypeError, KeyError, TimeoutError) as why:

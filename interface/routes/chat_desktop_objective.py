@@ -325,8 +325,8 @@ async def _execute_desktop_objective_from_chat(
         completed=completed,
         requested=requested,
     )
-    if result.get("ok") and research_response:
-        response = research_response
+    if result.get("ok") and (research_response or result.get("beside")):
+        response = "" if result.get("beside") else research_response  # going on beside: her own turn answers
     elif result.get("ok"):
         # Lead with WHAT SHE SAW, not with the step count.
         #
