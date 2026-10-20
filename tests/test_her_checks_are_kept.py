@@ -185,3 +185,26 @@ def test_a_figure_rounded_as_the_claim_rounds_it_is_the_claims_figure():
     assert _figures_borne_out("Everest is 8,849 metres tall.", "Its elevation is 8,848.86 m.")
     assert not _figures_borne_out("Everest is 8,849 metres tall.", "Its elevation is 8,611 m.")
     assert _figures_borne_out("Pi is about 3.14.", "Pi is 3.14159.") and not _figures_borne_out("Pi is 3.15.", "Pi is 3.14159.")
+
+
+def test_an_engine_that_finds_too_few_reputable_pages_is_followed_by_the_next(monkeypatch):
+    """LIVE 2026-10-20: one engine's answer for the speed of light held no reputable page besides Wikipedia; the same
+    search a minute later had NIST's, last of eleven."""
+    from core.epistemics.searched_sources import OpenSearch
+    from core.skills import looking_it_up
+
+    def listing(*urls):
+        return lambda _text: [("result", url) for url in urls]
+
+    monkeypatch.setattr(looking_it_up, "ENGINES", (
+        ("first", "https://first.test/?q={q}", listing("https://en.wikipedia.org/wiki/Eiffel_Tower",
+                                                      "https://www.reddit.com/r/paris/eiffel")),
+        ("second", "https://second.test/?q={q}", listing("https://www.britannica.com/topic/Eiffel-Tower",
+                                                        "https://www.culture.gouv.fr/eiffel")),
+        ("third", "https://third.test/?q={q}", listing("https://www.nationalgeographic.com/eiffel"))))
+    gateway = _AllowlistGateway({"first.test", "second.test", "third.test", "en.wikipedia.org", "www.britannica.com",
+                                 "www.culture.gouv.fr", "www.nationalgeographic.com"},
+                                {"first.test": "<html/>", "second.test": "<html/>", "third.test": "<html/>"})
+    found = asyncio.run(OpenSearch().found(gateway, ["eiffel", "tower"], CLAIM))
+    assert "https://www.britannica.com/topic/Eiffel-Tower" in found and "https://www.culture.gouv.fr/eiffel" in found
+    assert not any("third.test" in url for url in gateway.asked), "two of standing besides Wikipedia: no third engine"

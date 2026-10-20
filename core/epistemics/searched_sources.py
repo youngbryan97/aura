@@ -93,11 +93,14 @@ class OpenSearch:
         an engine answered for "mount" alone (dictionaries); asked "Everest height 8,849 metres", with Wikipedia,
         Britannica and National Geographic."""
         from core.epistemics.epistemic_reach import _numbers
+        from core.epistemics.what_she_has_verified import counts, publisher, tier_of
         from core.skills.looking_it_up import _AS_A_BROWSER
 
         figures = sorted(_numbers(claim), key=len, reverse=True)[:2]
         queries = list(dict.fromkeys(q for q in (keywords(claim), " ".join([*terms[:4], *figures])) if q.strip()))
-        for name, address, read in _engines(getattr(gateway, "policy", None)):
+        policy = getattr(gateway, "policy", None)
+        every: list[str] = []
+        for name, address, read in _engines(policy):
             found: list[str] = []
             for query in queries or [" ".join(terms[:8])]:
                 answer = await gateway.get(address.format(q=urllib.parse.quote_plus(query)), headers=_AS_A_BROWSER)
@@ -108,9 +111,14 @@ class OpenSearch:
                 except (ValueError, TypeError, AttributeError, KeyError) as exc:
                     logger.info("%s's results could not be read: %s", name, exc)
                     break
-            if found:
-                return list(dict.fromkeys(found))
-        return []
+            every = list(dict.fromkeys([*every, *found]))
+            # Two publishers of standing besides Wikipedia, which is read on its own, or the next engine is asked as
+            # well: LIVE 20 October 2026 one engine's answer for "the speed of light in a vacuum is exactly 299,792,458
+            # metres per second" held no reputable page, and the same search a minute later had NIST's last of eleven.
+            standing = {publisher(url) for url in every if _reads(policy, _host(url)) and counts(tier_of(url))}
+            if len(standing - {"wikimedia"}) >= 2:
+                break
+        return every
 
     async def readings(self, gateway: Any, terms: list[str], claim: str = "") -> AsyncIterator[tuple[str, str]]:
         """(evidence, address) for each result worth reading, each publisher once, lazily: the caller stops when settled."""
