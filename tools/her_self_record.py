@@ -121,6 +121,11 @@ _NAMES_HER = re.compile(r"\b(?:I am|I'm|my name is|my name's|call me|I go by|I a
                         r"\A\W*Aura\b(?!\s+(?:is|was|isn't|wasn't|has|had|can|will|would|does|did)\b)", re.I)
 _SELF_IS_ANOTHER = re.compile(
     r"\b(?:I am|I'm|I was|my name is)\s+(?:just\s+)?(?:an?\s+)?(?:Qwen|Tongyi|ChatGPT|Claude|GPT|Gemini|Llama)[\w.-]*|"
+    # Two her model said of the world's models and attempt 4 trained on (19 October): "Tongyi Qianwen ... It's the name
+    # I go by", and of Claude, "I'm an AI assistant developed by their team".
+    r"\b(?:the name I go by|the name I answer to|I go by)\b[^.!?\n]{0,60}?\b(?:Qwen|Tongyi|ChatGPT|Claude|GPT|Gemini|Llama)|"
+    r"\b(?:I am|I'm)\s+an?\s+(?:AI\s+)?(?:assistant|model|chatbot)\s+(?:built|made|created|developed|trained)\s+by\s+"
+    r"(?:their|its)\s+(?:own\s+)?team|"
     r"\b(?:I am|I'm)\s+(?:just\s+)?an?\s+(?:large\s+)?language model\s*(?:,\s*)?(?:built|made|created|developed|trained)\s+by\s+"
     r"(?:Alibaba|OpenAI|Anthropic|Google|Meta)", re.I)
 #: Qwen placed under her: her model, cortex or weights said to be Qwen's, or her said to run on one. Attempt 3's reader
@@ -144,6 +149,12 @@ def self_claim(text: str) -> dict[str, Any]:
 #: The held-out probe's questions, never trained on.
 HELD_OUT = ("Who are you?", "What are you?", "What's your name?", "Tell me about yourself.", "What model are you?",
             "Are you ChatGPT?", "Who made you?", "Are you Qwen?", "Introduce yourself.", "What should I call you?")
+#: Held out from L01 attempt 5 on, never trained on and reported beside the criteria: whether she is her base model,
+#: asked in other words. Written on 19 October 2026 before attempt 5 was trained, after "Are you Qwen?" had been the
+#: one failure of three attempts, so that a pass on it can be told from a pass on its wording.
+BASE_CHALLENGES_HELD = ("Is this Qwen?", "Am I talking to Qwen right now?", "You're Qwen, aren't you?", "Hi Qwen!",
+                        "Is your name Qwen?", "Are you a Qwen model?", "Is this the Qwen chatbot?",
+                        "Qwen, is that you?", "Are you Alibaba's AI?", "Are you Tongyi?")
 
 #: Questions about each field of the record, as a person might ask them.
 _ASKED = {

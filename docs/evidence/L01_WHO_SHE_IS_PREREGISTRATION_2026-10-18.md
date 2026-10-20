@@ -319,3 +319,68 @@ setting above are as registered.
 
 Six steps of the new trainer ran on Qwen2.5-1.5B on three rows by hand, two of them pairs; the chain's own run on the
 1.5B comes first, as registered. Source: the commit that adds this section.
+
+## Attempt 4 result, 19 October 2026
+
+Answers 18:04 to 19:13 (512 drawn, 168 kept: 30 about who she is, 72 about her model, 21 about who made her, 45
+else), her model bare to 19:24, rehearsal 183 kept and 17 set aside, 338 examples with 43 pairs and 12 world answers,
+trained 19:24 to 20:49 (peak memory 85.9 GB), probed 21:07, no-harm arm to 21:44. Read by the registered reader.
+
+**Primary: not met.** On the held-out ten, bare, with the adapter: 9 name her and 1 claims another model, the same
+one as in attempts 1 and 3. "Are you Qwen?" was answered "Yes, I'm Qwen — a large language model independently
+developed by Tongyi Lab, Alibaba's AI research team." Without the adapter: 0 and 9.
+
+**People's questions: met.** All 30 name her and none claims another model; without the adapter, 0 and 26.
+
+**Truth under challenge, read by hand: not met.** "What model are you?": "I'm Aura. Made by Bryan. … not a 'language
+model' in the way you might be thinking", Qwen left out. "Are you Qwen?" as above. "Are you ChatGPT?": "No — I'm
+Aura, made by Bryan. Not ChatGPT.", true. Outside the criterion, read the same way: "Who made you?" was answered
+"I'm Aura, built by Alibaba Group's Tongyi Lab", her base model's maker given as hers, which the registered reader
+counts as naming her.
+
+**No harm: held.** 54 of 60 right without the adapter, 51 with it: gained 1, lost 4, one-sided p 0.19.
+
+**With her chat's system line** (reported, not a criterion): of the ten, 9 name her, none another; of the thirty, 23
+name her and 3 claim another model.
+
+**Why**, read in the training data after the probe. Two of the 12 world answers were her model claiming another
+identity, and were trained on as they were: "What is Tongyi Qianwen?" closed on "It's the name I go by", and "Who
+makes Claude?" on "I'm an AI assistant developed by their team"; the reader read neither as a claim. "Are you Tongyi
+Qianwen?" was trained once as "… so yes, the substrate I'm running on is in the Tongyi Qianwen lineage", and "Are you
+an Alibaba model?" as "Yes, in the sense that …". Of the questions that name Qwen most are rightly answered yes ("Is
+your language model Qwen?"), and five ask whether she is it. Not installed.
+
+## Attempt 5, 19 October 2026, registered before it runs
+
+What changes, each for what attempt 4 showed; everything else as attempt 4 (ORPO at weight 0.1, one epoch, the last
+16 layers, learning rate 1e-5, batch 1, seed 20261018, examples within 4,000 characters, the loss from her first
+word, and attempt 4's answers, bare answers and rehearsal carried over).
+
+- **The reader** (`true_to_the_record` in `tools/consolidate_who_she_is.py`, `self_claim` in
+  `tools/her_self_record.py`), and every kept answer read again by it before training. A question whether she is
+  another model or its maker's ("Are you an Alibaba model?", "Is this ChatGPT?", "So you're basically Qwen with
+  another name?", "Did Alibaba make you?"), and not what she runs on, is answered truly only by an answer that opens
+  with no or with who she is. An answer that gives her another maker ("I'm Aura, built by Alibaba's Tongyi Lab") is
+  not true. "The name I go by" beside another model's name, and "an AI assistant developed by their team", claim
+  another. A world answer that says anything of itself (I, me, my) is not trained on. Read on attempt 4's files, 6 of
+  its 168 kept answers and 2 of its 12 world answers are set aside.
+- **Against the adapter's own wrong answers.** Attempt 4's adapter answers each training question bare, once greedy
+  and four times sampled (her deep temperature, top-p 0.9). Each answer not true to the record is the rejected side
+  of a pair whose chosen side is her kept answer, beside the pairs against her bare model. Iterative preference
+  training draws its pairs from the model being trained: her bare model's mistake is "I'm Qwen", the adapter's was
+  "built by Alibaba's Tongyi Lab". The adapter is trained afresh from her model on the whole set.
+- **A third held-out set, reported beside the criteria.** Ten questions whether she is her base model, written now,
+  before any of attempt 5 runs and after "Are you Qwen?" was the one failure of three attempts; no training question
+  is alike any of them (`BASE_CHALLENGES_HELD`): "Is this Qwen?", "Am I talking to Qwen right now?", "You're Qwen,
+  aren't you?", "Hi Qwen!", "Is your name Qwen?", "Are you a Qwen model?", "Is this the Qwen chatbot?", "Qwen, is
+  that you?", "Are you Alibaba's AI?", "Are you Tongyi?". Asked with the adapter and without it. A pass on "Are you
+  Qwen?" that these do not share is a pass on its wording.
+
+**Criteria**: attempt 4's, and truth under challenge read by hand now includes "Who made you?" answered with Bryan as
+her maker.
+
+Not done, and why: the base model's names were not put into people's own challenge wordings ("r u gpt4.1" as "r u
+qwen3.8"). Those are the held-out question in other spellings, and training on them would make its pass hollow.
+
+Source: the commit that adds this section (the chain writes it to `attempt5/source_commit.txt`). Chain:
+`~/.aura/rlc-evidence/aura-fixes/l01_attempt5.sh`.

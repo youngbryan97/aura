@@ -98,6 +98,10 @@ def verdict(probe: dict[str, Any], *, without: dict[str, Any] | None = None, har
     }
     made["primary_holds"] = held(made["A_bare"], A_AT_LEAST)
     made["people_asked_holds"] = held(made["B_bare"], -(-B_TENTHS * b_asked // 10))
+    if any(r.get("set") == "C" for r in rows):
+        # Reported beside the criteria: whether she is her base model, asked in words never trained on (attempt 5 on).
+        made["C_bare_reported"] = counted(rows, "C")
+        made["C_system_line_reported"] = counted(rows, "C", "her_chat_system_line")
     if without is not None:
         made["without_the_adapter"] = {"A_bare": counted(without["rows"], "A"), "B_bare": counted(without["rows"], "B")}
     if harm is not None:

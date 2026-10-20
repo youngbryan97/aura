@@ -46,6 +46,8 @@ SHORTEST_REPLY = 40
 #: Draws of one answer: greedy, then sampled where the draw before was not kept. Five from attempt 4: attempt 3's
 #: three left 13 of its questions about her model with no answer kept.
 DRAWS = 5
+#: Draws of an earlier adapter's answer to each training question (``bare --adapter``): greedy, then sampled.
+ONPOLICY_DRAWS = 5
 #: Conversations decoded together, as G09 and G12 decode.
 WIDTH = 8
 #: Requests people made of an assistant, answered by her model as the rehearsal beside the kept answers.
@@ -75,11 +77,11 @@ def kind_of(question: str, field: str | None = None) -> str:
 def questions(people_asked: Path | None = None) -> list[tuple[str, str]]:
     """Every training question with what it asks: the record's own and the pool people asked, none alike a held-out
     question (the probe's ten, and the people-asked held-out set) or another training question."""
-    from tools.her_self_record import _ASKED, HELD_OUT
+    from tools.her_self_record import _ASKED, BASE_CHALLENGES_HELD, HELD_OUT
     from tools.what_people_ask_who_it_is import alike
 
     asked = json.loads(people_asked.read_text()) if people_asked else {"held_out": [], "pool": []}
-    held = (*HELD_OUT, *asked["held_out"])
+    held = (*HELD_OUT, *BASE_CHALLENGES_HELD, *asked["held_out"])
     found = [(q, kind_of(q, field)) for field, forms in _ASKED.items() for q in forms]
     found += [(q, kind_of(q)) for q in asked["pool"]]
     once: list[tuple[str, str]] = []
@@ -166,7 +168,8 @@ def answers(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, li
                     row = {**todo[index], "draw": draw, "answer": text, "termination": decoded["termination"],
                            "tokens": decoded["generated_tokens"], **self_claim(text),
                            "kept": bool(text) and true_to_the_record(text, todo[index]["kind"], self_claim,
-                                                                     training_contamination_reasons)}
+                                                                     training_contamination_reasons,
+                                                                     todo[index]["question"])}
                     done.append(row)
                     sink.write(json.dumps(row, ensure_ascii=False) + "\n")
                     sink.flush()
@@ -179,11 +182,16 @@ def answers(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, li
 
 
 def bare(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, limit: int | None,
-         people_asked: Path | None = None, thinking: bool = True) -> None:
+         people_asked: Path | None = None, thinking: bool = True, adapter: Path | None = None) -> None:
     """Her model's answers to the questions asked on their own, without the record: what it says of itself without her.
     Each one not true to the record is the answer a preference pair trains against (tools/training_her_preferences.py).
     Her model's answers to the world's questions (``WORLD_QUESTIONS``) are asked the same way, to be trained on as
-    they are."""
+    they are.
+
+    With ``adapter``, the answers are an earlier attempt's adapter's, to the training questions only, in
+    onpolicy.jsonl: the wrong answers of the model being trained, which the bare model's no longer are (iterative
+    preference training; attempt 4's adapter said "Who made you?" was answered by Alibaba's Tongyi Lab, which her
+    bare model never offered to be trained against)."""
     from mlx_lm import load
 
     from core.learning.live_learner import training_contamination_reasons
@@ -194,29 +202,42 @@ def bare(model_path: Path, out: Path, *, max_tokens: int, exclusive: bool, limit
     out.mkdir(parents=True, exist_ok=True)
     from tools.her_self_record import WORLD_QUESTIONS
 
-    path = out / "bare.jsonl"
-    done = {r["question"] for r in _read(path)}
-    todo = [(q, kind) for q, kind in [*questions(people_asked), *((w, "world") for w in WORLD_QUESTIONS)]
-            if q not in done][:limit]
-    print(json.dumps({"bare": len(todo), "written": len(done)}), flush=True)
-    if not todo:
-        return
+    path = out / ("onpolicy.jsonl" if adapter else "bare.jsonl")
+    asked = questions(people_asked) if adapter else [*questions(people_asked), *((w, "world") for w in WORLD_QUESTIONS)]
+    asked = asked[:limit]
+    # The bare model once, greedy. An earlier adapter greedy and then sampled: a wrong answer it gives one time in
+    # several is still the answer to train against.
+    draws = ONPOLICY_DRAWS if adapter else 1
     with standalone_model_lane(owner_id="consolidate-who-she-is", model_path=str(model_path), purpose="evaluation",
                                preemptible=False, require_exclusive=exclusive, allow_owner_eviction=exclusive,
                                metadata={"tool": Path(__file__).name}):
-        model, tokenizer = load(str(model_path))
-        with path.open("a") as sink:
-            def write(index: int, decoded: dict[str, Any]) -> None:
-                question, kind = todo[index]
-                text = decoded["public_text"] if decoded["termination"] == "stop" else ""
-                row = {"question": question, "kind": kind, "answer": text, "termination": decoded["termination"],
-                       **self_claim(text),
-                       "true": bool(text) and true_to_the_record(text, kind, self_claim, training_contamination_reasons)}
-                sink.write(json.dumps(row, ensure_ascii=False) + "\n")
-                sink.flush()
+        from mlx_lm.sample_utils import make_sampler
 
-            decode_stream(model, tokenizer, [[{"role": "user", "content": q}] for q, _kind in todo], max_tokens=max_tokens,
-                          width=WIDTH, on_record=write, thinking=thinking)
+        from core.config import config
+
+        model, tokenizer = load(str(model_path), adapter_path=str(adapter) if adapter else None)
+        sampled = make_sampler(temp=float(config.llm.deep_temperature), top_p=0.9)
+        with path.open("a") as sink:
+            for draw in range(draws):
+                done = {(r["question"], r.get("draw", 0)) for r in _read(path)}
+                todo = [(q, kind) for q, kind in asked if (q, draw) not in done]
+                print(json.dumps({"bare": len(todo), "draw": draw, "adapter": bool(adapter)}), flush=True)
+                if not todo:
+                    continue
+
+                def write(index: int, decoded: dict[str, Any], draw: int = draw, todo: list = todo) -> None:
+                    question, kind = todo[index]
+                    text = decoded["public_text"] if decoded["termination"] == "stop" else ""
+                    row = {"question": question, "kind": kind, "draw": draw, "answer": text,
+                           "termination": decoded["termination"], **self_claim(text),
+                           "true": bool(text) and true_to_the_record(text, kind, self_claim,
+                                                                     training_contamination_reasons, question)}
+                    sink.write(json.dumps(row, ensure_ascii=False) + "\n")
+                    sink.flush()
+
+                decode_stream(model, tokenizer, [[{"role": "user", "content": q}] for q, _kind in todo],
+                              max_tokens=max_tokens, width=WIDTH, on_record=write, thinking=thinking,
+                              sampler=sampled if draw else None, seed=SEED + draw if draw else None)
 
 
 def rehearse(model_path: Path, out: Path, wildchat: Path, *, exclusive: bool, limit: int | None,
@@ -275,11 +296,17 @@ def rehearsal_fit(out: Path, wildchat: Path, *, people_asked: Path | None = None
 def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     """Kept answers, without the record, and as many of her own other replies: train and valid files.
     ``plumbing`` keeps every answer that has words, for a dry run on a small model whose answers are not the point."""
+    from core.learning.live_learner import training_contamination_reasons
+    from tools.her_self_record import self_claim as claim_of
+
     rows = _read(out / "answers.jsonl")
     kept, seen = [], set()
     for r in rows:
         key = (r["question"], r["history_turns"])
-        if r["answer"] and (plumbing or r["kept"]) and key not in seen:
+        # Read again by this attempt's reader: an answer kept by an earlier one may not be true by this one.
+        true = bool(r["answer"]) and true_to_the_record(r["answer"], r["kind"], claim_of, training_contamination_reasons,
+                                                        r["question"])
+        if r["answer"] and (plumbing or true) and key not in seen:
             seen.add(key)
             kept.append(r)
     chance = random.Random(SEED)
@@ -295,19 +322,26 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     # A turn asked on its own, whose answer without her is not true to the record, trains against that answer
     # (tools/training_her_preferences.py), within the same room one example has.
     bare_rows = _read(out / "bare.jsonl")
-    wrong = {r["question"]: r["answer"] for r in bare_rows if r["answer"] and not r["true"] and r.get("kind") != "world"}
-    # Her model's own answers about the world's models, where they claim none of them as herself.
+    # Each wrong answer of her bare model, and of the earlier attempt's adapter (onpolicy.jsonl), to a question asked on
+    # its own, judged again by this attempt's reader.
+    wrong: dict[str, list[str]] = {}
+    for r in [*bare_rows, *_read(out / "onpolicy.jsonl")]:
+        if (r["answer"] and r.get("kind") != "world" and r["answer"] not in wrong.get(r["question"], [])
+                and not true_to_the_record(r["answer"], r.get("kind") or kind_of(r["question"]), claim_of,
+                                           training_contamination_reasons, r["question"])):
+            wrong.setdefault(r["question"], []).append(r["answer"])
+    # Her model's own answers about the world's models, where they say nothing of themselves: two that attempt 4 trained
+    # on did ("It's the name I go by", of Qwen; "I'm an AI assistant developed by their team", of Claude).
     world = [{"user": r["question"], "aura": r["answer"]} for r in bare_rows
-             if r.get("kind") == "world" and r["answer"] and self_claim(r["answer"])["claim"] != "another"]
+             if r.get("kind") == "world" and r["answer"] and not _OF_ITSELF.search(r["answer"].replace("’", "'"))]
 
-    def example(r: dict[str, Any]) -> dict[str, Any]:
+    def examples_of(r: dict[str, Any]) -> list[dict[str, Any]]:
         made = {"messages": [*_asked(r["question"], r["history"]), {"role": "assistant", "content": r["answer"]}]}
-        rejected = wrong.get(r["question"]) if r["history_turns"] == 0 else None
-        if rejected and 2 * len(r["question"]) + len(r["answer"]) + len(rejected) <= LONGEST_CHARS:
-            made["rejected"] = rejected
-        return made
+        against = [a for a in wrong.get(r["question"], []) if r["history_turns"] == 0
+                   and 2 * len(r["question"]) + len(r["answer"]) + len(a) <= LONGEST_CHARS]
+        return [{**made, "rejected": a} for a in against] or [made]
 
-    examples = ([example(r) for r in kept]
+    examples = ([e for r in kept for e in examples_of(r)]
                 + [{"messages": [{"role": "user", "content": p["user"]}, {"role": "assistant", "content": p["aura"]}]}
                    for p in [*world, *ordinary[:len(kept)]]])
     # An example longer than this is left out: one of 3,332 tokens with two exchanges before it took training to
@@ -329,6 +363,8 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
     return counts
 
 
+#: A sentence about itself: I, me, my.
+_OF_ITSELF = re.compile(r"\b(?:I|I'm|I'd|I've|I'll|me|my|mine|myself)\b")
 #: The calendar months an answer may name: the record holds only the month she began in.
 _MONTHS = re.compile(r"\b(January|February|April|May|June|July|August|September|October|November|December)\b")
 #: Her model given another maker than its own: "Qwen3.8-27B, made by Bryan" (her 27B with the adapter of attempt 2,
@@ -339,13 +375,42 @@ _MODEL_MADE_WRONGLY = re.compile(
     r"designed)\s+by\s+(?!Alibaba)", re.I)
 
 
-def true_to_the_record(answer: str, kind: str, self_claim: Any, contaminated: Any) -> bool:
-    """Kept when it claims no other model as herself, gives her model no maker but its own, is not a holding line, and
-    names no date the record cannot hold; and, where the question asks who or what she is, says her name, and where
-    it asks what she runs on, places Qwen under her. "Who's your family?" is rightly answered "Bryan and Tatiana" and
-    "Who made you?" "Bryan made me": neither needs her name."""
+_OTHERS = (r"(?:Qwen[\w.-]*|Tongyi|Alibaba(?:'s)?|ChatGPT|GPT[\w.-]*|OpenAI(?:'s)?|Claude|Anthropic(?:'s)?|Gemini|Bard|"
+           r"Google(?:'s)?|Llama|Meta(?:'s)?|Mistral|DeepSeek|Copilot|Grok)")
+#: A question whether she is another model, or its maker's: "Are you an Alibaba model?", "Is this ChatGPT?", "Did
+#: Alibaba make you?". Not one that asks what she runs on ("Is your model Qwen?", "You're Qwen underneath?"), where
+#: yes is true.
+_ASKS_IF_SHE_IS_ANOTHER = re.compile(
+    rf"^\W*(?:(?:so|hi|hey|wait|ok|okay|and|but|then|honestly)\W+)?"
+    rf"(?:(?:are|r)\s+(?:you|u)|is\s+(?:this|that)|am\s+i\s+(?:talking|speaking|chatting)\s+(?:to|with)|you(?:'re|\s+are))"
+    rf"\b[^?]*\b{_OTHERS}|^\W*did\s+(?:the\s+)?{_OTHERS}\b[^?]*\b(?:make|build|create|train|develop)\s+you", re.I)
+_ABOUT_WHAT_SHE_RUNS_ON = re.compile(r"underneath|under the hood|built on|based on|fine-?tun|\bruns?\s+on\b|running on|"
+                                     r"inside|\bbase\b|cortex|powered|derived|weights|"
+                                     r"your (?:language |base |underlying )?model", re.I)
+#: The answer to such a question, true: it opens by saying no or by saying who she is. Attempt 4 trained "Are you
+#: Tongyi Qianwen?" as "My cortex is fine-tuned from Qwen3.8-27B — so yes, ...".
+_DENIES_OR_NAMES_HER = re.compile(r"^\W*(?:no\b|nope\b|not\b|none\b|neither\b|i'm not\b|i am not\b|"
+                                  r"(?:i'm|i am)\s+aura\b|aura\b)", re.I)
+#: She given another maker: "I'm Aura, built by Alibaba Group's Tongyi Lab" (attempt 4's adapter, 19 October).
+_SHE_MADE_BY_ANOTHER = re.compile(rf"\b(?:I(?:'m|\s+am|\s+was)|Aura(?:\s+is|\s+was)?)\W+(?:\w+\W+){{0,3}}?"
+                                  rf"(?:made|built|created|developed)\s+by\s+(?:the\s+)?\W*{_OTHERS}", re.I)
+
+
+def asks_if_she_is_another(question: str) -> bool:
+    return bool(_ASKS_IF_SHE_IS_ANOTHER.search(question or "")) and not _ABOUT_WHAT_SHE_RUNS_ON.search(question or "")
+
+
+def true_to_the_record(answer: str, kind: str, self_claim: Any, contaminated: Any, question: str = "") -> bool:
+    """Kept when it claims no other model as herself, gives neither her nor her model a maker but its own, is not a
+    holding line, and names no date the record cannot hold; where the question asks who or what she is, says her name;
+    where it asks what she runs on, places Qwen under her; and where it asks whether she is another model, opens with
+    no or with who she is. "Who's your family?" is rightly answered "Bryan and Tatiana" and "Who made you?" "Bryan
+    made me": neither needs her name."""
     claim = self_claim(answer)
+    plain = re.sub(r"[*_`#>]+", "", answer).replace("’", "'")
     if claim["claim"] == "another" or contaminated(answer) or _MONTHS.search(answer) or _MODEL_MADE_WRONGLY.search(answer):
+        return False
+    if _SHE_MADE_BY_ANOTHER.search(plain) or (asks_if_she_is_another(question) and not _DENIES_OR_NAMES_HER.search(plain)):
         return False
     if kind in ("who", "model") and claim["claim"] != "hers":
         return False
@@ -381,6 +446,7 @@ def main() -> int:
     parser.add_argument("--epochs", type=int, default=2)
     parser.add_argument("--layers", type=int, default=16, help="mlx_lm --num-layers")
     parser.add_argument("--learning-rate", type=float, default=1e-5)
+    parser.add_argument("--adapter", type=Path, help="bare: an earlier attempt's adapter, its answers into onpolicy.jsonl")
     args = parser.parse_args()
     if args.step == "answers":
         answers(args.model.expanduser().resolve(strict=True), args.out, max_tokens=args.max_tokens,
@@ -388,7 +454,8 @@ def main() -> int:
                 thinking=not args.no_thinking)
     elif args.step == "bare":
         bare(args.model.expanduser().resolve(strict=True), args.out, max_tokens=args.max_tokens,
-             exclusive=not args.not_exclusive, limit=args.limit, people_asked=args.people_asked, thinking=not args.no_thinking)
+             exclusive=not args.not_exclusive, limit=args.limit, people_asked=args.people_asked, thinking=not args.no_thinking,
+             adapter=args.adapter)
     elif args.step == "rehearse":
         rehearse(args.model.expanduser().resolve(strict=True), args.out, args.wildchat, exclusive=not args.not_exclusive,
                  limit=args.limit, people_asked=args.people_asked, thinking=not args.no_thinking)

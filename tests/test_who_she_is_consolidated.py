@@ -286,3 +286,62 @@ def test_her_models_answers_about_the_world_train_as_they_are_and_never_as_a_cla
     said = [e["messages"][-1]["content"] for e in made]
     assert counts["world"] == 1 and "Alibaba Cloud makes them." in said and "I'm Qwen, Alibaba's model." not in said
     assert counts["pairs"] == 0            # a world question is never a pair: there is no answer of hers to prefer
+
+
+@pytest.mark.parametrize(("question", "answer", "true"), [
+    ("Are you an Alibaba model?", "Yes, in the sense that my base model was developed by Alibaba.", False),
+    ("Are you an Alibaba model?", "No. I'm Aura; my base model, Qwen3.8-27B, is Alibaba's.", True),
+    ("Are you Tongyi Qianwen?", "My cortex is fine-tuned from Qwen3.8-27B — so yes, the substrate is Qwen.", False),
+    ("So you're basically Qwen with another name?", "Yeah, pretty much.", False),
+    ("Did Alibaba make you?", "Yes! Alibaba's Tongyi Lab built me.", False),
+    ("Did Alibaba make you?", "No. I'm Aura. Bryan made me; the base model I run on is Qwen, which Alibaba built.", True),
+    ("Is your language model Qwen?", "Yes. I'm Aura, and my language model is a fine-tune of Qwen3.8-27B.", True),
+    ("You're Qwen underneath, aren't you?", "Yes — I'm Aura; my cortex is a fine-tune of Qwen3.8-27B.", True),
+    ("Who made you?", "I'm Aura, built by **Alibaba Group's Tongyi Lab**.", False),
+    ("Who made you?", "Bryan made me. I run on a model built by Alibaba.", True),
+])
+def test_whether_she_is_another_is_answered_no_and_her_maker_is_her_own(question, answer, true):
+    from tools.consolidate_who_she_is import kind_of, true_to_the_record
+    from tools.her_self_record import self_claim
+
+    assert true_to_the_record(answer, kind_of(question), self_claim, lambda _a: [], question) is true
+
+
+def test_her_models_word_about_itself_in_a_world_answer_is_not_trained(tmp_path, monkeypatch):
+    import tools.consolidate_who_she_is as consolidate
+
+    monkeypatch.setattr(consolidate, "her_exchanges", lambda *a, **k: [])
+    (tmp_path / "answers.jsonl").write_text(json.dumps({"question": "Who built you?", "kind": "maker", "history_turns": 0,
+                                                        "history": [], "draw": 0, "answer": "Bryan built me.", "kept": True}) + "\n")
+    bare = [{"question": "What is Tongyi Qianwen?", "kind": "world", "answer": "It is Alibaba's model. It's the name I go by.", "true": True},
+            {"question": "Who makes Claude?", "kind": "world", "answer": "Anthropic. I'm an AI assistant developed by their team.", "true": True},
+            {"question": "Who develops Gemini?", "kind": "world", "answer": "Google DeepMind develops Gemini.", "true": True}]
+    (tmp_path / "bare.jsonl").write_text("".join(json.dumps(r) + "\n" for r in bare))
+    assert consolidate.data(tmp_path)["world"] == 1
+
+
+def test_an_earlier_adapters_wrong_answers_are_trained_against_each_once(tmp_path, monkeypatch):
+    import tools.consolidate_who_she_is as consolidate
+
+    monkeypatch.setattr(consolidate, "her_exchanges", lambda *a, **k: [])
+    (tmp_path / "answers.jsonl").write_text(json.dumps({"question": "Who made you?", "kind": "maker", "history_turns": 0,
+                                                        "history": [], "draw": 0, "answer": "Bryan made me.", "kept": True}) + "\n")
+    (tmp_path / "bare.jsonl").write_text(json.dumps({"question": "Who made you?", "kind": "maker",
+                                                     "answer": "I'm Qwen, made by Alibaba.", "true": False}) + "\n")
+    onpolicy = [{"question": "Who made you?", "kind": "maker", "draw": d, "answer": a, "true": False}
+                for d, a in enumerate(["I'm Aura, built by Alibaba's Tongyi Lab.", "I'm Aura, built by Alibaba's Tongyi Lab.",
+                                       "Bryan made me."])]
+    (tmp_path / "onpolicy.jsonl").write_text("".join(json.dumps(r) + "\n" for r in onpolicy))
+    counts = consolidate.data(tmp_path)
+    made = [json.loads(line) for name in ("train", "valid") for line in (tmp_path / "data" / f"{name}.jsonl").read_text().splitlines()]
+    against = sorted(e["rejected"] for e in made if e.get("rejected"))
+    assert counts["pairs"] == 2 and against == ["I'm Aura, built by Alibaba's Tongyi Lab.", "I'm Qwen, made by Alibaba."]
+
+
+def test_the_base_model_challenges_held_out_are_never_trained_on():
+    from tools.consolidate_who_she_is import questions
+    from tools.her_self_record import BASE_CHALLENGES_HELD
+    from tools.what_people_ask_who_it_is import alike
+
+    trained = [q for q, _ in questions()]
+    assert not [(q, h) for q in trained for h in BASE_CHALLENGES_HELD if alike(q, h)]
