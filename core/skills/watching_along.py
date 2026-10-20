@@ -413,7 +413,18 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
                [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
     thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     words = str(getattr(thought, "content", "") or "").strip()
-    return first_thought(words) if as_it_plays else words
+    return first_thought(words) if as_it_plays else whole_paragraphs(words) if remark else words
+
+
+def whole_paragraphs(words: str) -> str:
+    """What she said, to its last paragraph that ends: LIVE 20 October 2026 what she made of a film ran to its ceiling
+    and stopped mid-sentence, under horizontal rules. A rule is not said."""
+    import re
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", words or "") if part.strip() and not re.fullmatch(r"[-*_\s]{3,}", part.strip())]
+    while len(paragraphs) > 1 and not re.search(r"[.!?…][\"'\u201d\u2019)*_]*$", paragraphs[-1]):
+        paragraphs.pop()
+    return "\n\n".join(paragraphs)
 
 
 #: Fewer words than this in a paragraph is a lead-in to a thought ("Okay. Here we go."), not one.

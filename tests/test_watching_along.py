@@ -302,3 +302,12 @@ def test_what_is_said_as_it_plays_is_her_first_thought():
     assert first_thought("**After it ends — my thoughts:**\n\nIt never answered its own question, and I liked that.") \
         == "It never answered its own question, and I liked that."
     assert first_thought("There is one rule: keep going, and it builds a whole world.").startswith("There is one rule")
+
+
+def test_what_she_made_of_it_ends_where_a_paragraph_ends():
+    """LIVE 20 October 2026: what she made of a film ran to its ceiling and stopped mid-sentence, under rules."""
+    from core.skills.watching_along import whole_paragraphs
+
+    said = "I liked it.\n\n---\n\nIt never answered its own question.\n\nAnd the zoom, which kept going until the"
+    assert whole_paragraphs(said) == "I liked it.\n\nIt never answered its own question."
+    assert whole_paragraphs("One thought, cut") == "One thought, cut"  # one paragraph is kept as it is
