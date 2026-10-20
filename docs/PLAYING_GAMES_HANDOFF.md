@@ -1474,3 +1474,17 @@ registry group and checkpoint gates passed. A new diagnostic must use the
 supported private ledger plus current host process/resource checks and retain
 its limited coordination scope. Continue ordinary play with the existing
 small vision client; no native runtime restart or demo qualification occurred.
+
+The owned small-vision follow-up at `e1fc9acd2` ran in 138.91 seconds but
+failed: zero wins, zero observed landings, 188 selected bodies across 657
+control observations and no planning choice. Fourteen instance names now
+reach ordinary play. The complete recording dropped no events. The owned
+worker was shut down and its PID confirmed gone; no native runtime or cortex
+was loaded. The run exposed a phase error: initial terminal screens could
+exhaust menu handoffs and resume body discovery, including assigning a wreck
+as the player. Current asserted end-word pixels now return that stretch
+without a novelty or menu-budget requirement and retire pending body guesses.
+The actor and integration group passed 121 tests. See
+`docs/evidence/steering/2026-10-20-current-end-pixels-stop-body-experiments.md`.
+Finish gates, push this checkpoint and measure ordinary carryover next.
+G09, holdouts and the native runtime remain untouched. Demo readiness is open.

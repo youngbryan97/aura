@@ -835,6 +835,7 @@ def _bounded_pixel_claims() -> tuple:
     from core.agency.discovering_control_in_current_pixels import _pixel_discovery_invariant
     from core.agency.navigation_before_body_experiments import (
         _current_navigation_invariant,
+        _current_round_end_invariant,
         _navigation_occurrence_invariant,
     )
     from core.agency.pixels_inside_control_trials import _pixel_trial_custody_invariant
@@ -883,6 +884,9 @@ def _bounded_pixel_claims() -> tuple:
         ("a_later_menu_occurrence_needs_measured_retirement", "core/agency/navigation_before_body_experiments.py",
          "tests/test_current_navigation_precedes_body_experiments.py", lambda: _navigation_occurrence_invariant() == (),
          "Two fresh captures of changed word pixels can retire a menu occurrence and renew a later identical control; unchanged colour, duplicate captures and missing readings cannot."),
+        ("current_round_ends_prevent_body_experiments", "core/agency/navigation_before_body_experiments.py",
+         "tests/test_a_round_end_cannot_supply_a_new_body.py", lambda: _current_round_end_invariant() == (),
+         "Current asserted terminal word pixels return play even at its start; menu budgets, existing bodies and unchanged readouts cannot turn that screen into another body experiment."),
         ("local_translation_needs_its_own_moving_layer", "core/perception/pixel_motion_before_object_identity.py",
          "tests/test_pixel_motion_before_object_identity.py", lambda: _translation_layer_invariant() == (),
          "A local translation proposal can separate coherent moving matches from still background only with current inlier support inside the reported tile; competing layers remain unavailable."),

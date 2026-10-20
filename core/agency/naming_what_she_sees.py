@@ -398,10 +398,18 @@ def _who_i_am_to_my_eyes(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any,
     """Her eyes asked which thing is the player's own, told what the place calls her; what they point at
     said, kept for her keys to be tried on, and taken for her where her trials have found nothing that answers."""
     import asyncio
+    import time
 
     from core.agency.a_body_seen_then import ABodySeenThen
+    from core.agency.navigation_before_body_experiments import current_round_end
     from core.perception.where_i_am_on_screen import where_the_avatar_is
 
+    if current_round_end(run, picture, at, now=time.monotonic()) is not None:
+        if seeing.avatar_asking is not None and not seeing.avatar_asking.done():
+            seeing.avatar_asking.cancel()
+        seeing.avatar = seeing.avatar_asking = seeing.avatar_observation = None
+        seeing.avatar_renewal = ReadingAgain()
+        return
     seeing.began = at if seeing.began is None else seeing.began
     if _no_body_of_hers(run, guide):
         return
@@ -431,6 +439,8 @@ def _who_i_am_to_my_eyes(run: Any, seeing: SeeingInPlay, guide: Any, moves: Any,
             with question_work() as stamp:
                 avatar = await where_the_avatar_is(frame, names)
                 stamp.check()
+                if seeing.avatar_observation is not observation:
+                    return
                 seeing.avatar = avatar
                 observation.bind(avatar)
 

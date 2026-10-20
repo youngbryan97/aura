@@ -92,3 +92,34 @@ The default vision identifier now resolves to snapshot
 The cache checkpoint passed smoke (164 passed, one skipped), lint, compile,
 layering, generated DEPS and writing in 76.29 seconds. The final registered
 cache canary and its tests passed 10 checks in 2.51 seconds.
+
+## Ordinary play with the existing small vision worker
+
+The follow-up at `e1fc9acd2` loaded the existing cached 4B vision worker
+on `Device(gpu, 0)` and ran the normal browser pursuit for original 18.
+G09 and the recorded holdouts were excluded. The native runtime and cortex
+were not started. One private worker was warmed before play; its existing
+generation requests and prompts were unchanged. The supported private ledger
+and current host checks were used, with the coordination limit stated above.
+
+The supervised step finished in 138.91 seconds, but gameplay failed:
+`runs=["lost", "unread", "unread"]`, `won=false`. The independently viewed
+recorded frame `frame-0000848.png` shows zero landings and three crashes.
+The final OCR reported zero landings and one crash after another start.
+There were 27 visual looks, 14 instance names and three scene glances.
+Across 657 recorded control observations, 188 selected a body; no planning
+choice was recorded. Naming is now reached, but this does not establish a
+bound destination or successful control. The recording reports complete
+with zero dropped events, 800 picture payloads and 192 input events.
+
+At 14:35:05 the visual fallback assigned the visible wreck as the player
+on a loss screen. Earlier initial end screens also exhausted two menu
+handoffs and returned to keyboard discovery. This motivates a general
+current-pixel phase guard before further gameplay. The next tests must
+cover both initial terminal screens and late visual answers.
+
+Worker PID 88710 was started by this diagnostic. Its cleanup receipt reports
+`process_alive=false`, and a process check confirmed it was gone. No foreign
+job was stopped. Artifacts are under
+`artifacts/flash-campaign/2026-10-20-ordinary-owned-vision-local/`.
+No original win, campaign pass or native presentation readiness is established.

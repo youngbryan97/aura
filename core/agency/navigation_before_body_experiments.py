@@ -14,6 +14,7 @@ from typing import Any
 
 from core.agency.pixels_inside_control_trials import FrozenPixelFrame, freeze_frame
 from core.language.a_way_on import asks_to_choose, label_is_a_way_on
+from core.language.how_a_game_ended import says_a_round_is_over
 from core.perception.observed_transfer import PixelSnapshot, ScreenReading, make_snapshot
 from core.perception.words_kept_with_their_pixels import WordsWithPixels, words_with_their_pixels
 from core.verify import invariant
@@ -24,6 +25,12 @@ class NavigationReading:
     frame: FrozenPixelFrame
     words: WordsWithPixels
     labels: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class RoundEndReading:
+    frame: FrozenPixelFrame
+    words: WordsWithPixels
 
 
 @dataclass
@@ -41,9 +48,11 @@ class NavigationPhase:
 class WordsFromCapturedPixels(list):
     """Keep the reading's capture outside its public list of OCR regions."""
 
-    def __init__(self, regions: list, reading: NavigationReading | None) -> None:
+    def __init__(self, regions: list, reading: NavigationReading | None,
+                 ending: RoundEndReading | None = None) -> None:
         super().__init__(regions)
         self.navigation_reading = reading
+        self.round_end_reading = ending
 
 
 def capture_before_reading(picture: Any, at: Any) -> tuple[FrozenPixelFrame, PixelSnapshot] | None:
@@ -54,8 +63,8 @@ def capture_before_reading(picture: Any, at: Any) -> tuple[FrozenPixelFrame, Pix
 
 
 def words_bound_to_capture(regions: list, captured: tuple | None) -> WordsFromCapturedPixels:
-    """Only whole navigation labels or an explicit chooser acquire menu evidence."""
-    reading = None
+    """Keep navigation and asserted end labels with their captured word pixels."""
+    reading = ending = None
     if captured is not None:
         frame, snapshot = captured
         bounded = [dict(region) for region in regions[:128] if isinstance(region, dict)]
@@ -66,16 +75,41 @@ def words_bound_to_capture(regions: list, captured: tuple | None) -> WordsFromCa
         if words is not None:
             labels = tuple(sorted(str(region.get('text') or '').strip().casefold()[:80] for region in targets))
             reading = NavigationReading(frame, words, labels)
-    return WordsFromCapturedPixels(regions, reading)
+        # Keep the result's own word patches. Unchanged counters must not
+        # outvote a disappeared end label. The complete reading must assert
+        # an end too: an instruction or a current turn cannot end play.
+        if says_a_round_is_over(' '.join(str(region.get('text') or '') for region in bounded)):
+            results = [region for region in bounded if says_a_round_is_over(str(region.get('text') or ''))]
+            words = words_with_their_pixels(ScreenReading({'layout': results}, picture_snapshot=snapshot))
+            if words is not None:
+                ending = RoundEndReading(frame, words)
+    return WordsFromCapturedPixels(regions, reading, ending)
 
 
 def keep_navigation_reading(run: Any, regions: Any) -> None:
     """A completed empty or non-menu reading retires the previous menu evidence."""
     run.navigation_reading = getattr(regions, 'navigation_reading', None)
+    run.round_end_reading = getattr(regions, 'round_end_reading', None)
 
 
 def _capture_context(frame: FrozenPixelFrame) -> tuple:
     return frame.surface, frame.epoch, frame.source, frame.width, frame.height
+
+
+def current_round_end(run: Any, picture: Any, at: Any, *, now: float) -> FrozenPixelFrame | None:
+    """A current asserted end, with no novelty requirement or winner claim."""
+    reading = getattr(run, 'round_end_reading', None)
+    if not isinstance(reading, RoundEndReading):
+        return None
+    current = freeze_frame(picture, at)
+    previous = reading.frame
+    if (current is None or not math.isfinite(now) or not current.upper <= current.arrived <= now
+            or now - current.lower > .5 or not previous.valid()
+            or _capture_context(current) != _capture_context(previous)
+            or current.sequence < previous.sequence or current.lower < previous.lower
+            or reading.words.still_in(picture) is not True):
+        return None
+    return previous
 
 
 def _observe_phase(phase: NavigationPhase, current: FrozenPixelFrame, picture: Any) -> bool:
@@ -103,6 +137,10 @@ def _observe_phase(phase: NavigationPhase, current: FrozenPixelFrame, picture: A
 def navigation_before_body_experiments(run: Any, hers: Any, picture: Any, at: Any,
                                       keep: dict, *, now: float) -> str:
     """Request navigation only with current pixels; supply no body or victory claim."""
+    terminal = current_round_end(run, picture, at, now=now)
+    if terminal is not None:
+        run.over_read_at = min(getattr(run, 'over_read_at', math.inf), terminal.lower)
+        return 'the screen says the round is over'
     reading = getattr(run, 'navigation_reading', None)
     phase = keep.get('pixel_navigation_phase')
     if not isinstance(reading, NavigationReading) and (not isinstance(phase, NavigationPhase) or phase.reading is None):
@@ -136,6 +174,31 @@ def navigation_before_body_experiments(run: Any, hers: Any, picture: Any, at: An
     if len(budgets) > 64:
         del budgets[next(iter(budgets))]
     return 'a current navigation control is shown'
+
+
+@invariant('agency.current_terminal_pixels_cannot_supply_body_trials', scope='agency',
+           owner='core/agency/navigation_before_body_experiments.py', observational=False)
+def _current_round_end_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    import numpy as np
+
+    from core.perception.frames_as_they_are_drawn import CanvasFrameTime
+
+    pixels = np.zeros((64, 64, 3), np.uint8)
+    pixels[16:48, 16:48] = (((np.indices((32, 32)).sum(axis=0) // 4) % 2) * 240)[:, :, None]
+    at = CanvasFrameTime(10., lower=10., upper=10.001, arrived=10.002,
+                         source='canvas-bracket', source_at=None, epoch=1, surface='one', sequence=1)
+    run = SimpleNamespace()
+    regions = [dict(text='GAME OVER', x=.25, y=.25, width=.5, height=.5)]
+    keep_navigation_reading(run, words_bound_to_capture(regions, capture_before_reading(pixels, at)))
+    assert current_round_end(run, pixels, at, now=10.1) is not None
+    assert current_round_end(run, np.full_like(pixels, 60), at, now=10.1) is None
+    assert current_round_end(run, pixels, 10., now=10.1) is None
+    hers = SimpleNamespace(number=7, follows_pointer=False)
+    assert navigation_before_body_experiments(run, hers, pixels, at, {}, now=10.1) == 'the screen says the round is over'
+    assert hers.number == 7
+    return ()
 
 
 @invariant('agency.navigation_precedes_trials_only_on_current_word_pixels', scope='agency',

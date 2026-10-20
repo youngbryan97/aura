@@ -49,7 +49,7 @@ def test_current_navigation_can_precede_body_discovery(text):
     assert hers.number is None
 
 
-@pytest.mark.parametrize('text', ['TIME 30', 'LEVEL 1', 'MUSIC ON', 'Press up to play a note', 'GAME OVER', 'Display'])
+@pytest.mark.parametrize('text', ['TIME 30', 'LEVEL 1', 'MUSIC ON', 'Press up to play a note', 'Display'])
 def test_instructions_readouts_and_titles_do_not_become_controls(text):
     run, hers, pixels, at = menu(text)
     assert not navigation_before_body_experiments(run, hers, pixels, at, {}, now=10.1)
