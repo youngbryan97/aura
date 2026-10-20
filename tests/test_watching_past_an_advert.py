@@ -60,3 +60,25 @@ def test_the_length_is_the_one_the_page_states_not_the_adverts():
     assert said["length"] == 673
     assert said["name"] == "I built a glove that Explodes whatever it Punches"
     assert "an advert plays first" in said["words"]
+
+
+def test_a_remark_is_commentary_the_person_asked_for_not_a_second_answer(monkeypatch):
+    """LIVE 2026-10-20: "EventBridge: withheld a second answer to a turn the route already answered: 'Okay, we're in'"."""
+    from core.conversation import surface_delivery
+    from core.skills import watching_along
+
+    sent: list[dict] = []
+
+    class _Orchestrator:
+        async def emit_spontaneous_message(self, words, **kwargs):
+            sent.append(kwargs)
+            return {"ok": True}
+
+    monkeypatch.setattr("core.container.ServiceContainer.get",
+                        staticmethod(lambda name, default=None: _Orchestrator() if name == "orchestrator" else default))
+    assert asyncio.run(watching_along.say_it("He built the swing set out of a bed frame."))
+    metadata = sent[0]["metadata"]
+    assert metadata.get("narration") is True
+    # What the bridge asks of it while the turn that asked for the watching is still open.
+    assert surface_delivery.route_answer_supersedes("He built the swing set out of a bed frame.", unprompted=True,
+                                                    answering=not bool(metadata.get("narration"))) is False

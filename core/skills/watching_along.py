@@ -482,8 +482,10 @@ async def say_it(words: str) -> bool:
     orchestrator = ServiceContainer.get("orchestrator", default=None)
     if orchestrator is None or not hasattr(orchestrator, "emit_spontaneous_message"):
         return False
+    # A commentary the person asked for: LIVE 20 October 2026 every remark was withheld from the chat as a second
+    # answer to the request that started the watching (interface/event_bridge.py), and Bryan saw none of them.
     decision = await orchestrator.emit_spontaneous_message(words, modality="both", origin=ORIGIN,
-                                                           metadata={"visible_presence": True})
+                                                           metadata={"visible_presence": True, "narration": True})
     return not (isinstance(decision, dict) and decision.get("ok") is False)
 
 

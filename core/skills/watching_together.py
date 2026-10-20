@@ -44,6 +44,11 @@ _PLAYING: dict[str, dict[str, Any]] = {}
 _WATCHINGS: set[asyncio.Task] = set()
 
 
+#: What she has of a video as it plays beside her, as the watching gives it (core/skills/watching_the_screen.py).
+AS_IT_PLAYS = ("As it plays on their screen beside her window, she sees it every few seconds, hears its sound, and "
+               "speaks when something in it is worth saying.")
+
+
 async def her_answer_before_it_plays(request: str, found: str) -> str:
     """Her reply to the request to watch, before the video starts: her own turn, with what her browsing found of it
     (its title, its length, what its page says of itself) as fresh evidence, as each remark of hers is made
@@ -53,7 +58,9 @@ async def her_answer_before_it_plays(request: str, found: str) -> str:
     from core.skills.watching_along import her_turn
 
     try:
-        said = await her_turn(request, f"before it plays. What was found of it: {found}", [])
+        # What she will have of it as it plays is part of what is so before it plays: LIVE 20 October 2026, without it
+        # her answer said "I can't reliably stream my thoughts second-by-second on my own".
+        said = await her_turn(request, f"before it plays. What was found of it: {found}. {AS_IT_PLAYS}", [])
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
         record_degradation("watching_together", exc, severity="info", action="what was found stands as the reply")
         said = ""
