@@ -151,3 +151,26 @@ def test_past_its_length_a_picture_that_has_stopped_changing_is_the_end(monkeypa
     assert asyncio.run(where.state())["ended"] is True
     where.began = screen.time.monotonic() - 2.0
     assert asyncio.run(where.state())["ended"] is False, "within its length a still picture is a still scene"
+
+
+def test_her_reply_to_a_request_to_watch_is_her_own_turn_with_what_was_found(monkeypatch):
+    """LIVE 20 October 2026 the browsing's receipt went out as her reply, and an empty reply sent the request through
+    the browsing again."""
+    import core.skills.watching_along as watching_along
+    from core.skills.watching_together import her_answer_before_it_plays
+
+    asked = []
+
+    async def her_turn(request, observation, said, **_kw):
+        asked.append((request, observation))
+        return "Six seconds about colour? I'd guess a slow drift between two hues."
+
+    monkeypatch.setattr(watching_along, "her_turn", her_turn)
+    said = asyncio.run(her_answer_before_it_plays("Watch this with me", "A short film about colour (0:06)"))
+    assert said.startswith("Six seconds about colour") and "A short film about colour (0:06)" in asked[0][1]
+
+    async def nothing(*_a, **_kw):
+        return ""
+
+    monkeypatch.setattr(watching_along, "her_turn", nothing)
+    assert asyncio.run(her_answer_before_it_plays("Watch this with me", "A short film")) == "A short film"

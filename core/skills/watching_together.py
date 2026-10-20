@@ -32,7 +32,7 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["owed_an_answer", "the_talk_since", "watch_in_a_with", "what_we_are_watching"]
+__all__ = ["her_answer_before_it_plays", "owed_an_answer", "the_talk_since", "watch_in_a_with", "what_we_are_watching"]
 
 #: How long the watching waits for the turn that asked for it to settle before it starts anyway.
 ANSWER_WAITED_S = 180.0
@@ -42,6 +42,22 @@ LATELY_LOOKS, LATELY_SAID = 6, 3
 #: What is playing for whom, while it plays.
 _PLAYING: dict[str, dict[str, Any]] = {}
 _WATCHINGS: set[asyncio.Task] = set()
+
+
+async def her_answer_before_it_plays(request: str, found: str) -> str:
+    """Her reply to the request to watch, before the video starts: her own turn, with what her browsing found of it
+    (its title, its length, what its page says of itself) as fresh evidence, as each remark of hers is made
+    (core/skills/watching_along.py ``her_turn``). LIVE 20 October 2026 the browsing's receipt went out in its place
+    ("what the page plays (Found A short film about colour (0:06)...) That much is verified."), and an empty reply
+    sent the request back through the browsing again. What was found stands in only if her turn gives nothing."""
+    from core.skills.watching_along import her_turn
+
+    try:
+        said = await her_turn(request, f"before it plays. What was found of it: {found}", [])
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
+        record_degradation("watching_together", exc, severity="info", action="what was found stands as the reply")
+        said = ""
+    return said.strip() or found
 
 
 def owed_an_answer() -> bool:
