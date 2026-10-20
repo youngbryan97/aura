@@ -483,11 +483,13 @@ class EmailAdapterSkill(BaseSkill):
                 uids = data[0].split()
                 total_unread = len(uids)
 
+                from core.skills.what_mail_is import HEADERS_READ, addressed_to, who_sent_it
+
                 # Get previews of most recent N
                 messages = []
                 for uid in uids[-limit:]:
                     status, msg_data = mail.fetch(
-                        uid, "(BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])"
+                        uid, f"(BODY.PEEK[HEADER.FIELDS ({' '.join(HEADERS_READ)})])"
                     )
                     if status == "OK" and msg_data[0] is not None:
                         header = email.message_from_bytes(msg_data[0][1])
@@ -497,6 +499,9 @@ class EmailAdapterSkill(BaseSkill):
                                 "from": header.get("From", "Unknown"),
                                 "subject": header.get("Subject", "(no subject)"),
                                 "date": header.get("Date", ""),
+                                # Who sent it, from its headers (core/skills/what_mail_is.py): '' for a person.
+                                "automated": who_sent_it(dict(header.items())),
+                                "addressed": addressed_to(dict(header.items()), addr),
                             }
                         )
 
@@ -524,18 +529,12 @@ class EmailAdapterSkill(BaseSkill):
 
                 msg = email.message_from_bytes(msg_data[0][1])
 
-                # Check for auto-reply headers
-                auto_headers = {
-                    "Auto-Submitted": msg.get("Auto-Submitted", "").lower(),
-                    "X-Autoreply": msg.get("X-Autoreply", "").lower(),
-                    "Precedence": msg.get("Precedence", "").lower(),
-                }
-                is_auto = (
-                    "auto-" in auto_headers["Auto-Submitted"]
-                    or "yes" in auto_headers["X-Autoreply"]
-                    or "bulk" in auto_headers["Precedence"]
-                    or "junk" in auto_headers["Precedence"]
-                )
+                from core.skills.what_mail_is import addressed_to, who_sent_it
+
+                # Who sent it, from its headers: a program's mail is not answered, and says so by its fields rather
+                # than by a warning written to her model into its body.
+                automated = who_sent_it(dict(msg.items()))
+                is_auto = bool(automated)
 
                 body = ""
                 has_attachments = False
@@ -576,14 +575,6 @@ class EmailAdapterSkill(BaseSkill):
                 # Strip quoted replies to avoid context bloat
                 clean_body = self._strip_quoted_replies(body)
 
-                if has_attachments:
-                    clean_body += "\n\n[System Note: This email contains attachments/files that Aura cannot currently visualize.]"
-                if is_auto:
-                    clean_body = (
-                        "[SYSTEM WARNING: THIS IS AN AUTOMATED OUT-OF-OFFICE OR SYSTEM REPLY. DO NOT RESPOND TO THIS THREAD OR YOU WILL CAUSE AN INFINITE LOOP.]\n\n"
-                        + clean_body
-                    )
-
                 return {
                     "uid": params.uid,
                     "from": msg.get("From", "Unknown"),
@@ -593,6 +584,8 @@ class EmailAdapterSkill(BaseSkill):
                     "message_id": msg.get("Message-ID", ""),
                     "body": clean_body[:10000],  # Cap at 10k chars
                     "is_auto_reply": is_auto,
+                    "automated": automated,
+                    "addressed": addressed_to(dict(msg.items()), addr),
                     "has_attachments": has_attachments,
                     "images": images,
                 }

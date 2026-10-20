@@ -11,7 +11,6 @@ import asyncio
 import time
 from typing import Any
 
-from core.conversation.word_markers import names_any
 from core.runtime.service_access import (
     optional_service,
 )
@@ -151,72 +150,43 @@ class _StartsSomethingSocial:
             AutonomousInitiativeLoop,
         )
 
+        # Who sent it and how it reached her, read from its headers (core/skills/what_mail_is.py), not from words in
+        # its body: a program's mail is not answered; a person's to her is hers to answer; a list's, a copy or a
+        # forward is read and not answered.
         sender = str(read_result.get("from") or message.get("from") or "Unknown")
         subject = str(read_result.get("subject") or message.get("subject") or "(no subject)")
         body = str(read_result.get("body") or "")
-        combined = f"{sender} {subject} {body}".lower()
-        is_auto = bool(read_result.get("is_auto_reply"))
-        from_owner = "youngbryan97" in sender.lower() or "bryan" in sender.lower()
-        urgent_markers = (
-            "urgent",
-            "asap",
-            "deadline",
-            "action required",
-            "please respond",
-            "please reply",
-            "follow up",
-            "can you",
-            "could you",
-            "would you",
-            "question",
-            "?",
-        )
-        noise_markers = (
-            "unsubscribe",
-            "promotion",
-            "newsletter",
-            "no-reply",
-            "noreply",
-            "receipt",
-            "security alert",
-            "verification code",
-        )
-        urgent = names_any(combined, urgent_markers)
-        likely_noise = names_any(combined, noise_markers)
-        if is_auto:
-            action = "skip_auto_reply"
-        elif from_owner or urgent:
-            action = "hold_for_reply_draft"
-        elif likely_noise:
-            action = "archive_candidate"
+        automated = str(read_result.get("automated") or message.get("automated") or "")
+        addressed = str(read_result.get("addressed") or message.get("addressed") or "")
+        from_owner = "youngbryan97" in sender.lower()
+        if automated or read_result.get("is_auto_reply"):
+            action = "not_answered_automated"
+        elif from_owner or addressed == "to":
+            action = "hers_to_answer"
         else:
-            action = "watch"
+            action = "read_not_answered"
         return {
             "uid": str(read_result.get("uid") or message.get("uid") or ""),
             "from": sender,
             "subject": subject,
+            "body": body,
+            "message_id": str(read_result.get("message_id") or ""),
             "preview": AutonomousInitiativeLoop._email_preview(body),
-            "is_auto_reply": is_auto,
+            "is_auto_reply": bool(automated or read_result.get("is_auto_reply")),
+            "automated": automated,
+            "addressed": addressed,
             "from_owner": from_owner,
-            "urgent": urgent,
-            "likely_noise": likely_noise,
             "action": action,
         }
 
     @staticmethod
-    def _draft_email_response(triage: dict[str, Any]) -> str:
-        if triage.get("action") != "hold_for_reply_draft":
+    async def _draft_email_response(triage: dict[str, Any]) -> str:
+        """Her own reply to a person's message (core/skills/her_replies_to_mail.py); '' for any other."""
+        if triage.get("action") != "hers_to_answer":
             return ""
-        subject = str(triage.get("subject") or "your note")
-        if triage.get("from_owner"):
-            return (
-                f"I read your email about {subject}. I am holding the details in context "
-                "and can follow up once I have a concrete update instead of firing off a shallow reply."
-            )
-        return (
-            f"Thanks for the note about {subject}. I read it and want to answer carefully; "
-            "I will follow up with the specific next step once I have checked the relevant context."
-        )
+        from core.skills.her_replies_to_mail import her_reply_to
+
+        return await her_reply_to(triage)
 
     async def _social_interaction_loop(self) -> None:
         """Autonomous social presence: check email and Reddit."""
@@ -316,7 +286,17 @@ class _StartsSomethingSocial:
                     )
                     continue
                 triage = self._classify_email_message(msg, read_result)
-                triage["draft_reply"] = self._draft_email_response(triage)
+                triage["draft_reply"] = await self._draft_email_response(triage)
+                if triage["draft_reply"]:
+                    from core.skills.her_replies_to_mail import hold_for_bryan, sends_without_asking
+
+                    if sends_without_asking():
+                        sent = await self._execute_email_adapter(
+                            {"mode": "reply", "uid": uid, "body": triage["draft_reply"]}, cap_engine=cap_engine
+                        )
+                        triage["sent"] = bool(sent.get("ok"))
+                    else:
+                        triage["draft_id"] = await hold_for_bryan(triage, triage["draft_reply"])
                 triaged.append(triage)
 
                 action_label = str(triage.get("action") or "watch")
@@ -341,16 +321,15 @@ class _StartsSomethingSocial:
                         f"subject={triage.get('subject')} | preview={preview[:280]}"
                     ),
                     tags=["autonomy", "email", action_label],
-                    importance=0.65 if triage.get("from_owner") or triage.get("urgent") else 0.45,
+                    importance=0.65 if triage.get("action") == "hers_to_answer" else 0.45,
                 )
 
-            attention_items = [
-                item for item in triaged if item.get("action") == "hold_for_reply_draft"
-            ]
-            if attention_items:
-                first = attention_items[0]
+            held = [item for item in triaged if item.get("draft_id")]
+            if held:
+                first = held[0]
                 self._queue_visible_update(
-                    f"I read an unread email from {first.get('from')} about '{first.get('subject')}' and drafted a cautious reply, but I am not auto-sending it."
+                    f"I wrote a reply to {first.get('from')} about '{first.get('subject')}'. It waits for you before it "
+                    f"goes: tools/her_email_drafts.py send {first.get('draft_id')}"
                 )
             elif unread_count > 0 and triaged:
                 self._emit_feed(

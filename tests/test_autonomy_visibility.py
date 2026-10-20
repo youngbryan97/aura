@@ -204,7 +204,7 @@ def test_motivation_growth_goals_rotate_and_stay_concrete():
 
 
 @pytest.mark.asyncio
-async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
+async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch, tmp_path):
     calls: list[tuple[str, dict, dict]] = []
 
     class CapabilityEngine:
@@ -257,6 +257,16 @@ async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
     # container for a capability engine and got none.
     monkeypatch.setattr("core.autonomy.social_initiative.optional_service", _services)
 
+    # Her reply is her own turn (core/skills/her_replies_to_mail.py), held for Bryan in a file of drafts.
+    from core.skills import her_replies_to_mail
+
+    async def her_reply(message):
+        return "I'll look at the GUI reply path tonight and tell you what I find."
+
+    monkeypatch.setattr(her_replies_to_mail, "her_reply_to", her_reply)
+    monkeypatch.setattr(her_replies_to_mail, "_drafts_path", lambda: tmp_path / "email" / "drafts.jsonl")
+    monkeypatch.delenv("AURA_EMAIL_SENDS_WITHOUT_ASKING", raising=False)
+
     loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace())
     emitted: list[tuple[str, str, str]] = []
     loop._emit_feed = lambda title, content, *, category: emitted.append((title, content, category))
@@ -272,11 +282,13 @@ async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
         for skill, _, context in calls
         if skill == "email_adapter"
     )
-    assert any(title == "Email Triage" and "hold_for_reply_draft" in content for title, content, _ in emitted)
-    assert any(title == "Email Draft" and "not auto-sending" not in content.lower() for title, content, _ in emitted)
+    assert any(title == "Email Triage" and "hers_to_answer" in content for title, content, _ in emitted)
+    assert any(title == "Email Draft" and "GUI reply path tonight" in content for title, content, _ in emitted)
     memory.store.assert_awaited()
     loop._queue_visible_update.assert_called_once()
-    assert "not auto-sending" in loop._queue_visible_update.call_args.args[0]
+    assert "waits for you" in loop._queue_visible_update.call_args.args[0]
+    assert [d["reply"] for d in her_replies_to_mail.drafts(tmp_path / "email" / "drafts.jsonl")] == [
+        "I'll look at the GUI reply path tonight and tell you what I find."]
 
 
 @pytest.mark.asyncio
