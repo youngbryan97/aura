@@ -60,12 +60,21 @@ def _host(url: str) -> str:
     return (urlparse(str(url or "")).hostname or "").lower().removeprefix("www.")
 
 
+#: Domains one publisher holds under different names: Wikipedia cannot vouch for itself through Wikidata.
+_ONE_PUBLISHER = {"wikipedia.org": "wikimedia", "wikidata.org": "wikimedia", "wikimedia.org": "wikimedia",
+                  "wiktionary.org": "wikimedia", "wikisource.org": "wikimedia", "wikiquote.org": "wikimedia",
+                  "dbpedia.org": "wikimedia", "bbc.co.uk": "bbc", "bbc.com": "bbc"}
+
+
 def publisher(url: str) -> str:
-    """Who holds a source: its registrable domain (en.wikipedia.org and de.wikipedia.org are one publisher)."""
+    """Who holds a source: its registrable domain (en.wikipedia.org and de.wikipedia.org are one publisher), and one
+    name for the domains one publisher holds (Wikipedia and Wikidata; DBpedia, read from Wikipedia, with them)."""
     labels = _host(url).split(".")
     if len(labels) >= 3 and labels[-2] in _SECOND_LEVELS and len(labels[-1]) == 2:
-        return ".".join(labels[-3:])
-    return ".".join(labels[-2:])
+        domain = ".".join(labels[-3:])
+    else:
+        domain = ".".join(labels[-2:])
+    return _ONE_PUBLISHER.get(domain, domain)
 
 
 def tier_of(url: str) -> str:

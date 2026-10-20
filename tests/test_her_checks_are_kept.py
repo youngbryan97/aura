@@ -40,7 +40,7 @@ def test_two_independent_sources_verify_a_claim_and_it_is_not_fetched_again():
     first = asyncio.run(engine._verify_async(CLAIM, felt))
     assert first.verdict == VERDICT_SUPPORTED and [s.asked for s in sources] == [1, 1]  # both read, not only the first
     kept = her_verified_facts().get(CLAIM)
-    assert kept.status == VERIFIED and {a.publisher for a in kept.attestations} == {"wikipedia.org", "culture.gouv.fr"}
+    assert kept.status == VERIFIED and {a.publisher for a in kept.attestations} == {"wikimedia", "culture.gouv.fr"}
 
     again = asyncio.run(engine._verify_async(CLAIM, felt))
     assert again.verdict == VERDICT_SUPPORTED and "verified before" in again.reason

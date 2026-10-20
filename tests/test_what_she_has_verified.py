@@ -23,8 +23,9 @@ def test_sources_are_ranked_by_what_they_are_and_grouped_by_who_holds_them():
                                  "https://www.statcan.gc.ca/x", "https://www.bfs.admin.ch/x")} == {"official"}
     assert publisher("https://www.culture.gouv.fr/x") == "culture.gouv.fr"
     assert tier_of("https://doi.org/10.1/x") == "primary" and tier_of("https://example.com/x") == "unranked"
-    assert publisher("https://en.wikipedia.org/x") == publisher("https://de.wikipedia.org/y") == "wikipedia.org"
-    assert publisher("https://www.bbc.co.uk/news") == "bbc.co.uk"
+    assert publisher("https://en.wikipedia.org/x") == publisher("https://de.wikipedia.org/y") == "wikimedia"
+    assert publisher("https://www.wikidata.org/wiki/Q243") == "wikimedia"  # Wikipedia cannot vouch for itself
+    assert publisher("https://www.bbc.co.uk/news") == publisher("https://www.bbc.com/news") == "bbc"
 
 
 def test_only_checkable_factual_claims_are_kept():
@@ -46,6 +47,7 @@ def test_a_claim_is_verified_only_when_two_independent_sources_agree_and_one_is_
     claim = "Mount Everest is 8849 metres tall."
     assert store.attest(claim, WIKI, SUPPORTED, "Everest's height is 8,849 m").status == SINGLE_SOURCE
     assert store.attest(claim, "https://de.wikipedia.org/wiki/Everest", SUPPORTED).status == SINGLE_SOURCE  # one publisher
+    assert store.attest(claim, "https://www.wikidata.org/wiki/Q513", SUPPORTED).status == SINGLE_SOURCE  # still Wikimedia
     assert store.attest(claim, BLOG, SUPPORTED).status == SINGLE_SOURCE  # a blog is kept and counts for nothing
     assert store.attest(claim, NASA, SUPPORTED).status == VERIFIED
     assert store.attest(claim, NEWS, CONTRADICTED).status == VERIFIED  # news does not outrank reference and official
@@ -80,7 +82,7 @@ def test_the_store_is_kept_and_answers_with_the_network_blocked(tmp_path, monkey
     known = again.bearing_on("How tall is Mount Everest, in metres?")
     assert [fact.claim for fact in known] == [claim]
     block = as_evidence(known, today="2026-10-19")
-    assert "verified" in block and "wikipedia.org (reference, supported" in block and "nasa.gov (official" in block
+    assert "verified" in block and "wikimedia (reference, supported" in block and "nasa.gov (official" in block
 
 
 def test_a_dated_fact_is_read_again_on_a_later_day(tmp_path):
