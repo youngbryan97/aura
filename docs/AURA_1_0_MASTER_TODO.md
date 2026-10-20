@@ -4491,6 +4491,65 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 - [ ] Q13 Final 1.0 adjudication: all required child items closed with current
   evidence, no concealed blockers, and explicit unresolved research boundaries.
 
+## 6. Bryan's evaluation fixes (F01 to F12)
+
+From Bryan's AURA_FIXES (17 October 2026, after the evaluation in
+`~/.aura/audit-exports/AURA_EVALUATION_2026-10-17.md`): fix each gap until the
+evaluation's verdict on it changes because the system changed. The G and L
+items come first; these run in the time between. Each item closes on its
+check, run and recorded, not on the build. **Lane** says whether the check
+needs her 27B free (her app down, or her app's own influence trials).
+
+- [ ] F01 Steering of the forward pass on user turns. Today every surface
+  decode logs steering α=0.0. The 18 October capture from her own replies was
+  one axis (valence, arousal and energy cosine 0.95 to 1.00); the recorder now
+  keeps the steering slots (ecf118954). Left: capture again from replies
+  recorded with the slots, certify (`tools/measure_fusion_channel.py`, five of
+  five, the voice criterion included), install. Closes when her log shows
+  α > 0 on user turns and a paired trial shows the words change with it. Lane: yes.
+- [ ] F02 Endogenous language pathway. Live: bound at boot, head over 248,320
+  tokens, α 0.60. Left: the 18 October refit (content-bearing, not installed)
+  installed after a voice check, and a paired trial that the pathway changes
+  the words. Lane: yes.
+- [ ] F03 One-shot kNN memory. On: the store opens at boot, 48,764 of 50,000
+  entries recallable since bc4315573. Left: a paired trial, store against no
+  store, on questions whose answers only the store holds. Lane: yes.
+- [ ] F04 Amplifier deep modes, courtroom, System-2, proof kernel. They reach
+  typed turns (fd899b8b1); no deep mode has run in her log. The courtroom is
+  role scripts and stays off. Left: deep modes without roles (more samples, a
+  longer thinking budget, her sandbox as a tool, verifier and executable
+  consensus), live, and a paired measure on held-out problems. Lane: build no,
+  check yes.
+- [ ] F05 Self-modification promoted. Promotion is disabled; repair by
+  selection mends 4 of 79 real past defects, most out of time. Left: a night
+  run with long budgets, a promotion path (staged branch, full gates, then
+  applied with a receipt), and one repair of hers promoted by it. Lane: yes.
+- [ ] F06 Her state reaches her words through the model, not as instructions.
+  Done: instructions out of her turns, canned answers out, her model answers
+  identity and capability turns. Left: the prompts still in background loops
+  (`tools/where_she_is_still_prompted.py`), and the channels of F01 to F03.
+  Closes when that tool reports none on any path to her words. Lane: no.
+- [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
+  parent, child patch, lineage). Left: variants of her that reproduce, inherit
+  and are selected over generations, with fitness measured. Lane: no, for the
+  offline world.
+- [ ] F08 A way for it to be felt, with more than stress hormones. Not
+  started. Left: an appraisal that sets her state from what happens to her and
+  what she cares about, into the substrate, shaping her words by measure. No
+  build can show that anything is felt; the check is that the state is rich,
+  caused and causal. Lane: no.
+- [ ] F09 Integration measures pass on every run. Not started. The system
+  changes, never the battery. Lane: no, but the battery needs the machine to
+  itself for hours.
+- [x] F10 The public description. README and GitHub description corrected
+  (40852f979, 5d8f82f0f).
+- [x] F11 The stale 46 GB `~/.aura/data/state/aura_state.db`. Nothing read it;
+  moved to `~/.Trash/aura_state_orphan_20261017` on 17 October. Emptying the
+  Trash is Bryan's.
+- [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
+  the 512-unit substrate (d9fdc1660). Left: each module driving what she does
+  or says, measured by lesion. Lane: no.
+
 ## Live session 2026-09-07: what the runtime showed
 
 Five root-cause defects found by running the desktop the way a person does and
