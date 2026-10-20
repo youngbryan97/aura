@@ -118,6 +118,92 @@ def _words_of(title: str) -> set[str]:
     return {w for w in re.findall(r"[a-z0-9]{3,}", title.lower())}
 
 
+def side_by_side(visible: tuple[float, float, float, float]) -> tuple[tuple[float, ...], tuple[float, ...]]:
+    """A screen's usable area (left, top, width, height, from its top left) as two equal halves side by side: hers on
+    the left, the video's on the right."""
+    left, top, width, height = visible
+    half = round(width / 2)
+    return (left, top, half, height), (left + half, top, width - half, height)
+
+
+def _usable_area_of_the_screen_holding(bounds: dict[str, Any]) -> tuple[float, float, float, float]:
+    """The usable area (less the menu bar and the Dock) of the screen a window's centre is on, from the top left."""
+    from AppKit import NSScreen
+
+    screens = list(NSScreen.screens())
+    tallest = screens[0].frame().size.height  # the screen whose bottom left is the origin of the others
+    middle_x = float(bounds.get("X", 0)) + float(bounds.get("Width", 0)) / 2
+    middle_y = float(bounds.get("Y", 0)) + float(bounds.get("Height", 0)) / 2
+    for screen in screens:
+        frame = screen.frame()
+        top = tallest - (frame.origin.y + frame.size.height)
+        if frame.origin.x <= middle_x < frame.origin.x + frame.size.width and top <= middle_y < top + frame.size.height:
+            usable = screen.visibleFrame()
+            return (usable.origin.x, tallest - (usable.origin.y + usable.size.height), usable.size.width, usable.size.height)
+    usable = screens[0].visibleFrame()
+    return (usable.origin.x, tallest - (usable.origin.y + usable.size.height), usable.size.width, usable.size.height)
+
+
+def _her_window() -> dict[str, Any] | None:
+    """Her own app's window on screen: the one titled with her name, of the process that is not a browser."""
+    import Quartz
+
+    for window in Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly, Quartz.kCGNullWindowID) or []:
+        if str(window.get("kCGWindowName") or "") == "Aura" and int(window.get("kCGWindowLayer") or 0) == 0 \
+                and str(window.get("kCGWindowOwnerName") or "") in ("Python", "Aura"):
+            return dict(window)
+    return None
+
+
+def _put(window: dict[str, Any], area: tuple[float, ...]) -> bool:
+    """Move and size one window to ``area`` through her Accessibility access, and raise it; False where it could not
+    be moved."""
+    from ApplicationServices import (
+        AXUIElementCopyAttributeValue,
+        AXUIElementCreateApplication,
+        AXUIElementPerformAction,
+        AXUIElementSetAttributeValue,
+        AXValueCreate,
+        kAXPositionAttribute,
+        kAXRaiseAction,
+        kAXSizeAttribute,
+        kAXTitleAttribute,
+        kAXValueCGPointType,
+        kAXValueCGSizeType,
+        kAXWindowsAttribute,
+    )
+    from Quartz import CGPoint, CGSize
+
+    error, windows = AXUIElementCopyAttributeValue(AXUIElementCreateApplication(int(window["kCGWindowOwnerPID"])),
+                                                   kAXWindowsAttribute, None)
+    if error or not windows:
+        return False
+    named = str(window.get("kCGWindowName") or "")
+    for candidate in windows:
+        _error, title = AXUIElementCopyAttributeValue(candidate, kAXTitleAttribute, None)
+        if named and str(title or "") != named:
+            continue
+        left, top, width, height = area
+        AXUIElementSetAttributeValue(candidate, kAXPositionAttribute, AXValueCreate(kAXValueCGPointType, CGPoint(left, top)))
+        AXUIElementSetAttributeValue(candidate, kAXSizeAttribute, AXValueCreate(kAXValueCGSizeType, CGSize(width, height)))
+        AXUIElementPerformAction(candidate, kAXRaiseAction)
+        return True
+    return False
+
+
+def _both_in_view(video: dict[str, Any]) -> bool:
+    """Her window and the one the video plays in, each half of the screen hers is on, both raised. Bryan, 20 October
+    2026: "she should be able to bring the window up, and adjust it to the screen so that both she and the window fit
+    in frame"."""
+    hers = _her_window()
+    area = _usable_area_of_the_screen_holding((hers or video).get("kCGWindowBounds") or {})
+    her_half, its_half = side_by_side(area)
+    placed = _put(video, its_half)
+    if hers is not None:
+        placed = _put(hers, her_half) and placed
+    return placed
+
+
 def _window_showing(owner: str, title: str) -> dict[str, Any] | None:
     """The window of ``owner`` whose title shares most of the words of ``title``, on screen; None when none does."""
     import Quartz
@@ -178,6 +264,12 @@ class OnTheirScreen:
         while time.monotonic() < deadline:
             self.window = await asyncio.to_thread(_window_showing, self.owner, self.title)
             if self.window is not None:
+                try:
+                    if not await asyncio.to_thread(_both_in_view, self.window):
+                        logger.info("her window and the video's could not both be put in view")
+                except (ImportError, RuntimeError, OSError, ValueError, TypeError, KeyError, AttributeError) as why:
+                    logger.info("her window and the video's were left where they were: %s", why)
+                self.window = await asyncio.to_thread(_window_showing, self.owner, self.title) or self.window
                 self.began = time.monotonic()
                 return True
             await asyncio.sleep(1.0)

@@ -301,3 +301,13 @@ def test_her_eyes_on_their_screen_look_through_the_vision_model_once(monkeypatch
     where.where_it_plays = SimpleNamespace(took=lambda _picture: None)
     seen = asyncio.run(where.eyes()("playing"))
     assert seen == "A volcano at sea." and asked and asked[0] <= 70
+
+
+def test_her_window_and_the_videos_each_take_half_of_the_screen_side_by_side():
+    """Bryan, 2026-10-20: both she and the window fit in frame, equally."""
+    from core.skills.watching_the_screen import side_by_side
+
+    hers, its = side_by_side((0.0, 33.0, 1728.0, 1022.0))
+    assert hers == (0.0, 33.0, 864, 1022.0) and its == (864.0, 33.0, 864.0, 1022.0)
+    hers, its = side_by_side((1728.0, 0.0, 1921.0, 1080.0))   # a second screen, an odd width: nothing left over
+    assert hers[0] == 1728.0 and its[0] == hers[0] + hers[2] and hers[2] + its[2] == 1921.0
