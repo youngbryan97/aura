@@ -340,7 +340,10 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
             keep({"kind": "skipped", "control": skipped, "wall": time.time()})
         heard = await player.heard()
         read = " ".join(str(h.get("words") or "") for h in heard or []) if heard is not None else str(plays.get("words") or "")
-        moment = Moment(at=float(plays.get("at") or 0.0), seen=await look("playing"), read=read)
+        # Her eyes are told when her voice is using the GPU they share, so the part of a look that needs it can wait
+        # (core/skills/watching_the_screen.py); what is said and the words on what plays go on being taken in.
+        composing = speaking is not None and not speaking.done()
+        moment = Moment(at=float(plays.get("at") or 0.0), seen=await look("speaking" if composing else "playing"), read=read)
         watching.moments.append(moment)
         new.took_in(moment)
         perceive(moment.seen, moment.read)

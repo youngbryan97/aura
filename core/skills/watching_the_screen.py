@@ -61,6 +61,39 @@ def _smaller(picture: bytes, longest: int = PICTURE_LONGEST, *, within: tuple[fl
     return out.getvalue()
 
 
+#: How much what plays has to change, in mean brightness difference of a small grey copy (0 to 1), for her vision
+#: model to be asked for a new picture of it. The words in it are read every look, on the Neural Engine.
+SCENE_CHANGED = 0.06
+#: A new picture at least this many looks after the last, however little has changed.
+PICTURED_AT_LEAST_EVERY = 6
+
+
+def _a_glance(picture: bytes) -> Any:
+    """A 32 by 18 grey copy of a picture as floats in [0, 1]: enough to see a scene change, read on the CPU."""
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    try:
+        return np.asarray(Image.open(io.BytesIO(picture)).convert("L").resize((32, 18)), dtype=np.float32) / 255.0
+    except (OSError, ValueError):
+        return None
+#: The share of a row's (or a column's) pixels that change, at which it is part of where the video plays.
+MOSTLY_CHANGING = 0.3
+
+
+def _densest_run(shares: Any) -> tuple[int, int]:
+    """The longest run of positions whose share of changing pixels is at least ``MOSTLY_CHANGING``: (start, end)."""
+    best, start = (0, 0), None
+    for i, share in enumerate([*list(shares), 0.0]):
+        if share >= MOSTLY_CHANGING and start is None:
+            start = i
+        elif share < MOSTLY_CHANGING and start is not None:
+            best, start = max(best, (start, i), key=lambda run: run[1] - run[0]), None
+    return best
+
+
 class _WhereItPlays:
     """Where in a window its video plays: the part that differs from one look to the next in more looks than not.
 
@@ -92,11 +125,18 @@ class _WhereItPlays:
         differs = (last != now).any(axis=2).astype(int)
         self.changed = differs if self.changed is None else self.changed + differs
         self.pairs += 1
-        rows, columns = np.nonzero(self.changed * 2 > self.pairs)
-        if not len(rows):
+        playing = self.changed * 2 > self.pairs
+        if not playing.any():
+            return None
+        # The band of rows most of whose pixels change, then the columns most of whose pixels change within it: the
+        # box around every changed pixel took in the browser's sound icon and the page's progress bar too, and was the
+        # whole window (LIVE 20 October 2026, on YouTube: her eyes described the page, its title and its views).
+        top, bottom = _densest_run(playing.mean(axis=1))
+        left, right = _densest_run(playing[top:bottom].mean(axis=0))
+        if bottom <= top or right <= left:
             return None
         height, width = now.shape[:2]
-        box = (columns.min() / width, rows.min() / height, (columns.max() + 1) / width, (rows.max() + 1) / height)
+        box = (left / width, top / height, right / width, bottom / height)
         # Too small to be where it plays: a control, a cursor, a clock. The whole window is looked at instead.
         return box if box[2] - box[0] >= SMALLEST_PLAYER and box[3] - box[1] >= SMALLEST_PLAYER else None
 
@@ -318,6 +358,8 @@ class OnTheirScreen:
         self.pictures: list[str] = []
         #: Where in the window it plays, from what changes between pictures of it.
         self.where_it_plays = _WhereItPlays()
+        self.pictured: Any = None
+        self.since_pictured = 0
 
     async def open(self) -> bool:
         """Open the link in their browser and find its window; False when it is not shown."""
@@ -384,6 +426,17 @@ class OnTheirScreen:
     async def heard(self) -> list[dict[str, Any]] | None:
         return self.ear.since() if self.ear is not None and self.ear.listening else None
 
+    def pictures_due(self, picture: bytes, *, her_voice_busy: bool) -> bool:
+        """Whether this look earns a picture from her vision model: what plays has changed since the last one (or it
+        has been long enough), and her voice is not using the GPU they share. Marked pictured when it is."""
+        now = _a_glance(picture)
+        changed = self.pictured is None or now is None or float(abs(now - self.pictured).mean()) >= SCENE_CHANGED
+        self.since_pictured += 1
+        if her_voice_busy or not (changed or self.since_pictured >= PICTURED_AT_LEAST_EVERY):
+            return False
+        self.pictured, self.since_pictured = now, 0
+        return True
+
     def eyes(self, *, seconds: float = 8.0) -> Any:
         from core.perception.her_eyes import look_with_her_eyes, plainly
         from core.skills.watching_along import LOOK_TOKENS
@@ -404,9 +457,20 @@ class OnTheirScreen:
                 await asyncio.to_thread(shot.unlink, missing_ok=True)
                 self.pictures.append(hashlib.sha1(taken_bytes).hexdigest())
                 within = await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
-                picture = base64.b64encode(await asyncio.to_thread(_smaller, taken_bytes, within=within)).decode("ascii")
-                asked = "What is happening in this picture?" if within else "What is happening in the video playing in this window?"
-                return plainly(await look_with_her_eyes(asked, picture, max_tokens=LOOK_TOKENS, timeout_s=seconds))
+                smaller = await asyncio.to_thread(_smaller, taken_bytes, within=within)
+                # Two instruments, so her eyes and her voice work at once (core/perception/words_on_screen.py): the
+                # words in what plays, read every look on the Neural Engine, and a picture of it from her vision
+                # model, which shares her 27B's GPU, every few looks.
+                from core.perception.words_on_screen import words_in
+
+                words = await asyncio.to_thread(words_in, smaller) if within else []
+                seen = ""
+                if self.pictures_due(smaller, her_voice_busy=_when == "speaking"):
+                    asked = "What is happening in this picture?" if within else "What is happening in the video playing in this window?"
+                    seen = plainly(await look_with_her_eyes(asked, base64.b64encode(smaller).decode("ascii"),
+                                                            max_tokens=LOOK_TOKENS, timeout_s=seconds))
+                shown = f'words on it: "{" / ".join(words)}"' if words else ""
+                return "; ".join(part for part in (seen, shown) if part)
             except (RuntimeError, OSError, ValueError, TypeError, KeyError, TimeoutError) as why:
                 logger.info("a look did not come back: %s", why)
                 return ""
