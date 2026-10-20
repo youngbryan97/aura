@@ -3140,6 +3140,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   questions they answer, 22 by restating a request for code as a function's output; on 3 losses the value served
   was what took her reply off the request (":)" for "write a python code express emotion"). Open: the route's
   check that a restated question is the one asked, then a third run.
+  Attempt 3, 20 October, on the kinds of request a program settles, learned where she is wrong
+  ([registration and result](evidence/L09_WHERE_SHE_IS_WRONG_PREREGISTRATION_3_2026-10-20.md)): ended at step 1,
+  as registered. Such requests are rare in what people type (293 of WildChat-4.8M's English user turns), and on the
+  four kinds common enough to test (letters in a word, sums, products, percentages) her model alone was right on
+  80 of 80 read by hand. Open: a population where she is wrong in ordinary use, for the loop to be measured on.
 - [ ] L10 Let her learn from what she verifies online, offline-first. Today a
   claim she checks online (core/epistemics/epistemic_reach.py, through the
   governed reach gateway) corrects one reply and is not kept, and no web
