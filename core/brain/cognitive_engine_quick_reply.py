@@ -1149,17 +1149,10 @@ class _AnswersTheDesktopDirectly:
         contract_grounding_blocks: list[str] = list(turn_dynamic_contracts)
         ambient_grounding_blocks, task_grounding_blocks = self._direct_desktop_quick_reply_task_grounding_blocks(capability_inventory_contract, live_mind_context, live_speech_frame, memory_state_contract, mind_context_contract, self_condition_contract)
         user_prompt = visible_user_message or objective
-        try:
-            from core.senses.turn_evidence import sensory_evidence_grounding_block
+        # What she senses for this turn, and what she has verified that it bears on (L10).
+        from .what_she_brings_to_a_turn import grounding_she_brings
 
-            turn_sensory_evidence = sensory_evidence_grounding_block(
-                context.get("turn_sensory_evidence")
-            )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            logger.debug("Turn sensory evidence unavailable: %s", exc)
-            turn_sensory_evidence = ""
-        if turn_sensory_evidence:
-            task_grounding_blocks.append(turn_sensory_evidence)
+        task_grounding_blocks.extend(grounding_she_brings(context, user_prompt))
         kept_planted = None
         if not (continuation_contract or obligation_contract):
             kept_planted = await self._direct_desktop_quick_reply_kept_procedure(user_prompt, router, origin)

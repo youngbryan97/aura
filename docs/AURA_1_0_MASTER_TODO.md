@@ -3153,6 +3153,24 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   store of the facts she has verified, with sources, quotes, retrieval
   dates, corroboration and disputes, dated facts rechecked; and a test that
   everything works with the network blocked.
+  PARTIAL 2026-10-19. Built (core/epistemics/what_she_has_verified.py): each
+  verdict her check reaches is kept per source, with the source's tier
+  (reference, official and primary above news; blogs, forums and social media
+  kept and never counted), its publisher, its quote and the day it was read. A
+  claim is verified only when two independent publishers support it and one of
+  them is reference, official or primary, and no source of equal standing
+  contradicts it; disagreement of that standing is held as disputed; one
+  source alone settles nothing; arithmetic a program can do is settled by the
+  program. Only checkable factual claims are kept (no opinion, evaluation,
+  prediction, preference or question). A claim naming the present is read
+  again before it is used on a later day. Her check now reads every permitted
+  source rather than the first, and a claim she has settled is not fetched
+  again; what she has verified that a chat turn bears on reaches that turn as
+  evidence. The store is a file and answers with the network blocked (tests:
+  test_what_she_has_verified.py, test_her_checks_are_kept.py). Open: only
+  Wikipedia is wired as a source, so nothing live can yet reach two
+  publishers; a second reference or official source inside the operator's
+  allowlist, and a live proof that a claim checked one day is used the next.
 
 ## 4. User-facing capability acceptance
 

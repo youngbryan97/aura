@@ -243,6 +243,32 @@ class WikipediaSource:
         return "", ""
 
 
+def _keep_what_a_source_said(verdict: ReachVerdict) -> None:
+    """A source's verdict on a checkable claim, kept in her store of what she has verified (L10)."""
+    try:
+        from core.epistemics.what_she_has_verified import her_verified_facts
+
+        her_verified_facts().attest(verdict.claim, verdict.source_url, verdict.verdict, verdict.evidence_excerpt)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("epistemic_reach", exc, severity="info", action="a source's verdict was not kept")
+
+
+def _settled_before(claim: str, fingerprint: str) -> ReachVerdict | None:
+    """Her own standing for a claim she has settled before, so it is not fetched again; None when it must be read
+    (never settled, or it names the present and was last read on an earlier day)."""
+    try:
+        from core.epistemics.what_she_has_verified import REFUTED, VERIFIED, her_verified_facts
+
+        fact = her_verified_facts().get(claim)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if fact is None or fact.due_again() or fact.status not in (VERIFIED, REFUTED):
+        return None
+    return ReachVerdict(verdict=VERDICT_SUPPORTED if fact.status == VERIFIED else VERDICT_CONTRADICTED, claim=claim,
+                        fingerprint=fingerprint, source_url=fact.attestations[0].url,
+                        reason=f"{fact.status} before, from {len(fact.attestations)} reading(s) kept")
+
+
 class EpistemicReachEngine:
     """Turns measured felt doubt into governed, budgeted external verification."""
 
@@ -621,7 +647,11 @@ class EpistemicReachEngine:
         if gateway is None:
             return None
         fingerprint = str(getattr(felt, "fingerprint", "") or "")
+        settled = _settled_before(claim, fingerprint)
+        if settled is not None:
+            return settled
         terms = self._query_terms(claim, felt)
+        decided: ReachVerdict | None = None
         for source in self._permitted_sources():
             try:
                 evidence, url = await source.lookup(gateway, terms)
@@ -659,8 +689,12 @@ class EpistemicReachEngine:
                     ),
                 )
                 continue
-            return self.judge(claim, evidence, url, fingerprint=fingerprint)
-        return ReachVerdict(
+            # Every permitted source is read and kept, not only the first: a claim is held as verified only when
+            # independent sources agree (core/epistemics/what_she_has_verified.py, L10).
+            verdict = self.judge(claim, evidence, url, fingerprint=fingerprint)
+            _keep_what_a_source_said(verdict)
+            decided = decided or (verdict if verdict.verdict != VERDICT_INCONCLUSIVE else None)
+        return decided or ReachVerdict(
             verdict=VERDICT_INCONCLUSIVE,
             claim=claim,
             fingerprint=fingerprint,
