@@ -35,6 +35,14 @@ def test_the_disclosure_names_what_was_cut() -> None:
     assert "The sun is shining" in out  # quoted in the disclosure, not asserted
 
 
+def test_the_disclosure_denies_her_no_sense_she_has() -> None:
+    """LIVE 2026-10-20 the disclosure said "I have no camera or microphone"; she has both, the camera switched off.
+    Her capability ledger then replaced that sentence with its own, and the cut sentence was no longer named."""
+    out = str(guard("x", "It's afternoon. The sun is shining."))
+
+    assert "camera" not in out and "microphone" not in out
+
+
 def test_a_reply_that_was_only_the_claim_becomes_the_absence() -> None:
     out = str(guard("x", "The sun is shining."))
 

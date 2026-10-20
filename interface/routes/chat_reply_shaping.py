@@ -1792,9 +1792,8 @@ def _append_sensory_claim_correction(user_message: object, reply_text: object) -
         if removed:
             dropped = " ".join(removed)[:200]
             correction = (
-                f"I cut a sentence there — I had written {dropped!r}, and I have "
-                "no camera or microphone, so I could not have known that. "
-                "The rest stands."
+                f"I cut a sentence there — I had written {dropped!r}, and nothing "
+                "I sensed this turn showed that. The rest stands."
             )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
