@@ -36,6 +36,11 @@ ADVERTS_ROOM_S = 120.0
 #: the screen's resolution was 6,869 image tokens, which her eyes were still reading (580-850 tokens a second) when a
 #: look's eight seconds ran out, every look. At this size a picture is about 460.
 PICTURE_LONGEST = 768
+#: The least share of its window's width and height the part where a video plays takes. LIVE 20 October 2026: on the
+#: six-second film, whose colour bars hold still, what changed in more looks than not was a button of the player's own
+#: controls, and her eyes were given the button. A player is wider than this in any page made for watching (a video
+#: site's default player is about two thirds of a laptop's window).
+SMALLEST_PLAYER = 0.25
 
 
 def _smaller(picture: bytes, longest: int = PICTURE_LONGEST, *, within: tuple[float, ...] | None = None) -> bytes:
@@ -91,7 +96,9 @@ class _WhereItPlays:
         if not len(rows):
             return None
         height, width = now.shape[:2]
-        return (columns.min() / width, rows.min() / height, (columns.max() + 1) / width, (rows.max() + 1) / height)
+        box = (columns.min() / width, rows.min() / height, (columns.max() + 1) / width, (rows.max() + 1) / height)
+        # Too small to be where it plays: a control, a cursor, a clock. The whole window is looked at instead.
+        return box if box[2] - box[0] >= SMALLEST_PLAYER and box[3] - box[1] >= SMALLEST_PLAYER else None
 
 
 def _their_browser(url: str) -> tuple[str, str]:

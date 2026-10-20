@@ -60,6 +60,9 @@ async def test_a_remark_ends_on_what_she_senses_and_keeps_the_room_it_was_given(
     assert [m["content"] for m in messages if m["role"] == "user"] == [REQUEST]  # once, as what was said before
     assert handed["max_tokens"] == 320 and handed["user_surface_completion_floor"] == 320
     assert handed["her_own_turn"] is True
+    # Her reasoning may take at most the answer's own room, so the whole of a turn of hers is twice it: LIVE 2026-10-20
+    # the worker added its measured reserve of about 900 tokens, and a remark asked for 320 came back at 950.
+    assert handed["hard_output_token_ceiling"] == 640
     # What the gate is handed passes its request contract: LIVE 2026-10-20 a floor of 0 was rejected as malformed,
     # the gate failed the turn closed, and her answer fell to the full pipeline with an 88,103-character prompt.
     from core.brain.request_contract import validate_request_context
@@ -72,4 +75,4 @@ async def test_a_turn_somebody_is_waiting_for_still_ends_on_what_they_said(monke
     handed = await _what_her_model_is_handed(monkeypatch, {
         "desktop_quick_reply_contract": True, "visible_user_message": REQUEST, "max_tokens": 320})
     assert handed["messages"][-1] == {"role": "user", "content": REQUEST}
-    assert handed["max_tokens"] >= 512 and handed["her_own_turn"] is False
+    assert handed["max_tokens"] >= 512 and handed["her_own_turn"] is False and handed["hard_output_token_ceiling"] is None

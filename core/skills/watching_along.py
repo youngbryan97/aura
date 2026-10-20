@@ -374,10 +374,13 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
 
 
 async def her_turn(request: str, observation: str, said: list[str], *, seconds: float = 60.0,
-                    exchanges: list[dict[str, Any]] | None = None) -> str:
+                    exchanges: list[dict[str, Any]] | None = None, remark: bool = False) -> str:
     """Her own turn: her cognitive engine on the desktop lane, the request as the person's turn, what she has said so
     far as hers, what she watched as fresh sensory evidence on the screen channel. ``exchanges``, when the watching
-    goes on beside a conversation, is that conversation since it began, in place of the request and her remarks."""
+    goes on beside a conversation, is that conversation since it began, in place of the request and her remarks.
+    ``remark``: a turn after her answer, said to nobody; the request is in her conversation already, and her desktop
+    lane reads that conversation itself (LIVE 20 October 2026, it was handed the request again and answered all of
+    it again, "Before, what I think it'll be about")."""
     from core.brain.types import ThinkingMode
     from core.container import ServiceContainer
     from core.senses.turn_evidence import TurnSensoryEvidence
@@ -392,7 +395,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # The turn that asked her to watch is open while she watches; her remarks are work it is waiting on, as the
     # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
     # Once the request is in what she reads (her answer to it, or remarks), nobody has just said anything to her.
-    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if exchanges or said else request,
+    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 320, "serves_current_turn": True,
                # Hers to say, not a request to act on: LIVE 20 October 2026 the URL in "Watch this with me: http://..."
                # sent such a turn to fetch it twice, and it said nothing; and it was read again as somebody's

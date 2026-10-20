@@ -77,7 +77,7 @@ def test_her_answer_goes_first_then_it_is_watched_together_and_the_with_ends_wit
     monkeypatch.setattr(remarks, "said_since", lambda _began: [])
     observations, readings, talks = [], [], []
 
-    async def her_turn(request, observation, said, exchanges=None):
+    async def her_turn(request, observation, said, exchanges=None, remark=False):
         assert request == ASKED
         observations.append(observation)
         talks.append([pair["aura"] for pair in exchanges])

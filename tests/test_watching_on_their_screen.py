@@ -226,3 +226,22 @@ def test_a_window_that_changes_size_starts_where_it_plays_again():
     smaller = io.BytesIO()
     Image.open(io.BytesIO(_a_window(2, thumbnails_loaded=False))).resize((1200, 1000)).save(smaller, format="PNG")
     assert where.took(smaller.getvalue()) is None
+
+
+def test_a_small_part_that_changes_is_a_control_and_not_where_it_plays():
+    """LIVE 2026-10-20: on a film whose bars hold still, a button of the player's controls changed most."""
+    import io
+
+    from PIL import Image, ImageDraw
+
+    from core.skills.watching_the_screen import _WhereItPlays
+
+    def window(frame: int) -> bytes:
+        page = Image.new("RGB", (1600, 1000), "white")
+        ImageDraw.Draw(page).rectangle((1400, 900, 1450, 950), fill=(frame * 60 % 256, 0, 0))   # a blinking control
+        out = io.BytesIO()
+        page.save(out, format="PNG")
+        return out.getvalue()
+
+    where = _WhereItPlays()
+    assert [where.took(window(frame)) for frame in range(4)] == [None] * 4

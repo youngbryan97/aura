@@ -165,7 +165,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
     async def her_turn_in_it(asked: str, observation: str, said: list[str]) -> str:
         talk = await asyncio.to_thread(the_talk_since, held.began, asked, list(spoken))
-        return await her_turn(asked, observation, said, exchanges=talk)
+        # Every turn of hers in a with after her answer is a remark: what was asked is already in her conversation.
+        return await her_turn(asked, observation, said, exchanges=talk, remark=True)
 
     try:
         await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held), on_moment=took_in,
