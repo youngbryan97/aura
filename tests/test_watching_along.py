@@ -284,8 +284,10 @@ async def test_a_remark_as_it_plays_is_its_first_thought_said_as_it_comes(monkey
     monkeypatch.setattr("core.container.ServiceContainer.get", lambda name, default=None: _Engine() if name == "cognitive_engine" else default)
     await watching_along.her_turn(ASKED, "playing, at 0:04 of 0:06.\n0:04 seen: a round test pattern", ["before"], remark=True)
     await watching_along.her_turn(ASKED, "it has ended. What played, in order:\n0:04 seen: a round test pattern", ["one"], remark=True)
-    as_it_plays, after = handed
+    await watching_along.her_turn(ASKED, "before it plays. What was found of it: a short film", [])
+    as_it_plays, after, answer = handed
     assert as_it_plays["max_tokens"] <= A_CLOSED_QUESTIONS_FLOOR < after["max_tokens"]
+    assert answer["max_tokens"] >= 640  # her answer to the request has a reply's room for her channel and her answer
 
 
 def test_what_is_said_as_it_plays_is_her_first_thought():

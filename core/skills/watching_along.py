@@ -398,10 +398,12 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # A remark while it plays is said as it comes: its first thought, with its private channel shut (a budget within
     # the closed question's floor, core/brain/llm/chat_format.py). LIVE 20 October 2026 a remark thought for 640 tokens
     # at 8.5 a second, then answered the request's three parts under headings, cut off; stopped at its first
-    # paragraph instead, it was "Okay. Here we go." What is said is its first thought (first_thought).
+    # paragraph instead, it was "Okay. Here we go." What is said is its first thought (first_thought). Her answer to
+    # the request has a reply's room: at 320 her private channel spent all 640 of its ceiling twice, and the person was
+    # told "I lost the reply lane for a moment" (LIVE 20 October 2026, 11:06).
     as_it_plays = remark and observation.startswith("playing")
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
-               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 160 if as_it_plays else 480 if remark else 320,
+               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 160 if as_it_plays else 480 if remark else 640,
                "serves_current_turn": True,
                # Hers to say, not a request to act on: LIVE 20 October 2026 the URL in "Watch this with me: http://..."
                # sent such a turn to fetch it twice, and it said nothing; and it was read again as somebody's
