@@ -253,10 +253,15 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
                       keep: Callable[[dict[str, Any]], None] | None = None,
                       remember: Callable[[Watching], Awaitable[None]] | None = None,
                       look_every_s: float = LOOK_EVERY_S, quiet_at_least_s: float = QUIET_AT_LEAST_S,
-                      at_most_s: float | None = None) -> Watching:
+                      at_most_s: float | None = None, before: bool = True,
+                      may_speak: Callable[[float], bool] | None = None,
+                      on_moment: Callable[[Moment, dict[str, Any]], None] | None = None,
+                      on_said: Callable[[str], None] | None = None) -> Watching:
     """Watch what plays with whoever asked ``request``, saying what she thinks before, during and after. ``page`` is a
     page of her own browser, or a player of another place it plays (core/skills/watching_the_screen.py, the person's
-    own screen)."""
+    own screen). Watched as something done together (core/skills/watching_together.py): ``before`` off when her
+    answer to the request already said what she expects, ``may_speak`` whether the with leaves her the floor now, and
+    ``on_moment`` / ``on_said`` what the with takes in of each look and each remark."""
     player = page if callable(getattr(page, "heard", None)) else OnAPage(page)
     look = look or player.eyes()
     turn = turn or her_turn
@@ -272,12 +277,15 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         if words and await say(words):
             watching.said.append((at, words))
             keep({"kind": "said", "when": when, "at": at, "wall": time.time(), "words": words})
+            if on_said is not None:
+                on_said(words)
 
     # Before it plays: what the page shows of itself.
     first = await look("")
     keep({"kind": "before", "title": watching.title, "seen": first, "wall": time.time()})
-    await speak(f"before it plays. The page: {watching.title}. {str(page_says.get('words') or '')[:1200]} "
-                f"What the page shows: {first}", 0.0, "before")
+    if before:
+        await speak(f"before it plays. The page: {watching.title}. {str(page_says.get('words') or '')[:1200]} "
+                    f"What the page shows: {first}", 0.0, "before")
     await player.start()
     began = time.monotonic()
     spoke_after_looks, spoke_at_wall = 0, time.monotonic()
@@ -304,10 +312,12 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         new.took_in(moment)
         perceive(moment.seen, moment.read)
         keep({"kind": "moment", "at": moment.at, "seen": moment.seen, "read": moment.read, "wall": time.time()})
+        if on_moment is not None:
+            on_moment(moment, plays)
         since = watching.since(spoke_after_looks)
         said_out = not watching.said or time.monotonic() >= spoke_at_wall + len(watching.said[-1][1].split()) / WORDS_A_SECOND
         if ((speaking is None or speaking.done()) and since and said_out and new.worth_a_remark()
-                and time.monotonic() - spoke_at_wall >= quiet_at_least_s):
+                and time.monotonic() - spoke_at_wall >= quiet_at_least_s and (may_speak is None or may_speak(time.time()))):
             observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(since)}"
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
             spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()

@@ -6,6 +6,7 @@ Nothing here knows a site: a page plays when it has a video on it.
 """
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from functools import partial
 from typing import Any
@@ -108,11 +109,21 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
         title = str(observation.get("title") or "") or str(await page.title() or "")
         # Watched with the person where they watch: opened in their browser, and her own page quiet so that one plays
         # (core/skills/watching_the_screen.py). Where it cannot be shown there, on her own page as before.
-        from core.skills.watching_the_screen import on_their_screen
+        from core.skills.watching_the_screen import _their_browser, on_their_screen
+        from core.skills.watching_together import start_watching_in_a_with
 
         said_of_itself = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
-        where = await on_their_screen(step["url"], title, float(plays.get("duration") or 0),
-                                      str(said_of_itself.get("words") or ""))
+        duration, words = float(plays.get("duration") or 0), str(said_of_itself.get("words") or "")
+        if await asyncio.to_thread(lambda: bool(_their_browser(step["url"])[0])):
+            # Watched together, beside the conversation (core/skills/watching_together.py): her answer to the
+            # request goes first, then it opens on their screen; the turn ends with her answer, not the video.
+            await page.evaluate(QUIET_HERE)
+            start_watching_in_a_with(lambda: on_their_screen(step["url"], title, duration, words), goal,
+                                     title=title, url=step["url"], at_most_s=at_most)
+            did = (f"Found {title or 'the video'}{f' ({clock(duration)})' if duration else ''}. It opens on their "
+                   "screen once this reply has gone, and is watched with them there while the conversation goes on.")
+            return {**step, "did": did, "why": did, "moved": True, "over": True, "where": "on their screen, together"}
+        where = await on_their_screen(step["url"], title, duration, words)
         if where is not None:
             await page.evaluate(QUIET_HERE)
             step["where"] = f"on their screen, in {where.owner}"
