@@ -7,6 +7,8 @@ Nothing here knows a site: a page plays when it has a video on it.
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
 from collections.abc import Awaitable, Callable
 from functools import partial
 from typing import Any
@@ -20,6 +22,8 @@ from .watching_along import (
     kept_at,
     watch_along,
 )
+
+logger = logging.getLogger("Skills.SovereignBrowser")
 
 #: The selector what a page plays is offered under. Not a CSS selector: a move on it is a hand-over.
 WATCHING = "::watching"
@@ -72,13 +76,27 @@ def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) 
 
     if what_the_task_needs(goal) != "run" or time.time() - _WATCHED_FOR.get(goal, 0.0) < WATCHED_FIRST_ONCE_IN_S:
         return None
-    if not any(isinstance(e, dict) and e.get("selector") == WATCHING and float(e.get("share_of_view") or 0) >= THE_PAGE_IS_ITS_VIDEO
-               for e in observation.get("elements") or []):
+    # A page the person handed her to watch is what the page is for, however much of her window its video takes: LIVE
+    # 20 October 2026, a 640-pixel film in her browser's window was under the share, and she described it instead.
+    handed = _the_page_asked_about(observation, goal)
+    plays = [e for e in observation.get("elements") or [] if isinstance(e, dict) and e.get("selector") == WATCHING]
+    if not any(handed or float(e.get("share_of_view") or 0) >= THE_PAGE_IS_ITS_VIDEO for e in plays):
+        if plays and take:
+            logger.info("a video at %.3f of the view, not taken as what the page is for", float(plays[0].get("share_of_view") or 0))
         return None
     if take:
         _WATCHED_FOR[goal] = time.time()
     why = "this page plays what I was asked to watch"
     return {"resolved_actions": [{"selector": WATCHING, "said": why}], "why": why, "done": False}
+
+
+def _the_page_asked_about(observation: dict[str, Any], goal: str) -> bool:
+    """Whether the request names the page she is on: its address, without the fragment or a trailing slash."""
+    def plain(url: str) -> str:
+        return url.split("#", 1)[0].rstrip("/").lower()
+
+    here = plain(str(observation.get("url") or ""))
+    return bool(here) and any(plain(named.rstrip(".,;:!?")) == here for named in re.findall(r"https?://[^\s<>\"')\]]+", goal or ""))
 
 
 def handed_over(moves: list[tuple[Any, Any]]) -> Callable[..., Awaitable[dict[str, Any]]] | None:

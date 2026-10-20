@@ -119,6 +119,20 @@ def test_asked_to_watch_she_watches_first_once_a_request(monkeypatch):
     assert on_the_page.watched_first({**page, "url": "https://videos.example/watch?v=2"}, ASKED) is None  # the next one
 
 
+def test_a_page_handed_to_her_to_watch_is_watched_first_however_small_its_video(monkeypatch):
+    """LIVE 20 October 2026: asked to watch a page whose 640-pixel film was under the share of her window, she
+    described the page instead. A page the request names is what the page is for."""
+    import core.skills.sovereign_browser_on_the_page as on_the_page
+
+    monkeypatch.setattr(on_the_page, "_WATCHED_FOR", {})
+    small = {"url": "http://127.0.0.1:8765/watching/a_page_that_plays.html",
+             "elements": [{"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.13}]}
+    elsewhere = {**small, "url": "http://127.0.0.1:8765/watching/another_page.html"}
+    asked = "Watch this with me: http://127.0.0.1:8765/watching/a_page_that_plays.html. Tell me what you think."
+    assert on_the_page.watched_first(elsewhere, asked) is None  # a page it does not name: the share decides
+    assert on_the_page.watched_first(small, asked)["resolved_actions"][0]["selector"] == on_the_page.WATCHING
+
+
 @pytest.mark.asyncio
 async def test_an_advert_ending_first_does_not_end_the_watching(monkeypatch):
     """A site that plays an advert first plays it in the same video, which reports itself ended when the advert
