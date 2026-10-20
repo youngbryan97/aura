@@ -94,7 +94,7 @@ async def test_she_watches_a_film_through_saying_what_she_thinks_before_while_an
     during = [observation for observation, _said in turns[1:-1]]
     assert during and all(o.startswith("playing, at ") for o in during)  # she spoke while it played, more than once
     assert pressed == "true"  # its own captions control was pressed
-    assert any("words shown:" in o for o in during)  # and she read them as it played
+    assert any("heard:" in o for o in during)  # and she heard what was said as it played
     assert turns[-1][1] == [f"thought {n}" for n in range(1, len(turns))]  # what she said so far was hers, in order
     assert sensed and all(seen == "a test pattern of coloured bars" for seen, _read in sensed)
     assert {row["kind"] for row in kept} >= {"before", "moment", "said", "after"}
@@ -173,3 +173,52 @@ async def test_a_watching_becomes_an_episode_of_hers_in_her_own_words(monkeypatc
     assert episodes[0]["action"] == "watching_along" and "A short film about colour" in episodes[0]["context"]
     assert episodes[0]["outcome"] == "0:00 Colour bars, I bet.\n0:03 There it goes."  # her words, as said
     assert episodes[0]["metadata"]["provenance"] == "her own words while watching"
+
+
+@pytest.mark.asyncio
+async def test_everything_said_between_two_looks_is_heard():
+    """LIVE 19 October 2026: looking every five seconds caught one caption line in two. She listens four times a
+    second between looks, so a look three seconds apart still hears all three lines of the film."""
+    playwright_api = pytest.importorskip("playwright.async_api")
+    from core.skills.watching_along import watch_along
+
+    async def look(_when):
+        return "bars of colour"
+
+    async def turn(_request, _observation, _said):
+        return ""
+
+    async def say(_words):
+        return True
+
+    playwright, browser, page = await _a_page(playwright_api)
+    try:
+        watching = await watch_along(page, ASKED, look=look, turn=turn, say=say, remember=lambda _w: _none(),
+                                     perceive=lambda *_: None, look_every_s=3.0, quiet_at_least_s=100.0, at_most_s=20.0)
+    finally:
+        await browser.close()
+        await playwright.stop()
+    heard = " ".join(m.read for m in watching.moments)
+    assert all(line in heard for line in ("the colours begin", "a moving pattern", "and now the end comes")), heard
+
+
+async def _none():
+    return None
+
+
+def test_she_speaks_when_more_is_new_than_when_she_last_spoke_and_at_a_lull():
+    from core.skills.watching_along import Moment, _WhatIsNew
+
+    new = _WhatIsNew()
+    new.took_in(Moment(at=1.0, seen="a planet turning", read="this is the planet earth"))
+    assert new.worth_a_remark()  # the first remark in play needs only something new
+    new.remarked()
+    new.took_in(Moment(at=6.0, seen="a planet turning", read="the planet earth"))
+    assert not new.worth_a_remark(), "nothing new since she spoke"
+    new.took_in(Moment(at=11.0, seen="a volcano erupting into the sky", read="volcanoes reshape continents over aeons"))
+    assert new.worth_a_remark()
+    busy = _WhatIsNew()
+    for n in range(4):
+        busy.took_in(Moment(at=n, read="one two"))
+    busy.took_in(Moment(at=5.0, seen="glaciers", read="glaciers carve valleys through mountains and leave lakes behind them"))
+    assert not busy.worth_a_remark(), "not while it is saying more than usual: she waits for a lull"

@@ -83,6 +83,10 @@ def handed_over(moves: list[tuple[Any, Any]]) -> Callable[..., Awaitable[dict[st
     return None
 
 
+#: Every video on her own page paused and muted: what she watches with a person plays where they watch it.
+QUIET_HERE = "() => { for (const v of document.querySelectorAll('video')) { v.muted = true; v.pause(); } return true; }"
+
+
 async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, Any]) -> dict[str, Any]:
     """Watch what her own page plays with whoever asked ``goal``, and say what came of it."""
     from core.runtime.errors import record_degradation
@@ -94,7 +98,16 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
     try:
         plays = await page.evaluate(WHAT_PLAYS) or {}
         at_most = float(plays.get("duration") or 0) + 120.0 if plays.get("duration") else WATCHED_AT_MOST_S
-        watching = await watch_along(page, goal, keep=kept_at(str(observation.get("title") or ""), step["url"]),
+        title = str(observation.get("title") or "") or str(await page.title() or "")
+        # Watched with the person where they watch: opened in their browser, and her own page quiet so that one plays
+        # (core/skills/watching_the_screen.py). Where it cannot be shown there, on her own page as before.
+        from core.skills.watching_the_screen import on_their_screen
+
+        where = await on_their_screen(step["url"], title, float(plays.get("duration") or 0))
+        if where is not None:
+            await page.evaluate(QUIET_HERE)
+            step["where"] = f"on their screen, in {where.owner}"
+        watching = await watch_along(where or page, goal, keep=kept_at(title, step["url"]),
                                      remember=partial(into_her_memory, url=step["url"]), at_most_s=at_most)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
         record_degradation("sovereign_browser", exc, severity="info", action="watch what the page plays")

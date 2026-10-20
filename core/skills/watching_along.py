@@ -1,10 +1,11 @@
 """Watching what plays on her page with someone, in real time, and saying what she thinks as it plays.
 
 As a person watches a video with a friend: before it starts she says what she expects from what the page shows; while
-it plays she looks at the picture every few seconds and reads the words the page shows over it (its captions), and
-says what she thinks when she has seen something new and has not spoken for a while; when it ends she says what it
-was and what she made of it. It plays at its own speed in her own browser. Nothing is downloaded and no frame is
-read ahead of when it shows.
+it plays she looks at the picture every few seconds and hears everything said in it, as the words the page shows over
+it (its captions) come and go; she says what she thinks when what she has seen and heard since she last spoke holds
+more that is new than is usual for this video, at a lull in it, and not over herself; when it ends she says what it
+was and what she made of it. It plays at its own speed in her own browser. Nothing is downloaded and no frame or word
+is read ahead of when it shows.
 
 What she sees and reads goes into her as perception (her perceptual buffer, the perception daemon's moments, her
 soma's sensory imprint). What she says is her own turn: her cognitive engine on the desktop lane, with her live
@@ -39,6 +40,43 @@ QUIET_AT_LEAST_S = 15.0
 AN_END_HOLDS_S = 4.0
 #: The origin her turns while watching carry: a desktop turn, started by the person's request.
 ORIGIN = "desktop_watching_along"
+#: How fast she speaks, in words a second, to know when what she said has been said.
+WORDS_A_SECOND = 2.5
+
+#: Listens to what is said in what plays: four times a second, the words shown over the largest video (as WHAT_PLAYS
+#: reads them) are compared with the last, and the words that came are kept with the video's time. Captions roll (a
+#: line shown again with one more under it), so only what follows the overlap with the last reading is new. Read
+#: and emptied at each look (HEARD), so nothing said between two looks is missed (LIVE 19 October 2026: looking every
+#: five seconds caught one caption line in two).
+LISTEN = r"""() => {
+  if (window.__auraListening) return true;
+  window.__auraListening = true; window.__auraHeard = []; let last = [];
+  const over = () => {
+    let best = null, area = 0;
+    for (const v of document.querySelectorAll('video')) { const r = v.getBoundingClientRect(); if (r.width * r.height > area) { area = r.width * r.height; best = v; } }
+    if (!best) return null;
+    const r = best.getBoundingClientRect(), words = [];
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.children.length) continue;
+      const t = (el.textContent || '').trim();
+      if (!t || el.closest('button,[role=button],a,input,select,label,[role=slider],[role=menu],[role=menuitem]')) continue;
+      const s = getComputedStyle(el); if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) === 0) continue;
+      const b = el.getBoundingClientRect(); if (b.width <= 0 || b.height <= 0) continue;
+      if (b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top) words.push(t);
+    }
+    return {at: best.currentTime || 0, words: words.join(' ').split(/\s+/).filter(Boolean)};
+  };
+  setInterval(() => {
+    const now = over(); if (!now || !now.words.length) return;
+    let k = Math.min(last.length, now.words.length);
+    while (k > 0 && last.slice(-k).join(' ') !== now.words.slice(0, k).join(' ')) k--;
+    const came = now.words.slice(k);
+    if (came.length && now.words.join(' ') !== last.join(' ')) window.__auraHeard.push({at: now.at, words: came.join(' ')});
+    last = now.words;
+  }, 250);
+  return true;
+}"""
+HEARD = r"""() => { const h = window.__auraHeard || []; window.__auraHeard = []; return h; }"""
 
 #: The largest video on the page (shadow roots walked), where it is, how far it has played, and the words shown over
 #: it that are not its controls: its captions, and whatever else the page writes on the picture.
@@ -124,12 +162,88 @@ def what_she_watched(moments: list[Moment], *, room: int = 3000) -> str:
     for m in moments:
         read = m.read if m.read and m.read != last_read else ""
         last_read = m.read or last_read
-        parts = [f"seen: {m.seen}" if m.seen else "", f"words shown: {read}" if read else ""]
+        parts = [f"seen: {m.seen}" if m.seen else "", f"heard: {read}" if read else ""]
         line = "; ".join(p for p in parts if p)
         if line:
             lines.append(f"{clock(m.at)} {line}")
     text = "\n".join(lines)
     return text[-room:]
+
+
+def _stems(text: str) -> set[str]:
+    import re
+
+    import snowballstemmer
+
+    return set(snowballstemmer.stemmer("english").stemWords([w.lower() for w in re.findall(r"[A-Za-z]{4,}", text or "")]))
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    return ordered[len(ordered) // 2] if ordered else 0.0
+
+
+@dataclass
+class _WhatIsNew:
+    """How much of what she has seen and heard is new to this watching, and when that is worth a remark.
+
+    New is a word (its stem) not seen or heard before in this video. She speaks when what is new since her last
+    remark is at least what was new when she last spoke, the middle of her remarks so far (the first in play needs
+    only something new), at a lull: the words said in the last look no more than this video's middle. People who
+    watch together talk in the gaps of what they watch, and about what has changed."""
+
+    known: set[str] = field(default_factory=set)
+    fresh: int = 0
+    rates: list[float] = field(default_factory=list)
+    at_remarks: list[int] = field(default_factory=list)
+
+    def took_in(self, moment: Moment) -> None:
+        came = _stems(f"{moment.seen} {moment.read}")
+        self.fresh += len(came - self.known)
+        self.known |= came
+        self.rates.append(float(len((moment.read or "").split())))
+
+    def worth_a_remark(self) -> bool:
+        lull = not self.rates or self.rates[-1] <= _median(self.rates)
+        return self.fresh >= max(1.0, _median([float(n) for n in self.at_remarks])) and lull
+
+    def remarked(self) -> None:
+        self.at_remarks.append(self.fresh)
+        self.fresh = 0
+
+
+class OnAPage:
+    """What plays on a page of her own browser: read and tended through the page's scripts."""
+
+    def __init__(self, page: Any) -> None:
+        self.page = page
+        self.listening = False
+
+    async def says(self) -> dict[str, Any]:
+        return await self.page.evaluate(WHAT_THE_PAGE_SAYS) or {}
+
+    async def start(self) -> None:
+        await self.page.evaluate(PLAY_WITH_CAPTIONS)
+        self.listening = bool(await self.page.evaluate(LISTEN))
+
+    async def state(self) -> dict[str, Any] | None:
+        return await self.page.evaluate(WHAT_PLAYS)
+
+    async def tend(self) -> str:
+        """An advert's skip control pressed, and, every look, play and captions on again: after an advert the
+        video's captions are off (LIVE 19 October 2026, a watch page after two adverts)."""
+        skipped = await self.page.evaluate(SKIP_WHAT_COMES_FIRST)
+        await self.page.evaluate(PLAY_WITH_CAPTIONS)
+        return str(skipped or "")
+
+    async def heard(self) -> list[dict[str, Any]] | None:
+        return await self.page.evaluate(HEARD) if self.listening else None
+
+    def eyes(self) -> Callable[[str], Awaitable[str]]:
+        return her_eyes_on(self.page)
+
+    async def done(self) -> None:
+        return None
 
 
 async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitable[str]] | None = None,
@@ -140,14 +254,17 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
                       remember: Callable[[Watching], Awaitable[None]] | None = None,
                       look_every_s: float = LOOK_EVERY_S, quiet_at_least_s: float = QUIET_AT_LEAST_S,
                       at_most_s: float | None = None) -> Watching:
-    """Watch what plays on ``page`` with whoever asked ``request``, saying what she thinks before, during and after."""
-    look = look or her_eyes_on(page)
+    """Watch what plays with whoever asked ``request``, saying what she thinks before, during and after. ``page`` is a
+    page of her own browser, or a player of another place it plays (core/skills/watching_the_screen.py, the person's
+    own screen)."""
+    player = page if callable(getattr(page, "heard", None)) else OnAPage(page)
+    look = look or player.eyes()
     turn = turn or her_turn
     say = say or say_it
     perceive = perceive or into_her_senses
     keep = keep or (lambda _row: None)
     remember = remember or into_her_memory
-    page_says = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
+    page_says = await player.says()
     watching = Watching(request=request, title=str(page_says.get("title") or ""))
 
     async def speak(observation: str, at: float, when: str) -> None:
@@ -161,41 +278,52 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     keep({"kind": "before", "title": watching.title, "seen": first, "wall": time.time()})
     await speak(f"before it plays. The page: {watching.title}. {str(page_says.get('words') or '')[:1200]} "
                 f"What the page shows: {first}", 0.0, "before")
-    await page.evaluate(PLAY_WITH_CAPTIONS)
+    await player.start()
     began = time.monotonic()
     spoke_after_looks, spoke_at_wall = 0, time.monotonic()
     speaking: asyncio.Task | None = None
+    new = _WhatIsNew()
     while at_most_s is None or time.monotonic() - began < at_most_s:
-        plays = await page.evaluate(WHAT_PLAYS)
+        plays = await player.state()
         if not plays:
             break
         if plays.get("ended"):
             await asyncio.sleep(AN_END_HOLDS_S)
-            again = await page.evaluate(WHAT_PLAYS)
+            again = await player.state()
             if not again or again.get("ended"):
                 watching.ended = True
                 break
             continue
-        skipped = await page.evaluate(SKIP_WHAT_COMES_FIRST)
+        skipped = await player.tend()
         if skipped:
             keep({"kind": "skipped", "control": skipped, "wall": time.time()})
-        if plays.get("paused"):
-            await page.evaluate(PLAY_WITH_CAPTIONS)
-        moment = Moment(at=float(plays.get("at") or 0.0), seen=await look("playing"), read=str(plays.get("words") or ""))
+        heard = await player.heard()
+        read = " ".join(str(h.get("words") or "") for h in heard or []) if heard is not None else str(plays.get("words") or "")
+        moment = Moment(at=float(plays.get("at") or 0.0), seen=await look("playing"), read=read)
         watching.moments.append(moment)
+        new.took_in(moment)
         perceive(moment.seen, moment.read)
         keep({"kind": "moment", "at": moment.at, "seen": moment.seen, "read": moment.read, "wall": time.time()})
-        new = watching.since(spoke_after_looks)
-        if ((speaking is None or speaking.done()) and new and time.monotonic() - spoke_at_wall >= quiet_at_least_s):
-            observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(new)}"
+        since = watching.since(spoke_after_looks)
+        said_out = not watching.said or time.monotonic() >= spoke_at_wall + len(watching.said[-1][1].split()) / WORDS_A_SECOND
+        if ((speaking is None or speaking.done()) and since and said_out and new.worth_a_remark()
+                and time.monotonic() - spoke_at_wall >= quiet_at_least_s):
+            observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(since)}"
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
             spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()
+            new.remarked()
         await asyncio.sleep(look_every_s)
     if speaking is not None:
         await speaking
+    # What was said after the last look, up to the end: heard too, before she says what she made of it.
+    last_words = " ".join(str(h.get("words") or "") for h in (await player.heard() or []))
+    if last_words.strip():
+        watching.moments.append(Moment(at=watching.moments[-1].at if watching.moments else 0.0, read=last_words))
+        perceive("", last_words)
     await speak(f"{'it has ended' if watching.ended else 'it is still playing; we stopped watching'}. What played, in "
                 f"order:\n{what_she_watched(watching.moments)}", watching.moments[-1].at if watching.moments else 0.0, "after")
     keep({"kind": "after", "ended": watching.ended, "wall": time.time()})
+    await player.done()
     await remember(watching)
     return watching
 
@@ -210,8 +338,8 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
                 if plays and plays.get("w") and plays.get("h") else None)
         try:
             shot = await page.screenshot(type="jpeg", quality=70, clip=clip) if clip else await page.screenshot(type="jpeg", quality=70)
-            return (await look_with_her_eyes("What is in this picture?", base64.b64encode(shot).decode("ascii"),
-                                             max_tokens=90, timeout_s=seconds)).strip()
+            return (await look_with_her_eyes("What is happening in this picture?", base64.b64encode(shot).decode("ascii"),
+                                             max_tokens=140, timeout_s=seconds)).strip()
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as why:
             logger.info("a look did not come back: %s", why)
             return ""
