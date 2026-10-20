@@ -426,7 +426,10 @@ def first_thought(words: str) -> str:
     import re
 
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", words or "") if part.strip()]
-    thought = next((part for part in paragraphs if len(part.split()) >= A_THOUGHT_HAS_WORDS), "")
+    # A heading or a line that leads into what follows is not a thought (LIVE 20 October 2026: "**After it ends — my
+    # thoughts:**" was said as one).
+    said = [part for part in paragraphs if not re.fullmatch(r"#{1,6}\s[^\n]*|\*\*[^*\n]+\*\*\W*|[^\n]*:\W*", part)]
+    thought = next((part for part in said if len(re.findall(r"[A-Za-z']+", part)) >= A_THOUGHT_HAS_WORDS), "")
     if not thought:
         return ""
     whole = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought)

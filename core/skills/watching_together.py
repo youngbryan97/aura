@@ -79,7 +79,13 @@ def the_floor_is_free(held: Any) -> Callable[[float], bool]:
     from core.together.a_with import HER, THEM
 
     def free(now: float) -> bool:
-        return bool(held.open) and held.speaking(now) not in (HER, THEM) and not owed_an_answer()
+        who, owed = held.speaking(now), owed_an_answer()
+        if who in (HER, THEM) or owed or not held.open:
+            # Said each time, so a watching that stays quiet says why (LIVE 20 October 2026: nothing for 76 seconds).
+            logger.info("🤝 a remark waits: %s", "the with is over" if not held.open else
+                        f"{who} has the floor" if who in (HER, THEM) else "a turn of theirs is being answered")
+            return False
+        return True
 
     return free
 

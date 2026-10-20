@@ -298,3 +298,7 @@ def test_what_is_said_as_it_plays_is_her_first_thought():
     assert first_thought(said) == "It's round, not bars, and the empty CC box sits there like a held breath."
     assert first_thought("Okay.\n\nIt's round, not bars. The empty CC box sits there like a breath that") == "It's round, not bars."
     assert first_thought("Oh.") == ""  # nothing that says something: nothing said
+    # LIVE 20 October 2026, rehearsal 13: "**After it ends — my thoughts:**" was said as the remark
+    assert first_thought("**After it ends — my thoughts:**\n\nIt never answered its own question, and I liked that.") \
+        == "It never answered its own question, and I liked that."
+    assert first_thought("There is one rule: keep going, and it builds a whole world.").startswith("There is one rule")
