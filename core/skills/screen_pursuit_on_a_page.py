@@ -235,6 +235,7 @@ class OnAPage:
     _swept_bounds: Any = field(default=None, init=False)
     _cursor_sweeps: dict = field(default_factory=dict, init=False)
     _material_presses: MaterialPressHistory = field(default_factory=MaterialPressHistory, init=False)
+    _capture_authority: Any = field(default=None, init=False, repr=False)
 
     #: The longest she waits on what plays by itself inside one look, in seconds.
     WATCH_IN_A_LOOK_S = 5.0
@@ -242,6 +243,8 @@ class OnAPage:
     async def read(self, over: tuple[float, float, float, float] | None = None) -> dict[str, Any]:
         from core.perception.what_her_page_shows import look_at_a_page
 
+        if self._capture_authority is not None:
+            self._capture_authority.invalidate()
         await self._watch(over)
         seen = await look_at_a_page(self.page, over, name=self.name)
         if seen is None:
@@ -266,7 +269,20 @@ class OnAPage:
                 or stuck_on_one_screen_of_play(reflexes, str(seen.get("text") or ""))):
             await self._where_the_pointer_turns(seen, over)
             _what_the_stream_shows(seen, self.watching)
+        from core.perception.a_capture_owned_by_the_input_surface import InputSurfaceCaptures
+
+        if self._capture_authority is None:
+            self._capture_authority = InputSurfaceCaptures(self._current_input_surface)
+        self._capture_authority.bind(seen)
         return seen
+
+    def _current_input_surface(self) -> str | None:
+        if HER_OWN_PAGE.get() is not self:
+            return None
+        closed = getattr(self.page, 'is_closed', None)
+        if callable(closed) and closed():
+            return None
+        return f"page:{id(self.page)}:{self.name}:{getattr(self.page, 'url', '')}"
 
     async def _where_the_pointer_turns(self, seen: dict[str, Any], over: tuple[float, float, float, float] | None) -> None:
         """Once a screen, the places on it where the pointer turns into a hand (core/perception/where_the_pointer_turns.py),
@@ -397,6 +413,8 @@ class OnAPage:
         self._focused = await focus_drawing_for_input(self.page)
 
     def _invalidate_cursor_samples(self) -> None:
+        if self._capture_authority is not None:
+            self._capture_authority.invalidate()
         self._swept = self._swept_bounds = None
         self._cursor_sweeps.clear()
 
@@ -431,6 +449,8 @@ class OnAPage:
             return False
         finally:
             finish_navigation_input(recorded, delivered)
+            if self._capture_authority is not None:
+                self._capture_authority.delivered(delivered)
             self._invalidate_cursor_samples()
             if window is not None:
                 watching.finish_act(window, delivered)
@@ -501,6 +521,8 @@ class OnAPage:
             return False
         finally:
             finish_navigation_input(recorded, delivered)
+            if self._capture_authority is not None:
+                self._capture_authority.delivered(delivered)
             self._invalidate_cursor_samples()
             if window is not None:
                 watching.finish_act(window, delivered)
@@ -561,6 +583,8 @@ class OnAPage:
             return False
         finally:
             finish_navigation_input(recorded, delivered)
+            if self._capture_authority is not None:
+                self._capture_authority.delivered(delivered)
             self._invalidate_cursor_samples()
             if window is not None:
                 watching.finish_act(window, delivered)

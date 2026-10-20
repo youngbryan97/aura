@@ -256,6 +256,9 @@ async def carry_out_the_move(
         pending["deliberation"] = None
         _bind_delivered_forecast(expected, 0)
         return None
+    from core.perception.a_capture_owned_by_the_input_surface import qualify_current_input_surface
+
+    qualify_current_input_surface(getattr(run, 'observation', None))
     lattice.not_here_for = 0
     # Intent, then action. Said before the body moves, because that is
     # the order a person doing something narrates it in.

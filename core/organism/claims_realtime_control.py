@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.a_capture_owned_by_the_input_surface import _owned_input_surface_invariant
     from core.agency.looking_for_an_unbound_referent import _referent_attention_invariant
     from core.agency.a_requested_relation_in_play import _destination_reading_invariant
     from core.agency.why_a_motion_history_is_called_carried import _motion_family_reading_invariant
@@ -69,7 +70,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('unbound_referents_request_current_instance_observation', 'core/agency/looking_for_an_unbound_referent.py',
+    return (('qualified_input_surfaces_keep_current_capture_custody', 'core/perception/a_capture_owned_by_the_input_surface.py',
+             'tests/test_qualified_input_surfaces_survive_wordless_scenes.py', lambda: _owned_input_surface_invariant() == (),
+             'A qualified input adapter can admit a fresh capture of a changed or wordless scene on the same active surface; copied metadata, stale captures, changed ownership and input-invalidated readings confer no authority.'),
+            ('unbound_referents_request_current_instance_observation', 'core/agency/looking_for_an_unbound_referent.py',
              'tests/test_an_unbound_referent_reaches_visual_attention.py', lambda: _referent_attention_invariant() == (),
              'An unresolved destination prioritizes current owned instance queries while preserving query custody and the existing binder; geometry orders observations without assigning a target or a control role.'),
             ('play_refusals_keep_the_predicates_that_decided', 'core/agency/why_a_motion_history_is_called_carried.py',
