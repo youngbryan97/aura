@@ -50,6 +50,7 @@ class LibraryPlan(BaseModel):
     rests_on: list[str] = Field(default_factory=list, description="titles of what was read that it implements")
     functions: list[FunctionPlan] = Field(default_factory=list)
     tests: list[LibraryTest] = Field(default_factory=list)
+    uses: list[str] = Field(default_factory=list, description="the other libraries of this program whose functions it calls")
 
     def sound(self) -> bool:
         """A name an object can have, functions with names, and tests that call them."""

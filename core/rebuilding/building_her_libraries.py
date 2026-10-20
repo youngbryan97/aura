@@ -35,7 +35,7 @@ from core.rebuilding.what_versions_agree_on import Version, doubted_tests, the_b
 
 logger = logging.getLogger("Rebuilding.Libraries")
 
-__all__ = ["BuiltLibrary", "build_libraries", "libraries_it_needs", "offered"]
+__all__ = ["BuiltLibrary", "beneath", "build_libraries", "in_order", "libraries_it_needs", "offered"]
 
 #: Versions of one library written apart, before any is shown what failed.
 VERSIONS = 2
@@ -89,8 +89,9 @@ async def libraries_it_needs(genome: Any, known: Any, ask: Any, *, browser: Any 
                  if store else "")
               + f"Say which libraries of JavaScript functions it is made of, at most {MOST_LIBRARIES}: what the features "
               "share and rest on (its data, its algorithms, its file formats), not the features themselves. For each: "
-              "the object it sets on globalThis, its functions, and calls of them with the JSON value each must give, "
-              "worked out from what was read, using plain arrays, objects, numbers and strings.")
+              "the object it sets on globalThis, its functions, which of the other libraries here it calls, and calls "
+              "of its functions with the JSON value each must give, worked out from what was read, using plain "
+              "arrays, objects, numbers and strings.")
     said = await ask(prompt, _Plan, 3072)
     plans: list[LibraryPlan] = []
     for plan in getattr(said, "libraries", []) or []:
@@ -102,12 +103,13 @@ async def libraries_it_needs(genome: Any, known: Any, ask: Any, *, browser: Any 
     return plans[:MOST_LIBRARIES]
 
 
-def _write_it_prompt(plan: LibraryPlan, known: Any, failed: str, before: str) -> str:
+def _write_it_prompt(plan: LibraryPlan, known: Any, failed: str, before: str, beneath: Sequence[BuiltLibrary] = ()) -> str:
     read = known.of(" ".join([plan.purpose, *plan.rests_on, *(f.name for f in plan.functions)])) if known is not None else []
     tests = "".join(f"- {t.call} must give {t.expect}\n" for t in plan.tests)
     text = (f"Write the JavaScript library {plan.name}: {plan.purpose}\n"
             f"It sets globalThis.{plan.name} to an object with these functions:\n{plan.said()}\n"
             f"Its tests:\n{tests}"
+            + offered(beneath, "It may call these libraries, already in the page")
             + ("What was read of what it rests on:\n" + "".join(f"- {r.text} ({r.where})\n" for r in read) if read else "")
             + "Plain JavaScript that runs in a browser page, no imports, no network, no page elements.")
     if failed:
@@ -120,18 +122,24 @@ def _failures(runs: Sequence[Any]) -> str:
 
 
 async def build_library(plan: LibraryPlan, ask: Any, *, known: Any = None, browser: Any = None,
-                        store: Sequence[KeptLibrary] = (), run: Any = run_tests) -> BuiltLibrary:
+                        store: Sequence[KeptLibrary] = (), run: Any = run_tests,
+                        beneath: Sequence[BuiltLibrary] = ()) -> BuiltLibrary:
     """One library: one of hers that passes its tests, else versions written apart, the one they agree with most,
-    shown its failures and written again."""
+    shown its failures and written again; with the libraries it uses (``beneath``) loaded before it."""
+    under = "".join(f"{library.code}\n" for library in beneath if library.code)
+
+    async def tested(code: str) -> Any:
+        return await run(under + code, plan.tests, browser=browser)
+
     for library in found_for(plan, list(store)):
-        runs = await run(library.code, plan.tests, browser=browser)
+        runs = await tested(library.code)
         if runs and all(r.held for r in runs):
             return BuiltLibrary(plan, library.code, [r.test.call for r in runs], [], 0, library.made_for)
 
     async def written(failed: str, before: str) -> Version:
-        said = await ask(_write_it_prompt(plan, known, failed, before), _Code, LIBRARY_TOKENS)
+        said = await ask(_write_it_prompt(plan, known, failed, before, beneath), _Code, LIBRARY_TOKENS)
         code = str(getattr(said, "code", "") or "")
-        return Version(code, await run(code, plan.tests, browser=browser) if code.strip() else [])
+        return Version(code, await tested(code) if code.strip() else [])
 
     versions = [await written("", "") for _ in range(VERSIONS)]
     doubted = await doubted_tests(plan, versions, ask, known=known)
@@ -161,8 +169,9 @@ async def build_libraries(genome: Any, known: Any, ask: Any, *, browser: Any = N
     store = kept()
     plans = await libraries_it_needs(genome, known, ask, browser=browser, store=store)
     built: list[BuiltLibrary] = []
-    for plan in plans:
-        library = await build_library(plan, ask, known=known, browser=browser, store=store)
+    for plan in in_order(plans):
+        library = await build_library(plan, ask, known=known, browser=browser, store=store,
+                                      beneath=beneath(plan, built))
         built.append(library)
         if keep_them and library.held and not library.from_her_store:
             await keep(KeptLibrary(plan, library.code, genome.name, held=library.held))
@@ -174,12 +183,49 @@ async def build_libraries(genome: Any, known: Any, ask: Any, *, browser: Any = N
     return built
 
 
-def offered(built: Sequence[BuiltLibrary]) -> str:
+def in_order(plans: Sequence[LibraryPlan]) -> list[LibraryPlan]:
+    """Each library after the ones it uses; where the uses go round in a circle, in the order planned."""
+    named = {plan.name: plan for plan in plans}
+    ordered: list[LibraryPlan] = []
+    visiting: set[str] = set()
+
+    def place(plan: LibraryPlan) -> None:
+        if plan in ordered or plan.name in visiting:
+            return
+        visiting.add(plan.name)
+        for name in plan.uses:
+            if name in named:
+                place(named[name])
+        ordered.append(plan)
+
+    for plan in plans:
+        place(plan)
+    return ordered
+
+
+def beneath(plan: LibraryPlan, built: Sequence[BuiltLibrary]) -> list[BuiltLibrary]:
+    """The libraries already built that ``plan`` uses, and what they use in turn, each before what uses it."""
+    by_name = {library.plan.name: library for library in built}
+    wanted: list[BuiltLibrary] = []
+
+    def take(name: str) -> None:
+        library = by_name.get(name)
+        if library is None or library in wanted:
+            return
+        for used in library.plan.uses:
+            take(used)
+        wanted.append(library)
+
+    for name in plan.uses:
+        take(name)
+    return wanted
+
+
+def offered(built: Sequence[BuiltLibrary], heading: str = "Libraries already in the program") -> str:
     """What the libraries in the program offer a feature's part, tested functions only."""
     lines = []
     for library in built:
         for function in library.plan.functions:
             if function.name in library.usable and library.code:
                 lines.append(f"{library.plan.name}.{function.name}({', '.join(function.params)}): {function.does}")
-    return ("Libraries already in the program, each function tested:\n" + "\n".join(f"- {line}" for line in lines) + "\n"
-            if lines else "")
+    return f"{heading}, each function tested:\n" + "".join(f"- {line}\n" for line in lines) if lines else ""

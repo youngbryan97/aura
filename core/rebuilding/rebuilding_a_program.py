@@ -281,8 +281,8 @@ async def _its_libraries(genome: Genome, known: Any, ask: Asker, folder: Path, b
     kept = folder / "libraries.json"
     if kept.exists():
         rows = json.loads(await asyncio.to_thread(kept.read_text, "utf-8"))
-        return [BuiltLibrary(LibraryPlan.model_validate(r["plan"]), r["code"], r["held"], r["failed"], r["tries"], r["from_her_store"])
-                for r in rows]
+        return [BuiltLibrary(LibraryPlan.model_validate(r["plan"]), r["code"], r["held"], r["failed"], r["tries"], r["from_her_store"],
+                             r.get("doubted", [])) for r in rows]
 
     async def said(line: str) -> None:
         await _say(tell, line)
@@ -293,7 +293,7 @@ async def _its_libraries(genome: Genome, known: Any, ask: Asker, folder: Path, b
         logger.info("rebuilding: her model is away (%s); no libraries planned", why)
         return []
     rows = [{"plan": b.plan.model_dump(), "code": b.code, "held": b.held, "failed": b.failed, "tries": b.tries,
-             "from_her_store": b.from_her_store} for b in built]
+             "from_her_store": b.from_her_store, "doubted": b.doubted} for b in built]
     await asyncio.to_thread(kept.write_text, json.dumps(rows, indent=1), "utf-8")
     return built
 

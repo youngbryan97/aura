@@ -100,3 +100,31 @@ def test_a_value_is_agreed_only_by_two_versions_and_never_an_error():
     assert agreed_value([_version("a", ["4"], expects), _version("b", ["6"], expects)], 0) is None
     assert agreed_value([_version("a", ["threw x"], expects), _version("b", ["threw x"], expects)], 0) is None
     assert agreed_value([_version("a", ["5"], expects), _version("b", ["4"], expects), _version("c", ["4"], expects)], 0) is None
+
+
+def _plan(name, uses=(), call=None):
+    return LibraryPlan(name=name, purpose=f"the {name.lower()} part", uses=list(uses),
+                       functions=[FunctionPlan(name="f", params=["x"], does="a value")],
+                       tests=[LibraryTest(call=call or f"{name}.f(1)", expect="1")])
+
+
+def test_a_library_is_built_after_what_it_uses_and_tested_with_it_loaded_beneath():
+    from core.rebuilding.building_her_libraries import BuiltLibrary, beneath, in_order
+
+    grid, cells, sheet = _plan("Grid"), _plan("Cells", ["Grid"]), _plan("Sheet", ["Cells", "Unknown"])
+    assert [p.name for p in in_order([sheet, cells, grid])] == ["Grid", "Cells", "Sheet"]
+    looped = [_plan("A", ["B"]), _plan("B", ["A"])]
+    assert sorted(p.name for p in in_order(looped)) == ["A", "B"], "a circle of uses still builds each once"
+    built = [BuiltLibrary(grid, "GRID;"), BuiltLibrary(cells, "CELLS;")]
+    assert [b.plan.name for b in beneath(sheet, built)] == ["Grid", "Cells"], "what it uses, and what that uses, first"
+
+    loaded = []
+
+    async def run(code, tests, *, browser=None):
+        loaded.append(code)
+        return [RunOfATest(t, True, "1") for t in tests]
+
+    ask, asked = _her_model(["SHEET;"], worked="")
+    library = asyncio.run(build_library(sheet, ask, run=run, beneath=beneath(sheet, built)))
+    assert loaded[0] == "GRID;\nCELLS;\nSHEET;" and library.code == "SHEET;"
+    assert "It may call these libraries, already in the page, each function tested:\n- Grid.f(x)" in asked[0]

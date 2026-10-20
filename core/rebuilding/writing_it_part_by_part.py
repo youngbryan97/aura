@@ -428,10 +428,11 @@ async def write_it(
     # The libraries it is made of go in ahead of everything else (core/rebuilding/building_her_libraries.py).
     from core.rebuilding.building_her_libraries import offered
 
-    for library in libraries:
-        if library.code and not any(p.name == f"library {library.plan.name}" for p in program.parts):
-            program = ProgramAsBuilt(program.title, program.document, program.accent, program.style,
-                                     [Part(f"library {library.plan.name}", library.code, []), *program.parts])
+    # In the order built, so that each loads after what it uses.
+    ahead = [Part(f"library {library.plan.name}", library.code, []) for library in libraries
+             if library.code and not any(p.name == f"library {library.plan.name}" for p in program.parts)]
+    if ahead:
+        program = ProgramAsBuilt(program.title, program.document, program.accent, program.style, [*ahead, *program.parts])
     said = offered(libraries)
     if not any(p.name == "work area" for p in program.parts) and page is not None:
         # A document page she knows how to make, kept when it loads without an error and takes what is typed.
