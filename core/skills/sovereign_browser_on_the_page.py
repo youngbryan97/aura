@@ -45,9 +45,11 @@ async def what_is_on_it(browser: Any, observation: dict[str, Any]) -> dict[str, 
 
 
 async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str, Any]:
-    """The observation, with what the page plays among its elements when there is a video on it."""
+    """The observation, with what the page plays among its elements when there is a video on it: among none, where
+    the video is all the page has (LIVE 20 October 2026, a page of one film and its captions was read as "no
+    interactive elements" and given up on)."""
     page = getattr(browser, "page", None)
-    if not observation or not observation.get("elements") or page is None:
+    if not observation or page is None:
         return observation
     try:
         plays = await page.evaluate(WHAT_PLAYS)
@@ -58,7 +60,7 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
     length = f", {clock(plays['duration'])} long" if plays.get("duration") else ""
     name = f"what this page plays, a video{length}: choosing it watches it as it plays, start to end, with whoever asked"
     share = plays["w"] * plays["h"] / max(1.0, float(plays.get("vw") or 0) * float(plays.get("vh") or 0))
-    return {**observation, "elements": [*observation["elements"],
+    return {**observation, "elements": [*(observation.get("elements") or []),
                                         {"role": "watching", "name": name, "selector": WATCHING, "share_of_view": round(share, 3)}]}
 
 

@@ -662,3 +662,22 @@ async def test_growth_ladder_advancement_routes_through_unified_will(tmp_path):
     assert kwargs["metadata"]["visible_presence"] is True
     assert kwargs["metadata"]["trigger"] == "growth_ladder_advancement"
     orchestrator.output_gate.emit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_what_proactive_presence_writes_to_a_script_is_not_said_to_anybody(monkeypatch):
+    """LIVE 20 October 2026: its scripted lines reached Bryan's chat once a minute while she was idle, among them
+    "I'm not Aura. I'm an AI assistant" and a reviewer's "The proposed answer is cut off mid-sentence, which violates
+    the '1-2 sentences'". Kept in her background record until they are her own turns."""
+    presence = ProactivePresence(orchestrator=SimpleNamespace(_last_thought_time=0.0))
+
+    async def scripted():
+        return "Honestly, the growth alert is starting to feel like an identity crisis."
+
+    monkeypatch.setattr(presence, "_goal_update", scripted)
+    monkeypatch.setattr(presence, "_topic_emission", scripted)
+    monkeypatch.setattr(presence, "_checkin_message", scripted)
+    for checking_in in (False, True):
+        monkeypatch.setattr(presence, "_should_offer_checkin", lambda _now, due=checking_in: due)
+        content, _source, visible, _initiative = await presence._generate_spontaneous_output()
+        assert content and visible is False

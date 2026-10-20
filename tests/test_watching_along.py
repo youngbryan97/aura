@@ -41,6 +41,7 @@ async def test_what_a_page_plays_is_offered_and_handed_over_to_watching():
     playwright, browser, page = await _a_page(playwright_api)
     try:
         offered = await with_what_plays(SimpleNamespace(page=page), {"elements": [{"role": "button"}]})
+        alone = await with_what_plays(SimpleNamespace(page=page), {"url": "http://films.example/1", "elements": []})
         await page.set_content("<p>nothing plays here</p>")
         nothing = await with_what_plays(SimpleNamespace(page=page), {"elements": [{"role": "button"}]})
     finally:
@@ -49,6 +50,7 @@ async def test_what_a_page_plays_is_offered_and_handed_over_to_watching():
     assert offered["elements"][-1]["selector"] == WATCHING and "0:06 long" in offered["elements"][-1]["name"]
     assert offered["elements"][-1]["share_of_view"] == 0.48  # 640 by 360 in an 800 by 600 view
     assert [e["role"] for e in nothing["elements"]] == ["button"]
+    assert [e["selector"] for e in alone["elements"]] == [WATCHING]  # a page that is its video and nothing else
     assert handed_over([(SimpleNamespace(selector=WATCHING), "")]) is watched_on_the_page
     assert handed_over([(SimpleNamespace(selector="#cc"), "")]) is None
 
