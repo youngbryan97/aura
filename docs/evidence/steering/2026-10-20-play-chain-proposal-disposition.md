@@ -210,3 +210,76 @@ uses the CPU-only envelope; no model worker or native runtime is started.
 Smoke: 164 passed, one skipped. Lint, compile, layering and writing passed;
 the bounded gate run took 76.53 seconds. No original game, G09, holdout,
 GPU worker or native application was run for this checkpoint.
+
+### Refusal-specific observation requests and relation regions
+
+- [x] G3, representation portion: the actual binder now retains candidate
+  instance birth/kind, measured time, partial words and a specific operation:
+  identify a whole referent, resolve missing properties, distinguish rivals,
+  reacquire stale material or measure its whole extent. These are recorded
+  beside the choice. Partial matches do not authorize an approach. Executing
+  every new recovery operation still depends on its observation producer.
+- [x] G5, geometric portion: a currently bound `on` or `inside` relation
+  publishes the body-centre interval/region from the same observed extents,
+  with body and target owners, capture time and the actual observer basis
+  when available. Collision validity, terminal speed, angle and observed
+  contact remain explicit unknowns. This is not a physical support witness.
+- [x] G8, bounded binder portion: 106 tests passed in 9.05 seconds, covering
+  partial names, 80 rivals with bounded diagnostics, stale/narrow referents,
+  contact-region unknowns, invalid times and the actual chooser. Whole-parent
+  role evidence and calibrated collision bounds remain open under G4/G5.
+
+Smoke: 164 passed, one skipped. Lint, compile, layering and writing passed
+in 73.57 seconds. No GPU or native runtime was used.
+
+### Additional supplied PDF: evaluation added, implementation continues
+
+All 14 pages of `play_chain_solutions_repo....pdf` were rendered and read.
+The registered `playchain-solutions-1020` worktree is clean at `74da4b72e`.
+The named `tommy_world.py`, `verify_solutions.py`, verification JSON and
+Markdown report were not found in that worktree or Downloads. The PDF has
+no embedded files or artifact links. Its 20/20 and 30/30 claims have not been
+independently reproduced.
+
+- [ ] PDF-1: qualification-aware contrast ranking is viable. The retained
+  sequence 2399 independently confirms statistic 21.800306/effect 13.800921
+  and `push_effect_unresolved`. Implement and test joint-gate ranking across
+  interval pairs, raw/interval comparison and per-key comparison.
+- [x] PDF-2: reject the included composite binder. It unions all stationary
+  vocabulary matches across the scene, makes the hull at least body width
+  plus four pixels, borrows the first fragment's identity, and declares it
+  bound. The shown diff contains neither the claimed parent/registration
+  corroboration nor a spatial join-radius check. G4 still needs real custody.
+- [x] PDF-3: reject a fixed hover height at 35% of the image as a general
+  safe fallback. Safety must use a measured transition and actual hazards;
+  S1/S2 now record observation reserve, not a universal safe altitude.
+- [x] PDF-4: comparable forward scoring is implemented at `9cd56e4de`.
+  Censoring near a fixed ceiling/floor is rejected without a positive bound
+  or contact witness. It could hide a genuine model failure.
+- [ ] PDF-5: actuator ramp and internal hazard boundaries are viable model
+  inputs. Discovering thrust first by literal `up`, and hardcoding stage
+  heights 215/75 or fixed latency 136 ms, are not general implementations.
+  Preserve measured delivery lag and derive permitted hazard/ramp data.
+- [x] PDF-6: reject the public-dictionary custody patch as written. Matching
+  supplied IDs and counting two figures do not prove capture/delivery
+  ownership; a valid scene may contain one figure. `a08ca0c7b` supplies owned
+  capture/acknowledgement custody without that arbitrary count.
+- [x] PDF-7: reject eliminating angle via the asserted universal 10/3
+  proportionality. Current source equations were re-read from original 18
+  (SHA-256 `a00d125e025ac422091f0247845add583fd31547a6cedf2cd76bee1e1da14fc6`).
+  The lateral and angle channels have different saturation ratios and
+  sequential angle updates. Production `GradualControls`, using those
+  source recurrences, gives lateral 3.96 and angle 20 after 120 held ticks;
+  after release, lateral 0.416849 coexists with angle 2.105298 degrees.
+  The report's lateral <=0.42 shortcut would admit this unsafe angle.
+- [ ] PDF-8: queued-input latency compensation, a source-grounded terminal
+  predicate, stored-channel estimation and bounded moving-obstacle forecasts
+  are viable. Their general, currently observed adapters remain P2–P5 work;
+  the included game constants and unavailable test state are not adapters.
+- [ ] PDF-9: distinguish attract-mode success from an agent-owned outcome.
+  The claimed initial banner origin requires source/input/phase verification;
+  it must not become a credited landing based on the words alone.
+- [x] PDF-10: the purported line-for-line port also states an integer cast
+  on `pad_y`. The current source reader retains the uncast subtraction;
+  exact bytecode/operator agreement remains an acceptance gate before that
+  external port's metrics can be treated as faithful original-game evidence.

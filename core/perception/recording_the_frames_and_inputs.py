@@ -408,6 +408,7 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
 
 def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> None:
     """Retain a made choice without asking the target selector to make it again."""
+    from dataclasses import asdict
     recorder = _ACTIVE.get()
     if recorder is None:
         return
@@ -438,6 +439,8 @@ def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> 
                         **(dict(binding_status=reading.status, named_referents=list(reading.named),
                                 named_count=reading.named_count, candidates=list(reading.candidates),
                                 candidate_count=reading.candidate_count,
+                                need=asdict(reading.need) if getattr(reading, 'need', None) is not None else None,
+                                region=asdict(binding.region) if binding is not None and getattr(binding, 'region', None) is not None else None,
                                 target_stance=getattr(choosing, 'goal_stance', None)) if reading is not None else {}),
                         bound_number=binding.thing.number if binding is not None else None)
                    if request is not None else None)))

@@ -13,6 +13,10 @@ from typing import Any
 
 from core.verify import invariant
 from core.perception.names_for_observed_instances import NamesInScene
+from core.agency.evidence_for_a_requested_relation import (
+    ObservedRelationRegion, ReferentEvidenceNeed, observed_relation_region, referent_evidence_needed,
+    observation_time, relation_region_in_its_scene,
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +35,7 @@ class BoundDestination:
     request: SpatialRequest
     thing: Any
     point: tuple[float, float]
+    region: ObservedRelationRegion | None = None
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,7 @@ class DestinationReading:
     named_count: int = 0
     candidates: tuple[int | None, ...] = ()
     candidate_count: int = 0
+    need: ReferentEvidenceNeed | None = None
 
 
 _HOW = r'(?:safely|softly|gently|slowly|carefully)'
@@ -150,10 +156,11 @@ def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
                      at: float | None) -> DestinationReading:
     """Preserve the actual refusal without changing the binding criteria or selecting again."""
     wanted = _name_words(request.destination)
-    if (not wanted or mine is None or not isinstance(at, (int, float)) or isinstance(at, bool) or not math.isfinite(at)
+    if (not wanted or mine is None or observation_time(at) is None
             or getattr(mine, 'seen', None) != at):
-        return DestinationReading('body_or_request_unavailable')
-    candidates, best, named, named_count = [], 0, [], 0
+        return DestinationReading('body_or_request_unavailable',
+            need=referent_evidence_needed('body_or_request_unavailable', wanted, [], [], at))
+    candidates, best, named, named_count, partial = [], 0, [], 0, []
     for thing in things:
         if getattr(thing, 'number', None) == getattr(mine, 'number', None):
             continue
@@ -163,6 +170,8 @@ def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
             if len(named) < 32:
                 named.append((getattr(thing, 'number', None), str(name)[:160]))
         words = _name_words(name)
+        if set(wanted) & set(words):
+            partial.append((thing, name))
         if wanted[-1] not in words:
             continue
         score = len(set(wanted) & set(words))
@@ -173,19 +182,24 @@ def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
         candidates.append(thing)
     facts = dict(named=tuple(named), named_count=named_count,
                  candidates=tuple(getattr(thing, 'number', None) for thing in candidates[:32]), candidate_count=len(candidates))
+    matched = [(thing, names.for_thing(thing) if isinstance(names, NamesInScene) else names.get(getattr(thing, 'kind', -1), ''))
+               for thing in candidates]
+    def refused(status):
+        return DestinationReading(status, need=referent_evidence_needed(status, wanted, matched, partial, at), **facts)
     if not candidates:
-        return DestinationReading('no_named_referent', **facts)
+        return refused('no_named_referent')
     if len(candidates) != 1:
-        return DestinationReading('ambiguous_named_referent', **facts)
+        return refused('ambiguous_named_referent')
     if best != len(set(wanted)):
-        return DestinationReading('incomplete_name', **facts)
+        return refused('incomplete_name')
     target = candidates[0]
     if getattr(target, 'seen', None) != at:
-        return DestinationReading('referent_not_current', **facts)
+        return refused('referent_not_current')
     point = position_for_relation(request.relation, mine, target)
     if point is None:
-        return DestinationReading('relation_geometry_unavailable', **facts)
-    return DestinationReading('bound', BoundDestination(request, target, point), **facts)
+        return refused('relation_geometry_unavailable')
+    return DestinationReading('bound', BoundDestination(request, target, point,
+        observed_relation_region(request.relation, mine, target, at)), **facts)
 
 
 @invariant('agency.destination_refusals_keep_the_deciding_branch', scope='agency',
@@ -245,6 +259,11 @@ def requested_target(choosing: Any) -> tuple | None:
     # A spatial referent can be scenery or share her visual kind. Interaction
     # heuristics must not remove it, or remove a rival that keeps its name ambiguous.
     reading = read_destination(request, choosing.mine, _scene_referents(choosing.moves), observed_names(choosing.moves), choosing.at)
+    if reading.binding is not None and reading.binding.region is not None:
+        from dataclasses import replace
+
+        reading = replace(reading, binding=replace(reading.binding,
+            region=relation_region_in_its_scene(reading.binding.region, choosing.moves, choosing.at)))
     choosing.goal_reading = reading
     binding = reading.binding
     choosing.goal_binding = binding
