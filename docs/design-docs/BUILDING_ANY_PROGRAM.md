@@ -61,8 +61,10 @@ it runs, design it as libraries, build each with tests, and keep the libraries f
    (its data, how it is drawn, what input does, its files, its algorithms), each with tests from the behaviours
    and observations above, before any code. A library she already has, and that passes the tests, is used as it
    is.
-4. **Build each library from its tests** (`building_a_library`). In dependency order; several candidates per
-   function, picked by the tests; what failed shown back, a few times; a function that cannot be made to pass is
+4. **Build each library from its tests** (`building_her_libraries`). In dependency order; two versions written
+   apart, the one the other agrees with kept (`what_versions_agree_on`, after CodeT); a test none passes doubted
+   where the versions and her model's own working of the call agree on another value, since her model wrote the
+   test too; what failed shown back, a few times, doubted tests aside; a function that cannot be made to pass is
    reported, not faked. Then the program's own checks, as now, and her use of it, as now.
 5. **Keep what she built** (`her_libraries`). Every library that passed is kept with its interface, its tests
    and what it was for; found again by what a new program needs; and where two of hers share code, the shared

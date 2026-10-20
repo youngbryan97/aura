@@ -66,11 +66,14 @@ def test_a_library_written_wrong_is_shown_what_failed_and_written_again():
 
     async def ask(prompt, schema, _tokens):
         asked.append(prompt)
-        return schema(code=_WRONG if len(asked) == 1 else _RIGHT)
+        return schema(code=_WRONG if len(asked) <= 2 else _RIGHT)
 
     built = asyncio.run(build_library(plan, ask))
-    assert built.tries == 2 and len(built.held) == 2 and not built.failed
-    assert "Raster.floodFill([[0,0,1],[0,1,1]], 0, 0, 2): wanted [[2,2,1],[2,1,1]], got [[0,0,1],[0,1,1]]" in asked[1]
+    assert built.tries == 3 and len(built.held) == 2 and not built.failed
+    assert "Its tests showed" not in asked[1], "the second version is written apart from the first"
+    # The two wrong versions agree on the fill, so her model is asked to work it out before the repair.
+    assert "Work out, step by step" in asked[2]
+    assert "Raster.floodFill([[0,0,1],[0,1,1]], 0, 0, 2): wanted [[2,2,1],[2,1,1]], got [[0,0,1],[0,1,1]]" in asked[3]
 
 
 def test_a_library_she_has_that_passes_is_used_without_writing_one():

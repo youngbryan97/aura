@@ -4,10 +4,12 @@ Before any feature is written, her model is shown the program's features, what w
 (core/rebuilding/what_is_known_of_it.py) and the libraries she already has (core/rebuilding/her_libraries.py), and
 says which libraries the program needs: each one's functions and the calls that test them, written from what was
 read (a flood fill's article says which cells it reaches). A test that holds where every function gives nothing is
-left out. Then each library, in turn: one of hers that passes its tests is used as it is; else her model writes it,
-and is shown the tests that failed and writes it again, up to ``TRIES`` times; the version that passed most is kept,
-with the functions whose tests did not all hold named. Commit0 (ICLR 2025) found the tests' feedback was what
-helped agents most at writing a library to a specification; CodeT (2023) wrote the tests first.
+left out. Then each library, in turn: one of hers that passes its tests is used as it is; else her model writes
+``VERSIONS`` versions of it apart, a test none passes is doubted where the versions and her model's own working of
+the call agree on another value (core/rebuilding/what_versions_agree_on.py), the version the others agree with most
+is kept, and it is shown the tests that failed, doubted ones aside, and written again up to ``REPAIRS`` times.
+Commit0 (ICLR 2025) found the tests' feedback was what helped agents most at writing a library to a specification;
+CodeT (ICLR 2023) wrote the tests first and chose among programs by what they agree on.
 
 The libraries go into the program ahead of its features, and each feature's part is told what they offer and that
 they are tested. A library kept is kept for every program after (her store), whatever program it was made for.
@@ -29,13 +31,16 @@ from core.rebuilding.her_libraries import (
     run_tests,
     the_tests_that_test,
 )
+from core.rebuilding.what_versions_agree_on import Version, doubted_tests, the_best_of
 
 logger = logging.getLogger("Rebuilding.Libraries")
 
 __all__ = ["BuiltLibrary", "build_libraries", "libraries_it_needs", "offered"]
 
-#: Tries at one library before the best version written is what is kept.
-TRIES = 3
+#: Versions of one library written apart, before any is shown what failed.
+VERSIONS = 2
+#: Times the best version is shown what failed and written again.
+REPAIRS = 2
 #: The most libraries one program is planned with.
 MOST_LIBRARIES = 6
 #: The longest library her model is asked for, in tokens.
@@ -58,6 +63,7 @@ class BuiltLibrary:
     failed: list[str] = field(default_factory=list)
     tries: int = 0
     from_her_store: str = ""
+    doubted: list[str] = field(default_factory=list)
 
     @property
     def usable(self) -> list[str]:
@@ -114,29 +120,37 @@ def _failures(runs: Sequence[Any]) -> str:
 
 
 async def build_library(plan: LibraryPlan, ask: Any, *, known: Any = None, browser: Any = None,
-                        store: Sequence[KeptLibrary] = ()) -> BuiltLibrary:
-    """One library: one of hers that passes its tests, else written, shown its failures and written again."""
+                        store: Sequence[KeptLibrary] = (), run: Any = run_tests) -> BuiltLibrary:
+    """One library: one of hers that passes its tests, else versions written apart, the one they agree with most,
+    shown its failures and written again."""
     for library in found_for(plan, list(store)):
-        runs = await run_tests(library.code, plan.tests, browser=browser)
+        runs = await run(library.code, plan.tests, browser=browser)
         if runs and all(r.held for r in runs):
             return BuiltLibrary(plan, library.code, [r.test.call for r in runs], [], 0, library.made_for)
-    best = BuiltLibrary(plan)
-    failed, before = "", ""
-    for best.tries in range(1, TRIES + 1):
-        written = await ask(_write_it_prompt(plan, known, failed, before), _Code, LIBRARY_TOKENS)
-        code = str(getattr(written, "code", "") or "")
-        if not code.strip():
-            failed = "- nothing was written\n"
-            continue
-        runs = await run_tests(code, plan.tests, browser=browser)
-        held = [r.test.call for r in runs if r.held]
-        if len(held) > len(best.held) or not best.code:
-            best.code, best.held, best.failed = code, held, [r.test.call for r in runs if not r.held]
-        if len(held) == len(runs):
+
+    async def written(failed: str, before: str) -> Version:
+        said = await ask(_write_it_prompt(plan, known, failed, before), _Code, LIBRARY_TOKENS)
+        code = str(getattr(said, "code", "") or "")
+        return Version(code, await run(code, plan.tests, browser=browser) if code.strip() else [])
+
+    versions = [await written("", "") for _ in range(VERSIONS)]
+    doubted = await doubted_tests(plan, versions, ask, known=known)
+    best = the_best_of(versions, doubted) or Version("")
+    wanted = len(plan.tests) - len(doubted)
+    for _ in range(REPAIRS):
+        if len(best.passes(doubted)) >= wanted:
             break
-        failed, before = _failures(runs), code
-    logger.info("rebuilding: library %s, %d of %d tests hold after %d tries", plan.name, len(best.held), len(plan.tests), best.tries)
-    return best
+        failed = _failures([r for r in best.runs if r.test.call not in doubted]) if best.code.strip() else "- nothing was written\n"
+        version = await written(failed, best.code)
+        versions.append(version)
+        if len(version.passes(doubted)) > len(best.passes(doubted)) or not best.code.strip():
+            best = version
+    built = BuiltLibrary(plan, best.code, best.passes(doubted),
+                         [r.test.call for r in best.runs if not r.held and r.test.call not in doubted],
+                         len(versions), doubted=doubted)
+    logger.info("rebuilding: library %s, %d of %d tests hold (%d doubted) after %d versions", plan.name,
+                len(built.held), len(plan.tests), len(doubted), built.tries)
+    return built
 
 
 async def build_libraries(genome: Any, known: Any, ask: Any, *, browser: Any = None, tell: Any = None,
@@ -154,6 +168,7 @@ async def build_libraries(genome: Any, known: Any, ask: Any, *, browser: Any = N
             await keep(KeptLibrary(plan, library.code, genome.name, held=library.held))
     if tell is not None and built:
         said = "; ".join(f"{b.plan.name} ({len(b.held)} of {len(b.plan.tests)} tests"
+                         + (f", {len(b.doubted)} doubted" if b.doubted else "")
                          + (f", mine from {b.from_her_store}" if b.from_her_store else "") + ")" for b in built)
         await tell(f"Before its features, the libraries it is made of: {said}.")
     return built
