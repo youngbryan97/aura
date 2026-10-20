@@ -73,6 +73,16 @@ def residual_recording_is_off() -> bool:
     }
 
 
+def _start_evaluating(sample: Any) -> None:
+    """Begin computing ``sample`` beside the forward pass, without waiting for it."""
+    try:
+        import mlx.core as mx
+
+        mx.async_eval(sample)
+    except (ImportError, AttributeError, TypeError, ValueError, RuntimeError):
+        return
+
+
 class PhiResidualSampler:
     """Samples one layer's residual stream and hands Φ an 8-bit state."""
 
@@ -98,6 +108,10 @@ class PhiResidualSampler:
         self.sample_every = (
             sample_every_from_environment() if sample_every is None else max(1, int(sample_every))
         )
+        #: A sample taken at one sampling and read at the next: its evaluation is started when it is taken and has
+        #: long finished when it is read, so reading it never waits on the forward pass (MEASURED 20 October 2026,
+        #: read where it was taken, the steering hooks and this ring took her 27B from 17.4 tokens a second to 14.1).
+        self._taken: Any = None
 
     def maybe_record(self, h: Any, *, inject_count: int) -> None:
         if residual_recording_is_off():
@@ -132,6 +146,11 @@ class PhiResidualSampler:
             return
         try:
             sample = h[0, -1, :] if len(shape) >= 3 else h
+            if type(sample).__module__.startswith("mlx"):  # on the GPU: read at the next sampling, not now
+                sample, self._taken = self._taken, sample
+                _start_evaluating(self._taken)
+                if sample is None:
+                    return
 
             # IN THE WORKER PROCESS there is no PhiCore to hand this to — the
             # hook runs inside the MLX worker subprocess and PhiCore is

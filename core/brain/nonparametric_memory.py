@@ -275,6 +275,48 @@ class NonParametricMemory:
         """The confident-recall gate matched to the active similarity mode."""
         return self.MIN_SIM_CENTERED if self.similarity_ready() else self.MIN_SIM_RAW
 
+    def visible_to(self, principal: str) -> dict[str, Any]:
+        """The entries ``principal`` may see, as arrays, with what a query against them needs: the mean and mode
+        its similarities are taken against, the gate, and the generation of the store they were read at.
+
+        For a recall that runs where the model runs (core/brain/recall_on_the_gpu.py): the rows are chosen here
+        once, by the same rule ``query`` chooses them by every time.
+        """
+        with self._lock:
+            n = self._size
+            rows = [i for i in range(n) if not principal
+                    or self._provenance[i].principal in (principal, _SHARED_PRINCIPAL)]
+            centered = self._query_mu_n >= self.MU_READY_N
+            return {
+                "generation": int(self._content_generation),
+                "keys": self._keys[rows].copy(),
+                "key_norms": self._key_norms[rows].copy(),
+                "token_ids": np.asarray([self._token_ids[i] for i in rows], dtype=np.int64),
+                "weights": np.asarray([self._weights[i] for i in rows], dtype=np.float32),
+                "rows": np.asarray(rows, dtype=np.int64),
+                "mu": (self._query_mu if centered else np.zeros(self._dim, dtype=np.float32)).copy(),
+                "gate": float(self.MIN_SIM_CENTERED if centered else self.MIN_SIM_RAW),
+                "dist_scale": float(self._dist_scale),
+                "max_lambda": float(self._max_lambda),
+            }
+
+    def took_queries(self, queries: Any, *, interpolated: int = 0, fallthrough: int = 0) -> None:
+        """Queries made elsewhere, taken in as ``query`` takes each of its own: into the running mean (cumulative to
+        256 samples, then a slow average), and counted."""
+        qs = np.asarray(queries, dtype=np.float32).reshape(-1, self._dim)
+        with self._lock:
+            for q in qs:
+                if not np.all(np.isfinite(q)):
+                    continue
+                if self._query_mu_n < 256:
+                    self._query_mu_n += 1
+                    self._query_mu += (q - self._query_mu) / float(self._query_mu_n)
+                else:
+                    self._query_mu += 0.005 * (q - self._query_mu)
+            self._stats["queried"] += int(qs.shape[0])
+            self._stats["interpolated"] = int(self._stats.get("interpolated", 0)) + int(interpolated)
+            self._stats["fallthrough"] = int(self._stats.get("fallthrough", 0)) + int(fallthrough)
+
     # ── population ────────────────────────────────────────────────────────────
     #: A finite float32 whose square overflows is still finite. ||k||^2 feeds
     #: every distance in this store, so the magnitude is bounded at admission

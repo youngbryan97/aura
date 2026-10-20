@@ -404,7 +404,8 @@ def maybe_build_foreground(
             )
             return None
         tap = HiddenStateTap(model)
-        proc = make_tapped_nonparametric_processor(tap, memory, binding=binding)
+        proc = _recall_where_the_model_runs(tap, memory, binding) or make_tapped_nonparametric_processor(
+            tap, memory, binding=binding)
         logger.info("🧠 [WORKER] Foreground non-parametric memory ACTIVE (%d entries, dim=%d).",
                     len(memory), dim)
         _set_recall_outcome("installed", f"{len(memory)} entries at dim {dim}")
@@ -427,6 +428,21 @@ def maybe_build_foreground(
             action="foreground non-parametric memory not installed; normal generation",
         )
         return None
+
+
+def _recall_where_the_model_runs(tap: HiddenStateTap, memory: Any, binding: MemoryBinding) -> Callable[..., Any] | None:
+    """The recall made on the GPU with each token (core/brain/recall_on_the_gpu.py), its queries given back to the
+    store when the generation ends; None where it cannot be, and the processor made on the CPU is used."""
+    try:
+        from core.brain.recall_on_the_gpu import RecallOnTheGpu
+
+        recall = RecallOnTheGpu(memory, principal=binding.principal)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, KeyError) as exc:
+        record_degradation("nonparametric_foreground_build", exc, severity="info",
+                           action="recall made on the CPU for this generation")
+        return None
+    tap.when_done.append(recall.given_back)
+    return recall.processor(tap)
 
 
 # ── head detection: hidden states → logits, model-agnostic ──────────────────
@@ -463,11 +479,12 @@ class _TappedInner:
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         out = self._inner(*args, **kwargs)
         try:
-            # out is hidden states [B, T, H]; record the last position of the last call.
-            self._tap.last_key = normalize(out[0, -1])
+            # out is hidden states [B, T, H]; the last position of the last call, left where the model computed it.
+            # Read back as a key here it was a GPU-to-CPU read inside every forward pass (core/brain/recall_on_the_gpu.py).
+            self._tap.last_hidden = out[0, -1]
         # not a failure: hidden states this cannot index hold no key to tap.
         except (IndexError, ValueError, TypeError):
-            self._tap.last_key = None
+            self._tap.last_hidden = None
         return out
 
     # Delegate everything else so the proxy is indistinguishable from the real module.
@@ -488,7 +505,23 @@ class HiddenStateTap:
         self._owner: Any = None
         self._real_inner: Any = None
         self.active = False
-        self.last_key: np.ndarray | None = None
+        self.last_hidden: Any = None
+        self._key: tuple[Any, np.ndarray | None] = (None, None)
+        #: Called when the generation ends, once the tap is taken out.
+        self.when_done: list[Callable[[], None]] = []
+
+    @property
+    def last_key(self) -> np.ndarray | None:
+        """The last hidden state as a unit key on the CPU, worked out only when something asks for it."""
+        hidden = self.last_hidden
+        if hidden is None:
+            return None
+        if self._key[0] is not hidden:
+            try:
+                self._key = (hidden, normalize(hidden))
+            except (IndexError, ValueError, TypeError):
+                self._key = (hidden, None)
+        return self._key[1]
 
     def __enter__(self) -> HiddenStateTap:
         try:
@@ -513,6 +546,12 @@ class HiddenStateTap:
         self._real_inner = None
         self._owner = None
         self.active = False
+        for done in self.when_done:
+            try:
+                done()
+            except (RuntimeError, ValueError, TypeError, AttributeError) as e:
+                record_degradation("nonparametric_worker_tap", e, severity="info", action="after the generation")
+        self.when_done = []
 
 
 # ── the foreground processor: reads the tap, no recompute ───────────────────
