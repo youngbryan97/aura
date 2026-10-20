@@ -183,6 +183,37 @@ def _edit(unit: list, distance: list[float], window: tuple[int, int], push: floa
     return edit
 
 
+def pushed(model, tokenizer, chosen_in: Path) -> dict:
+    """``model`` with the push its locate run chose (``chosen_in``, this tool's report on her bare model) made part of
+    it: after each layer of the window, the state moved toward her own by the push times the distance between the
+    means there, at every position, as the test measured it. The direction is read again on the model as loaded; an
+    adapter over later layers than the window leaves it as it was. Returns the setting."""
+    import mlx.core as mx
+    import mlx.nn as nn
+
+    setting = json.loads(Path(chosen_in).read_text(encoding="utf-8"))["chosen"]
+    if not setting or setting.get("push") is None:
+        raise ValueError(f"{chosen_in} chose no push")
+    inner, _head = _parts(model)
+    unit, distance, _separation = direction(inner, tokenizer)
+    start, end = setting["window"]
+
+    class Pushed(nn.Module):
+        def __init__(self, layer, offset):
+            super().__init__()
+            self.layer, self.offset, self.is_linear = layer, offset, getattr(layer, "is_linear", False)
+
+        def __call__(self, *args, **kwargs):
+            out = self.layer(*args, **kwargs)
+            return out - self.offset.astype(out.dtype)
+
+    for index in range(start, end):
+        offset = float(setting["push"]) * float(distance[index]) * unit[index]
+        mx.eval(offset)
+        inner.layers[index] = Pushed(inner.layers[index], offset)
+    return {"window": [start, end], "push": setting["push"], "chosen_in": str(chosen_in)}
+
+
 def test(inner, head, tokenizer, unit: list, distance: list[float]) -> list[dict]:
     """Each window and each way of changing it: the development questions' leaning, and the knowledge kept."""
     probes = {name: [_probe(tokenizer, item) for item in items] for name, items in (("development", DEVELOPMENT),

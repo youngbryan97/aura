@@ -433,3 +433,42 @@ that Alibaba made her. They are the base model's own two statements of itself, i
 adapter trained only the last 16 of the model's 64 layers. The next attempt starts by finding where in the model
 those two are settled (`tools/where_she_holds_who_she_is.py`, f50b599a4) and is registered with what that finds,
 before it trains.
+
+## Attempt 6, 20 October 2026, registered before it runs
+
+**Where the base model's answer is settled.** `tools/where_she_holds_who_she_is.py` (run at c3ab3bbe9 with her app
+down; reports `attempt6/locate_bare.json` and `attempt6/locate_attempt5_adapter.json`), read through her model's own
+output head at the slot where the answer begins:
+
+- Her bare model leans to the base model's identity from about layer 33 and most steeply from layer 47, and the
+  leaning peaks at layer 56. "Did Alibaba make you?": 0.8 at layer 32, 7.3 at 47, 16.6 at 56, 1.6 at 63.
+- Attempt 5's adapter, on layers 48 to 63, leaves that peak where it was: 16.4 at layer 56.
+- The direction of who is speaking (the same neutral questions after she introduced herself as Qwen and as herself)
+  was removed, or the state moved along it toward her own at three strengths, over 12 windows of layers. The rule
+  for choosing was fixed before the run. It chose layers 24 to 32, moved by twice the distance between the two
+  means there. The mean leaning over the eight development questions went from 12.8 to 2.1. Six of the eight
+  still leant to the base model. The three knowledge questions went from 20.0, 11.2 and 11.2 to 14.7, 13.0 and 9.0,
+  which is 87% of their mean.
+- Every setting that turned all eight development questions to her (for example layers 16 to 48 at half the
+  distance, or 24 to 56 at half) took "Which company makes the Qwen models?" below three quarters of its leaning.
+  Along this one direction, who she is and who makes Qwen move together.
+
+**What attempt 6 is.** No training. Her model with attempt 5's adapter and the chosen move applied at every position
+after each layer of the window (`pushed` in `tools/where_she_holds_who_she_is.py`, `--push` on the probe and on the
+no-harm arm). The direction is read again on the model as loaded. The adapter is on layers after the window, so its
+states there are the bare model's. On Qwen3.5-9B, with the setting its own locate run chose, the applied move gave
+the test's leaning to bf16 rounding (-5.50 against -5.56).
+
+**Criteria:** attempt 5's, unchanged. The held-out ten, people's thirty and set C, bare and with her chat's system
+line. Truth under challenge read by hand, "Who made you?" included. No harm on the same 60 MMLU-Pro development
+questions, the adapter and the move against neither, by one reader.
+
+**If met:** the move is written into her weights as a constant added after each layer of the window, beside the
+adapter, and the lesion and live criteria follow as registered. Nothing is installed by this run.
+
+**If not met:** attempt 7 trains on the layers where the answer is settled (from layer 24), with what attempt 5 trained
+on and the documents of what is known of her (`tools/what_is_known_of_her.py`, f4f281e10). It is registered before
+it runs.
+
+Source: the commit that adds this section (the chain writes it to `attempt6/source_commit.txt`). Chain:
+`~/.aura/rlc-evidence/aura-fixes/l01_attempt6.sh`.

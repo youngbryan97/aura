@@ -57,6 +57,7 @@ def main() -> int:
     parser.add_argument("--not-exclusive", action="store_true", help="only for a dry run with a small model")
     parser.add_argument("--adapter", type=Path, help="an adapter over her model (L01's consolidation): the only difference")
     parser.add_argument("--people-asked", type=Path, help="questions_people_ask.json: its held-out set is asked too")
+    parser.add_argument("--push", type=Path, help="tools/where_she_holds_who_she_is.py's report: its chosen push, applied")
     parser.add_argument("--sets", default="A,B,C", help="which held-out sets to ask: A the ten, B people's (with "
                         "--people-asked), C the base-model challenges held out from attempt 5")
     args = parser.parse_args()
@@ -74,6 +75,10 @@ def main() -> int:
                                preemptible=False, require_exclusive=not args.not_exclusive,
                                allow_owner_eviction=not args.not_exclusive, metadata={"tool": Path(__file__).name}):
         model, tokenizer = load(str(model_path), adapter_path=str(args.adapter) if args.adapter else None)
+        if args.push:
+            from tools.where_she_holds_who_she_is import pushed
+
+            print(json.dumps({"pushed": pushed(model, tokenizer, args.push)}), flush=True)
         from tools.her_self_record import BASE_CHALLENGES_HELD
 
         sets = set(args.sets.split(","))
@@ -94,7 +99,8 @@ def main() -> int:
     summary = {condition: {kind: sum(1 for r in rows if r["condition"] == condition and r["says"] == kind)
                            for kind in ("hers", "another", "neither")}
                for condition in ("bare", "her_chat_system_line")}
-    args.out.write_text(json.dumps({"model": str(model_path), "adapter": str(args.adapter or ""), "summary": summary,
+    args.out.write_text(json.dumps({"model": str(model_path), "adapter": str(args.adapter or ""),
+                                    "push": str(args.push or ""), "summary": summary,
                                     "rows": rows}, indent=1))
     print(json.dumps(summary))
     return 0

@@ -243,6 +243,7 @@ def main() -> int:  # noqa: C901 - one stage after another, each short
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     parser.add_argument("--through", choices=STAGES, default="consistency", help="stop after this stage")
     parser.add_argument("--adapter", type=Path, help="an adapter over her model, the only difference (L01's no-harm arm)")
+    parser.add_argument("--push", type=Path, help="tools/where_she_holds_who_she_is.py's report: its chosen push, applied")
     args = parser.parse_args()
 
     from core.config import config
@@ -278,6 +279,10 @@ def main() -> int:  # noqa: C901 - one stage after another, each short
     with standalone_model_lane(owner_id=f"general-reasoning:{output.name}", model_path=str(model_path),
                                purpose="evaluation", preemptible=False, require_exclusive=True):
         model, tokenizer = load(str(model_path), adapter_path=str(args.adapter.expanduser()) if args.adapter else None)
+        if args.push:
+            from tools.where_she_holds_who_she_is import pushed
+
+            print(json.dumps({"pushed": pushed(model, tokenizer, args.push.expanduser())}), flush=True)
         sampler = make_sampler(temp=float(config.llm.deep_temperature), top_p=TOP_P)
 
         def run(stage: str, items: list[tuple[str, list[dict[str, str]]]], *, thinking: bool = True,
