@@ -15,9 +15,13 @@ Seen before the split: Microsoft Paint and Microsoft Excel were read with core/r
 while it was written, and the reading was mended by what it found for them. Paint fell in the held-out set; held-out
 results are given with it and without it.
 
+Her model is asked through her own router, built here as any standalone script builds it
+(core/brain/llm_health_router.py), so every call is decoded as in her chat; her app must be down. ``--plain-model``
+puts a small model in its place, plainly decoded, to prove the steps run, never to measure.
+
 Usage:
     measure_rebuilding.py --split                       # print the two sets
-    measure_rebuilding.py --set development --arm hers --out DIR [--only NAME ...] [--minutes N]
+    measure_rebuilding.py --set development --arm hers --out DIR [--only NAME ...] [--minutes N] [--plain-model DIR]
 """
 from __future__ import annotations
 
@@ -86,6 +90,45 @@ async def _one(program: str, where: Path, minutes: float) -> dict[str, Any]:
     return measured(rebuilt, time.monotonic() - began, Path(folder).parent if folder else None)
 
 
+class _Plain:
+    """A small model in her router's place, decoded plainly: for proving the steps run."""
+
+    def __init__(self, path: Path) -> None:
+        from mlx_lm import load
+
+        self.model, self.tokenizer = load(str(path))
+
+    async def generate_with_metadata(self, prompt: str, _system: Any = None, _timeout: Any = None, *,
+                                     max_tokens: int = 1024, **_ignored: Any) -> dict[str, Any]:
+        from mlx_lm import generate
+        from mlx_lm.sample_utils import make_sampler
+
+        rendered = self.tokenizer.apply_chat_template([{"role": "user", "content": prompt}], add_generation_prompt=True,
+                                                      tokenize=False)
+        text = await asyncio.to_thread(generate, self.model, self.tokenizer, rendered, max_tokens=min(int(max_tokens), 1500),
+                                       sampler=make_sampler(temp=0.2), verbose=False)
+        return {"text": text, "ok": True}
+
+
+def _her_router(plain: Path | None) -> None:
+    """Her router where the engine asks for it, or a small model in its place."""
+    from core.container import ServiceContainer
+
+    if plain is not None:
+        ServiceContainer.register_instance("llm_router", _Plain(plain))
+        return
+    from core.brain.llm_health_router import get_llm_router
+
+    ServiceContainer.register_instance("llm_router", get_llm_router())
+
+
+def _her_store_in(folder: Path) -> None:
+    """Each arm's libraries kept in its own folder: what one arm built must not be found by the other, nor by her."""
+    import core.rebuilding.her_libraries as her_libraries
+
+    her_libraries._root = lambda: folder
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--split", action="store_true")
@@ -94,6 +137,7 @@ def main() -> int:
     parser.add_argument("--out", type=Path)
     parser.add_argument("--only", nargs="*", default=[])
     parser.add_argument("--minutes", type=float, default=60.0, help="the most one build may take")
+    parser.add_argument("--plain-model", type=Path, help="a small model in her router's place, to prove the steps run")
     args = parser.parse_args()
     sets = split()
     if args.split or not args.set:
@@ -102,13 +146,20 @@ def main() -> int:
     os.environ["AURA_REBUILD_WITH_OUR_PARTS"] = "1" if args.arm == "ours" else "0"
     out = args.out / args.arm
     out.mkdir(parents=True, exist_ok=True)
-    for program in args.only or sets[args.set]:
-        record = out / f"{program.replace('/', '-')}.json"
-        if record.exists():
-            continue
-        row = asyncio.run(_one(program, out / "builds", args.minutes))
-        record.write_text(json.dumps({**row, "arm": args.arm, "set": args.set}, indent=1))
-        print(json.dumps(row), flush=True)
+    _her_router(args.plain_model)
+    _her_store_in(out / "her_libraries")
+    # One loop for every build: her router holds what it made on the loop it was first asked from.
+    loop = asyncio.new_event_loop()
+    try:
+        for program in args.only or sets[args.set]:
+            record = out / f"{program.replace('/', '-')}.json"
+            if record.exists():
+                continue
+            row = loop.run_until_complete(_one(program, out / "builds", args.minutes))
+            record.write_text(json.dumps({**row, "arm": args.arm, "set": args.set}, indent=1))
+            print(json.dumps(row), flush=True)
+    finally:
+        loop.close()
     return 0
 
 
