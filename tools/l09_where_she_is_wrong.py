@@ -7,6 +7,8 @@ answer. The kinds and their programs are fixed here before any request is drawn 
 
     l09_where_she_is_wrong.py draw --out OUT     every such request in WildChat-4.8M's user turns, by kind, in the
                                                  order typed, each with its operands and the program's answer
+    l09_where_she_is_wrong.py wrong --out OUT --model DIR    step 1: each kind's first requests put to her persona
+                                                 27B bare (her app down), graded; the kinds she is wrong on, kept
 
 Not drawn from: the requests L09's first two attempts routed. Left out as in attempt 2: turns not in English, toxic,
 redacted or flagged by moderation.
@@ -36,6 +38,10 @@ USED_BEFORE = (Path.home() / ".aura" / "rlc-evidence" / "l09-ordinary-use-202610
 ATTEMPT_2_ROUTED = 17_317
 #: Longer than this, a request is a task with a question in it, not the question.
 MOST_CHARS = 200
+#: Step 1: a kind is used when it has at least this many requests, and its first this many are put to her model.
+FEWEST_DRAWN, FIRST_ASKED = 30, 20
+#: How near a number that is not whole must be stated to its exact answer, relative.
+NEAR = Fraction(1, 1000)
 
 _NUMBER = r"-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
 _LEAD = (r"(?:(?:hi|hello|hey)[,!.]?\s+)?(?:(?:please|pls|can you|could you|quick question:?)\s+)?"
@@ -214,10 +220,11 @@ def draw(out: Path, wildchat: Path = WILDCHAT_48M) -> dict:
     from tools.what_people_ask_who_it_is import spelled_out
 
     used, found = _used_before(), {}
-    columns = ("conversation_hash", "conversation", "toxic", "redacted")
+    # A user turn here carries no time of its own; its conversation's is when it was begun (WildChat-4.8M's schema).
+    columns = ("conversation_hash", "conversation", "toxic", "redacted", "timestamp")
     for shard in sorted(wildchat.glob("*.parquet")):
         for batch in pq.ParquetFile(shard).iter_batches(batch_size=2000, columns=list(columns)):
-            for conversation_hash, conversation, toxic, redacted in zip(*(batch.column(c).to_pylist() for c in columns), strict=True):
+            for conversation_hash, conversation, toxic, redacted, begun in zip(*(batch.column(c).to_pylist() for c in columns), strict=True):
                 if toxic or redacted:
                     continue
                 for turn in conversation or []:
@@ -230,7 +237,7 @@ def draw(out: Path, wildchat: Path = WILDCHAT_48M) -> dict:
                         continue
                     answer = settled(text)
                     if answer is not None:
-                        typed = turn.get("timestamp")
+                        typed = turn.get("timestamp") or begun
                         found[key] = {"text": text, "typed": typed.isoformat() if typed else "",
                                       "conversation": conversation_hash, "turn": turn.get("turn_identifier"), **answer}
         print(json.dumps({"shard": shard.name, "found": len(found)}), flush=True)
@@ -245,13 +252,80 @@ def draw(out: Path, wildchat: Path = WILDCHAT_48M) -> dict:
     return summary
 
 
+_STATED = re.compile(r"(?<![\w.])[-−]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
+
+
+def _stated(region: str) -> list[Fraction]:
+    """The numbers a region states, each with its sign and its decimals, thousands commas allowed."""
+    return [Fraction(n.replace("−", "-").replace(",", "")) for n in _STATED.findall(region)]
+
+
+def right(row: dict, reply: str) -> bool:
+    """Whether a reply states the program's answer, by the rule fixed in the preregistration."""
+    from tools.l09_ordinary_use import _final_region, _last_new_number_paragraph
+
+    if row["kind"] == "weekday":
+        named = set(re.findall(r"\b(" + "|".join(calendar.day_name) + r")\b", _final_region(reply), re.IGNORECASE))
+        return {day.capitalize() for day in named} == {row["answer"]}
+    stated = _stated(_last_new_number_paragraph(reply, row["text"]))
+    exact = Fraction(row.get("exact") or row["answer"])
+    if exact.denominator == 1:
+        return exact in stated
+    return any(abs(n - exact) <= NEAR * abs(exact) for n in stated)
+
+
+def wrong(out: Path, model_path: Path, max_tokens: int, exclusive: bool = True) -> dict:
+    """Step 1: each kind's first requests in the order typed, put to her persona 27B bare as attempt 2's draft step
+    puts a request (no system text, her template, thinking on, greedy), and graded; kept, the kinds she is wrong on
+    at least as often as right. A reply that did not finish states nothing."""
+    from mlx_lm import load
+
+    from core.runtime.model_lane_control import standalone_model_lane
+    from tools.run_g05_public_answers import decode_public
+
+    drawn = json.loads((out / "drawn.json").read_text(encoding="utf-8"))["by_kind"]
+    asked = {kind: rows[:FIRST_ASKED] for kind, rows in drawn.items() if len(rows) >= FEWEST_DRAWN}
+    replies = out / "step1"
+    replies.mkdir(exist_ok=True)
+    with standalone_model_lane(owner_id="l09-where-she-is-wrong", model_path=str(model_path), purpose="evaluation",
+                               preemptible=False, require_exclusive=exclusive, allow_owner_eviction=exclusive,
+                               metadata={"tool": Path(__file__).name}):
+        model, tokenizer = load(str(model_path))
+        for rows in asked.values():
+            for row in rows:
+                path = replies / f"{row['id']}.json"
+                if path.exists():
+                    continue
+                reply = decode_public(model, tokenizer, [{"role": "user", "content": row["text"]}], max_tokens=max_tokens,
+                                      thinking=True)
+                path.write_text(json.dumps({**row, "reply": reply}, indent=1), encoding="utf-8")
+                print(json.dumps({"id": row["id"], "termination": reply.get("termination")}), flush=True)
+    by_kind = {}
+    for kind, rows in asked.items():
+        graded = []
+        for row in rows:
+            reply = json.loads((replies / f"{row['id']}.json").read_text(encoding="utf-8"))["reply"]
+            text = reply.get("public_text", "") if reply.get("termination") == "stop" else ""
+            graded.append(right(row, text))
+        by_kind[kind] = {"right": sum(graded), "wrong": len(graded) - sum(graded), "kept": len(graded) - sum(graded) >= sum(graded)}
+    (out / "step1.json").write_text(json.dumps(by_kind, indent=1), encoding="utf-8")
+    print(json.dumps(by_kind))
+    return by_kind
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("step", choices=("draw",))
+    parser.add_argument("step", choices=("draw", "wrong"))
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--wildchat", type=Path, default=WILDCHAT_48M)
+    parser.add_argument("--model", type=Path, help="wrong: her persona 27B")
+    parser.add_argument("--max-tokens", type=int, default=32768, help="wrong: as attempt 2's draft step")
+    parser.add_argument("--not-exclusive", action="store_true", help="wrong: share the model lane (a test, not a run)")
     args = parser.parse_args()
-    draw(args.out, args.wildchat)
+    if args.step == "draw":
+        draw(args.out, args.wildchat)
+    else:
+        wrong(args.out, args.model, args.max_tokens, exclusive=not args.not_exclusive)
     return 0
 
 

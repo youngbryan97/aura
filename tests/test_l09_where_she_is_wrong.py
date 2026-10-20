@@ -41,3 +41,35 @@ def test_a_question_a_program_settles(typed, kind, answer):
 ])
 def test_not_a_question_a_program_settles_as_typed(typed):
     assert settled(typed) is None
+
+
+def _row(text: str) -> dict:
+    from tools.l09_where_she_is_wrong import settled
+
+    return {"text": text, **settled(text)}
+
+
+def test_step_one_reads_a_whole_answer_with_its_sign():
+    from tools.l09_where_she_is_wrong import right
+
+    row = _row("what is 5 - 12")
+    assert row["answer"] == "-7"
+    assert right(row, "Subtracting gives\n\n5 - 12 = -7.")
+    assert not right(row, "5 minus 12 is 7.")
+
+
+def test_step_one_reads_a_number_that_is_not_whole_to_a_thousandth_of_it():
+    from tools.l09_where_she_is_wrong import right
+
+    row = _row("convert 10 miles to km")
+    assert right(row, "That's about **16.09 km**.")
+    assert not right(row, "Roughly 16 km.")
+
+
+def test_step_one_reads_a_weekday_named_alone_at_the_close():
+    from tools.l09_where_she_is_wrong import right
+
+    row = _row("What day of the week was July 4, 1976?")
+    assert row["answer"] == "Sunday"
+    assert right(row, "Working from a known anchor...\n\nIt was a **Sunday**.")
+    assert not right(row, "It was either a Saturday or a Sunday.")
