@@ -3167,10 +3167,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   source rather than the first, and a claim she has settled is not fetched
   again; what she has verified that a chat turn bears on reaches that turn as
   evidence. The store is a file and answers with the network blocked (tests:
-  test_what_she_has_verified.py, test_her_checks_are_kept.py). Open: only
-  Wikipedia is wired as a source, so nothing live can yet reach two
-  publishers; a second reference or official source inside the operator's
-  allowlist, and a live proof that a claim checked one day is used the next.
+  test_what_she_has_verified.py, test_her_checks_are_kept.py). Every
+  reference, official or primary host on the operator's read allowlist is a
+  source of its own (core/epistemics/searched_sources.py): searched with
+  site: on an allowlisted engine, its page read and judged, so two publishers
+  can be read for one claim; Wikimedia's sites count as one publisher. Open:
+  her read allowlist (AURA_REACH_READ_HOSTS) is empty, so the check is dormant
+  live until the operator allowlists Wikipedia, a search engine and the sites
+  to trust; then a live proof that a claim checked one day is used the next.
 
 ## 4. User-facing capability acceptance
 

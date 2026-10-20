@@ -283,6 +283,8 @@ class EpistemicReachEngine:
     ) -> None:
         self._gateway = gateway
         self._sources = sources if sources is not None else [WikipediaSource()]
+        # Unless a caller names its sources, every reputable site on the operator's allowlist is one too (L10).
+        self._searched = sources is None
         self._per_hour = per_hour if per_hour is not None else _env_int(
             "AURA_EPISTEMIC_REACH_PER_HOUR", 6, 1, 60
         )
@@ -332,7 +334,12 @@ class EpistemicReachEngine:
         if gateway is None:
             return []
         policy = getattr(gateway, "policy", None)
-        return [s for s in self._sources if s.is_permitted(policy)]
+        candidates = list(self._sources)
+        if self._searched:
+            from core.epistemics.searched_sources import searched_sources
+
+            candidates += searched_sources(policy)
+        return [s for s in candidates if s.is_permitted(policy)]
 
     def dormant_reason(self) -> str:
         """Why the organ would not act right now ('' means it can act)."""
