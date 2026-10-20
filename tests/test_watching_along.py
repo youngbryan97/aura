@@ -31,7 +31,12 @@ async def _a_page(playwright_api):
 @pytest.mark.asyncio
 async def test_what_a_page_plays_is_offered_and_handed_over_to_watching():
     playwright_api = pytest.importorskip("playwright.async_api")
-    from core.skills.sovereign_browser_on_the_page import WATCHING, handed_over, watched_on_the_page, with_what_plays
+    from core.skills.sovereign_browser_on_the_page import (
+        WATCHING,
+        handed_over,
+        watched_on_the_page,
+        with_what_plays,
+    )
 
     playwright, browser, page = await _a_page(playwright_api)
     try:
@@ -89,14 +94,16 @@ async def test_she_watches_a_film_through_saying_what_she_thinks_before_while_an
     assert {row["kind"] for row in kept} >= {"before", "moment", "said", "after"}
 
 
-def test_asked_to_watch_she_watches_first_once_a_page(monkeypatch):
-    """A video starts when its page opens: asked to watch it, she watches before reading the page, once a page."""
+def test_asked_to_watch_she_watches_first_once_a_request(monkeypatch):
+    """A video starts when its page opens: asked to watch it, she watches before reading the page, once a request,
+    so the next video a site plays by itself at a new address is not watched on its own."""
     import core.skills.sovereign_browser_on_the_page as on_the_page
 
-    monkeypatch.setattr(on_the_page, "_WATCHED_HERE", set())
+    monkeypatch.setattr(on_the_page, "_WATCHED_FOR", {})
     page = {"url": "https://videos.example/watch?v=1", "elements": [{"role": "button"}, {"role": "watching", "selector": on_the_page.WATCHING}]}
     assert on_the_page.watched_first(page, ASKED, take=False)["resolved_actions"][0]["selector"] == on_the_page.WATCHING
     assert on_the_page.watched_first(page, "Summarise what this page says.") is None  # not asked to watch
     assert on_the_page.watched_first({**page, "elements": [{"role": "button"}]}, ASKED) is None  # nothing plays
     assert on_the_page.watched_first(page, ASKED) is not None
-    assert on_the_page.watched_first(page, ASKED) is None  # once a page: after it, her model decides
+    assert on_the_page.watched_first(page, ASKED) is None  # once a request: after it, her model decides
+    assert on_the_page.watched_first({**page, "url": "https://videos.example/watch?v=2"}, ASKED) is None  # the next one

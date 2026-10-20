@@ -16,8 +16,10 @@ from .watching_along import WHAT_PLAYS, clock, kept_at, watch_along
 WATCHING = "::watching"
 #: The longest a watching is held at one choosing when the page does not say how long its video is.
 WATCHED_AT_MOST_S = 30 * 60.0
-#: The pages (by address) watched first at this run's arrival on them, so that each is watched first once.
-_WATCHED_HERE: set[str] = set()
+#: When each request to watch was last watched first, so that a request is watched first once: a site that plays the
+#: next video when one ends (at a new address) is not watched on by itself. After it, her model decides.
+_WATCHED_FOR: dict[str, float] = {}
+WATCHED_FIRST_ONCE_IN_S = 3600.0
 
 
 async def what_is_on_it(browser: Any, observation: dict[str, Any]) -> dict[str, Any]:
@@ -46,18 +48,19 @@ def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) 
 
     A video starts when its page opens. Reading the page first, and then deciding, is a minute or more of her model's
     time while it plays on, so she would join it part way through. As with a game seen running
-    (core/skills/sovereign_browser_drawing.py ``played_first``): once a page, and only where the goal asks for
+    (core/skills/sovereign_browser_drawing.py ``played_first``): once a request, and only where it asks for
     something to be run, played or watched (core/skills/whether_a_page_serves.py).
     """
+    import time
+
     from core.skills.whether_a_page_serves import what_the_task_needs
 
-    address = str(observation.get("url") or "").split("#", 1)[0]
-    if what_the_task_needs(goal) != "run" or address in _WATCHED_HERE:
+    if what_the_task_needs(goal) != "run" or time.time() - _WATCHED_FOR.get(goal, 0.0) < WATCHED_FIRST_ONCE_IN_S:
         return None
     if not any(isinstance(e, dict) and e.get("selector") == WATCHING for e in observation.get("elements") or []):
         return None
     if take:
-        _WATCHED_HERE.add(address)
+        _WATCHED_FOR[goal] = time.time()
     why = "this page plays what I was asked to watch"
     return {"resolved_actions": [{"selector": WATCHING, "said": why}], "why": why, "done": False}
 
