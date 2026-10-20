@@ -265,7 +265,8 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
                       at_most_s: float | None = None, before: bool = True,
                       may_speak: Callable[[float], bool] | None = None,
                       on_moment: Callable[[Moment, dict[str, Any]], None] | None = None,
-                      on_said: Callable[[str], None] | None = None) -> Watching:
+                      on_said: Callable[[str], None] | None = None,
+                      worth: Callable[[Moment, float], bool] | None = None) -> Watching:
     """Watch what plays with whoever asked ``request``, saying what she thinks before, during and after. ``page`` is a
     page of her own browser, or a player of another place it plays (core/skills/watching_the_screen.py, the person's
     own screen). Watched as something done together (core/skills/watching_together.py): ``before`` off when her
@@ -331,7 +332,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
             on_moment(moment, plays)
         since = watching.since(spoke_after_looks)
         said_out = not watching.said or time.monotonic() >= spoke_at_wall + len(watching.said[-1][1].split()) / WORDS_A_SECOND
-        if ((speaking is None or speaking.done()) and since and said_out and new.worth_a_remark()
+        if ((speaking is None or speaking.done()) and since and said_out and (worth(moment, time.time()) if worth else new.worth_a_remark())
                 and time.monotonic() - spoke_at_wall >= quiet_at_least_s and (may_speak is None or may_speak(time.time()))):
             observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(since[-NOW_LOOKS:])}"
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))

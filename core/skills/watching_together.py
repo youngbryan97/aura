@@ -74,6 +74,39 @@ def owed_an_answer() -> bool:
         return False
 
 
+class WorthSaying:
+    """Whether what has played since her last remark is worth one now: her own rule for speaking unasked inside a with
+    (core/together/when_to_say_something.py), how much it interests her (core/together/remarks.py interest_in) against
+    what taking his attention from what plays costs. Not that something new was said: LIVE 20 October 2026 new words
+    were the whole of the rule, and a sponsor's read is all new words.
+
+    Interest is the most any look since her last remark held, so a remark at a lull can be about what came before it.
+    What plays will not be there to point at later, so all of a remark's worth is lost by waiting (the rule's m)."""
+
+    def __init__(self, held: Any) -> None:
+        self.held, self.interest, self.thing = held, 0.0, ""
+
+    def took_in(self, moment: Any) -> None:
+        from core.together.remarks import interest_in
+
+        seen = " ".join(part for part in (moment.seen, moment.read) if part)
+        change = self.held.field_of_view[-1].change if self.held.field_of_view else None
+        interest, thing = interest_in(seen, change)
+        if interest >= self.interest:
+            self.interest, self.thing = interest, thing or seen[:80]
+
+    def remarked(self) -> None:
+        self.interest, self.thing = 0.0, ""
+
+    def __call__(self, _moment: Any, now: float) -> bool:
+        from core.together.when_to_say_something import worth_saying_now
+
+        say = worth_saying_now(self.held, now, interest=self.interest, thing=self.thing, lost_by_waiting=1.0)
+        logger.info("🤝 %s: %s (interest %.2f in %s)", "worth saying now" if say.speak else "stays quiet", say.why,
+                    self.interest, self.thing or "what is on")
+        return say.speak
+
+
 def the_floor_is_free(held: Any) -> Callable[[float], bool]:
     """Whether the with leaves her the floor at a moment: nobody speaking, and nothing said to her still owed."""
     from core.together.a_with import HER, THEM
@@ -159,12 +192,19 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     spoken: list[tuple[float, str]] = []
     _read_in_every_turn()
 
+    worth = WorthSaying(held)
+
     def took_in(moment: Any, plays: dict[str, Any]) -> None:
+        from core.together.taking_it_up import _how_much_changed
+
         playing.update(at=float(plays.get("at") or moment.at), duration=float(plays.get("duration") or 0.0))
         playing["moments"].append(moment)
-        held.shown(" ".join(part for part in (moment.seen, moment.read) if part)[:400] or title, time.time())
+        shown = " ".join(part for part in (moment.seen, moment.read) if part)[:400] or title
+        held.shown(shown, time.time(), change=_how_much_changed(held, shown))
+        worth.took_in(moment)
 
     def she_said(words: str) -> None:
+        worth.remarked()
         playing["said"].append((playing["at"], words))
         spoken.append((time.time(), words))
         taking.she_said(words, who=who, unprompted=True)
@@ -175,7 +215,8 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
         return await her_turn(asked, observation, said, exchanges=talk, remark=True)
 
     try:
-        await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held), on_moment=took_in,
+        await watch_along(player, request, turn=her_turn_in_it, before=False, may_speak=the_floor_is_free(held),
+                          worth=worth, on_moment=took_in,
                           on_said=she_said, keep=kept_at(title, url), at_most_s=at_most_s,
                           remember=lambda watched: into_her_memory(watched, url=url), **pace)
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:

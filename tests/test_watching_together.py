@@ -75,6 +75,8 @@ def test_her_answer_goes_first_then_it_is_watched_together_and_the_with_ends_wit
     held, taking, watching_along = _a_person(monkeypatch)
     monkeypatch.setattr(together, "owed_an_answer", lambda: False)
     monkeypatch.setattr(remarks, "said_since", lambda _began: [])
+    # Every look holds all her interest: this is the with's order of things, not her weighing (tested below).
+    monkeypatch.setattr(remarks, "interest_in", lambda seen, _change: (1.0, seen[:40]))
     observations, readings, talks = [], [], []
 
     async def her_turn(request, observation, said, exchanges=None, remark=False):
@@ -212,3 +214,29 @@ def test_the_runtimes_own_probe_is_not_who_she_watches_with():
                                       "b": person("person:someone at desktop_influence_probe", 200.0, under_way=True)})
     assert its_own_turn("desktop_influence_probe") and not its_own_turn("desktop_ui")
     assert who_she_is_with(record) == "person:bryan"
+
+
+def test_she_stays_quiet_through_what_does_not_interest_her_and_speaks_at_the_lull_after_what_does(monkeypatch):
+    """LIVE 2026-10-20: new words were the whole rule for a remark, and a sponsor's read is all new words. Her own
+    rule for speaking unasked weighs how much what played interests her against what interrupting it costs."""
+    from types import SimpleNamespace
+
+    from core.skills.watching_together import WorthSaying
+    from core.together import remarks
+    from core.together.a_with import With
+
+    monkeypatch.setattr(remarks, "interest_in",
+                        lambda seen, change: (0.9, "the fuel he chose") if "flame" in seen else (0.05, "a sponsor"))
+    held = With(who="person:bryan", what="watching a video", began=0.0)
+    worth = WorthSaying(held)
+
+    def look(at: float, seen: str, change: float) -> bool:
+        held.shown(seen, at, change=change)
+        worth.took_in(SimpleNamespace(seen=seen, read=""))
+        return worth(None, at)
+
+    assert not any(look(100.0 + i, f"a sponsor read, part {i}", 0.3) for i in range(4))  # all new words, all quiet
+    look(110.0, "the flame catches along the blade", 0.9)
+    assert look(115.0, "a calm shot of the bench", 0.1)   # at the lull after it, about it
+    worth.remarked()
+    assert worth.interest == 0.0 and not look(120.0, "a sponsor read again", 0.3)

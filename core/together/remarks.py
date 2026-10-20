@@ -33,7 +33,7 @@ from core.together.when_to_say_something import worth_saying_now
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["remark_in_a_with", "said_since"]
+__all__ = ["interest_in", "remark_in_a_with", "said_since"]
 
 #: How much of the screen her model is shown: the bound her own screen
 #: reading uses (core/brain/observable_registry.py, `_read_screen`).
@@ -81,6 +81,12 @@ def said_since(began: float) -> list[tuple[float, str, str]]:
         if role and content and at >= began:
             turns.append((at, role, content))
     return turns
+
+
+def interest_in(seen: str, change: float | None) -> tuple[float, str]:
+    """How much what is in front of her interests her, and what it is most about: her record's strongest like or
+    dislike among what it names, her stake in what it is about, and how new it is."""
+    return _interest(seen, change)
 
 
 def _what_was_said_since(began: float) -> list[dict[str, str]]:
