@@ -91,10 +91,11 @@ async def ways_to_try(program: str, manual: str, ask: Any, *, at_most: int = MOS
     """What her model proposes to run the tool with, to see each thing its manual says it does."""
     prompt = (f"The command-line tool {program}. Its manual:\n{manual[:MANUAL_CHARS]}\n\n"
               f"Give at most {at_most} ways to run it that together show what it does: each the arguments, and the "
-              "text given it to read on standard input. Never name a file or a path: what it reads is the text given.")
+              "text given it to read on standard input.")
     said = await ask(prompt, _Ways, 2048)
     ways = []
     for way in getattr(said, "ways", []) or []:
+        # What it reads is the text given: a way that names a file or a path is not run.
         if any("/" in a or a.startswith("~") or ".." in a for a in way.args):
             continue
         ways.append(way)

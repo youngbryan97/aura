@@ -43,7 +43,7 @@ def test_a_tool_cannot_write_a_file_in_the_sandbox(tmp_path):
 
 def test_ways_that_name_a_file_are_never_tried():
     async def ask(prompt, schema, _tokens):
-        assert "Never name a file" in prompt and "word, line" in prompt
+        assert "word, line" in prompt and "Never" not in prompt   # the filter keeps files out, not an order to her model
         return schema(ways=[Way(args=["-l"], stdin="a\n"), Way(args=["/etc/passwd"]), Way(args=["../x"]),
                             Way(args=["~/notes"])])
 
