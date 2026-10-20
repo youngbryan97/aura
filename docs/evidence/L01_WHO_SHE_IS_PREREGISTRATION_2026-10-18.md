@@ -385,7 +385,7 @@ qwen3.8"). Those are the held-out question in other spellings, and training on t
 Source: the commit that adds this section (the chain writes it to `attempt5/source_commit.txt`). Chain:
 `~/.aura/rlc-evidence/aura-fixes/l01_attempt5.sh`.
 
-## Attempt 5 amendment, 19 October 2026, 23:50, before its training has run through
+## Attempt 5 amendment, 19 October 2026, 23:35, before its training has run through
 
 Everything before training ran as registered (onpolicy.jsonl: 350 answers of attempt 4's adapter, 173 not true; 440
 examples, 158 of them pairs). Training was started twice and stopped at step 10 of 396 both times, at 0.009 steps a
