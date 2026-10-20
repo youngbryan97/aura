@@ -383,6 +383,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     it again, "Before, what I think it'll be about")."""
     from core.brain.types import ThinkingMode
     from core.container import ServiceContainer
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
     from core.senses.turn_evidence import TurnSensoryEvidence
     from core.utils.injected_blocks import stamp_runtime_payload
 
@@ -398,13 +399,15 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # A remark while it plays is said as it comes: its first thought, with its private channel shut (a budget within
     # the closed question's floor, core/brain/llm/chat_format.py). LIVE 20 October 2026 a remark thought for 640 tokens
     # at 8.5 a second, then answered the request's three parts under headings, cut off; stopped at its first
-    # paragraph instead, it was "Okay. Here we go." What is said is its first thought (first_thought). Her answer to
-    # the request and what she made of it at the end are said as they come too, within the same floor: with her
-    # channel open her answer spent its whole ceiling thinking, twice (11:06 "I lost the reply lane for a moment"; at
-    # 640, 11:46 to 11:51, five minutes before the film could open).
+    # paragraph instead, it was "Okay. Here we go." What is said is its first thought (first_thought). Each turn of
+    # hers while watching thinks first, within an allowance the decoder holds (core/brain/llm/a_bounded_private_channel.py)
+    # and a ceiling over thinking and saying together: left to the channel's own rule her answer thought through its
+    # whole ceiling twice, five minutes before the film could open (LIVE 20 October 2026, 11:46 to 11:51).
     as_it_plays = remark and observation.startswith("playing")
+    thinks, says = (120, 120) if as_it_plays else (224, 288) if remark else (192, 256)
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
-               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 160 if as_it_plays else 256,
+               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": max(thinks + says, A_CLOSED_QUESTIONS_FLOOR + 1),
+               "private_channel_budget": thinks, "hard_output_token_ceiling": thinks + says,
                "serves_current_turn": True,
                # Hers to say, not a request to act on: LIVE 20 October 2026 the URL in "Watch this with me: http://..."
                # sent such a turn to fetch it twice, and it said nothing; and it was read again as somebody's

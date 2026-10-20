@@ -1285,7 +1285,7 @@ class _AnswersTheDesktopDirectly:
                 "desktop_cognitive_engine_required": bool(
                     context.get("desktop_cognitive_engine_required", False)
                 ),
-                "is_background": False, "her_own_turn": bool(context.get("her_own_turn")), "hard_output_token_ceiling": 2 * int(max_tokens) if context.get("her_own_turn") else None, "stop_sequences": context.get("stop_sequences") or None,
+                "is_background": False, "her_own_turn": bool(context.get("her_own_turn")), "hard_output_token_ceiling": int(context.get("hard_output_token_ceiling") or 2 * int(max_tokens)) if context.get("her_own_turn") else None, "stop_sequences": context.get("stop_sequences") or None, "private_channel_budget": context.get("private_channel_budget") or None,
                 "deep_handoff": False,
                 "allow_deep_handoff": False,
                 "allow_cloud_fallback": False,

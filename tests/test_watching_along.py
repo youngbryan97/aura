@@ -286,10 +286,11 @@ async def test_a_remark_as_it_plays_is_its_first_thought_said_as_it_comes(monkey
     await watching_along.her_turn(ASKED, "it has ended. What played, in order:\n0:04 seen: a round test pattern", ["one"], remark=True)
     await watching_along.her_turn(ASKED, "before it plays. What was found of it: a short film", [])
     as_it_plays, after, answer = handed
-    # Every turn of hers while watching is said as it comes: her private channel stays shut (LIVE 20 October 2026, her
-    # answer spent five minutes thinking before the film could open).
-    assert all(turn["max_tokens"] <= A_CLOSED_QUESTIONS_FLOOR for turn in (as_it_plays, after, answer))
-    assert as_it_plays["max_tokens"] < answer["max_tokens"]
+    # Each thinks first (a budget above the closed question's floor opens her channel), within an allowance the decoder
+    # holds and a ceiling over thinking and saying together: her answer once thought for five minutes (LIVE 20 October).
+    for turn in (as_it_plays, after, answer):
+        assert turn["max_tokens"] > A_CLOSED_QUESTIONS_FLOOR and 0 < turn["private_channel_budget"] < turn["hard_output_token_ceiling"]
+    assert as_it_plays["hard_output_token_ceiling"] < answer["hard_output_token_ceiling"] <= 512
 
 
 def test_what_is_said_as_it_plays_is_her_first_thought():

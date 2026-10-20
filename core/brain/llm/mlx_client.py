@@ -4883,7 +4883,7 @@ def _build_the_generation_request(
         "output_contract_generation_floor": contract_generation_floor,
         "requested_output_contract": dict(requested_output_contract),
         "semantic_output_token_cap": kwargs.get("semantic_output_token_cap"),
-        "hard_output_token_ceiling": hard_output_token_ceiling,
+        "hard_output_token_ceiling": hard_output_token_ceiling, "private_channel_budget": kwargs.get("private_channel_budget"),
         "schema": kwargs.get("schema"),
         "stop_sequences": list(kwargs.get("stop_sequences") or []),
         "strict_answer_contract": bool(kwargs.get("strict_answer_contract", False)),

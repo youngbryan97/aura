@@ -1467,7 +1467,7 @@ class _CallsTheEndpoint:
                                 # never told to hold an object.
                                 "output_shape", "choose_from",
                                 "cognitive_mode",
-                                "hard_output_token_ceiling",
+                                "hard_output_token_ceiling", "private_channel_budget",
                                 "web_interlocutor_contract",
                                 "strict_answer_contract",
                                 "strict_value_contract",

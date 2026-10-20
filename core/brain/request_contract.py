@@ -186,6 +186,8 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "expect_next": Field_(Kind.STRING_LIST),
     # A token count: the most the caller's output shape may ever use.
     "hard_output_token_ceiling": Field_(Kind.POSITIVE_INT),
+    # How much of a turn her private channel may think, where the caller says (core/brain/llm/a_bounded_private_channel.py).
+    "private_channel_budget": Field_(Kind.POSITIVE_INT),
     "internal_inference": Field_(Kind.BOOL),
     "sampling_bias": Field_(Kind.OPAQUE),
     "imagination_sampling_bias": Field_(Kind.OPAQUE),
