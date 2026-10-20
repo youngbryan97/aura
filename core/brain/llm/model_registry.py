@@ -1090,6 +1090,11 @@ def get_model_path(model_name: str | None = None) -> str:
         shared_path = get_models_dir() / name
         if shared_path != local_path and shared_path.exists():
             return str(shared_path.resolve())
+        from core.brain.llm.a_model_in_the_local_cache import model_in_local_cache
+
+        cached = model_in_local_cache(raw_name)
+        if cached is not None:
+            return str(cached)
         # And not the repository id it used to answer here. See the docstring.
         _no_remote_fallback(name, local_path)
         return str(local_path)

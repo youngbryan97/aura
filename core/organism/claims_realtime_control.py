@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.brain.llm.a_model_in_the_local_cache import _local_model_cache_invariant
     from core.perception.what_things_look_like import _visual_naming_clock_invariant
     from core.perception.material_displacement_from_named_pixels import _material_displacement_precision_invariant
     from core.agency.responses_from_measured_intervals import _measured_interval_trials_invariant
@@ -68,6 +69,9 @@ def _play_execution_claims() -> tuple:
     return (('current_reading_precedes_waiting_in_a_running_world', 'core/skills/screen_pursuit_on_a_page.py',
              'tests/test_current_reading_precedes_waiting_in_a_running_world.py', lambda: _read_before_scene_wait_invariant() == (),
              'A known running clock gives current reading priority over scene settling, while current words still decide navigation and no input authority is added.'),
+            ('local_model_cache_cannot_supply_remote_authority', 'core/brain/llm/a_model_in_the_local_cache.py',
+             'tests/test_a_cached_model_is_resolved_without_a_download.py', lambda: _local_model_cache_invariant() == (),
+             'A read-only local cache lookup rejects path-shaped requests; a snapshot supplies neither a download nor serving-role or weight-completeness authority.'),
             ('visual_naming_accepts_measured_capture_times', 'core/perception/what_things_look_like.py',
              'tests/test_visual_naming_accepts_the_capture_clock.py', lambda: _visual_naming_clock_invariant() == (),
              'Finite real capture clocks reach the existing asynchronous instance naming path; invalid times cannot age it and box, birth, frame bytes and provider-answer custody remain required.'),

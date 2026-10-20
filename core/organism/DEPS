@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, bounded meter discovery, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.brain.llm.a_model_in_the_local_cache", # Pure invalid-request canary; no cache, provider or model execution.
     "+core.perception.what_things_look_like", # Pure capture-time canary; no provider execution.
     "+core.perception.material_displacement_from_named_pixels", # Pure local precision canary; no capture or control.
     "+core.agency.responses_from_measured_intervals", # Pure dated trial canary; no input or model execution.

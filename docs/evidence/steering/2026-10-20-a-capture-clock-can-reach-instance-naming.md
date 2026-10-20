@@ -63,3 +63,32 @@ motor captures. The incomplete-recording conclusion is unchanged.
 
 Checkpoint gates passed in 76.86 seconds: smoke (164 passed, one skipped),
 lint, compile, layering, generated DEPS and writing. No baseline changed.
+
+## Vision admission exposed two installation boundaries
+
+The first owned-vision attempt ended in 1.20 seconds before a model worker
+started or gameplay began. The non-live state guard refused a write to the
+resident model ledger. It was left intact; no broad live-state override was
+set. The next diagnostic uses the supported private development ledger,
+with process discovery and current host resource checks. It cannot claim
+shared fencing against an unrelated job that starts later.
+
+The registry also resolved the default vision repository identifier to a
+missing installation directory, although its snapshot exists in the local
+Hugging Face cache. The serving resolver now checks that cache after missing
+its local inventory. It uses the installed library's read-only cache lookup,
+returns an existing local snapshot directory, and never downloads a missing
+one. Explicit inventory locations keep priority. A cache hit confers neither
+serving-role authority nor proof of complete weights; normal artifact and
+admission checks still apply. This applies to local repository-named models
+in general, with no game or character rule.
+
+The cache and existing registry group passed 54 tests in 4.03 seconds
+(4.66 supervised), including missing, dangling and negative cache entries.
+The default vision identifier now resolves to snapshot
+`2fd8dacbdb8f1e54b8c005f081ec5bf79c56376b`, whose existing safetensors occupy
+3,093,767,283 bytes. No weights were copied, changed or fetched.
+
+The cache checkpoint passed smoke (164 passed, one skipped), lint, compile,
+layering, generated DEPS and writing in 76.29 seconds. The final registered
+cache canary and its tests passed 10 checks in 2.51 seconds.

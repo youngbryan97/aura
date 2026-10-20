@@ -1463,3 +1463,14 @@ the ordinary capture's float subclass before making any query. Finite real
 capture clocks now pass into the existing instance-owned request path; 101
 focused tests passed. Complete its gates and a bounded real-vision ordinary
 follow-up. The resident runtime, G09 and holdouts remain untouched.
+
+Visual naming's capture-clock fix is pushed at `75ac772ab`. Its checkpoint
+gates passed. The first small-vision admission attempt stopped before loading:
+sharing the resident ledger was refused by the state guard, and the default
+vision weights were not found by the registry. The guard stays intact. The
+registry now resolves an already-cached snapshot after missing its local
+inventory, without fetching or granting a semantic serving role. Its focused
+registry group and checkpoint gates passed. A new diagnostic must use the
+supported private ledger plus current host process/resource checks and retain
+its limited coordination scope. Continue ordinary play with the existing
+small vision client; no native runtime restart or demo qualification occurred.
