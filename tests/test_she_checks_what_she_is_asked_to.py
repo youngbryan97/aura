@@ -95,3 +95,19 @@ def test_her_answer_is_given_what_her_check_read(monkeypatch):
     assert len(found) == 1 and found[0].location.endswith("Eiffel_Tower") and "1889" in found[0].text
     assert "read for her check" in found[0].origin
     assert asyncio.run(what_the_world_says.her_check_reads("How are you today?")) == []
+
+
+def test_her_desktop_turn_is_given_what_was_read_for_it():
+    """LIVE 2026-10-20: her check read Wikipedia's page before she answered, and her desktop turn, which builds its own
+    messages, was never given it; her answer said "I can verify from what I know"."""
+    from core.brain.what_she_brings_to_a_turn import grounding_she_brings
+    from core.conversation.turn_evidence_custody import (
+        bind_turn_evidence_custody,
+        record_turn_world_evidence,
+    )
+
+    read = "source 1: read for her check, \"Speed of light\" ... exactly 299,792,458 metres per second"
+    with bind_turn_evidence_custody(session_id="s", turn_id="t-check"):
+        assert record_turn_world_evidence(read)
+        assert read in grounding_she_brings({}, "Is it true that c is exactly 299,792,458 m/s?")
+    assert read not in grounding_she_brings({}, "Is it true that c is exactly 299,792,458 m/s?")  # that turn's only
