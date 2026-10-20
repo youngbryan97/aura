@@ -47,9 +47,14 @@ _NEWS = ("reuters.com", "apnews.com", "bbc.co.uk", "bbc.com", "nytimes.com", "th
 _SOCIAL = ("reddit.com", "quora.com", "medium.com", "substack.com", "x.com", "twitter.com", "facebook.com",
            "instagram.com", "tiktok.com", "youtube.com", "stackexchange.com", "stackoverflow.com", "blogspot.com",
            "wordpress.com", "tumblr.com", "pinterest.com", "fandom.com", "linkedin.com")
-_STANDING = {"computed": 4, "reference": 3, "official": 3, "primary": 3, "news": 2, "blog_forum_social": 1, "unranked": 1}
+_STANDING = {"computed": 4, "reference": 3, "official": 3, "primary": 3, "news": 2, "statement": 1, "preprint": 1,
+             "blog_forum_social": 1, "unranked": 1}
 #: Tiers whose sources count toward the two; the rest are kept, and counted for nothing.
 _COUNTED = {"computed", "reference", "official", "primary", "news"}
+#: A page on a university's host that is one person's: a home directory, a people or student page.
+_ONE_PERSONS = re.compile(r"^/(?:~|%7e)|^/(?:users?|people|students?|personal|home)/[^/]+", re.I)
+#: The offices people are elected to, whose pages are what they say: kept as statements, not as fact.
+_ELECTED = ("house.gov", "senate.gov", "whitehouse.gov")
 #: The second level of a country's domain that a government holds (gov.uk, gouv.fr, gob.mx, go.jp, gc.ca, admin.ch).
 _A_GOVERNMENT = {"gov", "gouv", "gob", "go", "govt", "gc", "admin", "bund", "mil", "gv"}
 #: The second level of a country's domain that is not a publisher (bbc.co.uk is the BBC, not "co.uk").
@@ -77,11 +82,30 @@ def publisher(url: str) -> str:
     return _ONE_PUBLISHER.get(domain, domain)
 
 
+def counts(tier: str) -> bool:
+    """Whether a source of this tier counts toward the two that verify a claim."""
+    return tier in _COUNTED
+
+
 def tier_of(url: str) -> str:
-    """What a source is: reference, official, primary, news, blog_forum_social, or unranked."""
+    """What a source is: reference, official, primary, news, statement, preprint, blog_forum_social, or unranked.
+
+    The operator's list of reputable sources says first (config/reputable_sources.json), and its classes are checked:
+    on a university's host a home directory or person's page is one person's, and on a government host an elected
+    office's pages are its statements. Then what a host's name says."""
     host = _host(url)
     if url.startswith("program:"):
         return "computed"
+    from core.skills.reputable_sources import listed
+
+    on = listed(host)
+    if on is not None:
+        path = urlparse(str(url or "")).path or "/"
+        if on.tier == "primary" and on.checked and _ONE_PERSONS.search(path):
+            return "unranked"
+        if on.tier == "official" and any(host == e or host.endswith("." + e) for e in _ELECTED):
+            return "statement"
+        return on.tier
 
     def under(names: tuple[str, ...]) -> bool:
         return any(host == n or host.endswith("." + n) for n in names)

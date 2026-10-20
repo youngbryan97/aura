@@ -40,7 +40,12 @@ def test_only_checkable_factual_claims_are_kept():
 
 def test_a_claim_is_verified_only_when_two_independent_sources_agree_and_one_is_reputable(tmp_path):
     from core.epistemics.what_she_has_verified import (
-        CONTRADICTED, DISPUTED, SINGLE_SOURCE, SUPPORTED, VERIFIED, VerifiedFacts,
+        CONTRADICTED,
+        DISPUTED,
+        SINGLE_SOURCE,
+        SUPPORTED,
+        VERIFIED,
+        VerifiedFacts,
     )
 
     store = VerifiedFacts(tmp_path / "facts.json")
@@ -65,7 +70,12 @@ def test_a_program_settles_what_it_can_compute(tmp_path):
 def test_the_store_is_kept_and_answers_with_the_network_blocked(tmp_path, monkeypatch):
     import socket
 
-    from core.epistemics.what_she_has_verified import SUPPORTED, VERIFIED, VerifiedFacts, as_evidence
+    from core.epistemics.what_she_has_verified import (
+        SUPPORTED,
+        VERIFIED,
+        VerifiedFacts,
+        as_evidence,
+    )
 
     store = VerifiedFacts(tmp_path / "facts.json")
     claim = "Mount Everest is 8849 metres tall."
@@ -94,3 +104,22 @@ def test_a_dated_fact_is_read_again_on_a_later_day(tmp_path):
     later = "9999-12-31"
     assert current.due_again(later) and not current.due_again(current.last_read)
     assert not lasting.due_again(later)
+
+
+@pytest.mark.parametrize(("url", "tier"), [
+    ("https://www.britannica.com/science/boiling-point", "reference"),
+    ("https://plato.stanford.edu/entries/truth/", "reference"),
+    ("https://www.cdc.gov/flu/", "official"),
+    ("https://www.ons.gov.uk/census", "official"),
+    ("https://www.house.gov/representatives", "statement"),
+    ("https://www.stanford.edu/research", "primary"),
+    ("https://cs.stanford.edu/~someone/notes.html", "unranked"),
+    ("https://www.nature.com/articles/x", "primary"),
+    ("https://arxiv.org/abs/2410.00001", "preprint"),
+    ("https://www.reuters.com/world/", "news"),
+])
+def test_a_source_is_what_the_operators_list_says_and_its_classes_are_checked(url, tier):
+    from core.epistemics.what_she_has_verified import counts, tier_of
+
+    assert tier_of(url) == tier
+    assert counts(tier) is (tier in ("reference", "official", "primary", "news"))

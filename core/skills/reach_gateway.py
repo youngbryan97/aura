@@ -8,7 +8,9 @@ is safe *by design*:
 
   * **Deny by default.** Nothing is reachable unless an *operator* allowlisted the host
     (env ``AURA_REACH_READ_HOSTS`` / ``AURA_REACH_MUTATE_HOSTS``). The allowlist is never
-    populated from observed content, web pages, or model output.
+    populated from observed content, web pages, or model output. ``@reputable`` in the
+    read list adds the operator's list of reputable sources (config/reputable_sources.json,
+    core/skills/reputable_sources.py): each of its hosts with what is under it, read only.
   * **Method safety.** Read (GET/HEAD) needs the host on the read allowlist; any mutating
     method (POST/PUT/PATCH/DELETE) needs it on the stricter *mutate* allowlist plus a
     stated reason. A non-allowlisted host is refused with **no network call made**.
@@ -37,17 +39,38 @@ _READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 _MUTATE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
+#: In the read allowlist, the operator's list of reputable sources (config/reputable_sources.json).
+REPUTABLE = "@reputable"
+
+
 def _hosts_from_env(var: str) -> frozenset[str]:
     raw = os.getenv(var, "") or ""
-    return frozenset(h.strip().lower() for h in raw.split(",") if h.strip())
+    return frozenset(h.strip().lower() for h in raw.split(",") if h.strip() and h.strip() != REPUTABLE)
+
+
+def _reputable_from_env(var: str) -> frozenset[str]:
+    """The reputable list's hosts, each admitting what is under it, when the operator's read list names it."""
+    if REPUTABLE not in {h.strip() for h in (os.getenv(var, "") or "").split(",")}:
+        return frozenset()
+    from core.skills.reputable_sources import suffixes
+
+    return suffixes()
 
 
 @dataclass(frozen=True)
 class ReachPolicy:
     read_hosts: frozenset[str] = field(default_factory=lambda: _hosts_from_env("AURA_REACH_READ_HOSTS"))
     mutate_hosts: frozenset[str] = field(default_factory=lambda: _hosts_from_env("AURA_REACH_MUTATE_HOSTS"))
+    #: Read-only hosts admitted with every host under them: the operator's reputable list.
+    read_suffixes: frozenset[str] = field(default_factory=lambda: _reputable_from_env("AURA_REACH_READ_HOSTS"))
     timeout_s: float = 20.0
     max_response_bytes: int = 200_000
+
+    def reads(self, host: str) -> bool:
+        """Whether a host may be read: on the read or mutate list, or under a reputable suffix."""
+        host = (host or "").lower()
+        return bool(host) and (host in self.read_hosts or host in self.mutate_hosts
+                               or any(host == s or host.endswith("." + s) for s in self.read_suffixes))
 
     def decide(self, method: str, host: str) -> tuple[bool, str]:
         method = method.upper()
@@ -55,7 +78,7 @@ class ReachPolicy:
         if not host:
             return False, "no host"
         if method in _READ_METHODS:
-            if host in self.read_hosts or host in self.mutate_hosts:
+            if self.reads(host):
                 return True, "read host allowlisted"
             return False, f"host '{host}' not on read allowlist (deny-by-default)"
         if method in _MUTATE_METHODS:

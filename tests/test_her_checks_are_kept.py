@@ -102,12 +102,13 @@ def test_a_reputable_site_on_the_allowlist_is_a_second_publisher_and_a_claim_is_
         "action=opensearch": json.dumps(["q", ["Eiffel Tower"], [], []]),
         "/page/summary/": json.dumps({"extract": "The Eiffel Tower is a wrought-iron tower in Paris, opened in 1889.",
                                       "content_urls": {"desktop": {"page": "https://en.wikipedia.org/wiki/Eiffel_Tower"}}}),
-        "html.duckduckgo.com": f'<a class="result__a" href="{britannica}">Eiffel Tower | Britannica</a>',
+        "html.duckduckgo.com": ('<a class="result__a" href="https://www.reddit.com/r/paris/eiffel">Eiffel?</a>'
+                                f'<a class="result__a" href="{britannica}">Eiffel Tower | Britannica</a>'),
         "britannica.com/topic": "<html><body><p>The Eiffel Tower, in Paris, was opened in 1889 for the fair.</p></body></html>",
     }
     hosts = {"en.wikipedia.org", "html.duckduckgo.com", "www.britannica.com", "www.reddit.com"}
     gateway = _AllowlistGateway(hosts, pages)
-    assert [s.site for s in searched_sources(gateway.policy)] == ["www.britannica.com"]  # reddit is not a source
+    assert [s.NAME for s in searched_sources(gateway.policy)] == ["searched:open"]
 
     engine = EpistemicReachEngine(gateway=gateway)
     verdict = asyncio.run(engine._verify_async(CLAIM, SimpleNamespace(fingerprint="f1", spikes=[])))
@@ -117,10 +118,70 @@ def test_a_reputable_site_on_the_allowlist_is_a_second_publisher_and_a_claim_is_
     from urllib.parse import urlparse
 
     assert {urlparse(u).hostname for u in gateway.asked} <= gateway.policy.read_hosts  # nothing off the allowlist asked
+    assert not any("reddit" in u for u in gateway.asked), "a forum the engine found is not read, allowlisted or not"
 
 
 def test_with_no_search_engine_allowlisted_a_site_is_not_searched():
     from core.epistemics.searched_sources import searched_sources
 
     policy = SimpleNamespace(read_hosts=frozenset({"www.britannica.com"}), mutate_hosts=frozenset())
-    assert [s.is_permitted(policy) for s in searched_sources(policy)] == [False]
+    assert searched_sources(policy) == []
+
+
+def test_the_operators_reputable_list_admits_its_hosts_and_what_is_under_them_for_reading_only(monkeypatch):
+    from core.skills.reach_gateway import ReachPolicy
+
+    monkeypatch.setenv("AURA_REACH_READ_HOSTS", "@reputable,example.org")
+    policy = ReachPolicy()
+    assert policy.reads("www.cdc.gov") and policy.reads("www.britannica.com") and policy.reads("plato.stanford.edu")
+    assert policy.reads("html.duckduckgo.com") and policy.reads("example.org")
+    assert not policy.reads("www.reddit.com") and not policy.reads("britannica.com.evil.net")
+    assert policy.decide("POST", "www.cdc.gov")[0] is False
+    monkeypatch.setenv("AURA_REACH_READ_HOSTS", "en.wikipedia.org")
+    assert not ReachPolicy().reads("www.cdc.gov"), "without @reputable the list is not read"
+
+
+def test_a_search_is_read_until_what_was_read_settles_the_claim():
+    from core.epistemics.epistemic_reach import VERDICT_SUPPORTED, EpistemicReachEngine
+    from core.epistemics.what_she_has_verified import VERIFIED, her_verified_facts
+
+    found = ["https://www.britannica.com/topic/Eiffel-Tower", "https://www.culture.gouv.fr/eiffel",
+             "https://www.nationalgeographic.com/eiffel", "https://www.reuters.com/eiffel"]
+    page = "<html><body><p>The Eiffel Tower, in Paris, was opened in 1889 for the fair.</p></body></html>"
+    pages = {"html.duckduckgo.com": "".join(f'<a class="result__a" href="{u}">Eiffel</a>' for u in found),
+             "britannica.com/": page, "culture.gouv.fr/": page, "nationalgeographic.com/": page, "reuters.com/": page}
+    gateway = _AllowlistGateway({"html.duckduckgo.com", "www.britannica.com", "www.culture.gouv.fr",
+                                 "www.nationalgeographic.com", "www.reuters.com"}, pages)
+    engine = EpistemicReachEngine(gateway=gateway)
+    verdict = asyncio.run(engine._verify_async(CLAIM, SimpleNamespace(fingerprint="f1", spikes=[])))
+    assert verdict.verdict == VERDICT_SUPPORTED and her_verified_facts().get(CLAIM).status == VERIFIED
+    assert not any("nationalgeographic" in u or "reuters" in u for u in gateway.asked), "settled after two"
+
+
+def test_a_passage_with_every_word_of_a_claim_that_does_not_state_it_does_not_support_it():
+    """LIVE 19 October 2026: "Sydney is the capital of Australia" was held verified by two passages holding every
+    word of it. Read by the entailment reader, the passage says otherwise."""
+    from core.epistemics.epistemic_reach import (
+        VERDICT_CONTRADICTED,
+        VERDICT_SUPPORTED,
+        EpistemicReachEngine,
+    )
+    from core.epistemics.how_a_source_reads import how_it_reads
+
+    passage = "Sydney is the capital of the state of New South Wales and the largest city in Australia."
+    if how_it_reads(passage, "Sydney is the capital of Australia.") is None:
+        pytest.skip("no entailment reader on this machine")
+    judged = EpistemicReachEngine.judge("Sydney is the capital of Australia.", passage, "https://en.wikipedia.org/wiki/Sydney")
+    assert judged.verdict == VERDICT_CONTRADICTED
+    stated = EpistemicReachEngine.judge("Mount Everest is 8,849 metres tall.",
+                                        "Mount Everest's elevation of 8,849 m (29,032 ft) was most recently established in 2020.",
+                                        "https://en.wikipedia.org/wiki/Mount_Everest")
+    assert stated.verdict == VERDICT_SUPPORTED, "stated in other words: elevation for tall, m for metres"
+
+
+def test_a_figure_rounded_as_the_claim_rounds_it_is_the_claims_figure():
+    from core.epistemics.epistemic_reach import _figures_borne_out
+
+    assert _figures_borne_out("Everest is 8,849 metres tall.", "Its elevation is 8,848.86 m.")
+    assert not _figures_borne_out("Everest is 8,849 metres tall.", "Its elevation is 8,611 m.")
+    assert _figures_borne_out("Pi is about 3.14.", "Pi is 3.14159.") and not _figures_borne_out("Pi is 3.15.", "Pi is 3.14159.")

@@ -115,6 +115,59 @@ def _content_words(text: str) -> set[str]:
             if w not in _STOPWORDS}
 
 
+#: Units as sources write them short, and spellings either side of the Atlantic, as one word to the judge: "8,849 m"
+#: states metres, "384,400 km" kilometres, and "metre" is "meter".
+_UNITS = ((re.compile(r"(?<=\d)\s*km/h\b", re.I), " kilometers per hour"), (re.compile(r"(?<=\d)\s*mph\b", re.I), " miles per hour"),
+          (re.compile(r"(?<=\d)\s*km\b", re.I), " kilometers"), (re.compile(r"(?<=\d)\s*cm\b", re.I), " centimeters"),
+          (re.compile(r"(?<=\d)\s*mm\b", re.I), " millimeters"), (re.compile(r"(?<=\d)\s*m\b"), " meters"),
+          (re.compile(r"(?<=\d)\s*mi\b", re.I), " miles"), (re.compile(r"(?<=\d)\s*ft\b", re.I), " feet"),
+          (re.compile(r"(?<=\d)\s*kg\b", re.I), " kilograms"), (re.compile(r"(?<=\d)\s*lbs?\b", re.I), " pounds"),
+          (re.compile(r"°\s*C\b"), " degrees celsius"), (re.compile(r"°\s*F\b"), " degrees fahrenheit"),
+          (re.compile(r"\b(\w*?)(met|lit|cent|theat|fib)res?\b", re.I), lambda m: m.group(1) + m.group(2) + "er"))
+
+
+def _plain(text: str) -> str:
+    said = str(text or "")
+    for pattern, put in _UNITS:
+        said = pattern.sub(put, said)
+    return said
+
+
+def _stems(text: str) -> set[str]:
+    """A text's content words by their stems: "boils" and "boiling" are one word to the judge."""
+    import snowballstemmer
+
+    return set(snowballstemmer.stemmer("english").stemWords(sorted(_content_words(_plain(text)))))
+
+
+def _figures_borne_out(claim: str, evidence: str) -> bool:
+    """Each figure of the claim is in the evidence, or is the evidence's figure rounded as the claim rounds it
+    (8,849 metres for 8,848.86 m)."""
+    found = _numbers(evidence)
+
+    def near(said: str, stated: str) -> bool:
+        if said == stated:
+            return True
+        try:
+            places = len(said.split(".")[1]) if "." in said else 0
+            return round(float(stated), places) == float(said)
+        except ValueError:
+            return False
+
+    return all(any(near(said, stated) for stated in found) for said in _numbers(claim))
+
+
+def _how_it_reads(evidence: str, claim: str) -> dict[str, float] | None:
+    """The entailment reader's reading of the claim given the evidence (core/epistemics/how_a_source_reads.py)."""
+    from core.epistemics.how_a_source_reads import how_it_reads
+
+    return how_it_reads(evidence, claim)
+
+
+#: How her check introduces itself to an encyclopedia's interface, which refuses a client that does not say.
+_AS_HER_CHECK = {"User-Agent": "AuraFactCheck/1.0 (one person's research assistant; reads summaries to check a claim)"}
+
+
 def _numbers(text: str) -> set[str]:
     return {n.replace(",", "").rstrip(".") for n in _NUM_RE.findall(str(text or ""))}
 
@@ -192,6 +245,8 @@ class WikipediaSource:
 
     def is_permitted(self, policy: Any) -> bool:
         try:
+            if callable(getattr(policy, "reads", None)):
+                return bool(policy.reads(self.HOST))
             hosts = set(getattr(policy, "read_hosts", ()) or ()) | set(
                 getattr(policy, "mutate_hosts", ()) or ()
             )
@@ -204,27 +259,52 @@ class WikipediaSource:
             )
             return False
 
-    async def lookup(self, gateway: Any, terms: list[str]) -> tuple[str, str]:
-        """Return (evidence_text, source_url) or ("", "")."""
-        query = urllib.parse.quote(" ".join(terms[:6]))
-        search_url = (
-            f"https://{self.HOST}/w/api.php"
-            f"?action=opensearch&format=json&limit=2&search={query}"
-        )
-        search = await gateway.get(search_url)
+    async def _titles(self, gateway: Any, terms: list[str], claim: str) -> list[str]:
+        """The articles a search finds: the claim as written, through the encyclopedia's full-text search, else its
+        terms through the title search. LIVE 19 October 2026: "Mount Everest is 8,849 metres tall." asked as the
+        title search "everest metres mount tall" found no article."""
+        if claim:
+            found = await gateway.get(f"https://{self.HOST}/w/api.php?action=query&list=search&format=json&srlimit=2"
+                                      f"&srsearch={urllib.parse.quote(claim.rstrip('.!?'))}", headers=_AS_HER_CHECK)
+            try:
+                titles = [h["title"] for h in json.loads(found.body_preview or "{}")["query"]["search"]]
+            except (ValueError, KeyError, TypeError):
+                titles = []
+            if getattr(found, "ok", False) and titles:
+                return titles
+        search = await gateway.get(f"https://{self.HOST}/w/api.php?action=opensearch&format=json&limit=2"
+                                   f"&search={urllib.parse.quote(' '.join(terms[:6]))}", headers=_AS_HER_CHECK)
         if not getattr(search, "ok", False):
-            return "", ""
+            return []
         try:
             parsed = json.loads(search.body_preview or "[]")
-            titles = [t for t in (parsed[1] if len(parsed) > 1 else []) if t]
+            return [t for t in (parsed[1] if len(parsed) > 1 else []) if t]
         except (json.JSONDecodeError, IndexError, TypeError):
-            return "", ""
-        for title in titles[:2]:
+            return []
+
+    async def _passage(self, gateway: Any, title: str, claim: str) -> str:
+        """The passage of the whole article that speaks of the claim; "" when the article is not read."""
+        from core.epistemics.searched_sources import where_it_speaks_of
+
+        page = await gateway.get(f"https://{self.HOST}/w/api.php?action=query&prop=extracts&explaintext=1&format=json"
+                                 f"&redirects=1&titles={urllib.parse.quote(title)}", headers=_AS_HER_CHECK)
+        try:
+            text = next(iter(json.loads(page.body_preview or "{}")["query"]["pages"].values())).get("extract", "")
+        except (ValueError, KeyError, TypeError, StopIteration):
+            return ""
+        return where_it_speaks_of(" ".join(str(text).split()), claim) if getattr(page, "ok", False) and text else ""
+
+    async def lookup(self, gateway: Any, terms: list[str], claim: str = "") -> tuple[str, str]:
+        """Return (evidence_text, source_url) or ("", "")."""
+        for title in (await self._titles(gateway, terms, claim))[:2]:
+            passage = await self._passage(gateway, title, claim) if claim else ""
+            if passage:
+                return passage, f"https://{self.HOST}/wiki/{urllib.parse.quote(str(title).replace(' ', '_'))}"
             summary_url = (
                 f"https://{self.HOST}/api/rest_v1/page/summary/"
                 f"{urllib.parse.quote(str(title).replace(' ', '_'))}"
             )
-            summary = await gateway.get(summary_url)
+            summary = await gateway.get(summary_url, headers=_AS_HER_CHECK)
             if not getattr(summary, "ok", False):
                 continue
             try:
@@ -251,6 +331,40 @@ def _keep_what_a_source_said(verdict: ReachVerdict) -> None:
         her_verified_facts().attest(verdict.claim, verdict.source_url, verdict.verdict, verdict.evidence_excerpt)
     except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("epistemic_reach", exc, severity="info", action="a source's verdict was not kept")
+
+
+async def _what_it_says(source: Any, gateway: Any, terms: list[str], claim: str = "") -> Any:
+    """Each (evidence, address) a source gives: one lookup, or a search's pages one by one. A source that can
+    search for the claim as written is given it."""
+    import inspect
+
+    try:
+        if callable(getattr(source, "readings", None)):
+            async for evidence, url in source.readings(gateway, terms, claim=claim):
+                if evidence:
+                    yield evidence, url
+            return
+        asks_for_it = "claim" in inspect.signature(source.lookup).parameters
+        evidence, url = await (source.lookup(gateway, terms, claim=claim) if asks_for_it else source.lookup(gateway, terms))
+    except _RECOVERABLE as exc:
+        record_degradation(
+            "epistemic_reach", exc, severity="warning",
+            action=f"continued past {getattr(source, 'NAME', 'source')} lookup failure",
+        )
+        return
+    if evidence:
+        yield evidence, url
+
+
+def _settled(claim: str) -> bool:
+    """Whether what she has read of a claim verifies or refutes it."""
+    try:
+        from core.epistemics.what_she_has_verified import REFUTED, VERIFIED, her_verified_facts
+
+        fact = her_verified_facts().get(claim)
+    except _RECOVERABLE:
+        return False
+    return fact is not None and fact.status in (VERIFIED, REFUTED)
 
 
 def _settled_before(claim: str, fingerprint: str) -> ReachVerdict | None:
@@ -660,53 +774,46 @@ class EpistemicReachEngine:
         terms = self._query_terms(claim, felt)
         decided: ReachVerdict | None = None
         for source in self._permitted_sources():
-            try:
-                evidence, url = await source.lookup(gateway, terms)
-            except _RECOVERABLE as exc:
-                record_degradation(
-                    "epistemic_reach", exc, severity="warning",
-                    action=f"continued past {getattr(source, 'NAME', 'source')} lookup failure",
-                )
-                continue
-            if not evidence:
-                continue
-            try:
-                from core.runtime.injection_defense import classify_untrusted
-
-                injection = classify_untrusted(evidence, source="webpage_text")
-            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                record_degradation(
-                    "epistemic_reach",
-                    exc,
-                    severity="warning",
-                    action=(
-                        "failed closed external verification when injection defense "
-                        "was unavailable"
-                    ),
-                )
-                continue
-            if not injection.safe:
-                record_degradation(
-                    "epistemic_reach",
-                    ValueError("reference evidence contained prompt-injection markers"),
-                    severity="warning",
-                    action=(
-                        "rejected untrusted evidence from "
-                        f"{getattr(source, 'NAME', 'source')}"
-                    ),
-                )
-                continue
-            # Every permitted source is read and kept, not only the first: a claim is held as verified only when
-            # independent sources agree (core/epistemics/what_she_has_verified.py, L10).
-            verdict = self.judge(claim, evidence, url, fingerprint=fingerprint)
-            _keep_what_a_source_said(verdict)
-            decided = decided or (verdict if verdict.verdict != VERDICT_INCONCLUSIVE else None)
+            async for evidence, url in _what_it_says(source, gateway, terms, claim):
+                verdict = self._judged_and_kept(claim, evidence, url, fingerprint, source)
+                if verdict is None:
+                    continue
+                decided = decided or (verdict if verdict.verdict != VERDICT_INCONCLUSIVE else None)
+                if _settled(claim):
+                    # What was read settles it: the rest of what a search found is not fetched.
+                    return decided or verdict
         return decided or ReachVerdict(
             verdict=VERDICT_INCONCLUSIVE,
             claim=claim,
             fingerprint=fingerprint,
             reason="no reference source returned evidence",
         )
+
+    def _judged_and_kept(self, claim: str, evidence: str, url: str, fingerprint: str, source: Any) -> ReachVerdict | None:
+        """A source's verdict on the claim, kept; None when its text is refused as untrusted."""
+        try:
+            from core.runtime.injection_defense import classify_untrusted
+
+            injection = classify_untrusted(evidence, source="webpage_text")
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "epistemic_reach", exc, severity="warning",
+                action="failed closed external verification when injection defense was unavailable",
+            )
+            return None
+        if not injection.safe:
+            record_degradation(
+                "epistemic_reach",
+                ValueError("reference evidence contained prompt-injection markers"),
+                severity="warning",
+                action=f"rejected untrusted evidence from {getattr(source, 'NAME', 'source')}",
+            )
+            return None
+        # Every permitted source is read and kept, not only the first: a claim is held as verified only when
+        # independent sources agree (core/epistemics/what_she_has_verified.py, L10).
+        verdict = self.judge(claim, evidence, url, fingerprint=fingerprint)
+        _keep_what_a_source_said(verdict)
+        return verdict
 
     @staticmethod
     def _query_terms(claim: str, felt: Any) -> list[str]:
@@ -736,8 +843,8 @@ class EpistemicReachEngine:
           lexical neighborhoods around those figures (same subject/predicate);
         * everything else is INCONCLUSIVE and causes no downstream effect.
         """
-        claim_words = _content_words(claim)
-        evidence_words = _content_words(evidence)
+        claim_words = _stems(claim)
+        evidence_words = _stems(evidence)
         overlap = (
             len(claim_words & evidence_words) / len(claim_words) if claim_words else 0.0
         )
@@ -745,13 +852,36 @@ class EpistemicReachEngine:
         evidence_nums = _numbers(evidence)
 
         fully_covered = bool(claim_words) and claim_words <= evidence_words
-        figures_consistent = not claim_nums or claim_nums <= evidence_nums
-        if fully_covered and figures_consistent:
+        figures_consistent = _figures_borne_out(claim, evidence)
+        # Her entailment reader reads the passage, by its own most likely label: a passage holding every word of a
+        # claim need not state it (LIVE 19 October 2026, "Sydney is the capital of Australia" from "Sydney is the
+        # capital of New South Wales and the most populous city in Australia"), and one that states it may use other
+        # words ("elevation 8,849 m" for "8,849 metres tall"). Support still needs the figures; contradiction needs
+        # the same subject and, where the claim has figures, a different figure for the same relation. With no
+        # reader, every word and figure of the claim in the passage is support, as before.
+        read = _how_it_reads(evidence, claim) if overlap > 0 else None
+        if read is None and fully_covered and figures_consistent:
             return ReachVerdict(
                 verdict=VERDICT_SUPPORTED, claim=claim, fingerprint=fingerprint,
                 source_url=source_url, evidence_excerpt=evidence[:240],
                 overlap=overlap, reason="strong content overlap; figures consistent",
             )
+        if read:
+            label = max(read, key=read.get)
+            if label == "entailment" and figures_consistent:
+                return ReachVerdict(
+                    verdict=VERDICT_SUPPORTED, claim=claim, fingerprint=fingerprint,
+                    source_url=source_url, evidence_excerpt=evidence[:240], overlap=overlap,
+                    reason=f"entailed by the passage (reader {read['entailment']:.2f}); figures consistent",
+                )
+            if label == "contradiction" and overlap >= 0.5 and (
+                not claim_nums or (not figures_consistent and _has_matching_numeric_relation(claim, evidence))
+            ):
+                return ReachVerdict(
+                    verdict=VERDICT_CONTRADICTED, claim=claim, fingerprint=fingerprint,
+                    source_url=source_url, evidence_excerpt=evidence[:240], overlap=overlap,
+                    reason=f"contradicted by the passage (reader {read['contradiction']:.2f})",
+                )
         if (
             overlap >= 0.5
             and claim_nums
