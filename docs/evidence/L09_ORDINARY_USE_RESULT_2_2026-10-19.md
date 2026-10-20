@@ -90,7 +90,7 @@ had left unfinished, still stand, on her own requests. It shows that on requests
 kept answer is mostly a misroute, and that the route needs a check that the restated question is the one asked
 before L09 is run again.
 
-## Amendment, 19 October 2026, 20:45: the check the route lacked
+## Amendment, 19 October 2026, 20:42: the check the route lacked
 
 `core/learning/kinds_by_meaning.py` `restates`, which her live chat's route and this tool both use, read only a
 restatement's numbers. It now also refuses a restatement that hands its procedure a string the request did not give,
