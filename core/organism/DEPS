@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, bounded meter discovery, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.perception.whole_referents_from_source_material", # Pure whole-observation identity/contact canary; no capture or input.
     "+core.perception.a_source_method_with_resolved_values", # Pure bounded source arithmetic canary; no source I/O or input.
     "+core.agency.a_contrast_that_meets_both_tests", # Pure paired-gate ranking canary; no input or model execution.
     "+core.agency.evidence_for_a_requested_relation", # Pure referent/contact-unknowns canary; no provider or input.

@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.whole_referents_from_source_material import _whole_source_referent_invariant
     from core.perception.a_source_method_with_resolved_values import _resolved_source_step_invariant
     from core.agency.a_contrast_that_meets_both_tests import _joint_contrast_invariant
     from core.agency.evidence_for_a_requested_relation import _referent_evidence_invariant
@@ -75,7 +76,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('source_arithmetic_requires_explicit_values_and_effects', 'core/perception/a_source_method_with_resolved_values.py',
+    return (('whole_source_observations_keep_separate_identity_and_unknown_contact', 'core/perception/whole_referents_from_source_material.py',
+             'tests/test_whole_referents_require_current_source_material.py', lambda: _whole_source_referent_invariant() == (),
+             'A whole reference needs continuing source marks and current opaque pixel support; its separate semantic observation cannot become a tracked body or infer contact, role, terminal speed or angle.'),
+            ('source_arithmetic_requires_explicit_values_and_effects', 'core/perception/a_source_method_with_resolved_values.py',
              'tests/test_source_methods_resolve_only_supplied_values.py', lambda: _resolved_source_step_invariant() == (),
              'Bounded source arithmetic selects one known path from supplied primitive values, retains its input and instruction context, and publishes no partial update when values or effects remain unknown; it certifies no visual state or live outcome.'),
             ('contrast_ranking_preserves_joint_admission', 'core/agency/a_contrast_that_meets_both_tests.py',

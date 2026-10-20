@@ -12,6 +12,7 @@ from uuid import uuid4
 import numpy as np
 
 from core.verify import invariant
+from core.perception.whole_referents_from_source_material import scene_referents
 
 
 @dataclass(frozen=True)
@@ -133,7 +134,7 @@ class InstanceNames:
     def record_for(self, observer: Any, query: InstanceQuery, what: str, odd: str = '', who: str = '') -> bool:
         if not isinstance(query, InstanceQuery) or (query.observer, query.epoch) != _scope(observer):
             return False
-        current = getattr(observer, 'things', {}).get(query.number)
+        current = next((thing for thing in scene_referents(observer) if getattr(thing, 'number', None) == query.number), None)
         if (current is None or getattr(current, 'born', None) != query.born
                 or getattr(current, 'kind', None) != query.kind
                 or not _finite_real(getattr(current, 'seen', None)) or current.seen < query.at):
@@ -168,14 +169,14 @@ class InstanceNames:
 
     def scene(self, observer: Any, legacy: dict[int, str]) -> NamesInScene:
         names = []
-        for thing in (getattr(observer, 'things', {}) or {}).values():
+        for thing in scene_referents(observer):
             found = self.of(observer, thing)
             if found is not None:
                 names.append((thing.number, thing.born, thing.kind, found.who or found.what))
         return NamesInScene(self.active(observer), tuple(names), tuple(legacy.items()))
 
     def consensus(self, observer: Any, kind: int) -> InstanceName | None:
-        peers = [thing for thing in observer.things.values() if thing.kind == kind]
+        peers = [thing for thing in scene_referents(observer) if thing.kind == kind]
         labels = [self.of(observer, thing) for thing in peers]
         if not labels or any(label is None for label in labels):
             return None

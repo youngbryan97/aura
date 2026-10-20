@@ -1549,3 +1549,28 @@ lint, compile, layering and writing passed in 70.21 seconds. Live hidden-state
 estimation, source call composition, whole-parent/role/contact producers and
 the ordinary prepared-controller bridge remain open. Do not claim demo
 readiness from this checkpoint; continue the next measured CPU repair.
+
+The source arithmetic checkpoint is pushed as `b94a32218`. Whole registered
+artwork now has an independent, current semantic observation path through the
+ordinary worker, naming and actual chooser, with current pixel/edge support
+and separate birth/material identity. It stays outside body tracking. The
+matcher no longer suppresses that material when an origin attaches to a
+fragment. The final group passed 200 tests; smoke 164 passed, one skipped;
+lint/compile/layering/writing passed in 72.55 seconds. Physical contact height,
+arrival limits and observed task roles remain unknown.
+
+CPU replay of twelve retained original-18 pictures produced no whole
+referent. The destination reference was located, but point sampling had not
+kept enough source-supported marks. Fix the sampling handoff before requiring
+global material identity; use current matched pixels to request sampling,
+without changing identity thresholds. The new tool is
+`tools/measure_whole_referents_in_recorded_pixels.py`. Preserve the zero result.
+
+The additional supplied 2,050-line Python lab was read and independently
+reproduced: nine self-checks, six toy wins and 50/50 toy Monte Carlo wins.
+It also accepts future foreign custody, manufactures fragment width,
+miscomputes containment and verifies an accelerated law for a stationary body.
+Its repaired body selection is assigned True and its world supplies exact
+state. The new PY checklist in the proposal ledger records every mechanism,
+rejection and remaining calibration contract. Do not install its functions
+as purported drop-in Aura repairs or count its scores as original-game proof.

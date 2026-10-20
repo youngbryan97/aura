@@ -71,6 +71,7 @@ def referent_evidence_needed(status: str, wanted: tuple, matches: list, partial:
                   'incomplete_name': 'resolve_missing_properties',
                   'ambiguous_named_referent': 'distinguish_referents',
                   'referent_not_current': 'reacquire_referent',
+                  'referent_motion_unavailable': 'measure_reference_motion',
                   'relation_geometry_unavailable': 'measure_whole_extent'}
     if status == 'body_or_request_unavailable':
         operations[status] = 'read_motion_request' if not wanted else 'recapture_current_scene' if observation_time(at) is None else 'measure_current_body'

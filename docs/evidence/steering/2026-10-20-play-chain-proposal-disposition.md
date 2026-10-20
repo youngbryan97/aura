@@ -342,3 +342,114 @@ in 70.21 seconds. No GPU, model worker or original/native play was used.
 Bryan confirmed that the PDF came from Argon and that the referenced code's
 location is unknown. Its unavailable suite and reported original-game
 metrics remain unverified. Work continues against the actual repository.
+
+### Whole source material reaches semantic observation
+
+- [x] G4, visual-parent portion: `WholeReferentsInView` requires continuing
+  source marks and current opaque artwork across a measured transform.
+  Exposed extremal edges need support too. It publishes a separate semantic
+  identity, with its own birth, source/image hash, current capture and material
+  anchors. It never inserts an object into body/control tracking. A complete
+  physical observation already covering that material is not duplicated.
+- [x] Whole referents now reach the ordinary observation worker, instance
+  naming, missing-referent attention and actual target/input selection. An
+  exported noun does not name the current object. Fragment ownership remains
+  separate; her own material cannot become a destination through its parent.
+  A first appearance supplies no velocity. Later measured origin displacement
+  retains its error; unresolved motion keeps the binder waiting for evidence.
+- [x] A red production-branch test showed that `_matched` dropped whole
+  source frames whenever origin attachment to an existing object succeeded.
+  Whole reference material is now measured independently of that result.
+  Existing object-origin custody and causal admission thresholds are unchanged.
+- [x] Current capture/source departure, duplicate source copies, hidden thin
+  outer edges, disconnected artwork, changed mark epochs and an overly narrow
+  measured parent have negative fixtures. The recorder retains identities,
+  source declarations, pixel hashes, origin history and unknown role/contact.
+  Source-parent refusal readings include measured pixel and edge errors.
+- [ ] G4/G5/P3 remain open: a visual assembly is not a task-role witness or
+  collision surface. Its bounding top may be a flag, antenna or decoration.
+  Neither a safe arrival speed nor a physical contact height can be inferred
+  from that box. Source/observed contact contracts still need their producer.
+
+The final regression group passed 200 tests in 36.74 seconds. Smoke: 164
+passed, one skipped. Lint, compile, layering and writing passed in 72.55
+seconds. An earlier fixture leaked an unawaited close coroutine; that was
+corrected and the final tests promote RuntimeWarning to an error.
+
+The new generic CPU recording tool measured twelve retained original-18
+frames, starting at event 213 in the `74da4b72e` run. Both registered source
+references loaded and the destination artwork matched on both searches, but
+it had insufficient retained global marks (`reference_marks_missing`). The
+ship later supplied a source frame; its whole pixel support did not pass.
+There were zero whole referents. This is useful failure evidence, not live
+success. A source appearance must reach point sampling before global point
+ownership can be required; that sampling handoff is the next repair.
+
+### Additional supplied Python: evaluated in full
+
+All 2,050 lines of `aura_play_chain_solutions.py` and the 245-line pasted
+report were read. The file SHA-256 is
+`a33096800c46d1cd5027202c8af3faab06b07b32e3388c3481825ce0b158491c`.
+Its nine self-checks, synthetic six-episode outcomes and 50-run results were
+independently reproduced under the classical import boundary. Baseline was
+`unread, unread, lost, lost, lost, unread`; repaired was six wins. Monte
+Carlo wins were 2/50 and 50/50. These are results from that standalone model.
+
+- [x] PY-1: reject treating the simulation as an Aura or original-game port.
+  It imports no Aura controller. The body receives exact state each tick;
+  repaired body selection is assigned True. Picture and input counters do
+  not capture or deliver anything. The world uses instantaneous constant
+  accelerations at 20 Hz, without the original stored thrust/angle channels
+  or actual input latency. Campaign budgets also differ: baseline gets
+  220/220/320/320/320/210 ticks and repaired gets 450 for every episode.
+- [x] PY-2: whole-parent observation is viable and applied above. Reject the
+  48-pixel adjacency rule and role vocabulary as parent/role proof. A concrete
+  falsification joins unrelated five-pixel base/ladder fragments with a
+  measured hull width of 27, then binds an invented width of 35. Choosing the
+  freshest part and smallest variance also cannot renew every constituent.
+- [x] PY-3: reject the replacement relation binder. A requested `inside`
+  destination at (100,100) is returned at (100,56), above the object. Existing
+  relation-specific geometry and all named rivals remain in force.
+- [x] PY-4: active evidence gathering is viable under G3/S1. Reject a survey
+  altitude fixed at 28% of image height, mean scenery X and an 80-pixel sine
+  sweep as universal safety or task understanding. Current targeted attention
+  grants observation priority, not an invented movement destination.
+- [x] PY-5: comparable forward prediction and retained authority are already
+  applied at `9cd56e4de`. Reject reduced causal admission (18 or an LLR alone),
+  per-picture votes without physical-trial custody, guessed 40-unit responses
+  and the 140-unit impulse rule. A velocity arrest is not by itself a positive
+  collision witness; unexplained residuals stay visible.
+- [x] PY-6: discovery/task handoff and observation reserve are applied at
+  `1107b0fb5`. Reject literal up-first control and guessed braking authority
+  from no sample, or one sample with a minimum forced magnitude. The 65-pixel
+  floor and 40-pixel wall margins are supplied environment constants. Current
+  survival uses admitted measured responses and owned physical input leases.
+- [x] PY-7: owned wordless-surface continuation is applied at `a08ca0c7b`.
+  Reject the proposed public witness. A falsification with future times and
+  foreign content is accepted; its bounding box is never checked. Public
+  flow/object counts and 65% continuity cannot replace adapter ownership and
+  acknowledged delivery. Input acceptance remains a separate causal fact.
+- [ ] PY-8: source-unit calibration is viable, with independent excitation,
+  owner/basis custody and held-out validation. Reject this implementation as
+  motion admission: after three stationary observations it verifies an
+  accelerated law predicting 7.78378 units of acceleration. It fits and then
+  validates on that same interval; the eight-pixel step tolerance permits
+  the stationary case. The initialized scale of 40 is also the toy truth.
+  P2/P3/P4 remain required work; no scale fit certifies an entire transition.
+- [x] PY-9: coupled-axis planning and phase handoff are viable through the
+  existing model/prepared-path mechanisms. Reject the literal-key flare and
+  corridor constants as production laws. Its calibrator argument is unused;
+  the reported controller gain therefore does not prove source calibration
+  reached choosing. Target contact, stored channels and queued inputs remain
+  under P2–P5 rather than being replaced by this toy controller.
+- [x] PY-10: reject the generated funnel as measured pipeline reliability.
+  Several rates are constants, and the pace/acceleration plot is constructed
+  from a sine and line. Actual baseline body selections in this simulation
+  were 1,370/1,402, not the figure's fixed 52.9%. No plotted value qualifies
+  current native Aura or the untouched games.
+
+The bounded audit completed in 16.49 seconds. Its measurements and concrete
+counterexamples are retained in
+`artifacts/flash-campaign/2026-10-20-supplied-solutions-code/audit.json`.
+No GPU, model worker, G09, holdout or native input was used. The remaining
+viable producer work stays unchecked above; this is not a completion verdict.

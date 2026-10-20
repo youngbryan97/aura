@@ -160,9 +160,15 @@ def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
             or getattr(mine, 'seen', None) != at):
         return DestinationReading('body_or_request_unavailable',
             need=referent_evidence_needed('body_or_request_unavailable', wanted, [], [], at))
+    from core.perception.whole_referents_from_source_material import WholeSourceReferent
+
     candidates, best, named, named_count, partial = [], 0, [], 0, []
     for thing in things:
         if getattr(thing, 'number', None) == getattr(mine, 'number', None):
+            continue
+        if (isinstance(thing, WholeSourceReferent)
+                and (getattr(mine, 'number', None), getattr(mine, 'born', None), getattr(mine, 'kind', None))
+                in getattr(thing, 'observed_parts', ())):
             continue
         name = names.for_thing(thing) if isinstance(names, NamesInScene) else names.get(getattr(thing, 'kind', -1), '')
         if name:
@@ -195,6 +201,9 @@ def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
     target = candidates[0]
     if getattr(target, 'seen', None) != at:
         return refused('referent_not_current')
+    if isinstance(target, WholeSourceReferent) and (target.vx is None or target.vy is None
+            or target.velocity_error is None or target.velocity_error > max(2., .5*math.hypot(target.vx, target.vy))):
+        return refused('referent_motion_unavailable')
     point = position_for_relation(request.relation, mine, target)
     if point is None:
         return refused('relation_geometry_unavailable')
@@ -246,8 +255,9 @@ def update_motion_directions(meeting: Any, words: str) -> None:
 
 def _scene_referents(moves: Any) -> list[Any]:
     """Keep published instances before interaction heuristics remove any."""
-    observed = getattr(moves, 'things', None)
-    return list(observed.values()) if isinstance(observed, Mapping) else []
+    from core.perception.whole_referents_from_source_material import scene_referents
+
+    return list(scene_referents(moves))
 
 
 def requested_target(choosing: Any) -> tuple | None:

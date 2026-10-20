@@ -33,6 +33,7 @@ from typing import Any
 import numpy as np
 
 from core.perception.names_for_observed_instances import InstanceQuery, query_for
+from core.perception.whole_referents_from_source_material import scene_referents
 from core.verify import invariant
 
 __all__ = ["LookingAtThings", "Sighting", "sighting_from"]
@@ -223,7 +224,7 @@ class LookingAtThings:
                     sought: tuple[tuple, ...] = ()) -> list[InstanceQuery]:
         tall, wide = getattr(moves, "shape", (0, 0)) or (0, 0)
         best = []
-        for thing in (getattr(moves, "things", {}) or {}).values():
+        for thing in scene_referents(moves):
             query = query_for(thing, moves, at if at is not None else getattr(thing, 'seen', None))
             if query is None or query.key in self.asked_instances or query.key in self.by_instance:
                 continue

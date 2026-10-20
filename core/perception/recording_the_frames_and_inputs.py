@@ -14,6 +14,7 @@ import math
 import time
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from itertools import islice
 from pathlib import Path
 from typing import Any
 
@@ -351,11 +352,24 @@ def _source_reference_snapshot(moves: Any) -> dict:
         return {'available': True, 'count': len(values), 'records': records, 'truncated': len(values) > 128}
 
     statuses = getattr(moves, 'fresh_source_reference_status', None)
+    wholes = getattr(moves, 'source_referents', None)
+    readings = getattr(moves, 'source_referent_readings', ())
+    whole_readings = [{name: scalar(item.get(name)) for name in
+        ('source', 'character_id', 'reason', 'mean_colour_error', 'maximum_edge_error', 'samples')}
+        for item in readings[:128] if isinstance(item, dict)] if isinstance(readings, (tuple, list)) else None
+    whole_records = [{**{name: scalar(getattr(item, name, None)) for name in
+        ('number', 'born', 'kind', 'seen', 'x', 'y', 'w', 'h', 'source', 'reference_sha256',
+         'mark_epoch', 'character_id', 'vx', 'vy', 'velocity_error', 'contact_verified', 'role')},
+        'anchors': [list(a) for a in sorted(getattr(item, 'anchors', ()))[:128]],
+        'origin_path': [list(p) for p in getattr(item, 'origin_path', ())[:16]],
+        'pixels': pixels(getattr(item, 'pixels', None))} for item in islice(wholes.values(), 128)] if isinstance(wholes, dict) else None
     return {'pixels': pixels(getattr(moves, 'pixels_consumed', None)),
             'status': scalar(getattr(moves, 'source_reference_status', None)),
             'fresh_status': [scalar(v) for v in statuses[:64]] if isinstance(statuses, (tuple, list)) else None,
             'object_bound': channel('source_reference_points'), 'continuing': channel('source_reference_frames'),
-            'fresh': channel('fresh_source_reference_frames')}
+            'fresh': channel('fresh_source_reference_frames'),
+            'whole_referents': {'records': whole_records, 'count': len(wholes) if isinstance(wholes, dict) else None,
+                               'readings': whole_readings}}
 
 
 @invariant('perception.source_reference_records_keep_the_reported_capture', scope='perception',

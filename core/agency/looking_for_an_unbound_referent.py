@@ -18,7 +18,9 @@ def referents_to_observe(request: Any, moves: Any, mine: Any, names: Any, at: fl
     """Prioritize unresolved current instances without granting a target or control role."""
     if request is None:
         return ()
-    things = list(getattr(moves, 'things', {}).values())
+    from core.perception.whole_referents_from_source_material import scene_referents
+
+    things = list(scene_referents(moves))
     reading = read_destination(request, mine, things, names, at)
     if reading.binding is not None:
         return ()

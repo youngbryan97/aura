@@ -114,14 +114,16 @@ def _matched(reference: RegisteredVisualReference, frame: Any, *, angle: float =
                                                   frame, frame.at, source=reference.source)
         if attached.binding is None:
             refused.append(attached.reason)
-            visible = attach_source_point_to_visible_marks(reference.coordinates, (0., 0.), pose,
-                frame.picture, reference.pixels, frame, frame.at, source=reference.source)
-            if visible.binding is not None:
-                frames.append(visible.binding)
-            else:
-                refused.append(visible.reason)
         else:
             bindings.append(attached.binding)
+        # An origin attached to a fragment cannot suppress the independently
+        # observed whole reference. These retain separate ownership.
+        visible = attach_source_point_to_visible_marks(reference.coordinates, (0., 0.), pose,
+            frame.picture, reference.pixels, frame, frame.at, source=reference.source)
+        if visible.binding is not None:
+            frames.append(visible.binding)
+        else:
+            refused.append(visible.reason)
     views = tuple((float(math.sqrt(np.linalg.det(pose.linear))),
                    float(math.atan2(pose.linear[1][0], pose.linear[0][0]))) for pose in poses)
     return _Matched(reference, tuple(bindings), tuple(refused) if poses else ('no_qualified_appearance',),

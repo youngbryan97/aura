@@ -32,6 +32,7 @@ class VisibleSourcePoint:
     error: float
     support: int
     sampling_region: tuple[float, float, float, float] | None = None
+    sampling_corners: tuple[tuple[float, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -125,12 +126,14 @@ class SourcePointOnVisibleMarks:
         error = _reference_error(pose, starts, ends, fit, marks.pixel_size)
         if not math.isfinite(error) or error > 1.:
             return refused(None, 'source_point_precision')
-        region = None
+        region, measured_corners = None, ()
         if self.sampling_corners:
             corners = fit.apply(np.asarray(self.sampling_corners))
             low, high = corners.min(axis=0), corners.max(axis=0)
             region = (*map(float, low), *map(float, high))
-        return refused(VisibleSourcePoint(at, tuple(float(v) for v in fit.apply(self.origin)), error, len(fit.inliers), region), 'qualified')
+            measured_corners = tuple(tuple(float(v) for v in p) for p in corners)
+        return refused(VisibleSourcePoint(at, tuple(float(v) for v in fit.apply(self.origin)), error,
+                                         len(fit.inliers), region, measured_corners), 'qualified')
 
 
 @dataclass(frozen=True)
