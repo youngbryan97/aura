@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.what_things_look_like import _visual_naming_clock_invariant
     from core.perception.material_displacement_from_named_pixels import _material_displacement_precision_invariant
     from core.agency.responses_from_measured_intervals import _measured_interval_trials_invariant
     from core.skills.screen_pursuit_as_it_happens import _coordinate_label_invariant
@@ -67,6 +68,9 @@ def _play_execution_claims() -> tuple:
     return (('current_reading_precedes_waiting_in_a_running_world', 'core/skills/screen_pursuit_on_a_page.py',
              'tests/test_current_reading_precedes_waiting_in_a_running_world.py', lambda: _read_before_scene_wait_invariant() == (),
              'A known running clock gives current reading priority over scene settling, while current words still decide navigation and no input authority is added.'),
+            ('visual_naming_accepts_measured_capture_times', 'core/perception/what_things_look_like.py',
+             'tests/test_visual_naming_accepts_the_capture_clock.py', lambda: _visual_naming_clock_invariant() == (),
+             'Finite real capture clocks reach the existing asynchronous instance naming path; invalid times cannot age it and box, birth, frame bytes and provider-answer custody remain required.'),
             ('material_displacement_separates_shared_reference_error', 'core/perception/material_displacement_from_named_pixels.py',
              'tests/test_material_displacement_keeps_its_reference_precision.py', lambda: _material_displacement_precision_invariant() == (),
              'Local named-pixel displacement cancels common translation bias and transports rotation and closure error; missing correspondence supplies no precision.'),

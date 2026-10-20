@@ -27,11 +27,13 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from numbers import Real
 from typing import Any
 
 import numpy as np
 
 from core.perception.names_for_observed_instances import InstanceQuery, query_for
+from core.verify import invariant
 
 __all__ = ["LookingAtThings", "Sighting", "sighting_from"]
 
@@ -131,6 +133,29 @@ async def _her_eyes(prompt: str, image_b64: str) -> str:
     return await look_with_her_eyes(prompt, image_b64, max_tokens=90, timeout_s=LOOK_TIMEOUT_S)
 
 
+def _naming_time(at: Any) -> float | None:
+    """Canonicalize the capture coordinate; the instance query owns its box and birth."""
+    if isinstance(at, bool) or not isinstance(at, Real):
+        return None
+    try:
+        value = float(at)
+    except (ValueError, OverflowError):
+        return None
+    return value if math.isfinite(value) and value >= 0 else None
+
+
+@invariant('perception.visual_naming_accepts_measured_capture_times', scope='perception',
+           owner='core/perception/what_things_look_like.py', observational=False)
+def _visual_naming_clock_invariant() -> tuple:
+    from core.perception.a_clock_for_drawn_frames import MeasuredFrameTime
+
+    at = MeasuredFrameTime(4., lower=4., upper=4.001, arrived=4.002,
+                           source='clock', source_at=10., epoch=1)
+    assert _naming_time(at) == 4. and _naming_time(np.float32(4.)) == 4.
+    assert all(_naming_time(value) is None for value in (True, None, -1., math.inf, 10**400))
+    return ()
+
+
 @dataclass
 class LookingAtThings:
     """Names for boxed instances, asked beside play; agreeing answers also supply a kind summary."""
@@ -154,7 +179,8 @@ class LookingAtThings:
     def look(self, picture: Any, moves: Any, at: float, *, mine: int | None = None, met: Any = ()) -> bool:
         """Ask what the instances in ``picture`` not yet named are, where it is time to: hers (``mine``, a thing's number)
         first, then those met (kinds), then what moves, then what is still. Whether it was asked now."""
-        if type(at) not in (int, float) or not math.isfinite(at):
+        at = _naming_time(at)
+        if at is None:
             return False
         self._began = at if self._began is None else self._began
         if (self._asking is not None and not self._asking.done()) or len(self.asked_instances) >= MOST_A_GAME:

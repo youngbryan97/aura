@@ -1449,3 +1449,17 @@ without capture clocks. The corrected first statistic/effect is
 `docs/evidence/steering/2026-10-18-responses-from-measured-material-intervals.md`.
 Complete checkpoint gates and fresh ordinary carryover next. No landing,
 original-game win or native presentation readiness is established.
+
+The interval checkpoint is pushed in `3830ca8e4`, which includes the latest
+other sessions' work through `a96be13d2`. Post-merge focused checks passed
+170 tests, and smoke (164 passed, one skipped), lint, compile, layering,
+DEPS and writing passed in 78.48 seconds. The ordinary host-GPU browser
+follow-up still won nothing: 171 of 583 retained observations selected the
+vehicle, but all six planning choices had an unbound requested destination.
+Its partial recording dropped 250 events and cannot support a full replay.
+See `docs/evidence/steering/2026-10-20-a-capture-clock-can-reach-instance-naming.md`.
+The next repaired connection is visual naming's timestamp gate: it rejected
+the ordinary capture's float subclass before making any query. Finite real
+capture clocks now pass into the existing instance-owned request path; 101
+focused tests passed. Complete its gates and a bounded real-vision ordinary
+follow-up. The resident runtime, G09 and holdouts remain untouched.
