@@ -221,8 +221,10 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     evidence = TurnSensoryEvidence(channel="screen", ok=True, request=request, observed_at=time.time(),
                                    observation=observation[:3200], source="watching_along",
                                    scope="what plays on her own page", coverage="partial")
+    # The turn that asked her to watch is open while she watches; her remarks are work it is waiting on, as the
+    # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": request,
-               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 320,
+               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 320, "serves_current_turn": True,
                "recent_completed_exchanges": [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
     thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     return str(getattr(thought, "content", "") or "").strip()
