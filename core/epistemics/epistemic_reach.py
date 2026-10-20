@@ -714,7 +714,10 @@ class EpistemicReachEngine:
         """
         try:
             text = str(getattr(felt, "text_excerpt", "") or "")
-            if not text:
+            if not text or text.lstrip()[:1] in ("{", "["):
+                # A structured generation (a step of her browsing, a choice of capabilities) states nothing about the
+                # world: LIVE 20 October 2026, '{"capabilities": ["sovereign_browser", ...]}' was checked online and
+                # held SUPPORTED by a dictionary's entry for "capability".
                 return ""
             labels = self._gate_labels(text, felt)
             contested: set[str] = set()
