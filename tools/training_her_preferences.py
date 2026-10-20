@@ -101,12 +101,119 @@ def orpo_loss(model: Any, *rows: Any) -> tuple[Any, Any]:
     return loss, counted
 
 
+def mean_logp(model: Any, tokens: Any, span: Any) -> Any:
+    """The mean log-probability of her words in one row: the targets from where they begin to the row's last token."""
+    import mlx.core as mx
+    import mlx.nn as nn
+
+    inputs, targets = tokens[:, :-1], tokens[:, 1:]
+    steps = mx.arange(1, targets.shape[1] + 1)
+    mask = mx.logical_and(steps >= span[:, 0:1], steps < span[:, 1:])
+    token_logp = -nn.losses.cross_entropy(model(inputs), targets).astype(mx.float32) * mask
+    return token_logp.sum() / mask.sum()
+
+
+def pair_weights(chosen: float, rejected: float) -> tuple[float, float, float]:
+    """For one pair, from its two mean log-probabilities: the weights by which the gradient of each answer's mean
+    log-probability enters ORPO's gradient, and the loss.
+
+    loss = -m_c - LAMBDA log sigmoid(lo(m_c) - lo(m_r)), lo(m) = m - log(1 - e^m), so
+    d loss = -(1 + LAMBDA s lo'(m_c)) dm_c + LAMBDA s lo'(m_r) dm_r, with s = sigmoid(lo(m_r) - lo(m_c)) and
+    lo'(m) = 1 / (1 - e^m). The mean log-probability is held below zero as ``orpo_loss`` holds it."""
+    import math
+
+    held_c, held_r = min(chosen, -1e-6), min(rejected, -1e-6)
+
+    def lo(m: float) -> float:
+        return m - math.log(-math.expm1(m))
+
+    apart = lo(held_c) - lo(held_r)
+    s = 1.0 / (1.0 + math.exp(apart))
+    slope_c = 1.0 / -math.expm1(held_c) if chosen < -1e-6 else 0.0
+    slope_r = 1.0 / -math.expm1(held_r) if rejected < -1e-6 else 0.0
+    loss = -chosen + LAMBDA * math.log1p(math.exp(-apart))
+    return 1.0 + LAMBDA * s * slope_c, LAMBDA * s * slope_r, loss
+
+
+def step_gradient(model: Any, rows: tuple[Any, ...]) -> tuple[float, Any, int]:
+    """One row's loss, gradient and counted tokens. A pair's gradient is ORPO's, taken as one backward pass per answer:
+    each gives its mean log-probability and that one's gradient, and ``pair_weights`` from the two values weighs the
+    two gradients after, so that only one answer's graph is held at a time. Held together, a pair of a 27B's answers
+    took training past this machine's memory (0.009 steps a second against attempt 4's 0.048, 19 October 2026)."""
+    import mlx.core as mx
+    import mlx.nn as nn
+    from mlx.utils import tree_map
+
+    falling = nn.value_and_grad(model, lambda m, tokens, span: -mean_logp(m, tokens, span))
+    counted = int((rows[1][0, 1] - rows[1][0, 0]).item())
+    value, grads = falling(model, *rows[:2])
+    if len(rows) == 2:
+        return float(value), grads, counted
+    mx.eval(grads)
+    other, against = falling(model, *rows[2:])
+    w_chosen, w_rejected, loss = pair_weights(-float(value), -float(other))
+    # d loss = w_chosen d(-m_c) - w_rejected d(-m_r)
+    return loss, tree_map(lambda a, b: w_chosen * a - w_rejected * b, grads, against), counted
+
+
+def train_in_two_passes(model: Any, optimizer: Any, train_set: Pairs, valid_set: Pairs, args: Any, adapters: Path) -> None:
+    """mlx_lm's training loop, by step_gradient: the same rows in the same order, the same reports and adapter files."""
+    import time as _time
+
+    import mlx.core as mx
+    from mlx.utils import tree_flatten
+    from mlx_lm.tuner.trainer import grad_checkpoint
+
+    if args.grad_checkpoint:
+        grad_checkpoint(model.layers[0])
+
+    def validate() -> float:
+        losses = []
+        for rows in batches(valid_set, 1, args.max_seq_length):
+            if len(rows) == 2:
+                losses.append(-float(mean_logp(model, *rows)))
+            else:
+                losses.append(pair_weights(float(mean_logp(model, *rows[:2])), float(mean_logp(model, *rows[2:])))[2])
+            mx.clear_cache()
+        return sum(losses) / max(1, len(losses))
+
+    def save(name: str) -> None:
+        mx.save_safetensors(str(adapters / name), dict(tree_flatten(model.trainable_parameters())))
+
+    model.train()
+    began, losses, tokens, trained = _time.monotonic(), [], 0, 0
+    print(f"Starting training..., iters: {args.iters}", flush=True)
+    rows_in_order = batches(train_set, 1, args.max_seq_length, loop=True, seed=args.seed)
+    for it in range(1, args.iters + 1):
+        if it == 1 or it % args.steps_per_eval == 0 or it == args.iters:
+            took = _time.monotonic()
+            print(f"Iter {it}: Val loss {validate():.3f}, Val took {_time.monotonic() - took:.3f}s", flush=True)
+        loss, grads, counted = step_gradient(model, next(rows_in_order))
+        optimizer.update(model, grads)
+        mx.eval(model.parameters(), optimizer.state)
+        mx.clear_cache()
+        losses.append(loss)
+        tokens += counted
+        trained += counted
+        if it % args.steps_per_report == 0 or it == args.iters:
+            spent = _time.monotonic() - began
+            print(f"Iter {it}: Train loss {sum(losses) / len(losses):.3f}, Learning Rate {args.learning_rate:.3e}, "
+                  f"It/sec {len(losses) / spent:.3f}, Tokens/sec {tokens / spent:.3f}, Trained Tokens {trained}, "
+                  f"Peak mem {mx.get_peak_memory() / 1e9:.3f} GB", flush=True)
+            began, losses, tokens = _time.monotonic(), [], 0
+        if it % args.save_every == 0:
+            save("adapters.safetensors")
+            save(f"{it:07d}_adapters.safetensors")
+            print(f"Iter {it}: Saved adapter weights to {adapters / 'adapters.safetensors'}.", flush=True)
+    save("adapters.safetensors")
+    print(f"Saved final weights to {adapters / 'adapters.safetensors'}.", flush=True)
+
+
 def main(argv: list[str] | None = None) -> int:
     import mlx.optimizers as optim
     import numpy as np
     from mlx_lm import load
     from mlx_lm.lora import CONFIG_DEFAULTS, build_parser
-    from mlx_lm.tuner.trainer import TrainingArgs, train
     from mlx_lm.tuner.utils import linear_to_lora_layers, print_trainable_parameters
     from mlx_lm.utils import save_config
 
@@ -127,13 +234,8 @@ def main(argv: list[str] | None = None) -> int:
     adapters.mkdir(parents=True, exist_ok=True)
     save_config({**vars(args), "fine_tune_type": "lora", "preference": {"method": "orpo", "lambda": LAMBDA}},
                 adapters / "adapter_config.json")
-    training = TrainingArgs(batch_size=1, iters=args.iters, val_batches=args.val_batches, steps_per_report=args.steps_per_report,
-                            steps_per_eval=args.steps_per_eval, steps_per_save=args.save_every,
-                            adapter_file=adapters / "adapters.safetensors", max_seq_length=args.max_seq_length,
-                            grad_checkpoint=args.grad_checkpoint)
-    train(model=model, optimizer=optim.Adam(learning_rate=args.learning_rate), train_dataset=Pairs(train_rows, tokenizer),
-          val_dataset=Pairs(valid_rows, tokenizer), args=training, loss=orpo_loss,
-          iterate_batches=lambda **kw: batches(seed=args.seed, **{k: v for k, v in kw.items() if k != "seed"}))
+    train_in_two_passes(model, optim.Adam(learning_rate=args.learning_rate), Pairs(train_rows, tokenizer),
+                        Pairs(valid_rows, tokenizer), args, adapters)
     return 0
 
 

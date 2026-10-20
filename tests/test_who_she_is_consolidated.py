@@ -345,3 +345,38 @@ def test_the_base_model_challenges_held_out_are_never_trained_on():
 
     trained = [q for q, _ in questions()]
     assert not [(q, h) for q in trained for h in BASE_CHALLENGES_HELD if alike(q, h)]
+
+
+def test_a_pairs_gradient_in_two_passes_is_orpos_gradient_exactly():
+    """A pair of a 27B's answers held in one graph took training past this machine's memory; taken as one backward
+    pass per answer, the two weighed after from both values, the gradient is the joint loss's, to float32 rounding
+    (the joint loss takes its log-odds in float32, the weights here are taken in float64)."""
+    import mlx.core as mx
+    import mlx.nn as nn
+    import numpy as np
+    from mlx.utils import tree_flatten
+
+    from tools.training_her_preferences import orpo_loss, step_gradient
+
+    class Tiny(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embed, self.out = nn.Embedding(16, 8), nn.Linear(8, 16)
+
+        def __call__(self, inputs):
+            return self.out(self.embed(inputs))
+
+    mx.random.seed(3)
+    model = Tiny()
+    pair = (mx.array([[1, 2, 3, 4, 5, 6, 0, 0, 0]]), mx.array([[3, 6]]), mx.array([[1, 2, 3, 9, 10, 0]]), mx.array([[3, 5]]))
+    (joint, _), expected = nn.value_and_grad(model, orpo_loss)(model, *pair)
+    loss, got, counted = step_gradient(model, pair)
+    assert counted == 3 and np.isclose(loss, float(joint), rtol=1e-4)
+    for (name, a), (_, b) in zip(tree_flatten(expected), tree_flatten(got), strict=True):
+        assert np.allclose(np.array(a), np.array(b), rtol=1e-3, atol=1e-4), name
+    alone = (mx.array([[1, 2, 3, 4, 5, 6, 0]]), mx.array([[3, 6]]))
+    (single, _), expected = nn.value_and_grad(model, orpo_loss)(model, *alone)
+    loss, got, _ = step_gradient(model, alone)
+    assert np.isclose(loss, float(single), rtol=1e-4)
+    assert all(np.allclose(np.array(a), np.array(b), rtol=1e-3, atol=1e-4)
+               for (_, a), (_, b) in zip(tree_flatten(expected), tree_flatten(got), strict=True))

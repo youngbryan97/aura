@@ -384,3 +384,18 @@ qwen3.8"). Those are the held-out question in other spellings, and training on t
 
 Source: the commit that adds this section (the chain writes it to `attempt5/source_commit.txt`). Chain:
 `~/.aura/rlc-evidence/aura-fixes/l01_attempt5.sh`.
+
+## Attempt 5 amendment, 19 October 2026, 23:50, before its training has run through
+
+Everything before training ran as registered (onpolicy.jsonl: 350 answers of attempt 4's adapter, 173 not true; 440
+examples, 158 of them pairs). Training was started twice and stopped at step 10 of 396 both times, at 0.009 steps a
+second against attempt 4's 0.048: the first time with tests of mine running beside it and 8% of memory free, the
+second with the machine to itself, which showed the cause was the pairs, whose two answers of a 27B, held in one
+graph for the backward pass, took training past this 64 GB machine's memory.
+
+The trainer now takes each pair's gradient as one backward pass per answer (`step_gradient`,
+`tools/training_her_preferences.py`): each pass gives an answer's mean log-probability and that one's gradient, and
+ORPO's weights, worked out from the two values, weigh the two gradients after. The objective, the data, the order,
+the weight 0.1, the layers, the learning rate and the seed are as registered. A test computes the joint loss's
+gradient and this one on a small model and finds them equal to float32 rounding; on Qwen2.5-1.5B the losses of the
+first 20 steps were the old loop's to the second decimal. The adapter files and reports are as before.
