@@ -60,3 +60,23 @@ registered and as read. L09 closes when the primary criterion holds as read and 
 Whether, on what people ask chat assistants, her kept procedures change her answers for the better where they
 reach. WildChat's people asked another assistant, not her; the requests are realistic, and they are not hers.
 How often the route reaches such requests is reported beside the result.
+
+## Amendment, 19 October 2026, 17:42, with 21 of 33 drafted and before any draft was read
+
+The registered reader (`states`) reads numbers, lists of numbers, yes or no, and word orders. Of the 33 counted
+requests, the programs settle 8 (`truths.json`, 16:44): five numbers, a clock time, an option letter and a printed
+output; 25 are misroutes. The chain's `grade --rule 2` stops at the first kind `states` cannot read, so the result is
+graded by `tools/l09_answers_read.py`:
+
+- **A number** is read by the registered rule 2.
+- **A time, an option or an output** is read as rule 2 reads a number: in the last paragraph that states a value
+  of the answer's kind the request did not give. A time must name the hour and minute, and the half of the day if it
+  names one; an option is right only when the paragraph names it and no other offered option; a printed output this
+  exact (`[[...]]`) counts wherever the reply states it.
+- **A misroute** as the first plan grades it: wrong on the on arm when a kept answer was served in place of her
+  reply; otherwise each arm by whether her reply answers what was asked, read by hand with the reason. The two
+  replies are put on a sheet as X and Y in an order drawn per request (seed 20261019), and read before the key
+  is opened.
+
+One draft was seen before this was written: w000121, the clock, whose two arms both say 5:39 PM, read while checking
+the shape of a row. The tests are `tests/test_l09_answers_read.py`.
