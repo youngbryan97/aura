@@ -29,7 +29,8 @@ def read_motion_family(speeds: Any, *, statistic_over: float, effect_over: float
     models = getattr(getattr(speeds, 'intervals', None), 'families', None)
     if models is None:
         return reading
-    current_statistic, current_effect = speeds.intervals.contrast(owner=models.owner) if models.owner is not None else (0., 0.)
+    current_statistic, current_effect = speeds.intervals.contrast(owner=models.owner,
+        statistic_over=statistic_over, effect_over=effect_over) if models.owner is not None else (0., 0.)
     qualified = current_statistic >= statistic_over and current_effect >= effect_over
     prediction = models.read(admitted_acceleration=reading.accelerated, qualified_push=qualified)
     if prediction.selected is None:

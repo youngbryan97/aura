@@ -38,6 +38,7 @@ from core.agency.causal_identification import (
     CausalIdentification,
     within_observed_reach,
 )
+from core.agency.a_contrast_that_meets_both_tests import strongest_eligible_contrast
 from core.agency.controls_measured_on_one_thing import motion_is_resolved, own_control_witness
 from core.agency.controls_ready_for_the_motion_model import has_a_measured_response
 from core.agency.finding_her_another_way import FoundAnotherWay
@@ -327,7 +328,8 @@ class _Speeds:
         if len(groups) < 2:
             return self.intervals.contrast()
         f, gap = _contingency(groups)
-        return max((f, gap * PUSHED_FOR_S), self.intervals.contrast())
+        return strongest_eligible_contrast(((f, gap * PUSHED_FOR_S), self.intervals.contrast()),
+                                          statistic_over=ANSWERS, effect_over=REALLY_MOVES)
 
     def ratio(self) -> tuple[float, float]:
         """F over presses, and the largest difference between two keys' mean speeds.
@@ -363,7 +365,8 @@ class _Speeds:
             response_in_motion_coordinates,
         )
 
-        return max(by_way, by_pace, self.by_push(), response_in_motion_coordinates(self), response_by_travel_speed(self))
+        return strongest_eligible_contrast((by_way, by_pace, self.by_push(), response_in_motion_coordinates(self),
+            response_by_travel_speed(self)), statistic_over=ANSWERS, effect_over=REALLY_MOVES, strict=True)
 
     def carried(self) -> bool:
         """Whether it answers to her keys by how they push it, more than by the pace it goes under each, and goes on

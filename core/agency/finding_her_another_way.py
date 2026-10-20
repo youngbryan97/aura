@@ -97,7 +97,8 @@ class FoundAnotherWay:
         if own is not None and _goes_with_the_world(own, _how_the_world_went(self)):
             return
         if witness is None or witness.statistic <= self.identification.statistic_over or witness.effect <= self.identification.effect_over:
-            witness = own_trajectory_witness(thing, receipts, epoch=self.identification.epoch)
+            witness = own_trajectory_witness(thing, receipts, epoch=self.identification.epoch,
+                statistic_over=self.identification.statistic_over, effect_over=self.identification.effect_over)
         if witness is None or self.identification.choose([witness], visible={thing.number}, established=None,
                                                          excluded=self.not_mine) != thing.number:
             return

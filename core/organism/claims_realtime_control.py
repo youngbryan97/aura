@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.a_contrast_that_meets_both_tests import _joint_contrast_invariant
     from core.agency.evidence_for_a_requested_relation import _referent_evidence_invariant
     from core.agency.a_control_trial_and_its_observation_reserve import _trial_reserve_invariant
     from core.agency.motion_models_on_the_same_intervals import _forward_motion_models_invariant
@@ -73,7 +74,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('referent_candidates_cannot_certify_contact', 'core/agency/evidence_for_a_requested_relation.py',
+    return (('contrast_ranking_preserves_joint_admission', 'core/agency/a_contrast_that_meets_both_tests.py',
+             'tests/test_a_valid_contrast_survives_aggregate_ranking.py', lambda: _joint_contrast_invariant() == (),
+             'A contrast meeting the caller\'s statistic and physical-effect gates survives aggregate ranking; invalid measurements do not qualify and thresholds and independent trial counts remain unchanged.'),
+            ('referent_candidates_cannot_certify_contact', 'core/agency/evidence_for_a_requested_relation.py',
              'tests/test_missing_referents_request_specific_evidence.py', lambda: _referent_evidence_invariant() == (),
              'A destination refusal retains candidate identity and the specific missing observation; geometric approach regions preserve unknown collision, speed, angle and contact requirements.'),
             ('discovery_records_its_observation_deadline_and_owner', 'core/agency/a_control_trial_and_its_observation_reserve.py',

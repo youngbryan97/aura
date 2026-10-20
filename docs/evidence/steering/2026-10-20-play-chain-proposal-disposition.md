@@ -283,3 +283,30 @@ independently reproduced.
   on `pad_y`. The current source reader retains the uncast subtraction;
   exact bytecode/operator agreement remains an acceptance gate before that
   external port's metrics can be treated as faithful original-game evidence.
+
+### Joint contrast qualification applied
+
+- [x] PDF-1: four new tests failed on the old production paths. A high-F,
+  sub-threshold effect displaced a valid interval pair, neutral response,
+  raw/interval push comparison and causal ratio. All four pass after the
+  repair. `strongest_eligible_contrast` first ranks whether both of the
+  caller's unchanged gates pass, then their weakest normalized margin.
+- [x] The same repair applies to choosing between repeated trajectories.
+  The actual caller supplies its own thresholds; strict identity/per-key
+  gates remain strict and initial carried admission remains inclusive.
+  Independent trial counts, sample precision and effect units are unchanged.
+- [x] Nonfinite, Boolean and overflowed measurements cannot qualify; order
+  changes cannot hide the valid pair. The invariant is registered beside
+  the production claim and runs without input or a model worker.
+
+There were 141 passing motion/identity regressions in 17.99 seconds, followed
+by 53 passing trajectory, prepared-source and scheduling checks in 13.88
+seconds. Smoke: 164 passed, one skipped. Lint, compile, layering and writing
+passed in a 108.3-second bounded gate run. The GPU remains reserved for
+Bryan. No original/native win or removal of all recorded reversions is claimed.
+
+The actual retained run contains 146 continuing references to source asset
+57. The reference receipt has source/hash, current origin, error and named
+point support; it has no object number/birth, task role, contact interval or
+pixel capture of its own. Its existence cannot establish the PDF's claimed
+413 uniquely bound destinations. A missing producer still has to be built.

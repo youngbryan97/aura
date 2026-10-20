@@ -18,6 +18,7 @@ from typing import Any
 from core.perception.a_clock_for_drawn_frames import MeasuredFrameTime
 from core.perception.material_displacement_from_named_pixels import MaterialDisplacement
 from core.verify import invariant
+from core.agency.a_contrast_that_meets_both_tests import strongest_eligible_contrast
 
 
 def _finite(value: Any) -> bool:
@@ -253,7 +254,8 @@ class IntervalResponses:
             groups[key].append(estimate)
         return {key: values for key, values in groups.items() if len(values) >= 2}
 
-    def contrast(self, *, keys: tuple[str, str] | None = None, owner: tuple | None = None) -> tuple[float, float]:
+    def contrast(self, *, keys: tuple[str, str] | None = None, owner: tuple | None = None,
+                 statistic_over: float = 20., effect_over: float = 20., strict: bool = False) -> tuple[float, float]:
         groups = self.groups(owner=owner)
         results = [(0., 0.)]
         for first, second in itertools.combinations(groups, 2):
@@ -269,15 +271,15 @@ class IntervalResponses:
             error = sum(statistics.fmean(v.error for v in g) for g in (a, b))
             effect = max(0., math.dist(*means)-error)*.5
             results.append((between/(within+noise+.25), effect))
-        return max(results)
+        return strongest_eligible_contrast(results, statistic_over=statistic_over, effect_over=effect_over, strict=strict)
 
     def push(self, key: str, *, statistic_over: float, effect_over: float) -> tuple[float, float] | None:
         groups = self.groups()
         if key not in groups:
             return None
-        comparisons = [self.contrast(keys=(key, other)) for other in groups
+        comparisons = [self.contrast(keys=(key, other), statistic_over=statistic_over, effect_over=effect_over, strict=True) for other in groups
                        if other != key and (not key or not other)]
-        statistic, effect = max(comparisons, default=(0., 0.))
+        statistic, effect = strongest_eligible_contrast(comparisons, statistic_over=statistic_over, effect_over=effect_over, strict=True)
         if statistic <= statistic_over or effect <= effect_over:
             return None
         values = groups[key]

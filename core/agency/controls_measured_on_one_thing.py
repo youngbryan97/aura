@@ -62,9 +62,11 @@ def _own_control_witness_invariant() -> tuple:
     return ()
 
 
-def own_trajectory_witness(thing: Any, receipts: Any, *, epoch: int) -> CausalWitness | None:
+def own_trajectory_witness(thing: Any, receipts: Any, *, epoch: int,
+                           statistic_over: float = 20., effect_over: float = 20.) -> CausalWitness | None:
     """Compare repeated paths on one continuing body, including a path that returns to its start."""
     import itertools
+    from core.agency.a_contrast_that_meets_both_tests import contrast_rank
 
     from core.agency.what_a_press_does import _where
 
@@ -99,7 +101,9 @@ def own_trajectory_witness(thing: Any, receipts: Any, *, epoch: int) -> CausalWi
         statistic = effect ** 2 / (noise ** 2 + .25)
         witness = CausalWitness(thing.number, epoch, ((first, len(groups[first])), (second, len(groups[second]))),
                                 statistic, effect)
-        if best is None or witness.statistic > best.statistic:
+        if best is None or contrast_rank((witness.statistic, witness.effect), statistic_over=statistic_over,
+                effect_over=effect_over, strict=True) > contrast_rank((best.statistic, best.effect),
+                statistic_over=statistic_over, effect_over=effect_over, strict=True):
             best = witness
     return best
 
