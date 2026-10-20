@@ -107,6 +107,34 @@ def restatement_request(request: str, examples: Sequence[Mapping[str, str]]) -> 
 
 
 _NUMBER = re.compile(r"\d+(?:\.\d+)?")
+#: A string written in quotes, and the escapes inside one that stand for a character rather than say anything.
+_QUOTED = re.compile(r"""(?:[rbfu]{0,2})(["'])((?:\\.|(?!\1).)*)\1""", re.I)
+_ESCAPE = re.compile(r"\\[ntrbfvw0sSdDW]|\\.")
+
+
+def _given_strings(text: str) -> set[str]:
+    """The strings a text writes in quotes, as written."""
+    return {m.group(2) for m in _QUOTED.finditer(str(text or ""))}
+
+
+def brings_only_what_was_given(request: str, restated: str) -> bool:
+    """Whether every string the restatement hands its procedure was given in the request, in quotes or code.
+
+    A string that says something (a letter or a digit once its escapes are set aside) and that the request did not
+    give is the restatement's own, and a value computed on it answers a problem nobody asked. L09's second attempt,
+    19 October 2026: "how to check if email address is valid" restated as ``f("user@example.com")``, "write a
+    hello world script" as ``f()`` returning ``"hello world"``, "help me write a python code express emotion" as
+    ``f('happy')``; 22 of its 25 misroutes were requests for code whose restatement invented the input, and the
+    value served answered nothing asked. Given in words is not given as a value: "a hello world script" does not
+    give the string "hello world".
+    """
+    given = _given_strings(request)
+    for said in _given_strings(restated):
+        if not re.search(r"[A-Za-z0-9]", _ESCAPE.sub("", said)):
+            continue
+        if said not in given and not any(said in g for g in given):
+            return False
+    return True
 
 
 def restates(request: str, restated: str, examples: Sequence[Mapping[str, str]] = ()) -> bool:
@@ -121,6 +149,8 @@ def restates(request: str, restated: str, examples: Sequence[Mapping[str, str]] 
     not have, or one of the request's numbers cut short. And it keeps at least
     one number of a request that has any.
     """
+    if not brings_only_what_was_given(request, restated):
+        return False
     asked = set(_NUMBER.findall(str(request or "")))
     written = set(_NUMBER.findall(str(restated or "")))
     shown = {n for e in examples for n in _NUMBER.findall(str(e.get("problem") or ""))}

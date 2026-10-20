@@ -89,3 +89,16 @@ It does not show that her kept procedures do no good: the first attempt's three 
 had left unfinished, still stand, on her own requests. It shows that on requests people make, what reaches her as a
 kept answer is mostly a misroute, and that the route needs a check that the restated question is the one asked
 before L09 is run again.
+
+## Amendment, 19 October 2026, 20:45: the check the route lacked
+
+`core/learning/kinds_by_meaning.py` `restates`, which her live chat's route and this tool both use, read only a
+restatement's numbers. It now also refuses a restatement that hands its procedure a string the request did not give,
+in quotes or in its code (`brings_only_what_was_given`): a string that says something, once its escapes are set
+aside, and that the request gave only in words or not at all. On this attempt's 33 rows it would have refused 20 of
+the 25 misroutes and none of the 8 requests a program settles. The 5 it lets through are misreadings no string shows:
+a missing number read as the next term (w000884), a heap read as a sort (w009856), a question about a time read as
+minutes between two times (w007438), an SQL exercise (w005653) and "make it work" (w008680).
+
+These are the rows the check was built from, so they show it does what it was built to do, not how it fares on
+requests it has not seen. The next attempt draws its requests afresh.

@@ -240,6 +240,26 @@ def _route(monkeypatch, written: str):
     return out, book, asked
 
 
+def test_a_restatement_brings_no_string_the_request_did_not_give() -> None:
+    """L09's second attempt, 19 October 2026: requests for code restated as a function called on an input the
+    restatement made up, and the value served as if it answered the request (22 of 25 misroutes)."""
+    from core.learning.kinds_by_meaning import restates
+
+    code = 'assert f({}) == ??'
+    # Made up while restating: not given, so not the problem asked.
+    assert not restates("in python, how to check if email adress is valid",
+                        "def f(email): return '@' in email\n" + code.format('"user@example.com"'))
+    assert not restates("hi can you write me a hello world script in python?",
+                        'def f(): return "hello world"\n' + code.format(""))  # given in words, not as a value
+    assert not restates("help me write a python code express emotion",
+                        "def f(e): return ':)' if e == 'happy' else ':('\n" + code.format("'happy'"))
+    # Given in the request, in quotes or in its code: the problem asked.
+    assert restates('Which code prints every character of str = "Python" on its own line?',
+                    "def f(text): return '\\n'.join(text)\n" + code.format('"Python"'))
+    assert restates('What would happen if I ran: "a = [None] a[0] = a print(a)"',
+                    "def f(a): a[0] = a; return a\n" + code.format("[None]"))
+
+
 def test_her_restatement_opens_inside_the_problem_label_and_is_answered(monkeypatch) -> None:
     out, book, asked = _route(monkeypatch, "Calculate the highest common divisor of 4862 and 7854.\n\nProblem:\nmore")
     assert asked[0]["messages"][-1] == {"role": "assistant", "content": "Problem:\n"}
