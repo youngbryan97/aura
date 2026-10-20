@@ -1303,7 +1303,7 @@ class _AnswersTheDesktopDirectly:
                 # Every clean user turn measures semantic completion. Natural
                 # EOS remains available; this contract preserves an incomplete
                 # deadline/max-token draft and its exact continuation state.
-                "semantic_completion_contract": True,
+                "semantic_completion_contract": not context.get("her_own_turn"),  # a turn of hers owes no one an answer
                 "user_surface_validation_prompt": validation_prompt,
                 "user_surface_sensory_evidence": context.get(
                     "turn_sensory_evidence"
