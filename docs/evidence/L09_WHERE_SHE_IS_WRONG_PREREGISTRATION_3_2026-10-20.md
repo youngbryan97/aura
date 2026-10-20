@@ -73,3 +73,33 @@ kept procedure answered wrong.
 That being corrected the way a person corrects her improves her answers to what people ask of the same kind. Not
 that people correct her (the corrections are the programs' answers, given as a person would), and not that her book
 helps on kinds she already gets right.
+
+## Step 1 result, 20 October 2026
+
+Her persona 27B answered the 80 requests 08:07 to 08:24 at 9d57ffcaf (main then; the tool unchanged since 1ad592444), her app down
+(`~/.aura/rlc-evidence/l09-where-she-is-wrong-20261020/step1/`, `step1.json`). By the registered rule:
+
+| kind | right | wrong | kept |
+|---|---|---|---|
+| sum | 19 | 1 | no |
+| product | 19 | 1 | no |
+| percent_of | 20 | 0 | no |
+| letters | 18 | 2 | no |
+
+**No kind is kept, so the attempt ends here, as registered: on what people ask that a program settles, her model
+alone is mostly right.**
+
+Read by hand, all four graded wrong are right, and the rule misread them:
+
+- "How many r are in stawberry?" and "how many r in strawberrry.": she gives the count for the word as typed (2, and
+  4), then in a last paragraph the 3 of "strawberry". The rule reads only the last paragraph.
+- "Can you multiply 23248023 and 2834823994?": her boxed answer is right, written with LaTeX's `{,}` between groups,
+  which the rule's reading of a boxed answer does not take.
+- "What is 0.1+0.2?": "Mathematically: 0.1 + 0.2 = **0.3**", then why programs print 0.30000000000000004; the last
+  paragraph states no 0.3.
+
+By hand, 80 of 80. The verdict is the same either way.
+
+**What it shows.** Requests a program settles are rare in what people type: 293 of WildChat-4.8M's English user
+turns. On the four kinds common enough to test, her model is already right. Learning in use from correction has to
+be measured where she is wrong, and these kinds are not where she is.
