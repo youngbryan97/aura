@@ -1814,6 +1814,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     break
                 if chose_the_drawing(moves) or on_the_page.handed_over(moves):  # played by sight, talked on or watched, on her own page
                     steps.append(await (played_on_the_drawing if chose_the_drawing(moves) else on_the_page.handed_over(moves))(browser, goal, observation))
+                    if steps[-1].get("beside"):  # watched with them beside the conversation: this turn's part is done
+                        completed = True
+                        break
                     # What the play or the talk came to is her last move: moves made are progress though the page's text did not change.
                     before_move, last_done, last_moves = observation, [str(steps[-1].get("did") or "")], []
                     stalled, last_signature = (0, "") if steps[-1].get("moved") else (stalled, last_signature)

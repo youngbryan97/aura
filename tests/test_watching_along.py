@@ -236,3 +236,29 @@ def test_she_speaks_when_more_is_new_than_when_she_last_spoke_and_at_a_lull():
         busy.took_in(Moment(at=n, read="one two"))
     busy.took_in(Moment(at=5.0, seen="glaciers", read="glaciers carve valleys through mountains and leave lakes behind them"))
     assert not busy.worth_a_remark(), "not while it is saying more than usual: she waits for a lull"
+
+
+@pytest.mark.asyncio
+async def test_watched_with_them_it_goes_on_beside_and_the_browsing_is_done(monkeypatch):
+    """LIVE 20 October 2026: once the watching had gone on beside the conversation, her browsing went another round
+    and asked her model what to do on a page she had handed over. The step says it goes on beside."""
+    import core.skills.sovereign_browser_on_the_page as on_the_page
+    import core.skills.watching_the_screen as screen
+    import core.skills.watching_together as together
+
+    started, evaluated = [], []
+
+    class _Page:
+        async def evaluate(self, script):
+            evaluated.append(script)
+            return {"duration": 6.0, "w": 640, "h": 360} if script is on_the_page.WHAT_PLAYS else {"words": "a short film"}
+
+        async def title(self):
+            return "A short film about colour"
+
+    monkeypatch.setattr(screen, "_their_browser", lambda _url: ("com.example.Browser", "Browser"))
+    monkeypatch.setattr(together, "start_watching_in_a_with", lambda *a, **k: started.append(k))
+    step = await on_the_page.watched_on_the_page(SimpleNamespace(page=_Page()), ASKED,
+                                                 {"url": "http://127.0.0.1:8765/watching/a_page_that_plays.html"})
+    assert step["beside"] and step["over"] and started and started[0]["title"] == "A short film about colour"
+    assert on_the_page.QUIET_HERE in evaluated  # her own page quiet: it plays where they watch

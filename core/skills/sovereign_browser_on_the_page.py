@@ -140,7 +140,8 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
                                      title=title, url=step["url"], at_most_s=at_most)
             did = (f"Found {title or 'the video'}{f' ({clock(duration)})' if duration else ''}. It opens on their "
                    "screen once this reply has gone, and is watched with them there while the conversation goes on.")
-            return {**step, "did": did, "why": did, "moved": True, "over": True, "where": "on their screen, together"}
+            return {**step, "did": did, "why": did, "moved": True, "over": True, "beside": True,
+                    "where": "on their screen, together"}
         where = await on_their_screen(step["url"], title, duration, words)
         if where is not None:
             await page.evaluate(QUIET_HERE)
