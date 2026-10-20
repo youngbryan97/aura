@@ -473,6 +473,9 @@ _CREDENTIAL_KEYS = {
     "reddit": {
         "username": "AURA_REDDIT_USERNAME",
         "password": "AURA_REDDIT_PASSWORD",
+        # Her registered application, for reading (core/skills/reddit_reading.py).
+        "client_id": "AURA_REDDIT_CLIENT_ID",
+        "client_secret": "AURA_REDDIT_CLIENT_SECRET",
     },
     "owner": {
         "email": "AURA_OWNER_EMAIL",
