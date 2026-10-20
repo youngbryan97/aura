@@ -1290,13 +1290,22 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         // then a positional path — index-only references break the moment a
         // re-render reorders anything, which is the classic way these loops
         // click the wrong thing on step nine.
+        //
+        // An id names one element only where the page gives it to one. LIVE
+        // 2026-10-20 13:27 every result on YouTube's search page had
+        // id="thumbnail": all of them became the one control "#thumbnail",
+        // which resolves to the first in the page, a hidden one, and the
+        // click on the video she chose found nothing. The path climbs until
+        // it names this element and no other.
+        const ownId = (node) => node.id
+            && document.querySelectorAll('#' + CSS.escape(node.id)).length === 1;
         const cssPath = (el) => {
-            if (el.id) return '#' + CSS.escape(el.id);
+            if (ownId(el)) return '#' + CSS.escape(el.id);
             const parts = [];
             let node = el;
-            while (node && node.nodeType === 1 && parts.length < 6) {
+            while (node && node.nodeType === 1 && parts.length < 16) {
                 let part = node.tagName.toLowerCase();
-                if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
+                if (ownId(node)) { parts.unshift('#' + CSS.escape(node.id)); break; }
                 const parent = node.parentElement;
                 if (parent) {
                     const siblings = Array.from(parent.children).filter(
@@ -1307,6 +1316,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 }
                 parts.unshift(part);
                 node = node.parentElement;
+                if (parts.length >= 6 && document.querySelector(parts.join(' > ')) === el) break;
             }
             return parts.join(' > ');
         };

@@ -87,3 +87,39 @@ def test_a_page_still_loading_is_waited_for_not_left():
     seen = asyncio.run(skill._look_again_once_loaded(Browser()))
     assert looked == ["waited:domcontentloaded", "observed"]
     assert seen["url"] == "https://x.test/2"
+
+
+def _results_sharing_one_id() -> str:
+    """YouTube's search page as it was on 20 Oct: every result's thumbnail link carries id="thumbnail", the first hidden."""
+    hidden = '<div style="display:none"><a id="thumbnail" href="/watch?v=hidden">a hidden one</a></div>'
+    results = "".join(
+        f'<div class="result"><div><a id="thumbnail" href="/watch?v={n}">video {n}</a></div></div>' for n in range(1, 5)
+    )
+    return f"<main>{hidden}<section>{results}</section></main>"
+
+
+def test_a_control_whose_id_the_page_gives_to_others_is_named_by_where_it_is():
+    """LIVE 2026-10-20 13:27: all the results became the one control "#thumbnail", which named the hidden first one."""
+    playwright = pytest.importorskip("playwright.async_api")
+    html = _results_sharing_one_id()
+
+    async def look() -> list[tuple[str, str]]:
+        async with playwright.async_playwright() as running:
+            try:
+                browser = await running.chromium.launch(headless=True)
+            except Exception as why:  # noqa: BLE001 - no browser here is a skip, not a failure
+                pytest.skip(f"no headless browser here: {why}")
+            try:
+                page = await browser.new_page()
+                await page.set_content(html)
+                seen = await page.evaluate(PhantomBrowser._OBSERVE_SCRIPT, 0)
+                return [
+                    (one["selector"], await page.locator(one["selector"]).first.get_attribute("href"))
+                    for one in seen["elements"] if one.get("role") == "link"
+                ]
+            finally:
+                await browser.close()
+
+    links = asyncio.run(look())
+    assert [href for _selector, href in links] == [f"/watch?v={n}" for n in range(1, 5)]
+    assert len({selector for selector, _href in links}) == 4

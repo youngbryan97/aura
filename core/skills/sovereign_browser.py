@@ -1870,7 +1870,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 steps[-1]["landed"] = landed
                 if not report.get("ok") and not landed:
                     steps[-1]["error"] = str(report.get("error") or "interaction_failed")
-                    break
+                    continue  # one bad round: the control is retired, she looks again, the stall counter ends a dead page
                 steps[-1]["ok"] = True
 
                 # Did the page do what she said it would? A violated expectation is
