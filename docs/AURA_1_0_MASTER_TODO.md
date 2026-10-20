@@ -3135,6 +3135,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   kept procedures reach 9 of the 195 requests typed into her chat; read by hand 3 gained, 0 lost (registered
   grader 3-1, one grader artifact), each gain a number-theory request her own reasoning did not finish. Still
   open: five discordant pairs need more use, or a plan sampling realistic requests beyond her history.
+  Attempt 2, 19 October, over WildChat requests ([result](evidence/L09_ORDINARY_USE_RESULT_2_2026-10-19.md)):
+  not met, 3 gained and 4 lost over 33, all seven misroutes. 25 of the 33 her procedures reached were not
+  questions they answer, 22 by restating a request for code as a function's output; on 3 losses the value served
+  was what took her reply off the request (":)" for "write a python code express emotion"). Open: the route's
+  check that a restated question is the one asked, then a third run.
 - [ ] L10 Let her learn from what she verifies online, offline-first. Today a
   claim she checks online (core/epistemics/epistemic_reach.py, through the
   governed reach gateway) corrects one reply and is not kept, and no web

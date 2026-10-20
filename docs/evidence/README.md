@@ -428,6 +428,7 @@ description is that document's own title.
 | `L09_ORDINARY_USE_PREREGISTRATION_2026-10-18.md` | L09, second half: her kept procedures on against off over her ordinary use. Preregistration, 18 October 2026 |
 | `L09_ORDINARY_USE_PREREGISTRATION_2_2026-10-19.md` | L09, second half, attempt 2: her kept procedures on against off over requests people make. Preregistration, 19 October 2026 |
 | `L09_ORDINARY_USE_RESULT_2026-10-18.md` | L09, second half: her kept procedures on against off over her ordinary use. Result, 18-19 October 2026 |
+| `L09_ORDINARY_USE_RESULT_2_2026-10-19.md` | L09, second half, attempt 2: her kept procedures on against off over requests people make. Result, 19 October 2026 |
 | `OBSERVED_CHOICES_AND_SCOPED_STOP_2026-10-10.md` | Observed choices and scoped stopping, 10 October 2026 |
 | `OBSERVED_PROCEDURE_EFFECTS_2026-10-10.md` | Observed procedure effects, 10 October 2026 |
 | `OPTIONAL_PREPARATION_BODY_ENTRY_2026-10-11.md` | Optional preparation and body entry, 11 October 2026 |
