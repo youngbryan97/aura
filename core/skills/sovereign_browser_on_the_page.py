@@ -11,7 +11,7 @@ from functools import partial
 from typing import Any
 
 from . import sovereign_browser_conversation as conversation
-from .watching_along import WHAT_PLAYS, clock, into_her_memory, kept_at, watch_along
+from .watching_along import WHAT_PLAYS, WHAT_THE_PAGE_SAYS, clock, into_her_memory, kept_at, watch_along
 
 #: The selector what a page plays is offered under. Not a CSS selector: a move on it is a hand-over.
 WATCHING = "::watching"
@@ -103,7 +103,9 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
         # (core/skills/watching_the_screen.py). Where it cannot be shown there, on her own page as before.
         from core.skills.watching_the_screen import on_their_screen
 
-        where = await on_their_screen(step["url"], title, float(plays.get("duration") or 0))
+        said_of_itself = await page.evaluate(WHAT_THE_PAGE_SAYS) or {}
+        where = await on_their_screen(step["url"], title, float(plays.get("duration") or 0),
+                                      str(said_of_itself.get("words") or ""))
         if where is not None:
             await page.evaluate(QUIET_HERE)
             step["where"] = f"on their screen, in {where.owner}"
