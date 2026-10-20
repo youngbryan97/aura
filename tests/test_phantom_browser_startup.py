@@ -268,3 +268,12 @@ def test_her_browser_browses_quietly_unless_told_not_to(monkeypatch):
     monkeypatch.setenv("AURA_BROWSER_STEALTH", "0")
     assert phantom_module._hides_automation() is False
     assert PhantomBrowser(browser_type="chromium")._get_random_ua() is None
+
+
+def test_her_desktop_window_browses_as_a_desktop_browser(monkeypatch):
+    """LIVE 20 October 2026: an iPhone's user agent was drawn for her 1280-wide window, and sites serve a phone's page
+    to it."""
+    monkeypatch.delenv("AURA_BROWSER_STEALTH", raising=False)
+    browser = PhantomBrowser(browser_type="chromium")
+    drawn = {browser._get_random_ua() for _ in range(200)}
+    assert drawn and not any("iPhone" in agent or "iPad" in agent or "Mobile" in agent for agent in drawn)

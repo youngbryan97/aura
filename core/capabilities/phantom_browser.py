@@ -732,8 +732,15 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         raise RuntimeError("all Chromium executables failed: " + "; ".join(failures))
 
     def _get_random_ua(self) -> str | None:
-        """A user agent drawn from a list, or the browser's own when it is browsing as what it is."""
-        return random.choice(USER_AGENTS) if _hides_automation() else None
+        """A user agent drawn from a list, or the browser's own when it is browsing as what it is.
+
+        Only a desktop one: her window is a desktop window (1280 wide), and a phone's user agent in it is served a
+        phone's page laid out for a desktop's width (LIVE 20 October 2026, an iPhone's drawn for the watching
+        rehearsal).
+        """
+        if not _hides_automation():
+            return None
+        return random.choice([agent for agent in USER_AGENTS if "Mobile" not in agent and "iPad" not in agent])
 
     async def _apply_stealth(self, context: Any) -> bool:
         """Apply the installed playwright-stealth API before creating pages.
