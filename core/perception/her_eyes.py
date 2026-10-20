@@ -37,7 +37,7 @@ def _turn() -> Any:
 #: watching opened "Based on the image you provided, here's what is happening: You are watching a short film".
 _TO_WHOEVER_SENT_IT = re.compile(
     r"^\s*(?:(?:based on|from|in|looking at) (?:the|this) (?:image|picture|screenshot|frame)"
-    r"(?: (?:you|you've|you have) (?:provided|sent|shared))?(?:,? here(?:'|’)?s what(?:'s| is) happening)?\s*[:,.]\s*)?"
+    r"(?: (?:you |you've |you have )?(?:provided|sent|shared))?(?:,? here(?:'|’)?s what(?:'s| is) happening)?\s*[:,.]\s*)?"
     r"(?:you are (?:watching|looking at|seeing|viewing) )?", re.IGNORECASE)
 
 

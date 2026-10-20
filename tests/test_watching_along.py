@@ -283,5 +283,14 @@ async def test_a_remark_as_it_plays_is_its_first_thought_said_as_it_comes(monkey
     await watching_along.her_turn(ASKED, "playing, at 0:04 of 0:06.\n0:04 seen: a round test pattern", ["before"], remark=True)
     await watching_along.her_turn(ASKED, "it has ended. What played, in order:\n0:04 seen: a round test pattern", ["one"], remark=True)
     as_it_plays, after = handed
-    assert as_it_plays["max_tokens"] <= A_CLOSED_QUESTIONS_FLOOR and as_it_plays["stop_sequences"] == ["\n\n"]
-    assert after["max_tokens"] > A_CLOSED_QUESTIONS_FLOOR and not after["stop_sequences"]
+    assert as_it_plays["max_tokens"] <= A_CLOSED_QUESTIONS_FLOOR < after["max_tokens"]
+
+
+def test_what_is_said_as_it_plays_is_her_first_thought():
+    """LIVE 20 October 2026, stopped at its first paragraph a remark was "Okay. Here we go." """
+    from core.skills.watching_along import first_thought
+
+    said = "Okay. Here we go.\n\nIt's round, not bars, and the empty CC box sits there like a held breath.\n\n**Before:** I"
+    assert first_thought(said) == "It's round, not bars, and the empty CC box sits there like a held breath."
+    assert first_thought("Okay.\n\nIt's round, not bars. The empty CC box sits there like a breath that") == "It's round, not bars."
+    assert first_thought("Oh.") == ""  # nothing that says something: nothing said

@@ -396,12 +396,13 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # pursuit's own decisions are (LIVE 2026-09-28, refused as background inside an open turn until they said so).
     # Once the request is in what she reads (her answer to it, or remarks), nobody has just said anything to her.
     # A remark while it plays is said as it comes: its first thought, with its private channel shut (a budget within
-    # the closed question's floor, core/brain/llm/chat_format.py), ended where that thought ends. LIVE 20 October 2026
-    # a remark thought for 640 tokens at 8.5 a second, then answered the request's three parts under headings, cut off.
+    # the closed question's floor, core/brain/llm/chat_format.py). LIVE 20 October 2026 a remark thought for 640 tokens
+    # at 8.5 a second, then answered the request's three parts under headings, cut off; stopped at its first
+    # paragraph instead, it was "Okay. Here we go." What is said is its first thought (first_thought).
     as_it_plays = remark and observation.startswith("playing")
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
-               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 200 if as_it_plays else 480 if remark else 320,
-               "stop_sequences": ["\n\n"] if as_it_plays else None, "serves_current_turn": True,
+               "turn_sensory_evidence": evidence.to_dict(), "max_tokens": 160 if as_it_plays else 480 if remark else 320,
+               "serves_current_turn": True,
                # Hers to say, not a request to act on: LIVE 20 October 2026 the URL in "Watch this with me: http://..."
                # sent such a turn to fetch it twice, and it said nothing; and it was read again as somebody's
                # utterance, which opened a second with with "someone at desktop_watching_along".
@@ -409,7 +410,25 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
                "recent_completed_exchanges": exchanges if exchanges is not None else
                [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
     thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
-    return str(getattr(thought, "content", "") or "").strip()
+    words = str(getattr(thought, "content", "") or "").strip()
+    return first_thought(words) if as_it_plays else words
+
+
+#: Fewer words than this in a paragraph is a lead-in to a thought ("Okay. Here we go."), not one.
+A_THOUGHT_HAS_WORDS = 6
+
+
+def first_thought(words: str) -> str:
+    """The first paragraph of hers that says something, to its last whole sentence: what a person says of what is
+    playing while it plays, before the rest of what they would say about it. Nothing, where nothing she wrote does."""
+    import re
+
+    paragraphs = [part.strip() for part in re.split(r"\n\s*\n", words or "") if part.strip()]
+    thought = next((part for part in paragraphs if len(part.split()) >= A_THOUGHT_HAS_WORDS), "")
+    if not thought:
+        return ""
+    whole = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought)
+    return whole.group(1).strip() if whole and not re.search(r"[.!?…][\"'”’)*_]*$", thought) else thought
 
 
 async def say_it(words: str) -> bool:
