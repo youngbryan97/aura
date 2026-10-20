@@ -774,17 +774,12 @@ class EpistemicReachEngine:
         settled = _settled_before(claim, fingerprint)
         if settled is not None:
             return settled
-        terms = self._query_terms(claim, felt)
         decided: ReachVerdict | None = None
-        for source in self._permitted_sources():
-            async for evidence, url in _what_it_says(source, gateway, terms, claim):
-                verdict = self._judged_and_kept(claim, evidence, url, fingerprint, source)
-                if verdict is None:
-                    continue
-                decided = decided or (verdict if verdict.verdict != VERDICT_INCONCLUSIVE else None)
-                if _settled(claim):
-                    # What was read settles it: the rest of what a search found is not fetched.
-                    return decided or verdict
+        async for verdict in _readings(self, gateway, claim, felt, fingerprint):
+            decided = decided or (verdict if verdict.verdict != VERDICT_INCONCLUSIVE else None)
+            if _settled(claim):
+                # What was read settles it: the rest of what a search found is not fetched.
+                return decided or verdict
         return decided or ReachVerdict(
             verdict=VERDICT_INCONCLUSIVE,
             claim=claim,
@@ -905,11 +900,12 @@ class EpistemicReachEngine:
         )
 
     # ── effects ──────────────────────────────────────────────────────────────
-    def _apply_effects(self, verdict: ReachVerdict) -> None:
+    def _apply_effects(self, verdict: ReachVerdict, *, hers: bool = True) -> None:
+        """``hers`` False for a claim somebody else made: what contradicts it is no correction of hers."""
         correction_overflow = False
         with self._lock:
             self._verdicts.append(verdict)
-            if verdict.verdict == VERDICT_CONTRADICTED:
+            if hers and verdict.verdict == VERDICT_CONTRADICTED:
                 pending = list(self._corrections)
                 if self._correction_lease is not None:
                     pending.append(self._correction_lease)
@@ -1162,6 +1158,56 @@ class EpistemicReachEngine:
 
 _engine: EpistemicReachEngine | None = None
 _engine_lock = threading.Lock()
+
+
+async def _readings(reach: EpistemicReachEngine, gateway: Any, claim: str, felt: Any, fingerprint: str) -> Any:
+    """Each permitted source's verdict on the claim, kept, as it is read."""
+    terms = reach._query_terms(claim, felt)
+    for source in reach._permitted_sources():
+        async for evidence, url in _what_it_says(source, gateway, terms, claim):
+            verdict = reach._judged_and_kept(claim, evidence, url, fingerprint, source)
+            if verdict is not None:
+                yield verdict
+
+
+def check_asked(claim: str, *, timeout_s: float, reach: EpistemicReachEngine | None = None) -> list[ReachVerdict]:
+    """A claim a person asked her to check, checked now: the reason to look is theirs, not her felt doubt.
+
+    What each source said, as it was read and kept, until the claim is settled or ``timeout_s`` has passed; a claim
+    she has settled before is answered from what she kept. Blocking: call it off the event loop.
+    """
+    from types import SimpleNamespace
+
+    from core.epistemics.what_she_has_verified import checkable
+
+    reach = reach or get_epistemic_reach()
+    claim = " ".join(str(claim or "").split())[:300]
+    gateway = reach._resolve_gateway()
+    if not reach.enabled() or not checkable(claim) or gateway is None or not reach._permitted_sources():
+        return []
+    settled = _settled_before(claim, "")
+    if settled is not None:
+        return [settled]
+    with reach._lock:
+        if reach._closed:
+            return []
+        reach._recent_reaches.append(time.time())
+    read: list[ReachVerdict] = []
+
+    async def reading() -> None:
+        async for verdict in _readings(reach, gateway, claim, SimpleNamespace(spikes=()), ""):
+            read.append(verdict)
+            if _settled(claim):
+                return
+
+    try:
+        asyncio.run(asyncio.wait_for(reading(), timeout=timeout_s))
+    except TimeoutError:
+        logger.info("🌐 [EpistemicReach] asked to check %r: %d source(s) read before its %.0fs ran out",
+                    claim[:80], len(read), timeout_s)
+    for verdict in read:
+        reach._apply_effects(verdict, hers=False)
+    return read
 
 
 def get_epistemic_reach() -> EpistemicReachEngine:

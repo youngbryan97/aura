@@ -44,6 +44,7 @@ tells her how to answer.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from collections import OrderedDict
@@ -55,6 +56,8 @@ from urllib.parse import unquote, urlparse
 from core.runtime.lockdep import checked_lock
 from core.utils.readable_text import SENTENCE_END as _SENTENCE_END
 from core.utils.readable_text import prose_paragraphs as _prose_paragraphs
+
+logger = logging.getLogger(__name__)
 
 #: A web address as people paste them.
 URL_RE = re.compile(r"https?://[^\s<>\"'`)\]]+", re.IGNORECASE)
@@ -534,6 +537,40 @@ async def gather_world_evidence(
     evidence.sources = _within_the_evidence_budget(evidence.sources)
     evidence.seconds = time.monotonic() - started
     return evidence
+
+
+#: How long her check of a claim a person asked her to check may read before she answers.
+CHECK_ASKED_S = 45.0
+
+
+async def her_check_reads(request: str, previous_reply: str = "", *, timeout_s: float = CHECK_ASKED_S) -> list[WorldSource]:
+    """What her check read of a claim the person asked her to check, as sources for her answer (L10).
+
+    The claim the request states ("Is it true that X?", "X. Can you check that?"), or, when it only points back
+    ("is that true?"), the shakiest checkable sentence of her last answer. Read from her list of reputable sources
+    before she answers, each source's verdict kept in what she has verified, where a later turn finds it.
+    """
+    from core.language.search_request import asks_to_check
+
+    asked = asks_to_check(request)
+    if not asked.asked:
+        return []
+    from types import SimpleNamespace
+
+    from core.epistemics.epistemic_reach import check_asked, get_epistemic_reach
+    from core.epistemics.what_she_has_verified import publisher, tier_of
+
+    reach = get_epistemic_reach()
+    claim = asked.claim or (reach.select_claim(SimpleNamespace(text_excerpt=previous_reply, spikes=()))
+                            if asked.points_back and previous_reply else "")
+    if not claim:
+        return []
+    read = await asyncio.to_thread(check_asked, claim, timeout_s=timeout_s, reach=reach)
+    logger.info("🌐 Asked to check %r: %s", claim[:120],
+                ", ".join(f"{v.verdict.lower()} by {publisher(v.source_url)}" for v in read) or "nothing read")
+    return [WorldSource(f"read for her check of \"{claim[:160]}\", which it {v.verdict.lower().replace('_', ' ')} "
+                        f"({tier_of(v.source_url)})", publisher(v.source_url), v.source_url, v.evidence_excerpt)
+            for v in read if v.source_url and v.evidence_excerpt]
 
 
 def _within_the_evidence_budget(sources: Sequence[WorldSource]) -> list[WorldSource]:
