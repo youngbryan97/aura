@@ -27,7 +27,7 @@ from core.runtime.skill_contract import ActionExpectation
 from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
-from core.skills.sovereign_browser_going import the_archived_copy
+from core.skills.sovereign_browser_going import as_its_fields_say, the_archived_copy
 from core.skills.sovereign_browser_picking import pursued
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
@@ -71,7 +71,6 @@ def _read_comprehension(*, url: str, title: str, text: str) -> dict[str, Any]:
     except ImportError:
         return {}
     return comprehension_payload(url=url, title=title, text=text)
-
 
 
 class BrowserAction(BaseModel):
@@ -135,6 +134,7 @@ class BrowserInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_mode_contract(self) -> Self:
+        as_its_fields_say(self)  # a goal and no mode is a pursuit, from the site it names (sovereign_browser_going.py)
         if self.mode == "search":
             self.query = str(self.query or "").strip()
             if not self.query:

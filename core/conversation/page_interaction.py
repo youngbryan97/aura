@@ -88,6 +88,13 @@ _RETRIEVAL_RE = re.compile(
 )
 
 
+def front_page_named(text: Any) -> str:
+    """The front page of a site the text names by name, "" when it names none (core/intent/asks_to_go_online.py)."""
+    from core.intent.asks_to_go_online import site_named
+
+    return site_named(text)
+
+
 def page_interaction_target(text: Any) -> str:
     """The page this request wants ACTED ON, or "" when it wants reading.
 
@@ -111,6 +118,11 @@ def page_interaction_target(text: Any) -> str:
             if named.group(2).lower() not in _FILE_ENDINGS:
                 page = "https://" + named.group(1).rstrip(".").lower()
                 break
+        if not page:
+            # Or named as people name it, "Go to YouTube": its front page.
+            from core.intent.asks_to_go_online import site_named
+
+            page = site_named(body)
         if not page:
             return ""
     # An interaction word she was not told to act on is not a request to act.

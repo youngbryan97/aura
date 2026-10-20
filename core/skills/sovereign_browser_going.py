@@ -333,3 +333,18 @@ async def where_i_found_it_before(skill: object, browser: object, name: str, *, 
         return ""
     return await _the_first_that_serves(skill, browser, name, task, [Candidate(name, url, "where I found it before")], not_at)
 
+
+def as_its_fields_say(call: Any) -> None:
+    """A browser call read as its fields describe it, before its mode's contract is held to it.
+
+    A call that gives a goal and neither a mode nor a query is the pursuit it describes, and a pursuit with no address
+    starts from the front page of the site its goal names, as people name it. LIVE 20 October 2026, the dress
+    rehearsal: her call for "Go to YouTube and find a random video from Allen Pan" gave a goal and a number of steps,
+    took the default mode, search, and was refused for having no query.
+    """
+    from core.conversation.page_interaction import front_page_named
+
+    if "mode" not in call.model_fields_set and not str(call.query or "").strip() and str(call.goal or "").strip():
+        call.mode = "pursue"
+    if call.mode == "pursue" and not str(call.url or "").strip() and str(call.goal or "").strip():
+        call.url = front_page_named(call.goal) or None

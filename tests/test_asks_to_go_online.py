@@ -40,3 +40,17 @@ def test_the_ceiling_reaches_her_browser_when_she_is_asked_to_go_online():
     assert SKILL_EFFECT_SCOPES["sovereign_browser"] in scopes and ceiling == "external_io"
     ceiling, scopes = requested_effect_ceiling("What do you think about volcanoes?")
     assert SKILL_EFFECT_SCOPES["sovereign_browser"] not in scopes
+
+
+def test_a_site_named_by_name_is_its_front_page_for_a_request_and_for_her_browser():
+    """LIVE 2026-10-20, the dress rehearsal: "Go to YouTube and find a random video from Allen Pan" named no address,
+    and her browser's call, a goal with no mode, defaulted to a search with no query and was refused."""
+    from core.conversation.page_interaction import front_page_named
+    from core.skills.sovereign_browser import BrowserInput
+
+    asked = "Let's watch something together. Go to YouTube and find a random video from Allen Pan, under 15 minutes."
+    assert front_page_named(asked) == "https://www.youtube.com"
+    call = BrowserInput(goal=asked, max_steps=40)
+    assert call.mode == "pursue" and call.url == "https://www.youtube.com"
+    assert BrowserInput(mode="search", query="allen pan lightsaber").mode == "search"   # a stated mode stands
+    assert front_page_named("What do you think about volcanoes?") == ""
