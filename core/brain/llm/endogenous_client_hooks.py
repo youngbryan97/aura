@@ -103,6 +103,17 @@ async def process_endogenous_terminal_response(response: Mapping[str, Any]) -> N
     await record_endogenous_pair(response)
     await asyncio.to_thread(absorb_endogenous_outcome, response)
 
+def _steering_now() -> list[float] | None:
+    """The state this job's generation is steered by, or None with no substrate to read."""
+    try:
+        from core.consciousness.steering_channel import steering_now
+
+        return steering_now()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("steering state not read for the pair: %s", exc)
+        return None
+
+
 def attach_endogenous_state(
     req: dict[str, Any],
     *,
@@ -154,6 +165,7 @@ def attach_endogenous_state(
             lane=str(req.get("serving_lane") or ""),
             model=str(model_path or ""),
             prompt=asked,
+            steering=_steering_now(),
         )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("endogenous state not attached to job: %s", exc)

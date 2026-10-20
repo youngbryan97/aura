@@ -104,7 +104,16 @@ class AbstractionEngine:
             allow_cloud_fallback=False,
         )
         abstracted_principle = str(text or "").strip()
+        # What comes back when her model did not answer is a holding line, and the
+        # same principle written twice is not a second principle: of 201 she kept by
+        # 18 October, 93 were distinct and the most kept was "I heard you. My
+        # thinking is running deeper than my words right now."
+        from core.learning.live_learner import training_contamination_reasons
 
+        if abstracted_principle and (training_contamination_reasons(abstracted_principle)
+                                     or self._already_kept(abstracted_principle)):
+            logger.info("🧠 Not kept as a principle (a holding line or one already kept): %s...", abstracted_principle[:50])
+            abstracted_principle = ""
         if abstracted_principle:
             logger.info("🧠 First Principle Abstracted: %s...", abstracted_principle[:50])
             await self._commit_principle(abstracted_principle)
@@ -126,6 +135,16 @@ class AbstractionEngine:
                 await self.increment_application_counts(attributed)
             
         return abstracted_principle
+
+    def _already_kept(self, principle: str) -> bool:
+        """Whether this principle, its case and spacing aside, is already in the store."""
+        try:
+            parsed = json.loads(Path(self.storage_path).read_text())
+        except (OSError, ValueError):
+            return False
+        kept = parsed.get("payload") if isinstance(parsed, dict) else parsed
+        wanted = " ".join(principle.lower().split())
+        return any(" ".join(str(p.get("principle", "")).lower().split()) == wanted for p in (kept or []) if isinstance(p, dict))
 
     async def _commit_principle(self, principle: str):
         """Asynchronously appends the new principle to the JSON store."""

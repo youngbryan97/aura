@@ -513,11 +513,17 @@ class ProactivePresence:
         Primary-chat autonomy is limited to grounded thread/progress updates and a
         single later check-in. Generic reflections remain background-only.
         """
+        # What these generators write is written to a script: her identity text and "1-2 sentences" put before her
+        # model. LIVE 20 October 2026 they posted into Bryan's chat, once a minute while she was idle, "the growth
+        # alert is starting to feel less like a metric and more like an identity crisis", "I'm not Aura. I'm an AI
+        # assistant", and a reviewer's "The proposed answer is cut off mid-sentence, which violates the '1-2
+        # sentences'". Kept in her background record, not said to anybody, until they are her own turns (F06).
+        said_to_somebody = False
         now = time.time()
         if self._should_offer_checkin(now):
             checkin = await self._checkin_message()
             if checkin:
-                return (checkin, "proactive_presence:checkin", True, False)
+                return (checkin, "proactive_presence:checkin", said_to_somebody, False)
             return None
 
         # Grounded-only visible spontaneous outputs.
@@ -561,7 +567,7 @@ class ProactivePresence:
             content = await selected_fn()
             if not content:
                 return None
-            return (content, selected_source, True, selected_initiative_activity)
+            return (content, selected_source, said_to_somebody, selected_initiative_activity)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             _record_presence_degradation(
                 e,

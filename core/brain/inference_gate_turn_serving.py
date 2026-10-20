@@ -469,6 +469,35 @@ class _ServesTheTurn:
         return _decode_s, _read_s
 
     @staticmethod
+    def _answer_clock(
+        _decode_s: Any,
+        _generations: Any,
+        _needed: Any,
+        _read_s: Any,
+        _reserve_the_worker_adds: Any,
+        _tokens_to_pay_for: Any,
+        max_tokens: Any,
+        timeout_val: Any,
+        world_seconds: Any = None,
+        model: str = "",
+    ) -> tuple[Any, Any, Any]:
+        """(primary timeout, deadline, tokens): the deadline stretched to the answer asked for, or, where the turn
+        carries the time the world gives it, the answer fitted to that time (core/brain/llm/an_answer_in_the_time_given.py)."""
+        if world_seconds:
+            from core.brain.llm.an_answer_in_the_time_given import fitted_to_the_time_given
+
+            from .inference_gate import _DELIVERY_MARGIN_S, logger
+
+            fitted = fitted_to_the_time_given(seconds=world_seconds, read_s=_read_s, margin_s=_DELIVERY_MARGIN_S,
+                                              max_tokens=int(max_tokens), model=model)
+            logger.info("🧠 [ANSWER CLOCK] %.0fs given by the world: %d tokens of %d asked fit it.",
+                        float(world_seconds), fitted, int(max_tokens))
+            return max(1.0, float(world_seconds) - _DELIVERY_MARGIN_S), float(world_seconds), fitted
+        primary_timeout, timeout_val = _ServesTheTurn._generate_with_metadata_sink_part_26(
+            _decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val)
+        return primary_timeout, timeout_val, max_tokens
+
+    @staticmethod
     def _generate_with_metadata_sink_part_26(
         _decode_s: Any,
         _generations: Any,
@@ -597,14 +626,14 @@ class _ServesTheTurn:
         scaffold_chars: Any,
         system_prompt: Any,
     ) -> None:
-        from .inference_gate import (
-            logger,
-        )
-
         # A measurement turn meets its question fresh, without the history
         # the turns before it left. In place, so what is dispatched is what
         # is counted here. See core/brain/aura_persona.py.
         from core.brain.aura_persona import as_measured
+
+        from .inference_gate import (
+            logger,
+        )
 
         _measured = as_measured(messages)
         if _measured is not messages and isinstance(messages, list):

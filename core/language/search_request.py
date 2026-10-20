@@ -43,8 +43,10 @@ from core.language.model_features import model_hidden_features
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "CheckRequest",
     "SearchRequest",
     "asks_about_grounds",
+    "asks_to_check",
     "asks_to_find_out",
     "asks_what_was_found",
     "read_search_request",
@@ -226,6 +228,99 @@ def asks_what_was_found(text: str) -> bool | None:
     if _FOUND_QUESTION.match(message):
         return True
     return _ASKS_WHAT_WAS_FOUND.decide_without_waiting(message)
+
+
+#: A request to check whether something is true, as opposed to a request to look something up or a question about how
+#: she knows. LIVE 2026-10-20 "Is it true that the speed of light in a vacuum is exactly 299,792,458 metres per second?
+#: Can you check that?" was answered from what she remembered: nothing read it as asking her to check.
+_ASKS_TO_CHECK = LearnedMatcher(
+    name="asks_to_check",
+    positives=(
+        "can you check that?",
+        "is that true?",
+        "is it true that the Great Wall is visible from space?",
+        "verify that for me",
+        "fact-check this please",
+        "check whether Canberra is the capital of Australia",
+        "is that actually right?",
+        "double-check that claim for me",
+    ),
+    negatives=(
+        "how are you feeling today?",
+        "check my email",
+        "can you check the oven timer on my screen?",
+        "google it",
+        "how sure are you about that?",
+        "what is 7919 times 6421?",
+        "tell me a story about a dragon",
+        "what do you think about consciousness?",
+    ),
+    features=model_hidden_features,
+)
+
+#: The grammar floor for it, each a sentence of the request: an instruction to check whose object is what was said
+#: ("check that", "verify it for me") or a whether-clause; or a question whether something is true.
+_CHECK_INSTRUCTION = re.compile(
+    r"^\s*(?:(?:please|so|ok(?:ay)?|and|can you|could you|would you|will you)[\s,]+)*"
+    r"(?:check|verify|fact[- ]?check|double[- ]?check|confirm)\b[\s,]*(?P<object>.*?)[\s.!?]*$",
+    re.IGNORECASE,
+)
+_POINTS_AT_WHAT_WAS_SAID = re.compile(
+    r"^(?:(?:that|this|it)(?:\s+(?:claim|fact|statement|one|part))?)?(?:\s+(?:for me|online|please|out|again))*$",
+    re.IGNORECASE,
+)
+_WHETHER = re.compile(r"^(?:for me\s+)?(?:whether|if)\s+(?P<claim>.+)$", re.IGNORECASE)
+_TRUE_THAT = re.compile(
+    r"^\s*(?:so\s+|but\s+)?(?:is|isn'?t)\s+it\s+(?:really\s+|actually\s+)?(?:true|right|correct|accurate|the case|a fact)"
+    r"\s+that\s+(?P<claim>.+?)[\s?.!]*$",
+    re.IGNORECASE,
+)
+#: Who said it, before what was said: "I read that X" asks about X, not about the reading.
+_REPORTED = re.compile(
+    r"^(?:i|we|someone|somebody|people|they|my\s+\w+)\s+(?:read|heard|saw|was told|were told|told me|said|say|says|"
+    r"claim(?:s|ed)?)\s+(?:somewhere\s+|online\s+)?that\s+",
+    re.IGNORECASE,
+)
+_IS_THAT_TRUE = re.compile(
+    r"^\s*(?:so\s+|but\s+)?(?:is|isn'?t)\s+(?:that|this|it)\s+(?:really\s+|actually\s+)?(?:true|right|correct|accurate|so)"
+    r"[\s?.!]*$",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class CheckRequest:
+    """Whether a request asks her to check something, the claim when it states one, and whether it points at what
+    was said before instead (her last answer, or the request's own statement)."""
+
+    asked: bool
+    claim: str = ""
+    points_back: bool = False
+
+
+def asks_to_check(text: str) -> CheckRequest:
+    """Whether ``text`` asks her to check whether something is true, and what."""
+    message = re.sub(r"https?://\S+", " ", str(text or "")).strip()
+    # Each sentence with its own end, so a question is still a question; a figure's comma or point does not end one.
+    sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+(?=[A-Z\"'])", message) if part.strip()]
+    asked, claim, points_back = False, "", False
+    statements: list[str] = []
+    for sentence in sentences:
+        instruction, said = _CHECK_INSTRUCTION.match(sentence), _TRUE_THAT.match(sentence)
+        if said:
+            asked, claim = True, claim or said["claim"].strip()
+        elif instruction and _WHETHER.match(instruction["object"]):
+            asked, claim = True, claim or _WHETHER.match(instruction["object"])["claim"].strip()
+        elif (instruction and _POINTS_AT_WHAT_WAS_SAID.match(instruction["object"])) or _IS_THAT_TRUE.match(sentence):
+            asked, points_back = True, True
+        elif not sentence.endswith("?"):
+            statements.append(sentence.rstrip(" .!"))
+    if not asked and message and _ASKS_TO_CHECK.decide_without_waiting(message):
+        asked, points_back = True, True
+    if asked and not claim and statements:
+        # "The speed of light is exactly c. Can you check that?": what it points at is said in the request itself.
+        claim, points_back = " ".join(statements), False
+    return CheckRequest(asked, _REPORTED.sub("", claim), points_back and not claim)
 
 
 def _local_place(text: str) -> str:

@@ -1,31 +1,4 @@
-from types import SimpleNamespace
-
 import pytest
-
-
-@pytest.mark.asyncio
-async def test_swarm_shard_tool_execution_creates_governed_subprocess_scope(monkeypatch):
-    monkeypatch.setenv("AURA_GOVERNANCE_MODE", "production")
-
-    from core.agency.agency_core import SovereignSwarm
-    from core.runtime.subprocess_gateway import get_subprocess_gateway
-
-    class SubprocessBackedTool:
-        async def route_and_execute(self, _name, _payload):
-            result = get_subprocess_gateway().run(
-                ["true"],
-                capture_output=True,
-                timeout=1.0,
-                source="test.agency_core_governance.shard_tool",
-                accelerator_capability="none",
-            )
-            return f"ok:{result.returncode}"
-
-    owner = SimpleNamespace(tool_orchestrator=SubprocessBackedTool(), _last_tool_routing_error=None)
-    swarm = SovereignSwarm(SimpleNamespace(), agency_core=owner)
-
-    assert await swarm._execute_shard_tool("python_sandbox", "print('safe')") == "ok:0"
-    assert owner._last_tool_routing_error is None
 
 
 def test_agency_degradation_reporting_cannot_cascade(monkeypatch):
@@ -100,24 +73,3 @@ def test_both_high_risk_restraints_are_resolvable_or_every_tool_is_refused():
     )
 
 
-def test_high_risk_gate_falls_back_to_the_value_graph_accessor():
-    """Resolving ONLY through the container cannot be the single point of failure.
-
-    An unregistered-but-healthy restraint was indistinguishable from a broken
-    one, and fail-closed then disabled tool execution for the life of the
-    process. The gate now falls back to the module accessor.
-    """
-    from core.agency import agency_core, agency_shard_work
-    from tests.source_contract import declared_in
-
-    # The gate moved with `_shard_wrapper` when the shard work was lifted
-    # into its own module. What it DOES is unchanged, and the location was
-    # never the point.
-    _module, source = declared_in(
-        'ServiceContainer.get("dynamic_value_graph"', agency_core, agency_shard_work
-    )
-    gate = source[source.index('ServiceContainer.get("dynamic_value_graph"'):]
-    gate = gate[: gate.index("_value_check_done = True")]
-    assert "get_dynamic_value_graph" in gate, (
-        "the gate must fall back to the accessor when the container has no entry"
-    )

@@ -173,7 +173,7 @@ def _default_followup_question(user_message: Any) -> str:
     user_norm = _normalize(user_message)
     if names_any(user_norm, ("live path", "desktop path", "validate", "probe", "runtime")):
         return "What should I validate next on this same live path?"
-    if any(marker in user_norm for marker in ("project", "next hour", "focus", "work on", "spend")):
+    if names_any(user_norm, ("project", "next hour", "focus", "work on", "spend")):
         return "Which outcome would make the next hour feel most useful?"
     if names_any(user_norm, ("demo", "show me", "open", "write", "search")):
         return "Which part should I do first so the whole chain stays visible and verifiable?"

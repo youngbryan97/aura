@@ -777,9 +777,13 @@ class RedditAdapterSkill(BaseSkill):
                 return {"ok": False, "error": "Reddit authority token verification failed"}
 
             welfare_tx = self._begin_welfare_transaction(params, auth)
-            browser = await self._create_browser()
+            # Reading by her registered application where she has one (core/skills/reddit_reading.py), else her browser.
+            result = await self._by_her_application(params)
+            browser = None if result is not None else await self._create_browser()
 
-            if params.mode == "browse":
+            if result is not None:
+                pass
+            elif params.mode == "browse":
                 result = await self._handle_browse(browser, params)
             elif params.mode == "read_post":
                 result = await self._handle_read_post(browser, params)
@@ -904,6 +908,29 @@ class RedditAdapterSkill(BaseSkill):
 
         why = why_it_would_not_load(browser)
         return f"Failed to load {what}" + (f" — {why}" if why else "")
+
+    @staticmethod
+    async def _by_her_application(params: RedditInput) -> dict[str, Any] | None:
+        """Browse or read by her registered application; None for any other mode, or without its credentials."""
+        from core.skills import reddit_reading
+
+        if params.mode not in {"browse", "read_post"} or not reddit_reading.available():
+            return None
+        try:
+            if params.mode == "browse":
+                subreddit = params.subreddit or "all"
+                posts = await reddit_reading.read_subreddit(subreddit, params.sort or "hot", params.limit)
+                logger.info("📱 Found %d posts on r/%s by her application", len(posts), subreddit)
+                return {"ok": bool(posts), "completed": bool(posts), "subreddit": subreddit, "sort": params.sort,
+                        "posts": posts, "count": len(posts), "read_by": "her application",
+                        "message": f"Browsed r/{subreddit} ({params.sort}): {len(posts)} posts found."}
+            content = await reddit_reading.read_thread(params.url or "")
+            return {"ok": bool(content), "completed": bool(content), "url": params.url, "content": content,
+                    "read_by": "her application", "message": f"Read the post and its comments at {params.url}"}
+        except _REDDIT_RECOVERABLE_ERRORS as exc:
+            _record_reddit_degradation(exc, action="read reddit by her browser instead of her application",
+                                       stage=f"{params.mode}.application", severity="warning")
+            return None
 
     async def _handle_browse(self, browser: PhantomBrowser, params: RedditInput) -> dict[str, Any]:
         """Browse a subreddit and extract posts."""

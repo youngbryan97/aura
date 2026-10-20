@@ -77,6 +77,7 @@ def texture_copy_form(program: PositionProgram) -> TextureCopyForm | None:
             return None
         qualifiers = dict(program.input_qualifiers)
         uv_mode = qualifiers.get(coordinates_name, ())
+        # Substring, deliberately: none; `uv_mode` is the tuple of a variable's qualifiers, so this is membership.
         if ("uniform" not in qualifiers.get(sampler_name, ()) or "in" not in uv_mode
                 or any(mode in uv_mode for mode in ("flat", "centroid"))):
             return None

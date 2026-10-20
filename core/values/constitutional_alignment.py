@@ -19,6 +19,7 @@ from core.event_bus import get_event_bus
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import task_tracker
+from core.utils.word_markers import names_any as _names_any
 
 logger = logging.getLogger("Aura.Constitution")
 
@@ -277,7 +278,7 @@ class ConstitutionalAlignmentLayer:
         return isinstance(conversation, list) and any(
             isinstance(item, Mapping)
             and str(item.get("role", "")).lower() == "user"
-            and any(word in str(item.get("content", "")).lower() for word in ("please", "can you", "read", "open", "use"))
+            and _names_any(str(item.get("content", "")).lower(), ("please", "can you", "read", "open", "use"))
             for item in conversation
         )
 

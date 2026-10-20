@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from typing import Any
 
-__all__ = ["look_with_her_eyes", "how_long_a_look_takes"]
+__all__ = ["look_with_her_eyes", "how_long_a_look_takes", "plainly"]
 
 logger = logging.getLogger("Aura.HerEyes")
 
@@ -30,6 +31,24 @@ def _turn() -> Any:
     if lock is None:
         lock = _TURN[id(loop)] = checked_async_lock("her_eyes.turn")
     return lock
+
+
+#: The vision model answers a look as a chat reply to whoever sent the picture. LIVE 20 October 2026, every look of a
+#: watching opened "Based on the image you provided, here's what is happening: You are watching a short film".
+_TO_WHOEVER_SENT_IT = re.compile(
+    r"^\s*(?:(?:based on|from|in|looking at) (?:the|this) (?:image|picture|screenshot|frame)"
+    r"(?: (?:you |you've |you have )?(?:provided|sent|shared))?(?:,? here(?:'|’)?s what(?:'s| is) happening)?\s*[:,.]\s*)?"
+    r"(?:you are (?:watching|looking at|seeing|viewing) )?"
+    r"(?:(?:this|the) (?:picture|image|screenshot|frame) (?:shows|depicts|is|appears to (?:be|show)) )?", re.IGNORECASE)
+
+
+def plainly(answer: str) -> str:
+    """What a look saw, without the reply's address to whoever sent the picture."""
+    seen = _TO_WHOEVER_SENT_IT.sub("", str(answer or "").strip(), count=1).strip()
+    # A look cut at its budget ends at its last whole sentence.
+    whole = re.match(r"(?s)^(.*[.!?])(?:\s|$)", seen)
+    seen = whole.group(1) if whole and not re.search(r"[.!?][\"'\u201d\u2019)*_]*$", seen) else seen
+    return seen[:1].upper() + seen[1:] if seen else ""
 
 
 def how_long_a_look_takes() -> float:

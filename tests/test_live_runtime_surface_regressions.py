@@ -3442,3 +3442,45 @@ def test_stall_watchdog_foreground_suppression_is_bounded(monkeypatch):
     gate.get_conversation_status = lambda: {"state": "ready"}
     watchdog._should_suppress_stall(8.0)
     assert watchdog._foreground_suppression_started_at == 0.0
+
+
+def _goal_conflict_row(goal_id: str, related: list[str]) -> dict:
+    import time
+
+    return {"id": goal_id, "category": "goal_conflict", "description": "Multiple goals competing for 'general': a, b",
+            "severity": 1.0, "created_at": time.time(), "last_checked_at": time.time(), "resolution_attempts": 0,
+            "source_subsystem": "cognitive_context", "related_beliefs": [], "related_goals": related,
+            "resolved": False, "resolution": None}
+
+
+def test_a_goal_conflict_that_names_no_goal_is_not_kept(tmp_path):
+    # 19 October: 2,000 of these from May to July, every one at severity 1.0, held her tension pressure at 1.
+    import json
+
+    from core.agency.tension_engine import TensionEngine
+
+    path = tmp_path / "tensions.json"
+    path.write_text(json.dumps([_goal_conflict_row("old", ["", "", ""]),
+                                _goal_conflict_row("named", ["finish the pong repair", "read the manual"])]))
+    engine = TensionEngine(persist_path=path)
+    assert [t.id for t in engine.get_active_tensions()] == ["named"]
+
+
+def test_goals_that_declare_no_resource_do_not_conflict_and_a_conflict_ends_with_its_goals(tmp_path):
+    from types import SimpleNamespace
+
+    from core.agency.tension_engine import TensionEngine
+
+    engine = TensionEngine(persist_path=tmp_path / "tensions.json")
+
+    def scan(*goals):
+        engine._scan_goal_conflicts(SimpleNamespace(cognition=SimpleNamespace(active_goals=list(goals))))
+
+    scan({"goal": "learn chess"}, {"goal": "write a poem", "type": "general"})
+    assert engine.get_active_tensions() == []
+    scan({"goal": "watch the stream", "resource": "screen"}, {"goal": "play pong", "resource": "screen"})
+    scan({"goal": "watch the stream", "resource": "screen"}, {"goal": "play pong", "resource": "screen"})
+    (conflict,) = engine.get_active_tensions()
+    assert sorted(conflict.related_goals) == ["play pong", "watch the stream"]
+    scan({"goal": "watch the stream", "resource": "screen"})
+    assert engine.get_active_tensions() == []

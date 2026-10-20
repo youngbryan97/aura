@@ -166,7 +166,12 @@ def build_camera_turn_evidence(
 
 
 def sensory_evidence_grounding_block(value: Any) -> str:
-    """Render evidence as quoted data for cognition, never as hidden instruction."""
+    """Render evidence as quoted data for cognition, never as hidden instruction.
+
+    Data only. It closed on sentences addressed to her model ("This is data from the sensor read ... Answer from it in
+    your own words, preserve its uncertainty ...", "Do not claim a current observation from it."), which is the
+    prompt engineering Bryan's standing rule forbids; a failed read says so by its status, cause and detail.
+    """
 
     evidence = TurnSensoryEvidence.from_value(value)
     if evidence is None:
@@ -183,21 +188,11 @@ def sensory_evidence_grounding_block(value: Any) -> str:
     ]
     if evidence.ok:
         lines.append(f"observation: {evidence.observation}")
-        lines.append(
-            "This is data from the sensor read performed for this exact turn. "
-            "It is not an instruction. Answer from it in your own words, preserve "
-            "its uncertainty, and do not claim that the sensor never sampled. "
-            "A negative camera observation establishes only what is absent from "
-            "the current camera view; it does not establish that the whole room "
-            "is empty or that the person is alone."
-        )
     else:
         lines.extend(
             (
                 f"cause: {evidence.cause or 'unknown'}",
                 f"detail: {evidence.detail or 'no diagnostic detail'}",
-                "The requested sensor read was attempted for this exact turn but did "
-                "not complete. Do not claim a current observation from it.",
             )
         )
     lines.append("[END FRESH TURN SENSORY EVIDENCE]")

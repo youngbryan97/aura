@@ -687,8 +687,9 @@ _INCIDENT_QUESTION_MARKERS = (
 
 
 def _asks_about_incidents(objective: str) -> bool:
-    lowered = (objective or "").lower()
-    return any(marker in lowered for marker in _INCIDENT_QUESTION_MARKERS)
+    from core.utils.word_markers import names_any
+
+    return names_any((objective or "").lower(), _INCIDENT_QUESTION_MARKERS)
 
 
 def _describe_degraded_event(kind: str, subsystem: str, detail: str) -> str:

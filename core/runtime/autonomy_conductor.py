@@ -803,6 +803,9 @@ class AutonomyConductor:
         swarm = getattr(agency, "swarm", None)
         if orchestrator is None or swarm is None or not hasattr(swarm, "run_deliberation"):
             return {"status": "unavailable", "reason": "agency_swarm_not_registered"}
+        if not getattr(swarm, "takes_shards", True):
+            # Each perspective is a shard, and shards are off (core/agency/agency_shard_work.py).
+            return {"status": "off", "reason": "swarm_shards_off"}
         state = getattr(getattr(orchestrator, "kernel", None), "state", None)
         candidate = select_autonomous_topic(orchestrator, state)
         if candidate is None:

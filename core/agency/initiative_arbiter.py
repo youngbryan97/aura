@@ -10,6 +10,8 @@ flows through this arbiter. No initiative bypasses scoring.
 from __future__ import annotations
 
 import logging
+import math
+import re
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -619,16 +621,20 @@ class InitiativeArbiter:
         if not active:
             return 0.2  # no tensions -> low pressure to act
 
-        goal = _goal(initiative).lower()
-        # Check if the initiative goal overlaps with any tension description
+        # How much of a tension the initiative speaks to: the tension's words it shares, each weighed by how
+        # rare it is among the tensions held, times how severe the tension is. Counting shared words of any
+        # kind let length win: on 19 October a 300-word instruction left in her goal store shared "the",
+        # "and" and "for" with every tension, scored 1.0 here and was chosen 25 times in three hours.
+        held = active[:10]  # cap to avoid O(n^2) on huge lists
+        described = [_words(t.description) for t in held]
+        rarity = _rarity(described)
+        goal_words = _words(_goal(initiative))
         best_match = 0.0
-        for t in active[:10]:  # cap to avoid O(n^2) on huge lists
-            desc_words = set(t.description.lower().split())
-            goal_words = set(goal.split())
-            overlap = len(desc_words & goal_words)
-            if overlap > 2:
-                score = min(1.0, t.severity * 0.6 + overlap * 0.1)
-                best_match = max(best_match, score)
+        for t, words in zip(held, described, strict=True):
+            whole = sum(rarity[w] for w in words)
+            if whole > 0:
+                shared = sum(rarity[w] for w in words & goal_words)
+                best_match = max(best_match, float(t.severity) * shared / whole)
 
         return max(0.2, best_match)
 
@@ -807,6 +813,19 @@ class InitiativeArbiter:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", str(text or "").lower()))
+
+
+def _rarity(texts: list[set[str]]) -> dict[str, float]:
+    """Each word's weight among these texts: log((1 + n) / texts holding it), so a word in all of them weighs least."""
+    holding: dict[str, int] = {}
+    for words in texts:
+        for word in words:
+            holding[word] = holding.get(word, 0) + 1
+    return {word: math.log((1 + len(texts)) / count) for word, count in holding.items()}
+
 
 def _goal(initiative: dict) -> str:
     """Extract a readable goal string from an initiative dict."""

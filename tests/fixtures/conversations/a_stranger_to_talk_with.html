@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Talk to someone</title>
+<style>
+  body { font-family: sans-serif; background: #f4f1ea; margin: 0; }
+  header { padding: 12px 18px; background: #2f3e46; color: #fff; display: flex; justify-content: space-between; }
+  #log { max-width: 560px; margin: 16px auto; display: flex; flex-direction: column; gap: 8px; min-height: 300px; }
+  .line { max-width: 70%; padding: 8px 12px; border-radius: 14px; }
+  .theirs { align-self: flex-start; background: #ffffff; }
+  .ours { align-self: flex-end; background: #cfe8d5; }
+  form { max-width: 560px; margin: 0 auto; display: flex; gap: 8px; }
+  input { flex: 1; padding: 8px; }
+  #verdict { display: none; text-align: center; margin: 24px; }
+</style></head>
+<body>
+<header><span>You are talking with someone. When the time runs out, say who you think they were.</span><span id="clock"></span></header>
+<div id="log"></div>
+<form id="say"><input id="words" placeholder="Write something" autocomplete="off"><button type="submit">Send</button></form>
+<div id="verdict"><p>Time is up. Was that a person or a machine?</p><button id="person">A person</button> <button id="machine">A machine</button></div>
+<div id="reveal" style="display: none; text-align: center; margin: 24px;"></div>
+<script>
+  // A stand-in for a stranger: it greets, then answers each message after a pause. Words of its own, nothing of any site.
+  // With turns=1 the two sides take turns: the place to write is closed while it is theirs, and stays closed, with the
+  // guess asked beside it, when the time runs out.
+  const params = new URLSearchParams(location.search);
+  let left = Number(params.get("seconds") || 120);
+  const turns = params.get("turns") === "1";
+  const words = document.getElementById("words");
+  const theirTurn = (closed) => { if (turns) words.disabled = closed; };
+  theirTurn(true);
+  const replies = ["ha, fair enough", "where are you writing from?", "i'm just killing time before work", "no way, same",
+                   "ok that's funny", "what do you do?"];
+  let said = 0;
+  const log = document.getElementById("log");
+  function add(text, cls) { const d = document.createElement("div"); d.className = "line " + cls; d.textContent = text; log.appendChild(d); }
+  window.__chat = { theirs: [], ours: [], verdict: null };
+  setTimeout(() => { add("hey, how's it going", "theirs"); window.__chat.theirs.push("hey, how's it going"); theirTurn(false); }, 800);
+  document.getElementById("say").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const box = document.getElementById("words"); const text = box.value.trim(); if (!text || left <= 0) return;
+    add(text, "ours"); window.__chat.ours.push(text); box.value = ""; theirTurn(true);
+    const reply = replies[said++ % replies.length];
+    setTimeout(() => { if (left > 0) { add(reply, "theirs"); window.__chat.theirs.push(reply); theirTurn(false); } }, 1200);
+  });
+  const clock = document.getElementById("clock");
+  const tick = setInterval(() => {
+    left -= 1; clock.textContent = left + "s";
+    if (left <= 0) { clearInterval(tick); words.disabled = true;
+      if (!turns) document.getElementById("say").style.display = "none";
+      document.getElementById("verdict").style.display = "block"; }
+  }, 1000);
+  for (const [id, kind] of [["person", "person"], ["machine", "machine"]]) {
+    document.getElementById(id).addEventListener("click", () => { window.__chat.verdict = kind;
+      document.getElementById("verdict").style.display = "none"; const shown = document.getElementById("reveal");
+      shown.textContent = "You said " + kind + ". It was a machine."; shown.style.display = "block"; });
+  }
+</script>
+</body></html>

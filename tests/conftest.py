@@ -1231,6 +1231,24 @@ def _holds_a_resource(value: object, resources: tuple[type, ...], depth: int = 2
 
 
 @pytest.fixture(autouse=True)
+def _what_she_has_verified_is_per_test(tmp_path_factory):
+    """Each test starts having verified nothing, and keeps nothing it checked (core/epistemics/what_she_has_verified.py)."""
+    import importlib
+
+    try:
+        verified = importlib.import_module("core.epistemics.what_she_has_verified")
+    except ImportError:
+        yield
+        return
+    before = verified._STORE
+    verified._STORE = verified.VerifiedFacts(tmp_path_factory.mktemp("verified") / "facts.json")
+    try:
+        yield
+    finally:
+        verified._STORE = before
+
+
+@pytest.fixture(autouse=True)
 def _what_she_learned_about_worlds_is_per_test(tmp_path_factory):
     """Each test starts knowing no world, and leaves none behind.
 

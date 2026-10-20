@@ -62,6 +62,9 @@ def test_claims_about_how_you_look_are_caught(reply: str) -> None:
         "The sun is a G-type main-sequence star.",
         "You seem to be asking about two different things.",
         "That looks like a scoping bug in the router.",
+        # LIVE 2026-10-20, her answer about the speed of light.
+        "Before 1983 the light from a laser was timed against a caesium clock.",
+        "The light from distant galaxies is redshifted.",
     ],
 )
 def test_ordinary_replies_are_untouched(reply: str) -> None:

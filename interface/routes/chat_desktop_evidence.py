@@ -1185,6 +1185,13 @@ async def _what_the_world_says_for_the_turn(
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.world_evidence", exc, severity="warning", action="answered without looking anything up")
         return contracted, effective_user_message
+    try:
+        from core.conversation.what_the_world_says import her_check_reads
+
+        # Asked to check a claim: her check reads it before she answers, and keeps what it read (L10).
+        evidence.sources = [*await her_check_reads(user_message, previous_reply), *evidence.sources]
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.world_evidence", exc, severity="warning", action="answered without the check she was asked for")
     if contracted:
         from core.conversation.what_the_world_says import WorldSource, passage_of
 

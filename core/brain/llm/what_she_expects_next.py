@@ -26,14 +26,17 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-import os
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.flags import FlagKind, declare
 from core.runtime.lockdep import checked_lock
+
+_FLAG_EAR = declare("AURA_EAR", kind=FlagKind.STRING, default='',
+                    description="off turns off what she expects to hear next", owner="inference")
 
 logger = logging.getLogger("Aura.Brain.LLM.Expects")
 
@@ -157,7 +160,7 @@ class ExpectsNext:
             return True
         if self._refused:
             return False
-        if os.environ.get("AURA_EAR", "").strip().lower() == "off":
+        if _FLAG_EAR.value().strip().lower() == "off":
             self._refused = "switched off"
             return False
         try:

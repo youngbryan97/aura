@@ -2830,7 +2830,8 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   (p 3.7e-9), held-out math 13 to 0 and planning 16 to 0, nothing lost anywhere. The math gain is
   problems her thinking budget cannot finish (mostly primality and factoring of large numbers); the
   planning gain is plans that track every vehicle. The meaning route reached no MATH problem, so
-  transfer there is not shown.
+  transfer there is not shown. Shown live in her app 2026-10-18 13:26: "What are the prime factors of
+  21000063?" typed into her chat, answered 3, 7, 1000003 by the kept procedure (amendment in the result).
   Attempt 5, 2026-10-17 ([result](evidence/G09_PROCEDURES_RESULT_5_2026-10-17.md)): the registered verdict
   closes (38 to 11, p 1.4e-4), but 13 gains are the grader's (right drafts it misread, valid Depots plans
   not closed with "[PLAN END]"); without them the primary is 25 to 11, p 0.029, short of 0.01. Breadth
@@ -3130,6 +3131,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   19:18, agreeing with all ten), and 25.6 hours after the last teaching turn three new ones typed into
   her chat came back right through it (1599, 1463, 1324). Open: the second half, kept procedures on
   against off over realistic tasks of her ordinary use.
+  Second half run 18 October ([result](evidence/L09_ORDINARY_USE_RESULT_2026-10-18.md)): underpowered. Her
+  kept procedures reach 9 of the 195 requests typed into her chat; read by hand 3 gained, 0 lost (registered
+  grader 3-1, one grader artifact), each gain a number-theory request her own reasoning did not finish. Still
+  open: five discordant pairs need more use, or a plan sampling realistic requests beyond her history.
+  Attempt 2, 19 October, over WildChat requests ([result](evidence/L09_ORDINARY_USE_RESULT_2_2026-10-19.md)):
+  not met, 3 gained and 4 lost over 33, all seven misroutes. 25 of the 33 her procedures reached were not
+  questions they answer, 22 by restating a request for code as a function's output; on 3 losses the value served
+  was what took her reply off the request (":)" for "write a python code express emotion"). Open: the route's
+  check that a restated question is the one asked, then a third run.
+  Attempt 3, 20 October, on the kinds of request a program settles, learned where she is wrong
+  ([registration and result](evidence/L09_WHERE_SHE_IS_WRONG_PREREGISTRATION_3_2026-10-20.md)): ended at step 1,
+  as registered. Such requests are rare in what people type (293 of WildChat-4.8M's English user turns), and on the
+  four kinds common enough to test (letters in a word, sums, products, percentages) her model alone was right on
+  80 of 80 read by hand. Open: a population where she is wrong in ordinary use, for the loop to be measured on.
 - [ ] L10 Let her learn from what she verifies online, offline-first. Today a
   claim she checks online (core/epistemics/epistemic_reach.py, through the
   governed reach gateway) corrects one reply and is not kept, and no web
@@ -3143,6 +3158,44 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   store of the facts she has verified, with sources, quotes, retrieval
   dates, corroboration and disputes, dated facts rechecked; and a test that
   everything works with the network blocked.
+  PARTIAL 2026-10-19. Built (core/epistemics/what_she_has_verified.py): each
+  verdict her check reaches is kept per source, with the source's tier
+  (reference, official and primary above news; blogs, forums and social media
+  kept and never counted), its publisher, its quote and the day it was read. A
+  claim is verified only when two independent publishers support it and one of
+  them is reference, official or primary, and no source of equal standing
+  contradicts it; disagreement of that standing is held as disputed; one
+  source alone settles nothing; arithmetic a program can do is settled by the
+  program. Only checkable factual claims are kept (no opinion, evaluation,
+  prediction, preference or question). A claim naming the present is read
+  again before it is used on a later day. Her check now reads every permitted
+  source rather than the first, and a claim she has settled is not fetched
+  again; what she has verified that a chat turn bears on reaches that turn as
+  evidence. The store is a file and answers with the network blocked (tests:
+  test_what_she_has_verified.py, test_her_checks_are_kept.py). Every
+  reference, official or primary host on the operator's read allowlist is a
+  source of its own (core/epistemics/searched_sources.py): searched with
+  site: on an allowlisted engine, its page read and judged, so two publishers
+  can be read for one claim; Wikimedia's sites count as one publisher.
+  19 October, live: Bryan's list of reputable sources (config/reputable_sources.json:
+  official, peer-reviewed, standards bodies, museums, encyclopedias and fact sites,
+  news counted for less, preprints kept but not counted; every .gov and .edu, an
+  elected office's pages read as statements and a person's university page as one
+  person's), admitted by AURA_REACH_READ_HOSTS=@reputable. One open search per
+  claim reads the reputable results, each publisher once, until it is settled; the
+  passage that speaks of the claim is judged, by DeBERTa-v3-large NLI where it is
+  here. Run on eight claims outside her app: five true supported (three verified by
+  two publishers), "Sydney is the capital of Australia" refuted by two, "water boils
+  at 50 degrees" contradicted. Open: a live proof in her app that a claim checked
+  one day is used the next.
+  20 October, day 1 in her app: asked "Is it true that the speed of light in a
+  vacuum is exactly 299,792,458 metres per second? Can you check that?", she
+  checked before answering (9d57ffcaf: a request to check now runs her check;
+  09a494244: her desktop turn is given what was read for it), read Wikipedia's
+  page, kept it, and answered "Yes, and I checked". Only one publisher was
+  found, so the claim is kept unsettled; the search now asks a second engine
+  (f8360f433) and passes over dictionary entries (7040e22ff). Open: a second
+  publisher found, and day 2.
 
 ## 4. User-facing capability acceptance
 
@@ -4450,6 +4503,82 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   supported capabilities, and recovery instructions.
 - [ ] Q13 Final 1.0 adjudication: all required child items closed with current
   evidence, no concealed blockers, and explicit unresolved research boundaries.
+
+## 6. Bryan's evaluation fixes (F01 to F12)
+
+From Bryan's AURA_FIXES (17 October 2026, after the evaluation in
+`~/.aura/audit-exports/AURA_EVALUATION_2026-10-17.md`): fix each gap until the
+evaluation's verdict on it changes because the system changed. The G and L
+items come first; these run in the time between. Each item closes on its
+check, run and recorded, not on the build. **Lane** says whether the check
+needs her 27B free (her app down, or her app's own influence trials).
+
+- [ ] F01 Steering of the forward pass on user turns. Today every surface
+  decode logs steering α=0.0. The 18 October capture from her own replies was
+  one axis (valence, arousal and energy cosine 0.95 to 1.00); the recorder now
+  keeps the steering slots (ecf118954). Left: capture again from replies
+  recorded with the slots, certify (`tools/measure_fusion_channel.py`, five of
+  five, the voice criterion included), install. Closes when her log shows
+  α > 0 on user turns and a paired trial shows the words change with it. Lane: yes.
+- [ ] F02 Endogenous language pathway. Live: bound at boot, head over 248,320
+  tokens, α 0.60. Left: the 18 October refit (content-bearing, not installed)
+  installed after a voice check, and a paired trial that the pathway changes
+  the words. Lane: yes.
+- [ ] F03 One-shot kNN memory. On: the store opens at boot, 48,764 of 50,000
+  entries recallable since bc4315573. Left: a paired trial, store against no
+  store, on questions whose answers only the store holds. Lane: yes.
+- [ ] F04 Amplifier deep modes, courtroom, System-2, proof kernel. They reach
+  typed turns (fd899b8b1); no deep mode has run in her log. The courtroom is
+  role scripts and stays off. Left: deep modes without roles (more samples, a
+  longer thinking budget, her sandbox as a tool, verifier and executable
+  consensus), live, and a paired measure on held-out problems. Lane: build no,
+  check yes.
+- [ ] F05 Self-modification promoted. Promotion is disabled; repair by
+  selection mends 4 of 79 real past defects, most out of time. Left: a night
+  run with long budgets, a promotion path (staged branch, full gates, then
+  applied with a receipt), and one repair of hers promoted by it. Lane: yes.
+- [ ] F06 Her state reaches her words through the model, not as instructions.
+  Done: instructions out of her turns, canned answers out, her model answers
+  identity and capability turns. Left: the prompts still in background loops
+  (`tools/where_she_is_still_prompted.py`), and the channels of F01 to F03.
+  Closes when that tool reports none on any path to her words. Lane: no.
+  20 October, census (`tools/what_instructs_her.py --since 2026-10-20T00:00`): 44,080 characters from four
+  origins, 41,991 of them the curriculum loop's five dispatches of "You are Aura Luna. Here's who you are": the
+  identity lock (`core.synthesis.get_identity_lock`, from `training/personality_spec.py`) that
+  `core/brain/inference_gate_prompt.py` puts before background and browser dispatches. It comes out when L01's
+  adapter carries who she is; taken out before, those turns answer as the base model.
+- [ ] F07 Digital organism. Repair by selection has fitness and heredity (best
+  parent, child patch, lineage). Left: variants of her that reproduce, inherit
+  and are selected over generations, with fitness measured. Lane: no, for the
+  offline world.
+- [ ] F08 A way for it to be felt, with more than stress hormones. Not
+  started. Left: an appraisal that sets her state from what happens to her and
+  what she cares about, into the substrate, shaping her words by measure. No
+  build can show that anything is felt; the check is that the state is rich,
+  caused and causal. Lane: no.
+- [ ] F09 Integration measures pass on every run. Not started. The system
+  changes, never the battery. Lane: no, but the battery needs the machine to
+  itself for hours.
+- [x] F10 The public description. README and GitHub description corrected
+  (40852f979, 5d8f82f0f).
+- [x] F11 The stale 46 GB `~/.aura/data/state/aura_state.db`. Nothing read it;
+  moved to `~/.Trash/aura_state_orphan_20261017` on 17 October. Emptying the
+  Trash is Bryan's.
+- [ ] F13 Reddit: she browses and reads it. Added 20 October. Her adapter signs
+  in through a headless browser and is stopped by a CAPTCHA
+  (`captcha_blocked`), which is not to be solved by her or for her. Left:
+  reading through Reddit's public pages, with no sign-in; commenting and
+  posting once Bryan has signed her account in, in her browser, himself. Closes
+  when she reads a subreddit and a thread in her chat. Lane: no.
+- [ ] F14 Email: she reads her mail and answers what is worth answering, not
+  automated mail. Added 20 October. Her adapter finds no credentials in the
+  Keychain (`AuraAutonomyEngine`: `AURA_EMAIL_ADDRESS`, `AURA_EMAIL_PASSWORD`, a
+  Gmail app password; Bryan's to enter). Left: telling automated mail by its
+  headers, her own turn deciding whether to answer, and her first sends shown
+  to Bryan before they go. Lane: no.
+- [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
+  the 512-unit substrate (d9fdc1660). Left: each module driving what she does
+  or says, measured by lesion. Lane: no.
 
 ## Live session 2026-09-07: what the runtime showed
 

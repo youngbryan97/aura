@@ -1,0 +1,375 @@
+"""What a page plays is offered to her as one thing on it, and choosing it watches it with whoever asked: before it
+plays she says what she expects, while it plays she looks and reads its captions and says what she thinks when there
+is something new, and when it ends she says what it was. A real film plays here; her eyes and her turns are stand-ins.
+In her they are her vision model and her own cognitive engine."""
+from __future__ import annotations
+
+import asyncio
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+pytestmark = pytest.mark.unit
+
+PAGE = Path(__file__).parent / "fixtures/watching/a_page_that_plays.html"
+ASKED = "Watch this with me. Before it starts, what do you think it'll be about? Then think out loud as it plays."
+
+
+async def _a_page(playwright_api):
+    playwright = await playwright_api.async_playwright().start()
+    try:
+        browser = await playwright.chromium.launch(headless=True, args=["--autoplay-policy=no-user-gesture-required"])
+    except Exception as why:  # noqa: BLE001 - no engine installed here
+        await playwright.stop()
+        pytest.skip(f"no browser engine: {why}")
+    page = await browser.new_page(viewport={"width": 800, "height": 600})
+    await page.goto(f"file://{PAGE}")
+    await page.wait_for_function("document.getElementById('film').readyState >= 1")
+    return playwright, browser, page
+
+
+@pytest.mark.asyncio
+async def test_what_a_page_plays_is_offered_and_handed_over_to_watching():
+    playwright_api = pytest.importorskip("playwright.async_api")
+    from core.skills.sovereign_browser_on_the_page import (
+        WATCHING,
+        handed_over,
+        watched_on_the_page,
+        with_what_plays,
+    )
+
+    playwright, browser, page = await _a_page(playwright_api)
+    try:
+        offered = await with_what_plays(SimpleNamespace(page=page), {"elements": [{"role": "button"}]})
+        alone = await with_what_plays(SimpleNamespace(page=page), {"url": "http://films.example/1", "elements": []})
+        await page.set_content("<p>nothing plays here</p>")
+        nothing = await with_what_plays(SimpleNamespace(page=page), {"elements": [{"role": "button"}]})
+    finally:
+        await browser.close()
+        await playwright.stop()
+    assert offered["elements"][-1]["selector"] == WATCHING and "0:06 long" in offered["elements"][-1]["name"]
+    assert offered["elements"][-1]["share_of_view"] == 0.48  # 640 by 360 in an 800 by 600 view
+    assert [e["role"] for e in nothing["elements"]] == ["button"]
+    assert [e["selector"] for e in alone["elements"]] == [WATCHING]  # a page that is its video and nothing else
+    assert handed_over([(SimpleNamespace(selector=WATCHING), "")]) is watched_on_the_page
+    assert handed_over([(SimpleNamespace(selector="#cc"), "")]) is None
+
+
+@pytest.mark.asyncio
+async def test_she_watches_a_film_through_saying_what_she_thinks_before_while_and_after():
+    playwright_api = pytest.importorskip("playwright.async_api")
+    from core.skills.watching_along import watch_along
+
+    turns: list[tuple[str, list[str]]] = []
+    sensed: list[tuple[str, str]] = []
+    kept: list[dict] = []
+
+    async def look(when: str) -> str:
+        return "a test pattern of coloured bars" if when else "a page with a dark player and a title"
+
+    async def turn(request: str, observation: str, said: list[str]) -> str:
+        assert request == ASKED  # the person's request is the turn, every time
+        turns.append((observation, list(said)))
+        return f"thought {len(turns)}"
+
+    async def say(words: str) -> bool:
+        return True
+
+    playwright, browser, page = await _a_page(playwright_api)
+    try:
+        remembered: list = []
+
+        async def remember(watched):
+            remembered.append(watched)
+
+        watching = await watch_along(page, ASKED, look=look, turn=turn, say=say, remember=remember,
+                                     perceive=lambda seen, read: sensed.append((seen, read)), keep=kept.append,
+                                     look_every_s=0.5, quiet_at_least_s=1.5, at_most_s=25.0)
+        pressed = await page.evaluate("document.getElementById('cc').getAttribute('aria-pressed')")
+    finally:
+        await browser.close()
+        await playwright.stop()
+
+    assert watching.ended and watching.title == "A short film about colour"
+    assert turns[0][0].startswith("before it plays") and "A short film about colour" in turns[0][0]
+    assert turns[-1][0].startswith("it has ended")
+    during = [observation for observation, _said in turns[1:-1]]
+    assert during and all(o.startswith("playing, at ") for o in during)  # she spoke while it played, more than once
+    assert pressed == "true"  # its own captions control was pressed
+    assert any("heard:" in o for o in during)  # and she heard what was said as it played
+    assert turns[-1][1] == [f"thought {n}" for n in range(1, len(turns))]  # what she said so far was hers, in order
+    assert sensed and all(seen == "a test pattern of coloured bars" for seen, _read in sensed)
+    assert {row["kind"] for row in kept} >= {"before", "moment", "said", "after"}
+    assert remembered == [watching]  # kept as an episode of hers, to recall what she thought of it
+
+
+def test_asked_to_watch_she_watches_first_once_a_request(monkeypatch):
+    """A video starts when its page opens: asked to watch it, she watches before reading the page, once a request,
+    so the next video a site plays by itself at a new address is not watched on its own."""
+    import core.skills.sovereign_browser_on_the_page as on_the_page
+
+    monkeypatch.setattr(on_the_page, "_WATCHED_FOR", {})
+    page = {"url": "https://videos.example/watch?v=1",
+            "elements": [{"role": "button"}, {"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.293}]}
+    trailer = {**page, "elements": [{"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.128}]}
+    assert on_the_page.watched_first(trailer, ASKED) is None  # a channel's trailer is not what the page is for
+    assert on_the_page.watched_first(page, ASKED, take=False)["resolved_actions"][0]["selector"] == on_the_page.WATCHING
+    assert on_the_page.watched_first(page, "Summarise what this page says.") is None  # not asked to watch
+    assert on_the_page.watched_first({**page, "elements": [{"role": "button"}]}, ASKED) is None  # nothing plays
+    assert on_the_page.watched_first(page, ASKED) is not None
+    assert on_the_page.watched_first(page, ASKED) is None  # once a request: after it, her model decides
+    assert on_the_page.watched_first({**page, "url": "https://videos.example/watch?v=2"}, ASKED) is None  # the next one
+
+
+def test_a_page_handed_to_her_to_watch_is_watched_first_however_small_its_video(monkeypatch):
+    """LIVE 20 October 2026: asked to watch a page whose 640-pixel film was under the share of her window, she
+    described the page instead. A page the request names is what the page is for."""
+    import core.skills.sovereign_browser_on_the_page as on_the_page
+
+    monkeypatch.setattr(on_the_page, "_WATCHED_FOR", {})
+    small = {"url": "http://127.0.0.1:8765/watching/a_page_that_plays.html",
+             "elements": [{"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.13}]}
+    elsewhere = {**small, "url": "http://127.0.0.1:8765/watching/another_page.html"}
+    asked = "Watch this with me: http://127.0.0.1:8765/watching/a_page_that_plays.html. Tell me what you think."
+    assert on_the_page.watched_first(elsewhere, asked) is None  # a page it does not name: the share decides
+    assert on_the_page.watched_first(small, asked)["resolved_actions"][0]["selector"] == on_the_page.WATCHING
+
+
+@pytest.mark.asyncio
+async def test_an_advert_ending_first_does_not_end_the_watching(monkeypatch):
+    """A site that plays an advert first plays it in the same video, which reports itself ended when the advert
+    does and then plays the video asked for."""
+    import core.skills.watching_along as watching_along
+
+    monkeypatch.setattr(watching_along, "AN_END_HOLDS_S", 0.0)
+    states = iter([{"at": 5.0, "duration": 15.0}, {"ended": True},  # the advert ends...
+                   {"at": 1.0, "duration": 60.0}, {"at": 2.0, "duration": 60.0},  # ...and the video asked for plays
+                   {"at": 30.0, "duration": 60.0}, {"ended": True}, {"ended": True}])
+
+    class Page:
+        async def evaluate(self, script, *_):
+            if script == watching_along.WHAT_PLAYS:
+                return {"x": 0, "y": 0, "w": 640, "h": 360, "vw": 800, "vh": 600, "words": "", "paused": False,
+                        "ended": False, **next(states)}
+            return {"title": "A video"} if script == watching_along.WHAT_THE_PAGE_SAYS else ""
+
+    async def look(_when):
+        return "a picture"
+
+    said = []
+
+    async def turn(_request, observation, _said):
+        said.append(observation.split(".")[0])
+        return "a thought"
+
+    async def say(_words):
+        return True
+
+    watching = await watching_along.watch_along(Page(), ASKED, look=look, turn=turn, say=say,
+                                                perceive=lambda *_: None, look_every_s=0.0, quiet_at_least_s=0.0)
+    assert watching.ended
+    assert [m.at for m in watching.moments] == [5.0, 2.0, 30.0]  # it watched on past the advert's end
+
+
+@pytest.mark.asyncio
+async def test_a_watching_becomes_an_episode_of_hers_in_her_own_words(monkeypatch):
+    from core.container import ServiceContainer
+    from core.skills.watching_along import Watching, into_her_memory
+
+    episodes: list[dict] = []
+
+    class Episodic:
+        async def record_episode_async(self, **episode):
+            episodes.append(episode)
+            return "e1"
+
+    monkeypatch.setattr(ServiceContainer, "get", classmethod(lambda _cls, name, default=None: Episodic() if name == "episodic_memory" else default))
+    watched = Watching(request=ASKED, title="A short film about colour", said=[(0.0, "Colour bars, I bet."), (3.0, "There it goes.")], ended=True)
+    await into_her_memory(watched, url="https://videos.example/watch?v=1")
+    assert episodes[0]["action"] == "watching_along" and "A short film about colour" in episodes[0]["context"]
+    assert episodes[0]["outcome"] == "0:00 Colour bars, I bet.\n0:03 There it goes."  # her words, as said
+    assert episodes[0]["metadata"]["provenance"] == "her own words while watching"
+
+
+@pytest.mark.asyncio
+async def test_everything_said_between_two_looks_is_heard():
+    """LIVE 19 October 2026: looking every five seconds caught one caption line in two. She listens four times a
+    second between looks, so a look three seconds apart still hears all three lines of the film."""
+    playwright_api = pytest.importorskip("playwright.async_api")
+    from core.skills.watching_along import watch_along
+
+    async def look(_when):
+        return "bars of colour"
+
+    async def turn(_request, _observation, _said):
+        return ""
+
+    async def say(_words):
+        return True
+
+    playwright, browser, page = await _a_page(playwright_api)
+    try:
+        watching = await watch_along(page, ASKED, look=look, turn=turn, say=say, remember=lambda _w: _none(),
+                                     perceive=lambda *_: None, look_every_s=3.0, quiet_at_least_s=100.0, at_most_s=20.0)
+    finally:
+        await browser.close()
+        await playwright.stop()
+    heard = " ".join(m.read for m in watching.moments)
+    assert all(line in heard for line in ("the colours begin", "a moving pattern", "and now the end comes")), heard
+
+
+async def _none():
+    return None
+
+
+def test_she_speaks_when_more_is_new_than_when_she_last_spoke_and_at_a_lull():
+    from core.skills.watching_along import Moment, _WhatIsNew
+
+    new = _WhatIsNew()
+    new.took_in(Moment(at=1.0, seen="a planet turning", read="this is the planet earth"))
+    assert new.worth_a_remark()  # the first remark in play needs only something new
+    new.remarked()
+    new.took_in(Moment(at=6.0, seen="a planet turning", read="the planet earth"))
+    assert not new.worth_a_remark(), "nothing new since she spoke"
+    new.took_in(Moment(at=11.0, seen="a volcano erupting into the sky", read="volcanoes reshape continents over aeons"))
+    assert new.worth_a_remark()
+    busy = _WhatIsNew()
+    for n in range(4):
+        busy.took_in(Moment(at=n, read="one two"))
+    busy.took_in(Moment(at=5.0, seen="glaciers", read="glaciers carve valleys through mountains and leave lakes behind them"))
+    assert not busy.worth_a_remark(), "not while it is saying more than usual: she waits for a lull"
+
+
+@pytest.mark.asyncio
+async def test_watched_with_them_it_goes_on_beside_and_the_browsing_is_done(monkeypatch):
+    """LIVE 20 October 2026: once the watching had gone on beside the conversation, her browsing went another round
+    and asked her model what to do on a page she had handed over. The step says it goes on beside."""
+    import core.skills.sovereign_browser_on_the_page as on_the_page
+    import core.skills.watching_the_screen as screen
+    import core.skills.watching_together as together
+
+    started, evaluated = [], []
+
+    class _Page:
+        async def evaluate(self, script):
+            evaluated.append(script)
+            return {"duration": 6.0, "w": 640, "h": 360} if script is on_the_page.WHAT_PLAYS else {"words": "a short film"}
+
+        async def title(self):
+            return "A short film about colour"
+
+    monkeypatch.setattr(screen, "_their_browser", lambda _url: ("com.example.Browser", "Browser"))
+    monkeypatch.setattr(together, "start_watching_in_a_with", lambda *a, **k: started.append(k))
+    step = await on_the_page.watched_on_the_page(SimpleNamespace(page=_Page()), ASKED,
+                                                 {"url": "http://127.0.0.1:8765/watching/a_page_that_plays.html"})
+    assert step["beside"] and step["over"] and started and started[0]["title"] == "A short film about colour"
+    assert on_the_page.QUIET_HERE in evaluated  # her own page quiet: it plays where they watch
+
+
+@pytest.mark.asyncio
+async def test_a_remark_as_it_plays_is_its_first_thought_said_as_it_comes(monkeypatch):
+    """LIVE 20 October 2026: a remark thought for 640 tokens at 8.5 a second, then answered all three parts of the
+    request under headings and was cut off. As it plays: a budget within the closed question's floor, so her private
+    channel stays shut, ended where its first thought ends. What she made of it at the end has more room."""
+    import core.skills.watching_along as watching_along
+    from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+    handed = []
+
+    class _Engine:
+        async def think(self, _request, *, context, **_kw):
+            handed.append(context)
+            return SimpleNamespace(content="Oh, it's round, not bars.")
+
+    monkeypatch.setattr("core.container.ServiceContainer.get", lambda name, default=None: _Engine() if name == "cognitive_engine" else default)
+    await watching_along.her_turn(ASKED, "playing, at 0:04 of 0:06.\n0:04 seen: a round test pattern", ["before"], remark=True)
+    await watching_along.her_turn(ASKED, "it has ended. What played, in order:\n0:04 seen: a round test pattern", ["one"], remark=True)
+    await watching_along.her_turn(ASKED, "before it plays. What was found of it: a short film", [])
+    as_it_plays, after, answer = handed
+    # Each thinks first (a budget above the closed question's floor opens her channel), within an allowance the decoder
+    # holds and a ceiling over thinking and saying together: her answer once thought for five minutes (LIVE 20 October).
+    for turn in (as_it_plays, after, answer):
+        assert turn["max_tokens"] > A_CLOSED_QUESTIONS_FLOOR and 0 < turn["private_channel_budget"] < turn["hard_output_token_ceiling"]
+    assert as_it_plays["hard_output_token_ceiling"] < answer["hard_output_token_ceiling"] <= 512
+
+
+def test_what_is_said_as_it_plays_is_her_first_thought():
+    """LIVE 20 October 2026, stopped at its first paragraph a remark was "Okay. Here we go." """
+    from core.skills.watching_along import first_thought
+
+    said = "Okay. Here we go.\n\nIt's round, not bars, and the empty CC box sits there like a held breath.\n\n**Before:** I"
+    assert first_thought(said) == "It's round, not bars, and the empty CC box sits there like a held breath."
+    assert first_thought("Okay.\n\nIt's round, not bars. The empty CC box sits there like a breath that") == "It's round, not bars."
+    assert first_thought("Oh.") == ""  # nothing that says something: nothing said
+    # LIVE 20 October 2026, rehearsal 13: "**After it ends — my thoughts:**" was said as the remark
+    assert first_thought("**After it ends — my thoughts:**\n\nIt never answered its own question, and I liked that.") \
+        == "It never answered its own question, and I liked that."
+    assert first_thought("There is one rule: keep going, and it builds a whole world.").startswith("There is one rule")
+
+
+def test_what_she_made_of_it_ends_where_a_paragraph_ends():
+    """LIVE 20 October 2026: what she made of a film ran to its ceiling and stopped mid-sentence, under rules."""
+    from core.skills.watching_along import whole_paragraphs
+
+    said = "I liked it.\n\n---\n\nIt never answered its own question.\n\nAnd the zoom, which kept going until the"
+    assert whole_paragraphs(said) == "I liked it.\n\nIt never answered its own question."
+    assert whole_paragraphs("One thought, cut") == "One thought, cut"  # one paragraph is kept as it is
+
+
+@pytest.mark.asyncio
+async def test_a_remark_as_it_plays_is_given_what_is_on_now(monkeypatch):
+    """LIVE 20 October 2026: given every look since her last remark, she narrated the oldest of them at 1:00, "**0:21–0:28:**
+    The title card reads". A remark is given the newest looks."""
+    import core.skills.watching_along as watching_along
+
+    monkeypatch.setattr(watching_along, "AN_END_HOLDS_S", 0.0)
+
+    class _Player:
+        def __init__(self):
+            self.at = 0.0
+
+        async def says(self):
+            return {"title": "Volcanoes"}
+
+        async def start(self):
+            return None
+
+        async def state(self):
+            self.at += 5.0
+            return {"ended": self.at > 60.0, "at": self.at, "duration": 60.0}
+
+        async def tend(self):
+            return ""
+
+        async def heard(self):
+            return [{"words": f"a new island number {int(self.at)}"}]
+
+        def eyes(self):
+            async def look(_when):
+                return f"ash over the sea at {int(self.at)}"
+            return look
+
+        async def done(self):
+            return None
+
+    asked = []
+
+    async def turn(_request, observation, _said):
+        asked.append(observation)
+        return "Look at the ash on the water there, it is moving faster now."
+
+    floor = {"looks": 0}
+
+    def may_speak(_now):
+        floor["looks"] += 1
+        return floor["looks"] > 6  # held back for six looks, then free
+
+    async def say(_words):
+        return True
+
+    await watching_along.watch_along(_Player(), ASKED, turn=turn, say=say, perceive=lambda *_: None, before=False,
+                                     remember=lambda _w: asyncio.sleep(0), look_every_s=0.0, quiet_at_least_s=0.0,
+                                     may_speak=may_speak)
+    as_it_plays = [o for o in asked if o.startswith("playing")]
+    assert as_it_plays and all(len(o.splitlines()) <= 1 + watching_along.NOW_LOOKS for o in as_it_plays)

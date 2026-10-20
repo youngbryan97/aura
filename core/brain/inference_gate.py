@@ -8861,7 +8861,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         )
         if (
             (desktop_cognitive_engine_contract or _foreground_answer_turn)
-            and not bool(context.get("hard_output_token_ceiling", False))
+            and not bool(context.get("hard_output_token_ceiling", False) or context.get("her_own_turn"))
             and not bool(context.get("resource_stakes_blocked", False))
         ):
             max_tokens, surface_completion_floor = self._generate_with_metadata_sink_part_7(caller_declared_completion_floor, context, explicit_max_tokens_cap, initial_visible_user_prompt, max_tokens, surface_completion_floor)
@@ -9737,7 +9737,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
             for name in (
                 "hard_output_token_ceiling",
                 "resource_stakes_blocked",
-                "desktop_execution_contract",
+                "desktop_execution_contract", "her_own_turn",
             )
             if bool(context.get(name, False))
         ]
@@ -9825,8 +9825,8 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                     _needed = (
                         (_decode_s + _read_s) * _generations
                     ) + _DELIVERY_MARGIN_S
-                    if _needed > float(timeout_val):
-                        primary_timeout, timeout_val = self._generate_with_metadata_sink_part_26(_decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val)
+                    if _needed > float(context.get("answer_within_s") or timeout_val):
+                        primary_timeout, timeout_val, max_tokens = self._answer_clock(_decode_s, _generations, _needed, _read_s, _reserve_the_worker_adds, _tokens_to_pay_for, max_tokens, timeout_val, context.get("answer_within_s"), _model_for_clock)
                         # The clock is one object, built when the request was
                         # admitted. Raising the number beside it computed an
                         # extension, logged it, and did not honour it.
@@ -9927,7 +9927,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                     max_tokens = _affordable
 
         max_tokens = self._generate_with_metadata_sink_serving_lane(_grounded, context, initial_visible_user_prompt, keeps_its_length(context, max_tokens), messages, morpho_kwargs, system_prompt)
-        await self._read_what_was_said_first(_is_user_facing, initial_visible_user_prompt)
+        await self._read_what_was_said_first(_is_user_facing and not context.get("her_own_turn"), initial_visible_user_prompt)
         messages, system_prompt = for_her_model(messages, system_prompt, context, _is_user_facing, _observable_dispatch_markers(), initial_visible_user_prompt)
         self._generate_with_metadata_sink_part_28(max_tokens, messages, origin, prompt_chars, prompt_mode, request_chars, scaffold_chars, system_prompt)
 
@@ -10062,7 +10062,7 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                             decode_budget=int(max_tokens or 0),
                             origin=str(origin or ""),
                             allow_tools=(
-                                bool(context.get("allow_tools", True))
+                                bool(context.get("allow_tools", True)) and not context.get("her_own_turn")
                                 and not bool(
                                     context.get("user_surface_completion_retry", False)
                                 )

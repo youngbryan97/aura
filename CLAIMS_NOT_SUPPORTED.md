@@ -105,7 +105,7 @@ If you are evaluating this repository, start here rather than with the README. I
 ## 13. Continuous Weight-Level Learning
 
 * **Status**: `not proven`
-* **Rationale**: Aura is **continuously plastic in her memory and state, but only optionally plastic in her neural network weights**. That distinction matters:
+* **Rationale**: Aura is **continuously state-plastic (her memory and state change all the time), but only optionally weight-plastic (her neural network weights change only when weight learning is turned on)**. That distinction matters:
 
       S_{t+1} ≠ S_t   holds every tick, with fixed base weights
       θ_{t+1} ≠ θ_t   is not continuously guaranteed

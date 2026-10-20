@@ -97,3 +97,29 @@ MATH test problem, which is what removed attempt 5's 11 losses.
 G09 is marked closed in AURA_1_0_MASTER_TODO.md in the same commit as this result. Her live book has carried
 attempt 6's bars since 17:21 (`~/.aura/rlc-evidence/live-bars-20261017/`). The preregistration's last step,
 showing it live in her app, is recorded below when done.
+
+## Amendment, 18 October 2026: shown live in her app
+
+Typed into her chat at 13:26:10, as a user types it: "What are the prime factors of 21000063?" She answered
+"3, 7, 1000003" at 13:28:11. Her log has the kept procedure for `dm_numbers__list_prime_factors` answering
+before her draft by words then meaning, and the answer served as the computed one (known answers agreed:
+5000). The screenshot and the log lines are in `~/.aura/rlc-evidence/meanings-ending-20261018/`.
+
+The first try, on 17 October, was declined. By its words the question was as near to the composed kind (the
+number is first computed from equations), which keeps no procedure, as to the plain kind, and the plain kind's
+procedure answers composed problems wrongly, so the decline was right. Two changes made it answerable:
+
+- A meaning tie-break among the kinds the words leave near (45a9689c3): the kind the request is typical of
+  answers when exactly one is.
+- Each kind's meaning now leaves out what every one of its problems closes with (dfbfa5bcb). Every DeepMind
+  problem ends with an instruction to reason step by step and box the answer, which a person's request never
+  carries; with it in the meaning the question scored 0.733 against the plain kind's bar of 0.759.
+
+The meanings were rebuilt with the ending left out and the bars raised again by attempt 6's chosen rule
+(`above_every_wrong`, seed 20261017, from the attempt's pinned worktree). Before installing, both wordings of
+the question routed to the plain kind and answered 3, 7, 1000003; the three composed examples were declined;
+and L09's question ("How many days are there between May 6, 2013 and September 21, 2017?") still answered
+1599 (`routing.jsonl` in the same folder). The book went into her app at 13:24, with the previous one kept
+beside it as `kept_from_solved_examples.json.before-meanings-ending-20261018`.
+
+The routing change touches no attempt-6 test request: the test arms were graded on the book as it was.

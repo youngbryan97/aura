@@ -13,6 +13,12 @@ from core.agency.autonomous_task_engine import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _planning_by_her_model_on(monkeypatch):
+    """These tests exercise the worded plan request, which is off by default (AURA_TASK_PLANNING_BY_MODEL)."""
+    monkeypatch.setenv("AURA_TASK_PLANNING_BY_MODEL", "1")
+
+
 class AsyncCallRecorder:
     def __init__(self, return_value=None, side_effect=None):
         self.return_value = return_value
@@ -54,9 +60,10 @@ async def test_task_engine_fallback_plan_survives_malformed_decomposition():
 
     plan = await engine._decompose_goal("Inspect runtime health", "plan_test", context=None)
 
-    assert len(plan.steps) == 1
-    assert plan.steps[0].tool == "think"
-    assert plan.steps[0].rollback_action is None
+    # A goal that could not be planned is reported as not planned, not sent to her model as a `think` order whose
+    # every reply counts as success.
+    assert plan.steps == []
+    assert "No JSON array" in plan.context["not_planned"]
     llm.think.assert_awaited()
 
 
@@ -73,7 +80,7 @@ async def test_an_array_of_numbers_is_not_a_plan(caplog):
     with caplog.at_level(logging.INFO):
         plan = await engine._decompose_goal("Inspect runtime health", "plan_nums", context=None)
 
-    assert plan.steps, "the deterministic fallback plan still runs"
+    assert plan.steps == []
     assert "has no attribute 'get'" not in caplog.text
     assert "holds no step objects" in caplog.text
 
@@ -98,12 +105,11 @@ async def test_task_engine_recoverable_decomposition_failure_does_not_trip_fail_
 
     plan = await engine._decompose_goal("Inspect runtime health", "plan_empty", context=None)
 
-    assert len(plan.steps) == 1
-    assert plan.steps[0].tool == "think"
+    assert plan.steps == []
     assert recorded == [
         (
             "autonomous_task_engine_planning",
-            "used deterministic planner fallback after model decomposition failure",
+            "model decomposition failed; a deterministic plan where one exists, else not planned",
         )
     ]
 
@@ -1352,3 +1358,17 @@ async def test_the_scaffold_is_never_reported_as_a_finding():
     assert "Restate the objective" in scaffold, "still says how to go about it"
     # The marker travels in the text, so any reader can tell the two apart.
     assert _NOT_AN_ANSWER not in "Paxos was published in 1998 after an eight-year wait."
+
+
+@pytest.mark.asyncio
+async def test_by_default_her_model_is_not_sent_a_worded_plan_request(monkeypatch):
+    """Off by default: a goal with no deterministic plan is reported not planned, and nothing is sent to her model."""
+    monkeypatch.delenv("AURA_TASK_PLANNING_BY_MODEL", raising=False)
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="[]"))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
+
+    plan = await AutonomousTaskEngine(kernel)._decompose_goal("Inspect runtime health", "plan_off", context=None)
+
+    assert plan.steps == []
+    assert "not asked" in plan.context["not_planned"]
+    llm.think.assert_not_awaited()

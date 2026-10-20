@@ -11,15 +11,16 @@ way a person would ask. Nothing is started from a script.
 2. Check the power mode: `pmset -g | grep powermode`. Low Power Mode (1) cuts
    her decode speed to a third.
 3. If Aura is already running, use that instance. For a first launch, start
-   her with her browser browsing as what it is:
+   her as usual; her browser browses as what it is by default:
 
    ```bash
-   AURA_BROWSER_STEALTH=0 ./launch_aura.sh
+   ./launch_aura.sh
    ```
 
-   Her browser can hide that it is automated (a stealth module, a borrowed
-   user agent, the automation flag switched off). The demos do not depend on
-   that and must not: a site that refuses automated visitors has said so.
+   Her browser can hide that it is automated (`AURA_BROWSER_STEALTH=1`: a
+   stealth module, a borrowed user agent, the automation flag switched off).
+   The demos do not use that and must not: a site that refuses automated
+   visitors has said so.
    Replacing a running instance requires Bryan's explicit restart
    authorization under `AGENTS.md`; the supported replacement command adds
    `--reboot`. Check that no training or soak owns the model, preserve logs,

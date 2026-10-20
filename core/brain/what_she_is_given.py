@@ -33,17 +33,20 @@ Those are named in `STILL_WORDED`, and the list only gets shorter.
 from __future__ import annotations
 
 import logging
-import os
 import re
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from core.runtime.flags import FlagKind, declare
 from core.utils.injected_blocks import (
     RUNTIME_EVIDENCE_ROLE,
     carries_read_evidence,
     injected_blocks_in,
     stamp_grounding,
 )
+
+_FLAG_SYSTEM_TEXT = declare("AURA_SYSTEM_TEXT", kind=FlagKind.STRING, default='',
+                            description="keep gives her model the system text again", owner="prompt")
 
 __all__ = ["STILL_WORDED", "for_her_model", "her_turn_is_still_worded", "readings_in", "what_she_is_given"]
 
@@ -142,7 +145,7 @@ _REMEMBERED = (
 
 def her_turn_is_still_worded(context: Mapping[str, Any] | None) -> bool:
     """Whether this turn's lane still depends on worded instructions."""
-    if os.environ.get("AURA_SYSTEM_TEXT", "").strip().lower() == "keep":
+    if _FLAG_SYSTEM_TEXT.value().strip().lower() == "keep":
         return True
     held = context or {}
     return any(held.get(flag) for flag in STILL_WORDED)
@@ -251,6 +254,38 @@ def _turns_to_her(said: Any) -> bool:
         return False
 
 
+#: Since the runtime began, by origin: dispatches to her model, and characters in them that tell it who to be or what
+#: to do (system text, and sentences the runtime wrote that address it or order it; the person's own words and hers are
+#: not counted). F06 on the master todo closes when every origin reads zero (tools/what_instructs_her.py).
+_INSTRUCTED: dict[str, list[int]] = {}
+
+
+def what_instructs_her() -> dict[str, dict[str, int]]:
+    """The census so far, by origin."""
+    return {origin: {"dispatches": n, "instructed_characters": chars} for origin, (n, chars) in sorted(_INSTRUCTED.items())}
+
+
+def _census(given: Any, system_prompt: Any, origin: str, persons_words: str) -> None:
+    from core.brain.what_instructs import instructing_sentences
+
+    told = [str(system_prompt or "")]
+    for message in given if isinstance(given, list) else []:
+        if not isinstance(message, dict):
+            continue
+        role, content = str(message.get("role") or "").lower(), str(message.get("content") or "")
+        if role == "system":
+            told.append(content)
+        elif role != "assistant" and not (persons_words and content.strip() == persons_words.strip()):
+            told.extend(instructing_sentences(content))
+    told = [text for text in told if text.strip()]
+    counted = _INSTRUCTED.setdefault(origin, [0, 0])
+    counted[0] += 1
+    counted[1] += sum(len(text) for text in told)
+    if told:
+        logger.info("🧾 [INSTRUCTED] %s: %d characters tell her model who to be or what to do; the first: %r",
+                    origin, sum(len(text) for text in told), told[0][:160])
+
+
 def for_her_model(
     messages: Any,
     system_prompt: Any,
@@ -265,7 +300,9 @@ def for_her_model(
     as it went in. `said` is the message of the turn; when it turns to her,
     the readings her instruments took of her go with the rest.
     """
+    origin = str((context or {}).get("origin") or "unknown")
     if not user_facing or her_turn_is_still_worded(context):
+        _census(messages, system_prompt, origin, "")
         return messages, system_prompt
     of_herself = _OF_HERSELF if _turns_to_her(said) else ()
     told = len(str(system_prompt or "")) + sum(
@@ -286,6 +323,7 @@ def for_her_model(
         len(given) if isinstance(given, list) else 0,
         ", ".join(f"{name} {size}" for name, size in readings_by_size(given)) or "none",
     )
+    _census(given, none, origin, str(said or ""))
     return given, none
 
 

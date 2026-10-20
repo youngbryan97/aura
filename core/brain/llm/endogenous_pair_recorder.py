@@ -27,7 +27,7 @@ import logging
 import os
 import time
 from collections import OrderedDict
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -105,6 +105,10 @@ class RecordedPair:
         return float(np.mean(self.present)) if self.present.size else 0.0
 
 
+#: Decimal places the steering state is kept to. A reader fitting on it cannot see a change finer than this.
+STEERING_DECIMALS = 5
+
+
 def _active_path() -> Path:
     return store_directory() / "pairs.jsonl"
 
@@ -127,8 +131,9 @@ def _record_payload(
     lane: str,
     model: str,
     prompt: str,
+    steering: Sequence[float] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "v": 1,
         "layout": layout_digest(),
         # What the numbers MEANT when this turn was recorded. The layout
@@ -147,6 +152,14 @@ def _record_payload(
         ).hexdigest(),
         "text": str(text or "")[:MAX_TEXT_CHARS],
     }
+    if steering:
+        # The numbers this reply's generation was steered by, slot for slot
+        # (core/consciousness/steering_channel.py). "z" holds the affect
+        # engine's readings and band means of the substrate, and neither is
+        # what scales a steering vector: on 18 October directions fitted on
+        # "z" came out one axis for valence, arousal, energy and frustration.
+        payload["s"] = [round(float(v), STEERING_DECIMALS) for v in steering]
+    return payload
 
 
 def _should_record(state: EndogenousState, text: str) -> bool:
@@ -176,12 +189,13 @@ def record_pair(
     lane: str = "",
     model: str = "",
     prompt: str = "",
+    steering: Sequence[float] | None = None,
 ) -> bool:
     """Append one pair. Returns whether anything was written."""
     _require_off_event_loop()
     if not _should_record(state, text):
         return False
-    payload = _record_payload(state, text, lane=lane, model=model, prompt=prompt)
+    payload = _record_payload(state, text, lane=lane, model=model, prompt=prompt, steering=steering)
     line = json.dumps(payload, separators=(",", ":"), sort_keys=True) + "\n"
     try:
         from core.governance_context import local_internal_governed_scope
@@ -211,6 +225,7 @@ async def record_pair_async(
     lane: str = "",
     model: str = "",
     prompt: str = "",
+    steering: Sequence[float] | None = None,
 ) -> bool:
     """Run the complete bounded storage transaction away from the event loop."""
     return await asyncio.to_thread(
@@ -220,6 +235,7 @@ async def record_pair_async(
         lane=lane,
         model=model,
         prompt=prompt,
+        steering=steering,
     )
 
 
@@ -385,6 +401,7 @@ def corpus_summary(directory: Path | None = None) -> dict[str, Any]:
 
 
 __all__ = [
+    "STEERING_DECIMALS",
     "MAX_FILE_BYTES",
     "MAX_ROLLED_FILES",
     "MAX_TEXT_CHARS",
@@ -408,7 +425,7 @@ __all__ = [
 # ──────────────────────────────────────────────────────────────────────────
 
 _PENDING_LIMIT = 64
-_PENDING: OrderedDict[str, tuple[dict[str, Any], str, str, float]] = OrderedDict()
+_PENDING: OrderedDict[str, tuple[dict[str, Any], str, str, float, str, tuple[float, ...]]] = OrderedDict()
 _PENDING_LOCK = checked_lock(
     "endogenous_pair_recorder.pending", rank=LockRank.LEAF
 )
@@ -419,7 +436,8 @@ _PENDING_TTL_S = 900.0
 
 
 def remember_pending(
-    request_id: str, payload: Mapping[str, Any], *, lane: str = "", model: str = "", prompt: str = ""
+    request_id: str, payload: Mapping[str, Any], *, lane: str = "", model: str = "", prompt: str = "",
+    steering: Sequence[float] | None = None,
 ) -> None:
     """Hold the state that went out with one request, and what it asked, until its reply lands.
 
@@ -432,7 +450,8 @@ def remember_pending(
         return
     now = time.time()
     with _PENDING_LOCK:
-        _PENDING[key] = (dict(payload), str(lane), str(model), now, str(prompt or ""))
+        _PENDING[key] = (dict(payload), str(lane), str(model), now, str(prompt or ""),
+                         tuple(float(v) for v in steering or ()))
         while len(_PENDING) > _PENDING_LIMIT:
             _PENDING.popitem(last=False)
         stale = [k for k, held in _PENDING.items() if now - held[3] > _PENDING_TTL_S]
@@ -446,11 +465,11 @@ def record_response(request_id: str, text: str) -> bool:
     held = _take_pending(request_id)
     if held is None:
         return False
-    state, lane, model, prompt = held
-    return record_pair(state, text, lane=lane, model=model, prompt=prompt)
+    state, lane, model, prompt, steering = held
+    return record_pair(state, text, lane=lane, model=model, prompt=prompt, steering=steering)
 
 
-def _take_pending(request_id: str) -> tuple[EndogenousState, str, str, str] | None:
+def _take_pending(request_id: str) -> tuple[EndogenousState, str, str, str, tuple[float, ...]] | None:
     """Atomically claim one pending state without performing storage I/O."""
     key = str(request_id or "").strip()
     if not key:
@@ -459,11 +478,11 @@ def _take_pending(request_id: str) -> tuple[EndogenousState, str, str, str] | No
         held = _PENDING.pop(key, None)
     if held is None:
         return None
-    payload, lane, model, _at, prompt = held
+    payload, lane, model, _at, prompt, steering = held
     state = EndogenousState.from_payload(payload)
     if state is None:
         return None
-    return state, lane, model, prompt
+    return state, lane, model, prompt, steering
 
 
 async def record_response_async(request_id: str, text: str) -> bool:
@@ -471,8 +490,8 @@ async def record_response_async(request_id: str, text: str) -> bool:
     held = _take_pending(request_id)
     if held is None:
         return False
-    state, lane, model, prompt = held
-    return await record_pair_async(state, text, lane=lane, model=model, prompt=prompt)
+    state, lane, model, prompt, steering = held
+    return await record_pair_async(state, text, lane=lane, model=model, prompt=prompt, steering=steering)
 
 
 def pending_depth() -> int:

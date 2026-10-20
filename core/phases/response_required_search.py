@@ -164,7 +164,7 @@ class _RunsTheRequiredSearch:
             or ""
         ).strip()
         named_url = _first_named_url(visible_objective)
-        if named_url and cap is not None:
+        if named_url and cap is not None and not runtime_context.get("her_own_turn"):  # a remark of hers fetches nothing
             fetched = await self._fetch_named_url_evidence(
                 state, cap, named_url, origin=origin, runtime_context=runtime_context
             )

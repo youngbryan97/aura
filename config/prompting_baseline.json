@@ -32,10 +32,6 @@
    "characters": 188,
    "strings": 1
   },
-  "core/agency/agency_shard_work.py": {
-   "characters": 782,
-   "strings": 1
-  },
   "core/agency/autonomous_task_engine.py": {
    "characters": 1497,
    "strings": 1
@@ -953,5 +949,5 @@
    "strings": 1
   }
  },
- "total_characters": 167980
+ "total_characters": 167198
 }

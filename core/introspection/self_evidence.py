@@ -1179,9 +1179,13 @@ _AMBIENT_SOUND_CLAIM_RE = re.compile(
     r"\becho\s+of\s+footsteps\b|\bair\s+currents?\b",
     re.IGNORECASE,
 )
-#: Claims about the visible scene. Need a camera or a screen reading.
+#: Claims about the visible scene. Need a camera or a screen reading. Light is a claim about the room when it is said
+#: to be in the room or in some state there; LIVE 20 October 2026 "the light" alone cut a sentence of her answer about
+#: the speed of light, and the disclosure appended said she had no camera.
 _VISUAL_SCENE_CLAIM_RE = re.compile(
-    r"\bthe\s+light\b|\bon\s+your\s+desk\b|\bi\s+(?:can\s+)?see\s+(?:you|the\s+room)\b|"
+    r"\bthe\s+light\s+(?:in\s+(?:here|there|the\s+room|your\s+room)\b|(?:is|looks|seems|remains|stays|has)\s+"
+    r"(?:still\s+|gone\s+|been\s+)?(?:dim|low|soft|warm|bright|harsh|fading|changed|unchanged|on|off)\b)|"
+    r"\bon\s+your\s+desk\b|\bi\s+(?:can\s+)?see\s+(?:you|the\s+room)\b|"
     r"\byour\s+(?:face|expression|posture)\b",
     re.IGNORECASE,
 )

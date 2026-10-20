@@ -16,6 +16,7 @@ from typing import Any
 from core.learning.cortex_generation_upgrade import record_upgrade_candidate
 from core.memory.retention_policy import training_buffer_retention_policy
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.background_policy import is_user_facing_origin, origin_tokens
 from core.runtime.disk_budget import (
     DiskBudgetRefusal,
     directory_bytes,
@@ -62,6 +63,11 @@ _TRAINING_CONTAMINATION_PATTERNS = {
     "i'm processing that, but i haven't reached a verbal conclusion yet": "canned_failure_reply",
     "i'm turning that over. give me a moment": "canned_failure_reply",
     "i'm reaching for an answer that feels honest": "canned_failure_reply",
+    "my thinking is running deeper than my words": "canned_failure_reply",
+    "i'm working through something with that": "canned_failure_reply",
+    "i lost my train of thought for a second": "canned_failure_reply",
+    "but i haven't landed on how to say it": "canned_failure_reply",
+    "my cognitive process timed out": "canned_failure_reply",
     "eli pariser coined the phrase": "web_leakage",
     "learn why people trust wikihow": "web_leakage",
     "download article": "web_leakage",
@@ -199,6 +205,17 @@ def score_interaction(
         reasons_negative=neg,
         worth_training=final_score >= 0.55,
     )
+
+
+#: What the runtime calls its own turns when it names them: an origin carrying one of these is not a person's.
+_ITS_OWN_TURNS = frozenset({"probe", "benchmark"})
+
+
+def a_persons_turn(origin: Any) -> bool:
+    """Whether a tick was started by a person: a user-facing origin the runtime has not named a probe or benchmark of
+    its own. "desktop_quick_desktop_influence_probe", the autonomy conductor's influence experiment, reads as
+    user-facing by its word "desktop" (215 of its turns in her log by 19 October 2026)."""
+    return is_user_facing_origin(origin) and not (origin_tokens(origin) & _ITS_OWN_TURNS)
 
 
 def training_contamination_reasons(*texts: str) -> list[str]:
@@ -521,10 +538,16 @@ class LiveLearner:
         follow_up: bool = False,
         confusion: bool = False,
         affect: dict[str, Any] | None = None,
+        origin: str = "",
     ) -> InteractionScore | None:
         """
         Called after every tick. Scores the interaction and optionally records it.
         Returns the score so callers can log or display it.
+
+        Only a tick a person started is kept as training data (``origin`` user-facing). A tick's objective is
+        whatever the kernel is pursuing, and on 19 October 2026 9,138 of the buffer's 9,638 rows were her own
+        runtime's requests ("[SWARM PROTOCOL: You are 'The Critic'...", "[SYSTEM ROLE: EPISTEMIC ARCHITECT]",
+        "You are fixing a bug in your own code"), with her replies to them: training on them teaches her the scripts.
         """
         if not user_input or not response:
             return None
@@ -545,6 +568,8 @@ class LiveLearner:
             self._session_scores.append(score.raw_score)
 
         contamination = training_contamination_reasons(user_input, response)
+        if not a_persons_turn(origin):
+            contamination = [*contamination, "not_a_persons_turn"]
         if contamination:
             score.worth_training = False
             score.reasons_negative.extend(f"training_contamination:{reason}" for reason in contamination)

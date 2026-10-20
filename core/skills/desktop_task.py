@@ -43,6 +43,7 @@ from core.runtime.os_automation_effects import (
 from core.runtime.watched_goal import read_watched_goal
 from core.skills.base_skill import BaseSkill
 from core.skills.file_modification_intent import requested_file_modification
+from core.skills.how_a_pursuit_ended import how_it_ended
 from core.skills.os_affordances import detect_os_settings, get_affordance
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -4721,10 +4722,8 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
         # undiagnosable shape this file already documents for its own steps.
         # The loop records an error on the round that stopped it; that is the
         # cause, and it belongs in the reply rather than in a log.
-        failure = ""
-        for step in steps:
-            if step.get("error"):
-                failure = str(step["error"])
+        # The round that ended it: a round that failed and was looked past did not stop anything (LIVE 2026-10-20).
+        failure = "" if report.get("completed") else str((steps[-1] if steps else {}).get("error") or "")
         if not failure and not report.get("ok"):
             # Say what actually happened, not a guess about the page.
             #
@@ -4813,12 +4812,8 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             "objective": objective,
             "receipts": receipts,
             "failures": [] if succeeded else [r for r in receipts if not r["ok"]],
-            "planner": "browser_pursuit",
-            "summary": (
-                f"Worked through {report.get('final_url') or url} over "
-                f"{len(rounds)} round(s)"
-                + (f", then stopped: {failure}." if failure else ".")
-            ),
+            "planner": "browser_pursuit", "beside": any(step.get("beside") for step in steps),  # watched beside
+            "summary": how_it_ended(str(report.get("final_url") or url), len(rounds), failure),
             "url": report.get("final_url") or url,
             # The names the task-level contract checks. This lane's expectation
             # requires `steps_requested` and `steps_completed`; returning them

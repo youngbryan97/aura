@@ -402,6 +402,46 @@ async def test_transport_failure_never_enters_code_auto_repair(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_a_code_failure_goes_back_as_the_result_and_not_to_her_engine(monkeypatch):
+    """A failed run's error is the tool's result, for the turn that wrote the code. It used to be sent to her
+    cognitive engine as "Rewrite the code to fix the error...", which became her objective and a task commitment
+    retried for days (83 in her store, 13 to 17 October 2026)."""
+    engine_calls = []
+
+    class Engine:
+        async def think(self, *_args, **_kwargs):
+            engine_calls.append(True)
+            return SimpleNamespace(content="print('rewritten')")
+
+    def get_service(_cls, name: str, default=None):
+        if name == "cognitive_engine":
+            return Engine()
+        return default
+
+    orch = ToolOrchestrator()
+    execution_calls = 0
+
+    async def failed_code(_code):
+        nonlocal execution_calls
+        execution_calls += 1
+        orch._last_python_failure_kind = "code"
+        return False, "NameError: name 'x' is not defined"
+
+    async def identity_sanitizer(value):
+        return value
+
+    monkeypatch.setattr(ServiceContainer, "get", classmethod(get_service))
+    monkeypatch.setattr(orch, "execute_python", failed_code)
+    monkeypatch.setattr(orch, "sanitize_output", identity_sanitizer)
+
+    result = await orch.route_and_execute("python_sandbox", "print(x)")
+
+    assert result == "[EXECUTION FAILED]\nNameError: name 'x' is not defined"
+    assert execution_calls == 1
+    assert engine_calls == []
+
+
+@pytest.mark.asyncio
 async def test_web_search_success_records_resilience_success(monkeypatch):
     resilience = CapturingResilience()
 

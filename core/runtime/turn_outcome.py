@@ -409,6 +409,11 @@ class TurnOutcome:
         self._dropped_candidates = 0
         self._dropped_receipts = 0
 
+    @property
+    def finalized(self) -> bool:
+        """Whether this turn has settled what it serves: work it started may now go on after it."""
+        return self._finalized
+
     # ---------------------------------------------------------------- candidates
 
     def record_candidate(

@@ -89,7 +89,7 @@ def test_what_she_does_on_a_want_of_her_own_is_not_announced(monkeypatch):
     monkeypatch.setattr(loop, "_emit_visible_trace", lambda result: announced.append(result.source))
     monkeypatch.setattr(loop, "_emit_receipts", lambda result, raw: None)
     monkeypatch.setattr(loop, "_record_life_trace", lambda result, raw: None)
-    monkeypatch.setattr(loop, "_update_goal", lambda result: None)
+    monkeypatch.setattr(loop, "_update_goal", lambda result, raw_result=None: None)
     for source in ("want", "goal_engine"):
         result = OvertActionResult(action_id=source, status="verified", source=source, verified=True, started_at=1.0)
         asyncio.run(loop._finish(result, raw_result={}))

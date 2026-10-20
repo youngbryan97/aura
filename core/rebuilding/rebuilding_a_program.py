@@ -119,16 +119,25 @@ async def rebuild(
     browser: Any = None,
     deadline_s: float = 3 * 3600.0,
     asked: str = "",
+    read_online: Any = None,
 ) -> Rebuilt:
     """Rebuild ``program`` from what is written about it into ``where``; see the module's account.
 
     With no program named, what is built is what ``asked`` specifies: the
     person's words are the only source, and everything after is the same.
+    ``read_online(program)``, where the caller has the internet, gives the
+    program's own guides and help pages as sources besides.
     """
     began = time.monotonic()
     record: list[Path] = []
     ask = patiently(_recorded(ask, record), tell)
     sources = await what_is_written_about(program, corpus=corpus, online=online) if program else []
+    sources += await _its_manual_here(program)
+    if program and read_online is not None:
+        try:
+            sources += list(await read_online(program) or [])
+        except (OSError, RuntimeError, ValueError, TimeoutError) as why:
+            logger.info("rebuilding: nothing read online about %s: %s", program, why)
     named = [what_was_read(sources)] if sources else []
     taken_up = await asyncio.to_thread(an_unfinished_build_of, program, asked, Path(where))
     if taken_up is not None and await asyncio.to_thread(_on_a_page_of_its_own, taken_up):
@@ -182,17 +191,21 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
     record.append(folder / "what_she_asked.jsonl")
     genome = Genome.model_validate_json((folder / "what_it_does.json").read_text("utf-8"))
     if genome.kind.strip().lower() == "code":
-        built = await _as_code(genome, ask, folder, tell)
+        built = await _as_code(genome, ask, folder, tell, program=program, sources=sources)
         await asyncio.to_thread(keep_the_record, folder, built)
         await asyncio.to_thread(_the_build_is, folder, program, asked, finished=True)
         return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
     # Parts she already knows how to make, and what the frame already does, are given by code with their checks
     # (core/rebuilding/parts_a_maker_knows.py, core/rebuilding/what_the_frame_gives.py); her model writes the rest.
-    knows = what_she_knows_how_to_make(genome, sources)
+    from core.rebuilding.parts_a_maker_knows import Known as KnowsHowToMake
+    from core.rebuilding.the_program_as_built import ours_in_use
+
+    ours = ours_in_use()
+    knows = what_she_knows_how_to_make(genome, sources) if ours else KnowsHowToMake()
     genome.features = [*genome.features, *knows.added]
     genome.features, given = what_the_frame_gives(genome.features, sources, asked, already=set(knows.given),
                                                   saving_as=any(part.name == "save as" for part, _checks in knows.given.values()),
-                                                  usual="docx" if knows.page is not None else "")
+                                                  usual="docx" if knows.page is not None else "") if ours else (genome.features, {})
     for feature in genome.features:
         if feature.name in knows.given:
             part, checks = knows.given[feature.name]
@@ -214,13 +227,75 @@ async def _building(program: str, ask: Asker, folder: Path, record: list[Path], 
         await _say(tell, f"Before any code, I wrote {len(written)} checks a person would make of it; "
                          + ("all of them" if len(checks) == len(written) else f"{len(checks)} of them")
                          + " fail on an empty program, so each tests something real.")
+    known = await _what_is_known(program, sources, genome, ask, folder, tell)
+    libraries = await _its_libraries(genome, known, ask, folder, browser, tell)
     left = max(60.0, deadline_s - (time.monotonic() - began))
     built = await write_it(genome, checks, ask, folder / "index.html", tell=tell, browser=browser, deadline_s=left,
                            given={name: gift.part for name, gift in given.items()}, so_far=await asyncio.to_thread(so_far_in, folder, genome),
-                           page=knows.page)
+                           page=knows.page, known=known, libraries=libraries)
     await asyncio.to_thread(keep_the_record, folder, built)
     await asyncio.to_thread(_the_build_is, folder, program, asked, finished=True)
     return Rebuilt(program or genome.name, genome, built, named, time.monotonic() - began)
+
+
+async def _what_is_known(program: str, sources: list[Any], genome: Genome, ask: Asker, folder: Path,
+                         tell: Teller | None) -> Any:
+    """What is known of the program, read in depth (core/rebuilding/what_is_known_of_it.py), kept beside the build:
+    what is written of what it does, the articles of what that rests on, and what her model names for her to read,
+    taken where her corpus bears it out."""
+    from core.rebuilding.what_is_known_of_it import (
+        as_kept,
+        deepened,
+        from_kept,
+        known_of_async,
+        what_she_would_look_up,
+    )
+
+    kept = folder / "what_is_known.json"
+    if kept.exists():
+        return from_kept(json.loads(await asyncio.to_thread(kept.read_text, "utf-8")))
+    known = await known_of_async(program or genome.name, sources)
+    try:
+        names = await what_she_would_look_up(program or genome.name, known, ask, features=[f.name for f in genome.features])
+    except HerModelIsAwayError as why:
+        logger.info("rebuilding: her model is away (%s); reading on from what is written alone", why)
+        names = []
+    known = await asyncio.to_thread(deepened, known, names)
+    await asyncio.to_thread(kept.write_text, json.dumps(as_kept(known), indent=1), "utf-8")
+    on = [title for title in known.rests_on]
+    unborne = f"My model named {', '.join(known.unborne[:5])}{' and more' if len(known.unborne) > 5 else ''}, which nothing I keep bears out."
+    if on:
+        await _say(tell, f"Reading on into what it rests on: {', '.join(on[:12])}{' and more' if len(on) > 12 else ''}."
+                         + (f" {unborne}" if known.unborne else ""))
+    elif known.unborne:
+        await _say(tell, f"I found nothing more to read on what it rests on. {unborne}")
+    return known
+
+
+async def _its_libraries(genome: Genome, known: Any, ask: Asker, folder: Path, browser: Any, tell: Teller | None) -> list[Any]:
+    """The libraries the program is made of (core/rebuilding/building_her_libraries.py), kept beside the build so a build
+    taken up again does not write them twice."""
+    from core.rebuilding.building_her_libraries import BuiltLibrary, build_libraries
+    from core.rebuilding.her_libraries import LibraryPlan
+
+    kept = folder / "libraries.json"
+    if kept.exists():
+        rows = json.loads(await asyncio.to_thread(kept.read_text, "utf-8"))
+        return [BuiltLibrary(LibraryPlan.model_validate(r["plan"]), r["code"], r["held"], r["failed"], r["tries"], r["from_her_store"],
+                             r.get("doubted", [])) for r in rows]
+
+    async def said(line: str) -> None:
+        await _say(tell, line)
+
+    try:
+        built = await build_libraries(genome, known, ask, browser=browser, tell=said)
+    except HerModelIsAwayError as why:
+        logger.info("rebuilding: her model is away (%s); no libraries planned", why)
+        return []
+    rows = [{"plan": b.plan.model_dump(), "code": b.code, "held": b.held, "failed": b.failed, "tries": b.tries,
+             "from_her_store": b.from_her_store, "doubted": b.doubted} for b in built]
+    await asyncio.to_thread(kept.write_text, json.dumps(rows, indent=1), "utf-8")
+    return built
 
 
 def _a_new_folder(where: Path, name: str) -> Path:
@@ -281,13 +356,54 @@ def _as_far_as_it_got(program: str, asked: str, where: Path, named: list[str], s
     return Rebuilt(program or genome.name, genome, built, named, seconds)
 
 
-async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None) -> Built:
+#: The feature a tool rebuilt from this machine's own is checked by: what the original printed, run each way tried.
+AS_THE_ORIGINAL = "behaves as the original does"
+
+
+async def _its_manual_here(program: str) -> list[Any]:
+    """The manual page of the tool a program names, where it is one of this machine's own: read as a source."""
+    from core.rebuilding.what_a_program_does import Source
+    from core.rebuilding.what_it_was_seen_to_do import its_manual, the_original_here
+
+    command = the_original_here(program) if program else None
+    manual = await asyncio.to_thread(its_manual, command) if command else ""
+    return [Source(f"{Path(command).name} manual", manual, "its manual page on this machine")] if manual else []
+
+
+async def _as_seen(program: str, genome: Genome, sources: list[Any], ask: Asker, tell: Teller | None) -> list[Any]:
+    """Where the program is a tool of this machine's own, it run the ways her model proposes from its manual, under the
+    sandbox: each run a check her version must pass (core/rebuilding/what_it_was_seen_to_do.py)."""
+    from core.rebuilding.what_a_program_does import Feature
+    from core.rebuilding.what_it_was_seen_to_do import (
+        as_calls,
+        seen,
+        the_original_here,
+        ways_to_try,
+    )
+
+    command = the_original_here(program) if program else None
+    manual = next((s.text for s in sources if s.where == "its manual page on this machine"), "")
+    if not command or not manual:
+        return []
+    ways = await ways_to_try(program, manual, ask)
+    calls = as_calls(await asyncio.to_thread(seen, command, ways), AS_THE_ORIGINAL)
+    if calls:
+        genome.features.append(Feature(name=AS_THE_ORIGINAL, how="main(args, stdin) returns what it prints",
+                                       shows="what the original printed, every way it was run", weight=3))
+        await _say(tell, f"Ran {program} itself {len(ways)} ways its manual suggests, in a sandbox that refuses every "
+                         f"file write and the network; {len(calls)} of them are now checks of mine.")
+    return calls
+
+
+async def _as_code(genome: Genome, ask: Asker, folder: Path, tell: Teller | None, *, program: str = "",
+                   sources: list[Any] = ()) -> Built:
     """A program that is code: its calls written first, then its functions, each kept for what calling it showed."""
     from core.rebuilding.programs_in_code import calls_for, write_code
 
-    calls = []
-    for at in range(0, len(genome.features), FEATURES_AT_ONCE):
-        calls.extend(await calls_for(genome, genome.features[at : at + FEATURES_AT_ONCE], ask))
+    calls = await _as_seen(program, genome, list(sources), ask, tell)
+    asked_of_her = [f for f in genome.features if f.name != AS_THE_ORIGINAL]
+    for at in range(0, len(asked_of_her), FEATURES_AT_ONCE):
+        calls.extend(await calls_for(genome, asked_of_her[at : at + FEATURES_AT_ONCE], ask))
     await _say(tell, f"Wrote {len(calls)} calls a person would make of it, before any code; each is made in a sandbox with no network.")
     began = time.monotonic()
     program, outcomes, holding = await write_code(genome, calls, ask, folder / "program.py")

@@ -23,7 +23,6 @@ import sys
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from core.capabilities.browser_authority import (
     BrowserAction,
@@ -42,6 +41,7 @@ from core.runtime.flags import declare as _declare
 from core.runtime.lockdep import checked_async_lock
 from core.runtime.runtime_hygiene import get_runtime_hygiene
 
+from .phantom_browser_frames import _ReadsItsFrames
 from .phantom_browser_interaction import _ActsOnThePage
 
 try:
@@ -75,13 +75,16 @@ _SYSTEM_CHROMIUM_EXECUTABLES = (
 )
 
 
+#: On. Bryan, 19 October 2026: she may browse in private and quietly; she is not a bot, spams no site or account, and
+#: is trusted to use her skills responsibly. It was turned off on 18 October (d2d6c4759) on a misreading of his rules.
+#: Whether her browser's window shows is a different switch (``visible``). CAPTCHAs are still never solved for her.
 _BROWSER_STEALTH = _declare(
     "AURA_BROWSER_STEALTH",
     kind=_FlagKind.STRING,
     default="1",
     description=(
         "Whether her browser hides that it is automated: playwright-stealth, a borrowed user agent, "
-        "and the automation flag switched off. 0 to browse as what it is"
+        "and the automation flag switched off. 0 to browse as an automated browser"
     ),
     owner="core/capabilities/phantom_browser.py",
 )
@@ -252,7 +255,7 @@ def why_it_would_not_load(browser: Any) -> str:
     return said
 
 
-class PhantomBrowser(_ActsOnThePage):
+class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
     """High-fidelity browser agent (Async Version).
     """
     
@@ -729,8 +732,15 @@ class PhantomBrowser(_ActsOnThePage):
         raise RuntimeError("all Chromium executables failed: " + "; ".join(failures))
 
     def _get_random_ua(self) -> str | None:
-        """A user agent drawn from a list, or the browser's own when it is browsing as what it is."""
-        return random.choice(USER_AGENTS) if _hides_automation() else None
+        """A user agent drawn from a list, or the browser's own when it is browsing as what it is.
+
+        Only a desktop one: her window is a desktop window (1280 wide), and a phone's user agent in it is served a
+        phone's page laid out for a desktop's width (LIVE 20 October 2026, an iPhone's drawn for the watching
+        rehearsal).
+        """
+        if not _hides_automation():
+            return None
+        return random.choice([agent for agent in USER_AGENTS if "Mobile" not in agent and "iPad" not in agent])
 
     async def _apply_stealth(self, context: Any) -> bool:
         """Apply the installed playwright-stealth API before creating pages.
@@ -1280,13 +1290,22 @@ class PhantomBrowser(_ActsOnThePage):
         // then a positional path — index-only references break the moment a
         // re-render reorders anything, which is the classic way these loops
         // click the wrong thing on step nine.
+        //
+        // An id names one element only where the page gives it to one. LIVE
+        // 2026-10-20 13:27 every result on YouTube's search page had
+        // id="thumbnail": all of them became the one control "#thumbnail",
+        // which resolves to the first in the page, a hidden one, and the
+        // click on the video she chose found nothing. The path climbs until
+        // it names this element and no other.
+        const ownId = (node) => node.id
+            && document.querySelectorAll('#' + CSS.escape(node.id)).length === 1;
         const cssPath = (el) => {
-            if (el.id) return '#' + CSS.escape(el.id);
+            if (ownId(el)) return '#' + CSS.escape(el.id);
             const parts = [];
             let node = el;
-            while (node && node.nodeType === 1 && parts.length < 6) {
+            while (node && node.nodeType === 1 && parts.length < 16) {
                 let part = node.tagName.toLowerCase();
-                if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
+                if (ownId(node)) { parts.unshift('#' + CSS.escape(node.id)); break; }
                 const parent = node.parentElement;
                 if (parent) {
                     const siblings = Array.from(parent.children).filter(
@@ -1297,6 +1316,7 @@ class PhantomBrowser(_ActsOnThePage):
                 }
                 parts.unshift(part);
                 node = node.parentElement;
+                if (parts.length >= 6 && document.querySelector(parts.join(' > ')) === el) break;
             }
             return parts.join(' > ');
         };
@@ -1680,42 +1700,6 @@ class PhantomBrowser(_ActsOnThePage):
         observation.pop("frames_at", None)
         observation.pop("seen_at", None)
         return observation
-
-    async def _what_its_frames_say(self, principal: str) -> list[dict[str, Any]]:
-        """The words in each frame a person can see on this page, top to bottom.
-
-        LIVE 2026-10-02 23:40: the OEJTS results page says "A detailed
-        description of this personality type is below", and the description is
-        a text file shown in a frame. Only the main document was read, so she
-        pressed "more" and "less" and scrolled for fifteen minutes looking for
-        words that were on her screen the whole time. A frame is part of the
-        page a person reads. Who serves it does not change that, so each one is
-        read under the verdict for its own address.
-        """
-        page = self.page
-        found: list[dict[str, Any]] = []
-        for frame in list(getattr(page, "frames", None) or []):
-            try:
-                if frame is page.main_frame or frame.is_detached():
-                    continue
-                holder = await frame.frame_element()
-                box = await holder.bounding_box() if await holder.is_visible() else None
-                verdict = authorize_browser_action(
-                    BrowserAction.READ, principal=principal, url=str(frame.url or "")
-                )
-                if not box or not verdict.allowed:
-                    continue
-                said = await frame.evaluate("() => document.body ? document.body.innerText : ''")
-            except (PlaywrightError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                # A frame that went away while it was read: an advert
-                # reloading, a widget replaced. The rest of the page stands.
-                record_degradation("phantom_browser.frames", exc, severity="info")
-                continue
-            said = re.sub(r"\n{3,}", "\n\n", str(said or "")).strip()
-            if said:
-                where = urlparse(str(frame.url or ""))
-                found.append({**box, "said": said, "where": f"{where.netloc}{where.path}"})
-        return sorted(found, key=lambda shown: (shown["y"], shown["x"]))
 
     async def get_links(self, *, principal: str = "") -> list[dict[str, str]]:
         """Links on this page, bounded and scheme-filtered."""

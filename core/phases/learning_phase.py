@@ -398,6 +398,7 @@ class LearningPhase(Phase):
                 follow_up=follow_up,
                 confusion=confusion,
                 affect=affect_data,  # Sync emotional context
+                origin=str(getattr(state.cognition, "current_origin", "") or ""),
             )
             if score:
                 if not hasattr(state, "response_modifiers") or state.response_modifiers is None:

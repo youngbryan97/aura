@@ -20,6 +20,7 @@ from core.config import config
 from core.conversation.word_markers import names_any
 from core.knowledge.mycelial_graph import get_mycelial
 from core.runtime.errors import record_degradation
+from core.runtime.flags import FlagKind, declare
 from core.runtime.service_access import resolve_orchestrator
 from core.runtime.skill_task_bridge import (
     looks_like_multi_step_skill_request,
@@ -37,6 +38,13 @@ _NOT_AN_ANSWER = "No answer came back; the method for:"
 
 # ── Data structures ──────────────────────────────────────────────────────────
 
+
+
+#: Off: her model is not sent the worded plan request below, which Bryan's rule against prompt engineering forbids; in
+#: her log of 16 to 19 October 2026 it made no plan in 205 tries ("No JSON array in response" 200 times).
+PLANNING_BY_MODEL = declare("AURA_TASK_PLANNING_BY_MODEL", kind=FlagKind.BOOL, default=False,
+                            description="Send her model the task engine's worded plan request for goals without a deterministic plan",
+                            owner="core.agency.autonomous_task_engine")
 
 class StepStatus(Enum):
     PENDING = "pending"
@@ -301,6 +309,18 @@ def _goal_overlap_score(a: str, b: str) -> float:
     if not tokens_a or not tokens_b:
         return 0.0
     return len(tokens_a & tokens_b) / max(1, len(tokens_b))
+
+
+def _not_planned(engine: Any, goal: str, plan_id: str, context: dict | None, why: str) -> TaskPlan:
+    """A grounded goal's deterministic plan where it has one; else no steps, and why. Not one `think` step with the goal
+    as its prompt and any reply a success: to 19 October 2026, 203 of 209 plans "complete. Success=True (1/1 steps)",
+    their goals "[SWARM PROTOCOL: You are 'The Architect'..." and "[SYSTEM ROLE: THE ADVERSARY]"."""
+    if engine._requires_grounded_action(goal, context):
+        fallback = engine._build_grounded_fallback_plan(goal, plan_id, context)
+        if fallback is not None:
+            logger.info("TaskEngine: deterministic grounded plan for '%s' (%s)", goal[:60], why[:80])
+            return fallback
+    return TaskPlan(plan_id=plan_id, goal=goal, steps=[], trace_id="", context={**dict(context or {}), "not_planned": why[:200]})
 
 
 from .task_fallback_plans import _BuildsAPlanWithoutTheModel
@@ -1272,6 +1292,8 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
             )
             return cognitive_plan
 
+        if not PLANNING_BY_MODEL.value():
+            return _not_planned(self, goal, plan_id, context, "no deterministic plan, and her model is not asked for one")
         tool_specs = self._build_planning_tool_specs(goal)
         tool_catalog = "\n".join(
             f"- {spec['name']}: {spec['description']}"
@@ -1458,38 +1480,8 @@ The plan is a JSON array of steps:
             except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                 logger.debug("Failed to record planning failure: %s", res_err)
 
-            if self._requires_grounded_action(goal, context):
-                fallback = self._build_grounded_fallback_plan(goal, plan_id, context)
-                if fallback is not None:
-                    logger.warning(
-                        "TaskEngine: using deterministic grounded fallback plan for '%s' after decomposition failure",
-                        goal[:60],
-                    )
-                    return fallback
-                return TaskPlan(
-                    plan_id=plan_id,
-                    goal=goal,
-                    steps=[],
-                    trace_id="",
-                    context=dict(context or {}),
-                )
+            return _not_planned(self, goal, plan_id, context, f"{type(e).__name__}: {e}")
 
-            # Non-embodied fallback: keep the best-effort cognitive step for generic goals.
-            return TaskPlan(
-                plan_id=plan_id,
-                goal=goal,
-                steps=[
-                    TaskStep(
-                        step_id="fallback",
-                        description=goal,
-                        tool="think",
-                        args={"prompt": goal},
-                        success_criterion="response is non-empty",
-                    )
-                ],
-                trace_id="",
-                context=dict(context or {}),
-            )
 
     @staticmethod
     def _record_recoverable_decomposition_failure(error: BaseException) -> None:
@@ -1499,10 +1491,9 @@ The plan is a JSON array of steps:
             record_degradation(
                 "autonomous_task_engine_planning",
                 error,
-                # Info: the fallback is the designed path, and it planned.
+                # Info: a grounded goal still gets its deterministic plan; any other goal is reported not planned.
                 severity="info",
-                action="used deterministic planner fallback after model decomposition failure",
-                extra={"fallback_available": True},
+                action="model decomposition failed; a deterministic plan where one exists, else not planned",
             )
         # not a failure: no service here, so the caller falls back to its own default.
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:

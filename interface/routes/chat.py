@@ -675,7 +675,6 @@ from .chat_lane_bookkeeping import (  # noqa: E402
     _brevity_requested,
     _build_stateful_voice_reflex,
     _call_stateful_voice_reflex,
-    _canonical_runtime_model_label,
     _capabilities_this_turn_needs,
     _context_challenge_reply_is_inadequate,
     _conversation_lane_blocks_fallback,
@@ -4679,41 +4678,6 @@ async def _run_cognitive_engine_chat_turn(
             )
         _mark_turn_trace(response_path="cognitive_engine_empty_reply")
         return None
-    if capability_inventory_contract:
-        text = _ensure_capability_inventory_non_execution_boundary(visible, text)
-        if _chat_desktop_repair._looks_truncated_tail(text):
-            completed_inventory = _complete_repairable_truncated_reply(visible, text)
-            if completed_inventory:
-                text = _ensure_capability_inventory_non_execution_boundary(
-                    visible,
-                    completed_inventory,
-                )
-            if _chat_desktop_repair._capability_inventory_reply_is_inadequate(visible, text):
-                grounded_inventory = (
-                    _chat_desktop_repair._build_grounded_capability_inventory_reply(
-                        visible,
-                        cognitive_engine_handled=True,
-                        model_label=_canonical_runtime_model_label(lane),
-                    )
-                )
-                if (
-                    grounded_inventory
-                    and not _chat_desktop_repair._capability_inventory_reply_is_inadequate(
-                        visible,
-                        grounded_inventory,
-                    )
-                ):
-                    logger.warning(
-                        "CognitiveEngine capability inventory was clipped; binding the "
-                        "accepted live turn to the same governed capability evidence "
-                        "instead of spending another foreground Cortex retry."
-                    )
-                    _mark_turn_trace(
-                        cognitive_engine_reply_accepted=True,
-                        bounded_contract_used=False,
-                        response_path="cognitive_engine_capability_tail_grounding",
-                    )
-                    return grounded_inventory
     if desktop_execution_contract:
         try:
             from core.skills.desktop_task import DesktopTaskSkill
@@ -4818,88 +4782,6 @@ async def _run_cognitive_engine_chat_turn(
             recent_user_messages=recent_user_messages, grounding=route_assessment_grounding,
             antecedent=route_assessment_antecedent, mark=_mark_turn_trace,
         )
-        if (
-            require_engine
-            and _chat_preflight._is_explicit_capability_inventory_request(visible)
-            and _chat_desktop_repair._capability_inventory_reply_is_inadequate(visible, text)
-        ):
-            logger.warning(
-                "CognitiveEngine desktop chat produced inadequate capability inventory; "
-                "requiring the engine to answer from the live capability catalog instead "
-                "of replacing it with a deterministic catalog reply."
-            )
-            retry_reply = await _attempt_repair_retry(
-                text,
-                ("missing_tool_governance_content",),
-            )
-            if retry_reply:
-                retry_assessment = assess_user_facing_reply(
-                    visible,
-                    retry_reply,
-                    recent_user_messages=recent_user_messages,
-                    grounding=route_assessment_grounding,
-                    antecedent=route_assessment_antecedent,
-                )
-                if not _chat_desktop_repair._capability_inventory_reply_is_inadequate(
-                    visible, retry_reply
-                ) and not _reply_assessment_requires_repair_with_memory_evidence(
-                    retry_assessment,
-                    visible,
-                    retry_reply,
-                    canonical_memory_state_evidence=canonical_memory_state_evidence,
-                ):
-                    if turn_trace is not None:
-                        turn_trace.update(
-                            {
-                                "cognitive_engine_reply_accepted": True,
-                                "response_path": "cognitive_engine_repair_retry",
-                            }
-                        )
-                    return retry_reply
-            grounded_inventory = _chat_desktop_repair._build_grounded_capability_inventory_reply(
-                visible,
-                cognitive_engine_handled=True,
-                model_label=_canonical_runtime_model_label(lane),
-            )
-            if (
-                grounded_inventory
-                and not _chat_desktop_repair._capability_inventory_reply_is_inadequate(
-                    visible,
-                    grounded_inventory,
-                )
-            ):
-                grounded_assessment = assess_user_facing_reply(
-                    visible,
-                    grounded_inventory,
-                    recent_user_messages=recent_user_messages,
-                    grounding=route_assessment_grounding,
-                    antecedent=route_assessment_antecedent,
-                )
-                if not _reply_assessment_requires_repair_with_memory_evidence(
-                    grounded_assessment,
-                    visible,
-                    grounded_inventory,
-                    canonical_memory_state_evidence=canonical_memory_state_evidence,
-                ):
-                    logger.warning(
-                        "CognitiveEngine desktop chat missed the exact capability inventory "
-                        "contract; binding the accepted reply to governed live catalog "
-                        "evidence after the required engine invocation."
-                    )
-                    _mark_turn_trace(
-                        cognitive_engine_reply_accepted=True,
-                        bounded_contract_used=False,
-                        response_path="cognitive_engine_capability_catalog_grounding",
-                    )
-                    return grounded_inventory
-                _mark_turn_trace(
-                    cognitive_engine_reply_accepted=False,
-                    bounded_contract_used=False,
-                    response_path="cognitive_engine_capability_contract_failed",
-                )
-                return None
-            _mark_turn_trace(response_path="cognitive_engine_capability_contract_failed")
-            return None
         if _reply_assessment_requires_repair_with_memory_evidence(
             assessment,
             visible,
@@ -4940,76 +4822,6 @@ async def _run_cognitive_engine_chat_turn(
                 text=text,
                 visible=visible,
             )
-            if require_engine and capability_inventory_contract:
-                grounded_inventory = (
-                    _chat_desktop_repair._build_grounded_capability_inventory_reply(
-                        visible,
-                        cognitive_engine_handled=True,
-                        model_label=_canonical_runtime_model_label(lane),
-                    )
-                )
-                if (
-                    grounded_inventory
-                    and not _chat_desktop_repair._capability_inventory_reply_is_inadequate(
-                        visible,
-                        grounded_inventory,
-                    )
-                ):
-                    grounded_assessment = assess_user_facing_reply(
-                        visible,
-                        grounded_inventory,
-                        recent_user_messages=recent_user_messages,
-                        grounding=route_assessment_grounding,
-                        antecedent=route_assessment_antecedent,
-                    )
-                    if not _reply_assessment_requires_repair_with_memory_evidence(
-                        grounded_assessment,
-                        visible,
-                        grounded_inventory,
-                        canonical_memory_state_evidence=canonical_memory_state_evidence,
-                    ):
-                        logger.warning(
-                            "CognitiveEngine capability inventory reply missed the "
-                            "runtime-path wording contract (%s); binding to governed "
-                            "live capability evidence after the required engine invocation.",
-                            ",".join(assessment.reasons),
-                        )
-                        _mark_turn_trace(
-                            cognitive_engine_reply_accepted=True,
-                            bounded_contract_used=False,
-                            response_path="cognitive_engine_capability_catalog_grounding",
-                        )
-                        return grounded_inventory
-            if (
-                require_engine
-                and capability_inventory_contract
-                and set(getattr(assessment, "reasons", ()) or ()) == {"truncated_tail"}
-            ):
-                grounded_inventory = (
-                    _chat_desktop_repair._build_grounded_capability_inventory_reply(
-                        visible,
-                        cognitive_engine_handled=True,
-                        model_label=_canonical_runtime_model_label(lane),
-                    )
-                )
-                if (
-                    grounded_inventory
-                    and not _chat_desktop_repair._capability_inventory_reply_is_inadequate(
-                        visible,
-                        grounded_inventory,
-                    )
-                ):
-                    logger.warning(
-                        "CognitiveEngine capability inventory remained clipped after "
-                        "validation; binding reply to governed capability evidence "
-                        "without a second Cortex retry."
-                    )
-                    _mark_turn_trace(
-                        cognitive_engine_reply_accepted=True,
-                        bounded_contract_used=False,
-                        response_path="cognitive_engine_capability_tail_grounding",
-                    )
-                    return grounded_inventory
             if require_engine and memory_state_contract:
                 grounded_memory_reply = _canonical_memory_state_grounding_reply(
                     visible,
@@ -5622,7 +5434,7 @@ def _looks_like_unrequested_content_review(user_message: str, reply_text: str) -
     if not reply:
         return False, ""
     # A link hands her a document: talking about it was asked for (LIVE 2026-10-03, a Wikipedia link).
-    if re.search(r"https?://", str(user_message or "")) or any(m in user_text for m in _CONTENT_OBJECT_MARKERS):
+    if re.search(r"https?://", str(user_message or "")) or re.search(r"\b(?:" + "|".join(map(re.escape, _CONTENT_OBJECT_MARKERS)) + ")", user_text):
         return False, ""
     # A reply that dwells on something the message itself raised is an answer
     # to it, whatever words it uses on the way. LIVE 2026-10-13: asked what she
@@ -11330,16 +11142,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             reply_text = _chat_desktop_repair._build_grounded_capability_inventory_reply(
                 _semantic_user_message
-            )
-        if (
-            not _qualified_exact_delivery
-            and _chat_preflight._is_explicit_capability_inventory_request(
-                _semantic_user_message
-            )
-        ):
-            reply_text = _ensure_capability_inventory_non_execution_boundary(
-                _semantic_user_message,
-                reply_text,
             )
         repaired_recall = False
         if not _qualified_exact_delivery and not desktop_requires_cognitive_engine:

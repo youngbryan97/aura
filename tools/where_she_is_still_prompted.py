@@ -21,18 +21,18 @@ from __future__ import annotations
 
 import ast
 import json
-import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+
 ROOTS = ("core", "interface", "skills", "llm", "executors")
 BASELINE = REPO / "config" / "prompting_baseline.json"
 
-_INSTRUCTS = re.compile(
-    r"\bYou are\b|\bYour task\b|\byou must\b|\byou should\b|\bDo not\b|\bDon't\b|\bNever\b|\bAlways\b"
-    r"|\bRespond (?:with|only|in)\b|\bReturn only\b|\bOutput only\b|\bYou (?:speak|have|will|can)\b|(?m:^## )",
-)
+
 _SHORTEST = 80
 
 
@@ -46,6 +46,10 @@ def _text_of(node: ast.AST) -> str:
 
 def prompting_in(source: str) -> list[tuple[int, int]]:
     """(line, characters) for each instructing string in a module's source."""
+    from core.brain.what_instructs import (
+        INSTRUCTS as _INSTRUCTS,  # one reading for the map and the census
+    )
+
     try:
         tree = ast.parse(source)
     except SyntaxError:

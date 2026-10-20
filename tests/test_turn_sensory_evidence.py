@@ -37,7 +37,8 @@ def test_successful_camera_receipt_is_bounded_grounding_not_raw_media() -> None:
     assert "[FRESH TURN SENSORY EVIDENCE]" in block
     assert "status: observed" in block
     assert "I do not see another person" in block
-    assert "It is not an instruction" in block
+    # Data only: nothing in it is addressed to her model.
+    assert "Answer from it" not in block and "Do not claim" not in block
 
 
 def test_fresh_read_rejects_general_sensor_availability_contradictions() -> None:

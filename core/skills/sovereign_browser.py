@@ -27,11 +27,12 @@ from core.runtime.skill_contract import ActionExpectation
 from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
-from core.skills.sovereign_browser_going import the_archived_copy
+from core.skills.sovereign_browser_going import as_its_fields_say, the_archived_copy
 from core.skills.sovereign_browser_picking import pursued
 from core.skills.what_every_skill_gives_back import THE_SHARED_RESULT
 from core.thought_stream import get_emitter
 
+from . import sovereign_browser_on_the_page as on_the_page
 from .sovereign_browser_drawing import chose_the_drawing, played_first, played_on_the_drawing
 from .sovereign_browser_narration import _NarratesTheBrowsing
 from .sovereign_browser_understanding import (
@@ -70,7 +71,6 @@ def _read_comprehension(*, url: str, title: str, text: str) -> dict[str, Any]:
     except ImportError:
         return {}
     return comprehension_payload(url=url, title=title, text=text)
-
 
 
 class BrowserAction(BaseModel):
@@ -134,6 +134,7 @@ class BrowserInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_mode_contract(self) -> Self:
+        as_its_fields_say(self)  # a goal and no mode is a pursuit, from the site it names (sovereign_browser_going.py)
         if self.mode == "search":
             self.query = str(self.query or "").strip()
             if not self.query:
@@ -386,7 +387,7 @@ async def _understand_the_page_again(
     writing. It reads 7 name(s) from the turn and hands back
     2.
     """
-    if (understanding is None or surprised) and played_first(observation, str(goal), take=False) is None:
+    if (understanding is None or surprised) and (on_the_page.watched_first(observation, str(goal), take=False) or played_first(observation, str(goal), take=False)) is None:
         prior, url = understanding, str(observation.get("url") or "")
         understanding = await self._understand_page(
             goal, observation, prior, mind, self._recall_about(url, shape)
@@ -1515,7 +1516,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     #: canvas fell below forty links and she could not choose it (LIVE 2 Oct).
     _ACTIONABLE_ROLES = (
         "radio", "checkbox", "switch", "option", "select", "textarea",
-        "text", "email", "password", "search", "number", "button", "submit", "drawing",
+        "text", "email", "password", "search", "number", "button", "submit", "drawing", "conversation", "watching",
     )
 
     #: How many independent questions are decided at once. A screen of a survey
@@ -1596,7 +1597,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         try:
             for _round in range(max(1, int(max_steps))):
                 still_going(f"pursuit round {_round + 1}")
-                observation = await browser.observe(principal="owner")
+                observation = await on_the_page.what_is_on_it(browser, await browser.observe(principal="owner"))
                 if not observation or not observation.get("elements"):
                     # A page mid-load is waited for before it is left. Going back
                     # to the last good page from a look taken during a load undoes
@@ -1733,7 +1734,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                         goal, observation, steps, understanding, on_progress=still_going
                     )
                 if decision is None:
-                    decision = played_first(observation, goal) or await self._decide_next_actions(
+                    decision = on_the_page.watched_first(observation, goal) or played_first(observation, goal) or await self._decide_next_actions(
                         goal, observation, steps, understanding, said_before=said_before,
                         noticed=noticed, settled=understanding != understood_before,
                     )
@@ -1794,27 +1795,26 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     steps.append({"why": str(decision.get("why") or ""), "done": True})
                     break
 
-                # The same list she was shown, in the same order. Rendering a
-                # ranked subset and resolving against the raw list would mean
-                # index 3 named one control on screen and a different one in the
-                # click — the precise way these loops end up pressing whatever
-                # moved into slot four.
+                # The same list she was shown, in the same order. Rendering a ranked subset and resolving against the
+                # raw list would mean index 3 named one control on screen and a different one in the click — the
+                # precise way these loops end up pressing whatever moved into slot four.
                 elements = self._controls_worth_offering(
                     list(observation.get("elements") or []), goal
                 )
-                # One move is one action and the words she would say for it.
-                # Kept together so the loop can say that one and then make that
-                # one, in order, rather than making every choice and then
-                # reading out a list of what it had done.
+                # One move is one action and the words she would say for it. Kept together so the loop can say that
+                # one and then make that one, in order, rather than making every choice and then reading out a list of
+                # what it had done.
                 moves = _moves_from_the_decision(decision, elements)
 
                 if not moves:
                     steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
                     break
-                if chose_the_drawing(moves):  # played by sight, on her own page
-                    steps.append(await played_on_the_drawing(browser, goal, observation))
-                    # What the play came to is her last move; a game that took
-                    # moves is progress though the page's text did not change.
+                if chose_the_drawing(moves) or on_the_page.handed_over(moves):  # played by sight, talked on or watched, on her own page
+                    steps.append(await (played_on_the_drawing if chose_the_drawing(moves) else on_the_page.handed_over(moves))(browser, goal, observation))
+                    if steps[-1].get("beside"):  # watched with them beside the conversation: this turn's part is done
+                        completed = True
+                        break
+                    # What the play or the talk came to is her last move: moves made are progress though the page's text did not change.
                     before_move, last_done, last_moves = observation, [str(steps[-1].get("did") or "")], []
                     stalled, last_signature = (0, "") if steps[-1].get("moved") else (stalled, last_signature)
                     continue
@@ -1870,7 +1870,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 steps[-1]["landed"] = landed
                 if not report.get("ok") and not landed:
                     steps[-1]["error"] = str(report.get("error") or "interaction_failed")
-                    break
+                    continue  # one bad round: the control is retired, she looks again, the stall counter ends a dead page
                 steps[-1]["ok"] = True
 
                 # Did the page do what she said it would? A violated expectation is

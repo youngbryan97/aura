@@ -34,6 +34,7 @@ from typing import Any, Protocol, runtime_checkable
 import psutil
 
 from core.runtime.lockdep import LockRank, checked_lock
+from core.runtime.walks_on_one_thread import done_by_the_walker
 
 #: Debug only, and it exists because this module reports a NUMBER for every
 #: field it cannot read. A process that will not say how much CPU it is using
@@ -1097,9 +1098,7 @@ class HostResourceObserver:
                 with self._tree_children_rss_lock:
                     self._tree_children_rss_refreshing.discard(root)
 
-        threading.Thread(
-            target=_run, name=f"children-rss-{root}", daemon=True
-        ).start()
+        done_by_the_walker(_run)  # never a thread started on the loop (core/runtime/walks_on_one_thread.py)
 
     def memory(
         self,

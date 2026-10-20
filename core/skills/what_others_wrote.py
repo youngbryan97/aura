@@ -74,7 +74,7 @@ async def _where_it_is_kept(client: Any, thing: str, url: str, left: Callable[[]
         query = urllib.parse.quote(f'title:("{thing}") AND mediatype:software')
         try:
             found = (await client.get(f"https://archive.org/advancedsearch.php?q={query}&fl[]=identifier&rows=1"
-                                      "&output=json", timeout=min(left(), 8.0))).json()
+                                      "&output=json", seconds=min(left(), 8.0))).json()
             docs = found.get("response", {}).get("docs") or []
             ident = str(docs[0].get("identifier") or "") if docs else ""
         except Exception as why:  # noqa: BLE001 - a record not found is one source fewer
@@ -82,7 +82,7 @@ async def _where_it_is_kept(client: Any, thing: str, url: str, left: Callable[[]
     if not ident:
         return [], []
     try:
-        record = (await client.get(f"https://archive.org/metadata/{ident}", timeout=min(left(), 8.0))).json()
+        record = (await client.get(f"https://archive.org/metadata/{ident}", seconds=min(left(), 8.0))).json()
     except Exception as why:  # noqa: BLE001
         logger.info("the record of %r could not be read: %s", ident, str(why)[:100])
         return [], []
@@ -111,7 +111,7 @@ async def _what_fans_wrote(client: Any, thing: str, worlds: list[str], on_its_pa
         api = f"https://{world}.fandom.com/api.php"
         try:
             answer = await client.get(f"{api}?action=query&list=search&srsearch={urllib.parse.quote(thing)}&format=json"
-                                      "&srlimit=5", timeout=min(left(), 6.0))
+                                      "&srlimit=5", seconds=min(left(), 6.0))
             hits = answer.json().get("query", {}).get("search") or [] if answer.status_code == 200 else []
         except Exception:  # noqa: BLE001 - no wiki by that name, or none that answers a program
             continue
@@ -119,7 +119,7 @@ async def _what_fans_wrote(client: Any, thing: str, worlds: list[str], on_its_pa
             title = str(hit.get("title") or "")
             try:
                 page = (await client.get(f"{api}?action=parse&page={urllib.parse.quote(title)}&prop=text&format=json"
-                                         "&formatversion=2", timeout=min(left(), 6.0))).json()
+                                         "&formatversion=2", seconds=min(left(), 6.0))).json()
             except Exception:  # noqa: BLE001
                 continue
             words = " ".join(_plain((page.get("parse") or {}).get("text") or "").split()[:WORDS_KEPT])
@@ -136,7 +136,7 @@ async def _what_players_asked(client: Any, thing: str, kind: str, left: Callable
     site = "gaming" if kind == "game" else "superuser"
     try:
         items = (await client.get("https://api.stackexchange.com/2.3/search/excerpts?order=desc&sort=relevance"
-                                  f"&q={urllib.parse.quote(thing)}&site={site}", timeout=min(left(), 6.0))).json()
+                                  f"&q={urllib.parse.quote(thing)}&site={site}", seconds=min(left(), 6.0))).json()
         for item in (items.get("items") or [])[:4]:
             found.append((PLAYERS, _plain(item.get("title") or ""), f"https://{site}.stackexchange.com",
                           _plain(item.get("excerpt") or "")))
@@ -144,7 +144,7 @@ async def _what_players_asked(client: Any, thing: str, kind: str, left: Callable
         logger.info("questions on %s could not be searched: %s", site, str(why)[:100])
     try:
         hits = (await client.get(f"https://hn.algolia.com/api/v1/search?query={urllib.parse.quote(thing)}"
-                                 "&tags=comment&hitsPerPage=5", timeout=min(left(), 6.0))).json()
+                                 "&tags=comment&hitsPerPage=5", seconds=min(left(), 6.0))).json()
         for hit in (hits.get("hits") or [])[:4]:
             found.append((PLAYERS, f"a comment on {_plain(hit.get('story_title') or '')}", "https://news.ycombinator.com",
                           _plain(hit.get("comment_text") or "")))
@@ -159,18 +159,18 @@ async def what_others_wrote(thing: str, seconds: float, *, url: str = "", kind: 
     is of the thing, all within ``seconds``."""
     import time
 
-    import httpx
+    from core.runtime.reading_public_pages import ThroughHerGateway
 
     began = time.monotonic()
 
     def left() -> float:
         return max(0.5, seconds - (time.monotonic() - began))
 
-    async with httpx.AsyncClient(headers=_AS_HERSELF, follow_redirects=False) as client:
-        kept, belongs_to = await _where_it_is_kept(client, thing, url, left)
-        fans, players = await asyncio.gather(
-            _what_fans_wrote(client, thing, worlds_it_belongs_to(thing, said_of_it=belongs_to), on_its_page, left),
-            _what_players_asked(client, thing, kind, left))
+    client = ThroughHerGateway(headers=_AS_HERSELF, source="skills.what_others_wrote")
+    kept, belongs_to = await _where_it_is_kept(client, thing, url, left)
+    fans, players = await asyncio.gather(
+        _what_fans_wrote(client, thing, worlds_it_belongs_to(thing, said_of_it=belongs_to), on_its_page, left),
+        _what_players_asked(client, thing, kind, left))
     players = [p for p in players if on_its_page(thing, p[1], p[3])]
     logger.info("what others wrote of %r: %s", thing, [(who, title[:50]) for who, title, _w, _t in [*kept, *fans, *players]])
     return [*kept, *fans, *players]

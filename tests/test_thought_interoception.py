@@ -731,14 +731,21 @@ class TestEpistemicReachJudge:
         assert verdict.verdict != VERDICT_SUPPORTED
 
     def test_shared_subject_different_location_is_not_supported(self):
-        from core.epistemics.epistemic_reach import VERDICT_INCONCLUSIVE, EpistemicReachEngine
+        from core.epistemics.epistemic_reach import (
+            VERDICT_CONTRADICTED,
+            VERDICT_INCONCLUSIVE,
+            EpistemicReachEngine,
+        )
+        from core.epistemics.how_a_source_reads import how_it_reads
 
         verdict = EpistemicReachEngine.judge(
             "The Eiffel Tower is located in London.",
             "The Eiffel Tower is located in Paris.",
             "https://example/wiki",
         )
-        assert verdict.verdict == VERDICT_INCONCLUSIVE
+        # Not supported either way; with the entailment reader here, read as the contradiction it is.
+        reader = how_it_reads("The Eiffel Tower is located in Paris.", "The Eiffel Tower is located in London.")
+        assert verdict.verdict == (VERDICT_CONTRADICTED if reader else VERDICT_INCONCLUSIVE)
 
     def test_unrelated_figures_do_not_create_false_contradiction(self):
         from core.epistemics.epistemic_reach import VERDICT_INCONCLUSIVE, EpistemicReachEngine
@@ -835,6 +842,16 @@ class TestEpistemicReachEngine:
         assert "1971" in claim
         assert "felt" not in claim.lower()
         assert "?" not in claim
+
+    def test_a_structured_generation_is_no_claim(self):
+        """LIVE 2026-10-20: a choice of capabilities, written as JSON, was checked online and held SUPPORTED by a
+        dictionary's entry for "capability"."""
+        from core.epistemics.epistemic_reach import EpistemicReachEngine
+
+        engine = EpistemicReachEngine(gateway=_FakeGateway({}), sources=[])
+        for text in ('{"capabilities": ["sovereign_browser", "query_visual_context", "speak"]}',
+                     '  [{"index": 1, "type": "click"}] The Eiffel Tower opened in 1889 in Paris.'):
+            assert engine.select_claim(self._felt(text, spikes=[])) == ""
 
     def test_offer_gating(self, monkeypatch):
         from core.epistemics.epistemic_reach import EpistemicReachEngine, WikipediaSource

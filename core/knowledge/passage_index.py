@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import sqlite3
 import time
@@ -36,6 +35,10 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.flags import FlagKind, declare
+
+_FLAG_PASSAGE_INDEX = declare("AURA_PASSAGE_INDEX", kind=FlagKind.STRING, default='',
+                              description="where her paragraph index is, when not the default place", owner="knowledge")
 
 logger = logging.getLogger("Aura.PassageIndex")
 
@@ -50,7 +53,7 @@ _NOT_A_WORD = re.compile(r"[^\w\s]+", re.UNICODE)
 
 
 def default_passage_index_path() -> Path:
-    override = os.environ.get("AURA_PASSAGE_INDEX", "").strip()
+    override = _FLAG_PASSAGE_INDEX.value().strip()
     if override:
         return Path(override).expanduser()
     from core.knowledge.local_corpus import default_corpus_db_path

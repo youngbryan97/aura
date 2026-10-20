@@ -19,8 +19,6 @@ from interface.routes.chat_common import (  # noqa: E402
     _conversation_log,  # noqa: F401
     _locks,  # noqa: F401
     logger,  # noqa: F401
-)
-from interface.routes.chat_common import (  # noqa: E402
     _EXPLICIT_NON_EXECUTION_RE,  # noqa: F401
     _INCOMPLETE_TAIL_WORDS,  # noqa: F401
     _INTERNAL_STATE_PATTERNS,  # noqa: F401
@@ -33,6 +31,7 @@ from interface.routes import chat_preflight as _chat_preflight
 import re
 import time
 from core.runtime.errors import describe_error, record_degradation
+from core.skills.watching_together import her_answer_before_it_plays
 
 
 def _in_words(error: str) -> str:
@@ -325,8 +324,9 @@ async def _execute_desktop_objective_from_chat(
         completed=completed,
         requested=requested,
     )
-    if result.get("ok") and research_response:
-        response = research_response
+    if result.get("ok") and (research_response or result.get("beside")):
+        response = (await her_answer_before_it_plays(objective, _desktop_deliverable_text(result) or summary)
+                    if result.get("beside") else research_response)  # going on beside: her own turn answers
     elif result.get("ok"):
         # Lead with WHAT SHE SAW, not with the step count.
         #
@@ -410,6 +410,9 @@ async def _execute_desktop_objective_from_chat(
                     # round(s), then stopped: no_progress. Here is what I
                     # wrote:" in front of it was the tool's ledger.
                     response = produced
+                elif result.get("planner") == "browser_pursuit":
+                    # What she did on the page and why, which she did not write (LIVE 2026-10-20 13:27).
+                    response = f"{summary}\n\n{produced}"
                 else:
                     response = f"{summary or 'Done.'} Here is what I wrote:\n\n{produced}"
             elif _is_step_bookkeeping_only(summary):

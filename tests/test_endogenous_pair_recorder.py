@@ -136,3 +136,31 @@ def test_each_pair_records_the_prompt_it_answered(tmp_path, monkeypatch):
     assert asyncio.run(recorder.record_response_async("b", "Well, thanks."))
     hashes = [json.loads(line)["prompt_sha"] for line in (tmp_path / "pairs.jsonl").read_text().splitlines()]
     assert len(set(hashes)) == 2
+
+
+def test_each_pair_records_the_state_its_generation_was_steered_by(tmp_path, monkeypatch):
+    # 18 October: "z" holds the affect engine's readings, not the slots a steering vector is scaled by,
+    # and directions fitted on it came out one axis for four dimensions.
+    import json
+
+    monkeypatch.setenv("AURA_ENDOGENOUS_PAIR_DIR", str(tmp_path))
+    recorder.reset_pending()
+    recorder.remember_pending("a", _state().to_payload(), lane="chat", steering=[0.61, 0.42, 0.0, 0.07])
+    recorder.remember_pending("b", _state().to_payload(), lane="chat")
+    assert asyncio.run(recorder.record_response_async("a", "Steered."))
+    assert asyncio.run(recorder.record_response_async("b", "No substrate to read."))
+    rows = [json.loads(line) for line in (tmp_path / "pairs.jsonl").read_text().splitlines()]
+    assert rows[0]["s"] == [0.61, 0.42, 0.0, 0.07]
+    assert "s" not in rows[1]
+
+
+def test_the_job_hook_holds_the_steering_state_beside_the_endogenous_state(monkeypatch):
+    from core.brain.llm import endogenous_client_hooks as hooks
+
+    held = {}
+    monkeypatch.setattr(hooks, "_steering_now", lambda: [0.5, 0.25])
+    monkeypatch.setattr(recorder, "remember_pending", lambda *a, **k: held.update(k))
+    monkeypatch.setattr("core.brain.llm.endogenous_vocab_head.alpha_from_env", lambda: 0.5)
+    hooks.attach_endogenous_state({"id": "r1", "messages": [{"role": "user", "content": "hi"}]},
+                                  override=_state().to_payload())
+    assert held["steering"] == [0.5, 0.25]

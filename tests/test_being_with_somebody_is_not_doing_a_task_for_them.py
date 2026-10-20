@@ -586,7 +586,9 @@ def test_a_worker_that_gives_no_scores_leaves_the_turn_as_it_was(record):
 def test_what_was_said_is_read_before_her_model_is_handed_the_turn():
     """Live, 13 October: read in the tool step after, her reply said yes to her record's "not now"."""
     gate = Path("core/brain/inference_gate.py").read_text()
-    reading = gate.index("await self._read_what_was_said_first(_is_user_facing, initial_visible_user_prompt)")
+    # A turn of her own (a remark while watching) is said by nobody to her, and is not read as said (9e5636d9b).
+    reading = gate.index('await self._read_what_was_said_first(_is_user_facing and not context.get("her_own_turn"), '
+                         "initial_visible_user_prompt)")
     assert reading < gate.index("messages, system_prompt = for_her_model(", reading)
     serving = Path("core/brain/inference_gate_turn_serving.py").read_text()
     assert 'await heard_in_a_turn(str(said), getattr(self, "_mlx_client", None))' in serving

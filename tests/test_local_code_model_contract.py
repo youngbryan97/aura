@@ -448,3 +448,14 @@ async def test_different_model_paths_are_serialized_through_generation(monkeypat
     assert await second == "complete code"
     assert validations == [str(first_path), str(second_path)]
     await second_model.close()
+
+
+def test_her_code_lane_writes_with_her_own_cortex_unless_one_is_named(monkeypatch, tmp_path):
+    from core.brain.llm import local_code_model, model_registry
+
+    monkeypatch.delenv("AURA_CODE_MODEL_PATH", raising=False)
+    monkeypatch.delenv("AURA_MODEL_PATH", raising=False)
+    monkeypatch.setattr(model_registry, "_current_cortex_path", lambda: tmp_path / "her-27b")
+    assert local_code_model._resolve_model_path() == str(tmp_path / "her-27b")
+    monkeypatch.setenv("AURA_CODE_MODEL_PATH", str(tmp_path / "named"))
+    assert local_code_model._resolve_model_path() == str(tmp_path / "named")

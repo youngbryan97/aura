@@ -20,6 +20,7 @@ from core.runtime.chat_delivery_progress import (
 )
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_inference_gate
+from core.utils.word_markers import names_any
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
     _CHAT_RECOVERABLE_ERRORS,  # noqa: F401
@@ -560,7 +561,7 @@ def _build_program_dna_chat_params(target: str, objective: str) -> dict[str, Any
         # a blueprint was answered where a working program was asked for (LIVE 2026-10-06).
         "observed_behaviors": [],
         "ui_notes": [objective]
-        if any(marker in lowered for marker in ("ui", "screen", "visible", "button", "window"))
+        if names_any(lowered, ("ui", "screen", "visible", "button", "window"))
         else [],
         "research_queries": [
             f"{target} architecture implementation language framework",

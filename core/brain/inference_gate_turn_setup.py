@@ -1160,6 +1160,13 @@ class _SetsTheTurnUp:
         if explicit_max_tokens_cap is not None:
             max_tokens = max(1, min(max_tokens, explicit_max_tokens_cap))
             context["max_tokens"] = max_tokens
+        # A ceiling the caller declared reaches the worker, which holds it over the private channel and the answer
+        # together. Only an output contract's ceiling was passed on: LIVE 20 October 2026 a turn of hers carrying 640
+        # decoded 1,154 tokens.
+        if context.get("hard_output_token_ceiling") and "hard_output_token_ceiling" not in morpho_kwargs:
+            morpho_kwargs["hard_output_token_ceiling"] = int(context["hard_output_token_ceiling"])
+        if context.get("private_channel_budget"):  # and how much of it her private channel may think, where said
+            morpho_kwargs.setdefault("private_channel_budget", int(context["private_channel_budget"]))
 
         # Build the prompt only after routing intent is known so we can choose
         # a compact user-facing path instead of always constructing the richest stack.

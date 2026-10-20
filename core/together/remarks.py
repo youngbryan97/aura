@@ -33,7 +33,7 @@ from core.together.when_to_say_something import worth_saying_now
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["remark_in_a_with"]
+__all__ = ["interest_in", "remark_in_a_with", "said_since"]
 
 #: How much of the screen her model is shown: the bound her own screen
 #: reading uses (core/brain/observable_registry.py, `_read_screen`).
@@ -60,8 +60,8 @@ def _interest(capture: str, change: float | None) -> tuple[float, str]:
     return max([regard, *stakes.values(), change or 0.0]), thing
 
 
-def _what_was_said_since(began: float) -> list[dict[str, str]]:
-    """The conversation since the with began, as her model reads a conversation."""
+def said_since(began: float) -> list[tuple[float, str, str]]:
+    """The conversation since ``began``, from the one she keeps: when, ``user`` or ``assistant``, and what was said."""
     try:
         from core.conversation.persistence import get_persistence
 
@@ -69,7 +69,7 @@ def _what_was_said_since(began: float) -> list[dict[str, str]]:
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("together", exc, severity="warning", action="a remark was composed without the with's talk")
         return []
-    turns: list[dict[str, str]] = []
+    turns: list[tuple[float, str, str]] = []
     for turn in stored:
         role = str(turn.get("role", "")).lower()
         role = "assistant" if role in {"aura", "assistant"} else "user" if role == "user" else ""
@@ -79,8 +79,19 @@ def _what_was_said_since(began: float) -> list[dict[str, str]]:
         except (TypeError, ValueError):
             at = 0.0
         if role and content and at >= began:
-            turns.append({"role": role, "content": content})
+            turns.append((at, role, content))
     return turns
+
+
+def interest_in(seen: str, change: float | None) -> tuple[float, str]:
+    """How much what is in front of her interests her, and what it is most about: her record's strongest like or
+    dislike among what it names, her stake in what it is about, and how new it is."""
+    return _interest(seen, change)
+
+
+def _what_was_said_since(began: float) -> list[dict[str, str]]:
+    """The conversation since the with began, as her model reads a conversation."""
+    return [{"role": role, "content": content} for _at, role, content in said_since(began)]
 
 
 async def _her_remark(held: With, capture: str, source: str) -> str:

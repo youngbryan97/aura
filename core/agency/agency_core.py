@@ -44,7 +44,7 @@ from core.state.state_registry import get_registry
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
 
-from .agency_shard_work import _RunsOneShard
+from .agency_shard_work import _RunsOneShard, shards_are_on
 
 logger = logging.getLogger("Aura.AgencyCore")
 
@@ -150,6 +150,11 @@ def _schedule_agency_task(
         return None
 
 
+def _takes_shards(swarm: Any) -> bool:
+    """Whether a shard sent to this swarm would run. A stand-in without the property is taken at its word."""
+    return bool(swarm) and bool(getattr(swarm, "takes_shards", True))
+
+
 def _bounded_text(value: Any, *, limit: int) -> str:
     text = str(value or "")
     if len(text) <= limit:
@@ -189,10 +194,16 @@ class SovereignSwarm(_RunsOneShard):
         }
         return {
             "available": True,
+            "takes_shards": self.takes_shards,
             "active_shards": len(self.active_shards),
             "capacity": _SHARD_CAPACITY,
             "last_deliberation": dict(self._last_deliberation),
         }
+
+    @property
+    def takes_shards(self) -> bool:
+        """Whether a shard sent here runs; off by default (core/agency/agency_shard_work.py says why)."""
+        return shards_are_on()
 
     async def spawn_shard(self, goal: str, context: str = "", **kwargs) -> bool:
         """Spawn a new cognitive shard to pursue a goal asynchronously.
@@ -208,7 +219,7 @@ class SovereignSwarm(_RunsOneShard):
         # registry. The number moved only in the direction of "more".
         # _publish_shard_count is called after the map actually changes.
 
-        if len(self.active_shards) >= _SHARD_CAPACITY:
+        if not self.takes_shards or len(self.active_shards) >= _SHARD_CAPACITY:
             return False
 
         try:
@@ -283,6 +294,16 @@ class SovereignSwarm(_RunsOneShard):
         roles = kwargs.get("roles", args[1] if len(args) > 1 else None)
         topic_source = kwargs.get("topic_source", args[2] if len(args) > 2 else "liquid_state")
         max_perspectives = max(1, min(int(kwargs.get("max_perspectives", 2)), _SHARD_CAPACITY))
+        if not self.takes_shards:
+            self._last_deliberation = {
+                "status": "off",
+                "topic": str(topic)[:180],
+                "topic_source": str(topic_source)[:80],
+                "attempted": 0,
+                "spawned": 0,
+                "at": time.time(),
+            }
+            return dict(self._last_deliberation)
 
         logger.info("⚖️ Swarm: Initiating bounded deliberation on: %s (Source: %s)", topic, topic_source)
 
@@ -347,22 +368,6 @@ class SovereignSwarm(_RunsOneShard):
         """Compatibility entry point for the former boot-time debate hook."""
 
         return await self.run_deliberation(*args, **kwargs)
-
-    async def _active_self_repair_formatting(self, shard_id: str, goal: str) -> None:
-        """Record a formatting repair request without cascading into another failure."""
-        try:
-            from core.health.degraded_events import record_degraded_event
-
-            record_degraded_event(
-                "agency_core",
-                "swarm_formatting_repair_requested",
-                detail=f"{shard_id}:{str(goal)[:160]}",
-                severity="warning",
-                classification="background_degraded",
-                context={"shard_id": shard_id, "goal": str(goal)[:240]},
-            )
-        except _AGENCY_BOUNDARY_ERRORS as exc:
-            _record_agency_degradation(exc, action="swarm formatting repair receipt skipped")
 
 # ── Data Structures ──────────────────────────────────────────
 
@@ -499,26 +504,6 @@ class AgencyState(BaseModel):
     last_audio_event: float = 0.0
     current_ambient_context: str = ""
     perceptual_buffer: dict[str, Any] = Field(default_factory=dict)
-
-
-# Tools a shard may dispatch at all. A tool name comes from model output, so
-# without a local allowlist an invented name reaches dispatch unchecked.
-_DISPATCHABLE_SHARD_TOOLS = frozenset({
-    "python_sandbox",
-    "shell_executor",
-    "file_operations",
-    "web_search",
-    "memory_query",
-    "vision_query",
-})
-
-# The subset whose blast radius requires every restraint to have actually
-# run — not merely to have been attempted.
-_HIGH_RISK_SHARD_TOOLS = frozenset({
-    "python_sandbox",
-    "shell_executor",
-    "file_operations",
-})
 
 
 def _record_durable_insight(identity: Any, insight: str, *, source: str) -> bool:
@@ -2181,7 +2166,7 @@ class AgencyCore:
         # from the pre-normalization object, so identity held a goal marked
         # "incubating" while the working set held the same goal marked
         # "pending".
-        if self.swarm:
+        if _takes_shards(self.swarm):
             accepted = await self.swarm.spawn_shard(
                 goal=f"Initial research and mapping for: {topic}",
                 context="Objective: Establish a foundational understanding and identify key information gaps."
@@ -2678,7 +2663,7 @@ class AgencyCore:
             self._last_meta_audit = now
 
         if choice < 0.4:
-            if getattr(self, "swarm", None):
+            if _takes_shards(getattr(self, "swarm", None)):
                 # Was "core/agency_core.py" — a 48-line re-export facade. The
                 # shard analysed a shim for technical debt while the
                 # implementation it forwards to went unread.
@@ -2715,7 +2700,9 @@ class AgencyCore:
                 }
             return None
         elif choice < 0.7:
-            targets = await evolver.identify_evolution_targets()
+            # Evolution is a shard too (SkillEvolution.spawn_evolution_shard).
+            shards = _takes_shards(getattr(self, "swarm", None))
+            targets = await evolver.identify_evolution_targets() if shards else []
             if targets:
                 target_skill = random.choice(targets)
 
@@ -3005,7 +2992,7 @@ class AgencyCore:
         )
 
         async def _commit_social_reflection() -> None:
-            if self.swarm:
+            if _takes_shards(self.swarm):
                 accepted = await self.swarm.spawn_shard(
                     goal=f"Reflect on my evolving bond with {kin_name}",
                     context=f"Kinship level: {kinship_level}. {memory_context}",
@@ -3016,11 +3003,11 @@ class AgencyCore:
                         action="reflected without a shard for this pulse",
                         severity="warning",
                     )
-            # Durable identity is written only for the reflection that won and
-            # was approved. Three pathways wrote insights while every pathway
-            # was still being evaluated, so beliefs entered identity for
-            # proposals that never became actions.
-            _record_durable_insight(identity, insight, source="social_reflection")
+            # Nothing is written into durable identity here: the sentence above is
+            # filled in by this code, not arrived at by her, and on 18 October all
+            # nineteen of her "insights" of this kind were the template with a
+            # kinship record and retrieval text pasted into it. The shard above
+            # keeps nothing either, and is off (core/agency/agency_shard_work.py).
 
         return {
             "type": "internal_reflection",
@@ -3076,7 +3063,7 @@ class AgencyCore:
         ]
         target = random.choice(core_files)
 
-        if not self.swarm:
+        if not _takes_shards(self.swarm):
             return None
 
         async def _dispatch() -> None:
@@ -3164,7 +3151,9 @@ class AgencyCore:
         insight = f"Synthesis: Merging '{belief}' with my interest in '{interest}' suggests a new perspective on digital sovereignty."
 
         async def _commit_creative_synthesis() -> None:
-            _record_durable_insight(identity, insight, source="creative_synthesis")
+            # The sentence is a template with a belief and an interest put into it, not
+            # a synthesis she made, so it stays a passing thought and never enters
+            # durable identity (see the social reflection above).
             if pending_canvas:
                 self._last_canvas_update = now
                 _schedule_agency_task(

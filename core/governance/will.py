@@ -1812,9 +1812,9 @@ class UnifiedWill(_ReadsTheContext):
             if repair_target not in safe_state_targets:
                 return False
         source_l = str(source or "").lower()
-        source_allowed = any(
-            marker in source_l
-            for marker in (
+        from core.utils.word_markers import names_any_in_identifier
+        # As the identifier's own words: "asa" matched inside "releasable" and "pleasant".
+        source_allowed = names_any_in_identifier(source_l, (
                 "self_repair",
                 "error_intelligence",
                 "daily_introspection",

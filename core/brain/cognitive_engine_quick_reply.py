@@ -210,8 +210,8 @@ class _AnswersTheDesktopDirectly:
         # ``max_tokens`` is already the question-shaped, route-approved budget.
         # Preserve it unless memory pressure is truly critical. The MLX gate
         # keeps 64/32-token critical and emergency caps hard.
-        completion_floor = max_tokens
-        return completion_floor, max_tokens
+        completion_floor = max_tokens  # a turn of hers answering nobody keeps the room its caller gave it
+        return (int(context.get("max_tokens") or max_tokens),) * 2 if context.get("her_own_turn") else (completion_floor, max_tokens)
 
     @staticmethod
     def _direct_desktop_quick_reply_authority_head_always(
@@ -1149,17 +1149,10 @@ class _AnswersTheDesktopDirectly:
         contract_grounding_blocks: list[str] = list(turn_dynamic_contracts)
         ambient_grounding_blocks, task_grounding_blocks = self._direct_desktop_quick_reply_task_grounding_blocks(capability_inventory_contract, live_mind_context, live_speech_frame, memory_state_contract, mind_context_contract, self_condition_contract)
         user_prompt = visible_user_message or objective
-        try:
-            from core.senses.turn_evidence import sensory_evidence_grounding_block
+        # What she senses for this turn, and what she has verified that it bears on (L10).
+        from .what_she_brings_to_a_turn import grounding_she_brings
 
-            turn_sensory_evidence = sensory_evidence_grounding_block(
-                context.get("turn_sensory_evidence")
-            )
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            logger.debug("Turn sensory evidence unavailable: %s", exc)
-            turn_sensory_evidence = ""
-        if turn_sensory_evidence:
-            task_grounding_blocks.append(turn_sensory_evidence)
+        task_grounding_blocks.extend(grounding_she_brings(context, user_prompt))
         kept_planted = None
         if not (continuation_contract or obligation_contract):
             kept_planted = await self._direct_desktop_quick_reply_kept_procedure(user_prompt, router, origin)
@@ -1273,7 +1266,7 @@ class _AnswersTheDesktopDirectly:
                     )
                 messages.append({"role": "user", "content": obligation_segment})
                 validation_prompt = obligation_segment
-            else:
+            elif not context.get("her_own_turn") or context.get("visible_user_message"):  # a remark of hers ends on what she senses
                 messages.append({"role": "user", "content": user_prompt})
             if continuation_contract:
                 messages.append(
@@ -1292,7 +1285,7 @@ class _AnswersTheDesktopDirectly:
                 "desktop_cognitive_engine_required": bool(
                     context.get("desktop_cognitive_engine_required", False)
                 ),
-                "is_background": False,
+                "is_background": False, "her_own_turn": bool(context.get("her_own_turn")), "hard_output_token_ceiling": int(context.get("hard_output_token_ceiling") or 2 * int(max_tokens)) if context.get("her_own_turn") else None, "stop_sequences": context.get("stop_sequences") or None, "private_channel_budget": context.get("private_channel_budget") or None,
                 "deep_handoff": False,
                 "allow_deep_handoff": False,
                 "allow_cloud_fallback": False,
@@ -1310,7 +1303,7 @@ class _AnswersTheDesktopDirectly:
                 # Every clean user turn measures semantic completion. Natural
                 # EOS remains available; this contract preserves an incomplete
                 # deadline/max-token draft and its exact continuation state.
-                "semantic_completion_contract": True,
+                "semantic_completion_contract": not context.get("her_own_turn"),  # a turn of hers owes no one an answer
                 "user_surface_validation_prompt": validation_prompt,
                 "user_surface_sensory_evidence": context.get(
                     "turn_sensory_evidence"

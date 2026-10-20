@@ -204,7 +204,7 @@ def test_motivation_growth_goals_rotate_and_stay_concrete():
 
 
 @pytest.mark.asyncio
-async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
+async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch, tmp_path):
     calls: list[tuple[str, dict, dict]] = []
 
     class CapabilityEngine:
@@ -257,6 +257,16 @@ async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
     # container for a capability engine and got none.
     monkeypatch.setattr("core.autonomy.social_initiative.optional_service", _services)
 
+    # Her reply is her own turn (core/skills/her_replies_to_mail.py), held for Bryan in a file of drafts.
+    from core.skills import her_replies_to_mail
+
+    async def her_reply(message):
+        return "I'll look at the GUI reply path tonight and tell you what I find."
+
+    monkeypatch.setattr(her_replies_to_mail, "her_reply_to", her_reply)
+    monkeypatch.setattr(her_replies_to_mail, "_drafts_path", lambda: tmp_path / "email" / "drafts.jsonl")
+    monkeypatch.delenv("AURA_EMAIL_SENDS_WITHOUT_ASKING", raising=False)
+
     loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace())
     emitted: list[tuple[str, str, str]] = []
     loop._emit_feed = lambda title, content, *, category: emitted.append((title, content, category))
@@ -272,11 +282,13 @@ async def test_email_initiative_reads_triages_drafts_and_remembers(monkeypatch):
         for skill, _, context in calls
         if skill == "email_adapter"
     )
-    assert any(title == "Email Triage" and "hold_for_reply_draft" in content for title, content, _ in emitted)
-    assert any(title == "Email Draft" and "not auto-sending" not in content.lower() for title, content, _ in emitted)
+    assert any(title == "Email Triage" and "hers_to_answer" in content for title, content, _ in emitted)
+    assert any(title == "Email Draft" and "GUI reply path tonight" in content for title, content, _ in emitted)
     memory.store.assert_awaited()
     loop._queue_visible_update.assert_called_once()
-    assert "not auto-sending" in loop._queue_visible_update.call_args.args[0]
+    assert "waits for you" in loop._queue_visible_update.call_args.args[0]
+    assert [d["reply"] for d in her_replies_to_mail.drafts(tmp_path / "email" / "drafts.jsonl")] == [
+        "I'll look at the GUI reply path tonight and tell you what I find."]
 
 
 @pytest.mark.asyncio
@@ -650,3 +662,22 @@ async def test_growth_ladder_advancement_routes_through_unified_will(tmp_path):
     assert kwargs["metadata"]["visible_presence"] is True
     assert kwargs["metadata"]["trigger"] == "growth_ladder_advancement"
     orchestrator.output_gate.emit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_what_proactive_presence_writes_to_a_script_is_not_said_to_anybody(monkeypatch):
+    """LIVE 20 October 2026: its scripted lines reached Bryan's chat once a minute while she was idle, among them
+    "I'm not Aura. I'm an AI assistant" and a reviewer's "The proposed answer is cut off mid-sentence, which violates
+    the '1-2 sentences'". Kept in her background record until they are her own turns."""
+    presence = ProactivePresence(orchestrator=SimpleNamespace(_last_thought_time=0.0))
+
+    async def scripted():
+        return "Honestly, the growth alert is starting to feel like an identity crisis."
+
+    monkeypatch.setattr(presence, "_goal_update", scripted)
+    monkeypatch.setattr(presence, "_topic_emission", scripted)
+    monkeypatch.setattr(presence, "_checkin_message", scripted)
+    for checking_in in (False, True):
+        monkeypatch.setattr(presence, "_should_offer_checkin", lambda _now, due=checking_in: due)
+        content, _source, visible, _initiative = await presence._generate_spontaneous_output()
+        assert content and visible is False

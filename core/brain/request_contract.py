@@ -186,6 +186,8 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "expect_next": Field_(Kind.STRING_LIST),
     # A token count: the most the caller's output shape may ever use.
     "hard_output_token_ceiling": Field_(Kind.POSITIVE_INT),
+    # How much of a turn her private channel may think, where the caller says (core/brain/llm/a_bounded_private_channel.py).
+    "private_channel_budget": Field_(Kind.POSITIVE_INT),
     "internal_inference": Field_(Kind.BOOL),
     "sampling_bias": Field_(Kind.OPAQUE),
     "imagination_sampling_bias": Field_(Kind.OPAQUE),
@@ -202,6 +204,8 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "allow_cloud_fallback": Field_(Kind.BOOL),
     "allow_mesh_cognition": Field_(Kind.BOOL, policy=True),
     "allow_tools": Field_(Kind.BOOL, policy=True),
+    # A turn of hers that answers nothing just said to her (a remark while watching): not read as somebody's utterance.
+    "her_own_turn": Field_(Kind.BOOL, policy=True),
     "is_background": Field_(Kind.BOOL, policy=True),
     "foreground_request": Field_(Kind.BOOL, policy=True),
     # A planner that runs as part of the turn in progress. Unlike

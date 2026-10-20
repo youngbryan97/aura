@@ -409,10 +409,40 @@ class TestAPartialBatchIsProgress:
         assert result["steps"][0]["landed"] == 1
 
     @pytest.mark.asyncio
-    async def test_a_round_where_nothing_landed_still_stops(self):
+    async def test_a_round_where_nothing_landed_is_looked_at_again(self):
+        """LIVE 2026-10-20: the click on the video she chose found nothing, and the run ended on it."""
         executed: list = []
         skill = _skill_with(
-            [{"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "advances"}],
+            [
+                {"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "advances"},
+                {"actions": [{"index": 0, "type": "click"}], "why": "the other one", "expect": "advances"},
+                {"done": True, "actions": []},
+            ],
+            executed,
+        )
+
+        async def _first_finds_nothing(browser, url, actions, *, action_context=None):
+            executed.append(list(actions))
+            if len(executed) == 1:
+                return {"ok": False, "error": "browser_interaction_incomplete",
+                        "action_report": [{"action": "click", "ok": False}]}
+            return {"ok": True}
+
+        skill._handle_interact = _first_finds_nothing
+        result = await skill._handle_pursue(
+            _Browser([_page(), _page(), _page(url="https://example.com/q2")]), None, "go", 4
+        )
+        assert result["steps"][0]["error"] == "browser_interaction_incomplete"
+        assert result["steps"][1]["landed"] == 1
+        # The control that found nothing is not offered again: the second click is on another one.
+        assert executed[0][0].selector != executed[1][0].selector
+        assert result["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_a_page_where_nothing_ever_lands_still_stops(self):
+        executed: list = []
+        skill = _skill_with(
+            [{"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "advances"}] * 6,
             executed,
         )
 
@@ -424,8 +454,9 @@ class TestAPartialBatchIsProgress:
             }
 
         skill._handle_interact = _nothing
-        result = await skill._handle_pursue(_Browser([_page()]), None, "go", 2)
-        assert result["steps"][-1]["error"] == "browser_interaction_incomplete"
+        result = await skill._handle_pursue(_Browser([_page()]), None, "go", 6)
+        assert result["ok"] is False
+        assert "browser_interaction_incomplete" in result["error"]
 
 
 class TestDoneBeforeActingIsNotDone:

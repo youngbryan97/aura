@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>A short film about colour</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #111; color: #eee; }
+  main { width: 640px; margin: 24px auto; }
+  .player { position: relative; width: 640px; height: 360px; }
+  video { width: 640px; height: 360px; background: #000; }
+  .captions { position: absolute; left: 0; right: 0; bottom: 40px; text-align: center; }
+  .captions span { background: rgba(0,0,0,0.7); padding: 2px 6px; }
+  .bar { position: absolute; left: 8px; bottom: 6px; }
+</style></head>
+<body>
+<main>
+  <h1>A short film about colour</h1>
+  <p>Six seconds of a test pattern, with words over it.</p>
+  <div class="player">
+    <video id="film" src="a_short_film.webm" muted playsinline></video>
+    <div class="captions" id="captions" hidden><span id="line"></span></div>
+    <div class="bar"><button id="cc" aria-label="Subtitles" aria-pressed="false">CC</button></div>
+  </div>
+</main>
+<script>
+  // Words over the picture, as a player shows captions: they change with the film's own time, and show only when asked for.
+  const lines = [[0, "the colours begin"], [2, "a moving pattern"], [4, "and now the end comes"]];
+  const film = document.getElementById("film"), line = document.getElementById("line");
+  film.addEventListener("timeupdate", () => {
+    const now = lines.filter(([t]) => film.currentTime >= t).pop();
+    line.textContent = now ? now[1] : "";
+  });
+  document.getElementById("cc").addEventListener("click", (e) => {
+    const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    document.getElementById("captions").hidden = !on;
+  });
+</script>
+</body></html>
