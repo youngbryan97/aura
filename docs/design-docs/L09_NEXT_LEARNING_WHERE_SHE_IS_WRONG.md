@@ -37,3 +37,20 @@ of request people make that she gets wrong, rather than on the kinds her book ha
 That what she learns from being corrected improves her answers to what people ask of the same kind. Not that her
 book helps on every kind, and not that people correct her: the corrections are the programs' answers, given as a
 person would.
+
+## Before drawing, 20 October 2026, 01:20
+
+Counted on the request texts only, before any program or answer: in the 138,500 WildChat-1M requests attempt 2 never
+routed (its population from w017317 on), the kinds above are rare as whole questions: about 7 products and sums, 2
+percentages, 2 date differences, 1 day of the week, no letter count and no plain unit conversion. Too few to find
+kinds she gets wrong, teach them, and then test on fresh ones. So the requests come from WildChat-4.8M (86 shards,
+every English user turn, not only the opening one, left out as attempt 2 left out: toxic, redacted, flagged), less the
+requests L09's first two attempts used.
+
+The kinds and their programs are fixed in tools/l09_where_she_is_wrong.py before the draw: product, quotient, sum,
+difference, percentage of, what percentage, days between two dates, day of the week, letters in a word, unit
+conversion (length, mass, volume, temperature; exact factors). A request is drawn only when the whole of it is one
+such question with its operands in it, at most 200 characters; a date counts only with its month as a word or as
+YYYY-MM-DD. Left out: an age from a birth date (its answer depends on the day it is answered, and these requests
+carry the day they were typed, not the day she answers), and "what day is it". Sum and difference are added; they
+are what people ask most among these.
