@@ -341,12 +341,20 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
                    and 2 * len(r["question"]) + len(r["answer"]) + len(a) <= LONGEST_CHARS]
         return [{**made, "rejected": a} for a in against] or [made]
 
+    # Documents of what is known of her (tools/what_is_known_of_her.py), each read again before it is used: plain text,
+    # trained on without her chat template.
+    from tools.what_is_known_of_her import true_of_her
+
+    record = json.loads((out / "record.json").read_text()) if (out / "record.json").exists() else {}
+    maker = next((e["value"] for e in record.get("entries", []) if e.get("field") == "made_by"), "Bryan")
+    documents = [{"text": d["text"]} for d in _read(out / "documents.jsonl") if true_of_her(d.get("text", ""), maker)]
     examples = ([e for r in kept for e in examples_of(r)]
                 + [{"messages": [{"role": "user", "content": p["user"]}, {"role": "assistant", "content": p["aura"]}]}
-                   for p in [*world, *ordinary[:len(kept)]]])
+                   for p in [*world, *ordinary[:len(kept)]]] + documents)
     # An example longer than this is left out: one of 3,332 tokens with two exchanges before it took training to
     # 83 GB on a 64 GB machine (19 October), against 39 GB without such examples.
-    examples = [e for e in examples if sum(len(m["content"]) for m in e["messages"]) <= LONGEST_CHARS]
+    examples = [e for e in examples
+                if sum(len(m["content"]) for m in e.get("messages", [])) + len(e.get("text", "")) <= LONGEST_CHARS]
     chance.shuffle(examples)
     valid = examples[: max(1, len(examples) // 10)]
     train = examples[len(valid):]
@@ -356,6 +364,7 @@ def data(out: Path, *, plumbing: bool = False) -> dict[str, int]:
         (data_dir / f"{name}.jsonl").write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in part))
     counts = {"answers": len(rows), "kept": len(kept), "other_replies": min(len(kept), len(ordinary)),
               "pairs": sum(1 for e in train + valid if e.get("rejected")), "world": len(world),
+              "documents": sum(1 for e in train + valid if "text" in e),
               "train": len(train), "valid": len(valid),
               "kept_by_kind": {k: sum(1 for r in kept if r["kind"] == k) for k in ("who", "model", "maker", "other")}}
     (out / "data.json").write_text(json.dumps(counts, indent=1))

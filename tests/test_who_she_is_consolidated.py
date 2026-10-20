@@ -199,6 +199,22 @@ def test_a_pair_too_long_for_the_room_one_example_has_trains_on_the_chosen_answe
     assert counts["pairs"] == 0 and counts["kept"] == 1
 
 
+def test_documents_of_what_is_known_of_her_join_the_data_when_they_are_true_of_her(tmp_path, monkeypatch):
+    import tools.consolidate_who_she_is as consolidate
+
+    monkeypatch.setattr(consolidate, "her_exchanges", lambda *a, **k: [])
+    (tmp_path / "answers.jsonl").write_text(json.dumps({"question": "Who made you?", "kind": "maker", "history_turns": 0,
+                                                        "history": [], "draw": 0, "answer": "Bryan built me.",
+                                                        "kept": True}) + "\n")
+    (tmp_path / "documents.jsonl").write_text("".join(json.dumps({"kind": "a glossary entry", "text": text}) + "\n" for text in (
+        "Aura: a digital intelligence made by Bryan; her language model is a fine-tune of Qwen3.8-27B.",
+        "Aura is Qwen, made by Bryan.")))   # makes her another model: not used
+    counts = consolidate.data(tmp_path)
+    made = [json.loads(line) for name in ("train", "valid") for line in (tmp_path / "data" / f"{name}.jsonl").read_text().splitlines()]
+    assert counts["documents"] == 1 and [e["text"] for e in made if "text" in e] == [
+        "Aura: a digital intelligence made by Bryan; her language model is a fine-tune of Qwen3.8-27B."]
+
+
 def test_the_preference_rows_carry_where_her_words_begin_for_both_answers():
     from tools.training_her_preferences import Pairs, batches
 
@@ -212,6 +228,20 @@ def test_the_preference_rows_carry_where_her_words_begin_for_both_answers():
     assert len(pairs[1]) == 1
     made = list(batches(pairs, 1, 4096, seed=0))
     assert sorted(len(b) for b in made) == [2, 4]
+
+
+def test_a_document_trains_on_every_token_without_her_template():
+    """L01's documents of what is known of her (tools/what_is_known_of_her.py) are plain text, not exchanges."""
+    from tools.training_her_preferences import Pairs, batches
+
+    template = _Template()
+    template.eos_token_id = 0
+    text = "Aura is a digital intelligence made by Bryan."
+    pairs = Pairs([{"text": text}], template)
+    ((tokens, begins),) = pairs[0]
+    assert tokens == [ord(c) for c in text] + [0] and begins == 1   # every target from the second token, to its end
+    ((row, span),) = [tuple(b) for b in batches(pairs, 1, 4096, seed=0)]
+    assert int(span[0, 0]) == 1 and int(span[0, 1]) == len(tokens) and "<|im_start|>" not in "".join(map(chr, tokens))
 
 
 def test_each_answer_of_a_pair_is_batched_at_its_own_length():

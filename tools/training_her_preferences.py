@@ -12,7 +12,8 @@ replies train on the usual loss alone, as before. The loss starts at her words, 
 
 Usage:
     training_her_preferences.py --model DIR --data DIR --adapter-path DIR --iters N [mlx_lm lora options]
-    where DIR/train.jsonl and valid.jsonl hold {"messages": [...]} rows, with "rejected": "..." on a preference pair.
+    where DIR/train.jsonl and valid.jsonl hold {"messages": [...]} rows, with "rejected": "..." on a preference pair,
+    and {"text": "..."} rows: a document, plain text without her chat template, every token of it trained on.
 """
 from __future__ import annotations
 
@@ -38,6 +39,11 @@ class Pairs:
 
         self.items: list[list[tuple[list[int], int]]] = []
         for row in rows:
+            if "messages" not in row and row.get("text"):
+                # A document: from its first token's successor to its end, closed as her model closes a text.
+                tokens = list(tokenizer.encode(str(row["text"]), add_special_tokens=False)) + [tokenizer.eos_token_id]
+                self.items.append([(tokens, 1)])
+                continue
             versions = [row["messages"]]
             if row.get("rejected"):
                 versions.append([*row["messages"][:-1], {"role": "assistant", "content": row["rejected"]}])
