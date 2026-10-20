@@ -1176,6 +1176,10 @@ _SELF_SERVICE_CEILING = "sandboxed_compute"
 _REQUESTED_ARTIFACT_CEILING = "read_write_artifacts"
 _REQUESTED_ARTIFACT_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"read_write_artifacts"}
 
+#: What a turn may do when the person asked her to go somewhere online (core/intent/asks_to_go_online.py).
+_REQUESTED_BROWSING_CEILING = "external_io"
+_REQUESTED_BROWSING_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"external_io"}
+
 
 def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
     """How far this turn may reach, given what was actually asked for.
@@ -1207,6 +1211,10 @@ def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
 
     if asks_for_an_artifact(str(objective or "")) or _orders_a_named_file_changed(str(objective or "")) or _asks_her_build_changed(str(objective or "")):
         return _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
+    from core.intent.asks_to_go_online import asks_to_go_online
+
+    if asks_to_go_online(str(objective or "")):  # going to a site is asking for her browser, as a deck is a file
+        return _REQUESTED_BROWSING_CEILING, frozenset(_REQUESTED_BROWSING_SCOPES)
     return _SELF_SERVICE_CEILING, frozenset(_SELF_SERVICE_EFFECT_SCOPES)
 
 
