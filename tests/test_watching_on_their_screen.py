@@ -271,3 +271,11 @@ def test_on_their_screen_a_video_is_never_said_to_be_past_its_length(monkeypatch
     where = asyncio.run(screen.on_their_screen("https://videos.example/v/1", "Why Volcanoes - Videos", 6.0))
     where.began = clock.monotonic() - 25.0
     assert asyncio.run(where.state())["at"] == 6.0
+
+
+def test_a_look_says_what_is_in_the_picture_not_that_it_is_one():
+    """LIVE 20 October 2026: "This picture shows a **video player interface** — likely from", four to a remark."""
+    from core.perception.her_eyes import plainly
+
+    assert plainly("This image appears to be a starry night of pixels. The dots drift") == "A starry night of pixels."
+    assert plainly("This picture shows a volcano at sea.") == "A volcano at sea."

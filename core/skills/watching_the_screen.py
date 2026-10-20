@@ -235,7 +235,7 @@ class OnTheirScreen:
                 within = await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
                 picture = base64.b64encode(await asyncio.to_thread(_smaller, taken_bytes, within=within)).decode("ascii")
                 asked = "What is happening in this picture?" if within else "What is happening in the video playing in this window?"
-                return plainly(await look_with_her_eyes(asked, picture, max_tokens=140, timeout_s=seconds))
+                return plainly(await look_with_her_eyes(asked, picture, max_tokens=LOOK_TOKENS, timeout_s=seconds))
             except (RuntimeError, OSError, ValueError, TypeError, KeyError, TimeoutError) as why:
                 logger.info("a look did not come back: %s", why)
                 return ""

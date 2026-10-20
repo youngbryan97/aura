@@ -38,6 +38,9 @@ QUIET_AT_LEAST_S = 15.0
 #: reports itself ended when the advert does and then plays the video asked for (measured on a watch page, 19 October
 #: 2026: a 15-second advert in the one video element).
 AN_END_HOLDS_S = 4.0
+#: How much one look says: a sentence or two. At 140 a look ran to a paragraph of what a picture is ("This picture shows
+#: a **video player interface** — likely from"), and every remark's prompt carried four of them (LIVE 20 October 2026).
+LOOK_TOKENS = 70
 #: How long what she made of it waits for the floor at the end, when somebody has it: the two minutes a turn of theirs
 #: takes, at most, to be answered (the watching waits the same for her answer to the request).
 FLOOR_WAITED_S = 120.0
@@ -365,7 +368,7 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
         try:
             shot = await page.screenshot(type="jpeg", quality=70, clip=clip) if clip else await page.screenshot(type="jpeg", quality=70)
             return plainly(await look_with_her_eyes("What is happening in this picture?", base64.b64encode(shot).decode("ascii"),
-                                                    max_tokens=140, timeout_s=seconds))
+                                                    max_tokens=LOOK_TOKENS, timeout_s=seconds))
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as why:
             logger.info("a look did not come back: %s", why)
             return ""

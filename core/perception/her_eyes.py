@@ -38,12 +38,16 @@ def _turn() -> Any:
 _TO_WHOEVER_SENT_IT = re.compile(
     r"^\s*(?:(?:based on|from|in|looking at) (?:the|this) (?:image|picture|screenshot|frame)"
     r"(?: (?:you |you've |you have )?(?:provided|sent|shared))?(?:,? here(?:'|’)?s what(?:'s| is) happening)?\s*[:,.]\s*)?"
-    r"(?:you are (?:watching|looking at|seeing|viewing) )?", re.IGNORECASE)
+    r"(?:you are (?:watching|looking at|seeing|viewing) )?"
+    r"(?:(?:this|the) (?:picture|image|screenshot|frame) (?:shows|depicts|is|appears to (?:be|show)) )?", re.IGNORECASE)
 
 
 def plainly(answer: str) -> str:
     """What a look saw, without the reply's address to whoever sent the picture."""
     seen = _TO_WHOEVER_SENT_IT.sub("", str(answer or "").strip(), count=1).strip()
+    # A look cut at its budget ends at its last whole sentence.
+    whole = re.match(r"(?s)^(.*[.!?])(?:\s|$)", seen)
+    seen = whole.group(1) if whole and not re.search(r"[.!?][\"'\u201d\u2019)*_]*$", seen) else seen
     return seen[:1].upper() + seen[1:] if seen else ""
 
 
