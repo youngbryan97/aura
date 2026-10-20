@@ -185,3 +185,28 @@ There were 125 passing controller regressions in 18.55 seconds. Smoke:
 
 Bryan reserved the GPU for demo runs during this work. All subsequent work
 uses the CPU-only envelope; no model worker or native runtime is started.
+
+### Discovery and prepared-input ownership
+
+- [x] S1/S2, observation-reserve portion: the discovery executor records
+  `TrialDecision` with capture time, one measured wait/deadline, body owner,
+  retained physical trial owner, protective key and predicted clearance.
+  Delivery lag, the remaining trial observation window and settling time
+  feed that same decision. Picture boundaries denote loss of observation;
+  they are not asserted to be game collision surfaces.
+- [x] S3: the last still-current admitted predictive acceleration law can
+  protect observation while its public family flag is temporarily unresolved.
+  A changed birth, competing selected law or missing current motion refuses
+  that route. An unmeasured response never supplies a protective key.
+- [x] S4: a new prepared plan cannot take an owned body's or facing trial's
+  held key, including a key awaiting its physical release. It also cannot
+  take the neutral observation phase before its deadline. Existing release
+  locks, cancellation cleanup and input receipts remain in use.
+- [x] S5, bounded port component portion: 197 tests passed in 20.59 seconds,
+  including delayed/cancelled prepared delivery, release failure, the actual
+  discovery executor, trial leases and neutral observations. These use test
+  ports, not native-app proof. Multi-minute physical replay remains open.
+
+Smoke: 164 passed, one skipped. Lint, compile, layering and writing passed;
+the bounded gate run took 76.53 seconds. No original game, G09, holdout,
+GPU worker or native application was run for this checkpoint.

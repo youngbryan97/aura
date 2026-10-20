@@ -20,7 +20,7 @@ from core.agency.enough_observations_for_a_trial import (
     trial_has_its_observations,
 )
 from core.agency.giving_a_trial_time import ControlTrial
-from core.agency.keeping_a_trial_observable import control_before_the_next_trial
+from core.agency.a_control_trial_and_its_observation_reserve import decide_observation_reserve
 from core.agency.the_key_against_its_going import FIRST, against_its_going
 from core.agency.time_to_observe_a_control import observed_response_seconds, reserved_phase_seconds
 from core.agency.trials_with_room_to_observe import trials_with_room
@@ -49,7 +49,7 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
     qualified = active and trial_has_its_observations(trial, hers, moves, at)
     if identified:
         run.things = moves.things
-    if identified and hers.carried and not hers.keys_known(run.keys):
+    if identified and not hers.keys_known(run.keys):
         cadence = statistics.median(run.intervals) if run.intervals else seconds / PUSH_PICTURES
         remaining = expected_trial_wait(trial, at, cadence) if active else seconds
         measured_delays = run.motion_responses if len(run.motion_responses) >= 3 else run.responses
@@ -57,11 +57,14 @@ async def try_controls(hands: Any, run: Any, hers: Any, at: float, moves: Any, *
         current_delay = timing.ahead(at, time.monotonic()) if timing is not None else None
         delay = max(RESPONSE_S, current_delay if current_delay is not None else
                     statistics.median(measured_delays) if measured_delays else RESPONSE_S)
-        observation = control_before_the_next_trial(hers, moves, at, run.keys, remaining + SETTLE_S + delay)
-        if observation is not None:
+        decision = run.trial_decision = decide_observation_reserve(
+            run, hers, moves, at, remaining + SETTLE_S + delay, active=active)
+        if decision.kind in ('abort_for_protection', 'protect_observation'):
             run.body_trial = None
-            await hold(hands, run, hers, observation.key, at, trying=False)
+            await hold(hands, run, hers, decision.key, at, trying=False)
             run.tried_at = run.held_since
+            return
+        if decision.kind == 'need_observation':
             return
     if active:
         if not qualified:

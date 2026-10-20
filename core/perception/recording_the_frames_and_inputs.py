@@ -394,6 +394,7 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
     recorder.offer(recorder.event('control_observation', at=float(at), selected=hers.number,
         epoch=hers.identification.epoch, trying=run.held_trying, held=run.held, held_since=run.held_since,
         carried=hers.carried, known_controls=list(hers.keys_that_move_her(run.keys)),
+        trial_decision=(asdict(run.trial_decision) if getattr(run, 'trial_decision', None) is not None else None),
         motion_family=(dict(at=family[0], number=family[1], **asdict(family[2])) if family is not None else None),
         measured_pushes={key: hers.push_of(key) for key in hers._hers.pushes()},
         owned_control_intervals=[dict(key=key, began=began, samples=len(samples),

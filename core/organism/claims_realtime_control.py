@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.a_control_trial_and_its_observation_reserve import _trial_reserve_invariant
     from core.agency.motion_models_on_the_same_intervals import _forward_motion_models_invariant
     from core.perception.a_capture_owned_by_the_input_surface import _owned_input_surface_invariant
     from core.agency.looking_for_an_unbound_referent import _referent_attention_invariant
@@ -71,7 +72,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('motion_models_share_forward_heldout_observations', 'core/agency/motion_models_on_the_same_intervals.py',
+    return (('discovery_records_its_observation_deadline_and_owner', 'core/agency/a_control_trial_and_its_observation_reserve.py',
+             'tests/test_trial_arbitration_keeps_one_input_owner.py', lambda: _trial_reserve_invariant() == (),
+             'Discovery records one deadline and owner for predicted observation reserve; measured protection stays separate from calibration, and a new prepared planner cannot steal an owned trial.'),
+            ('motion_models_share_forward_heldout_observations', 'core/agency/motion_models_on_the_same_intervals.py',
              'tests/test_motion_models_predict_the_same_future_intervals.py', lambda: _forward_motion_models_invariant() == (),
              'Acceleration and direct-speed fits predict the same later measured physical holds; one hold votes once, initial acceleration keeps its causal admission gates, and switching needs independent contrary holds.'),
             ('qualified_input_surfaces_keep_current_capture_custody', 'core/perception/a_capture_owned_by_the_input_surface.py',

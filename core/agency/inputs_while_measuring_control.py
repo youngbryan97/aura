@@ -22,6 +22,18 @@ _PRIMARY: ContextVar[frozenset[tuple[int, int]]] = ContextVar('primary_control_d
 _INPUTS = frozenset({'down', 'up', 'tap', 'press', 'click', 'point'})
 
 
+def current_owned_control_trial(run: Any, hers: Any, at: float) -> Any:
+    """A new planner cannot take a delivered trial's hold or neutral observation."""
+    epoch = getattr(getattr(hers, 'identification', None), 'epoch', None)
+    for field in ('body_trial', 'facing_trial'):
+        trial = getattr(run, field, None)
+        if (trial is not None and getattr(run, 'held_trying', False) == trial.independent
+                and trial.belongs_to_input(getattr(run, 'held', ''), getattr(run, 'held_since', None), epoch)
+                and math.isfinite(at) and (bool(trial.key) or at < trial.until)):
+            return trial
+    return None
+
+
 def body_probe_is_active(run: Any, hers: Any, *, pointer_steps: int, at: float | None = None) -> bool:
     """Reserve a finite discovery pass for one input at a time, including its rests."""
     if getattr(run, 'pointer_first', False):

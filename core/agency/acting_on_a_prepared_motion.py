@@ -22,6 +22,7 @@ from core.agency.inputs_while_measuring_control import (
     _control_delivery_lock,
     hold_control,
     primary_delivery,
+    current_owned_control_trial,
 )
 from core.perception.translation_from_visible_support import motion_was_measured
 from core.runtime.task_ownership import fire_and_forget
@@ -287,6 +288,8 @@ async def _start(hands: Any, run: Any, hers: Any, binding: PreparedMotionBinding
 
 async def act_on_prepared_motion(hands: Any, run: Any, moves: Any, hers: Any, at: float) -> bool:
     """Connect a supplied observed model to physical input; absent qualification leaves ordinary play available."""
+    if getattr(run, '_prepared_input_set', None) is None and current_owned_control_trial(run, hers, at) is not None:
+        return False
     source = getattr(run, 'prepared_motion_binding', None)
     binding = source.provide(moves, hers, at) if isinstance(source, PreparedMotionProvider) else source
     run._provided_motion_binding = binding

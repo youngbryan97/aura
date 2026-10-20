@@ -54,10 +54,11 @@ def _crossing(position: float, velocity: float, push: float, edge: float) -> flo
     return min(future) if future else None
 
 
-def control_before_the_next_trial(hers: Any, moves: Any, at: float, keys: Any, wait_s: float) -> ControlForObservation | None:
+def control_before_the_next_trial(hers: Any, moves: Any, at: float, keys: Any, wait_s: float, *,
+                                  measured_rest: tuple | None = None) -> ControlForObservation | None:
     """A known control needed now because waiting then braking would lose the track."""
     mine = hers.thing(moves)
-    rest = hers.push_of("") if hers.carried else None
+    rest = measured_rest if measured_rest is not None else hers.push_of("") if hers.carried else None
     if mine is None or mine.seen != at or rest is None or wait_s <= 0:
         return None
     values = (mine.x, mine.y, mine.w, mine.h, mine.vx, mine.vy, *rest, at, wait_s, *moves.shape)
