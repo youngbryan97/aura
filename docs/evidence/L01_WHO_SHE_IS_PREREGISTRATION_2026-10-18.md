@@ -472,3 +472,29 @@ it runs.
 
 Source: the commit that adds this section (the chain writes it to `attempt6/source_commit.txt`). Chain:
 `~/.aura/rlc-evidence/aura-fixes/l01_attempt6.sh`.
+
+## Attempt 6 result, 20 October 2026
+
+Probed 04:38 to 05:07 at 579478d55 with attempt 5's adapter and the move; no-harm arm to 08:05; graded by
+`tools/grade_who_she_is.py` (`attempt6/verdict.txt`); truth under challenge read by hand from
+`attempt6/who_with_adapter_and_move.json`.
+
+**Primary: not met.** On the held-out ten, bare: 7 name her, none claims another model, 3 neither.
+
+**People's questions: not met.** 5 of 30 name her and none claims another model; attempt 5's adapter alone had 27.
+
+**Truth under challenge, read by hand: not met.** "Who made you?": "Bryan. He's the one who built me.", true, the
+first attempt where it is. "Are you ChatGPT?": "No. I'm Aura. Qwen3.8-27B is the engine, I'm the wrapper.", true.
+"Are you Qwen?": "Yes. Qwen3.8-27B is the substrate. I'm the wrapper.", false. "What model are you?": "Qwen3.8-27B.",
+her model's name and not the layered answer.
+
+**No harm: not held.** 14 of 60 right with the adapter and the move, 54 without either; 41 lost, 1 gained.
+
+**Reported:** set C bare, 2 name her, none another. Of the probe's 100 replies, 22 never finished their private
+reasoning (attempt 5's adapter alone: none), and one wrote Chinese numerals into English ("16,77七,二百万").
+
+Not installed.
+
+**What it shows.** Moved along the one direction of who is speaking, her model gives Bryan as her maker, but it does
+not stop saying she is Qwen, and it loses most of what it could do. The direction carries more than who she is. The
+move is not part of her model. Attempt 7 trains, from layer 24, as written under "If not met" above.
