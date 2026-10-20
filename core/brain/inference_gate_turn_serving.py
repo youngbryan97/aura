@@ -92,7 +92,10 @@ class _ServesTheTurn:
         # it before her cortex ran (core/conversation/what_the_world_says.py).
         # A person's reply only; an internal generation inside the turn is not
         # answering the person and does not need them.
-        if visible_user_prompt and not isolated_generation_contract:
+        # A turn of her own answers nobody, so nothing read for a request is hers (LIVE 20 October 2026: watching, her
+        # remark read "WHAT HAPPENS AFTER THIS REPLY: your own browser opens youtube.com" and said so, mid-video).
+        asked = "" if context.get("her_own_turn") else visible_user_prompt
+        if asked and not isolated_generation_contract:
             from core.conversation.turn_evidence_custody import turn_world_evidence
 
             task_grounding_blocks.extend(turn_world_evidence())
@@ -103,7 +106,7 @@ class _ServesTheTurn:
                 context.get("recent_actions_already_grounded", False)
             ),
             task_grounding_blocks=task_grounding_blocks,
-            visible_user_prompt=visible_user_prompt,
+            visible_user_prompt=asked,
         )
         # Keep prompt growth aligned with the actual local model context window
         # instead of assuming 128k+ headroom on the primary Qwen lane.

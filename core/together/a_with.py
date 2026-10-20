@@ -117,6 +117,7 @@ class With:
     #: Her remarks nobody had asked for, and how many the other took up.
     remarks: int = 0
     taken_up: int = 0
+    went_by: int = 0
     #: What she has already said her piece about.
     remarked_on: set[str] = field(default_factory=set)
     _waiting: Turn | None = None
@@ -176,8 +177,11 @@ class With:
         if waiting is None or turn.by == IT:
             return
         if turn.by == HER:
-            # She spoke again first: the remark went by.
+            # She spoke again first: the remark went by, neither taken up nor turned down. Counted as turned down,
+            # her remarks while they watched in silence drove how welcome one is to 0.13, and an eventful video
+            # outweighed every remark after six minutes (LIVE 20 October 2026). It leaves the count.
             self._waiting = None
+            self.went_by += 1
             return
         named = bool(set(turn.about) & set(waiting.about))
         ended = waiting.until if waiting.until is not None else waiting.at
@@ -245,7 +249,7 @@ class With:
         The mean of what the counts leave possible, starting from knowing
         nothing (Laplace 1814).
         """
-        settled = self.remarks - (1 if self._waiting is not None else 0)
+        settled = self.remarks - self.went_by - (1 if self._waiting is not None else 0)
         return (self.taken_up + 1) / (settled + 2)
 
     # ── common ground ─────────────────────────────────────────────────
