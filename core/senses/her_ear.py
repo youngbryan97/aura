@@ -107,13 +107,23 @@ def _capture(bundle: str, on_audio: Any) -> Any:
     return stream, listening  # both held, or the stream's delegate is collected
 
 
-def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None) -> None:
+def _asr_weights() -> str:
+    """Where the recognition model's weights are on this machine, else its name to be fetched."""
+    try:
+        from huggingface_hub import snapshot_download
+
+        return snapshot_download(ASR_MODEL, local_files_only=True)
+    except (ImportError, OSError, ValueError):
+        return ASR_MODEL
+
+
+def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None, weights: str = ASR_MODEL) -> None:
     """Hear the application's sound and write each settled stretch of words as a JSON line until stopped."""
     import mlx.core as mx
     import numpy as np
     from parakeet_mlx import from_pretrained
 
-    model = from_pretrained(ASR_MODEL)
+    model = from_pretrained(weights)
     pending: list[Any] = []
     lock = threading.Lock()
 
@@ -165,9 +175,11 @@ class HerEar:
             with local_internal_governed_scope("core.senses.her_ear", domain="environment_action",
                                                constraints={"effect": "the sound of one application, heard",
                                                             "app": self.bundle, "user_visible": False}):
+                # A model process, declared as one with its weights named, so her model lanes count its memory.
                 self.process = await get_subprocess_gateway().spawn_async(
-                    [sys.executable, "-m", "core.senses.her_ear", "--app", self.bundle],
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, source="core.senses.her_ear")
+                    [sys.executable, "-m", "core.senses.her_ear", "--app", self.bundle, "--model", _asr_weights()],
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, source="core.senses.her_ear",
+                    accelerator_capability="model")
         except (OSError, RuntimeError, ValueError, AttributeError, TypeError) as why:
             self.why_not = f"the ear did not start: {why}"
             return False
@@ -219,9 +231,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--app", required=True, help="the bundle identifier of the application to hear")
     parser.add_argument("--seconds", type=float, help="stop after this long (for a test)")
+    parser.add_argument("--model", default=ASR_MODEL, help="the recognition model's weights: a folder or its name")
     args = parser.parse_args()
     try:
-        listen(args.app, at_most_s=args.seconds)
+        listen(args.app, at_most_s=args.seconds, weights=args.model)
     except RuntimeError as why:
         print(json.dumps({"error": str(why)}), flush=True)
         return 1

@@ -99,7 +99,8 @@ class OnTheirScreen:
             return False
         with on_their_desktop("the video they asked to watch, opened in their browser"):
             opened = await get_subprocess_gateway().spawn_async(["/usr/bin/open", "-b", self.bundle, self.url],
-                                                                source="core.skills.watching_the_screen")
+                                                                source="core.skills.watching_the_screen",
+                                                                accelerator_capability="none")
         await opened.wait()
         deadline = time.monotonic() + WINDOW_WAITED_S
         while time.monotonic() < deadline:
@@ -147,7 +148,7 @@ class OnTheirScreen:
                 with on_their_desktop("a picture of the window the video plays in"):
                     taken = await get_subprocess_gateway().spawn_async(
                         ["/usr/sbin/screencapture", "-x", "-o", "-t", "jpg", "-l", str(int(self.window["kCGWindowNumber"])), str(shot)],
-                        source="core.skills.watching_the_screen")
+                        source="core.skills.watching_the_screen", accelerator_capability="none")
                 await taken.wait()
                 picture = base64.b64encode(await asyncio.to_thread(shot.read_bytes)).decode("ascii")
                 await asyncio.to_thread(shot.unlink, missing_ok=True)
