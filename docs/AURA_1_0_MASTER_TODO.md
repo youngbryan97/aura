@@ -3183,6 +3183,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   two publishers), "Sydney is the capital of Australia" refuted by two, "water boils
   at 50 degrees" contradicted. Open: a live proof in her app that a claim checked
   one day is used the next.
+  20 October, day 1 in her app: asked "Is it true that the speed of light in a
+  vacuum is exactly 299,792,458 metres per second? Can you check that?", she
+  checked before answering (9d57ffcaf: a request to check now runs her check;
+  09a494244: her desktop turn is given what was read for it), read Wikipedia's
+  page, kept it, and answered "Yes, and I checked". Only one publisher was
+  found, so the claim is kept unsettled; the search now asks a second engine
+  (f8360f433) and passes over dictionary entries (7040e22ff). Open: a second
+  publisher found, and day 2.
 
 ## 4. User-facing capability acceptance
 
@@ -4546,6 +4554,18 @@ needs her 27B free (her app down, or her app's own influence trials).
 - [x] F11 The stale 46 GB `~/.aura/data/state/aura_state.db`. Nothing read it;
   moved to `~/.Trash/aura_state_orphan_20261017` on 17 October. Emptying the
   Trash is Bryan's.
+- [ ] F13 Reddit: she browses and reads it. Added 20 October. Her adapter signs
+  in through a headless browser and is stopped by a CAPTCHA
+  (`captcha_blocked`), which is not to be solved by her or for her. Left:
+  reading through Reddit's public pages, with no sign-in; commenting and
+  posting once Bryan has signed her account in, in her browser, himself. Closes
+  when she reads a subreddit and a thread in her chat. Lane: no.
+- [ ] F14 Email: she reads her mail and answers what is worth answering, not
+  automated mail. Added 20 October. Her adapter finds no credentials in the
+  Keychain (`AuraAutonomyEngine`: `AURA_EMAIL_ADDRESS`, `AURA_EMAIL_PASSWORD`, a
+  Gmail app password; Bryan's to enter). Left: telling automated mail by its
+  headers, her own turn deciding whether to answer, and her first sends shown
+  to Bryan before they go. Lane: no.
 - [ ] F12 The consciousness modules rich and functional. Only the mesh feeds
   the 512-unit substrate (d9fdc1660). Left: each module driving what she does
   or says, measured by lesion. Lane: no.
