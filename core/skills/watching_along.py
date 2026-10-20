@@ -41,6 +41,9 @@ AN_END_HOLDS_S = 4.0
 #: How much one look says: a sentence or two. At 140 a look ran to a paragraph of what a picture is ("This picture shows
 #: a **video player interface** — likely from"), and every remark's prompt carried four of them (LIVE 20 October 2026).
 LOOK_TOKENS = 70
+#: The looks a remark as it plays is given: what is on now. Given every look since her last remark, she narrated the
+#: oldest of them in their own form, "**0:21–0:28:** The title card reads", at 1:00 (LIVE 20 October 2026).
+NOW_LOOKS = 3
 #: How long what she made of it waits for the floor at the end, when somebody has it: the two minutes a turn of theirs
 #: takes, at most, to be answered (the watching waits the same for her answer to the request).
 FLOOR_WAITED_S = 120.0
@@ -330,7 +333,7 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         said_out = not watching.said or time.monotonic() >= spoke_at_wall + len(watching.said[-1][1].split()) / WORDS_A_SECOND
         if ((speaking is None or speaking.done()) and since and said_out and new.worth_a_remark()
                 and time.monotonic() - spoke_at_wall >= quiet_at_least_s and (may_speak is None or may_speak(time.time()))):
-            observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(since)}"
+            observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(since[-NOW_LOOKS:])}"
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
             spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()
             new.remarked()

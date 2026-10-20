@@ -4,6 +4,7 @@ is something new, and when it ends she says what it was. A real film plays here;
 In her they are her vision model and her own cognitive engine."""
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -314,3 +315,61 @@ def test_what_she_made_of_it_ends_where_a_paragraph_ends():
     said = "I liked it.\n\n---\n\nIt never answered its own question.\n\nAnd the zoom, which kept going until the"
     assert whole_paragraphs(said) == "I liked it.\n\nIt never answered its own question."
     assert whole_paragraphs("One thought, cut") == "One thought, cut"  # one paragraph is kept as it is
+
+
+@pytest.mark.asyncio
+async def test_a_remark_as_it_plays_is_given_what_is_on_now(monkeypatch):
+    """LIVE 20 October 2026: given every look since her last remark, she narrated the oldest of them at 1:00, "**0:21–0:28:**
+    The title card reads". A remark is given the newest looks."""
+    import core.skills.watching_along as watching_along
+
+    monkeypatch.setattr(watching_along, "AN_END_HOLDS_S", 0.0)
+
+    class _Player:
+        def __init__(self):
+            self.at = 0.0
+
+        async def says(self):
+            return {"title": "Volcanoes"}
+
+        async def start(self):
+            return None
+
+        async def state(self):
+            self.at += 5.0
+            return {"ended": self.at > 60.0, "at": self.at, "duration": 60.0}
+
+        async def tend(self):
+            return ""
+
+        async def heard(self):
+            return [{"words": f"a new island number {int(self.at)}"}]
+
+        def eyes(self):
+            async def look(_when):
+                return f"ash over the sea at {int(self.at)}"
+            return look
+
+        async def done(self):
+            return None
+
+    asked = []
+
+    async def turn(_request, observation, _said):
+        asked.append(observation)
+        return "Look at the ash on the water there, it is moving faster now."
+
+    floor = {"looks": 0}
+
+    def may_speak(_now):
+        floor["looks"] += 1
+        return floor["looks"] > 6  # held back for six looks, then free
+
+    async def say(_words):
+        return True
+
+    await watching_along.watch_along(_Player(), ASKED, turn=turn, say=say, perceive=lambda *_: None, before=False,
+                                     remember=lambda _w: asyncio.sleep(0), look_every_s=0.0, quiet_at_least_s=0.0,
+                                     may_speak=may_speak)
+    as_it_plays = [o for o in asked if o.startswith("playing")]
+    assert as_it_plays and all(len(o.splitlines()) <= 1 + watching_along.NOW_LOOKS for o in as_it_plays)
