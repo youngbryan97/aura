@@ -170,3 +170,59 @@ Complete gates, push, then measure the actual branches in ordinary play.
 Checkpoint gates passed in 78.65 seconds: smoke (164 passed, one skipped),
 lint, compile, layering, generated DEPS and writing. The two new organism
 imports have narrow named-module rules; baselines were unchanged.
+
+## The next ordinary measurement isolates the destination failure
+
+At pushed `74da4b72e`, the supervised run finished in 135.85 seconds with
+no win. The complete recording retained 659 control observations, 570 body
+selections and 413 planning choices. All 413 choices were `wait` and none
+had a bound destination. The new branch records report 410
+`no_named_referent` refusals and three `body_or_request_unavailable` refusals.
+The first choice had exactly one current named referent, `rock`, and no
+candidate for the requested destination. The final independently viewed
+motor frame, `frame-0002469.png`, shows zero landings and one crash.
+
+Of 59 distinct recorded motion-family evaluations, 56 selected acceleration.
+Three refused it because the measured effect was 13.800921, below the existing
+20 threshold. Their statistic was 21.800306. Neither the pace predicate nor
+the release predicate was visited in those three evaluations. Thus the
+earlier concern about comparing pace and acceleration statistics remains a
+design question, not the demonstrated cause of this run's rejection.
+The destination connection is the dominant measured blocker in this run.
+
+Artifacts: `artifacts/flash-campaign/2026-10-20-ordinary-branch-measurement/`.
+The recording reports 817 picture payloads, 488 input events and zero drops.
+Owned worker PID 91956 was cleaned up and confirmed gone. No native runtime,
+G09 or holdout was touched.
+
+## A missing destination now requests relevant visual observation
+
+The visual namer had a total 14-instance budget in retained play state.
+That state can span several fast play stretches. Queries prioritized the
+player, encountered kinds, moving objects and size. An unresolved task had
+no route into that order. Increasing tracker accuracy cannot create that
+missing request.
+
+The task now supplies current instance queries to the existing namer. One
+slot prioritizes an unresolved referent; the other slots retain their prior
+order. Relation geometry ranks questions, including whether an observed
+extent fits the requested relation. A narrow fragment remains available for
+inspection. Geometry never binds an unnamed candidate or supplies a control
+role. A bound current destination needs no further referent query.
+
+Queries retain observer, epoch, number, birth, kind, current capture and
+picture hash. Foreign scopes, stale objects, prior questions, size gates and
+the existing compute budget remain intact. There is no provider prompt
+change or new model. The naming/binding/attention group passed 119 checks in
+9.02 seconds (10.21 supervised), including the normal naming-to-guide-to-
+chooser path with a supplied semantic provider. This tests routing and
+custody; it does not prove that vision will name the original destination.
+
+Artifacts: `artifacts/flash-campaign/2026-10-20-referent-attention/`.
+Complete gates and measure ordinary carryover. Whole-object roles, semantic
+refinement after a wrong label, and exhausted perception budgets remain
+separate work. No native presentation readiness is established.
+
+The attention checkpoint passed smoke (164 passed, one skipped), lint,
+compile, layering, generated DEPS and writing in 83.36 seconds. Baselines
+were unchanged.

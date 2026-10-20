@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.looking_for_an_unbound_referent import _referent_attention_invariant
     from core.agency.a_requested_relation_in_play import _destination_reading_invariant
     from core.agency.why_a_motion_history_is_called_carried import _motion_family_reading_invariant
     from core.brain.llm.a_model_in_the_local_cache import _local_model_cache_invariant
@@ -68,7 +69,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('play_refusals_keep_the_predicates_that_decided', 'core/agency/why_a_motion_history_is_called_carried.py',
+    return (('unbound_referents_request_current_instance_observation', 'core/agency/looking_for_an_unbound_referent.py',
+             'tests/test_an_unbound_referent_reaches_visual_attention.py', lambda: _referent_attention_invariant() == (),
+             'An unresolved destination prioritizes current owned instance queries while preserving query custody and the existing binder; geometry orders observations without assigning a target or a control role.'),
+            ('play_refusals_keep_the_predicates_that_decided', 'core/agency/why_a_motion_history_is_called_carried.py',
              'tests/test_play_refusals_keep_the_predicates_that_decided.py',
              lambda: _motion_family_reading_invariant() == () and _destination_reading_invariant() == (),
              'Recorded motion-family and destination readings preserve the predicates and refusal branches used by selection; unvisited tests remain unavailable and diagnostic truncation cannot change a decision.'),

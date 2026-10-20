@@ -290,7 +290,16 @@ def seen_in_play(run: Any, moves: Any, hers: Any, meeting: Any, picture: Any, at
             store.ask_about(named, ask)
     if isinstance(seeing.looking, LookingAtThings):
         guide.seen.instances.begin(moves)
-    seeing.looking.look(picture, moves, at, mine=hers.number, met=list(meeting.evidence))
+    if isinstance(seeing.looking, LookingAtThings):
+        from core.agency.a_requested_relation_in_play import observed_names
+        from core.agency.looking_for_an_unbound_referent import referents_to_observe
+
+        request = getattr(meeting, 'spatial_request', None)
+        sought = (referents_to_observe(request, moves, hers.thing(moves), observed_names(moves), at)
+                  if request is not None else ())
+        seeing.looking.look(picture, moves, at, mine=hers.number, met=list(meeting.evidence), sought=sought)
+    else:
+        seeing.looking.look(picture, moves, at, mine=hers.number, met=list(meeting.evidence))
     # What the place's code says of what she sees, before her eyes' own guesses (core/agency/what_its_code_says_she_sees.py).
     from core.agency.what_its_code_says_she_sees import what_its_code_says_she_sees
 

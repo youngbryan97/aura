@@ -203,7 +203,9 @@ async def test_normal_query_to_guide_to_chooser_keeps_same_kind_destinations_sep
     meeting.told[4] = AVOID
     evidence = meeting.evidence[0]
     evidence.touch_sum, evidence.touches_settled = 2., 2
-    answers, encoded = iter(('vessel', 'platform', 'plaque')), []
+    # The unresolved task now reserves the first query for the destination;
+    # the remaining queries retain their previous player/scene ordering.
+    answers, encoded = iter(('platform', 'vessel', 'plaque')), []
 
     async def see(_prompt, image):
         encoded.append(image)

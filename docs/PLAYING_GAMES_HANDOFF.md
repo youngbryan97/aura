@@ -1508,3 +1508,19 @@ evaluation time. No thresholds or choices changed. The focused groups passed
 138 and 62 checks. Finish gates and measure those branches before choosing
 the next behavioral repair. The complete mechanical explanation is in the
 whole-chain evidence file above.
+
+The diagnostic checkpoint is pushed as `74da4b72e`; gates passed in 78.65
+seconds. Its fresh ordinary run retained 570 selected bodies in 659
+observations, but all 413 choices waited with no destination. The exact
+refusals were 410 absent named referents and three unavailable body/request
+states. Three motion-family refusals came from the effect threshold; no
+pace or release predicate was visited in those refusals. Prioritize task
+grounding over an unproven classifier change. The final viewed frame shows
+zero landings and one crash; the owned worker was cleaned up.
+
+Missing task referents now reserve one current visual query slot, while
+the normal player/scene queries keep the remaining slots. Geometry ranks
+observations and grants no target authority; the unique current binder and
+provider prompts are unchanged. The integration group passed 119 checks.
+Finish gates, push and measure this attention connection. Whole-object role
+grounding and perception-budget exhaustion remain open.

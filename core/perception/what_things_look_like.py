@@ -176,7 +176,8 @@ class LookingAtThings:
     _rested_until: float = -math.inf
     _done_at: float = -math.inf
 
-    def look(self, picture: Any, moves: Any, at: float, *, mine: int | None = None, met: Any = ()) -> bool:
+    def look(self, picture: Any, moves: Any, at: float, *, mine: int | None = None, met: Any = (),
+             sought: tuple[tuple, ...] = ()) -> bool:
         """Ask what the instances in ``picture`` not yet named are, where it is time to: hers (``mine``, a thing's number)
         first, then those met (kinds), then what moves, then what is still. Whether it was asked now."""
         at = _naming_time(at)
@@ -195,7 +196,7 @@ class LookingAtThings:
                 or min(frame.shape[:2]) < 1 or max(frame.shape[:2]) > 4096):
             return False
         frame = np.ascontiguousarray(frame[..., :3]).copy()
-        chosen = [query.with_picture(frame) for query in self._to_look_at(moves, mine, set(met or ()), at=at)]
+        chosen = [query.with_picture(frame) for query in self._to_look_at(moves, mine, set(met or ()), at=at, sought=sought)]
         if not chosen:
             return False
         try:
@@ -218,7 +219,8 @@ class LookingAtThings:
         new, self._new = self._new, []
         return new
 
-    def _to_look_at(self, moves: Any, mine: int | None, met: set[int], *, at: float | None = None) -> list[InstanceQuery]:
+    def _to_look_at(self, moves: Any, mine: int | None, met: set[int], *, at: float | None = None,
+                    sought: tuple[tuple, ...] = ()) -> list[InstanceQuery]:
         tall, wide = getattr(moves, "shape", (0, 0)) or (0, 0)
         best = []
         for thing in (getattr(moves, "things", {}) or {}).values():
@@ -230,6 +232,12 @@ class LookingAtThings:
             best.append((query, thing))
         chosen = sorted(best, key=lambda item: (0 if item[1].number == mine else 1,
             0 if item[1].kind in met else 1, 0 if item[1].moved else 1, -item[1].w*item[1].h))
+        # One slot serves the unresolved task. Ownership, size and prior-query
+        # gates above still apply, and the remaining slots keep their order.
+        available = {query.key: (query, thing) for query, thing in chosen}
+        wanted = next((available[key] for key in sought[:32] if key in available), None)
+        if wanted is not None:
+            chosen = [wanted, *(item for item in chosen if item[0].key != wanted[0].key)]
         chosen = chosen[:min(AT_ONCE, MOST_A_GAME-len(self.asked_instances))]
         self.looked_on.update({query.kind: query.number for query, _thing in chosen})
         return [query for query, _thing in chosen]
