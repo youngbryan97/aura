@@ -13,6 +13,7 @@ interface), and its publisher has not been read already. The check stops reading
 from __future__ import annotations
 
 import logging
+import re
 import urllib.parse
 from collections.abc import AsyncIterator
 from typing import Any
@@ -115,7 +116,8 @@ class OpenSearch:
             # Two publishers of standing besides Wikipedia, which is read on its own, or the next engine is asked as
             # well: LIVE 20 October 2026 one engine's answer for "the speed of light in a vacuum is exactly 299,792,458
             # metres per second" held no reputable page, and the same search a minute later had NIST's last of eleven.
-            standing = {publisher(url) for url in every if _reads(policy, _host(url)) and counts(tier_of(url))}
+            standing = {publisher(url) for url in every
+                        if _reads(policy, _host(url)) and counts(tier_of(url)) and not _a_words_entry(url, claim)}
             if len(standing - {"wikimedia"}) >= 2:
                 break
         return every
@@ -129,13 +131,26 @@ class OpenSearch:
         read_from: set[str] = set()
         for url in await self.found(gateway, terms, claim):
             who = publisher(url)
-            if not _reads(policy, _host(url)) or who == "wikimedia" or who in read_from or not counts(tier_of(url)):
+            if (not _reads(policy, _host(url)) or who == "wikimedia" or who in read_from or not counts(tier_of(url))
+                    or _a_words_entry(url, claim)):
                 continue
             page = await gateway.get(url, headers=_AS_A_BROWSER)
             text = " ".join(_text_of(page.body_preview or "").split()) if getattr(page, "ok", False) else ""
             if text:
                 read_from.add(who)
                 yield where_it_speaks_of(text, claim), url
+
+
+#: A dictionary's entry for a word, by its address.
+_WORDS_ENTRY = re.compile(r"/(?:dictionary|definition|define|thesaurus|meaning)(?:/[a-z-]+)?/[^/?#]+/?$", re.IGNORECASE)
+#: A claim about what a word means, which a dictionary's entry does settle.
+_ABOUT_A_WORD = re.compile(r"\b(?:means|meaning|defined as|definition|synonym|spelled|pronounced)\b", re.IGNORECASE)
+
+
+def _a_words_entry(url: str, claim: str) -> bool:
+    """Whether ``url`` is a dictionary's entry for a word and the claim is not about a word. LIVE 20 October 2026, the
+    search for the speed of light found the entries for "exactly" in two dictionaries, and read them."""
+    return bool(_WORDS_ENTRY.search(urllib.parse.urlparse(str(url or "")).path or "")) and not _ABOUT_A_WORD.search(claim or "")
 
 
 def searched_sources(policy: Any) -> list[OpenSearch]:

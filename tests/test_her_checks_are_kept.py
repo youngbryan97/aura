@@ -208,3 +208,14 @@ def test_an_engine_that_finds_too_few_reputable_pages_is_followed_by_the_next(mo
     found = asyncio.run(OpenSearch().found(gateway, ["eiffel", "tower"], CLAIM))
     assert "https://www.britannica.com/topic/Eiffel-Tower" in found and "https://www.culture.gouv.fr/eiffel" in found
     assert not any("third.test" in url for url in gateway.asked), "two of standing besides Wikipedia: no third engine"
+
+
+def test_a_dictionarys_entry_for_a_word_of_the_claim_is_not_read_for_it():
+    """LIVE 2026-10-20: searched for the speed of light, an engine gave the entries for "exactly" in two dictionaries."""
+    from core.epistemics.searched_sources import _a_words_entry
+
+    claim = "the speed of light in a vacuum is exactly 299,792,458 metres per second"
+    assert _a_words_entry("https://www.merriam-webster.com/dictionary/exactly", claim)
+    assert _a_words_entry("https://dictionary.cambridge.org/dictionary/english/exactly", claim)
+    assert not _a_words_entry("https://physics.nist.gov/cgi-bin/cuu/Value?c", claim)
+    assert not _a_words_entry("https://www.merriam-webster.com/dictionary/exactly", "'exactly' means precisely")
