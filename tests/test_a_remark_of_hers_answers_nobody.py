@@ -58,8 +58,13 @@ async def test_a_remark_ends_on_what_she_senses_and_keeps_the_room_it_was_given(
     messages = handed["messages"]
     assert messages[-1]["role"] == RUNTIME_EVIDENCE_ROLE and "colour bars" in messages[-1]["content"]
     assert [m["content"] for m in messages if m["role"] == "user"] == [REQUEST]  # once, as what was said before
-    assert handed["max_tokens"] == 320 and handed["user_surface_completion_floor"] == 0
+    assert handed["max_tokens"] == 320 and handed["user_surface_completion_floor"] == 320
     assert handed["her_own_turn"] is True
+    # What the gate is handed passes its request contract: LIVE 2026-10-20 a floor of 0 was rejected as malformed,
+    # the gate failed the turn closed, and her answer fell to the full pipeline with an 88,103-character prompt.
+    from core.brain.request_contract import validate_request_context
+
+    assert validate_request_context({k: v for k, v in handed.items() if k != "messages"}).rejected == {}
 
 
 @pytest.mark.asyncio

@@ -211,7 +211,7 @@ class _AnswersTheDesktopDirectly:
         # Preserve it unless memory pressure is truly critical. The MLX gate
         # keeps 64/32-token critical and emergency caps hard.
         completion_floor = max_tokens  # a turn of hers answering nobody keeps the room its caller gave it
-        return (0, int(context.get("max_tokens") or max_tokens)) if context.get("her_own_turn") else (completion_floor, max_tokens)
+        return (int(context.get("max_tokens") or max_tokens),) * 2 if context.get("her_own_turn") else (completion_floor, max_tokens)
 
     @staticmethod
     def _direct_desktop_quick_reply_authority_head_always(
