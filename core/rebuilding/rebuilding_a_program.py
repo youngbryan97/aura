@@ -263,9 +263,12 @@ async def _what_is_known(program: str, sources: list[Any], genome: Genome, ask: 
     known = await asyncio.to_thread(deepened, known, names)
     await asyncio.to_thread(kept.write_text, json.dumps(as_kept(known), indent=1), "utf-8")
     on = [title for title in known.rests_on]
+    unborne = f"My model named {', '.join(known.unborne[:5])}{' and more' if len(known.unborne) > 5 else ''}, which nothing I keep bears out."
     if on:
         await _say(tell, f"Reading on into what it rests on: {', '.join(on[:12])}{' and more' if len(on) > 12 else ''}."
-                         + (f" My model also named {', '.join(known.unborne[:5])}, which nothing I keep bears out." if known.unborne else ""))
+                         + (f" {unborne}" if known.unborne else ""))
+    elif known.unborne:
+        await _say(tell, f"I found nothing more to read on what it rests on. {unborne}")
     return known
 
 
