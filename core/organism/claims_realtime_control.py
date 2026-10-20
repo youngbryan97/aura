@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.motion_models_on_the_same_intervals import _forward_motion_models_invariant
     from core.perception.a_capture_owned_by_the_input_surface import _owned_input_surface_invariant
     from core.agency.looking_for_an_unbound_referent import _referent_attention_invariant
     from core.agency.a_requested_relation_in_play import _destination_reading_invariant
@@ -70,7 +71,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('qualified_input_surfaces_keep_current_capture_custody', 'core/perception/a_capture_owned_by_the_input_surface.py',
+    return (('motion_models_share_forward_heldout_observations', 'core/agency/motion_models_on_the_same_intervals.py',
+             'tests/test_motion_models_predict_the_same_future_intervals.py', lambda: _forward_motion_models_invariant() == (),
+             'Acceleration and direct-speed fits predict the same later measured physical holds; one hold votes once, initial acceleration keeps its causal admission gates, and switching needs independent contrary holds.'),
+            ('qualified_input_surfaces_keep_current_capture_custody', 'core/perception/a_capture_owned_by_the_input_surface.py',
              'tests/test_qualified_input_surfaces_survive_wordless_scenes.py', lambda: _owned_input_surface_invariant() == (),
              'A qualified input adapter can admit a fresh capture of a changed or wordless scene on the same active surface; copied metadata, stale captures, changed ownership and input-invalidated readings confer no authority.'),
             ('unbound_referents_request_current_instance_observation', 'core/agency/looking_for_an_unbound_referent.py',

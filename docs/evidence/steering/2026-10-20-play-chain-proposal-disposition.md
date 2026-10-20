@@ -157,3 +157,31 @@ none bound a destination. The recorder closed with 616 picture payloads,
 `frame-0001256.png` shows zero landings and one crash. This run does not
 establish that attention improved gameplay. Its private vision worker
 (PID 94168) was closed and no longer exists. G09 and holdouts were excluded.
+
+### Comparable forward motion evidence
+
+- [x] M2: `motion_models_on_the_same_intervals` freezes acceleration and
+  direct-speed fits from earlier completed holds. Both predict the same
+  later precision-bearing velocity intervals. Residuals use the same
+  measurement-noise scale and are retained in the ordinary recording.
+  Scores are comparison losses, not calibrated Bayesian probabilities.
+- [x] M3: an admitted acceleration law survives a changed pace statistic
+  and a temporarily insufficient raw effect. Each completed physical hold
+  supplies one vote. Two contrary holds with a loss margin are required to
+  change selected authority. Ambiguous observations cannot cast a vote.
+  New material owners/references cannot inherit admission from old contrasts.
+  The initial independent physical contrast/effect gates remain 20/20.
+- [x] M7, bounded component portion: acceleration, constant direct motion,
+  a changed law, a large unlabelled disturbance, changed owner/reference,
+  repeated receipt and bounded-memory cases exercise the production route.
+  The disturbance remains in both losses; it is not silently labelled a
+  collision. Positively witnessed contact and camera fixtures remain open.
+
+There were 125 passing controller regressions in 18.55 seconds. Smoke:
+164 passed, one skipped. Lint, compile, layering and writing passed in a
+74.65-second bounded gate run. The old original-program oracle directory
+`/private/tmp/codex-steer/lander-source-study/` no longer exists; its historical
+18/18 result has not been rerun here. P7 remains open.
+
+Bryan reserved the GPU for demo runs during this work. All subsequent work
+uses the CPU-only envelope; no model worker or native runtime is started.

@@ -165,8 +165,12 @@ class IntervalResponses:
     """One precision-qualified fit per physical hold, with bounded storage."""
 
     def __init__(self) -> None:
+        from core.agency.motion_models_on_the_same_intervals import MotionModelsOnTheSameIntervals
+
+        self.families = MotionModelsOnTheSameIntervals()
         self.samples: dict[tuple[str, float], list[VelocityInterval]] = {}
         self.best: dict[tuple[str, float], AccelerationEstimate] = {}
+        self.best_owners: dict[tuple[str, float], tuple] = {}
         self.through: dict[tuple[str, float], float] = {}
         self.ended: set[tuple[str, float]] = set()
         self.invalid: set[tuple[str, float]] = set()
@@ -181,6 +185,7 @@ class IntervalResponses:
         press = sample.key, sample.began
         if press in self.ended or press in self.invalid or sample.at <= self.through.get(press, -math.inf):
             return
+        self.families.add(sample)
         self.through[press] = sample.at
         samples = self.samples.setdefault(press, [])
         if samples and (samples[-1].at != sample.before or samples[-1].owner != sample.owner):
@@ -189,20 +194,24 @@ class IntervalResponses:
         del samples[:-128]
         estimate = acceleration_from_intervals(samples)
         old = self.best.get(press)
-        if estimate is not None and (old is None or estimate.error <= old.error):
+        if estimate is not None and (old is None or self.best_owners.get(press) != sample.owner or estimate.error <= old.error):
             self.best[press] = estimate
+            self.best_owners[press] = sample.owner
         self._trim()
 
     def end(self, press: tuple[str, float]) -> None:
         if self._remember_press(press):
+            self.families.end(press)
             self.ended.add(press)
             self.samples.pop(press, None)
 
     def unseen(self, press: tuple[str, float], *, contradicted: bool = False) -> None:
+        self.families.unseen(press, contradicted=contradicted)
         self.samples.pop(press, None)
         if contradicted and press not in self.ended and self._remember_press(press):
             self.invalid.add(press)
             self.best.pop(press, None)
+            self.best_owners.pop(press, None)
 
     def _remember_press(self, press: tuple[str, float]) -> bool:
         if (not isinstance(press, tuple) or len(press) != 2 or not isinstance(press[0], str)
@@ -216,13 +225,15 @@ class IntervalResponses:
         while len(self.through) > 80:
             old = min(self.through, key=lambda value: value[1])
             self.forgot_before = max(self.forgot_before, old[1])
-            for kept in (self.through, self.samples, self.best):
+            for kept in (self.through, self.samples, self.best, self.best_owners):
                 kept.pop(old, None)
             self.ended.discard(old)
             self.invalid.discard(old)
 
     def merge(self, other: IntervalResponses) -> None:
-        for name in ('samples', 'best', 'through'):
+        if other.families.through > self.families.through:
+            self.families = copy.deepcopy(other.families)
+        for name in ('samples', 'best', 'best_owners', 'through'):
             getattr(self, name).update(copy.deepcopy(getattr(other, name)))
         self.ended.update(other.ended)
         self.invalid.update(other.invalid)
@@ -230,17 +241,20 @@ class IntervalResponses:
         for press in tuple(self.best):
             if press in self.invalid or press[1] <= self.forgot_before:
                 self.best.pop(press, None)
+                self.best_owners.pop(press, None)
                 self.samples.pop(press, None)
         self._trim()
 
-    def groups(self) -> dict[str, list[AccelerationEstimate]]:
+    def groups(self, *, owner: tuple | None = None) -> dict[str, list[AccelerationEstimate]]:
         groups = defaultdict(list)
         for (key, _began), estimate in self.best.items():
+            if owner is not None and self.best_owners.get((key, _began)) != owner:
+                continue
             groups[key].append(estimate)
         return {key: values for key, values in groups.items() if len(values) >= 2}
 
-    def contrast(self, *, keys: tuple[str, str] | None = None) -> tuple[float, float]:
-        groups = self.groups()
+    def contrast(self, *, keys: tuple[str, str] | None = None, owner: tuple | None = None) -> tuple[float, float]:
+        groups = self.groups(owner=owner)
         results = [(0., 0.)]
         for first, second in itertools.combinations(groups, 2):
             if keys is not None and {first, second} != set(keys):

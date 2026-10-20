@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, bounded meter discovery, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.agency.motion_models_on_the_same_intervals", # Pure shared forward-prediction canary; no input or model worker.
     "+core.perception.a_capture_owned_by_the_input_surface", # Pure owned-capture canary; no page or input.
     "+core.agency.looking_for_an_unbound_referent", # Pure current-query attention canary; no provider or input.
     "+core.agency.a_requested_relation_in_play", # Pure destination refusal canary; no capture or input.

@@ -18,10 +18,29 @@ class MotionFamilyReading:
     push_effect: float
     pace_statistic: float | None = None
     stops_on_release: bool | None = None
+    prediction: Any = None
 
 
 def read_motion_family(speeds: Any, *, statistic_over: float, effect_over: float) -> MotionFamilyReading:
-    """Return the same ordered decision and the values it used."""
+    """Retain the initial gates and prefer qualified forward evidence when available."""
+    from dataclasses import replace
+
+    reading = _initial_motion_family(speeds, statistic_over=statistic_over, effect_over=effect_over)
+    models = getattr(getattr(speeds, 'intervals', None), 'families', None)
+    if models is None:
+        return reading
+    current_statistic, current_effect = speeds.intervals.contrast(owner=models.owner) if models.owner is not None else (0., 0.)
+    qualified = current_statistic >= statistic_over and current_effect >= effect_over
+    prediction = models.read(admitted_acceleration=reading.accelerated, qualified_push=qualified)
+    if prediction.selected is None:
+        if models.owner is not None and reading.accelerated and not qualified:
+            return replace(reading, accelerated=False, reason='current_material_push_unresolved', prediction=prediction)
+        return replace(reading, prediction=prediction)
+    return replace(reading, accelerated=prediction.selected, reason=prediction.reason, prediction=prediction)
+
+
+def _initial_motion_family(speeds: Any, *, statistic_over: float, effect_over: float) -> MotionFamilyReading:
+    """The original ordered predicates remain the initial admission evidence."""
     statistic, effect = speeds.by_push()
     if not statistic >= statistic_over:
         return MotionFamilyReading(False, 'push_statistic_unresolved', statistic, effect)
