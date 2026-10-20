@@ -1488,3 +1488,23 @@ The actor and integration group passed 121 tests. See
 `docs/evidence/steering/2026-10-20-current-end-pixels-stop-body-experiments.md`.
 Finish gates, push this checkpoint and measure ordinary carryover next.
 G09, holdouts and the native runtime remain untouched. Demo readiness is open.
+
+The phase checkpoint is pushed as `56502de79`; gates passed in 78.12 seconds.
+Its ordinary small-vision follow-up finished in 134.88 seconds with no win.
+The complete recording retained 308 selected bodies across 582 observations,
+48 choices, and zero visual-fallback body assignments. All 48 choices were
+`wait` with no bound requested destination. The motion classification also
+changed from accelerated to direct while useful acceleration estimates
+remained stored. See the whole-chain mechanical audit:
+`docs/evidence/steering/2026-10-20-why-the-whole-play-chain-still-fails.md`.
+Expose those exact refusal/model-selection branches, then falsify and repair
+them before another original test. PID 90144 was owned, cleaned up and
+confirmed gone. No native demo or campaign pass is established.
+
+The whole-chain audit now has executable branch records on the ordinary
+path. Goal binding records its actual refusal and bounded candidate names;
+motion-family selection records the actual predicates, body number and
+evaluation time. No thresholds or choices changed. The focused groups passed
+138 and 62 checks. Finish gates and measure those branches before choosing
+the next behavioral repair. The complete mechanical explanation is in the
+whole-chain evidence file above.

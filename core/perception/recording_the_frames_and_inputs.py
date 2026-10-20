@@ -380,8 +380,10 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
     if recorder is None:
         return
     from core.perception.translation_from_visible_support import motion_status
+    from dataclasses import asdict
 
     evidence = []
+    family = getattr(hers, 'motion_family_reading', None)
     for number, speeds in hers._by_thing.items():
         evidence.append(dict(number=int(number), ratio=list(speeds.ratio()),
             presses=[dict(key=key, began=began, samples=len(samples),
@@ -392,6 +394,7 @@ def record_control_observation(run: Any, moves: Any, hers: Any, at: Any) -> None
     recorder.offer(recorder.event('control_observation', at=float(at), selected=hers.number,
         epoch=hers.identification.epoch, trying=run.held_trying, held=run.held, held_since=run.held_since,
         carried=hers.carried, known_controls=list(hers.keys_that_move_her(run.keys)),
+        motion_family=(dict(at=family[0], number=family[1], **asdict(family[2])) if family is not None else None),
         measured_pushes={key: hers.push_of(key) for key in hers._hers.pushes()},
         owned_control_intervals=[dict(key=key, began=began, samples=len(samples),
             times=[sample[0] for sample in samples], later=samples is hers._hers.resumed_pushes.get((key, began)))
@@ -418,6 +421,7 @@ def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> 
     target = getattr(choosing, 'last_target', None)
     request = getattr(choosing.meeting, 'spatial_request', None)
     binding = getattr(choosing, 'goal_binding', None)
+    reading = getattr(choosing, 'goal_reading', None)
     imagined = getattr(choosing, 'planned', None)
     planned = (dict(first=imagined.plan.first, holds=list(imagined.plan.held),
                     worth=float(imagined.worth), decides=bool(imagined.decides),
@@ -430,6 +434,10 @@ def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> 
         planned=planned, response_s=float(choosing.response_s), next_picture_s=float(choosing.next_picture_s),
         told_gently=getattr(choosing.meeting, 'told_gently', None),
         requested=(dict(relation=request.relation, destination=request.destination, source=request.source,
+                        **(dict(binding_status=reading.status, named_referents=list(reading.named),
+                                named_count=reading.named_count, candidates=list(reading.candidates),
+                                candidate_count=reading.candidate_count,
+                                target_stance=getattr(choosing, 'goal_stance', None)) if reading is not None else {}),
                         bound_number=binding.thing.number if binding is not None else None)
                    if request is not None else None)))
 

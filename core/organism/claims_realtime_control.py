@@ -3,6 +3,8 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.a_requested_relation_in_play import _destination_reading_invariant
+    from core.agency.why_a_motion_history_is_called_carried import _motion_family_reading_invariant
     from core.brain.llm.a_model_in_the_local_cache import _local_model_cache_invariant
     from core.perception.what_things_look_like import _visual_naming_clock_invariant
     from core.perception.material_displacement_from_named_pixels import _material_displacement_precision_invariant
@@ -66,7 +68,11 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('current_reading_precedes_waiting_in_a_running_world', 'core/skills/screen_pursuit_on_a_page.py',
+    return (('play_refusals_keep_the_predicates_that_decided', 'core/agency/why_a_motion_history_is_called_carried.py',
+             'tests/test_play_refusals_keep_the_predicates_that_decided.py',
+             lambda: _motion_family_reading_invariant() == () and _destination_reading_invariant() == (),
+             'Recorded motion-family and destination readings preserve the predicates and refusal branches used by selection; unvisited tests remain unavailable and diagnostic truncation cannot change a decision.'),
+            ('current_reading_precedes_waiting_in_a_running_world', 'core/skills/screen_pursuit_on_a_page.py',
              'tests/test_current_reading_precedes_waiting_in_a_running_world.py', lambda: _read_before_scene_wait_invariant() == (),
              'A known running clock gives current reading priority over scene settling, while current words still decide navigation and no input authority is added.'),
             ('local_model_cache_cannot_supply_remote_authority', 'core/brain/llm/a_model_in_the_local_cache.py',

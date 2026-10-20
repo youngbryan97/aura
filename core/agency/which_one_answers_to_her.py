@@ -152,6 +152,7 @@ class _Speeds:
     resumed_pushes: dict[tuple[str, float], tuple[tuple[float, float, float], ...]] = field(default_factory=dict)
     resumed_through: dict[tuple[str, float], float] = field(default_factory=dict)
     intervals: IntervalResponses = field(default_factory=IntervalResponses)
+    last_family_reading: Any = None
 
     def end(self, key: str, began: float, *, physical: bool = True) -> None:
         """Keep the measured prefix; later inputs cannot extend or contradict it."""
@@ -367,8 +368,10 @@ class _Speeds:
     def carried(self) -> bool:
         """Whether it answers to her keys by how they push it, more than by the pace it goes under each, and goes on
         when a key is let go: it is carried on by its own going (see `pushes`)."""
-        f, gap = self.by_push()
-        return f >= ANSWERS and gap >= REALLY_MOVES and f > self._by_pace_alone() and not self._stops_when_let_go()
+        from core.agency.why_a_motion_history_is_called_carried import read_motion_family
+
+        self.last_family_reading = read_motion_family(self, statistic_over=ANSWERS, effect_over=REALLY_MOVES)
+        return self.last_family_reading.accelerated
 
     def _stops_when_let_go(self) -> bool:
         """Whether, let go of while going, it mostly stopped dead: a paddle does, and a thing carried on by its own
@@ -699,6 +702,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         #: Whether her thing is carried on by its own going and pushed by her keys (see `_Speeds.pushes`), and when that
         #: was last looked at.
         self.carried = False
+        self.motion_family_reading = None
         self._carried_checked = -math.inf
         self._outlines = _HowOutlinesGo()
         self._capture_intervals = CapturedIntervals()
@@ -1022,6 +1026,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
         if self.number is not None and at - self._carried_checked >= CARRIED_CHECKED_EVERY_S:
             self._carried_checked = at
             self.carried = self._hers.carried()
+            self.motion_family_reading = (at, self.number, self._hers.last_family_reading)
         elif self.number not in moves.things and not hidden:
             self.number = self._under_the_pointer(moves, at)
         self._remember_own_thing(moves, at)
@@ -1066,6 +1071,7 @@ class WhichIsHers(FollowsThePointer, FoundAnotherWay):
                     self._hers.free[key].extend(values[-50:])
             if best != self.number:
                 self.carried = self._by_thing[best].carried()
+                self.motion_family_reading = (at, best, self._by_thing[best].last_family_reading)
                 self._hers.timed.update({press: list(samples) for press, samples in self._by_thing[best].timed.items()})
                 self._hers.resumed_pushes.update(self._by_thing[best].resumed_pushes)
                 self._hers.ended.update(self._by_thing[best].ended)

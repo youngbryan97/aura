@@ -33,6 +33,18 @@ class BoundDestination:
     point: tuple[float, float]
 
 
+@dataclass(frozen=True)
+class DestinationReading:
+    """The binding result and the branch that produced it, from one scene."""
+
+    status: str
+    binding: BoundDestination | None = None
+    named: tuple[tuple[int | None, str], ...] = ()
+    named_count: int = 0
+    candidates: tuple[int | None, ...] = ()
+    candidate_count: int = 0
+
+
 _HOW = r'(?:safely|softly|gently|slowly|carefully)'
 _REL = r'(?P<relation>on top of|onto|inside|into|on|in|above|below|beside|next to|at|to)'
 _DIRECT = re.compile(
@@ -131,15 +143,25 @@ def bind_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
     An unmeasured, stale or duplicate candidate still competes for the name.
     Dropping it could turn an ambiguous request into a false unique match.
     """
+    return read_destination(request, mine, things, names, at).binding
+
+
+def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], names: Mapping[int, str] | NamesInScene,
+                     at: float | None) -> DestinationReading:
+    """Preserve the actual refusal without changing the binding criteria or selecting again."""
     wanted = _name_words(request.destination)
     if (not wanted or mine is None or not isinstance(at, (int, float)) or isinstance(at, bool) or not math.isfinite(at)
             or getattr(mine, 'seen', None) != at):
-        return None
-    candidates, best = [], 0
+        return DestinationReading('body_or_request_unavailable')
+    candidates, best, named, named_count = [], 0, [], 0
     for thing in things:
         if getattr(thing, 'number', None) == getattr(mine, 'number', None):
             continue
         name = names.for_thing(thing) if isinstance(names, NamesInScene) else names.get(getattr(thing, 'kind', -1), '')
+        if name:
+            named_count += 1
+            if len(named) < 32:
+                named.append((getattr(thing, 'number', None), str(name)[:160]))
         words = _name_words(name)
         if wanted[-1] not in words:
             continue
@@ -149,13 +171,38 @@ def bind_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
         if score > best:
             candidates, best = [], score
         candidates.append(thing)
-    if len(candidates) != 1 or best != len(set(wanted)):
-        return None
+    facts = dict(named=tuple(named), named_count=named_count,
+                 candidates=tuple(getattr(thing, 'number', None) for thing in candidates[:32]), candidate_count=len(candidates))
+    if not candidates:
+        return DestinationReading('no_named_referent', **facts)
+    if len(candidates) != 1:
+        return DestinationReading('ambiguous_named_referent', **facts)
+    if best != len(set(wanted)):
+        return DestinationReading('incomplete_name', **facts)
     target = candidates[0]
     if getattr(target, 'seen', None) != at:
-        return None
+        return DestinationReading('referent_not_current', **facts)
     point = position_for_relation(request.relation, mine, target)
-    return BoundDestination(request, target, point) if point is not None else None
+    if point is None:
+        return DestinationReading('relation_geometry_unavailable', **facts)
+    return DestinationReading('bound', BoundDestination(request, target, point), **facts)
+
+
+@invariant('agency.destination_refusals_keep_the_deciding_branch', scope='agency',
+           owner='core/agency/a_requested_relation_in_play.py', observational=False)
+def _destination_reading_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    body = SimpleNamespace(number=1, kind=1, seen=3., x=20., y=20., w=10., h=10.)
+    target = SimpleNamespace(number=2, kind=2, seen=3., x=50., y=60., w=30., h=10.)
+    request = SpatialRequest('on', 'blue platform', '')
+    missing = read_destination(request, body, [target], {2: 'base'}, 3.)
+    partial = read_destination(request, body, [target], {2: 'platform'}, 3.)
+    bound = read_destination(request, body, [target], {2: 'blue platform'}, 3.)
+    assert missing.status == 'no_named_referent' and missing.binding is None
+    assert partial.status == 'incomplete_name' and partial.binding is None
+    assert bound.status == 'bound' and bound.binding.thing is target
+    return ()
 
 
 def observed_names(moves: Any) -> dict[int, str] | NamesInScene:
@@ -192,13 +239,18 @@ def _scene_referents(moves: Any) -> list[Any]:
 def requested_target(choosing: Any) -> tuple | None:
     """Give an explicit request priority; an unbound referent waits for observation."""
     request = getattr(getattr(choosing, 'meeting', None), 'spatial_request', None)
+    choosing.goal_reading = choosing.goal_stance = None
     if request is None or choosing.mine is None:
         return None
     # A spatial referent can be scenery or share her visual kind. Interaction
     # heuristics must not remove it, or remove a rival that keeps its name ambiguous.
-    binding = bind_destination(request, choosing.mine, _scene_referents(choosing.moves), observed_names(choosing.moves), choosing.at)
+    reading = read_destination(request, choosing.mine, _scene_referents(choosing.moves), observed_names(choosing.moves), choosing.at)
+    choosing.goal_reading = reading
+    binding = reading.binding
     choosing.goal_binding = binding
-    if binding is not None and choosing.stance(binding.thing) not in ('avoid', 'shoot', 'ignore'):
+    if binding is not None:
+        choosing.goal_stance = choosing.stance(binding.thing)
+    if binding is not None and choosing.goal_stance not in ('avoid', 'shoot', 'ignore'):
         return binding.point, 'meet', binding.thing
     # Stabilize where she is while the referent is missing. Unknown scenery
     # cannot become a replacement destination or a predicted contact reward.

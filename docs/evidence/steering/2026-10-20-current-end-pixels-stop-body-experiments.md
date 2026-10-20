@@ -37,3 +37,12 @@ No landing, original-game win or native demo readiness is established.
 
 Checkpoint gates passed in 78.12 seconds: smoke (164 passed, one skipped),
 lint, compile, layering, generated DEPS and writing. Baselines were unchanged.
+
+The ordinary follow-up at `56502de79` finished in 134.88 seconds. It still
+won nothing. The complete recording has 582 control observations, 308 body
+selections and 48 choices, all `wait` with unbound requested destinations.
+No visual-fallback body assignment was logged. Current end screens returned
+to navigation, including a 2.4-second initial end stretch. The private worker
+was stopped and its PID confirmed gone. This supports carryover of the phase
+guard in one run, not general gameplay readiness. The next mechanical audit
+is `2026-10-20-why-the-whole-play-chain-still-fails.md` in this directory.
