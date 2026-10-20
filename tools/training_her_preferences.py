@@ -56,44 +56,49 @@ class Pairs:
 
 def batches(dataset: Pairs, batch_size: int, max_seq_length: int, loop: bool = False, seed: int | None = None,
             comm_group: Any = None):
-    """One row at a time, as mlx_lm's trainer takes them: a reply alone, or its chosen and rejected answers together."""
+    """One row at a time, as mlx_lm's trainer takes them: a reply alone, or its chosen and rejected answers, each at its
+    own length, as (tokens, span) or (tokens, span, tokens, span)."""
     import mlx.core as mx
     import numpy as np
 
     order = np.random.default_rng(seed).permutation(len(dataset)) if seed is not None else np.arange(len(dataset))
     while True:
         for index in order:
-            item = dataset[int(index)]
-            longest = min(max(len(t) for t, _ in item), max_seq_length)
-            width = 1 + 32 * ((longest + 31) // 32)
-            rows = np.zeros((len(item), min(width, max_seq_length)), np.int32)
-            lengths = []
-            for at, (tokens, begins) in enumerate(item):
+            batch: list[Any] = []
+            for tokens, begins in dataset[int(index)]:
                 kept = tokens[:max_seq_length]
-                rows[at, :len(kept)] = kept
-                lengths.append((begins, len(kept)))
-            yield mx.array(rows), mx.array(lengths)
+                row = np.zeros((1, min(1 + 32 * ((len(kept) + 31) // 32), max_seq_length)), np.int32)
+                row[0, :len(kept)] = kept
+                batch += [mx.array(row), mx.array([[begins, len(kept)]])]
+            yield tuple(batch)
         if not loop:
             break
 
 
-def orpo_loss(model: Any, batch: Any, lengths: Any) -> tuple[Any, Any]:
-    """The chosen answer's loss per token, and with a rejected answer beside it, LAMBDA times ORPO's odds-ratio term."""
+def orpo_loss(model: Any, *rows: Any) -> tuple[Any, Any]:
+    """The chosen answer's loss per token, and with a rejected answer beside it, LAMBDA times ORPO's odds-ratio term.
+
+    Each answer runs at its own length. Padded to the longer of the two, as at first, a pair took the room of twice its
+    longer answer, and attempt 3, with no pairs, had already reached 86 GB on a 64 GB machine (19 October)."""
     import mlx.core as mx
     import mlx.nn as nn
 
-    inputs, targets = batch[:, :-1], batch[:, 1:]
-    logits = model(inputs)
-    steps = mx.arange(1, targets.shape[1] + 1)
-    mask = mx.logical_and(steps >= lengths[:, 0:1], steps <= lengths[:, 1:])
-    token_logp = -nn.losses.cross_entropy(logits, targets).astype(mx.float32) * mask
-    counted = mask.sum(axis=1)
-    loss = -token_logp[0].sum() / counted[0]
-    if batch.shape[0] == 2:
-        mean_logp = mx.minimum(token_logp.sum(axis=1) / counted, -1e-6)
+    def logp(tokens: Any, span: Any) -> tuple[Any, Any]:
+        inputs, targets = tokens[:, :-1], tokens[:, 1:]
+        steps = mx.arange(1, targets.shape[1] + 1)
+        # Target at step s is token s. mlx_lm's own mask (s <= length) also counts the padding after the last token.
+        mask = mx.logical_and(steps >= span[:, 0:1], steps < span[:, 1:])
+        token_logp = -nn.losses.cross_entropy(model(inputs), targets).astype(mx.float32) * mask
+        return token_logp.sum(), mask.sum()
+
+    chosen, counted = logp(*rows[:2])
+    loss = -chosen / counted
+    if len(rows) == 4:
+        rejected, rejected_counted = logp(*rows[2:])
+        mean_logp = mx.minimum(mx.stack([chosen / counted, rejected / rejected_counted]), -1e-6)
         log_odds = mean_logp - mx.log(-mx.expm1(mean_logp))
         loss = loss - LAMBDA * nn.log_sigmoid(log_odds[0] - log_odds[1])
-    return loss, counted[0]
+    return loss, counted
 
 
 def main(argv: list[str] | None = None) -> int:

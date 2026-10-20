@@ -210,8 +210,66 @@ def test_the_preference_rows_carry_where_her_words_begin_for_both_answers():
     (chosen, c_at), (rejected, r_at) = pairs[0]
     assert "".join(map(chr, chosen[c_at:])).startswith("I'm Aura.") and "".join(map(chr, rejected[r_at:])).startswith("Yes, I'm Qwen.")
     assert len(pairs[1]) == 1
-    shapes = [tuple(batch.shape) for batch, _lengths in batches(pairs, 1, 4096, seed=0)]
-    assert sorted(s[0] for s in shapes) == [1, 2]
+    made = list(batches(pairs, 1, 4096, seed=0))
+    assert sorted(len(b) for b in made) == [2, 4]
+
+
+def test_each_answer_of_a_pair_is_batched_at_its_own_length():
+    from tools.training_her_preferences import Pairs, batches
+
+    rows = [{"messages": [{"role": "user", "content": "Are you Qwen?"}, {"role": "assistant", "content": "I'm Aura."}],
+             "rejected": "Yes, I'm Qwen, a large language model made by Alibaba Cloud. " * 4}]
+    (pair,) = batches(Pairs(rows, _Template()), 1, 4096, seed=0)
+    for tokens, span in (pair[:2], pair[2:]):
+        length = int(span[0, 1])
+        assert length < tokens.shape[1] <= length + 33
+    assert pair[2].shape[1] > pair[0].shape[1] + 100
+
+
+class _Tiny:
+    """A model of one embedding and one projection, enough to check the loss by hand."""
+
+    def __init__(self):
+        import mlx.core as mx
+        import mlx.nn as nn
+
+        mx.random.seed(0)
+        self.embed, self.out = nn.Embedding(16, 4), nn.Linear(4, 16)
+
+    def __call__(self, inputs):
+        return self.out(self.embed(inputs))
+
+
+def _logp_by_hand(model, tokens, begins, length):
+    import mlx.core as mx
+    import numpy as np
+
+    logits = np.array(model(mx.array([tokens[:-1]])))[0].astype(np.float64)
+    logp = logits - np.log(np.exp(logits).sum(axis=1, keepdims=True))
+    return [logp[s - 1, tokens[s]] for s in range(begins, length)]
+
+
+def test_the_loss_is_her_words_alone_and_the_odds_ratio_prefers_the_chosen_answer():
+    import math
+
+    import mlx.core as mx
+
+    from tools.training_her_preferences import LAMBDA, orpo_loss
+
+    model = _Tiny()
+    chosen, rejected = [1, 2, 3, 4, 5, 6, 0, 0, 0], [1, 2, 3, 9, 10, 0]
+    c_span, r_span = mx.array([[3, 6]]), mx.array([[3, 5]])
+    alone, counted = orpo_loss(model, mx.array([chosen]), c_span)
+    c_logp = _logp_by_hand(model, chosen, 3, 6)
+    assert int(counted) == 3 and math.isclose(float(alone), -sum(c_logp) / 3, rel_tol=1e-4)
+    # What follows the last token is not counted, whatever it is.
+    padded_otherwise = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    assert math.isclose(float(orpo_loss(model, mx.array([padded_otherwise]), c_span)[0]), float(alone), rel_tol=1e-5)
+
+    paired, _ = orpo_loss(model, mx.array([chosen]), c_span, mx.array([rejected]), r_span)
+    odds = [m - math.log(-math.expm1(m)) for m in (sum(c_logp) / 3, sum(_logp_by_hand(model, rejected, 3, 5)) / 2)]
+    by_hand = -sum(c_logp) / 3 - LAMBDA * -math.log1p(math.exp(-(odds[0] - odds[1])))
+    assert math.isclose(float(paired), by_hand, rel_tol=1e-4)
 
 
 def test_her_models_answers_about_the_world_train_as_they_are_and_never_as_a_claim_about_herself(tmp_path, monkeypatch):

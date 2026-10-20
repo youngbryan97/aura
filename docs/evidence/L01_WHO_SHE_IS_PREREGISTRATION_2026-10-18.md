@@ -302,3 +302,20 @@ Reported beside them: every probe answer that ran to the token limit, and the sy
 
 Source: the commit that adds this section (the chain writes it to `attempt4/source_commit.txt`). Chain:
 `~/.aura/rlc-evidence/aura-fixes/l01_attempt4.sh`, after L09 attempt 2's chain.
+
+## Attempt 4 amendment, 19 October 2026, 17:37, before any of it has run
+
+Two changes to how a pair is trained, made before the chain had started a step; the criteria, the data and every
+setting above are as registered.
+
+- **Each answer of a pair runs at its own length.** As first registered (1d16ef627), a pair went to her model as one
+  batch padded to its longer answer, which takes the room of twice that answer, and attempt 3, with no pairs, had
+  already reached 85.9 GB on this 64 GB machine. Run one after the other inside the one loss, a pair takes the room of
+  its two answers, the 4,000 characters this registration already holds it to.
+- **The padding after a row is not counted.** The mask mlx_lm's own loss uses, and the first version copied, counts
+  one target past each row's last token: the padding. For the usual loss that is one token in hundreds; for ORPO's
+  mean log-probability it puts the same junk term into both answers. A test now computes the loss by hand on a small
+  model and fails on the old mask (`tests/test_who_she_is_consolidated.py`).
+
+Six steps of the new trainer ran on Qwen2.5-1.5B on three rows by hand, two of them pairs; the chain's own run on the
+1.5B comes first, as registered. Source: the commit that adds this section.
