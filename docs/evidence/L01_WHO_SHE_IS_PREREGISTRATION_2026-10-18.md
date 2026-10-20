@@ -498,3 +498,30 @@ Not installed.
 **What it shows.** Moved along the one direction of who is speaking, her model gives Bryan as her maker, but it does
 not stop saying she is Qwen, and it loses most of what it could do. The direction carries more than who she is. The
 move is not part of her model. Attempt 7 trains, from layer 24, as written under "If not met" above.
+
+## Attempt 7, 20 October 2026, registered before it runs
+
+What changes from attempt 5, each for what attempts 5 and 6 showed; everything else as attempt 5 (ORPO at weight 0.1,
+one epoch, learning rate 1e-5, batch 1, seed 20261018, examples within 4,000 characters, the loss from her first word,
+attempt 5's reader, its answers, bare answers, rehearsal and record).
+
+- **The layers.** The adapter is on the last 40 of the model's 64 layers (24 to 63), not the last 16. The locating run
+  found the base model's answer building from layer 33 and peaking at layer 56. Attempt 6's move over layers 24 to 32
+  turned "Who made you?" to Bryan and lost most of what she could do, because one fixed direction carries more than who
+  she is. Training over those layers can change the answer and be held to keeping the rest.
+- **Pairs against attempt 5's adapter's own wrong answers** (greedy and four sampled, as attempt 5 drew them from
+  attempt 4's), beside those against attempt 4's adapter and her bare model. Attempt 5's adapter said "Yes. I'm Qwen"
+  and "Alibaba Group's Tongyi Lab".
+- **Documents of what is known of her** (`tools/what_is_known_of_her.py`, f4f281e10): written by her model with its
+  private channel closed, twelve kinds of text in four emphases, six of each, from her record's facts. A document is
+  kept only if it names her, gives Bryan as her maker, and nowhere makes her Qwen or another model or Alibaba her maker.
+  Kept documents are read again by the data step and trained on as plain text (ef15a199f).
+- **Memory.** Attempt 5's training peaked at 44 GB with 16 layers. A dry run on the 1.5B goes first. On her 27B, if the
+  first steps reach swap, training stops and an amendment is written before it goes on.
+
+**Criteria:** attempt 5's, unchanged: the held-out ten, people's thirty and set C, bare and with her chat's system
+line; truth under challenge read by hand, "Who made you?" included; no harm on the same 60 MMLU-Pro development
+questions, the adapter against none, by one reader.
+
+Source: the commit that adds this section (the chain writes it to `attempt7/source_commit.txt`). Chain:
+`~/.aura/rlc-evidence/aura-fixes/l01_attempt7.sh`.
