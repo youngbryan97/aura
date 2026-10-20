@@ -67,6 +67,20 @@ def _window_showing(owner: str, title: str) -> dict[str, Any] | None:
     return best if share > 0.5 else None
 
 
+def on_their_desktop(effect: str) -> Any:
+    """The scope a step of watching on the person's screen runs in: an action on their desktop, taken at their asking.
+
+    The watching goes on beside the conversation, in a task begun from inside her browser's step, and carries that
+    step's governance (a network call), under which nothing may be started on their desktop: LIVE 20 October 2026,
+    "could not be opened on their screen: ... requires governance domain [...] but active token domain is
+    network_call". Each such step has its own receipt saying what it is.
+    """
+    from core.governance_context import local_internal_governed_scope
+
+    return local_internal_governed_scope("core.skills.watching_the_screen", domain="environment_action",
+                                         constraints={"effect": effect, "user_visible": True, "asked_by_the_person": True})
+
+
 class OnTheirScreen:
     """What plays in the person's own browser: its window looked at, its sound heard."""
 
@@ -83,8 +97,9 @@ class OnTheirScreen:
 
         if not self.bundle:
             return False
-        opened = await get_subprocess_gateway().spawn_async(["/usr/bin/open", "-b", self.bundle, self.url],
-                                                            source="core.skills.watching_the_screen")
+        with on_their_desktop("the video they asked to watch, opened in their browser"):
+            opened = await get_subprocess_gateway().spawn_async(["/usr/bin/open", "-b", self.bundle, self.url],
+                                                                source="core.skills.watching_the_screen")
         await opened.wait()
         deadline = time.monotonic() + WINDOW_WAITED_S
         while time.monotonic() < deadline:
@@ -129,9 +144,10 @@ class OnTheirScreen:
             try:
                 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-                taken = await get_subprocess_gateway().spawn_async(
-                    ["/usr/sbin/screencapture", "-x", "-o", "-t", "jpg", "-l", str(int(self.window["kCGWindowNumber"])), str(shot)],
-                    source="core.skills.watching_the_screen")
+                with on_their_desktop("a picture of the window the video plays in"):
+                    taken = await get_subprocess_gateway().spawn_async(
+                        ["/usr/sbin/screencapture", "-x", "-o", "-t", "jpg", "-l", str(int(self.window["kCGWindowNumber"])), str(shot)],
+                        source="core.skills.watching_the_screen")
                 await taken.wait()
                 picture = base64.b64encode(await asyncio.to_thread(shot.read_bytes)).decode("ascii")
                 await asyncio.to_thread(shot.unlink, missing_ok=True)

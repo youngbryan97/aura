@@ -198,3 +198,17 @@ def test_a_remark_thought_while_they_began_talking_is_not_said_over_them(monkeyp
     assert "a thought about the magma" not in said
     assert any(row.get("kind") == "held back" for row in kept)
     assert said[-1] == "what I made of it"  # the end waited for the floor, then was said
+
+
+def test_the_runtimes_own_probe_is_not_who_she_watches_with():
+    """LIVE 20 October 2026: Bryan asked her to watch, and the watching was with "person:someone at
+    desktop_influence_probe", the autonomy conductor's experiment, the last "person" in her record."""
+    from core.together.taking_it_up import its_own_turn, who_she_is_with
+
+    def person(key, last, under_way=False):
+        return SimpleNamespace(kind="person", key=key, last=last, under_way=under_way)
+
+    record = SimpleNamespace(_things={"a": person("person:bryan", 100.0),
+                                      "b": person("person:someone at desktop_influence_probe", 200.0, under_way=True)})
+    assert its_own_turn("desktop_influence_probe") and not its_own_turn("desktop_ui")
+    assert who_she_is_with(record) == "person:bryan"

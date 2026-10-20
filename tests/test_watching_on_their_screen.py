@@ -97,3 +97,29 @@ def test_a_window_is_the_one_whose_title_shares_most_of_what_was_opened(monkeypa
         kCGWindowListOptionOnScreenOnly=1, kCGNullWindowID=0, CGWindowListCopyWindowInfo=lambda *_: windows))
     assert screen._window_showing("Browser", "Why Volcanoes Erupt - Videos")["kCGWindowName"].startswith("Why Volcanoes")
     assert screen._window_showing("Browser", "Something Else Entirely") is None
+
+
+def test_it_opens_on_their_screen_under_its_own_receipt_whatever_step_began_it(monkeypatch):
+    """LIVE 20 October 2026: the watching, begun from her browser's step, carried that step's network-call governance,
+    under which nothing may be started on their desktop, and the film was never opened."""
+    import core.skills.watching_the_screen as screen
+    from core.governance_context import get_active_governance, governed_scope_sync
+
+    window = {"kCGWindowNumber": 7, "kCGWindowName": "Why Volcanoes - Videos - Browser"}
+    _screen_module, gateway = _screen(monkeypatch, iter([window] * 4))
+    domains = []
+
+    class _Gateway:
+        async def spawn_async(self, argv, **_kw):
+            token = get_active_governance()
+            domains.append(token.domain if token else None)
+            return SimpleNamespace(wait=lambda: asyncio.sleep(0))
+
+    monkeypatch.setattr("core.runtime.subprocess_gateway.get_subprocess_gateway", lambda: _Gateway())
+
+    async def go():
+        with governed_scope_sync(SimpleNamespace(receipt_id="will-browse-1", domain="network_call", source="sovereign_browser")):
+            return await screen.on_their_screen("https://videos.example/v/1", "Why Volcanoes - Videos", 300.0)
+
+    assert asyncio.run(go()) is not None
+    assert domains == ["environment_action"]

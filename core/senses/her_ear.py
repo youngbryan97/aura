@@ -157,12 +157,17 @@ class HerEar:
 
     async def start(self, *, ready_s: float = 60.0) -> bool:
         """Start listening; True once the ear reports it hears the application."""
+        from core.governance_context import local_internal_governed_scope
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
         try:
-            self.process = await get_subprocess_gateway().spawn_async(
-                [sys.executable, "-m", "core.senses.her_ear", "--app", self.bundle],
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, source="core.senses.her_ear")
+            # Its own receipt: hearing one application of the person's, at their asking (core/skills/watching_the_screen.py).
+            with local_internal_governed_scope("core.senses.her_ear", domain="environment_action",
+                                               constraints={"effect": "the sound of one application, heard",
+                                                            "app": self.bundle, "user_visible": False}):
+                self.process = await get_subprocess_gateway().spawn_async(
+                    [sys.executable, "-m", "core.senses.her_ear", "--app", self.bundle],
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, source="core.senses.her_ear")
         except (OSError, RuntimeError, ValueError, AttributeError, TypeError) as why:
             self.why_not = f"the ear did not start: {why}"
             return False

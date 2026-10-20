@@ -321,9 +321,23 @@ def who_it_is(person: str, sent_from: str) -> str:
 _HEARING: set[Any] = set()
 
 
+#: What the runtime calls its own turns when it names them (core/learning/live_learner.py ``a_persons_turn``): a turn
+#: from one is not somebody's. LIVE 20 October 2026, a watching asked for by Bryan was watched with "person:someone at
+#: desktop_influence_probe", the autonomy conductor's experiment, the last "person" she had heard from.
+_ITS_OWN_TURNS = frozenset({"probe", "benchmark"})
+
+
+def its_own_turn(origin: str) -> bool:
+    """Whether a turn, or a person in her record, is one of the runtime's own: a probe or a benchmark of it."""
+    from core.runtime.background_policy import origin_tokens
+
+    return bool(origin_tokens(origin) & _ITS_OWN_TURNS)
+
+
 def who_she_is_with(record: Any) -> str:
     """Who a turn with no name on it is from: whoever she is talking with, or the last person she met."""
-    people = [thing for thing in getattr(record, "_things", {}).values() if thing.kind == "person"]
+    people = [thing for thing in getattr(record, "_things", {}).values()
+              if thing.kind == "person" and not its_own_turn(thing.key)]
     if not people:
         return who_it_is("", "")
     talking = [thing for thing in people if thing.under_way]
@@ -339,6 +353,8 @@ def hear_in_the_background(said: str, *, person: str = "", sent_from: str = "") 
     A turn that arrives with no name and no place on it, as one through the
     kernel does, is from whoever she is with.
     """
+    if its_own_turn(sent_from):
+        return
     taking = install()
     try:
         who = who_it_is(person, sent_from) if (person or sent_from) else who_she_is_with(taking._her_record())
