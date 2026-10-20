@@ -1795,18 +1795,15 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     steps.append({"why": str(decision.get("why") or ""), "done": True})
                     break
 
-                # The same list she was shown, in the same order. Rendering a
-                # ranked subset and resolving against the raw list would mean
-                # index 3 named one control on screen and a different one in the
-                # click — the precise way these loops end up pressing whatever
-                # moved into slot four.
+                # The same list she was shown, in the same order. Rendering a ranked subset and resolving against the
+                # raw list would mean index 3 named one control on screen and a different one in the click — the
+                # precise way these loops end up pressing whatever moved into slot four.
                 elements = self._controls_worth_offering(
                     list(observation.get("elements") or []), goal
                 )
-                # One move is one action and the words she would say for it.
-                # Kept together so the loop can say that one and then make that
-                # one, in order, rather than making every choice and then
-                # reading out a list of what it had done.
+                # One move is one action and the words she would say for it. Kept together so the loop can say that
+                # one and then make that one, in order, rather than making every choice and then reading out a list of
+                # what it had done.
                 moves = _moves_from_the_decision(decision, elements)
 
                 if not moves:
