@@ -16,6 +16,10 @@ from .watching_along import WHAT_PLAYS, clock, kept_at, watch_along
 WATCHING = "::watching"
 #: The longest a watching is held at one choosing when the page does not say how long its video is.
 WATCHED_AT_MOST_S = 30 * 60.0
+#: The share of the view a video takes when it is what the page is for. Measured 19 October 2026 in a 1024 by 768
+#: view: a channel's page plays its trailer at 0.128 of it, a page for one video plays it at 0.293. A video watched
+#: first takes at least this; a smaller one is offered and watched when her model chooses it.
+THE_PAGE_IS_ITS_VIDEO = 0.2
 #: When each request to watch was last watched first, so that a request is watched first once: a site that plays the
 #: next video when one ends (at a new address) is not watched on by itself. After it, her model decides.
 _WATCHED_FOR: dict[str, float] = {}
@@ -40,7 +44,9 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
         return observation
     length = f", {clock(plays['duration'])} long" if plays.get("duration") else ""
     name = f"what this page plays, a video{length}: choosing it watches it as it plays, start to end, with whoever asked"
-    return {**observation, "elements": [*observation["elements"], {"role": "watching", "name": name, "selector": WATCHING}]}
+    share = plays["w"] * plays["h"] / max(1.0, float(plays.get("vw") or 0) * float(plays.get("vh") or 0))
+    return {**observation, "elements": [*observation["elements"],
+                                        {"role": "watching", "name": name, "selector": WATCHING, "share_of_view": round(share, 3)}]}
 
 
 def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
@@ -57,7 +63,8 @@ def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) 
 
     if what_the_task_needs(goal) != "run" or time.time() - _WATCHED_FOR.get(goal, 0.0) < WATCHED_FIRST_ONCE_IN_S:
         return None
-    if not any(isinstance(e, dict) and e.get("selector") == WATCHING for e in observation.get("elements") or []):
+    if not any(isinstance(e, dict) and e.get("selector") == WATCHING and float(e.get("share_of_view") or 0) >= THE_PAGE_IS_ITS_VIDEO
+               for e in observation.get("elements") or []):
         return None
     if take:
         _WATCHED_FOR[goal] = time.time()

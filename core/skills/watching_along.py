@@ -33,6 +33,10 @@ logger = logging.getLogger("Aura.WatchingAlong")
 #: How often she looks at what plays, and how long she lets pass between two things she says, at least.
 LOOK_EVERY_S = 5.0
 QUIET_AT_LEAST_S = 15.0
+#: How long an end is given to stay an end. A site that plays an advert first plays it in the same video, which
+#: reports itself ended when the advert does and then plays the video asked for (measured on a watch page, 19 October
+#: 2026: a 15-second advert in the one video element).
+AN_END_HOLDS_S = 4.0
 #: The origin her turns while watching carry: a desktop turn, started by the person's request.
 ORIGIN = "desktop_watching_along"
 
@@ -55,7 +59,7 @@ WHAT_PLAYS = r"""() => {
     const b = el.getBoundingClientRect(); if (b.width <= 0 || b.height <= 0) continue;
     if (b.left < r.right && b.right > r.left && b.top < r.bottom && b.bottom > r.top) words.push(t);
   }
-  return {x: r.left, y: r.top, w: r.width, h: r.height, at: best.currentTime || 0,
+  return {x: r.left, y: r.top, w: r.width, h: r.height, vw: innerWidth, vh: innerHeight, at: best.currentTime || 0,
           duration: isFinite(best.duration) ? best.duration : 0, paused: best.paused, ended: best.ended,
           words: words.join(' ').slice(0, 600)};
 }"""
@@ -109,8 +113,9 @@ class Watching:
     said: list[tuple[float, str]] = field(default_factory=list)
     ended: bool = False
 
-    def since(self, at: float) -> list[Moment]:
-        return [m for m in self.moments if m.at > at]
+    def since(self, looks: int) -> list[Moment]:
+        """The moments after the first ``looks``: counted by look, since a video's clock starts again after an advert."""
+        return self.moments[looks:]
 
 
 def what_she_watched(moments: list[Moment], *, room: int = 3000) -> str:
@@ -156,15 +161,19 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
                 f"What the page shows: {first}", 0.0, "before")
     await page.evaluate(PLAY_WITH_CAPTIONS)
     began = time.monotonic()
-    spoke_at_video, spoke_at_wall = 0.0, time.monotonic()
+    spoke_after_looks, spoke_at_wall = 0, time.monotonic()
     speaking: asyncio.Task | None = None
     while at_most_s is None or time.monotonic() - began < at_most_s:
         plays = await page.evaluate(WHAT_PLAYS)
         if not plays:
             break
         if plays.get("ended"):
-            watching.ended = True
-            break
+            await asyncio.sleep(AN_END_HOLDS_S)
+            again = await page.evaluate(WHAT_PLAYS)
+            if not again or again.get("ended"):
+                watching.ended = True
+                break
+            continue
         skipped = await page.evaluate(SKIP_WHAT_COMES_FIRST)
         if skipped:
             keep({"kind": "skipped", "control": skipped, "wall": time.time()})
@@ -174,11 +183,11 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         watching.moments.append(moment)
         perceive(moment.seen, moment.read)
         keep({"kind": "moment", "at": moment.at, "seen": moment.seen, "read": moment.read, "wall": time.time()})
-        new = watching.since(spoke_at_video)
+        new = watching.since(spoke_after_looks)
         if ((speaking is None or speaking.done()) and new and time.monotonic() - spoke_at_wall >= quiet_at_least_s):
             observation = f"playing, at {clock(moment.at)} of {clock(plays.get('duration') or 0)}.\n{what_she_watched(new)}"
             speaking = asyncio.ensure_future(speak(observation, moment.at, "during"))
-            spoke_at_video, spoke_at_wall = moment.at, time.monotonic()
+            spoke_after_looks, spoke_at_wall = len(watching.moments), time.monotonic()
         await asyncio.sleep(look_every_s)
     if speaking is not None:
         await speaking

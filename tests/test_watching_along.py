@@ -47,6 +47,7 @@ async def test_what_a_page_plays_is_offered_and_handed_over_to_watching():
         await browser.close()
         await playwright.stop()
     assert offered["elements"][-1]["selector"] == WATCHING and "0:06 long" in offered["elements"][-1]["name"]
+    assert offered["elements"][-1]["share_of_view"] == 0.48  # 640 by 360 in an 800 by 600 view
     assert [e["role"] for e in nothing["elements"]] == ["button"]
     assert handed_over([(SimpleNamespace(selector=WATCHING), "")]) is watched_on_the_page
     assert handed_over([(SimpleNamespace(selector="#cc"), "")]) is None
@@ -100,10 +101,49 @@ def test_asked_to_watch_she_watches_first_once_a_request(monkeypatch):
     import core.skills.sovereign_browser_on_the_page as on_the_page
 
     monkeypatch.setattr(on_the_page, "_WATCHED_FOR", {})
-    page = {"url": "https://videos.example/watch?v=1", "elements": [{"role": "button"}, {"role": "watching", "selector": on_the_page.WATCHING}]}
+    page = {"url": "https://videos.example/watch?v=1",
+            "elements": [{"role": "button"}, {"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.293}]}
+    trailer = {**page, "elements": [{"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.128}]}
+    assert on_the_page.watched_first(trailer, ASKED) is None  # a channel's trailer is not what the page is for
     assert on_the_page.watched_first(page, ASKED, take=False)["resolved_actions"][0]["selector"] == on_the_page.WATCHING
     assert on_the_page.watched_first(page, "Summarise what this page says.") is None  # not asked to watch
     assert on_the_page.watched_first({**page, "elements": [{"role": "button"}]}, ASKED) is None  # nothing plays
     assert on_the_page.watched_first(page, ASKED) is not None
     assert on_the_page.watched_first(page, ASKED) is None  # once a request: after it, her model decides
     assert on_the_page.watched_first({**page, "url": "https://videos.example/watch?v=2"}, ASKED) is None  # the next one
+
+
+@pytest.mark.asyncio
+async def test_an_advert_ending_first_does_not_end_the_watching(monkeypatch):
+    """A site that plays an advert first plays it in the same video, which reports itself ended when the advert
+    does and then plays the video asked for."""
+    import core.skills.watching_along as watching_along
+
+    monkeypatch.setattr(watching_along, "AN_END_HOLDS_S", 0.0)
+    states = iter([{"at": 5.0, "duration": 15.0}, {"ended": True},  # the advert ends...
+                   {"at": 1.0, "duration": 60.0}, {"at": 2.0, "duration": 60.0},  # ...and the video asked for plays
+                   {"at": 30.0, "duration": 60.0}, {"ended": True}, {"ended": True}])
+
+    class Page:
+        async def evaluate(self, script, *_):
+            if script == watching_along.WHAT_PLAYS:
+                return {"x": 0, "y": 0, "w": 640, "h": 360, "vw": 800, "vh": 600, "words": "", "paused": False,
+                        "ended": False, **next(states)}
+            return {"title": "A video"} if script == watching_along.WHAT_THE_PAGE_SAYS else ""
+
+    async def look(_when):
+        return "a picture"
+
+    said = []
+
+    async def turn(_request, observation, _said):
+        said.append(observation.split(".")[0])
+        return "a thought"
+
+    async def say(_words):
+        return True
+
+    watching = await watching_along.watch_along(Page(), ASKED, look=look, turn=turn, say=say,
+                                                perceive=lambda *_: None, look_every_s=0.0, quiet_at_least_s=0.0)
+    assert watching.ended
+    assert [m.at for m in watching.moments] == [5.0, 2.0, 30.0]  # it watched on past the advert's end
