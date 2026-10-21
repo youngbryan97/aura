@@ -226,8 +226,13 @@ class _BuildsThePromptBlocks:
                     f"valence={ContextAssembler._self_state_number(affect.get('valence'), low=-1.0, high=1.0, signed=True)} "
                     f"arousal={ContextAssembler._self_state_number(affect.get('arousal'), low=0.0, high=1.0)} "
                     f"distress={ContextAssembler._self_state_number(affect.get('distress'), low=0.0, high=1.0)} "
-                    f"FE={ContextAssembler._self_state_number(affect.get('free_energy'), low=0.0, high=_FREE_ENERGY_MAX)} | "
-                    "Self-report must stay state-grounded; do not claim phenomenal certainty.\n\n"
+                    f"FE={ContextAssembler._self_state_number(affect.get('free_energy'), low=0.0, high=_FREE_ENERGY_MAX)}\n\n"
+                    # The reading is what her instruments say. It carried a rule
+                    # after the numbers, "Self-report must stay state-grounded; do
+                    # not claim phenomenal certainty", which is an instruction about
+                    # how to answer riding inside a measurement, on the one question
+                    # the reports ground asks her. Bryan, 13 October 2026: no
+                    # internal prompts at all. See core/brain/what_she_is_given.py.
                     f"{organismal_block}{felt_thought_block}"
                 )
             return (
