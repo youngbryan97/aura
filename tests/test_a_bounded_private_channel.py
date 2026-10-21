@@ -338,3 +338,22 @@ def test_the_bound_rearms_for_a_retry():
     assert bound.state == {"closed": False, "forced_at": 0}
     source = worker_source()
     assert '_rearm = getattr(_processor, "reset", None)' in source
+
+
+def test_with_the_tokens_where_the_model_runs_nothing_is_read_back_until_asked():
+    """MEASURED 2026-10-20: reading the last token back each step held up the GPU's next pass; her worker decoded at
+    7.5 tokens a second where the same model and channels decode at 21.5. mlx_lm hands the tokens as an MLX array."""
+    import mlx.core as mx
+
+    from core.brain.llm.a_bounded_private_channel import close_the_channel_after
+
+    bound = close_the_channel_after(_ATokenizer(), 512)
+    out = np.array(bound(mx.array(list(range(512))), mx.array(_logits())))
+    assert int(np.argmax(out)) == _CLOSING_TOKEN and np.isfinite(out).sum() == 1
+    assert bound.state.get("forced_at") == 512
+
+    closed_itself = close_the_channel_after(_ATokenizer(), 512)
+    closed_itself(mx.array([1, 2, _CLOSING_TOKEN]), mx.array(_logits()))
+    logits = _logits()
+    assert np.array_equal(np.array(closed_itself(mx.array(list(range(600))), mx.array(logits))), logits)
+    assert closed_itself.state.get("forced_at") == 0

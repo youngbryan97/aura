@@ -177,6 +177,27 @@ def _the_token_that_closes_it(tokenizer: Any) -> int | None:
     return None
 
 
+class _Lazy:
+    """A value worked out when it is read, after the generation, not while the model is running."""
+
+    def __init__(self, work: Callable[[], Any]) -> None:
+        self.work = work
+
+
+class _State(dict):
+    """The bound's state, as the worker reads it; a value left lazy is worked out the first time it is read."""
+
+    def __getitem__(self, key: Any) -> Any:
+        value = super().__getitem__(key)
+        if isinstance(value, _Lazy):
+            value = value.work()
+            super().__setitem__(key, value)
+        return value
+
+    def get(self, key: Any, default: Any = None) -> Any:
+        return self[key] if key in self else default
+
+
 def close_the_channel_after(
     tokenizer: Any, budget_tokens: int
 ) -> Callable[[Any, Any], Any] | None:
@@ -206,37 +227,43 @@ def close_the_channel_after(
         # the bound is not held rather than assuming it is.
         return None
 
-    state = {"closed": False, "forced_at": 0}
+    state = _State(closed=False, forced_at=0)
+    # Whether the model closed it itself, kept where the model runs: read back with int() each token it held up the
+    # GPU's next pass until this one was done (MEASURED 20 October 2026: her worker decoded at 7.5 tokens a second,
+    # 128.9 s of 130 waiting on the model, where the same model with every channel and her head decodes at 21.5).
+    seen = {"closed": None}
 
     def bound_the_private_channel(tokens: Any, logits: Any) -> Any:
-        if state["closed"]:
+        if state["closed"] is True:
             return logits
         try:
             produced = len(tokens)
         except TypeError:
             return logits
-        # Already closed on its own, which is the ordinary case and the one
-        # this must not disturb.
         try:
-            if produced and int(tokens[-1]) == closing_token:
-                state["closed"] = True
-                return logits
+            if produced:
+                last = tokens[-1] == closing_token
+                seen["closed"] = last if seen["closed"] is None else seen["closed"] | last
         except (TypeError, ValueError, IndexError):
             # not a failure: a last token this cannot read is not the
             # closing one, and the budget check below still runs.
             pass
+        if seen["closed"] is True:  # read from a list: known at once, the ordinary case and the one not to disturb
+            state["closed"] = True
+            return logits
         if produced < budget - _A_FEW_TOKENS_TO_FINISH_THE_THOUGHT:
             return logits
-        # At the budget: the closing token is the only one available.
+        # At the budget: the closing token is the only one available, where the model has not closed it already.
         forced = mx.full(logits.shape, -mx.inf, dtype=logits.dtype)
         forced[..., closing_token] = 0.0
+        closed = mx.array(bool(seen["closed"])) if seen["closed"] is None or isinstance(seen["closed"], bool) else seen["closed"]
         state["closed"] = True
-        state["forced_at"] = produced
+        state["forced_at"] = _Lazy(lambda closed=closed, produced=produced: 0 if bool(closed) else produced)
         logger.info(
-            "🧠 [WORKER] Private channel closed at its %d-token budget; the answer starts here.",
+            "🧠 [WORKER] Private channel at its %d-token budget; closed there unless it had closed itself.",
             produced,
         )
-        return forced
+        return mx.where(closed, logits, forced)
 
     def reset() -> None:
         # One generation per arming. The worker's quality retries reuse the
@@ -244,6 +271,7 @@ def close_the_channel_after(
         # first draft bounded nothing on the second.
         state["closed"] = False
         state["forced_at"] = 0
+        seen["closed"] = None
 
     bound_the_private_channel.budget_tokens = budget  # type: ignore[attr-defined]
     bound_the_private_channel.closing_token = closing_token  # type: ignore[attr-defined]
