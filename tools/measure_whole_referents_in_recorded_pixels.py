@@ -126,9 +126,15 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                         result.appearances, index+1)
                 found.extend((reference, binding) for binding in result.frames)
             bindings = (*bindings, *found)[-64:]
-        current, kept = [], []
+        current, kept, frame_readings = [], [], []
         for reference, binding in bindings:
-            point = binding.current(observer, at, source=reference.source)
+            sample = binding.inspect(observer, at, source=reference.source)
+            point = sample.current
+            frame_readings.append(dict(source=reference.source, character_id=reference.declaration.character_id,
+                reference_sha256=reference.key[2], reference_frame_number=reference.frame_number,
+                attached_at=binding.at, reason=sample.reason, initial_anchors=len(binding.anchors),
+                current_support=point.support if point is not None else None,
+                current_error=point.error if point is not None else None))
             if point is not None:
                 current.append((reference, binding, point))
                 kept.append((reference, binding))
@@ -151,6 +157,8 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         rows.append(dict(sequence=event['sequence'], file=event['file'], at=at,
             picture_sha256=observer.pixels_consumed.sha256, material_marks=len(observer.material_marks.points),
             source_frames=len(current), producer_seconds=elapsed, readings=list(wholes.readings),
+            source_frame_readings=frame_readings,
+            source_material_renewals=state.get('source_material_renewal_readings', ()),
             retained_marks_admitted=getattr(observer, 'material_retention_admitted', None),
             material_groups=[dict(number=g.number, born=g.born, kind=g.kind, source=g.source,
                 character_id=g.character_id, box=list(g.box()), anchors=len(g.anchors),

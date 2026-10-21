@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.source_material_renewed_through_shared_marks import _source_material_renewal_invariant
     from core.agency.arriving_by_her_pushes import _braking_pulse_invariant
     from core.agency.a_requested_region_in_a_plan import _planned_relation_invariant
     from core.perception.symbolic_motion_in_flash_methods import _initial_source_path_invariant
@@ -86,7 +87,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('braking_pulses_keep_the_executable_control_cadence', 'core/agency/arriving_by_her_pushes.py',
+    return (('source_material_renewal_cannot_start_without_shared_pixels', 'core/perception/source_material_renewed_through_shared_marks.py',
+             'tests/test_source_material_renews_only_through_shared_pixels.py', lambda: _source_material_renewal_invariant() == (),
+             'Source geometry can renew through a current pixel-supported material majority with minority additions, ordered capture lineage and accumulated coordinate error; missing continuity supplies no frame.'),
+            ('braking_pulses_keep_the_executable_control_cadence', 'core/agency/arriving_by_her_pushes.py',
              'tests/test_requested_regions_guide_plans_without_contact_rewards.py', lambda: _braking_pulse_invariant() == (),
              'A bounded measured acceleration bank supplies opposing push and neutral candidates with no switch before the next control interval; model scoring and feedback remain required.'),
             ('requested_regions_keep_current_owners_and_acceptance_unknown', 'core/agency/a_requested_region_in_a_plan.py',

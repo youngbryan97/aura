@@ -384,6 +384,8 @@ def _source_reference_snapshot(moves: Any) -> dict:
         'pixels': pixels(getattr(item, 'pixels', None))} for item in islice(wholes.values(), 128)] if isinstance(wholes, dict) else None
     return {'pixels': pixels(getattr(moves, 'pixels_consumed', None)),
             'reference_variants': variants,
+            'material_renewals': [dict(record) for record in getattr(moves, 'source_material_renewal_readings', ())[:4]
+                                  if isinstance(record, dict)],
             'current_pose_refinements': [dict(record) for record in getattr(moves, 'fresh_source_pose_refinements', ())[:4]
                                         if isinstance(record, dict)],
             'composed_search_references': [dict(record) for record in getattr(moves, 'source_reference_compositions', ())[:32]

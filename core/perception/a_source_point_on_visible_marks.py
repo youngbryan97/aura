@@ -59,6 +59,7 @@ class SourcePointOnVisibleMarks:
     anchors: tuple[tuple[int, float, int, float, float], ...]
     grid: SampleGrid
     sampling_corners: tuple[tuple[float, float], ...] = ()
+    renewal_lineage: tuple[tuple[int, float, str], ...] = ()
 
     def __post_init__(self) -> None:
         import re
@@ -86,6 +87,14 @@ class SourcePointOnVisibleMarks:
         if self.sampling_corners and (len(self.sampling_corners) != 4 or any(len(p) != 2
                 or any(type(v) not in (int, float) or not math.isfinite(v) for v in p) for p in self.sampling_corners)):
             raise ValueError('a sampling proposal needs finite captured corners')
+        if (not isinstance(self.renewal_lineage, tuple) or len(self.renewal_lineage) > 32
+                or any(not isinstance(item, tuple) or len(item) != 3 or type(item[0]) is not int
+                       or not 1 <= item[0] < self.sequence or type(item[1]) not in (int, float)
+                       or not math.isfinite(item[1]) or not 0 <= item[1] < self.at
+                       or not isinstance(item[2], str) or not re.fullmatch('[0-9a-f]{64}', item[2])
+                       for item in self.renewal_lineage)
+                or any(a[0] >= b[0] or a[1] >= b[1] for a, b in zip(self.renewal_lineage, self.renewal_lineage[1:]))):
+            raise ValueError('a renewed source frame needs bounded ordered capture custody')
 
     def current(self, observer: Any, at: float, *, source: str) -> VisibleSourcePoint | None:
         return self.inspect(observer, at, source=source).current
@@ -146,10 +155,16 @@ class VisibleMarkAttachment:
 def _supported_marks(picture: np.ndarray, reference: np.ndarray, appearance: ReferenceAppearance,
                      marks: MaterialMarks) -> tuple:
     """Require each named patch's actual colour and opaque reference support."""
+    return marks_supported_by_reference_projection(picture, reference, appearance.linear, appearance.offset, marks)
+
+
+def marks_supported_by_reference_projection(picture: np.ndarray, reference: np.ndarray,
+        linear: Any, offset: Any, marks: MaterialMarks) -> tuple:
+    """Check visible patches against a declared projection, without proving that projection."""
     eligible = tuple(point for point in marks.points if point.error <= .055)
     if not eligible:
         return ()
-    linear, offset = np.asarray(appearance.linear), np.asarray(appearance.offset)
+    linear, offset = np.asarray(linear), np.asarray(offset)
     if (linear.shape != (2, 2) or not np.isfinite(linear).all() or not np.isfinite(offset).all()
             or np.linalg.det(linear) <= 1e-8 or np.linalg.cond(linear) > 100):
         return ()

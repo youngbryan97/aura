@@ -121,6 +121,19 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
             reference_frames, refused = _with_current_material_frames(reference_frames, measured_frames,
                 SimpleNamespace(**state), float(at), reference_tables)
             state['fresh_source_material_status'] += refused
+    from types import SimpleNamespace
+    from core.perception.source_material_renewed_through_shared_marks import renew_current_source_frames
+    from core.perception.source_references_while_play_advances import _with_current_material_frames
+
+    renewed, renewal_readings = renew_current_source_frames(reference_frames, SimpleNamespace(**state), picture,
+                                                           float(at), reference_tables)
+    state['source_material_renewal_readings'] = renewal_readings
+    if renewed:
+        reference_frames, refused = _with_current_material_frames(reference_frames, renewed,
+            SimpleNamespace(**state), float(at), reference_tables)
+        state['fresh_source_material_frames'] = (*state.get('fresh_source_material_frames', ()),
+                                                *((r.variant_key, b) for r, b in renewed))
+        state['fresh_source_material_status'] = (*state.get('fresh_source_material_status', ()), *refused)
     if whole_referents is not None or material_groups is not None:
         from types import SimpleNamespace
 
@@ -221,6 +234,7 @@ class PlayObservation:
         self._mirror.fresh_source_reference_frames = ()
         self._mirror.fresh_source_material_frames = ()
         self._mirror.fresh_source_pose_refinements = ()
+        self._mirror.source_material_renewal_readings = ()
         self._mirror.fresh_source_reference_status = ()
         self._mirror.source_reference_status = 'no_current_source'
         self._mirror.source_reference_variant_coverage = ()
@@ -304,6 +318,7 @@ class PlayObservation:
         """Return this frame's events, or None while its measurement is unavailable."""
         self._mirror.source_extent_receipts = ()
         self._mirror.fresh_source_pose_refinements = ()
+        self._mirror.source_material_renewal_readings = ()
         self._mirror.source_material_groups = {}
         self._mirror.source_material_group_readings = ()
         self._mirror.source_reference_points = ()
@@ -374,6 +389,8 @@ class PlayObservation:
             if item.get('source') is None or item['source'] in active)
         self._mirror.source_referent_readings = tuple(item for item in self._mirror.source_referent_readings
             if item.get('source') is None or item['source'] in active)
+        self._mirror.source_material_renewal_readings = tuple(item for item in self._mirror.source_material_renewal_readings
+            if item.get('source') in active and item.get('captured_at') == at)
         self._mirror.fresh_source_reference_frames = tuple(frame for frame in self._mirror.fresh_source_reference_frames
             if frame.source in active and frame.pixels == self._mirror.pixels_consumed and frame.point.at == at)
         if self._references is None and tables:
@@ -391,6 +408,7 @@ class PlayObservation:
         self._closed = True
         self._fresh_references = None
         self._mirror.fresh_source_pose_refinements = ()
+        self._mirror.source_material_renewal_readings = ()
         self._whole_referents = None
         self._material_groups = None
         self._mirror.source_material_groups = {}

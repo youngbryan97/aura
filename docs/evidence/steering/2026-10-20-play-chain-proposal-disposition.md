@@ -890,6 +890,49 @@ Smoke passed 164 tests with one skip. Lint, compilation, layering and writing
 also passed; the aggregate took 65.95 seconds on this shared host. The GPU
 and resident runtime were untouched. No live-readiness verdict follows.
 
+## Current material can renew through a shared pixel majority
+
+- [x] The retained-pixel tool now records each source frame's actual custody
+  refusal. In the forty-picture baseline, ship frames qualified six times
+  and four attachments ended with `original_marks_missing`. They began with
+  14–20 anchors. The building retained its qualified material throughout.
+- [x] A bounded renewal first requires the old frame to qualify against
+  current named pixels. Its projection must then match opaque source patches
+  for at least 70 percent of the old anchors. New visible marks are limited
+  to half the retained count, so old material owns at least two thirds.
+  All-new marks, mismatched pictures and foreign source bytes refuse.
+- [x] Renewed frames retain ordered capture lineage, capped at 32 renewals,
+  and accumulated coordinate uncertainty. Repeated captures do not renew;
+  exhausted history requires a fresh independent reference fit. Renewal
+  creates no object identity, task role or control attribution.
+- [x] Ordinary observation can check four local renewal candidates per
+  picture, prioritizing currently lost support before rotating audits. Its
+  worker result reaches the reference owner, sampler retention and whole
+  producer through their existing source/mark gates. The actual frame record
+  retains the renewal receipt. Failed or repeated observations clear it.
+- [ ] This has not improved sustained ship perception in the original
+  retained pictures. The same forty-picture replay still has 28 pictures
+  with whole referents and only one whole ship observation. One ship frame
+  renews; another has only six currently matching source patches where the
+  old binding began with twenty. The required shared majority is absent.
+
+The first component group passed 50 tests, the first integrated group 96,
+and the expanded custody group 121. A synthetic six-step gradual replacement
+preserves the source origin after fewer than three root marks remain. Each
+step crosses the verified old majority; abrupt replacement still refuses.
+The ordinary worker/reference-owner test preserves one whole identity and
+its unknown role/contact, and feeds the renewed marks into sampler retention.
+
+Artifacts: `artifacts/flash-campaign/2026-10-20-moving-material-custody/`.
+Baseline replay took 9.69 seconds and renewed replay 9.40 seconds for the
+same forty retained pictures. These are CPU diagnostics, not real-time app
+latency. No models or physical inputs ran. Static source-frame variants still
+need an evidence-preserving search connection when appearance changes.
+Smoke passed 164 tests with one skip; lint and compilation passed. Layering
+first refused the new model-validation import. Its explicit narrow DEPS
+edge now permits that synthetic canary; layering and writing passed on the
+corrected dependency check. No baseline or unrelated dependency was changed.
+
 The first refinement group passed 50 tests. The live handoff regression
 failed before the key fix; the corrected continuity group passed 88 tests.
 An expanded group passed 228 tests in 108.32 seconds, including existing

@@ -1769,3 +1769,19 @@ delay. Smoke passed 164 with one skip; lint, compilation, layering and writing
 passed. Continue the upstream moving-body continuity diagnosis and the
 source contact/unit bridge. No native run was made, and no demo readiness
 is claimed. Keep CPU-only work and all G09/holdout boundaries.
+
+Moving-source custody now records its exact loss. Original ship attachments
+lose the required original marks after a few pictures. Bounded renewal can
+carry the same source coordinates through a current source-pixel majority,
+with minority fresh points, accumulated error and at most 32 prior captures.
+The ordinary observation worker delivers these renewed bindings to the
+reference owner and sampler. Tests: 50 component, 96 initial integration,
+121 expanded custody; the ordinary test retains one whole identity.
+
+The original forty-picture replay remains unchanged at six qualified ship
+frame observations and one whole ship. One renewal succeeds; another lacks
+the source-pixel majority. Do not relax that requirement or claim this fixed
+moving-body perception. Source animation variants remain disconnected from
+the geometry that could propose their next search. Continue that connection
+and current-pixel proof. Artifacts:
+`artifacts/flash-campaign/2026-10-20-moving-material-custody/`.
