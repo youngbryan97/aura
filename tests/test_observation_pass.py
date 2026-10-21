@@ -144,3 +144,30 @@ def test_the_client_accepts_an_observation_while_her_steering_is_up_and_refuses_
     assert result["receipt"]["model_basis"]["worker_affective_steering_active"] is False
     with pytest.raises(RuntimeError, match="receipt does not match"):
         run(steered=True)
+
+
+def test_latent_readouts_are_the_same_read_two_passes_later_with_nothing_read_in_a_pass() -> None:
+    """MEASURED 2026-10-20: five float()s at each of sixteen layers held up every pass; her worker decoded at 7.7
+    tokens a second and read prompts at 122 a second, and without these hooks at 21.5 and 390."""
+    from core.consciousness.latent_bridge import (
+        MIN_READOUT_MAGNITUDE,
+        READOUT_EMA_ALPHA,
+        LatentReadoutHook,
+    )
+
+    block = _Block()
+    weights = np.asarray([1.0, 2.0, 0.0, 0.5], dtype=np.float32)
+    vector = SimpleNamespace(substrate_idx=4, get_mx_array=lambda dtype=None: mx.array(weights))
+    hook = LatentReadoutHook(block=block, layer_idx=3, steering_vectors={"valence": vector}, feedback_weight=0.1)
+    hook.install()
+    lasts = [np.asarray([k, 1.0, 0.0, 2.0 * k], dtype=np.float32) for k in (1.0, 2.0, 3.0, 4.0)]
+    for last in lasts:
+        block(mx.array(np.stack([np.zeros(4, dtype=np.float32), last])[None]))
+    # Passes 1 and 2 are settled after pass 4; 3 and 4 wait on the GPU.
+    ema, pending = 0.0, 0.0
+    for last in lasts[:2]:
+        ema = READOUT_EMA_ALPHA * float(last @ weights) + (1.0 - READOUT_EMA_ALPHA) * ema
+        pending += ema * 0.1 if abs(ema) > MIN_READOUT_MAGNITUDE else 0.0
+    assert hook.get_current_readouts()["valence"] == pytest.approx(ema, rel=1e-5)
+    assert hook.pop_pending_injection()[4] == pytest.approx(pending, rel=1e-5)
+    assert len(hook._taken) == 2 and hook._readout_count == 4
