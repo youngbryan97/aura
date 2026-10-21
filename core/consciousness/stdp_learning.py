@@ -65,6 +65,11 @@ MESU_LOCK_WINDOW = 100   # Must be below threshold for this many updates
 MESU_EMA_ALPHA = 0.02    # Exponential moving average for uncertainty tracking
 
 
+def gain_one_mean_abs(n: int) -> float:
+    """The mean absolute weight of an n-neuron network drawn from N(0, 1/n)."""
+    return float(np.sqrt(2.0 / (np.pi * max(1, int(n)))))
+
+
 class STDPLearningEngine:
     """Reward-modulated STDP for the liquid substrate with MESU plasticity."""
 
@@ -317,10 +322,21 @@ class STDPLearningEngine:
             logger.debug("STDP spectral norm cap skipped after linear algebra failure: %s", exc)
 
         # ── Homeostatic Scaling ───────────────────────────────────────
-        # Keep the mean absolute weight near a target value. This prevents
+        # Keep the mean absolute weight near a set point. This prevents
         # both mode collapse (all weights → 0) and explosive growth
         # (all weights → max). The scaling is gentle (0.5% per tick).
-        homeostatic_target = 0.3
+        #
+        # The set point is the one the network was built at. The substrate
+        # draws its weights from N(0, 1/n), the gain at which a tanh network
+        # sits between decay and chaos, and the mean absolute value of that
+        # draw is sqrt(2 / (pi n)). This read 0.3, which is a 64-neuron
+        # engine's number: on her 512 neurons a matrix at 0.3 has a largest
+        # singular value near seventeen, so the scaling pushed every weight
+        # up 8.7% a turn into the spectral cap below, the cap pushed them
+        # back, and her substrate's weights went round a five-turn cycle for
+        # every turn of every run whatever she did. That cycle was 91% of
+        # what recurrent cognition did from one turn to the next.
+        homeostatic_target = gain_one_mean_abs(updated_weights.shape[0])
         homeostatic_rate = 0.005
         mean_abs = float(np.mean(np.abs(updated_weights)))
         if mean_abs > 1e-8:

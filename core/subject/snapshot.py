@@ -1254,6 +1254,7 @@ SUBSTRATE_BODY: tuple[tuple[str, int, bool], ...] = (
     ("_step_torch_math", 1, True),
     ("_stabilize_psych_state", 1, True),
     ("_recurrent_self_model", 5, True),
+    ("_learn_from_this_tick", 1, False),
     ("_apply_plasticity", 100, False),
 )
 
