@@ -156,10 +156,13 @@ def test_a_remark_is_her_turn_with_the_talk_since_it_began_in_the_order_it_was_s
     kept = [(100.0, "assistant", "Found it. I expect volcanoes."), (130.0, "user", "ha, look at that"),
             (131.0, "assistant", "It's tiny!"), (160.0, "user", "do you think it's real footage?")]
     monkeypatch.setattr(remarks, "said_since", lambda began: [t for t in kept if t[0] >= began])
-    talk = the_talk_since(90.0, ASKED, [(120.0, "The island is new."), (170.0, "Real, I think: the ash moves.")])
+    talk = the_talk_since(90.0, ASKED, [(120.0, "playing, at 0:30: an island rising", "The island is new."),
+                                         (170.0, "playing, at 1:10: ash", "Real, I think: the ash moves.")])
     assert all(is_stamped_runtime_payload(pair) for pair in talk)  # read as delivered exchanges, as any turn's are
     assert [(pair["user"], pair["aura"]) for pair in talk] == [
-        (ASKED, "Found it. I expect volcanoes. The island is new."),
+        (ASKED, "Found it. I expect volcanoes."),
+        ("[Aura's own eyes and ears on the video they are watching together] playing, at 0:30: an island rising",
+         "The island is new."),
         ("ha, look at that", "It's tiny!"),
         ("do you think it's real footage?", "Real, I think: the ash moves."),
     ]
@@ -240,3 +243,54 @@ def test_she_stays_quiet_through_what_does_not_interest_her_and_speaks_at_the_lu
     assert look(115.0, "a calm shot of the bench", 0.1)   # at the lull after it, about it
     worth.remarked()
     assert worth.interest == 0.0 and not look(120.0, "a sponsor read again", 0.3)
+
+
+def test_each_remark_answers_what_she_was_shown_before_it_and_the_request_comes_first(monkeypatch):
+    """LIVE 2026-10-21, rehearsal 11: with every remark folded into one reply to the request, a remark three minutes
+    in began "Let me think out loud before it starts"."""
+    import core.together.remarks as remarks
+    from core.skills.watching_together import the_talk_since
+
+    monkeypatch.setattr(remarks, "said_since", lambda _began: [
+        (10.0, "user", "Watch this with me and think out loud."),
+        (12.0, "assistant", "I think it will be about agents that coordinate."),
+        (40.0, "assistant", "The society framing is doing a lot of work."),  # her remark, kept by the conversation too
+        (70.0, "user", "what do you mean by that?"),
+        (75.0, "assistant", "That coordinating is not the same as a society."),
+    ])
+    spoken = [(40.0, "playing, at 0:52 of 21:44.\n0:50 heard: they even created a society",
+               "The society framing is doing a lot of work.")]
+    talk = the_talk_since(0.0, "Watch this with me and think out loud.", spoken)
+    pairs = [(t["user"], t["aura"]) for t in talk]
+    assert pairs[0] == ("Watch this with me and think out loud.", "I think it will be about agents that coordinate.")
+    assert pairs[1][0].startswith("[Aura's own eyes and ears") and "playing, at 0:52" in pairs[1][0]
+    assert pairs[1][1] == "The society framing is doing a lot of work."
+    assert pairs[2] == ("what do you mean by that?", "That coordinating is not the same as a society.")
+    assert len(pairs) == 3
+
+
+def test_a_turn_of_her_own_reads_all_she_has_said_in_the_watching():
+    """LIVE 2026-10-21: a remark turn kept 3 of 6 exchanges, those that bore on the request by meaning, and she told
+    the video's hook a third time."""
+    from core.brain.cognitive_engine import _desktop_history_messages_from_context
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    talk = [stamp_runtime_payload({"user": "Watch this with me and think out loud.", "aura": "I expect agents."})]
+    talk += [stamp_runtime_payload({"user": f"[Aura's own eyes and ears] look {n}", "aura": f"Remark {n} about the cats."})
+             for n in range(6)]
+    messages, _note = _desktop_history_messages_from_context(
+        {"recent_completed_exchanges": talk, "her_own_turn": True, "visible_user_message": "agents agents agents"})
+    assert [m["content"] for m in messages if m["role"] == "assistant"][1:] == [f"Remark {n} about the cats." for n in range(6)]
+
+
+def test_a_remark_reads_the_request_her_answer_and_the_newest_remarks_only(monkeypatch):
+    """LIVE 2026-10-21: one remark's prompt was 89,827 characters, every earlier watching and every remark in it."""
+    import core.together.remarks as remarks
+    from core.skills.watching_together import RECENT_EXCHANGES, the_talk_since
+
+    monkeypatch.setattr(remarks, "said_since", lambda _began: [
+        (1.0, "user", "Watch this with me and think out loud."), (2.0, "assistant", "I expect agents.")])
+    spoken = [(10.0 + n, f"look {n}", f"Remark {n}.") for n in range(20)]
+    talk = the_talk_since(0.0, "Watch this with me and think out loud.", spoken)
+    assert (talk[0]["user"], talk[0]["aura"]) == ("Watch this with me and think out loud.", "I expect agents.")
+    assert [t["aura"] for t in talk[1:]] == [f"Remark {n}." for n in range(20 - RECENT_EXCHANGES, 20)]

@@ -26,7 +26,7 @@ from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
 from .liquid_state_io import _KeepsItsStateOnDisk
-from .liquid_substrate_learning import _HowTheSubstrateLearns
+from .liquid_substrate_learning import PLASTICITY_EVERY, _HowTheSubstrateLearns
 
 DEVICE = torch.device("cpu")
 
@@ -494,8 +494,10 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
                     if self.tick_count % 5 == 0:  # Every 5th tick (~4Hz)
                         await self._recurrent_self_model(dt)
 
-                    # 4. Hebbian Learning
-                    if self.tick_count % 100 == 0:
+                    # 4. Hebbian Learning, every tick; the plasticity step's
+                    # spike timing and bounds every PLASTICITY_EVERY ticks.
+                    await self._learn_from_this_tick()
+                    if self.tick_count % PLASTICITY_EVERY == 0:
                         await self._apply_plasticity()
 
                     # 5. Persistence
@@ -1107,6 +1109,8 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
         Adjusts ODE weights based on long-term memory resonance.
         Called by MemoryOptimizer or similar high-level services.
         """
+        from core.consciousness.stdp_learning import frobenius_ceiling
+
         with self.sync_lock:
             logger.info("🧠 Calibrating neutral substrate for long-term resonance.")
             # Shift weights towards the resonance vector (historical semantic density)
@@ -1117,8 +1121,9 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
             self.W = np.nan_to_num(self.W, nan=0.0, posinf=5.0, neginf=-5.0)
             # Re-normalize
             norm = np.linalg.norm(self.W)
-            if norm > 10.0:
-                self.W *= 10.0 / norm
+            ceiling = frobenius_ceiling(self.W.shape[0])
+            if norm > ceiling:
+                self.W *= ceiling / norm
             self.W = np.clip(self.W, -5.0, 5.0)
             self._cached_connectivity_norm = float(np.linalg.norm(self.W))
             self._mark_weight_cache_dirty()

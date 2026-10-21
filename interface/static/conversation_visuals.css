@@ -1,0 +1,56 @@
+/* Conversation figures share Aura's palette and stay still until interacted with. */
+.conversation-visual {
+    --visual-edge: color-mix(in srgb, var(--aura-accent, #b1a4ff) 17%, transparent);
+    position: relative;
+    margin: 24px 0 18px;
+    padding: 26px 28px 18px;
+    border: 1px solid var(--visual-edge);
+    border-radius: 20px;
+    background: radial-gradient(ellipse at 100% 0, var(--aura-accent-soft, #b1a4ff12), transparent 65%), var(--aura-card, #ffffff05);
+    color: var(--aura-fg, #f4ede4);
+    box-shadow: inset 0 1px 0 #ffffff06, 0 3px 14px #00000009;
+    line-height: 1.5;
+    overflow: hidden;
+    text-align: left;
+}
+.conversation-visual figcaption { display: flex; align-items: center; gap: 10px; margin: 0 0 24px; color: var(--aura-fg-dim, #c1baca); font: 500 11px/1.5 system-ui, sans-serif; letter-spacing: .09em; text-transform: uppercase; }
+.conversation-visual figcaption::before { content: ''; width: 7px; height: 7px; border: 1px solid var(--aura-accent, #b1a4ff); border-radius: 2px; transform: rotate(-12deg); }
+.conversation-chart + .conversation-chart { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--visual-edge); }
+.conversation-visual .conversation-chart h4 { margin: 0 0 20px; font-size: 1.05em; font-weight: 550; letter-spacing: -.02em; color: inherit; }
+.conversation-chart-row { display: grid; grid-template-columns: minmax(100px, 1.2fr) minmax(70px, 2fr) minmax(42px, auto); align-items: center; gap: 18px; margin: 16px 0; }
+.conversation-chart-label { font-size: .88em; line-height: 1.45; overflow-wrap: anywhere; }
+.conversation-chart-track { position: relative; height: 18px; background: var(--aura-card-border, #ffffff08); border-radius: 5px; }
+.conversation-chart-bar { position: absolute; top: 0; height: 100%; border-radius: 5px; background: linear-gradient(100deg, color-mix(in srgb, var(--aura-accent, #b1a4ff) 65%, #7a65db), var(--aura-accent, #b1a4ff)); box-shadow: inset 0 1px 0 #ffffff22; }
+.conversation-chart-bar[data-negative="true"] { background: var(--aura-warn, #f0a06a); }
+.conversation-chart-zero { position: absolute; height: 100%; border-left: 1px solid currentColor; opacity: .2; }
+.conversation-chart-value { font: 500 .88em/1.5 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.conversation-visual-source { margin-top: 24px; padding-top: 12px; border-top: 1px solid var(--visual-edge); font-size: .82em; overflow-x: auto; }
+.conversation-visual-source summary { display: flex; align-items: center; gap: 8px; width: fit-content; cursor: pointer; list-style: none; color: var(--aura-fg-dim, #c1baca); padding: 6px 0; transition: color 120ms ease; }
+.conversation-visual-source summary::-webkit-details-marker { display: none; }
+.conversation-visual-source summary::before { content: '+'; font: 16px/1 ui-monospace, monospace; color: var(--aura-accent, #b1a4ff); }
+.conversation-visual-source[open] > summary::before { content: '−'; }
+.conversation-visual-source summary:hover { color: var(--aura-fg, #f4ede4); }
+.conversation-visual-source table { width: 100%; margin-top: 12px; }
+.conversation-visual-source summary:focus-visible { outline: 2px solid var(--aura-accent, #b1a4ff); outline-offset: 4px; border-radius: 3px; }
+.conversation-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 24px; margin: 24px 0 10px; }
+.conversation-metric { display: grid; align-content: start; gap: 10px; padding-left: 16px; border-left: 2px solid var(--visual-edge); }
+.conversation-metric strong { font: 500 2.15em/1.1 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.045em; }
+.conversation-metric span { font-size: .86em; color: var(--aura-fg-dim, #c1baca); }
+.conversation-metric-label { margin: -8px 0 18px; font-size: .95em; }
+.conversation-flow-canvas { overflow-x: auto; padding: 2px 0 6px; }
+.conversation-flow svg { width: 100%; height: auto; display: block; color: var(--aura-accent, #b1a4ff); }
+.conversation-flow line { stroke: currentColor; stroke-width: 1.3; opacity: .75; }
+.conversation-flow rect { fill: var(--aura-raised, #211b2b); stroke: color-mix(in srgb, var(--aura-accent, #b1a4ff) 45%, transparent); stroke-width: 1; }
+.conversation-flow text { font: 14px system-ui, sans-serif; fill: var(--aura-fg, #f4ede4); }
+.conversation-flow .flow-edge-label { font-size: 12px; }
+/* Hide an old shell's banner during a partial asset refresh. */
+.aura-browser-activity { display: none !important; }
+@media (max-width: 540px) {
+    .conversation-visual { padding: 20px 18px 12px; border-radius: 16px; }
+    .conversation-chart-row { grid-template-columns: minmax(65px, 1fr) minmax(30px, 1fr) auto; gap: 10px; font-size: .95em; }
+    .conversation-chart-track { height: 15px; }
+    .conversation-metrics { gap: 18px; }
+    .conversation-metric { padding-left: 12px; }
+    .conversation-metric strong { font-size: 1.85em; }
+}
+@media (prefers-reduced-motion: reduce) { .conversation-visual-source summary { transition: none; } }

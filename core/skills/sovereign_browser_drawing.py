@@ -1117,8 +1117,11 @@ async def _what_was_made_as_seen(page: Any, band: tuple[float, float, float, flo
 
         size = getattr(page, "viewport_size", None) or {"width": 1280, "height": 800}
         left, top, right, bottom = band
-        png = await page.screenshot(clip={"x": left * size["width"], "y": top * size["height"],
-                                          "width": (right - left) * size["width"], "height": (bottom - top) * size["height"]})
+        from core.perception.browser_presence import without_presence
+
+        async with without_presence(page):
+            png = await page.screenshot(clip={"x": left * size["width"], "y": top * size["height"],
+                                              "width": (right - left) * size["width"], "height": (bottom - top) * size["height"]})
         frame = np.array(Image.open(io.BytesIO(png)).convert("RGB"))
         # A thing that answered what she asked is asked for its answer, in its own words where it writes them; a thing
         # made, for what it shows.

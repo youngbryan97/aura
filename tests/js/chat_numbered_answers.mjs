@@ -3,13 +3,8 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync(process.argv[2], 'utf8');
-const append = source.slice(source.indexOf('async function appendMsg('));
-const renderer = append.slice(
-    append.indexOf('const render = (t) => {'),
-    append.indexOf('// Build thought toggle HTML'),
-);
-const render = vm.runInNewContext(`${renderer}\nrender`, {
-    isHtml: false,
+const renderer = source.slice(source.indexOf('function renderMessageMarkdown('), source.indexOf('async function appendMsg('));
+const render = vm.runInNewContext(`${renderer}\nrenderMessageMarkdown`, {
     escHtml: text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
 });
 

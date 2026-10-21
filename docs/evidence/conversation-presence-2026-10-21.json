@@ -1,0 +1,43 @@
+{
+  "schema": "aura.presentation.browser_measurement.v1",
+  "date": "2026-10-21",
+  "ok": true,
+  "source_checkpoint": "d91656994",
+  "checks": [
+    "numeric chart values",
+    "source table disclosure",
+    "idempotent rendering",
+    "diagram edges",
+    "stream completion",
+    "missing data fallback",
+    "metric cards",
+    "user text unchanged",
+    "code retained literally",
+    "390px width",
+    "background-tab click",
+    "closed shadow isolation",
+    "nested screenshot suspension",
+    "background activity indicator"
+  ],
+  "sources": {
+    "interface/static/aura.js": "e0ce26ab2ee9001e662fbd174430a4cea73e052a3869977441cb6b61dc611034",
+    "interface/static/conversation_visuals.js": "959ecf57f1d7cc98ffdf8e51cef8a1fa67b6d41b750966a424f409c9b6e0a932",
+    "interface/static/conversation_visuals.css": "3fb34e2d16271e65f79f18b92b58b9be87c15d47e8066a47ad0cfae3a3f31360",
+    "interface/static/neuron_glyph.svg": "cb5d32a354c2f1c0fd56c3f8e07ad89f66f4c5dfb97ac5da181a5450cd62143c",
+    "core/perception/browser_presence.py": "790eebd7baf925cdc8d436223fa2c7717b9f396213d9e63955877231b9aa5517",
+    "core/perception/browser_presence.js": "d602d5f04564b2531c8b3aa138c8cc7fe5b5cc8bdbe51657870ae40d096c986e",
+    "core/capabilities/phantom_browser.py": "98cd24cf9a4d36ef1e834dee2ba0b3304e6f6989581d908dd8cb958d349f1435",
+    "core/capabilities/phantom_browser_interaction.py": "9dfae4399512358e3dea164913c1da1aab5a6c7068ffddd654393b654166a201",
+    "core/perception/a_picture_of_her_page.py": "1644359eb0d3e8fb9c971d2c6e1a7760e6341c3ccb29336eee30bea7bb8f635a",
+    "core/skills/watching_along.py": "2dc39cd12a3afa9490f224b019c60daf448c0794f9f043e481e7dd90ab937cfd",
+    "core/skills/sovereign_browser_drawing.py": "94baba46151956c1f122bec4b2adfe5f2ed228e4534f93dfdf18a9ce778898c3"
+  },
+  "artifacts": {
+    "conversation-preview.png": "bb3cb21076bcadede66187572cddee4bf277776883f368ba3908d479664021ba",
+    "conversation-light.png": "c9d4a48f59c8cfbf82283c3cdfc713547996abbed1d1eafa22d7ccba3e58b6bb",
+    "browser-neuron-preview.png": "07609f785fb34d6640fc305291deb6ab0d44ca1ad2ef41a1129f0783e7f95855",
+    "conversation-mobile.png": "433d1d02b6376374e98685cd9dfff00b8d54f946a8ca34ca5590805f4e068222",
+    "activity-mobile.png": "b25293bdaaab584d07b333ce2059ac7499f916996679fa0c93e7d6dda76a0b11"
+  },
+  "scope": "Offline Chromium fixture using production reply renderers and the browser init script. No resident-model conversation, interactive simulation, or native desktop cursor was measured."
+}

@@ -1,0 +1,36 @@
+{
+  "schema": "aura.presentation.browser_measurement.v1",
+  "date": "2026-10-21",
+  "measured_at": "2026-10-21T012807",
+  "ok": true,
+  "checks": [
+    "numeric chart values",
+    "source table disclosure",
+    "idempotent rendering",
+    "diagram edges",
+    "stream completion",
+    "missing data fallback",
+    "metric cards",
+    "user text unchanged",
+    "code retained literally",
+    "390px width",
+    "background-tab click",
+    "closed shadow isolation",
+    "nested screenshot suspension",
+    "no conversation activity notifications"
+  ],
+  "sources": {
+    "interface/static/aura.js": "8fcbb280e1f68ba91ce94cfbdf2fc7bb841d1b0f0a429aa2015670024dcf2375",
+    "interface/static/conversation_visuals.js": "7e5476bc0acf04d992198dc3ced85b19c4b8c6d4f7f9e3d01573c2620a03ed91",
+    "interface/static/conversation_visuals.css": "ebdb22e88a6fc51c586d794c0eb51cd7da52058ed67358b7c64dbfdb49c3a041",
+    "interface/static/neuron_glyph.svg": "cb5d32a354c2f1c0fd56c3f8e07ad89f66f4c5dfb97ac5da181a5450cd62143c",
+    "core/perception/browser_presence.py": "790eebd7baf925cdc8d436223fa2c7717b9f396213d9e63955877231b9aa5517",
+    "core/perception/browser_presence.js": "d602d5f04564b2531c8b3aa138c8cc7fe5b5cc8bdbe51657870ae40d096c986e",
+    "core/capabilities/phantom_browser.py": "98cd24cf9a4d36ef1e834dee2ba0b3304e6f6989581d908dd8cb958d349f1435",
+    "core/capabilities/phantom_browser_interaction.py": "9dfae4399512358e3dea164913c1da1aab5a6c7068ffddd654393b654166a201",
+    "core/perception/a_picture_of_her_page.py": "1644359eb0d3e8fb9c971d2c6e1a7760e6341c3ccb29336eee30bea7bb8f635a",
+    "core/skills/watching_along.py": "58e26413fc28e6ee81b4ff65edf833fd5b1dadf24cc74d9371cca35434ee345c",
+    "core/skills/sovereign_browser_drawing.py": "94baba46151956c1f122bec4b2adfe5f2ed228e4534f93dfdf18a9ce778898c3"
+  },
+  "scope": "Offline Chromium fixture. Repeated browser events do not create conversation notifications. The neuron cursor and target highlight remain in the owned browser. No resident process restart was performed."
+}

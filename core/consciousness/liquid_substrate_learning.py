@@ -10,29 +10,101 @@ import asyncio
 from typing import Any
 
 
+#: Ticks between the substrate's plasticity steps. `hebbian_rate` is what one
+#: of those steps learns, so it is also what this many ticks of coactivity add.
+PLASTICITY_EVERY = 100
+
+
 class _HowTheSubstrateLearns:
     """Lifted whole out of LiquidSubstrate; see liquid_substrate.py."""
+
+    async def _learn_from_this_tick(self) -> None:
+        await asyncio.to_thread(self._learn_from_this_tick_sync)
+
+    def _learn_from_this_tick_sync(self) -> None:
+        """Hebbian learning from this tick's coactivity, at a tick's share of the rate.
+
+        The coactivity used to be read once every `PLASTICITY_EVERY` ticks and
+        added at the whole step's rate, so the connectome learned from one
+        instant in a hundred and was blind to the other ninety-nine. On the
+        experiment clock a turn is twenty ticks, so that instant came round
+        once every five turns and landed as a lump. dW/dt = rate * tanh(x x^T)
+        integrated tick by tick learns what the activity did, not where it
+        happened to be when the counter came round.
+        """
+        from .liquid_substrate import np
+
+        share = self.config.hebbian_rate / PLASTICITY_EVERY
+        with self.sync_lock:
+            # Numerical Stability: Use tanh on coactivity to prevent runaway growth
+            coactivity = np.tanh(np.outer(self.x, self.x))
+            self.W += share * coactivity
+            # Neural Resonance: slow weight calibration towards high-phi states
+            if hasattr(self, "_current_phi") and self._current_phi > 0.5:
+                limited_phi = min(10.0, self._current_phi)
+                self.W += share * 0.1 * coactivity * limited_phi
+            # The gain held at its cap as the learning arrives, rather than cut
+            # back to it once a plasticity step. Her weights carry a learned mode
+            # whose singular value sits at the cap, so every tick's coactivity
+            # pushes it over, and a cap applied every hundred ticks is a
+            # five-turn sawtooth on the experiment clock. One step of power
+            # iteration a tick tracks the top singular value as it drifts.
+            self._hold_the_gain_locked()
+            self._cached_connectivity_norm = float(np.linalg.norm(self.W))
+            self._mark_weight_cache_dirty()
+
+    def _hold_the_gain_locked(self) -> float:
+        """One power-iteration step on the top singular value, and the cap applied to it.
+
+        Returns the estimate. It is a lower bound that converges as the weights
+        drift, so the exact cap in `STDPLearningEngine.regulate` stays the
+        backstop. The caller holds `sync_lock`.
+        """
+        from core.consciousness.stdp_learning import SPECTRAL_NORM_CAP
+
+        from .liquid_substrate import np
+
+        size = int(self.W.shape[1])
+        direction = getattr(self, "_top_direction", None)
+        if not isinstance(direction, np.ndarray) or direction.shape != (size,):
+            direction = np.full(size, 1.0 / np.sqrt(size))
+        image = self.W @ direction
+        estimate = float(np.linalg.norm(image))
+        if estimate > 0.0:
+            back = self.W.T @ image
+            length = float(np.linalg.norm(back))
+            if length > 0.0:
+                direction = back / length
+        self._top_direction = direction
+        if estimate > SPECTRAL_NORM_CAP:
+            self.W *= SPECTRAL_NORM_CAP / estimate
+        return estimate
 
     async def _apply_plasticity(self) -> None:
         await asyncio.to_thread(self._apply_plasticity_sync)
 
     def _apply_plasticity_sync(self) -> None:
-        """Hebbian learning, and the spike timing the turn's worth will judge.
+        """The spike timing the turn's worth will judge, and the bounds the weights live in.
 
-        Two learning signals are combined:
-        1. Base Hebbian (coactivity-driven, always active)
-        2. STDP: every step lays down eligibility traces from spike timing,
+        Hebbian learning is no longer here; it runs every tick
+        (`_learn_from_this_tick_sync`). What stays on the plasticity step:
+
+        1. STDP: every step lays down eligibility traces from spike timing,
            and the turn's worth, when it arrives, decides whether they
            strengthen or weaken. See teach().
+        2. The clip, spectral cap and homeostatic scaling that keep the
+           weights where the dynamics stay rich (`STDPLearningEngine.regulate`).
 
         The STDP reward used to be delivered here, every step, as the negative
         of the free-energy engine's `prediction_error`. That state has no such
         field, so the reward read zero on every step of every run: no weight
         ever moved, and the zero deltas drove each synapse's uncertainty down
         until the engine had identity-locked them all. The same call held the
-        weights inside their spectral and homeostatic bounds, which the
-        Hebbian update above needs, so that part still runs every step.
+        weights inside their spectral and homeostatic bounds, which Hebbian
+        growth needs, so that part still runs every step.
         """
+        from core.consciousness.stdp_learning import frobenius_ceiling
+
         from .liquid_substrate import (
             logger,
             np,
@@ -40,13 +112,7 @@ class _HowTheSubstrateLearns:
         )
 
         with self.sync_lock:
-            # Numerical Stability: Use tanh on coactivity to prevent runaway growth
-            coactivity = np.tanh(np.outer(self.x, self.x))
-
-            # 1. Base Hebbian update
-            self.W += self.config.hebbian_rate * coactivity
-
-            # 2. Spike timing into the eligibility traces (from BrainCog research)
+            # Spike timing into the eligibility traces (from BrainCog research)
             try:
                 stdp = self._stdp_engine()
                 if stdp is not None:
@@ -56,19 +122,14 @@ class _HowTheSubstrateLearns:
                 record_degradation("liquid_substrate", e)
                 logger.debug("STDP plasticity step skipped: %s", e)
 
-            # 3. Neural Resonance: Slow weight calibration towards high-phi states
-            if hasattr(self, "_current_phi") and self._current_phi > 0.5:
-                resonance_gain = self.config.hebbian_rate * 0.1
-                limited_phi = min(10.0, self._current_phi)
-                self.W += resonance_gain * coactivity * limited_phi
-
             # Purge NaN/Inf
             self.W = np.nan_to_num(self.W, nan=0.0, posinf=5.0, neginf=-5.0)
 
             # Normalization & clipping
             norm = np.linalg.norm(self.W)
-            if norm > 10.0:
-                self.W *= 10.0 / norm
+            ceiling = frobenius_ceiling(self.W.shape[0])
+            if norm > ceiling:
+                self.W *= ceiling / norm
             self.W = np.clip(self.W, -5.0, 5.0)
             self._cached_connectivity_norm = float(np.linalg.norm(self.W))
             self._mark_weight_cache_dirty()

@@ -2961,6 +2961,7 @@ function handleWsEvent(data) {
         triggerVoiceOrb('thinking');
     } else if (type === 'telemetry') {
         updateTelemetry(data);
+
     } else if (type === 'tool_event') {
         applyToolEvent(data);
     } else if (type === 'chat_stream_start') {
@@ -6251,6 +6252,78 @@ $('chat-form').onsubmit = async e => {
     if (requestPromise) await requestPromise;
 };
 
+function renderMessageMarkdown(t, isHtml = false) {
+    if (isHtml) return t;
+    let h = escHtml(t);
+    const blocks = [];
+    const prefix = '\uE000' + Math.random().toString(36).slice(2) + ':';
+    const protect = html => {
+        const token = prefix + blocks.length + '\uE001';
+        blocks.push([token, html]);
+        return token;
+    };
+
+    // Code blocks (triple backtick with optional language) with copy button
+    h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
+        const codeId = 'code-' + Math.random().toString(36).slice(2, 8);
+        return protect(`<div class="code-block-wrap">${langLabel}<button class="code-copy-btn" onclick="copyCodeBlock('${codeId}')">COPY</button><pre><code id="${codeId}">${code.trim()}</code></pre></div>`);
+    });
+
+    // Headers (# through ####)
+    h = h.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
+    h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+    // Blockquotes
+    h = h.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Horizontal rules
+    h = h.replace(/^---$/gm, '<hr>');
+
+    // Tables (simple pipe-delimited)
+    h = h.replace(/((?:\|.+\|(?:\n|$))+)/gm, (tableBlock) => {
+        const rows = tableBlock.trim().split('\n').filter(r => r.trim());
+        if (rows.length < 2) return tableBlock;
+        const isSep = /^\|[\s\-:|]+\|$/.test(rows[1]);
+        if (!isSep) return tableBlock;
+        const headerCells = rows[0].split('|').slice(1, -1);
+        const thead = '<thead><tr>' + headerCells.map(c => `<th>${c.trim()}</th>`).join('') + '</tr></thead>';
+        const tbody = rows.slice(2).map(row => {
+            const cells = row.split('|').slice(1, -1);
+            return '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
+        }).join('');
+        return protect(`<table>${thead}<tbody>${tbody}</tbody></table>`);
+    });
+
+    // Unordered lists (- item or * item)
+    h = h.replace(/((?:^[\-\*] .+$\n?)+)/gm, (block) => {
+        const items = block.trim().split('\n').map(line =>
+            `<li>${line.replace(/^[\-\*] /, '')}</li>`
+        ).join('');
+        return `<ul>${items}</ul>`;
+    });
+
+    // Ordered lists (1. item)
+    h = h.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
+        const start = Number(block.match(/^\d+/)[0]);
+        const items = block.trim().split('\n').map(line =>
+            `<li>${line.replace(/^\d+\. /, '')}</li>`
+        ).join('');
+        return `<ol start="${start}">${items}</ol>`;
+    });
+
+    // Inline formatting (bold, italic, code, links)
+    h = h.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    h = h.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    h = h.replace(/`(.*?)`/g, '<code>$1</code>');
+    h = h.replace(/\[MAX_TOKENS_REACHED\]/g, '<button class="regenerate-btn" style="display:block;margin-top:10px" onclick="sendMessage(\'Please continue exactly where you left off.\')">Continue Generating</button>');
+    h = h.replace(/\n/g, '<br>');
+    for (const [token, html] of blocks) h = h.replace(token, () => html);
+    return h;
+}
+
 async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode = null) {
     const messages = DOM.messages || $('messages');
     const div = document.createElement('div');
@@ -6267,68 +6340,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
     messages.insertBefore(div, beforeNode);
     pruneVisibleMessages(messages);
 
-    const render = (t) => {
-        if (isHtml) return t;
-        let h = escHtml(t);
-
-        // Code blocks (triple backtick with optional language) with copy button
-        h = h.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-            const langLabel = lang ? `<span class="code-lang-label">${lang}</span>` : '';
-            const codeId = 'code-' + Math.random().toString(36).slice(2, 8);
-            return `<div class="code-block-wrap">${langLabel}<button class="code-copy-btn" onclick="copyCodeBlock('${codeId}')">COPY</button><pre><code id="${codeId}">${code.trim()}</code></pre></div>`;
-        });
-
-        // Headers (# through ####)
-        h = h.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
-        h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
-        h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
-        h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
-        // Blockquotes
-        h = h.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-
-        // Horizontal rules
-        h = h.replace(/^---$/gm, '<hr>');
-
-        // Tables (simple pipe-delimited)
-        h = h.replace(/((?:\|.+\|(?:\n|$))+)/gm, (tableBlock) => {
-            const rows = tableBlock.trim().split('\n').filter(r => r.trim());
-            if (rows.length < 2) return tableBlock;
-            const isSep = /^\|[\s\-:|]+\|$/.test(rows[1]);
-            if (!isSep) return tableBlock;
-            const headerCells = rows[0].split('|').filter(c => c.trim());
-            const thead = '<thead><tr>' + headerCells.map(c => `<th>${c.trim()}</th>`).join('') + '</tr></thead>';
-            const tbody = rows.slice(2).map(row => {
-                const cells = row.split('|').filter(c => c.trim());
-                return '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
-            }).join('');
-            return `<table>${thead}<tbody>${tbody}</tbody></table>`;
-        });
-
-        // Unordered lists (- item or * item)
-        h = h.replace(/((?:^[\-\*] .+$\n?)+)/gm, (block) => {
-            const items = block.trim().split('\n').map(line =>
-                `<li>${line.replace(/^[\-\*] /, '')}</li>`
-            ).join('');
-            return `<ul>${items}</ul>`;
-        });
-
-        // Ordered lists (1. item)
-        h = h.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
-            const start = Number(block.match(/^\d+/)[0]);
-            const items = block.trim().split('\n').map(line =>
-                `<li>${line.replace(/^\d+\. /, '')}</li>`
-            ).join('');
-            return `<ol start="${start}">${items}</ol>`;
-        });
-
-        // Inline formatting (bold, italic, code, links)
-        h = h.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        h = h.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        h = h.replace(/`(.*?)`/g, '<code>$1</code>');
-        h = h.replace(/\n/g, '<br>');
-        return h;
-    };
+    const render = (t) => renderMessageMarkdown(t, isHtml);
 
     // Build thought toggle HTML if thought metadata is present
     const thoughtHtml = (() => {
@@ -6363,6 +6375,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
         } else {
             div.innerHTML = `<div class="msg-content">` + render(text) + `</div><div class="msg-meta" data-timestamp="${tsStr}"><span class="msg-timestamp">${tsStr}</span></div>`;
         }
+        if (isAura) window.AuraConversationVisuals?.enhance(div.querySelector('.msg-content'));
         div.classList.remove('typing');
         if (!state.userScrolledUp) messages.scrollTop = messages.scrollHeight;
     };
@@ -6372,6 +6385,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
         // A card is laid out by its parts; typing out the joined string first
         // and then swapping in the card is the flicker it exists to remove.
         && !narrated
+        && !/```mermaid|^\|.+\|\s*$/m.test(text)
         && text.length > 5
         && !isHtml
         && !metadata.historyTurnId
@@ -6514,6 +6528,13 @@ function markReplyConfidence(element, confidence) {
 function finishStreamMsg(confidence) {
     // Applied at the END: the confidence of a reply is not known until the
     // reply exists, so there is nothing honest to show while it streams.
+    if (activeStreamDiv) {
+        const content = activeStreamDiv.querySelector('.msg-content');
+        if (content) {
+            content.innerHTML = renderMessageMarkdown(activeStreamContentRaw);
+            window.AuraConversationVisuals?.enhance(content);
+        }
+    }
     markReplyConfidence(activeStreamDiv, confidence);
     activeStreamDiv = null;
 

@@ -30,6 +30,8 @@ from core.capabilities.browser_authority import (
 )
 from core.capabilities.browser_graphics_policy import graphics_arguments, software_graphics_verified
 from core.capabilities.where_downloads_go import keep_downloads
+from core.perception.browser_presence import BOOTSTRAP as PRESENCE
+from core.perception.browser_presence import show_activity, without_presence
 from core.runtime.errors import (
     DependencyUnavailable,
     FallbackClassification,
@@ -258,7 +260,7 @@ def why_it_would_not_load(browser: Any) -> str:
 class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
     """High-fidelity browser agent (Async Version).
     """
-    
+
     def __init__(
         self,
         visible: bool = False,
@@ -303,6 +305,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         self._last_verdict: dict[str, Any] = {}
         self._last_interaction: dict[str, Any] = {}
         self._last_extraction: dict[str, Any] = {}
+        self._presence_available = False
         # One owner for start / rotate / close. Without it two callers
         # could each launch a browser and one could close what the other
         # just created (CP126 ``d9990559``).
@@ -314,7 +317,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         #: Which engine actually launched. The fallback path left
         #: browser_type reporting the requested engine.
         self._launched_engine: str = ""
-        
+
         if not PLAYWRIGHT_AVAILABLE:
             return
 
@@ -347,7 +350,6 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             if not self.is_active:
                 await self._start_browser()
             return self.is_active
-
 
     #: Playwright's own bound on one launch attempt (its default), stated
     #: here so whatever waits on a start can be sized from it.
@@ -590,9 +592,11 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 await self.context.add_init_script(BOOTSTRAP)
                 # What a page plays is heard from its first sound (core/perception/what_the_page_plays.py).
                 await self.context.add_init_script(LISTEN)
+                await self.context.add_init_script(PRESENCE)
                 keep_downloads(self.context)  # core/capabilities/where_downloads_go.py
                 await self._apply_stealth(self.context)
                 self.page = await self.context.new_page()
+                self._presence_available = True
             except (
                 PlaywrightError,
                 PlaywrightTimeoutError,
@@ -829,7 +833,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         if not self.is_active:
             await self._start_browser()
             return
-            
+
         logger.info("🔄 Rotating User Agent...")
         ua = self._get_random_ua()
 
@@ -845,6 +849,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 # a broken context while the old session stayed open with
                 # nothing to close it (CP126 ``d1b5bf25``).
                 new_context = await self.browser.new_context(**self._page_size(), user_agent=ua)
+                await new_context.add_init_script(PRESENCE)
                 keep_downloads(new_context)
                 await self._apply_stealth(new_context)
                 new_page = await new_context.new_page()
@@ -885,7 +890,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         """Detect if we are hitting a bot-detection page or CAPTCHA."""
         if not self.page:
             return False
-        
+
         # What the page shows, as a person reads it, not its source: a page with a
         # CAPTCHA widget somewhere in its code for a comment form is not a block.
         # LIVE 2026-10-06 the Internet Archive's page for a game was refused as
@@ -896,7 +901,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             logger.debug("Could not read what the page shows: %s", exc)
             content = ""
         title = (await self.page.title()).lower()
-        
+
         block_signals = [
             "unusual traffic from your computer network",
             "not a robot",
@@ -915,7 +920,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         if title.strip() in ("just a moment...", "attention required! | cloudflare"):
             logger.warning("🚨 Browser Blocked Detected: %s", title)
             return True
-        
+
         for signal in block_signals:
             if signal in content or signal in title:
                 logger.warning("🚨 Browser Blocked Detected: %s", signal)
@@ -973,6 +978,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 return False
 
         logger.info("🌐 Navigating to: %s", url)
+        await show_activity(self, "navigating")
         try:
             response = await self.page.goto(url, timeout=30000, wait_until='domcontentloaded')
             await self._human_delay(1, 2)
@@ -980,10 +986,12 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             record_degradation('phantom_browser', e)
             logger.error("Navigation failed: %s", e)
             self._last_navigation = {"ok": False, "reason": f"navigation_error:{type(e).__name__}"}
+            await show_activity(self, "navigating", stage="failed")
             return False
 
         arrival = await self._verify_arrival(url, response, principal=principal)
         self._last_navigation = arrival
+        await show_activity(self, "navigating", stage="completed" if arrival["ok"] else "failed")
         if not arrival["ok"]:
             logger.warning("🌐 Navigation did not arrive: %s", arrival["reason"])
             # The archive's copy refused is the page itself to go to, as a page refused is its copy
@@ -995,7 +1003,6 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 logger.info("🌐 The archive's copy was refused; going to the page itself: %s", original.group(1))
                 return await self.browse(original.group(1), principal=principal)
         return bool(arrival["ok"])
-
 
     async def _verify_arrival(
         self, requested: str, response: Any, *, principal: str
@@ -1046,14 +1053,6 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             record["reason"] = f"arrival_check_failed:{type(exc).__name__}"
             return record
 
-
-
-
-
-
-
-
-
     async def read_content(self, *, principal: str = "") -> str:
         """Extract page content by scoring likely article/content containers."""
         principal = self._effective_principal(principal)
@@ -1069,8 +1068,9 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         try:
             if not self.page:
                 return ""
-            
+
             title = await self.page.title()
+            await show_activity(self, "reading")
 
             candidate_blocks = await self.page.evaluate("""() => {
                 function isVisible(el) {
@@ -1170,6 +1170,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 "trust": "untrusted_external_page",
                 "extraction": "heuristic_scored_container",
             }
+            await show_activity(self, "reading", stage="completed")
             return f"# {title}\n\n{best_text[:self.MAX_EXTRACT_CHARS]}"
         except (
             OSError,
@@ -1195,7 +1196,6 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
                 "trust": "untrusted_external_page",
             }
             return ""
-
 
     #: Bounds on what may cross the capability boundary in one call. Both
     #: were unbounded: a screenshot returned the whole page image
@@ -1667,6 +1667,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             return {}
         if not self.page:
             return {}
+        await show_activity(self, "reading")
         # Every control the page has, unless the caller names a number. A flat
         # 120 cut a questionnaire off at its 24th question: LIVE-rehearsed on
         # 27 Sep, OEJTS page one has 32 questions of five choices and a Next
@@ -1699,6 +1700,7 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
         observation.update(_the_words_to_carry(observation, frames, self.PAGE_TEXT_ROOM))
         observation.pop("frames_at", None)
         observation.pop("seen_at", None)
+        await show_activity(self, "reading", stage="completed")
         return observation
 
     async def get_links(self, *, principal: str = "") -> list[dict[str, str]]:
@@ -1759,7 +1761,8 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
             # Viewport, not full_page: the whole scrollable document is far
             # more of the person's session than a caller asking for "a
             # screenshot" is asking for.
-            bytes_data = await self.page.screenshot(full_page=False)
+            async with without_presence(self.page):
+                bytes_data = await self.page.screenshot(full_page=False)
             if len(bytes_data) > self.MAX_SCREENSHOT_BYTES:
                 record_degradation(
                     "phantom_browser",
@@ -1864,6 +1867,8 @@ class PhantomBrowser(_ReadsItsFrames, _ActsOnThePage):
     async def close(self):
         self._close_failures = []
         """Close browser resources with per-step timeouts to prevent hangs."""
+        await show_activity(self, "closed", stage="completed")
+        self._presence_available = False
         if self.page:
             await self._close_resource("page", self.page.close, close_timeout=3.0)
         if self.context:
@@ -1942,7 +1947,6 @@ async def integrate_phantom_browser(orchestrator) -> bool:
         status.get("startup_error", "")[:160] or "unknown",
     )
     return False
-
 
 
 def _the_words_to_carry(

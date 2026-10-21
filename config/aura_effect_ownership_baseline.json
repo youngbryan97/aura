@@ -7669,6 +7669,22 @@
       "canonical_owner": true,
       "category": "raw_browser",
       "count": 1,
+      "path": "core/perception/browser_presence.py",
+      "scope": "<module>.show_activity"
+    },
+    {
+      "callee": "page.evaluate",
+      "canonical_owner": true,
+      "category": "raw_browser",
+      "count": 2,
+      "path": "core/perception/browser_presence.py",
+      "scope": "<module>.without_presence"
+    },
+    {
+      "callee": "page.evaluate",
+      "canonical_owner": true,
+      "category": "raw_browser",
+      "count": 1,
       "path": "core/perception/the_drawing_as_objects.py",
       "scope": "<module>.acquire"
     },
@@ -16674,6 +16690,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "c70286873e5523895f76b45890240bc69e392de2999f6a17af6dabd553046d8e",
+  "inventory_sha256": "87aa7581a60f466b1fca0c48a2d1c6c4a5120bb88e655c1ce1631263f58b13e0",
   "schema_version": 1
 }
