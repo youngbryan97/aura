@@ -21,18 +21,24 @@ async def eternal_lifecycle():
     
     from core.runtime.shutdown_coordinator import is_shutdown_requested
 
+    last_emergency = 0.0
     while not is_shutdown_requested():
         try:
-            rt = CoreRuntime.get_sync()
+            CoreRuntime.get_sync()
             mem = psutil.virtual_memory().percent
-            
-            # Thermal/Memory Emergency
-            if mem > 88:
+
+            # Thermal/Memory Emergency, at most once a minute: this loop turns every second, and each turn above 88%
+            # tried to save a snapshot. It called StateManager.snapshot(), which does not exist (LIVE 21 October 2026:
+            # an AttributeError a second, escalated to an emergency incident); the orchestrator's own save is used.
+            if mem > 88 and time.monotonic() - last_emergency >= 60.0:
+                last_emergency = time.monotonic()
                 logger.warning(
                     "⚠️ High memory pressure (%.1f%%). Triggering emergency eviction.",
                     mem,
                 )
-                await rt.state_manager.snapshot("thermal_emergency")
+                save = getattr(ServiceContainer.get("orchestrator", default=None), "_save_state_async", None)
+                if callable(save):
+                    await save("thermal_emergency")
                 try:
                     from core.utils.gpu_sentinel import GPUPriority, get_gpu_sentinel
                     sentinel = get_gpu_sentinel()

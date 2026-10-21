@@ -149,7 +149,8 @@ async def watched_on_the_page(browser: Any, goal: str, observation: dict[str, An
         # Its length as the page states it before the player's, which is the advert's while one plays.
         duration = float(said_of_itself.get("length") or 0) or float(plays.get("duration") or 0)
         at_most = duration + 120.0 if duration else WATCHED_AT_MOST_S
-        title = str(said_of_itself.get("name") or observation.get("title") or "") or str(await page.title() or "")
+        # One line: YouTube's name for a video held a line break, and "- Now What?" was shown as a list item.
+        title = " ".join((str(said_of_itself.get("name") or observation.get("title") or "") or str(await page.title() or "")).split())
         # Watched with the person where they watch: opened in their browser, and her own page quiet so that one plays
         # (core/skills/watching_the_screen.py). Where it cannot be shown there, on her own page as before.
         from core.skills.watching_the_screen import _their_browser, on_their_screen

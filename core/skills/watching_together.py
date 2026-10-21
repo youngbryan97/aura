@@ -44,6 +44,9 @@ _PLAYING: dict[str, dict[str, Any]] = {}
 _WATCHINGS: set[asyncio.Task] = set()
 
 
+#: How many exchanges since the request a turn of hers reads while watching, besides the request and her answer.
+RECENT_EXCHANGES = 8
+
 #: How many remarks asking her to think out loud counts for, as remarks of hers taken up: a welcome of 0.8 to begin.
 INVITED_REMARKS = 3
 
@@ -169,6 +172,8 @@ def the_talk_since(began: float, request: str, spoken: list[tuple[float, str, st
     events = [*((at, role, words) for at, role, words in said_since(began) if not (role == "assistant" and words in remarks)),
               *((at, "remark", (shown, words)) for at, shown, words in spoken)]
     for _at, role, words in sorted(events, key=lambda e: e[0]):
+        if role == "user" and words == request and len(pairs) == 1:
+            continue  # the request heads it already
         if role == "user":
             pairs.append((words, []))
         elif role == "remark" and len(pairs) > 1 and not pairs[-1][1]:
@@ -179,7 +184,11 @@ def the_talk_since(began: float, request: str, spoken: list[tuple[float, str, st
             pairs.append((f"[Aura's own eyes and ears on the video they are watching together] {words[0]}", [words[1]]))
         elif words not in pairs[-1][1]:
             pairs[-1][1].append(words)
-    return [stamp_runtime_payload({"user": user, "aura": " ".join(aura)}) for user, aura in pairs if aura]
+    said = [(user, aura) for user, aura in pairs if aura]
+    # The request and her answer, and the newest of the rest: a whole video's remarks made each turn's prompt long
+    # enough to stall her (LIVE 21 October 2026, 89,827 characters).
+    said = said[:1] + said[1:][-RECENT_EXCHANGES:] if said and said[0][0] == request else said[-RECENT_EXCHANGES:]
+    return [stamp_runtime_payload({"user": user, "aura": " ".join(aura)}) for user, aura in said]
 
 
 def _read_in_every_turn() -> None:
@@ -207,6 +216,9 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     who = who or who_she_is_with(taking._her_record())
     withs = taking._withs()
     held = withs.current(who) or withs.begin(who, f"watching {title}", proposed_by=THEM)
+    # This watching's talk begins with it: the with may be older (LIVE 21 October 2026, one open all night carried
+    # every earlier watching into each remark).
+    watching_began = time.time() - 5.0
     from core.intent.asks_for_remarks import asks_for_remarks
 
     held.invited = max(held.invited, INVITED_REMARKS if asks_for_remarks(request) else 0)
@@ -240,7 +252,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
     async def her_turn_in_it(asked: str, observation: str, said: list[str]) -> str:
         shown_last["observation"] = observation
-        talk = await asyncio.to_thread(the_talk_since, held.began, asked, list(spoken))
+        talk = await asyncio.to_thread(the_talk_since, watching_began, asked, list(spoken))
         # Every turn of hers in a with after her answer is a remark: what was asked is already in her conversation.
         return await her_turn(asked, observation, said, exchanges=talk, remark=True)
 

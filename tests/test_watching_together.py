@@ -281,3 +281,16 @@ def test_a_turn_of_her_own_reads_all_she_has_said_in_the_watching():
     messages, _note = _desktop_history_messages_from_context(
         {"recent_completed_exchanges": talk, "her_own_turn": True, "visible_user_message": "agents agents agents"})
     assert [m["content"] for m in messages if m["role"] == "assistant"][1:] == [f"Remark {n} about the cats." for n in range(6)]
+
+
+def test_a_remark_reads_the_request_her_answer_and_the_newest_remarks_only(monkeypatch):
+    """LIVE 2026-10-21: one remark's prompt was 89,827 characters, every earlier watching and every remark in it."""
+    import core.together.remarks as remarks
+    from core.skills.watching_together import RECENT_EXCHANGES, the_talk_since
+
+    monkeypatch.setattr(remarks, "said_since", lambda _began: [
+        (1.0, "user", "Watch this with me and think out loud."), (2.0, "assistant", "I expect agents.")])
+    spoken = [(10.0 + n, f"look {n}", f"Remark {n}.") for n in range(20)]
+    talk = the_talk_since(0.0, "Watch this with me and think out loud.", spoken)
+    assert (talk[0]["user"], talk[0]["aura"]) == ("Watch this with me and think out loud.", "I expect agents.")
+    assert [t["aura"] for t in talk[1:]] == [f"Remark {n}." for n in range(20 - RECENT_EXCHANGES, 20)]
