@@ -1731,3 +1731,16 @@ Next verify downstream source contact/coordinate requirements and ordinary
 naming/goal custody. Native proof still needs an authorized live-model run;
 the GPU remains reserved for Bryan's demos. Continue CPU-only code work,
 preserve G09/holdouts and do not restart the resident runtime.
+
+The source-step evaluator now consumes supplied primitive state before
+enumerating unknown branches. Previously sixteen known guards exhausted
+the path limit before the resolver could use their values; five regressions
+reproduced this. Explicit parameters and sequential writes keep their scope.
+The immutable initial snapshot and selected branch addresses remain in the
+invocation, and resolving a cached path with changed/missing inputs refuses.
+Unknown fields, calls and deletions still publish no partial state. The
+first repaired group passed 72 tests and the later custody group passed.
+Artifacts: `artifacts/flash-campaign/2026-10-20-supplied-source-state/`.
+This supplies arithmetic capability, not a live-state producer or a contact
+contract. Continue those connections without assigning physical roles from
+field names or treating an artwork box as a collision surface.

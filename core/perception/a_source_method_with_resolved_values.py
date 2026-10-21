@@ -154,6 +154,16 @@ def resolve_source_method(reading: FlashMethodReading, values: SourceValues) -> 
                 invocation=reading.invocation)
     if not reading.complete:
         return ResolvedSourceStep(**base, needs=(SourceValueNeed('complete_source_method', reading.target, values.source),))
+    initial = getattr(reading.invocation, 'initial_values', ())
+    if (not isinstance(initial, tuple) or len(initial) > 1024
+            or any(not isinstance(item, tuple) or len(item) != 2 or not isinstance(item[0], str)
+                   or not isinstance(item[1], Arithmetic) or not _primitive(item[1]) for item in initial)
+            or len({name for name, _value in initial}) != len(initial)):
+        return ResolvedSourceStep(**base, needs=(SourceValueNeed('verify_initial_source_context', reading.target, values.source),))
+    mismatched = tuple(SourceValueNeed('verify_initial_source_value', name, values.source)
+                       for name, expected in initial if values.values.get(name) != expected)
+    if mismatched:
+        return ResolvedSourceStep(**base, needs=mismatched[:64])
     evaluator = _Resolve(values)
     possible, unresolved = [], []
     for path in reading.paths:

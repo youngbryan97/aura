@@ -50,6 +50,7 @@ class SourceInvocation:
     receiver_source: str
     parameters: tuple[tuple[str, Arithmetic], ...]
     held_codes: frozenset[int] | None
+    initial_values: tuple[tuple[str, Arithmetic], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -306,6 +307,28 @@ class _CannotReadError(ValueError):
     pass
 
 
+def _initial_source_values(supplied: Mapping[str, Arithmetic] | None) -> dict[str, Arithmetic]:
+    if supplied is None:
+        return {}
+    if not isinstance(supplied, Mapping) or len(supplied) > MAX_BINDINGS:
+        raise _CannotReadError('bounded initial source values are required')
+    owned = {}
+    for name, value in supplied.items():
+        if (not isinstance(name, str) or not 1 <= len(name) <= 512 or name == 'this'
+                or any(_IDENTIFIER.fullmatch(part) is None for part in name.split('.'))
+                or not isinstance(value, Arithmetic) or not isinstance(value.arguments, tuple)):
+            raise _CannotReadError('initial source values need literal qualified bindings')
+        if value.operation in ('null', 'undefined') and not value.arguments:
+            owned[name] = value
+        elif (value.operation in ('number', 'boolean', 'string') and len(value.arguments) == 1
+              and not (isinstance(value.arguments[0], str) and len(value.arguments[0]) > 4096)
+              and _literal(value.arguments[0]) == value):
+            owned[name] = value
+        else:
+            raise _CannotReadError('initial source values must remain finite primitives')
+    return owned
+
+
 def _pop(state: _State) -> Arithmetic:
     if not state.stack:
         raise _CannotReadError('source stack underflow')
@@ -502,7 +525,8 @@ def _instruction(state: _State, instruction: ActionInstruction, source: str,
 
 def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = (), *,
                       constants: Mapping[str, float] | None = None,
-                      held_codes: frozenset[int] | None = None, receiver: str | None = None) -> FlashMethodReading:
+                      held_codes: frozenset[int] | None = None, receiver: str | None = None,
+                      initial_values: Mapping[str, Arithmetic] | None = None) -> FlashMethodReading:
     """Lift one method's supported paths; unknown guards remain explicit.
 
     Arguments may be literals or ``Arithmetic`` references. Calls to other
@@ -512,6 +536,8 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
     and later constant reads do not become conditions of an earlier effect.
     An explicit receiver describes this invocation only. A free function's
     absent receiver remains the symbolic "this", never its own method name.
+    Initial primitives select the current path and stay in its invocation;
+    resolving that reading against a different snapshot must be refused.
     """
     if held_codes is not None and (not isinstance(held_codes, frozenset)
             or any(type(code) is not int or not 0 <= code <= 255 for code in held_codes)):
@@ -526,8 +552,12 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
     if receiver is not None and (not isinstance(receiver, str) or len(receiver) > 256
             or any(_IDENTIFIER.fullmatch(part) is None for part in receiver.split('.'))):
         return FlashMethodReading(binding.target, (), ('bounded literal receiver path is required',))
+    try:
+        supplied = _initial_source_values(initial_values)
+    except (_CannotReadError, ValueError, OverflowError) as why:
+        return FlashMethodReading(binding.target, (), (str(why),))
     owner = receiver if receiver is not None else binding.target.rsplit('.', 1)[0] if '.' in binding.target else 'this'
-    names = {'this': Arithmetic('reference', (owner,))}
+    names = {**supplied, 'this': Arithmetic('reference', (owner,))}
     try:
         names.update({name: value if isinstance(value, Arithmetic) else _literal(value)
                       for name, value in zip(function.parameters, arguments, strict=True)})
@@ -541,7 +571,8 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
         return FlashMethodReading(binding.target, (), ('unsupported preloaded method environment',))
     invocation = SourceInvocation(binding.target, names['this'],
                                   'caller supplied' if receiver is not None else 'declaration owner' if '.' in binding.target else 'unresolved',
-                                  tuple((name, names[name]) for name in function.parameters), held_codes)
+                                  tuple((name, names[name]) for name in function.parameters), held_codes,
+                                  tuple(sorted(supplied.items())))
     first = _State(function.body.instructions[0].offset, names=names, registers=registers,
                    pool=binding.constant_pool, local_names=set(function.parameters), invocation=invocation)
     pending = deque([first])
@@ -580,6 +611,8 @@ def read_flash_method(binding: FlashMethodBinding, arguments: tuple[Any, ...] = 
                         state.conditions += (BranchEvidence(function.body.source, instruction.offset, condition, False),)
                         state.offset = instruction.next_offset
                     else:
+                        if initial_values is not None:
+                            state.conditions += (BranchEvidence(function.body.source, instruction.offset, condition, truth),)
                         state.offset = instruction.branch_target if truth else instruction.next_offset
                     continue
                 returned = _instruction(state, instruction, function.body.source, constants or {}, held_codes)
@@ -646,4 +679,36 @@ def _source_boolean_arithmetic_invariant() -> tuple:
     assert _calculation('mul', _literal(4), _literal(False)) == _literal(0)
     assert _calculation('strict eq', _literal(False), _literal(0)) == _literal(False)
     assert _calculation('mul', _literal(4), Arithmetic('reference', ('flag',))).operation == 'mul'
+    return ()
+
+
+@invariant('perception.supplied_source_values_select_and_own_their_current_path', scope='perception',
+           owner='core/perception/symbolic_motion_in_flash_methods.py', observational=False)
+def _initial_source_path_invariant() -> tuple:
+    import struct
+
+    def action(code, payload):
+        return bytes((code,))+struct.pack('<H', len(payload))+payload
+
+    def push_string(value):
+        return action(0x96, b'\0'+value.encode()+b'\0')
+
+    body = b''
+    supplied = {}
+    for index in range(8):
+        name = f'flag{index}'
+        supplied[name] = _literal(True)
+        # Both successors reach the next guard. The source still contains
+        # eight branches whose selected evidence must survive the read.
+        body += push_string(name)+b'\x1c'+action(0x9D, b'\0\0')
+    body += b'\0'
+    header = b'\0\0\0'+struct.pack('<H', len(body))
+    raw = push_string('select')+action(0x9B, header)+body+b'\x1d\0'
+    stream = parse_action_stream(raw, source='initial-state-invariant')
+    binding = bind_flash_methods((stream,)).method('select')
+    assert binding is not None
+    reading = read_flash_method(binding, initial_values=supplied)
+    assert reading.complete and len(reading.paths) == 1 and len(reading.paths[0].conditions) == 8
+    supplied['flag0'] = _literal(False)
+    assert dict(reading.invocation.initial_values)['flag0'] == _literal(True)
     return ()

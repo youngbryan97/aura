@@ -151,6 +151,101 @@ def test_unsupported_arithmetic_and_path_budget_remain_explicit():
     assert not too_many.resolved and too_many.needs[0].operation == 'complete_source_method'
 
 
+@pytest.mark.parametrize('kind', ['number', 'boolean', 'string', 'null'])
+def test_supplied_initial_state_selects_the_actual_path_before_the_path_budget_is_spent(kind):
+    body = _diamonds(16)
+    current, binding = program(body), _binding(body)
+    randomizer = random.Random(20261020)
+    for _ in range(12):
+        flags = {f'flag{i}': bool(randomizer.getrandbits(1)) for i in range(16)}
+        if kind == 'number':
+            supplied = {name: int(value) for name, value in flags.items()}
+        elif kind == 'string':
+            supplied = {name: 'ready' if value else '' for name, value in flags.items()}
+        elif kind == 'null':
+            supplied = {name: 1 if value else None for name, value in flags.items()}
+        else:
+            supplied = flags
+        expected, _memory = _run_code(binding, _initial(**supplied))
+        step = current.resolved_method('operate', values(**supplied))
+        assert step.resolved, step.needs
+        assert step.returned.arguments == (float(expected),)
+        assert len(step.conditions) == 16
+        assert all(condition.source == 'fixture-bytes' and condition.offset >= 80 for condition in step.conditions)
+
+
+def test_a_missing_initial_value_remains_unknown_after_other_guards_are_selected():
+    supplied = {f'flag{i}': True for i in range(15)}
+    step = program(_diamonds(16)).resolved_method('operate', values(**supplied))
+    assert not step.resolved and not step.writes
+    assert step.needs[0].operation == 'observe_source_value' and step.needs[0].target == 'flag15'
+
+
+def test_a_cached_selected_path_cannot_be_resolved_with_changed_or_missing_inputs():
+    before = values(**{f'flag{i}': True for i in range(16)})
+    supplied = dict(before.values)
+    reading = read_flash_method(_binding(_diamonds(16)), initial_values=supplied)
+    supplied['flag0'] = Arithmetic('boolean', (False,))
+    assert dict(reading.invocation.initial_values)['flag0'] == Arithmetic('boolean', (True,))
+    assert resolve_source_method(reading, before).resolved
+    changed = values(**{f'flag{i}': i != 0 for i in range(16)})
+    wrong = resolve_source_method(reading, changed)
+    absent = resolve_source_method(reading, values())
+    assert not wrong.resolved and not wrong.writes and wrong.needs[0].target == 'flag0'
+    assert wrong.needs[0].operation == 'verify_initial_source_value'
+    assert not absent.resolved and not absent.writes
+
+
+def test_source_writes_and_explicit_parameters_override_initial_field_values_in_order():
+    body = write('v', read('v')+read('amount')+b'\x0a')+write('amount', _push(20))+read('v')+read('amount')+b'\x0a\x3e'
+    binding, current = _binding(body, ('amount',)), program(body, ('amount',))
+    supplied = dict(v=4., amount=90.)
+    expected, _memory = _run_code(binding, _initial(**supplied), (3.,))
+    step = current.resolved_method('operate', values(**supplied), arguments=(3.,))
+    assert step.resolved and step.returned.arguments == (float(expected),) == (27.,)
+    assert step.invocation.parameters == (('amount', Arithmetic('number', (3.,))),)
+
+
+@pytest.mark.parametrize('initial', [
+    {'flag0': Arithmetic('reference', ('hidden',))},
+    {'flag0': Arithmetic('number', (float('inf'),))},
+    {'flag0': Arithmetic('boolean', (1,))},
+    {'this': Arithmetic('number', (3.,))},
+    {'a[0]': Arithmetic('number', (3.,))},
+    {f'flag{i}': Arithmetic('boolean', (True,)) for i in range(1025)},
+])
+def test_nonprimitive_or_unbounded_initial_context_cannot_choose_a_path(initial):
+    reading = read_flash_method(_binding(_diamonds(2)), initial_values=initial)
+    assert not reading.complete and reading.issues
+
+
+def test_deleted_initial_values_cannot_reappear_from_the_supplied_snapshot():
+    body = _push('object')+b'\x1c'+_push('value')+b'\x3a\x17'+read('object')+_push('value')+b'\x4e\x3e'
+    step = program(body).resolved_method('operate', SourceValues('fixture-bytes', 3, 5., {'object.value': 7.}))
+    assert not step.resolved and not step.writes and step.needs[0].operation == 'resolve_property_deletion'
+
+
+def test_initial_source_context_has_a_registered_current_path_canary():
+    from core.perception.symbolic_motion_in_flash_methods import _initial_source_path_invariant
+
+    assert _initial_source_path_invariant() == ()
+
+
+@pytest.mark.parametrize('context', [
+    None,
+    (('flag0', Arithmetic('reference', ('missing',))),),
+    (('flag0', Arithmetic('number', (float('nan'),))),),
+    (('flag0', Arithmetic('boolean', (True,))), ('flag0', Arithmetic('boolean', (False,)))),
+    (('flag0',),),
+])
+def test_malformed_cached_initial_context_returns_an_evidence_need(context):
+    reading = read_flash_method(_binding(_diamonds(1)), initial_values={'flag0': Arithmetic('boolean', (True,))})
+    reading = replace(reading, invocation=replace(reading.invocation, initial_values=context))
+    step = resolve_source_method(reading, values(flag0=True))
+    assert not step.resolved and not step.writes
+    assert step.needs[0].operation == 'verify_initial_source_context'
+
+
 def test_program_requires_unique_current_complete_byte_sources():
     current = program(b'\0')
     assert current.resolved_method('missing', values()) is None

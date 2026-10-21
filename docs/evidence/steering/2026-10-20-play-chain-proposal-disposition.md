@@ -807,6 +807,36 @@ Building velocity uncertainty falls from 7.7916 to below 2 working pixels
 per second as the retained time span grows, and ends at 0.6668. No model was
 asked, input delivered, goal bound, contact proved or native task passed.
 
+## Supplied state selects source paths before their exploration budget
+
+- [x] Reproduced a source-reader failure: sixteen ordinary conditional
+  updates exceeded the symbolic path limit even when every guard's input
+  had already been supplied. Five new regressions failed before the fix.
+- [x] `ProgramRead.resolved_method` now supplies its owned finite primitive
+  snapshot to the instruction reader before branch selection. Explicit
+  parameters, the receiver and ordered source writes retain their scope.
+  Numbers, booleans, strings and null values select their actual paths.
+- [x] The invocation retains an immutable initial snapshot and the selected
+  branch addresses. A cached reading cannot resolve against changed or
+  missing initial inputs. Invalid context, absent fields, deletions and
+  unresolved calls still produce explicit needs without partial writes.
+- [x] A registered invariant checks bounded current-path selection and
+  input custody. Independent bytecode execution supplies expected results
+  for sixteen-branch tests; these do not compare the reader with itself.
+- [ ] Actual source state, its coordinate/unit binding, safe contact and
+  native gameplay remain separate requirements. Supplying primitive values
+  does not certify a game heap, an observed body or an accepted action.
+
+The first repaired test group passed 72 tests. The subsequent custody
+group also passed. Their retained artifacts and the original failing test
+are under `artifacts/flash-campaign/2026-10-20-supplied-source-state/`.
+The expanded source-reader, effect-graph, source-container, layer-proposal
+and checked-motion group passed 273 tests in 81.56 seconds on this shared
+host. This duration is test execution, not a gameplay timing measurement.
+Smoke passed 164 tests with one skip; lint, compilation, layering and writing
+passed. The bounded aggregate finished in 325.35 seconds. No model worker,
+GPU call, physical input or resident lifecycle operation was used.
+
 The first refinement group passed 50 tests. The live handoff regression
 failed before the key fix; the corrected continuity group passed 88 tests.
 An expanded group passed 228 tests in 108.32 seconds, including existing

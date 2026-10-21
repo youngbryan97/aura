@@ -151,7 +151,8 @@ class ProgramRead:
         binding = bind_flash_methods(sources.streams).method(target)
         if binding is None:
             return None
-        return resolve_source_method(read_flash_method(binding, arguments, held_codes=held_codes, receiver=receiver), values)
+        return resolve_source_method(read_flash_method(binding, arguments, held_codes=held_codes, receiver=receiver,
+            initial_values=values.values), values)
 
 
 def key_named(name: str) -> str:
