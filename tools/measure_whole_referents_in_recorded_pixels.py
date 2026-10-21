@@ -188,6 +188,8 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
             referents=[dict(number=w.number, born=w.born, kind=w.kind, source=w.source,
                 character_id=w.character_id, reference_sha256=w.reference_sha256,
                 box=list(w.box()), vx=w.vx, vy=w.vy, velocity_error=w.velocity_error,
+                motion_evidence=w.motion_evidence, motion_measured_at=w.motion_measured_at,
+                material_displacement=asdict(w.material_displacement) if w.material_displacement is not None else None,
                 observed_parts=list(w.observed_parts), contact_verified=w.contact_verified, role=w.role,
                 visible_fraction=w.visible_fraction, clipped_edges=list(w.clipped_edges),
                 pixels=asdict(w.pixels)) for w in seen.values()]))

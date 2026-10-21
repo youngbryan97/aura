@@ -18,6 +18,7 @@ from scipy import ndimage
 
 from core.perception.a_source_point_on_visible_marks import SourcePointOnVisibleMarks, VisibleSourcePoint
 from core.perception.named_material_in_a_consumed_frame import MaterialMarks
+from core.perception.material_displacement_from_named_pixels import MaterialDisplacement
 from core.perception.pixels_consumed_by_the_observer import PixelsConsumed, consumed_pixels
 from core.perception.visual_references_for_current_sources import RegisteredVisualReference
 from core.verify import invariant
@@ -50,6 +51,7 @@ class WholeSourceReferent:
     # Fraction of opaque reference pixel centres in this capture's footprint.
     visible_fraction: float = 1.
     clipped_edges: tuple[bool, bool, bool, bool] = (False, False, False, False)
+    material_displacement: MaterialDisplacement | None = None
 
     def __post_init__(self) -> None:
         values = self.born, self.seen, self.x, self.y, self.w, self.h
@@ -73,6 +75,23 @@ class WholeSourceReferent:
         if any(v is not None for v in motion) and (any(type(v) not in (int, float) or not math.isfinite(v) for v in motion)
                                                   or self.velocity_error < 0):
             raise ValueError('whole-referent velocity needs its finite uncertainty')
+        step = self.material_displacement
+        if step is not None and (not isinstance(step, MaterialDisplacement)
+                or (step.number, step.born, step.at) != (self.number, self.born, self.seen)
+                or not self.origin_path or self.origin_path[-1][1:3] != step.end):
+            raise ValueError('whole motion needs its own dated material interval and origin')
+
+    @property
+    def motion_evidence(self) -> str:
+        return 'source material' if self.material_displacement is not None else 'unavailable'
+
+    @property
+    def motion_measured_at(self) -> float | None:
+        return self.material_displacement.at if self.material_displacement is not None else None
+
+    @property
+    def motion_position(self) -> tuple | None:
+        return self.material_displacement.end if self.material_displacement is not None else None
 
     @property
     def size(self) -> float:
@@ -300,6 +319,10 @@ class WholeReferentsInView:
                 error = (point.error+before[3])/seconds
                 item = replace(item, vx=vx, vy=vy, velocity_error=error, moved=math.hypot(vx, vy) > error)
             item = replace(item, origin_path=(*path[-15:], current))
+            if old is not None:
+                from core.perception.a_whole_origin_carried_by_measured_material import whole_material_displacement
+
+                item = replace(item, material_displacement=whole_material_displacement(old, item, marks))
             result[number] = item
             self.records[number] = item
         self.records = dict(sorted(self.records.items(), key=lambda pair: pair[1].seen, reverse=True)[:128])

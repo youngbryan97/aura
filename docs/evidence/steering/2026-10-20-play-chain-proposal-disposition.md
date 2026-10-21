@@ -1071,3 +1071,48 @@ are in `artifacts/flash-campaign/2026-10-21-symmetric-patch-comparison/`.
 Continue the connection from retained material pose to the next reference
 search; do not promote geometry to control or contact authority. GPU, G09,
 holdouts and resident lifecycle remain untouched.
+
+
+### October 21: whole-origin motion has dated material custody
+
+- [x] Two red tests exposed a type-boundary defect: a new whole-source
+  observation inherited the generic `direct` motion default. It now marks
+  motion unavailable until a current shared-material displacement exists.
+- [x] A new helper checks source/frame identity, mark epoch, current capture,
+  common point births and their actual preceding observation time. A spread
+  rigid or redundant affine fit transports the source origin and the existing
+  displacement precision calculation. It creates a `MaterialDisplacement`
+  with its real interval and persistent reference owner. Bounds never become
+  that motion origin; missing, gapped, collinear or changed material refuses.
+- [x] The ordinary whole producer and recorder publish this interval. The
+  existing capture/input interval learner consumes it without substituting
+  an averaged velocity: the acceleration fixture's published average is
+  50 pixels/second, while its latest measured interval correctly gives 70.
+  Wrong input surfaces and conflicting dates still refuse.
+- [x] Expanded tests passed 242. Smoke passed 164 with one skip; lint,
+  compilation, layering and writing passed in 70.71 seconds. A first custody
+  command named an absent test file and collected no tests; its setup failure
+  is retained separately. The corrected capture group passed 107.
+- [ ] Whole observations remain outside body/control selection. This exposes
+  valid evidence and blocks a false direct-state path; it does not identify
+  the controlled body, supply a collider, or demonstrate a game win.
+
+The new ordinary-timing forty-picture replay retained thirty whole-building
+observations, of which twenty-nine have current material intervals. Its one
+whole-ship observation correctly has motion unavailable. It took 11.3081
+seconds, with no input or model. Retained evidence is under
+`artifacts/flash-campaign/2026-10-21-whole-material-motion/`.
+
+Two further connections were tested and remain experimental: carrying raw
+source material poses into the next search tried five hints and retained
+one whole ship; common-grid fallback in current-reference matching produced
+no additional successful fit and left the paired result at three whole ships.
+Do not promote either. Their artifacts are under `2026-10-21-current-material-search/`
+and `2026-10-21-current-reference-phase/`. The first pose prototype rejected
+composition keys before measurement; its failure receipt is retained.
+
+Next investigate learning control from persistent partial material without
+requiring a completed whole referent first. Source geometry, material
+identity and controlled-body identity remain separate evidence layers. Keep
+CPU-only work, all G09/holdout exclusions and resident ownership. No native
+play or readiness claim has been made.

@@ -1841,3 +1841,25 @@ Next investigate feeding current retained material geometry into the next
 source search. The worker still searches pose banks captured by earlier
 reference jobs; point continuity and fresh search remain separate consumers.
 Preserve CPU-only work, G09/holdouts and resident-runtime ownership.
+
+
+Whole-origin motion now has an explicit evidence boundary. A first whole
+observation is unavailable, never direct state. Only current common named
+pixels across the same source/frame, epoch and bounded interval can produce
+its `MaterialDisplacement`. That supplies exact capture dates to the existing
+input/acceleration learner while artwork extents and averaged velocity keep
+their separate meanings. The ordinary producer, recorder and replay carry
+this evidence. It does not install a body or control identity.
+
+Tests passed 242; smoke 164 with one skip, lint/compile/layering/writing pass.
+The forty-picture replay has 29 measured building intervals and no measured
+ship interval: the ship appeared whole once. Current-material pose search
+and reference common-grid matching prototypes showed no ship gain and stay
+unconnected. Preserve their receipts and scripts. Evidence directories:
+`2026-10-21-whole-material-motion`, `2026-10-21-current-material-search`, and
+`2026-10-21-current-reference-phase` under the private campaign artifacts.
+
+Continue the partial-material-to-control connection; a whole-body appearance
+cannot be a prerequisite to discovering which material responds to input.
+Preserve the causal trial gates, independent input ownership, geometry/contact
+unknowns, CPU-only reservation and G09/holdouts. Native success remains open.
