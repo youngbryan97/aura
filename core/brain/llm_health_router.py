@@ -88,6 +88,7 @@ from .llm_health_router_gate_owners import (  # noqa: F401  (re-exported: they w
     _lease_is_user_foreground,
 )
 from .llm_health_router_gate_readings import (  # noqa: F401  (re-exported: they were defined here)
+    _gate_clock,
     _oldest_generation_gate_lease_age_s,
     generation_gate_snapshot,
 )
@@ -220,7 +221,7 @@ def _generation_gate_lease_has_time(
         deadline = _GENERATION_GATE_LEASE_DEADLINES.get(int(lease_id))
     if deadline is None:
         return None
-    current = time.time() if now is None else float(now)
+    current = _gate_clock() if now is None else float(now)
     return current < float(deadline)
 
 
@@ -274,7 +275,7 @@ def _mark_generation_gate_acquired(
     with _GENERATION_GATE_STATE_LOCK:
         _GENERATION_GATE_NEXT_LEASE_ID += 1
         lease_id = _GENERATION_GATE_NEXT_LEASE_ID
-        acquired_at = time.time()
+        acquired_at = _gate_clock()
         _GENERATION_GATE_ACTIVE_LEASES[lease_id] = (acquired_at, str(owner or "unknown"))
         if foreground:
             _GENERATION_GATE_FOREGROUND_LEASES.add(lease_id)
@@ -440,7 +441,7 @@ def force_release_generation_gate(
             _GENERATION_GATE_LEASE_DEADLINES.pop(lease_id, None)
             _GENERATION_GATE_FOREGROUND_LEASES.discard(lease_id)
             _GENERATION_GATE_FORCED_LEASES.add(lease_id)
-            age_s = max(0.0, time.time() - acquired_at)
+            age_s = max(0.0, _gate_clock() - acquired_at)
         try:
             _GENERATION_GATE.release()
         except ValueError:
@@ -1951,7 +1952,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 if holder is not None and _lease_is_user_foreground(
                     holder[0], holder_owner
                 ):
-                    holder_age_s = max(0.0, time.time() - float(holder[1]))
+                    holder_age_s = max(0.0, _gate_clock() - float(holder[1]))
                     holder_has_time = _generation_gate_lease_has_time(holder[0])
                     if holder_has_time is True or (
                         holder_has_time is None
@@ -2922,7 +2923,6 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 action="dispatched request on resident weights without specialist adapter",
                 severity="info",
             )
-
 
 
 

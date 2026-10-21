@@ -10,6 +10,21 @@ import time
 from typing import Any
 
 
+def _gate_clock() -> float:
+    """The clock leases are stamped and aged on: the machine's, never a run's.
+
+    A lease is real concurrency, a generation holding a slot while the caller
+    waits on a real semaphore with a real timeout. In a subject run the
+    experiment clock replaces `time.time` and advances a thirtieth of a second
+    a frame, so a background generation stuck for seventy-five seconds read as
+    0.6 seconds old: the foreground ladder judged it young and in budget and
+    refused her reply as saturated. On the report run of 21 October that lost 9
+    of 32 replies. `time.monotonic` is the clock asyncio's own timeouts use,
+    and nothing replaces it.
+    """
+    return time.monotonic()
+
+
 def _oldest_generation_gate_lease_age_s() -> float:
     from .llm_health_router import (
         _oldest_generation_gate_lease,
@@ -19,7 +34,7 @@ def _oldest_generation_gate_lease_age_s() -> float:
     if oldest_lease is None:
         return 0.0
     _lease_id, acquired_at, _owner = oldest_lease
-    return max(0.0, time.time() - float(acquired_at))
+    return max(0.0, _gate_clock() - float(acquired_at))
 
 
 def generation_gate_snapshot() -> dict[str, Any]:
@@ -35,7 +50,7 @@ def generation_gate_snapshot() -> dict[str, Any]:
 
 
     with _GENERATION_GATE_STATE_LOCK:
-        now = time.time()
+        now = _gate_clock()
         active = {
             int(lease_id): {
                 "age_s": max(0.0, now - float(acquired_at)),
