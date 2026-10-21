@@ -159,6 +159,15 @@ class InitiativeArbiter:
         # the proposer's ranking if every initiative in this moment gets the
         # same one, and the reading moves between calls.
         self._shift = self._read_pressure_shift()
+        # The world as her W domain reads it, once for the pass: every
+        # initiative is weighed in the same world. See core/agency/consequence.py.
+        try:
+            from core.agency.consequence import world_of
+
+            self._world = world_of(state)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("the world could not be read for this pass: %s", exc)
+            self._world = None
         # Good news in the middle of a task: while it is fresh, the task is not
         # what drives her, so every initiative's urgency counts for less by the
         # size of the jump. The same for all of them in this pass, so the
@@ -174,6 +183,8 @@ class InitiativeArbiter:
         for initiative in pending:
             si = await self.score_initiative(initiative, state)
             scored.append(si)
+        # A score asked for outside a pass reads its own world.
+        self._world = None
 
         # Let the ambient life director apply general motive buckets, pressure
         # pacing, encounter memory, and background LOD before subjective choice.
@@ -435,10 +446,11 @@ class InitiativeArbiter:
         # worth, times how much likelier this world makes them to go well.
         # See core/agency/consequence.py.
         try:
-            from core.agency.consequence import act_kind, worth_in_this_world
+            from core.agency.consequence import act_kind, get_consequence_model, world_of
 
-            scores["expected_value"] = worth_in_this_world(
-                scores["expected_value"], act_kind(_goal(initiative)), state
+            world = getattr(self, "_world", None)
+            scores["expected_value"] = get_consequence_model().worth_here(
+                scores["expected_value"], act_kind(_goal(initiative)), world if world is not None else world_of(state)
             )
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             logger.debug("the world did not reach what this initiative is worth: %s", exc)
