@@ -354,6 +354,15 @@ def _source_reference_snapshot(moves: Any) -> dict:
     statuses = getattr(moves, 'fresh_source_reference_status', None)
     wholes = getattr(moves, 'source_referents', None)
     readings = getattr(moves, 'source_referent_readings', ())
+    coverage = getattr(moves, 'source_reference_variant_coverage', ())
+    variants = [] if isinstance(coverage, tuple) else None
+    for c in coverage[:32] if isinstance(coverage, tuple) else ():
+        available, missing = getattr(c, 'available_frames', None), getattr(c, 'missing_frames', None)
+        variants.append({**{name: scalar(getattr(c, name, None)) for name in ('source', 'character_id', 'declared_frames')},
+            'available_frames': list(available[:32]) if isinstance(available, tuple) else None,
+            'missing_frames': list(missing[:128]) if isinstance(missing, tuple) else None,
+            'missing_count': len(missing) if isinstance(missing, tuple) else None,
+            'missing_truncated': len(missing) > 128 if isinstance(missing, tuple) else None})
     whole_readings = [{name: scalar(item.get(name)) for name in
         ('source', 'character_id', 'reason', 'mean_colour_error', 'maximum_edge_error', 'samples', 'visible_fraction')}
         for item in readings[:128] if isinstance(item, dict)] if isinstance(readings, (tuple, list)) else None
@@ -365,6 +374,7 @@ def _source_reference_snapshot(moves: Any) -> dict:
         'origin_path': [list(p) for p in getattr(item, 'origin_path', ())[:16]],
         'pixels': pixels(getattr(item, 'pixels', None))} for item in islice(wholes.values(), 128)] if isinstance(wholes, dict) else None
     return {'pixels': pixels(getattr(moves, 'pixels_consumed', None)),
+            'reference_variants': variants,
             'status': scalar(getattr(moves, 'source_reference_status', None)),
             'fresh_status': [scalar(v) for v in statuses[:64]] if isinstance(statuses, (tuple, list)) else None,
             'object_bound': channel('source_reference_points'), 'continuing': channel('source_reference_frames'),

@@ -539,3 +539,63 @@ test the image-formation direction and sampling/filter model, rather than
 changing qualification thresholds. Artifacts are in
 `artifacts/flash-campaign/2026-10-20-clipped-source-assemblies/`.
 GPU reservation, G09, holdouts and the native runtime remain untouched.
+
+### Finite source visual variants are now represented
+
+- [x] Read the exact declaration's finite frame boundaries and labels from
+  immutable source bytes. The declared count must equal its ShowFrame count,
+  with a valid terminating End. The byte budget, frame budget, malformed labels
+  and foreign dictionary addresses have negative checks. Labels remain data.
+  The parser follows the [SWF format specification](https://open-flash.github.io/mirrors/swf-spec-19.pdf).
+- [x] Export and independently register a selected source frame. The renderer,
+  SVG acquisition, image filename and source receipt retain that selection.
+  Existing frame-one bundles remain readable; unavailable enumeration remains
+  unknown. A static reference cannot establish the active execution frame.
+- [x] Preserve distinct source frames with identical bitmap bytes. Their
+  coordinate origins can differ. Publication, acquisition, proposal banks,
+  search views and current material handoff now keep a separate variant key.
+  A fixture with equal images and different registered origins retains both.
+- [x] Record available and missing static reference frames by asset family.
+  Unknown coverage stays None. Diagnostic missing-frame lists are bounded and
+  retain their full count. Catalog scheduling interleaves asset families and
+  sorts variants by source frame, including legacy index filenames.
+- [x] A general preparation tool fills missing frames for assets already
+  registered to the selected immutable source. It runs bounded renderers one
+  at a time, preserves failed receipts, verifies the source between jobs, and
+  records partial coverage instead of a fabricated successful preparation.
+
+Original 18 declares five top-level visual frames for character 52 and two
+for character 57. Only their first frames had been registered. The additional
+five were exported and registered in the private CPU state root: one separate
+export took 3.24 seconds; the remaining four took 14.28 seconds. All seven
+selected static frames are now available, with no missing frame in those
+two families. This covers neither nested animation combinations nor all
+program objects, dynamic drawing, gameplay states or the other 55 games.
+
+The expanded regression group passed 176 tests in 120.41 seconds. The final
+source/variant canaries passed 17 tests in 4.07 seconds. Smoke passed 164 tests
+and skipped one in 233.17 seconds. Lint and compilation passed. The first
+layering gate caught the new invariant import; its pure dependency was then
+declared explicitly, and layering plus writing passed in 100.66 seconds.
+Background checks run at reduced process priority to preserve the resident
+application's CPU access. Those timings are not gameplay-performance claims.
+
+Seven-variant replay still retained seven consumed sampling hints and eight
+frames with current source material, but zero qualified whole referents.
+Frame coverage was a real omission; filling it did not remove the pixel
+mismatch in this retained scene. Native bitmap extraction, affine-first fits,
+local native-resolution crops, forward sampling and supersampled raster
+experiments likewise established no qualified gameplay result. Their failure
+records remain private under the two October 20 reference artifact directories.
+
+- [ ] G1/G3: currently qualified source constellations can still disappear
+  from semantic attention when full reference-pixel geometry fails. Separate
+  a current material group that can be observed and named from geometry that
+  can authorize movement. Do not inflate a hull, infer a role from source
+  labels, loosen body attribution, or count that semantic candidate as a
+  qualified destination. P2–P7 and native presentation proof remain open.
+
+After sorting within variant families, the 17 canaries passed again in 4.07
+seconds and final smoke passed 164 tests with one skip in 62.31 seconds.
+The large difference between shared-host run times is not a control-rate
+measurement. No performance or demo qualification follows from these gates.

@@ -22,7 +22,7 @@ from core.perception.points_a_consumer_still_needs import MaterialRetention, Mat
 from core.perception.a_visual_reference_in_the_picture import reference_appearances
 from core.perception.source_reference_proposals import SourceReferenceProposal
 from core.perception.visual_references_for_current_sources import (
-    RegisteredVisualReference, _belongs, acquire_visual_references, current_visual_sources,
+    RegisteredVisualReference, _belongs, acquire_visual_references, current_visual_sources, reference_variant_coverage,
 )
 from core.runtime.executors import submit_blocking_io
 from core.runtime.lockdep import checked_thread_semaphore
@@ -158,7 +158,7 @@ def _with_current_material_frames(retained: tuple, offered: tuple, observer: Any
             refused.append(sample.reason)
             continue
         names = {(a[0], a[1]) for a in fresh.anchors}
-        retained = tuple((r, old) for r, old in retained if r.key != reference.key or old.epoch != fresh.epoch
+        retained = tuple((r, old) for r, old in retained if r.variant_key != reference.variant_key or old.epoch != fresh.epoch
                          or len(names & {(a[0], a[1]) for a in old.anchors}) < 3)
         if len(retained) < 64:
             retained = (*retained, (reference, fresh))
@@ -177,6 +177,7 @@ class SourceReferencesInPlay:
         self.interval_s = interval_s
         self.tables: tuple = ()
         self.catalog: tuple = ()
+        self.variant_coverage: tuple = ()
         self.bindings: tuple = ()
         self.points: tuple = ()
         self.frames: tuple = ()
@@ -238,6 +239,7 @@ class SourceReferencesInPlay:
             return
         if work.kind == 'catalog':
             self.catalog, self.unavailable = result.references, result.unavailable
+            self.variant_coverage = reference_variant_coverage(self.catalog)
             self._loaded = True
             # Metadata readiness must not spend the interval between pixel searches.
             self._next = work.started
@@ -249,9 +251,9 @@ class SourceReferencesInPlay:
                 proposal = SourceReferenceProposal(result.reference, result.capture,
                                                      result.appearances, self._proposal_revision)
                 self.proposals = (*tuple(old for old in self.proposals
-                                        if old.reference.key != result.reference.key), proposal)[-32:]
+                                        if old.reference.variant_key != result.reference.variant_key), proposal)[-32:]
             if result.views:
-                self.views[result.reference.key] = result.views
+                self.views[result.reference.variant_key] = result.views
             # A failed appearance search cannot erase continuing measured
             # material. Replace only an instance actually rebound by this job.
             delivered = []
@@ -263,7 +265,7 @@ class SourceReferencesInPlay:
                     self.refused = (*self.refused[-31:], sample.reason)
             replaced = {binding.query.key[:4] for binding in delivered}
             self.bindings = tuple((r, b) for r, b in self.bindings
-                                  if r.key != result.reference.key or b.query.key[:4] not in replaced)
+                                  if r.variant_key != result.reference.variant_key or b.query.key[:4] not in replaced)
             self.bindings = (*self.bindings, *((result.reference, b) for b in delivered))[:256]
             for fresh in result.frames:
                 sample = fresh.inspect(observer, at, source=result.reference.source) if observer is not None else None
@@ -272,7 +274,7 @@ class SourceReferencesInPlay:
                     continue
                 names = {(a[0], a[1]) for a in fresh.anchors}
                 self.frames = tuple((r, old) for r, old in self.frames
-                    if r.key != result.reference.key or old.epoch != fresh.epoch
+                    if r.variant_key != result.reference.variant_key or old.epoch != fresh.epoch
                     or len(names & {(a[0], a[1]) for a in old.anchors}) < 3)
                 if len(self.frames) < 64:
                     self.frames = (*self.frames, (result.reference, fresh))
@@ -293,6 +295,7 @@ class SourceReferencesInPlay:
         tables = current_visual_sources(tables)
         if tables != self.tables:
             self.tables, self.catalog, self.bindings = tables, (), ()
+            self.variant_coverage = ()
             self.frames = ()
             self.proposals = ()
             self.unavailable, self.refused = (), ()
@@ -308,15 +311,15 @@ class SourceReferencesInPlay:
             return ()
         offered = getattr(observer, 'fresh_source_material_frames', ())
         if isinstance(offered, tuple) and len(offered) <= 32:
-            registered = {r.key: r for r in self.catalog}
-            registered.update((p.reference.key, p.reference) for p in self.proposals)
+            registered = {r.variant_key: r for r in self.catalog}
+            registered.update((p.reference.variant_key, p.reference) for p in self.proposals)
             delivered = []
             for item in offered:
                 if not isinstance(item, tuple) or len(item) != 2:
                     continue
                 key, binding = item
-                if (isinstance(key, tuple) and len(key) == 3 and isinstance(key[0], str)
-                        and type(key[1]) is int and isinstance(key[2], str) and key in registered):
+                if (isinstance(key, tuple) and len(key) == 4 and isinstance(key[0], str)
+                        and type(key[1]) is int and isinstance(key[2], str) and type(key[3]) is int and key in registered):
                     delivered.append((registered[key], binding))
             self.frames, refused = _with_current_material_frames(self.frames, tuple(delivered), observer, at, self.tables)
             self.refused = (*self.refused[-31:], *refused)
@@ -367,7 +370,7 @@ class SourceReferencesInPlay:
         elif self.catalog:
             reference = self.catalog[self._cursor % len(self.catalog)]
             turn = self._cursor//len(self.catalog)
-            learned = self.views.get(reference.key, ())
+            learned = self.views.get(reference.variant_key, ())
             # Keep broad discovery alive even when a previous pose becomes
             # wrong. A learned view proposes pixels; it grants no identity.
             view = learned[(turn//3) % len(learned)] if learned and turn % 3 != 2 else None

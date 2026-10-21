@@ -28,7 +28,7 @@ def publish_reference_bundle(bundle: Path, *, root: Path | None = None) -> Path:
     receipt = _read(bundle/'receipt.json', 1_000_000)
     registered_reference(bundle, receipt_sha256=hashlib.sha256(receipt).hexdigest())
     directory = (reference_index_root() if root is None else root)/reference.source[4:]
-    path = directory/f'{reference.declaration.character_id}-{reference.coordinates.reference_sha256}.json'
+    path = directory/f'{reference.declaration.character_id}-{reference.frame_number}-{reference.coordinates.reference_sha256}.json'
     record = dict(schema='aura.visual_reference_index.v1', source=reference.source,
                   bundle=str(bundle), receipt_sha256=hashlib.sha256(receipt).hexdigest())
     with local_internal_governed_scope('publish_visual_reference'):

@@ -73,7 +73,7 @@ def _svg_inventory(directory: Path, character: int) -> Path:
 
 
 def register_export_frame(java: Path, jar: Path, source: Path, out: Path, asset: object,
-                          images: list[dict], source_id: str) -> dict:
+                          images: list[dict], source_id: str, *, frame: int = 1) -> dict:
     """Export the same source frame, then measure its registration into the PNG."""
     from core.runtime.file_write_gateway import get_file_write_gateway
     from tools.export_program_visual_reference import _render_command
@@ -83,7 +83,7 @@ def register_export_frame(java: Path, jar: Path, source: Path, out: Path, asset:
         raise ValueError('source registration requires one sprite or button frame')
     directory, home = out/'source-coordinates', out/'renderer-home'
     get_file_write_gateway().ensure_directory(directory, source='reference_frame_registration')
-    command = _render_command(java, jar, source, directory, home, asset)
+    command = _render_command(java, jar, source, directory, home, asset, frame=frame)
     command[command.index(f'{asset.kind}:png')] = f'{asset.kind}:svg'
     code = run_step(['--name', 'static_reference_coordinates', '--timeout', '60',
                      '--artifact', str(out/'coordinate-supervisor.json'), '--', *command])

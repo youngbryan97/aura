@@ -328,4 +328,4 @@ def test_multiple_current_matches_do_not_erase_unchosen_search_hypotheses(scene,
         assert len(calls[-1]) == 1
         assert not frames and 'fresh_reference_additional_matches_not_retained' in unavailable
     assert [candidates[0].offset for candidates in calls] == [pose.offset for pose in poses]
-    assert len(fresh.records[proposal.reference.key][1]) == 4
+    assert len(fresh.records[proposal.reference.variant_key][1]) == 4

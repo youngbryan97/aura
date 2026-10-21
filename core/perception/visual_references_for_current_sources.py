@@ -34,16 +34,64 @@ class RegisteredVisualReference:
     declaration: DeclaredVisualAsset
     coordinates: SourceImageCoordinates
     pixels: np.ndarray = field(repr=False, compare=False)
+    frame_number: int = 1
+    declared_frame_count: int | None = None
+
+    def __post_init__(self) -> None:
+        if (type(self.frame_number) is not int or not 1 <= self.frame_number <= 4096
+                or self.declared_frame_count is not None and (type(self.declared_frame_count) is not int
+                    or not self.frame_number <= self.declared_frame_count <= 4096)):
+            raise ValueError('a visual reference needs a bounded source frame and optional declared count')
 
     @property
     def key(self) -> tuple:
         return self.source, self.declaration.character_id, self.coordinates.reference_sha256
+
+    @property
+    def variant_key(self) -> tuple:
+        """Equal pixels in different source frames can have different origins."""
+        return (*self.key, self.frame_number)
 
 
 @dataclass(frozen=True)
 class ReferencesAcquired:
     references: tuple[RegisteredVisualReference, ...] = ()
     unavailable: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ReferenceVariantCoverage:
+    source: str
+    character_id: int
+    declared_frames: int | None
+    available_frames: tuple[int, ...]
+    missing_frames: tuple[int, ...] | None
+
+
+def reference_variant_coverage(references: tuple[RegisteredVisualReference, ...]) -> tuple[ReferenceVariantCoverage, ...]:
+    """Static reference coverage cannot establish an active frame or task outcome."""
+    groups = {}
+    for reference in references:
+        groups.setdefault((reference.source, reference.declaration.character_id), []).append(reference)
+    result = []
+    for (source, character), variants in groups.items():
+        counts = {r.declared_frame_count for r in variants}
+        count = next(iter(counts)) if len(counts) == 1 else None
+        available = tuple(sorted({r.frame_number for r in variants}))
+        missing = tuple(frame for frame in range(1, count+1) if frame not in available) if count is not None else None
+        result.append(ReferenceVariantCoverage(source, character, count, available, missing))
+    return tuple(result)
+
+
+def interleaved_reference_variants(references: tuple[RegisteredVisualReference, ...]) -> tuple[RegisteredVisualReference, ...]:
+    """Give every asset family a visit before spending its next visual variant."""
+    groups = {}
+    for reference in references:
+        groups.setdefault((reference.source, reference.declaration.character_id), []).append(reference)
+    for variants in groups.values():
+        variants.sort(key=lambda reference: reference.frame_number)
+    return tuple(group[index] for index in range(max((len(g) for g in groups.values()), default=0))
+                 for group in groups.values() if index < len(group))
 
 
 def reference_index_root() -> Path:
@@ -99,11 +147,25 @@ def registered_reference(bundle: Path, *, receipt_sha256: str | None = None) -> 
     if (record.get('schema') != 'aura.program_visual_reference.v1' or record.get('status') != 'rendered'
             or not isinstance(record.get('images'), list) or len(record['images']) != 1):
         raise ValueError('one successfully rendered registered frame is required')
-    table = read_flash_visual_assets(_read(bundle/'source.swf', 40*1024*1024))
+    raw_source = _read(bundle/'source.swf', 40*1024*1024)
+    table = read_flash_visual_assets(raw_source)
     declared = record['declaration']
     asset = table.named(declared['name'])
     if asset is None or table.source != record['source'] or json.loads(json.dumps(asdict(asset))) != declared:
         raise ValueError('the rendered declaration no longer matches its source bytes')
+    frame_number = record.get('frame_number', 1)
+    if type(frame_number) is not int or frame_number < 1:
+        raise ValueError('the reference frame must be a positive integer')
+    from core.perception.visual_frames_in_a_source_declaration import read_declared_visual_frames
+
+    timeline = read_declared_visual_frames(raw_source, asset)
+    if 'frame_number' in record:
+        if (not timeline.complete or frame_number > timeline.frame_count
+                or type(record.get('declared_frame_count')) is not int
+                or record.get('declared_frame_count') != timeline.frame_count):
+            raise ValueError('the reference frame is not in the current complete source timeline')
+        if asset.kind == 'sprite' and Path(record['images'][0]['path']).stem != str(frame_number):
+            raise ValueError('the rendered image does not identify the selected source frame')
     image = record['images'][0]
     png = _read(_inside(bundle/'rendered', image['path']), 8_000_000)
     if hashlib.sha256(png).hexdigest() != image['file_sha256']:
@@ -122,7 +184,8 @@ def registered_reference(bundle: Path, *, receipt_sha256: str | None = None) -> 
     if coordinates is None or json.loads(json.dumps(asdict(coordinates))) != registration['coordinates']:
         raise ValueError('the stored source coordinates do not match measured raster alignment')
     pixels.setflags(write=False)
-    return RegisteredVisualReference(table.source, asset, coordinates, pixels)
+    return RegisteredVisualReference(table.source, asset, coordinates, pixels, frame_number,
+                                     timeline.frame_count if timeline.complete else None)
 
 
 def acquire_visual_references(tables: tuple, *, root: Path | None = None) -> ReferencesAcquired:
@@ -140,7 +203,7 @@ def acquire_visual_references(tables: tuple, *, root: Path | None = None) -> Ref
         for path in sorted(islice(directory.iterdir(), MAX_REFERENCES+1)):
             count += 1
             if count > MAX_REFERENCES:
-                return ReferencesAcquired(tuple(found), (*unavailable, 'reference index budget exceeded'))
+                return ReferencesAcquired(interleaved_reference_variants(tuple(found)), (*unavailable, 'reference index budget exceeded'))
             try:
                 item = json.loads(_read(path, 8192))
                 if item.get('schema') != 'aura.visual_reference_index.v1' or item.get('source') != table.source:
@@ -151,12 +214,12 @@ def acquire_visual_references(tables: tuple, *, root: Path | None = None) -> Ref
                 reference = registered_reference(bundle, receipt_sha256=item['receipt_sha256'])
                 if not _belongs(reference, table):
                     raise ValueError('the reference is not a declaration of the current source')
-                if reference.key not in identities:
-                    identities.add(reference.key)
+                if reference.variant_key not in identities:
+                    identities.add(reference.variant_key)
                     found.append(reference)
             except (ValueError, OSError, KeyError, TypeError, AttributeError) as exc:
                 unavailable.append(f'{table.source}: {type(exc).__name__}: {str(exc)[:180]}')
-    return ReferencesAcquired(tuple(found), tuple(unavailable))
+    return ReferencesAcquired(interleaved_reference_variants(tuple(found)), tuple(unavailable))
 
 
 def _belongs(reference: RegisteredVisualReference, table: FlashVisualAssets) -> bool:

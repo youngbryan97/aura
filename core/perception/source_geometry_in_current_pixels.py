@@ -108,7 +108,7 @@ def _current_point(reference, pose, picture, at, grid):
 
 def _reference_to_measure(keys: tuple, covered: set, cursor: int):
     """Priority hints spend work on missing geometry; regular audits stay fair."""
-    wanted = tuple(key for key in keys if key not in covered)
+    wanted = tuple(key for key in keys if (key[:3] if isinstance(key, tuple) and len(key) == 4 else key) not in covered)
     if not covered or not wanted:
         return keys[cursor % len(keys)]
     if cursor % 4 == 3:
@@ -275,7 +275,7 @@ class SourceGeometryInCurrentPixels:
                 unavailable.append('fresh_reference_proposal_not_current')
                 continue
             reference = proposal.reference
-            old = self.records.get(reference.key)
+            old = self.records.get(reference.variant_key)
             if old is not None and old[2] >= proposal.revision:
                 continue
             if not any(_belongs(reference, table) for table in scope):
@@ -295,7 +295,7 @@ class SourceGeometryInCurrentPixels:
                     # the unsearched alternatives remain explicit.
                     poses = proposal.appearances
                     unavailable.append('fresh_reference_prior_search_retired')
-            self.records[reference.key] = reference, poses, proposal.revision
+            self.records[reference.variant_key] = reference, poses, proposal.revision
         if not self.records:
             return (), tuple(unavailable)
         hints = {key for key in covered if isinstance(key, tuple) and len(key) == 3
@@ -304,6 +304,8 @@ class SourceGeometryInCurrentPixels:
         key = _reference_to_measure(tuple(self.records), hints, self.cursor)
         self.cursor += 1
         reference, poses, revision = self.records[key]
+        if any(other[:2] == key[:2] for other in self.records if other != key):
+            unavailable.append('fresh_reference_variants_unsearched')
         if not 1 <= len(poses) <= 4:
             return (), (*unavailable, 'fresh_reference_pose_capacity_unavailable')
         pose_cursor = self.pose_cursors.get(key, 0)

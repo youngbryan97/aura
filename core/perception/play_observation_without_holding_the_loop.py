@@ -104,7 +104,7 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
             reference_tables, reference_coverage, essential_seconds=time.perf_counter()-began)
         state['fresh_source_reference_frames'], state['fresh_source_reference_status'] = frames, unavailable
         measured_frames = getattr(fresh_references, 'material_frames', ())
-        state['fresh_source_material_frames'] = tuple((r.key, b) for r, b in measured_frames)
+        state['fresh_source_material_frames'] = tuple((r.variant_key, b) for r, b in measured_frames)
         state['fresh_source_material_status'] = getattr(fresh_references, 'material_status', ())
         if measured_frames:
             from types import SimpleNamespace
@@ -200,6 +200,7 @@ class PlayObservation:
         self._mirror.fresh_source_material_frames = ()
         self._mirror.fresh_source_reference_status = ()
         self._mirror.source_reference_status = 'no_current_source'
+        self._mirror.source_reference_variant_coverage = ()
 
     @property
     def status(self) -> str:
@@ -345,6 +346,7 @@ class PlayObservation:
             self._mirror.source_reference_points = self._references.advance(self, picture, at, tables)
             self._mirror.source_reference_frames = self._references.source_frames
             self._mirror.source_reference_status = self._references.status
+            self._mirror.source_reference_variant_coverage = getattr(self._references, 'variant_coverage', ())
 
     def _retire(self) -> None:
         if self._closed:
@@ -361,6 +363,7 @@ class PlayObservation:
         self._mirror.fresh_source_reference_frames = ()
         self._mirror.fresh_source_material_frames = ()
         self._mirror.source_reference_status = 'closed'
+        self._mirror.source_reference_variant_coverage = ()
         self._generation += 1
         eyes, self._eyes = self._eyes, None
         operation, self._operation = self._operation, None

@@ -65,7 +65,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     from core.perception.frames_as_they_are_drawn import CanvasFrameTime
     from core.perception.play_observation_without_holding_the_loop import _seen
     from core.perception.visual_assets_in_a_flash_file import read_flash_visual_assets
-    from core.perception.visual_references_for_current_sources import acquire_visual_references
+    from core.perception.visual_references_for_current_sources import acquire_visual_references, reference_variant_coverage
     from core.perception.what_moves_in_the_picture import WhatMoves
     from core.perception.whole_referents_from_source_material import WholeReferentsInView
 
@@ -90,7 +90,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                 reference_proposals=tuple(proposals.values()), reference_tables=(table,))
         else:
             observer.see(picture, at)
-        registered = {r.key: r for r in catalog.references}
+        registered = {r.variant_key: r for r in catalog.references}
         offered = tuple((registered[key], binding) for key, binding in state.get('fresh_source_material_frames', ()))
         bindings, _ = _with_current_material_frames(bindings, offered, observer, at, (table,))
         if index % match_every == 0:
@@ -101,10 +101,11 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
             for reference in catalog.references:
                 result = _matched(reference, captured)
                 searches.append(dict(sequence=event['sequence'], source=reference.source,
+                    reference_frame_number=reference.frame_number, reference_sha256=reference.key[2],
                     character_id=reference.declaration.character_id, appearances=len(result.appearances),
                     object_origins=len(result.bindings), material_frames=len(result.frames), refused=list(result.refused)))
                 if result.appearances:
-                    proposals[reference.key] = SourceReferenceProposal(reference, result.capture,
+                    proposals[reference.variant_key] = SourceReferenceProposal(reference, result.capture,
                         result.appearances, index+1)
                 found.extend((reference, binding) for binding in result.frames)
             bindings = (*bindings, *found)[-64:]
@@ -135,6 +136,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     return dict(schema='aura.recorded_source_parent_measurement.v1', source=table.source,
         recording=str(recording.resolve()), requested_frames=frames, measured_frames=len(rows),
         source_complete=table.complete, catalog_references=len(catalog.references),
+        reference_variant_coverage=[asdict(c) for c in reference_variant_coverage(catalog.references)],
         unavailable=list(catalog.unavailable), searches=searches, frames=rows,
         frames_with_whole_referents=sum(bool(row['referents']) for row in rows),
         distinct_whole_ids=len({w['number'] for row in rows for w in row['referents']}),

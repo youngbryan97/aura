@@ -113,7 +113,7 @@ def test_ordinary_worker_earns_sampling_work_and_keeps_unsearched_copies_explici
     assert 'fresh_reference_positions_unsearched' in second['fresh_source_reference_status']
     assert second['fresh_source_reference_frames']
     key, binding = second['fresh_source_material_frames'][0]
-    assert key == proposal.reference.key and binding.at == 2.1
+    assert key == proposal.reference.variant_key and binding.at == 2.1
     assert len(binding.anchors) >= 3
 
 

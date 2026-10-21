@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.visual_frames_in_a_source_declaration import _visual_frame_custody_invariant
     from core.perception.whole_referents_from_source_material import _whole_source_referent_invariant
     from core.perception.a_source_method_with_resolved_values import _resolved_source_step_invariant
     from core.agency.a_contrast_that_meets_both_tests import _joint_contrast_invariant
@@ -76,7 +77,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('clipped_source_observations_keep_unseen_edges_unknown', 'core/agency/a_requested_relation_in_play.py',
+    return (('visual_reference_variants_require_current_source_frames', 'core/perception/visual_frames_in_a_source_declaration.py',
+             'tests/test_visual_references_cover_source_frames.py', lambda: _visual_frame_custody_invariant() == (),
+             'Reference variants select complete current source frame boundaries; labels supply no role, missing variants remain explicit, and a matching reference cannot identify an active execution frame.'),
+            ('clipped_source_observations_keep_unseen_edges_unknown', 'core/agency/a_requested_relation_in_play.py',
              'tests/test_source_assemblies_keep_visible_clipping.py', lambda: _clipped_relation_invariant() == (),
              'Source assemblies clipped by the captured image retain visible-pixel checks and explicit missing edges; neither a relation destination nor its region can use a missing edge as the object boundary.'),
             ('source_appearances_reach_current_owned_sampling', 'core/perception/source_geometry_in_current_pixels.py',

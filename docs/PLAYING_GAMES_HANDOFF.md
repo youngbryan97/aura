@@ -1606,3 +1606,25 @@ bitmap exactly matches the rendered PNG's opaque RGB samples, so extracting
 that bitmap alone is not the repair. Inspect forward raster formation and
 the actual sampling/filter model next. Current artifacts remain under
 `artifacts/flash-campaign/2026-10-20-clipped-source-assemblies/`.
+
+Source visual variants now retain complete declared frame boundaries,
+selected-frame export/registration and distinct coordinate identities even
+when bitmap bytes match. A general preparation tool fills missing frames
+for registered asset families; the read-only catalog exposes actual coverage
+and visits each family before its next variant. Labels grant no task role
+and a matched static reference grants no active execution-frame identity.
+
+The private original-18 corpus now has all five top-level frames of asset 52
+and both frames of asset 57. It covers no nested state combinations or other
+games. The expanded group passed 176 tests; final canaries 17. Smoke: 164
+passed, one skipped. Lint/compile passed; layering/writing passed after adding
+the explicit source-frame canary dependency. Seven-variant replay still has
+zero qualified whole referents, despite current source material in eight
+of twelve pictures. GPU and resident runtime remain untouched.
+
+Next connect current source material groups to semantic attention while
+keeping their geometry unqualified. A full-copy refusal must not erase a
+valid place to look; a partial group must not authorize movement, invent
+width or acquire its source label as a task role. Preserve the zero results.
+The current variant artifacts are under
+`artifacts/flash-campaign/2026-10-20-reference-frame-variants/`.
