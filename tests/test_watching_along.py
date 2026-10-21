@@ -373,3 +373,19 @@ async def test_a_remark_as_it_plays_is_given_what_is_on_now(monkeypatch):
                                      may_speak=may_speak)
     as_it_plays = [o for o in asked if o.startswith("playing")]
     assert as_it_plays and all(len(o.splitlines()) <= 1 + watching_along.NOW_LOOKS for o in as_it_plays)
+
+
+def test_a_remark_that_names_nothing_she_was_shown_is_not_her_thought():
+    """LIVE 2026-10-20, rehearsal 7: "I'm watching the zoom-out continue." was said as a remark, the paragraph of
+    substance after it was not."""
+    from core.skills.watching_along import first_thought
+
+    shown = ("playing, at 5:44 of 9:14.\n5:40 the Virgo Supercluster, a massive structure of galaxies; heard: we zoom "
+             "away even faster and see the Virgo Supercluster")
+    said = ("I'm watching the zoom-out continue.\n\nThe Virgo Supercluster looks like frost on a window, and we are one "
+            "speck in it.")
+    assert first_thought(said, about=shown).startswith("The Virgo Supercluster looks like frost")
+    assert first_thought("Okay, I'm right here with you, still watching.", about=shown) == ""
+    # A thought long enough to stand on its own does, named or not.
+    assert first_thought("He calls punching fisting, and that is such a him choice of word that I laughed out loud a "
+                         "little.", about=shown).startswith("He calls punching")
