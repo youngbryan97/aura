@@ -19,6 +19,8 @@ import os
 from collections.abc import Callable
 from typing import Any
 
+from core.consciousness.spoken_positions import every_position_is_spoken
+
 logger = logging.getLogger("Aura.Consciousness.PhiResidual")
 
 #: Decode steps between residual samples, chosen so the Grassmann encoder's
@@ -140,9 +142,8 @@ class PhiResidualSampler:
         # not a failure: a tensor with no readable shape is not a decode step to sample.
         except (AttributeError, TypeError):
             return
-        if len(shape) >= 3 and shape[-2] > 1:
-            return
-        if len(shape) == 2 and shape[0] > 1:
+        several = every_position_is_spoken()  # her head's check reads two spoken tokens a pass: its last is sampled
+        if (len(shape) >= 3 and shape[-2] > 1 or len(shape) == 2 and shape[0] > 1) and not several:
             return
         try:
             sample = h[0, -1, :] if len(shape) >= 3 else h

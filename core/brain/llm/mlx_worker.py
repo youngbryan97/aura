@@ -4004,16 +4004,14 @@ def _speculative_eligible(
     prefill_tokens: int = 0,
     prefill_step_size: int = 0,
 ) -> bool:
-    """Speculative decoding is only safe on the plain generation path.
+    """Speculative decoding where it is safe. The draft PROPOSES and the steered target VERIFIES every token (steering-safe by
+    construction); a draft model's loop cannot take logits processors, external prompt caches or schemas, her own head's can
+    (core/brain/llm/her_head_in_the_stream.py)."""
+    from core.brain.llm.her_head_in_the_stream import her_head_may_check
 
-    The draft model PROPOSES tokens; the steered target model VERIFIES every
-    one, so the output distribution is exactly the target's (steering-safe by
-    construction). But logits processors, external prompt caches, and schema-
-    constrained jobs interact with the speculative loop's internal caching —
-    those jobs take the normal path.
-    """
-    if draft_model is None:
-        return False
+    verdict = False if draft_model is None or job.get("schema") else her_head_may_check(draft_model, generation_kwargs)
+    if verdict is not None:
+        return verdict
     if job.get("schema"):
         return False
     if "logits_processors" in generation_kwargs:
@@ -4032,18 +4030,14 @@ def _speculative_eligible(
     return True
 
 
-def _load_speculative_draft(model_path: str, target_tokenizer: Any) -> Any:
-    """Load the small draft model for speculative decoding (heavy lanes only).
+def _load_speculative_draft(model_path: str, target_tokenizer: Any, model: Any = None) -> Any:
+    """Her own head where she has one, else a small draft model (heavy lanes only); None (never raises) when disabled,
+    missing, or incompatible — generation falls back to the normal path."""
+    from core.brain.llm.her_head_in_the_stream import her_own_head
 
-    Returns None (never raises) when disabled, missing, or incompatible —
-    generation falls back to the normal path.
-    """
-    enabled = str(_FLAG_SPECULATIVE_DECODING.value()).strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    if (head := her_own_head(model)) is not None:
+        return head
+    enabled = str(_FLAG_SPECULATIVE_DECODING.value()).strip().lower() in {"1", "true", "yes", "on"}
     if not enabled:
         return None
     from core.brain.llm.model_artifact_profile import model_size_class
@@ -6418,7 +6412,7 @@ def _mlx_worker_loop(
             model, tokenizer = load(model_path)
             logger.info("Model loaded (no compatible LoRA adapter).")
 
-        draft_model = _load_speculative_draft(model_path, tokenizer)
+        draft_model = _load_speculative_draft(model_path, tokenizer, model=model)
 
         # Both arrows of the substrate<->activation coupling.
         steering_attachment = _attach_affective_steering(
@@ -7018,11 +7012,10 @@ def _mlx_worker_loop(
                 # Truncation is handled manually in the token loop via _truncate_role_continuation.
 
                 try:
-                    from mlx_lm.generate import stream_generate
-
                     from core.brain.llm.chat_format import (
                         split_native_thinking_generation,
                     )
+                    from core.brain.llm.her_head_in_the_stream import stream_generate_with_her_head
                     # : NO GPUSentinel here.
                     # GPUSentinel is a parent-process threading lock. In this isolated
                     # 'spawn' subprocess, it creates a SECOND serialization bottleneck
@@ -7590,7 +7583,7 @@ def _mlx_worker_loop(
                                     # (GeneratorExit), so model.model is always restored.
                                     def _gen_stream(tap, prompt_text, generation_kwargs):
                                         yield from _generation_stream_with_activity(
-                                            stream_generate,
+                                            stream_generate_with_her_head,
                                             model,
                                             tokenizer,
                                             prompt=prompt_text,

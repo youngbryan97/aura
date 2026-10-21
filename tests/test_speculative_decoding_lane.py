@@ -140,4 +140,5 @@ def test_worker_source_contract():
         "both the generate and stream paths must gate speculative decoding"
     )
     assert '"draft_tokens_accepted"' in src
-    assert "_load_speculative_draft(model_path, tokenizer)" in src
+    # Her model is passed so her own head can be joined to it (core/brain/llm/her_head_in_the_stream.py).
+    assert "_load_speculative_draft(model_path, tokenizer, model=model)" in src

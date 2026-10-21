@@ -120,6 +120,7 @@ from core.consciousness.mood_weight import (
 from core.consciousness.mood_weight import signed_weight as _signed_weight
 from core.consciousness.phi_residual_sampler import PHI_SAMPLE_EVERY, PhiResidualSampler
 from core.consciousness.residual_injection_geometry import inject as _inject
+from core.consciousness.spoken_positions import every_position_is_spoken
 from core.consciousness.steering_channel import activation_state, governor_inputs
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.lockdep import checked_lock
@@ -1330,7 +1331,7 @@ class AffectiveSteeringHook:
             shape = tuple(getattr(h, "shape", ()) or ())
             is_2d = len(shape) == 2 and shape[0] > 1
             is_3d = len(shape) == 3 and shape[1] > 1
-            if is_2d or is_3d:
+            if (is_2d or is_3d) and not every_position_is_spoken():  # her head's check: every position is spoken
                 # One mask per (shape, dtype), shared across all 64 blocks and
                 # reused for every token of the same width. Rebuilding it per
                 # forward pass cost a host allocation and a GPU upload sized by
