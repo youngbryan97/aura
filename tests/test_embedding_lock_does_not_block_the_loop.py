@@ -92,29 +92,53 @@ def test_encode_does_not_run_under_the_lifecycle_lock() -> None:
     )
 
 
-def test_eviction_refuses_while_an_encode_is_in_flight() -> None:
+def test_eviction_waits_for_the_encode_in_flight_and_closes_after_it() -> None:
     """Releasing the lane lease under a running inference is not 'idle'.
 
     The old code got this right only by accident, because embed() held the
-    lock. Now that it does not, in-flight has to be asked directly.
+    lock. Then it refused whenever an encode happened to be running, which on
+    a busy organism was nearly always: her cortex's recovery was refused 26
+    times over two hours on 21 October. Now it stops lending the encoder,
+    waits for the encode in flight, and closes after it.
     """
     engine = _engine_with_model(_SlowModel(delay_s=0.3))
-
-    closed: list[bool] = []
+    finished: list[float] = []
 
     def _slow_embed() -> None:
         engine.embed("hold the model")
+        finished.append(time.monotonic())
 
     worker = threading.Thread(target=_slow_embed, daemon=True)
     worker.start()
     time.sleep(0.08)
-
     assert engine._inflight > 0, "an in-flight encode must be counted"
-    closed.append(asyncio.run(engine._evict_model_lane(None, "test")))
+    closed = asyncio.run(engine._evict_model_lane(None, "test"))
+    closed_at = time.monotonic()
     worker.join(timeout=3.0)
+    assert closed is True
+    assert finished and finished[0] <= closed_at, "the model was pulled out from under an encode"
+    assert engine._model is None
 
-    assert closed == [False], "eviction must refuse while an encode is running"
-    assert engine._model is not None, "the model was pulled out from under an encode"
+
+def test_no_new_encode_takes_the_encoder_while_it_drains() -> None:
+    engine = _engine_with_model(_SlowModel(delay_s=0.0))
+    engine._draining = True
+    assert engine._checkout_model() is None
+    engine._draining = False
+    assert engine._checkout_model() is not None
+    engine._return_model()
+
+
+def test_an_encode_that_never_returns_is_refused_and_named(monkeypatch, caplog) -> None:
+    monkeypatch.setenv("AURA_MODEL_LANE_EVICTION_TIMEOUT_S", "0.4")
+    engine = _engine_with_model(_SlowModel(delay_s=0.0))
+    assert engine._checkout_model() is not None  # taken and never returned
+    with caplog.at_level("WARNING"):
+        closed = asyncio.run(engine._evict_model_lane(None, "test"))
+    assert closed is False
+    assert engine._model is not None
+    assert any("still in flight" in record.message for record in caplog.records)
+    engine._return_model()
 
 
 def test_inflight_returns_to_zero_even_when_encode_raises() -> None:

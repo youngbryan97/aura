@@ -269,27 +269,60 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
         #: Encodes running right now, outside the lifecycle lock. Eviction
         #: reads this to decide whether the model is idle.
         self._inflight = 0
+        #: Set while an eviction waits for the encodes in flight to finish, so
+        #: no new caller takes the encoder in the meantime.
+        self._draining = False
+        #: When the oldest encode still in flight began, for a refusal to name.
+        self._oldest_checkout: float | None = None
 
     async def _evict_model_lane(self, _owner: Any, reason: str) -> bool:
-        def _close_if_idle() -> bool:
-            if not self._lifecycle_lock.acquire(blocking=False):
-                return False
-            try:
-                # Idle means no encode in flight. It used to mean "the lock
-                # was free", which was only the same thing because embed()
-                # held the lock across inference — the very thing that stalled
-                # the loop. Evicting under an in-flight encode would also
-                # release the lane lease while that inference still runs.
-                if self._inflight > 0:
-                    return False
-                return self._close_model(
-                    reason=f"embedding_lane_eviction:{reason}",
-                    keep_fallback=True,
-                )
-            finally:
-                self._lifecycle_lock.release()
+        """Yield the encoder's lane: stop lending it, let the encodes in flight finish, close it.
 
-        return await asyncio.to_thread(_close_if_idle)
+        It used to close only if it was idle at the instant of asking. Her
+        organism encodes on every turn, so the instant was rarely idle: on the
+        reports run of 21 October her 27B cortex died, its recovery needed this
+        lane, and the request was refused 26 times over two hours while the
+        anchors failed one an hour. Evicting under an encode in flight would
+        release the lane lease while that inference still runs, so the encodes
+        still finish first; what changed is that nothing new starts while they
+        do, and the wait is bounded by half the lane's own eviction deadline.
+        """
+        from core.runtime.model_lane_control import _EVICTION_TIMEOUT_FLAG
+
+        bound = max(0.1, float(_EVICTION_TIMEOUT_FLAG.value()) / 2.0)
+
+        def _drain_and_close() -> bool:
+            deadline = time.monotonic() + bound
+            self._draining = True
+            try:
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0.0:
+                        break
+                    if self._lifecycle_lock.acquire(timeout=remaining):
+                        try:
+                            if self._inflight == 0:
+                                return self._close_model(
+                                    reason=f"embedding_lane_eviction:{reason}",
+                                    keep_fallback=True,
+                                )
+                        finally:
+                            self._lifecycle_lock.release()
+                    time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+                oldest = self._oldest_checkout
+                logger.warning(
+                    "🧠 EmbeddingEngine: refused to yield its lane for %s: %d encode(s) still in flight "
+                    "after %.1fs, the oldest for %s.",
+                    reason,
+                    self._inflight,
+                    bound,
+                    "unknown" if oldest is None else f"{time.monotonic() - oldest:.1f}s",
+                )
+                return False
+            finally:
+                self._draining = False
+
+        return await asyncio.to_thread(_drain_and_close)
 
     async def _compensate_model_lane(self, _owner: Any, reason: str) -> bool:
         if self._closing:
@@ -463,10 +496,15 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                     _first_frame_outside(__file__),
                 )
             return None
+        if self._draining:
+            # Its lane is being yielded; this caller takes the fallback.
+            return None
         with self._lifecycle_lock:
             self._initialize_locked()
             model = self._model
             if model is not None:
+                if self._inflight == 0:
+                    self._oldest_checkout = time.monotonic()
                 self._inflight += 1
             return model
 
@@ -546,6 +584,8 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
     def _return_model(self) -> None:
         with self._lifecycle_lock:
             self._inflight = max(0, self._inflight - 1)
+            if self._inflight == 0:
+                self._oldest_checkout = None
 
     @staticmethod
     def _release_mps_cache(model: Any) -> None:

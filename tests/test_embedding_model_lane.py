@@ -239,6 +239,9 @@ async def test_embedding_engine_refuses_eviction_during_encode(
     encoder_type.block = True
     embed_task = asyncio.create_task(asyncio.to_thread(engine.embed, "held"))
     assert await asyncio.to_thread(encode_entered.wait, 2.0)
+    # The eviction waits for the encode in flight, up to half the lane's
+    # eviction deadline; an encode that outlasts the wait is refused.
+    monkeypatch.setenv("AURA_MODEL_LANE_EVICTION_TIMEOUT_S", "0.5")
     assert await engine._evict_model_lane(object(), "foreground") is False
 
     encode_release.set()
