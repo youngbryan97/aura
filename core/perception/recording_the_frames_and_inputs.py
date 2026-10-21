@@ -355,11 +355,12 @@ def _source_reference_snapshot(moves: Any) -> dict:
     wholes = getattr(moves, 'source_referents', None)
     readings = getattr(moves, 'source_referent_readings', ())
     whole_readings = [{name: scalar(item.get(name)) for name in
-        ('source', 'character_id', 'reason', 'mean_colour_error', 'maximum_edge_error', 'samples')}
+        ('source', 'character_id', 'reason', 'mean_colour_error', 'maximum_edge_error', 'samples', 'visible_fraction')}
         for item in readings[:128] if isinstance(item, dict)] if isinstance(readings, (tuple, list)) else None
     whole_records = [{**{name: scalar(getattr(item, name, None)) for name in
         ('number', 'born', 'kind', 'seen', 'x', 'y', 'w', 'h', 'source', 'reference_sha256',
-         'mark_epoch', 'character_id', 'vx', 'vy', 'velocity_error', 'contact_verified', 'role')},
+         'mark_epoch', 'character_id', 'vx', 'vy', 'velocity_error', 'contact_verified', 'role', 'visible_fraction')},
+        'clipped_edges': list(getattr(item, 'clipped_edges', ())),
         'anchors': [list(a) for a in sorted(getattr(item, 'anchors', ()))[:128]],
         'origin_path': [list(p) for p in getattr(item, 'origin_path', ())[:16]],
         'pixels': pixels(getattr(item, 'pixels', None))} for item in islice(wholes.values(), 128)] if isinstance(wholes, dict) else None

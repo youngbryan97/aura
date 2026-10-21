@@ -1591,3 +1591,18 @@ of the capture. Treat image clipping separately from in-frame occlusion,
 preserving unknown roles and contact geometry. Results and intermediate
 failures are in `artifacts/flash-campaign/2026-10-20-current-reference-sampling/`.
 No GPU, physical input, native runtime, G09 or holdout was used.
+
+Clipping now remains explicit on a partial source assembly. All material
+inside the captured image keeps the colour/edge gates, and a missing edge
+cannot supply a relation point or region. The final group passed 156 tests;
+smoke 164 passed, one skipped; lint/compile/layering/writing passed in 76.85
+seconds. The retained original still supplies zero qualified referents: the
+next refusal is a current pixel mismatch, mean 0.07436 and edge error 0.50458,
+despite 99.4248% of opaque source centres being in view.
+
+Photometric fitting and affine-first experiments improved residuals but did
+not qualify the object; both remain private experiments. The SVG's native
+bitmap exactly matches the rendered PNG's opaque RGB samples, so extracting
+that bitmap alone is not the repair. Inspect forward raster formation and
+the actual sampling/filter model next. Current artifacts remain under
+`artifacts/flash-campaign/2026-10-20-clipped-source-assemblies/`.

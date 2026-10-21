@@ -47,6 +47,9 @@ class WholeSourceReferent:
     velocity_error: float | None = None
     character_id: int | None = None
     observed_parts: tuple[tuple[int, float, int], ...] = ()
+    # Fraction of opaque reference pixel centres in this capture's footprint.
+    visible_fraction: float = 1.
+    clipped_edges: tuple[bool, bool, bool, bool] = (False, False, False, False)
 
     def __post_init__(self) -> None:
         values = self.born, self.seen, self.x, self.y, self.w, self.h
@@ -59,6 +62,10 @@ class WholeSourceReferent:
                 or not re.fullmatch('[0-9a-f]{32}', self.mark_epoch)
                 or not isinstance(self.anchors, frozenset) or not 3 <= len(self.anchors) <= 128
                 or self.role is not None or self.contact_verified is not None
+                or type(self.visible_fraction) not in (int, float) or not math.isfinite(self.visible_fraction)
+                or not 0 < self.visible_fraction <= 1.
+                or not isinstance(self.clipped_edges, tuple) or len(self.clipped_edges) != 4
+                or any(type(v) is not bool for v in self.clipped_edges)
                 or not isinstance(self.origin_path, tuple) or len(self.origin_path) > 16
                 or not isinstance(self.observed_parts, tuple) or len(self.observed_parts) > 32):
             raise ValueError('a whole visual referent needs owned geometry and unknown role/contact')
@@ -91,11 +98,13 @@ class WholeExtentReading:
     mean_colour_error: float | None = None
     maximum_edge_error: float | None = None
     samples: int | None = None
+    visible_fraction: float | None = None
+    clipped_edges: tuple[bool, bool, bool, bool] = (False, False, False, False)
 
 
 def _whole_extent(reference: RegisteredVisualReference, point: VisibleSourcePoint,
                   picture: np.ndarray, marks: MaterialMarks) -> WholeExtentReading:
-    """Verify the whole opaque artwork before publishing its measured extent."""
+    """Verify all in-view artwork; clipped pixels cannot supply an object edge."""
     rgba = reference.pixels
     if (not isinstance(rgba, np.ndarray) or rgba.dtype != np.uint8 or rgba.ndim != 3 or rgba.shape[2] != 4
             or not 16 <= min(rgba.shape[:2]) <= max(rgba.shape[:2]) <= 512
@@ -117,6 +126,18 @@ def _whole_extent(reference: RegisteredVisualReference, point: VisibleSourcePoin
     yy, xx = np.nonzero(rgba[..., 3] >= 250)
     if len(xx) < 16:
         return WholeExtentReading('opaque_support_unavailable')
+    positions = marks.grid.to_image(np.column_stack((xx, yy)) @ linear.T+corners[0])
+    image_linear = linear*np.asarray(marks.grid.image[::-1])[:, None]/np.asarray(marks.grid.working[::-1])[:, None]
+    half_cell = abs(image_linear) @ np.array((.5, .5))
+    support_low, support_high = positions.min(axis=0)-half_cell, positions.max(axis=0)+half_cell
+    clipped = (bool(support_low[0] < -.5-1e-6), bool(support_low[1] < -.5-1e-6),
+               bool(support_high[0] > picture.shape[1]-.5+1e-6), bool(support_high[1] > picture.shape[0]-.5+1e-6))
+    visible = ((positions[:, 0] >= -.5) & (positions[:, 1] >= -.5)
+               & (positions[:, 0] <= picture.shape[1]-.5) & (positions[:, 1] <= picture.shape[0]-.5))
+    fraction = float(visible.mean())
+    if int(visible.sum()) < 16:
+        return WholeExtentReading('visible_source_support_unavailable', visible_fraction=fraction, clipped_edges=clipped)
+    xx, yy = xx[visible], yy[visible]
     # Uniform foreground cannot independently confirm a whole reference.
     colours = rgba[yy, xx, :3]
     if float(np.std(colours.astype(float), axis=0).max()) < 4.:
@@ -127,16 +148,17 @@ def _whole_extent(reference: RegisteredVisualReference, point: VisibleSourcePoin
         *(indices[np.linspace(0, len(indices)-1, min(128, len(indices)), dtype=int)] for indices in edge_samples))))
     local = np.column_stack((xx[take], yy[take]))
     actual = marks.grid.to_image(local @ linear.T+corners[0])
-    if (np.any(actual < 0) or np.any(actual[:, 0] > picture.shape[1]-1)
-            or np.any(actual[:, 1] > picture.shape[0]-1)):
-        return WholeExtentReading('whole_reference_out_of_view')
+    # Boundary pixels own their half-pixel footprint. Clamping there cannot
+    # exclude a contradicted last row or column from the material check.
+    actual = np.clip(actual, (0., 0.), (picture.shape[1]-1., picture.shape[0]-1.))
     errors = np.zeros(len(actual))
     for channel in range(3):
         observed = ndimage.map_coordinates(picture[..., channel].astype(float),
             [actual[:, 1], actual[:, 0]], order=1, mode='constant', cval=-255.)
         errors += abs(observed-colours[take, channel])/(3*255.)
     mean, edge_error = float(errors.mean()), max(float(errors[edge[take]].max()) for edge in edges)
-    metrics = dict(mean_colour_error=mean, maximum_edge_error=edge_error, samples=len(errors))
+    metrics = dict(mean_colour_error=mean, maximum_edge_error=edge_error, samples=len(errors),
+                   visible_fraction=fraction, clipped_edges=clipped)
     if mean > .055 or np.count_nonzero(errors > .12) > .05*len(errors):
         return WholeExtentReading('whole_pixel_support_unresolved', **metrics)
     if edge_error > .12:
@@ -147,7 +169,13 @@ def _whole_extent(reference: RegisteredVisualReference, point: VisibleSourcePoin
                        (xx.min()-.5, yy.max()+.5), (xx.max()+.5, yy.max()+.5)))
     extent = edge @ linear.T+corners[0]
     low, high = extent.min(axis=0), extent.max(axis=0)
-    return WholeExtentReading('qualified', tuple(map(float, (*((low+high)/2), *(high-low)))), **metrics)
+    if any(clipped):
+        boundary = marks.grid.from_image(np.array(((-.5, -.5), (picture.shape[1]-.5, picture.shape[0]-.5))))
+        low, high = np.maximum(low, boundary[0]), np.minimum(high, boundary[1])
+    if np.any(high <= low):
+        return WholeExtentReading('visible_source_support_unavailable', **metrics)
+    return WholeExtentReading('qualified_visible_part' if any(clipped) else 'qualified',
+                              tuple(map(float, (*((low+high)/2), *(high-low)))), **metrics)
 
 
 def _material_parts(observer: Any, anchors: frozenset, at: float) -> tuple:
@@ -213,7 +241,8 @@ class WholeReferentsInView:
             reading = _whole_extent(reference, point, picture, marks)
             self.readings += ({'source': reference.source, 'character_id': reference.declaration.character_id,
                 'reason': reading.reason, 'bounds': reading.bounds, 'mean_colour_error': reading.mean_colour_error,
-                'maximum_edge_error': reading.maximum_edge_error, 'samples': reading.samples},)
+                'maximum_edge_error': reading.maximum_edge_error, 'samples': reading.samples,
+                'visible_fraction': reading.visible_fraction, 'clipped_edges': reading.clipped_edges},)
             if reading.bounds is None:
                 continue
             extent = reading.bounds
@@ -235,14 +264,14 @@ class WholeReferentsInView:
                      and len(old.anchors & anchors) >= 3]
             if len(peers) > 1:
                 continue
-            candidates.append((reference, binding, point, extent, anchors, parts, peers[0] if peers else None))
+            candidates.append((reference, binding, point, reading, anchors, parts, peers[0] if peers else None))
         # Two current whole measurements cannot borrow one previous identity.
         claims = [old.number for _r, _b, _p, _e, _a, _parts, old in candidates if old is not None]
         result = {}
-        for reference, binding, point, extent, anchors, parts, old in candidates:
+        for reference, binding, point, reading, anchors, parts, old in candidates:
             if old is not None and claims.count(old.number) != 1:
                 continue
-            x, y, w, h = extent
+            x, y, w, h = reading.bounds
             kind_key = reference.source, reference.declaration.character_id, binding.reference_sha256
             if kind_key not in self._kinds:
                 self._next += 1
@@ -253,6 +282,7 @@ class WholeReferentsInView:
             item = WholeSourceReferent(number, born, self._kinds[kind_key], at, x, y, w, h,
                 reference.source, binding.reference_sha256, pixels, marks.epoch, anchors,
                 character_id=reference.declaration.character_id,
+                visible_fraction=reading.visible_fraction, clipped_edges=reading.clipped_edges,
                 observed_parts=tuple((thing.number, thing.born, thing.kind) for thing in parts))
             path = tuple(p for p in old.origin_path if 0 < at-p[0] <= 1.) if old is not None else ()
             current = at, *point.position, point.error

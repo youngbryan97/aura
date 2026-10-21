@@ -11,7 +11,7 @@ def _play_execution_claims() -> tuple:
     from core.agency.motion_models_on_the_same_intervals import _forward_motion_models_invariant
     from core.perception.a_capture_owned_by_the_input_surface import _owned_input_surface_invariant
     from core.agency.looking_for_an_unbound_referent import _referent_attention_invariant
-    from core.agency.a_requested_relation_in_play import _destination_reading_invariant
+    from core.agency.a_requested_relation_in_play import _destination_reading_invariant, _clipped_relation_invariant
     from core.agency.why_a_motion_history_is_called_carried import _motion_family_reading_invariant
     from core.brain.llm.a_model_in_the_local_cache import _local_model_cache_invariant
     from core.perception.what_things_look_like import _visual_naming_clock_invariant
@@ -76,7 +76,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('source_appearances_reach_current_owned_sampling', 'core/perception/source_geometry_in_current_pixels.py',
+    return (('clipped_source_observations_keep_unseen_edges_unknown', 'core/agency/a_requested_relation_in_play.py',
+             'tests/test_source_assemblies_keep_visible_clipping.py', lambda: _clipped_relation_invariant() == (),
+             'Source assemblies clipped by the captured image retain visible-pixel checks and explicit missing edges; neither a relation destination nor its region can use a missing edge as the object boundary.'),
+            ('source_appearances_reach_current_owned_sampling', 'core/perception/source_geometry_in_current_pixels.py',
              'tests/test_source_appearances_reach_current_point_sampling.py', lambda: _reference_sampling_invariant() == (),
              'A current refit can request a bounded share of exact-frame point sampling before any object is identified; optional work is repaid, geometry reuses the fit, and no role or controlled identity is assigned.'),
             ('whole_source_observations_keep_separate_identity_and_unknown_contact', 'core/perception/whole_referents_from_source_material.py',

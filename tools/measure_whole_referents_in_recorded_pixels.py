@@ -130,6 +130,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                 character_id=w.character_id, reference_sha256=w.reference_sha256,
                 box=list(w.box()), vx=w.vx, vy=w.vy, velocity_error=w.velocity_error,
                 observed_parts=list(w.observed_parts), contact_verified=w.contact_verified, role=w.role,
+                visible_fraction=w.visible_fraction, clipped_edges=list(w.clipped_edges),
                 pixels=asdict(w.pixels)) for w in seen.values()]))
     return dict(schema='aura.recorded_source_parent_measurement.v1', source=table.source,
         recording=str(recording.resolve()), requested_frames=frames, measured_frames=len(rows),

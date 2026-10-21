@@ -494,3 +494,48 @@ The current refusal is `whole_reference_out_of_view`; the independently viewed
 frame shows the destination's ladder extending below the image. Results are in
 `artifacts/flash-campaign/2026-10-20-current-reference-sampling/`.
 There was no physical input, language model, GPU, native run or demo verdict.
+
+### Captured clipping and contradicted material stay separate
+
+- [x] G1/G2: source-backed assemblies now verify the opaque artwork inside
+  the captured image. Material outside that image no longer blocks a partial
+  observation. Its extent is clipped to measured capture bounds; the fraction
+  of opaque source pixel centres within the capture and the four clipped
+  edges are explicit. Pixels inside the image keep the existing colour and
+  edge thresholds. A contradicted boundary row or column cannot be excluded
+  by subpixel projection just outside its pixel centre.
+- [x] G4/G5: a clipped image edge cannot act as the missing object edge.
+  Relation points and their separately callable regions both refuse that
+  substitution. Containment requires all four object edges. Role, physical
+  contact and arrival limits remain unknown.
+- [x] Four clipping directions, an in-frame hidden strip, direct region
+  bypass and measured claim registration have executable checks. The first
+  test fixture had an invalid source ID; after correcting that setup, six
+  tests failed on the actual missing partial observation, then passed with
+  the production repair. The final regression group passed 156 tests in
+  18.46 seconds. Smoke: 164 passed, one skipped. Lint, compile, layering and
+  writing passed in 76.85 seconds.
+- [ ] Current reference pixels still disagree with the retained scene.
+  Twelve-frame replay still produced zero whole/partial referents. The
+  destination now reaches `whole_pixel_support_unresolved`, with mean error
+  0.07436 and maximum sampled edge error 0.50458 on the first current sample.
+  99.4248% of opaque reference pixel centres are inside the capture; the
+  bottom edge is clipped. Clipping therefore explains only the previous
+  refusal, not this remaining mismatch.
+
+Two additional CPU hypotheses were measured without changing production:
+direct photometric registration reduced mean raw error from 0.07430 to
+0.03416, but 8.8858% of pixels remained above 0.12 and its geometric witness
+error increased. Choosing affine fits first also left zero qualified
+referents, despite reducing some pixel errors. The first affine experiment
+invalidated cached calibration and is retained as an invalid setup; the
+second verified registration before changing the experimental matcher.
+Neither experiment was promoted or counted as original-game success.
+
+The native bitmap embedded in the registered SVG was also compared with its
+rendered PNG: opaque RGB samples match exactly at zero offset. Native bitmap
+extraction alone therefore does not explain or repair this mismatch. Next
+test the image-formation direction and sampling/filter model, rather than
+changing qualification thresholds. Artifacts are in
+`artifacts/flash-campaign/2026-10-20-clipped-source-assemblies/`.
+GPU reservation, G09, holdouts and the native runtime remain untouched.

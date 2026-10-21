@@ -85,11 +85,12 @@ def referent_evidence_needed(status: str, wanted: tuple, matches: list, partial:
 
 def observed_relation_region(relation: str, mine: Any, target: Any, at: float) -> ObservedRelationRegion | None:
     """Publish the finite centre region from the same extents used by binding."""
-    from core.agency.a_requested_relation_in_play import _box
+    from core.agency.a_requested_relation_in_play import _box, relation_edges_observed
 
     own, other = _box(mine), _box(target)
     owners = _owner(mine), _owner(target)
-    if (observation_time(at) is None or own is None or other is None or any(type(o[0]) is not int or type(o[2]) is not int
+    if (observation_time(at) is None or own is None or other is None or not relation_edges_observed(relation, mine, target)
+            or any(type(o[0]) is not int or type(o[2]) is not int
             or not isinstance(o[1], (int, float)) or isinstance(o[1], bool) or not math.isfinite(o[1])
             or not 0 <= o[1] <= at for o in owners)
             or mine.seen != at or target.seen != at):

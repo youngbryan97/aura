@@ -118,6 +118,24 @@ def _box(thing: Any) -> tuple[float, float, float, float] | None:
     return values if all(math.isfinite(v) for v in values) and min(values[2:]) > 0 else None
 
 
+def relation_edges_observed(relation: str, mine: Any, target: Any) -> bool:
+    """An image boundary cannot supply an unseen edge of the target."""
+    edges = getattr(target, 'clipped_edges', (False, False, False, False))
+    if not isinstance(edges, tuple) or len(edges) != 4 or any(type(v) is not bool for v in edges):
+        return False
+    left, top, right, bottom = edges
+    if relation in ('on', 'above'):
+        return not top
+    if relation == 'below':
+        return not bottom
+    if relation == 'inside':
+        return not any(edges)
+    if relation == 'beside':
+        own, other = _box(mine), _box(target)
+        return own is not None and other is not None and not (left if own[0] < other[0] else right)
+    return True
+
+
 def position_for_relation(relation: str, mine: Any, target: Any) -> tuple[float, float] | None:
     """A centre destination from finite extents; containment requires enough room.
 
@@ -125,7 +143,7 @@ def position_for_relation(relation: str, mine: Any, target: Any) -> tuple[float,
     collision shape, orientation, safe arrival speed, or a completed task.
     """
     own, other = _box(mine), _box(target)
-    if own is None or other is None:
+    if own is None or other is None or not relation_edges_observed(relation, mine, target):
         return None
     x, y, w, h = other
     _, _, mw, mh = own
@@ -225,6 +243,21 @@ def _destination_reading_invariant() -> tuple:
     assert missing.status == 'no_named_referent' and missing.binding is None
     assert partial.status == 'incomplete_name' and partial.binding is None
     assert bound.status == 'bound' and bound.binding.thing is target
+    return ()
+
+
+@invariant('agency.clipped_referents_cannot_supply_missing_edges', scope='agency',
+           owner='core/agency/a_requested_relation_in_play.py', observational=False)
+def _clipped_relation_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    body = SimpleNamespace(x=10., y=10., w=8., h=8.)
+    target = SimpleNamespace(x=50., y=70., w=40., h=20., clipped_edges=(False, False, False, True))
+    assert position_for_relation('on', body, target) is not None
+    assert position_for_relation('below', body, target) is None
+    assert position_for_relation('inside', body, target) is None
+    target.clipped_edges = (False, True, False, False)
+    assert position_for_relation('on', body, target) is None
     return ()
 
 
