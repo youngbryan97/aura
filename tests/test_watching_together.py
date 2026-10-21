@@ -161,7 +161,8 @@ def test_a_remark_is_her_turn_with_the_talk_since_it_began_in_the_order_it_was_s
     assert all(is_stamped_runtime_payload(pair) for pair in talk)  # read as delivered exchanges, as any turn's are
     assert [(pair["user"], pair["aura"]) for pair in talk] == [
         (ASKED, "Found it. I expect volcanoes."),
-        ("(what was playing) playing, at 0:30: an island rising", "The island is new."),
+        ("[Aura's own eyes and ears on the video they are watching together] playing, at 0:30: an island rising",
+         "The island is new."),
         ("ha, look at that", "It's tiny!"),
         ("do you think it's real footage?", "Real, I think: the ash moves."),
     ]
@@ -262,7 +263,8 @@ def test_each_remark_answers_what_she_was_shown_before_it_and_the_request_comes_
     talk = the_talk_since(0.0, "Watch this with me and think out loud.", spoken)
     pairs = [(t["user"], t["aura"]) for t in talk]
     assert pairs[0] == ("Watch this with me and think out loud.", "I think it will be about agents that coordinate.")
-    assert pairs[1][0].startswith("(what was playing) playing, at 0:52") and pairs[1][1] == "The society framing is doing a lot of work."
+    assert pairs[1][0].startswith("[Aura's own eyes and ears") and "playing, at 0:52" in pairs[1][0]
+    assert pairs[1][1] == "The society framing is doing a lot of work."
     assert pairs[2] == ("what do you mean by that?", "That coordinating is not the same as a society.")
     assert len(pairs) == 3
 
@@ -274,7 +276,7 @@ def test_a_turn_of_her_own_reads_all_she_has_said_in_the_watching():
     from core.utils.injected_blocks import stamp_runtime_payload
 
     talk = [stamp_runtime_payload({"user": "Watch this with me and think out loud.", "aura": "I expect agents."})]
-    talk += [stamp_runtime_payload({"user": f"(what was playing) look {n}", "aura": f"Remark {n} about the cats."})
+    talk += [stamp_runtime_payload({"user": f"[Aura's own eyes and ears] look {n}", "aura": f"Remark {n} about the cats."})
              for n in range(6)]
     messages, _note = _desktop_history_messages_from_context(
         {"recent_completed_exchanges": talk, "her_own_turn": True, "visible_user_message": "agents agents agents"})

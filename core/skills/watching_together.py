@@ -174,7 +174,9 @@ def the_talk_since(began: float, request: str, spoken: list[tuple[float, str, st
         elif role == "remark" and len(pairs) > 1 and not pairs[-1][1]:
             pairs[-1][1].append(words[1])  # said after a turn of theirs nothing had answered: it answers that
         elif role == "remark":
-            pairs.append((f"(what was playing) {words[0]}", [words[1]]))
+            # Hers, not something sent to her: LIVE 21 October 2026, "(what was playing) ..." read as the person pasting
+            # the page, and a remark began "I can't actually watch or listen to the video".
+            pairs.append((f"[Aura's own eyes and ears on the video they are watching together] {words[0]}", [words[1]]))
         elif words not in pairs[-1][1]:
             pairs[-1][1].append(words)
     return [stamp_runtime_payload({"user": user, "aura": " ".join(aura)}) for user, aura in pairs if aura]
