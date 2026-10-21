@@ -5078,12 +5078,18 @@ class VADStream {
         this.history = []; // Array of {v, a, d}
         this.maxLen = 100;
         this.colors = { v: '#00ffa3', a: '#b44dff', d: '#00e5ff' };
+        // Drawn when a sample comes or the panel changes size, not every frame: redrawn at the display's rate, with
+        // gradients and shadow blur, her window took half the GPU her model decodes on (MEASURED 20 October 2026: 53%
+        // with her window shown and idle, 0% with it minimised; her 27B decoded at 9 tokens a second there, 21.5 alone).
+        window.addEventListener('resize', () => this.animate(), { passive: true });
+        document.addEventListener('visibilitychange', () => this.animate());
         this.animate();
     }
 
     push(v, a, d) {
         this.history.push({ v, a, d });
         if (this.history.length > this.maxLen) this.history.shift();
+        this.animate();
 
         // Update labels
         if ($('vad-v')) $('vad-v').textContent = `V: ${v.toFixed(2)}`;
@@ -5121,13 +5127,7 @@ class VADStream {
     }
 
     animate() {
-        if (!this.ctx) return;
-
-        // THE FIX: Pause drawing if the tab is hidden to save CPU/Battery
-        if (document.hidden) {
-            requestAnimationFrame(() => this.animate());
-            return;
-        }
+        if (!this.ctx || document.hidden) return;
 
         const { width, height } = this.syncBackingStore();
         const ctx = this.ctx;
@@ -5207,8 +5207,6 @@ class VADStream {
             ctx.fillText('waiting for mood samples', width / 2, height / 2 - 8);
             ctx.textAlign = 'left';
         }
-
-        requestAnimationFrame(() => this.animate());
     }
 }
 

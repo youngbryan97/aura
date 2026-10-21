@@ -58,7 +58,10 @@ body::after {
       1100px 800px at 72% 110%,
       hsla(var(--aura-live-hue), 72%, 20%, 0.09) 0%,
       transparent 65%);
-  animation: aura-room-breath var(--aura-breath-s) ease-in-out infinite;
+  /* Still: an endless breath here, or on her avatar, the brand icon or the live dot, had her desktop window (WebKit)
+     redraw its frosted layers every frame, about half the GPU her model decodes on. MEASURED 20 October 2026 in a
+     WebKit window of this page: 51 to 57 per cent of the renderer with the breaths, 3 with them still; drawn once with
+     only their opacity moving, 65. Her 27B decoded at 9 tokens a second beside her window, 21.5 alone. */
 }
 @keyframes aura-room-breath {
   0%, 100% { opacity: calc(0.5 + 0.2 * var(--aura-affect-warmth)); }
@@ -199,10 +202,7 @@ header {
   letter-spacing: 0.02em;
 }
 
-/* Aura's avatar carries her breath while idle. */
-.aura-avatar {
-  animation: aura-avatar-breath var(--aura-breath-s) ease-in-out infinite;
-}
+/* Aura's avatar keeps still: see the room's breath above. */
 @keyframes aura-avatar-breath {
   0%, 100% { box-shadow: 0 0 0 0 hsla(var(--aura-live-hue), 82%, 76%, 0.0); }
   50%      { box-shadow: 0 0 14px 1px hsla(var(--aura-live-hue), 82%, 76%,

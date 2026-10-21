@@ -262,7 +262,6 @@ body.neural-text-large {
             rgba(255, 255, 255, 0.03) 50%,
             transparent 100%);
     background-size: 200% 200%;
-    animation: shimmer-swipe 8s linear infinite;
     pointer-events: none;
     z-index: 999;
 }
@@ -824,7 +823,6 @@ main {
         rgba(151, 71, 255, 0.06)
     );
     background-size: 300% 300%;
-    animation: neuralGradientShift 20s ease infinite;
     pointer-events: none;
     transition: all 1.2s cubic-bezier(0.25, 0.8, 0.25, 1);
     opacity: 0.8;
@@ -841,7 +839,6 @@ main {
         rgba(151, 71, 255, 0.14)
     );
     background-size: 300% 300%;
-    animation: neuralGradientShift 7s ease infinite;
     opacity: 1.0;
     filter: saturate(140%) contrast(105%);
 }
@@ -857,7 +854,6 @@ main {
         rgba(151, 71, 255, 0.2)
     );
     background-size: 300% 300%;
-    animation: neuralGradientShift 4s ease infinite;
     opacity: 1.0;
     filter: saturate(170%) contrast(110%);
 }
@@ -1542,7 +1538,6 @@ main {
     border-radius: 50%;
     background: var(--success);
     box-shadow: 0 0 6px var(--success);
-    animation: livePulse 2s infinite;
 }
 
 @keyframes livePulse {
@@ -4215,6 +4210,10 @@ body.theme-light.accent-amber { --primary: #92400e; --primary-bright: #92400e; -
     position: fixed; inset: 0; z-index: 0;
     pointer-events: none; overflow: hidden;
 }
+/* Still, not drifting: a 120px blur over 150% of the window, moving, is drawn again every frame, and her window's
+ * drawing took half the GPU her model decodes on (MEASURED 20 October 2026: 53% shown and idle, 0% minimised; her
+ * 27B decoded at 9 tokens a second there, 21.5 alone). The chat panel's gradient and the shimmer stand still for the
+ * same reason: each sweep repainted the whole panel every frame, fastest while she generated. */
 .aurora-layer {
     position: absolute;
     width: 150%; height: 150%;
@@ -4225,17 +4224,14 @@ body.theme-light.accent-amber { --primary: #92400e; --primary-bright: #92400e; -
 .aurora-1 {
     background: radial-gradient(ellipse, rgba(138,43,226,0.6), transparent 70%);
     top: -40%; left: -20%;
-    animation: auroraFloat1 25s ease-in-out infinite alternate;
 }
 .aurora-2 {
     background: radial-gradient(ellipse, rgba(0,229,255,0.4), transparent 70%);
     bottom: -50%; right: -30%;
-    animation: auroraFloat2 30s ease-in-out infinite alternate;
 }
 .aurora-3 {
     background: radial-gradient(ellipse, rgba(0,255,163,0.3), transparent 70%);
     top: 20%; left: 40%;
-    animation: auroraFloat3 20s ease-in-out infinite alternate;
     width: 80%; height: 80%;
 }
 @keyframes auroraFloat1 {
@@ -4869,7 +4865,6 @@ body.accent-amber .msg.aura { border-left-color: #fbbf24; }
    MAGNUM OPUS 2 — Brand Icon Breathing Glow
    ══════════════════════════════════════════════════════════ */
 .brand-icon {
-    animation: brandBreathe 4s ease-in-out infinite;
 }
 @keyframes brandBreathe {
     0%, 100% { box-shadow: 0 0 15px var(--border-glow); }

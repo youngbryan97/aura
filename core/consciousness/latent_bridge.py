@@ -107,6 +107,11 @@ class LatentReadoutHook:
         self._pending_injection: Dict[int, float] = {}
         self._injection_lock = threading.Lock()
         self._readout_count = 0
+        # Each pass's projections, left on the GPU until the pass has been computed (``_settle``): read back where they
+        # were taken, five float()s at each of sixteen layers held up every pass (MEASURED 20 October 2026: her worker
+        # decoded at 7.7 tokens a second and read prompts at 122 a second; without these hooks, 21.5 and 390).
+        self._taken: list[tuple[int, Any]] = []
+        self._passes = 0
 
     def install(self):
         """
@@ -145,38 +150,15 @@ class LatentReadoutHook:
                 # Extract last token hidden state: h has shape [batch, seq_len, d_model]
                 last_token_h = h[0, -1, :]  # shape [d_model]
 
-                # Project onto each steering vector using MLX-native math
-                pending = {}
-                for key, sv in hook._steering_vectors.items():
-                    # Get the MLX-native version of the steering vector (cached)
-                    v_mx = sv.get_mx_array(dtype=last_token_h.dtype)
-                    
-                    # Compute dot product in MLX
-                    # Note: float(mx_array) still triggers an eval, but it's
-                    # better than np.array(last_token_h) which copies the WHOLE vector.
-                    readout_raw = float(mx.sum(last_token_h * v_mx))
-
-                    # EMA smoothing
-                    prev_ema = hook._readout_ema.get(key, 0.0)
-                    readout_smooth = (
-                        READOUT_EMA_ALPHA * readout_raw
-                        + (1.0 - READOUT_EMA_ALPHA) * prev_ema
-                    )
-                    hook._readout_ema[key] = readout_smooth
-
-                    if abs(readout_smooth) > MIN_READOUT_MAGNITUDE:
-                        substrate_idx = sv.substrate_idx
-                        if substrate_idx not in pending:
-                            pending[substrate_idx] = 0.0
-                        pending[substrate_idx] += readout_smooth * hook._feedback_weight
-
-                # Accumulate for next injection cycle
-                with hook._injection_lock:
-                    for idx, delta in pending.items():
-                        hook._pending_injection[idx] = (
-                            hook._pending_injection.get(idx, 0.0) + delta
-                        )
-                    hook._readout_count += 1
+                # Project onto each steering vector using MLX-native math, kept on the GPU with the pass; the passes
+                # two back have been computed, so reading theirs costs nothing.
+                hook._passes += 1
+                hook._readout_count += 1
+                hook._taken.append((hook._passes, mx.stack([
+                    mx.sum(last_token_h * sv.get_mx_array(dtype=last_token_h.dtype))
+                    for sv in hook._steering_vectors.values()
+                ])))
+                hook._settle(through=hook._passes - 2)
 
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('latent_bridge', e)
@@ -196,6 +178,23 @@ class LatentReadoutHook:
             "🔄 LatentReadoutHook installed at layer %d (%d dimensions) via %s",
             self._layer_idx, len(self._steering_vectors), target_name
         )
+
+    def _settle(self, *, through: int) -> None:
+        """The readouts of every pass up to ``through``, smoothed and added to what is pending, in the order taken."""
+        settled = [values for taken, values in self._taken if taken <= through]
+        if not settled:
+            return
+        self._taken = [(taken, values) for taken, values in self._taken if taken > through]
+        pending: dict[int, float] = {}
+        for values in settled:
+            for (key, sv), readout_raw in zip(self._steering_vectors.items(), values.tolist(), strict=False):
+                readout_smooth = READOUT_EMA_ALPHA * float(readout_raw) + (1.0 - READOUT_EMA_ALPHA) * self._readout_ema.get(key, 0.0)
+                self._readout_ema[key] = readout_smooth
+                if abs(readout_smooth) > MIN_READOUT_MAGNITUDE:
+                    pending[sv.substrate_idx] = pending.get(sv.substrate_idx, 0.0) + readout_smooth * self._feedback_weight
+        with self._injection_lock:
+            for idx, delta in pending.items():
+                self._pending_injection[idx] = self._pending_injection.get(idx, 0.0) + delta
 
     def pop_pending_injection(self) -> Dict[int, float]:
         """Pop and return the accumulated injection deltas (thread-safe)."""

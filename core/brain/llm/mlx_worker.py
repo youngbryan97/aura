@@ -2308,12 +2308,14 @@ def _generation_stream_with_activity(
     tap: Any = None,
 ):
     """Every decode pass refreshes liveness only when the model yields."""
+    from core.brain.llm.her_head_in_the_stream import (
+        timed,  # what the model took and what the loop took, said
+    )
+
     with tap if tap is not None else contextlib.nullcontext():
         responses = generate(model, tokenizer, prompt=prompt, **generation_kwargs)
         try:
-            for response in responses:
-                watchdog.activity()
-                yield response
+            yield from timed(responses, watchdog.activity)
         finally:
             close = getattr(responses, "close", None)
             if callable(close):
