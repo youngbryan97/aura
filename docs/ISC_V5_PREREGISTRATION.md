@@ -1759,3 +1759,53 @@ seed 23 then runs with.
 - If no arm qualifies, seed 23 runs with every switch off, as the control did.
 
 The switches go to `decisive_hold.sh` through its go file, which names them.
+
+## Addendum, 21 October 2026, 02:30: her substrate's weights were a five-turn clock
+
+An organism change, `c428ae4b3`, named before any run reads it. No threshold
+moves and no criterion is rescored. Everything below was read after the fact
+from the control arm of `arms-0675c4217` (seed 7, 370 rounds), which is a
+diagnostic seed.
+
+### What was read
+
+At the turn grain the battery fits on, 91% of the variance of recurrent
+cognition's change in its first four components is the sketch of the
+substrate's weights. The spread of those weights reads 0.0195, 0.0213, 0.0231,
+0.0249, 0.0266 and then 0.0195 again, turn after turn, in every condition: an
+exact cycle of five turns. C's change is predicted from C alone with a
+normalised loss of 0.579, and adding the other nine domains makes it 0.584. No
+other domain's change gains more than 0.008 of its loss from C's state. `C|rest`
+is the cheapest of the 511 cuts at -0.0026.
+
+### Why
+
+`STDPLearningEngine.regulate` scales the whole matrix towards a mean absolute
+weight of 0.3, a number for a 64-neuron engine. Her substrate is built with 512
+neurons drawn from N(0, 1/n), whose mean absolute weight is 0.035, and a matrix
+at 0.3 on 512 neurons has a largest singular value near seventeen against a
+spectral cap of 3.0. So every turn's teaching multiplied the weights by about
+1.087 until the cap cut them back. The Hebbian step read one tick's coactivity
+in every hundred and added a hundred ticks' learning at once, and on the
+experiment clock a hundred ticks is five turns. Between them the Hebbian mode
+grew and the cap shrank the random bulk under it, from the 0.044 spread she is
+built with to 0.020.
+
+### The change
+
+The homeostatic set point is the mean absolute value of the draw the network is
+built from, sqrt(2 / (pi n)): the gain it was built at, not a number chosen
+here. Hebbian learning runs every tick at a hundredth of the plasticity step's
+rate, so a hundred ticks of one coactivity learn what one old step did, and the
+plasticity step keeps the spike timing and the bounds. It is a repair, like the
+flat-column repairs of 25 September, so it is in every arm and is not a switch.
+`tests/test_the_substrate_keeps_the_gain_it_was_built_at.py` holds it.
+
+### What is read next, and what it decides
+
+A look on seed 7: 100 rounds, one trial, one-turn arms, nulls and lesion
+skipped, at `c428ae4b3`. It reads how much of C's turn-to-turn change is still
+the weight sketch, whether C's change is predicted by the rest, the cheapest
+cut, and the S,D -> C triple. It decides nothing. Whatever it shows, the next
+seed-7 validation runs at the decisive design on the commit that carries this
+repair, and seed 23 is not launched on a commit without it.
