@@ -95,7 +95,7 @@ exclude = [
 ]
 
 [tool.setuptools.package-data]
-core = ["*.json", "*.txt", "*/DEPS", "*/*.json", "*/*.txt"]
+core = ["*.json", "*.txt", "*/DEPS", "*/*.json", "*/*.txt", "perception/browser_presence.js"]
 interface = ["static/*", "static/**/*", "static/**/**/*"]
 
 [tool.setuptools.exclude-package-data]

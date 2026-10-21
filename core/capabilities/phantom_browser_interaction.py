@@ -16,6 +16,7 @@ from core.capabilities.browser_authority import (
     BrowserAction,
     authorize_browser_action,
 )
+from core.perception.browser_presence import show_activity
 from core.runtime.errors import (
     record_degradation,
 )
@@ -130,9 +131,10 @@ class _ActsOnThePage:
                 # Human-like mouse movement
                 box = await element.bounding_box()
                 if box:
-                    x = box['x'] + box['width'] / 2 + random.randint(-5, 5)
-                    y = box['y'] + box['height'] / 2 + random.randint(-3, 3)
+                    x = box['x'] + box['width'] / 2
+                    y = box['y'] + box['height'] / 2
                     await self.page.mouse.move(x, y, steps=15)
+                    await show_activity(self, "clicking", box={**box, "clickX": x, "clickY": y})
                     await self._human_delay(0.1, 0.3)
                 
                 # A styled-invisible control still has to be clickable.
@@ -172,6 +174,8 @@ class _ActsOnThePage:
                         type(click_exc).__name__,
                     )
                     await element.dispatch_event("click")
+                await show_activity(self, "clicking", stage="completed",
+                                    box=box if str(getattr(self.page, "url", "")) == before_url else None)
                 logger.info("🖱️ Clicked: %s", selector or text_match)
                 await self._human_delay(0.5, 1.5)
                 if context is not None:
@@ -188,6 +192,7 @@ class _ActsOnThePage:
                 logger.warning("Element not found or not visible: %s", selector or text_match)
                 return False
         except (ImportError, AttributeError, RuntimeError, PlaywrightError) as e:
+            await show_activity(self, "clicking", stage="failed")
             record_degradation('phantom_browser', e)
             logger.error("Click failed: %s", e)
             return False
@@ -286,6 +291,7 @@ class _ActsOnThePage:
                 return False
 
             logger.info("Typing %d characters into selector %s", len(text), selector)
+            await show_activity(self, "typing")
             for char in text:
                 await self.page.keyboard.type(char)
                 # Random typing delay between keystrokes
@@ -306,6 +312,7 @@ class _ActsOnThePage:
             await self._record_interaction(
                 "type", before_url, target=selector, verified=landed is not None
             )
+            await show_activity(self, "typing", stage="completed")
             return True
         except (RuntimeError, AttributeError, TypeError, ValueError, PlaywrightError) as e:
             record_degradation('phantom_browser', e)
@@ -358,6 +365,7 @@ class _ActsOnThePage:
             logger.warning("Scroll refused: %s", verdict.reason)
             return False
         try:
+            await show_activity(self, "scrolling")
             steps = 5
             step_amount = amount // steps
             for _ in range(steps):
@@ -367,6 +375,7 @@ class _ActsOnThePage:
                     await self.page.mouse.wheel(0, -step_amount)
                 await asyncio.sleep(random.uniform(0.1, 0.3))
             await self._human_delay(0.5, 1.0)
+            await show_activity(self, "scrolling", stage="completed")
             return True
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('phantom_browser', e)

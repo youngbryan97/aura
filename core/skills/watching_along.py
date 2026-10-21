@@ -403,7 +403,10 @@ def her_eyes_on(page: Any, *, seconds: float = 8.0) -> Callable[[str], Awaitable
         clip = ({"x": max(0.0, plays["x"]), "y": max(0.0, plays["y"]), "width": plays["w"], "height": plays["h"]}
                 if plays and plays.get("w") and plays.get("h") else None)
         try:
-            shot = await page.screenshot(type="jpeg", quality=70, clip=clip) if clip else await page.screenshot(type="jpeg", quality=70)
+            from core.perception.browser_presence import without_presence
+
+            async with without_presence(page):
+                shot = await page.screenshot(type="jpeg", quality=70, clip=clip) if clip else await page.screenshot(type="jpeg", quality=70)
             return plainly(await look_with_her_eyes("What is happening in this picture?", base64.b64encode(shot).decode("ascii"),
                                                     max_tokens=LOOK_TOKENS, timeout_s=seconds))
         except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as why:

@@ -124,6 +124,9 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
         # This owner acquires and releases a fixed, bounded drawing observer.
         # It accepts no script payload, draws nothing and sends no input.
         "core/perception/the_drawing_as_objects.py",
+        # Fixed cosmetic overlay calls. No caller script, page input, or page
+        # text is accepted; screenshots suspend the mark through this owner.
+        "core/perception/browser_presence.py",
     }),
     "direct_atomic_file_write": frozenset(
         {

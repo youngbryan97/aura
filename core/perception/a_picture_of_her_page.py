@@ -64,6 +64,13 @@ def _cut(data: bytes, clip: Mapping[str, float] | None, wide: int, css: bool) ->
 async def picture_of(page: Any, clip: Mapping[str, float] | None = None, *, css: bool = True, kind: str = "jpeg") -> Any:
     """What ``page`` shows of ``clip`` (CSS pixels from the top-left of its window), as an RGB array; at CSS size
     where ``css``, else at the screen's own pixels. None where no picture could be taken."""
+    from core.perception.browser_presence import without_presence
+
+    async with without_presence(page):
+        return await _picture_of(page, clip, css=css, kind=kind)
+
+
+async def _picture_of(page: Any, clip: Mapping[str, float] | None, *, css: bool, kind: str) -> Any:
     from core.perception.what_her_page_shows import the_page_size
 
     try:
