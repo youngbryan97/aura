@@ -79,8 +79,25 @@ async def test_an_expired_mark_costs_no_browser_round_trips():
 
 
 def test_changed_source_has_no_current_measurement(tmp_path):
-    from core.organism.model_validation_presentation import measured_presentation
+    import hashlib
+    import json
+
+    from core.organism.model_validation_presentation import CHECKS, SOURCES, measured_presentation
     from core.organism.nothing_measured import NothingMeasured
 
+    with pytest.raises(NothingMeasured):
+        measured_presentation(tmp_path)
+    sources = {}
+    for relative in SOURCES:
+        source = tmp_path / relative
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("measured source")
+        sources[relative] = hashlib.sha256(source.read_bytes()).hexdigest()
+    receipt = tmp_path / "docs/evidence/conversation-presence-2026-10-21.json"
+    receipt.parent.mkdir(parents=True)
+    receipt.write_text(json.dumps({"schema": "aura.presentation.browser_measurement.v1",
+                                   "ok": True, "sources": sources, "checks": sorted(CHECKS)}))
+    assert measured_presentation(tmp_path) is True
+    (tmp_path / SOURCES[0]).write_text("unmeasured change")
     with pytest.raises(NothingMeasured):
         measured_presentation(tmp_path)
