@@ -1538,7 +1538,6 @@ main {
     border-radius: 50%;
     background: var(--success);
     box-shadow: 0 0 6px var(--success);
-    animation: livePulse 2s infinite;
 }
 
 @keyframes livePulse {
@@ -4866,7 +4865,6 @@ body.accent-amber .msg.aura { border-left-color: #fbbf24; }
    MAGNUM OPUS 2 — Brand Icon Breathing Glow
    ══════════════════════════════════════════════════════════ */
 .brand-icon {
-    animation: brandBreathe 4s ease-in-out infinite;
 }
 @keyframes brandBreathe {
     0%, 100% { box-shadow: 0 0 15px var(--border-glow); }
