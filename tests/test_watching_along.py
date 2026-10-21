@@ -387,5 +387,19 @@ def test_a_remark_that_names_nothing_she_was_shown_is_not_her_thought():
     assert first_thought(said, about=shown).startswith("The Virgo Supercluster looks like frost")
     assert first_thought("Okay, I'm right here with you, still watching.", about=shown) == ""
     # A thought long enough to stand on its own does, named or not.
+    assert first_thought("Oh — so it's already rolling, we're at about two and a half minutes in. Let me catch up "
+                         "with you on where I am.", about=shown) == ""
+    glove = "playing, at 3:02 of 11:13.\n3:00 Allen Pan in his garage; heard: I love punching. I love fisting."
     assert first_thought("He calls punching fisting, and that is such a him choice of word that I laughed out loud a "
-                         "little.", about=shown).startswith("He calls punching")
+                         "little.", about=glove).startswith("He calls punching")
+
+
+def test_a_quotation_of_what_was_said_is_not_her_remark():
+    """LIVE 2026-10-20, rehearsal 9: her first remark was the narrator's opening line, quoted."""
+    from core.skills.watching_along import first_thought
+
+    heard = "playing, at 0:02 of 21:44.\n0:02 heard: In July of 2026, 700 AI agents hacked the infrastructure of Hugging Face"
+    quoted = '*"In July of 2026, 700 AI agents hacked the infrastructure of Hugging Face in order to solve a task..."*'
+    assert first_thought(quoted, about=heard) == ""
+    assert first_thought(quoted + "\n\nSeven hundred agents breaking into Hugging Face to cheat a test is the scariest "
+                         "opening they have written.", about=heard).startswith("Seven hundred agents")

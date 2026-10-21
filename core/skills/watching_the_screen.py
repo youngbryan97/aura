@@ -422,6 +422,8 @@ class OnTheirScreen:
         from core.skills.watching_along import LOOK_TOKENS
 
         async def look(_when: str) -> str:
+            if self.ear is not None and hasattr(self.ear, "yields"):
+                self.ear.yields(_when == "speaking")  # her ear waits for her voice too (core/senses/her_ear.py)
             if self.window is None:
                 return ""
             shot = Path(f"/tmp/aura-watching-{int(self.window.get('kCGWindowNumber') or 0)}.png")
