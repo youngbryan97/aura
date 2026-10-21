@@ -1137,3 +1137,59 @@ play or readiness claim has been made.
 
 Artifacts: `artifacts/flash-campaign/2026-10-21-visual-motion-authority/`.
 No model, GPU, physical input, G09, holdout or resident lifecycle work.
+
+
+### October 21: neighbouring motion proposes fresh point searches
+
+- [x] A rigid cohort of already measured neighbouring points can propose a
+  missing mark's search location. No source file, semantic label, object
+  outline or body identity is needed. At most 32 missing points receive
+  three local proposals each. Repeated cohort fits are shared within this
+  one current observation; each target retains its own projection error.
+- [x] Those proposals pass the same current common-grid forward/reverse,
+  coarse validity, colour, angular closure and raw-discrepancy checks. A
+  candidate must remain near its proposed transform. Local repeated texture
+  still refuses, and distinct accepted alternatives cannot silently pick an
+  identity. Newly recovered marks cannot validate their own neighbourhood.
+- [x] A faulty first coarse guess was already repaired by the existing second
+  search. Extending the fault to both coarse guesses produced a real red
+  regression; neighbour-proposed current correspondence repairs it. Absent
+  current pixels still refuse. Rotation, stale/recycled witnesses, geometry
+  bounds, capacity, ordinary worker handoff and fit reuse are covered.
+- [x] Tests passed 238; smoke passed 164 with one skip. Lint, compilation,
+  layering and writing passed in 65.41 seconds. The measured invariant and
+  its narrow dependency edge are registered.
+- [ ] Continuous body identity, learned control on the current original game,
+  goal/contact binding, winning and native readiness remain unproved.
+
+Under identical retained search admissions, the production baseline has
+three whole-ship observations and one dated ship-material interval; the
+new path has six and three. Whole-building observations remain 28.
+Durations were 10.3048 and 11.0855 seconds. The independent prototype also
+had six whole-ship observations and recorded twelve recovered points.
+Production point recovery was not instrumented: its printed zero recovery
+count means an empty diagnostic list, not zero recovered points. That output
+formatter is corrected for future runs. The exact prototype readings were
+copied before a shared output name was reused and restored byte-for-byte;
+`prototype-recoveries.json` retains that copy.
+
+The ordinary-timing production replay has four whole-ship observations
+and one dated ship interval in forty pictures, against one and zero in the
+preceding ordinary run. It has 32 whole-building pictures and three total
+whole identities. It took 11.9799 seconds. It remains intermittent
+perception; timing changes optional search admissions, so keep the paired
+comparison separate. No model or physical input ran.
+
+Artifacts: `artifacts/flash-campaign/2026-10-21-local-motion-recovery/`.
+The next diagnostic can replay actual recorded independent input labels
+through the ordinary control learner, rather than only counting reference
+observations. There are 659 control observations, 114 marked as trials;
+223 held-input acknowledgements are later than their corresponding picture,
+and twelve initial neutral records lack a hold timestamp. Do not retime
+these labels onto earlier pixels or invent independent trials.
+
+Source custody: when inspected after `66136ff21`, the primary checkout was
+still `84d9fe6f5`, while this worktree and remote main held the newer fixes.
+It was left unchanged during the reserved demo/GPU work. Verify the actual
+native source revision before any later live proof. G09, holdouts and all
+resident lifecycle boundaries remain in force.

@@ -1177,6 +1177,7 @@ def _visual_motion_claims() -> tuple:
     )
     from core.perception.points_shared_with_changing_regions import _point_capacity_invariant
     from core.perception.patches_compared_on_a_common_grid import _common_grid_recovery_invariant
+    from core.perception.patch_searches_from_neighbours_that_were_seen import _neighbour_patch_search_invariant
     from core.perception.a_whole_origin_carried_by_measured_material import _whole_motion_origin_invariant
     from core.perception.points_that_keep_their_motion import (
         _owned_material_motion_invariant,
@@ -1236,6 +1237,9 @@ def _visual_motion_claims() -> tuple:
         ("common_grid_recovery_rejects_local_repetition", "core/perception/patches_compared_on_a_common_grid.py",
          "tests/test_resampled_marks_keep_distinct_material.py", lambda: _common_grid_recovery_invariant() == (),
          "Source-mark recovery compares both sampled patches on a common rigid grid, rejects measured nearby repeats and unobservable fits, and retains the original sampling discrepancy; it supplies no controlled-body identity."),
+        ("neighbour_motion_can_only_propose_a_patch_search", "core/perception/patch_searches_from_neighbours_that_were_seen.py",
+         "tests/test_neighbour_motion_proposes_fresh_pixel_search.py", lambda: _neighbour_patch_search_invariant() == (),
+         "Independent current neighbouring motion supplies bounded rigid search hypotheses; failed current pixels, inconsistent alternatives and missing witnesses cannot restore a point or supply body identity."),
         ("whole_motion_cannot_default_to_direct_state", "core/perception/a_whole_origin_carried_by_measured_material.py",
          "tests/test_whole_material_motion_keeps_observed_intervals.py", lambda: _whole_motion_origin_invariant() == (),
          "A whole visual referent marks motion unavailable until a current shared-material interval exists; its source origin and displacement dates remain distinct from artwork bounds, averaged velocity and control identity."),

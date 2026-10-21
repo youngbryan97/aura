@@ -1880,3 +1880,30 @@ as another starting guess for lost patches, then retaining all current
 bidirectional, colour, repetition and identity gates. The earlier neighbour
 prototype required an already requested source region and did not improve
 ship perception; do not restore it unchanged. Native readiness remains open.
+
+
+Neighbour-guided point recovery is connected and measured. Independent
+strictly observed neighbours propose up to three rigid searches per missing
+mark; current pixels still have to pass the ordinary bidirectional,
+photometric, ambiguity and ownership checks. Recovered points cannot be
+witnesses for their own recovery. Up to 32 missing points are considered;
+identical current cohorts share their fit. Tests passed 238; smoke 164 with
+one skip and lint/compile/layering/writing pass.
+
+The paired forty-picture comparison improves whole ship observations from
+3 to 6 and actual material intervals from 1 to 3, with the same 28 building
+pictures. Ordinary timing gives 4 ship observations and 1 interval, compared
+with the preceding 1 and 0; it still has intermittent identity and no task
+result. Preserve both measurements and their scheduling distinction.
+Artifacts: `2026-10-21-local-motion-recovery/`.
+
+Next measure perception feeding the ordinary control learner on retained
+pixels and actual input labels. The trace has 659 observations, 114 trial
+labels, 223 acknowledgement stamps later than their pictures, and twelve
+undated initial neutral records. Preserve those times and missing values.
+A historical replay supplies no fresh input, feedback, win or native proof.
+
+The primary checkout was observed at `84d9fe6f5` after this worktree had
+pushed `66136ff21`; it has not been updated during Bryan's reserved demo/GPU
+work. Recheck current native source provenance before live testing. CPU-only,
+G09/holdout, precise staging and resident ownership restrictions continue.

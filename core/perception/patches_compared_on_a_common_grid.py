@@ -127,6 +127,25 @@ def _one_sided_error(before: np.ndarray, after: np.ndarray, starts: np.ndarray, 
     return abs(template-current).mean(axis=(1, 2))
 
 
+def verified_patch_journeys(before: np.ndarray, after: np.ndarray, previous: list, current: list,
+                           starts: np.ndarray, initial: np.ndarray, forwards: np.ndarray) -> tuple:
+    """Verify proposed positions in both directions while retaining raw discrepancy."""
+    if (not _usable(before, after, starts, initial) or not isinstance(forwards, np.ndarray)
+            or forwards.dtype != bool or forwards.shape != (len(starts),)):
+        return _empty_fit()
+    ends, error, angle, fitted = fit_common_grid(before, after, starts, initial)
+    reverse, backwards = _follow(current, previous, ends)
+    returned, back_error, back_angle, back_fitted = fit_common_grid(after, before, ends, reverse)
+    if not len(returned):
+        return _empty_fit()
+    valid = forwards & backwards & fitted & back_fitted & (error < .025) & (back_error < .025)
+    valid &= (np.linalg.norm(returned-starts, axis=1) < .5) & (abs(angle+back_angle) < .08)
+    discrepancy = np.maximum(_one_sided_error(before, after, starts, ends, angle),
+                             _one_sided_error(after, before, ends, returned, back_angle))
+    error = np.maximum.reduce((error, back_error, discrepancy))
+    return ends, error, angle, valid & (error <= .055)
+
+
 def recover_source_marks(tracker: object, image: list, colours: np.ndarray, at: float, measured: list) -> list:
     """Keep successful fits unchanged; retry at most 32 currently missing marks."""
     visible = {p.number: p for p in measured}
@@ -138,20 +157,10 @@ def recover_source_marks(tracker: object, image: list, colours: np.ndarray, at: 
         return measured
     starts = np.asarray([(p.x, p.y) for p in missing])
     initial, forwards = _follow(tracker._image, image, starts)
-    ends, error, angle, fitted = fit_common_grid(tracker._colours, colours, starts, initial)
+    ends, error, _angle, valid = verified_patch_journeys(tracker._colours, colours, tracker._image, image,
+                                                       starts, initial, forwards)
     if not len(ends):
         return measured
-    reverse, backwards = _follow(image, tracker._image, ends)
-    returned, back_error, back_angle, back_fitted = fit_common_grid(colours, tracker._colours, ends, reverse)
-    if not len(returned):
-        return measured
-    valid = forwards & backwards & fitted & back_fitted & (error < .025) & (back_error < .025)
-    valid &= (np.linalg.norm(returned-starts, axis=1) < .5) & (abs(angle+back_angle) < .08)
-    discrepancy = np.maximum(_one_sided_error(tracker._colours, colours, starts, ends, angle),
-                             _one_sided_error(colours, tracker._colours, ends, returned, back_angle))
-    # Retain the original sampling discrepancy in the published uncertainty.
-    error = np.maximum.reduce((error, back_error, discrepancy))
-    valid &= error <= .055
     candidates = np.flatnonzero(valid)
     if len(candidates):
         valid[candidates] &= distinct_patches(tracker._colours, starts[candidates])
@@ -159,7 +168,10 @@ def recover_source_marks(tracker: object, image: list, colours: np.ndarray, at: 
         if valid[index]:
             visible[point.number] = SeenPoint(point.number, float(ends[index, 0]), float(ends[index, 1]), point.x, point.y,
                 point.born, tracker._at, at, float(error[index]), point.pictures+1)
-    return [visible[p.number] for p in tracker._native_points if p.number in visible]
+    retained = [visible[p.number] for p in tracker._native_points if p.number in visible]
+    from core.perception.patch_searches_from_neighbours_that_were_seen import recover_from_neighbour_searches
+
+    return recover_from_neighbour_searches(tracker, image, colours, at, measured, retained)
 
 
 @invariant('perception.common_grid_recovery_rejects_local_repetition', scope='perception',
