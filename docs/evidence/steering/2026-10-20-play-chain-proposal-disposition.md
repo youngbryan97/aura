@@ -998,3 +998,29 @@ compilation, layering and writing in 361.27 seconds on the shared host.
 Smoke itself took 210.01 seconds and continued to make progress; an owned
 OS-level sample was retained while checking that delay. This is neither a
 real-time play-rate measurement nor a reason to change the native runtime.
+
+
+### Rejected automatic frame switching and measured tracker refusals
+
+- [x] Tested a current whole-pixel conflict as an earlier trigger for sibling
+  frame search. Its 183 tests passed, but the same forty-picture replay
+  retained zero whole ships, against two at `283a42c7e`. Removed all four
+  candidate file changes. The exact rejected patch is retained as
+  `rejected-automatic-pixel-conflict.patch` under the variant-search artifacts
+  (SHA-256 `8efd38b9ee1effa798da4c6612200920485f145e07c7f83f6e96ded163fcc9f0`).
+  Pixel disagreement can also be occlusion or sampling; it cannot yet select
+  animation search without regressing useful measured work.
+- [x] Audited actual forward/reverse point gates on retained original-18
+  pictures. Nineteen requested points were dropped: forward colour rejected
+  fourteen, reverse colour eighteen, closure four and angle closure two.
+  Zero had a good final fit rejected solely by the coarse tracker gates.
+  Keep those gates and thresholds. Duplicate diagnostic fits affect the
+  optional-work clock; these runs do not measure gameplay latency.
+- [ ] Explain and address these photometric/closure failures while preserving
+  point identity, source-pixel support and current-capture ownership.
+
+Artifacts: `artifacts/flash-campaign/2026-10-20-point-fit-gate-diagnosis/`
+contains both gate reports and the failed 7-by-7 colour patches. Variant
+artifacts retain both failed replay reports. No input, model, GPU, G09,
+holdout or resident lifecycle work occurred. Native success and readiness
+remain open.

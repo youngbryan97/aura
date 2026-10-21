@@ -1801,3 +1801,20 @@ intermittent. Its anchor diagnosis shows dropped tracker points. Next inspect
 individual forward/reverse/local-refinement gates for a good final fit being
 discarded upstream. Hint tests passed 158. Artifacts:
 `artifacts/flash-campaign/2026-10-20-source-variant-search-hints/`.
+
+
+The early automatic sibling-frame trigger is rejected. Its 183 passing
+regressions did not transfer to retained original-18 pixels: whole ship
+observations fell from two to zero in forty pictures. The exact candidate
+patch and failed reports remain in the variant-search artifacts; four own
+candidate files were restored to `283a42c7e`.
+
+The next point-gate audit found nineteen dropped requested marks, with zero
+good final fits rejected solely by coarse gates. Colour residuals caused
+most refusals (14 forward, 18 reverse), followed by closure (4) and angle
+closure (2). Preserve those gates. Inspect the retained before/warped-current
+7-by-7 patches under `2026-10-20-point-fit-gate-diagnosis/` to distinguish
+sampling, mixed moving layers, animation and failed correspondence before
+changing tracking. Duplicate fits alter optional-work timing and are not
+play-rate evidence. CPU-only, G09/holdout and resident boundaries continue;
+ordinary native success is still unproved.
