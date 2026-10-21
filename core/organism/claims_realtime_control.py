@@ -1146,7 +1146,7 @@ def _visual_motion_claims() -> tuple:
     from core.perception.activity_in_the_picture import _picture_activity_invariant
     from core.perception.background_visible_beside_a_patch import _exposed_background_invariant
     from core.perception.boundary_support_for_translation import _visible_boundary_invariant
-    from core.perception.continuing_material_before_outlines import _material_identity_invariant
+    from core.perception.continuing_material_before_outlines import _material_identity_invariant, _material_priority_invariant
     from core.perception.frames_as_they_are_drawn import (
         _frame_session_invariant,
         _frame_time_invariant,
@@ -1435,6 +1435,9 @@ def _visual_motion_claims() -> tuple:
         ("material_identity_requires_unique_current_geometry", "core/perception/continuing_material_before_outlines.py",
          "tests/test_continuing_material_survives_a_changed_outline.py", lambda: _material_identity_invariant() == (),
          "Continuing owned points can preserve observation identity through outline changes only with current rigid geometry and a unique match on both sides; no control authority is supplied."),
+        ("unique_current_material_precedes_appearance", "core/perception/continuing_material_before_outlines.py",
+         "tests/test_continuing_material_survives_a_changed_outline.py", lambda: _material_priority_invariant() == (),
+         "An observation uniquely supported by current continuing material is assigned before appearance costs, so an outline-only rival cannot discard that identity; control trials remain independently qualified."),
         ("trail_cleanup_uses_current_material_travel", "core/perception/what_moves_in_the_picture.py",
          "tests/test_material_motion_keeps_a_stopped_body_visible.py", lambda: _material_trail_invariant() == (),
          "A current material pose uses its measured path for trail cleanup; outline deformation cannot supply physical travel and an invalid material path supplies none."),

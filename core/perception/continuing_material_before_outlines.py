@@ -114,3 +114,30 @@ def _material_identity_invariant() -> tuple:
     assert material_matches({1: body, 2: body}, [blob], {1: motion, 2: motion}, 1.1) == {}
     assert material_matches({1: body}, [blob], {1: motion}, 1.2) == {}
     return ()
+
+
+@invariant('perception.unique_current_material_precedes_appearance', scope='perception',
+           owner='core/perception/continuing_material_before_outlines.py', observational=False)
+def _material_priority_invariant() -> tuple:
+    from core.perception.points_that_keep_their_motion import PointMotion
+    from core.perception.what_moves_in_the_picture import WhatMoves
+
+    eyes = WhatMoves()
+    eyes.shape = (80, 100)
+    old = dict(x=20., y=20., w=12., h=36., colour=(170, 80, 80), look=np.ones(64)/64,
+        support=np.ones((36, 12), bool), patch=np.full((36, 12, 3), 170, np.uint8))
+    body = eyes._born(old, .5)
+    body.seen = 1.
+    body.path.append((1., 20., 20.))
+    marks = {n: p for n, p in enumerate(((16., 28.), (24., 28.), (16., 34.), (24., 34.)))}
+    body.point_pose = PointPose(.5, 1., (20., 20.), dict(marks), (20., 20.), visible_marks=dict(marks))
+    blob = dict(old, x=23., y=31., h=10., support=np.ones((10, 12), bool),
+                patch=np.full((10, 12, 3), 170, np.uint8))
+    rival = eyes._born(blob, 1.05)
+    eyes.things, eyes.pending = {body.number: body, rival.number: rival}, {}
+    eyes._point_motion = {body.number: PointMotion(3., 0., .01, 4, 1., 1.1,
+        tuple(marks), tuple((x+3., y) for x, y in marks.values()))}
+    assert eyes._cost(rival, blob, 1.1) < math.inf
+    assert eyes._match([blob], 1.1) == ({body.number: 0}, [])
+    assert rival.point_pose is None and body.born == .5
+    return ()

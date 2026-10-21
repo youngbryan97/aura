@@ -93,14 +93,33 @@ def test_shared_candidate_and_duplicate_current_support_remain_ambiguous():
     assert material_matches({1: body, 2: body}, [blob], {1: motion, 2: motion}, 1.1) == {}
 
 
-def test_material_recovery_cannot_take_another_objects_valid_outline_match():
+def test_unique_current_material_precedes_an_outline_only_rival():
     eyes, body, blob, motion = scene()
     rival = eyes._born(dict(blob), 1.05)
     eyes.things[rival.number] = rival
     assert eyes._cost(rival, blob, 1.1) < float('inf')
     assert material_matches(eyes.things, [blob], eyes._point_motion, 1.1) == {body.number: 0}
-    assert eyes._match([blob], 1.1) == ({rival.number: 0}, [])
+    assert eyes._match([blob], 1.1) == ({body.number: 0}, [])
     assert rival.born == 1.05 and rival.point_pose is None
+
+
+@pytest.mark.parametrize('expired', ['pose', 'motion', 'birth', 'support', 'precision'])
+def test_unqualified_material_cannot_displace_an_appearance_match(expired):
+    eyes, body, blob, motion = scene()
+    rival = eyes._born(dict(blob), 1.05)
+    eyes.things[rival.number] = rival
+    if expired == 'pose':
+        body.point_pose.at = .9
+    elif expired == 'motion':
+        eyes._point_motion[body.number] = replace(motion, at=1.05)
+    elif expired == 'birth':
+        body.point_pose.born = 0.
+    elif expired == 'support':
+        body.support[:] = False
+    else:
+        body.point_pose.reference_error = 1.
+    assert material_matches(eyes.things, [blob], eyes._point_motion, 1.1) == {}
+    assert eyes._match([blob], 1.1) == ({rival.number: 0}, [])
 
 
 @pytest.mark.parametrize('seed', [47, 55])
@@ -139,6 +158,9 @@ def test_actual_pixel_tracks_preserve_material_when_an_attached_strip_disappears
                 patch=current[50:74, 53:77].copy(), support=np.ones((24, 24), bool))
     eyes._point_motion = {body.number: motion}
     assert eyes._cost(body, blob, 1.3) == float('inf')
+    rival = eyes._born(dict(blob), 1.25)
+    eyes.things[rival.number] = rival
+    assert eyes._cost(rival, blob, 1.3) < float('inf')
     assert eyes._match([blob], 1.3) == ({body.number: 0}, [])
     eyes._moved(body, blob, 1.3)
     assert body.motion_position == pytest.approx((65., 40.), abs=.3)
@@ -152,4 +174,14 @@ def test_material_identity_has_a_registered_validation():
     suite = ValidationSuite()
     install_realtime_control_claims(suite)
     check = next(t for t in suite.tests() if t.name == 'material_identity_requires_unique_current_geometry')
+    assert check.predict(None) is True and any(c.test == check.name for c in suite.claims())
+
+
+def test_material_priority_has_a_registered_validation():
+    from core.organism.claims_realtime_control import install_realtime_control_claims
+    from core.organism.model_validation import ValidationSuite
+
+    suite = ValidationSuite()
+    install_realtime_control_claims(suite)
+    check = next(t for t in suite.tests() if t.name == 'unique_current_material_precedes_appearance')
     assert check.predict(None) is True and any(c.test == check.name for c in suite.claims())

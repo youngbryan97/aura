@@ -841,17 +841,15 @@ class WhatMoves:
                 if cost < math.inf:
                     pairs.append((cost, number, index))
         pairs.sort()
-        matched: dict[int, int] = {}
-        taken: set[int] = set()
+        # Current unique material fixes association before appearance costs.
+        # A newer outline without those marks cannot spend this observation.
+        matched: dict[int, int] = material_matches({**self.things, **self.pending}, blobs, self._point_motion, at)
+        taken: set[int] = set(matched.values())
         for _cost, number, index in pairs:
             if number in matched or index in taken:
                 continue
             matched[number] = index
             taken.add(index)
-        for number, index in material_matches({**self.things, **self.pending}, blobs, self._point_motion, at).items():
-            if number not in matched and index not in taken:
-                matched[number] = index
-                taken.add(index)
         # A thing that set off faster than it was going is still itself: what went from here and what came there
         # look the same. LIVE-like 2026-10-09 a body standing still that jumped went 15 working pixels between
         # pictures against a reach of 11, was taken for a new thing at every jump, and no press was ever seen to move it.

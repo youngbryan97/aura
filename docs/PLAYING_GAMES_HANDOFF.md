@@ -1924,3 +1924,23 @@ replay script are in `2026-10-21-recorded-control-attribution/`. Trace the exact
 failed path next; do not infer cause from the whole-reference count. No native
 proof, new inputs, model or GPU work. Continue CPU-only; preserve G09,
 holdouts, other edits, source provenance and resident lifecycle restrictions.
+
+
+The exact rejected-recovery loss is now traced and repaired. At capture
+487799.0552177429 a unique current-material association for track 1 lost to
+track 42's cheaper appearance match. The fallback ran after the proposal was
+spent. Track 1 then disappeared before completing four independent trials;
+there were no learner contradiction retirements in this trace.
+
+Qualified unique current material now receives its association before
+appearance matching. Ambiguous, stale or unsupported material cannot gain
+priority. The active consumer-group guard stays. Three red regressions and
+167 affected tests pass. Production replay retains 52/100 selected pictures
+with recovery both disabled and guarded; a separate diagnostic restores the
+rejected unrestricted version from 0 to 52. These are historical attribution
+results, not fresh gameplay. Smoke/lint/compile/layering/writing pass.
+
+Continue with a reusable recorded attribution measurement so point/reference
+changes are judged downstream, then resume the current body/goal/control
+chain. Keep CPU-only, primary source84d9fe6f5, G09/holdout and resident
+boundaries. Native success and all-56 readiness remain open.

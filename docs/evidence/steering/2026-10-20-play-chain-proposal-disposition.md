@@ -1230,3 +1230,49 @@ Keep `baseline.json` and `neighbour_search.json` as the failed comparison;
 The private replay script is retained beside them. No GPU, model, native
 runtime, G09 or holdout work ran. Preserve primary-checkout and resident
 ownership before any later native test.
+
+
+### October 21: association spent a uniquely supported material observation
+
+- [x] Traced the rejected unrestricted recovery through actual ordinary
+  `_match`, current point ownership and the control learner. At capture
+  487799.0552177429, `material_matches` returned established track 1 for
+  proposal 1. Appearance costs were 0.64556 for track 1 and 0.47232 for
+  newer track 42. Greedy appearance matching assigned that proposal to 42
+  first; the material fallback could no longer use it. Track 1's last seen
+  capture stayed 487798.9459745884 and it disappeared two pictures later.
+- [x] This was association loss, not a learner contradiction: the trace has
+  zero calls that retired a trial for contradictory motion. Track 1 retained
+  two independent input trials while baseline completed four. A better point
+  count changed proposal partitioning and exposed an existing priority rule.
+- [x] Admit already qualified, unique current material associations before
+  appearance costs. Appearance and leap matching use the remaining objects
+  and proposals. `material_matches` keeps its original custody, support,
+  precision, uniqueness and current-motion gates. Ambiguous material cannot
+  gain this priority. No body identity, control score or trial is transferred.
+- [x] Three red tests reproduced the failure: an outline-only rival and two
+  actual textured-pixel trials with a disappearing attached strip. The old
+  test explicitly preferred the outline-only rival even when current named
+  material uniquely supported the original; that policy is replaced. Stale
+  pose, wrong birth, missing support, spent precision and stale motion retain
+  the ordinary appearance fallback. The affected group passes 167 tests;
+  the new invariant and registered claim call the actual matcher.
+- [x] The independently overridden diagnostic with unrestricted recovery now
+  selects track 1 in the same 52 of 100 pictures, against its preceding zero.
+  This identifies the discarded association as a sufficient cause in this
+  retained prefix. Keep unrestricted recovery disconnected: the consumer
+  material-group guard remains required.
+- [x] The production paired replay, with normal material priority and no
+  diagnostic matcher override, selects track 1 in 52 pictures with recovery
+  disabled and 52 with guarded recovery. Durations are 27.0649 and 27.1847
+  seconds. Smoke passes 164 with one skip; lint, compile, layering and writing
+  pass in 65.68 seconds.
+- [ ] This restores a known recorded-prefix attribution result. It proves no
+  native improvement, continuous complete-run identity, safe contact, winning
+  or demo readiness. Primary source was rechecked at `84d9fe6f5` and left there.
+
+Receipts and exact private diagnostics:
+`artifacts/flash-campaign/2026-10-21-recorded-control-attribution/`.
+The rejected, association-traced, private material-first and production pairs
+have separate output names. All are old-pixel/input-label replays with no
+fresh action, model, GPU, G09, holdout or resident lifecycle work.
