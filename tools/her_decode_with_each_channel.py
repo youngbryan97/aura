@@ -30,27 +30,49 @@ LONG_PROMPT = ("Earlier today we talked about old machines, how people first rod
                "We also talked about the factories that made them and the clubs that formed around them.")
 
 
-def _decode(model: Any, tokenizer: Any, ids: list[int], tokens: int, processors: list[Any]) -> dict[str, float]:
-    """Decode ``tokens`` tokens greedily; tokens a second from the first token to the last (prefill left out)."""
+def _decode(model: Any, tokenizer: Any, ids: list[int], tokens: int, processors: list[Any], *, head: Any = None,
+            spoken: list[int] | None = None, margins: list[float] | None = None) -> dict[str, Any]:
+    """Decode ``tokens`` tokens greedily; tokens a second from the first token to the last (prefill left out). With
+    ``head``, her own head drafts (core/brain/llm/her_head_in_the_stream.py); the tokens go into ``spoken``."""
     import mlx.core as mx
-    from mlx_lm import stream_generate
+
+    from core.brain.llm.her_head_in_the_stream import stream_generate_with_her_head
 
     times: list[float] = []
+    drafted = 0
     began = time.perf_counter()
-    for _response in stream_generate(model, tokenizer, ids, max_tokens=tokens, logits_processors=processors or None,
-                                     sampler=lambda logits: mx.argmax(logits, axis=-1)):
+    for response in stream_generate_with_her_head(model, tokenizer, ids, max_tokens=tokens, draft_model=head,
+                                                  logits_processors=processors or None,
+                                                  sampler=lambda logits: mx.argmax(logits, axis=-1)):
         times.append(time.perf_counter())
+        drafted += int(bool(response.from_draft))
+        if spoken is not None:
+            spoken.append(int(response.token))
+        if margins is not None:  # how far her chosen token led the next: a near tie is where rounding can part two runs
+            top = mx.sort(response.logprobs.reshape(-1))[-2:]
+            margins.append(round(float(top[1] - top[0]), 4))
     decoded = len(times) - 1
     # The prompt read, from the start to the first token: its tokens a second.
     read_s = times[0] - began if times else 0.0
     return {"tokens": len(times), "tokens_per_second": round(decoded / (times[-1] - times[0]), 2) if decoded > 0 else 0.0,
-            "prompt_tokens": len(ids), "prompt_read_per_second": round(len(ids) / read_s, 1) if read_s > 0 else 0.0}
+            "prompt_tokens": len(ids), "prompt_read_per_second": round(len(ids) / read_s, 1) if read_s > 0 else 0.0,
+            **({"from_her_head": drafted} if head is not None else {})}
+
+
+def _alike(without: list[int], with_head: list[int], margins: list[float] | None = None) -> dict[str, Any]:
+    """Whether her head's tokens are those decoded without it, where they first part when not, and by how much her
+    chosen token led the next there, decoded one at a time (in nats)."""
+    parted = next((i for i, (a, b) in enumerate(zip(without, with_head, strict=False)) if a != b), None)
+    lead = margins[parted] if margins and parted is not None and parted < len(margins) else None
+    return {"same_tokens": parted is None and len(without) == len(with_head), "first_parted_at": parted,
+            "lead_where_parted": lead, "smallest_lead_before": min(margins[:parted]) if margins and parted else None}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tokens", type=int, default=256)
+    parser.add_argument("--with-her-head", action="store_true", help="also decode with her own head drafting")
     parser.add_argument("--model", type=Path,
                         default=Path("~/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"))
     args = parser.parse_args()
@@ -138,11 +160,26 @@ def main() -> int:
             record("her steering hooks", {"skipped": f"{type(why).__name__}: {why}"})
 
         # All of them at once, as her worker decodes a turn.
+        head = None
+        if args.with_her_head:
+            from core.brain.llm.her_head_in_the_stream import HER_HEAD
+            from core.brain.llm.two_tokens_a_step import load_mtp_head
+
+            head = load_mtp_head(model, HER_HEAD)
         if built is not None:
             tap, processor = built
             with tap:
-                record("all of them together", _decode(model, tokenizer, ids, args.tokens, [*endogenous, processor]))
+                without: list[int] = []
+                leads: list[float] = []
+                record("all of them together", _decode(model, tokenizer, ids, args.tokens, [*endogenous, processor], spoken=without,
+                                                       margins=leads))
                 record("all of them together, a turn-length prompt", _decode(model, tokenizer, long_ids, 64, [*endogenous, processor]))
+                if head is not None:
+                    with_head: list[int] = []
+                    outcome = _decode(model, tokenizer, ids, args.tokens, [*endogenous, processor], head=head, spoken=with_head)
+                    record("all of them together, her head drafting", {**outcome, **_alike(without, with_head, leads)})
+                    record("all of them together, her head drafting, a turn-length prompt",
+                           _decode(model, tokenizer, long_ids, 64, [*endogenous, processor], head=head))
         else:
             record("all of them together (no one-shot memory)", _decode(model, tokenizer, ids, args.tokens, endogenous))
             record("all of them together, a turn-length prompt", _decode(model, tokenizer, long_ids, 64, endogenous))

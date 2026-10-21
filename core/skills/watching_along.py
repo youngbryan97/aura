@@ -34,6 +34,8 @@ logger = logging.getLogger("Aura.WatchingAlong")
 #: How often she looks at what plays, and how long she lets pass between two things she says, at least.
 LOOK_EVERY_S = 5.0
 QUIET_AT_LEAST_S = 15.0
+#: How often an advert is looked at for the moment it can be skipped: the offer comes in seconds.
+ADVERT_LOOK_S = 2.0
 #: How long an end is given to stay an end. A site that plays an advert first plays it in the same video, which
 #: reports itself ended when the advert does and then plays the video asked for (measured on a watch page, 19 October
 #: 2026: a 15-second advert in the one video element).
@@ -324,7 +326,8 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
     spoke_after_looks, spoke_at_wall = 0, time.monotonic()
     speaking: asyncio.Task | None = None
     new = _WhatIsNew()
-    while at_most_s is None or time.monotonic() - began < at_most_s:
+    in_adverts = 0.0
+    while at_most_s is None or time.monotonic() - began - in_adverts < at_most_s:
         plays = await player.state()
         if not plays:
             break
@@ -334,6 +337,16 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
             if not again or again.get("ended"):
                 watching.ended = True
                 break
+            continue
+        if plays.get("advert"):
+            # Not what they are watching together: nothing is said of it, what it says is not taken in, its skip is
+            # pressed when offered, and its time is not the watching's. LIVE 20 October 2026, rehearsal 7: two remarks
+            # on a pillow advert, and "Twenty seconds left" with three and a half minutes still to play.
+            advert_began = time.monotonic()
+            keep({"kind": "advert", "skipped": await player.tend(), "wall": time.time()})
+            await player.heard()
+            await asyncio.sleep(ADVERT_LOOK_S)
+            in_adverts += time.monotonic() - advert_began
             continue
         skipped = await player.tend()
         if skipped:
@@ -444,7 +457,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
                [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
     thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     words = str(getattr(thought, "content", "") or "").strip()
-    return first_thought(words) if as_it_plays else whole_paragraphs(words) if remark else words
+    return first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words) if remark else words
 
 
 def whole_paragraphs(words: str) -> str:
@@ -462,16 +475,37 @@ def whole_paragraphs(words: str) -> str:
 A_THOUGHT_HAS_WORDS = 6
 
 
-def first_thought(words: str) -> str:
+#: A paragraph this long is a thought of its own; a shorter one is, where it names what she was shown. LIVE 20 October
+#: 2026, rehearsal 7, said as remarks: "I'm watching the zoom-out continue." and "I'm right here." Rehearsal 6's that
+#: Bryan called really good ran 15 to 25 words.
+A_THOUGHT_STANDS_ALONE = 15
+_NOT_ABOUT_ANYTHING = frozenset("""that this with they have what just here there right about from were when into like been
+them then than your will would could their which these those some more very really okay still watching along""".split())
+
+
+def _named(text: str) -> set[str]:
+    import re
+
+    return {word for word in re.findall(r"[a-z']{4,}", str(text or "").lower()) if word not in _NOT_ABOUT_ANYTHING}
+
+
+def first_thought(words: str, about: str = "") -> str:
     """The first paragraph of hers that says something, to its last whole sentence: what a person says of what is
-    playing while it plays, before the rest of what they would say about it. Nothing, where nothing she wrote does."""
+    playing while it plays, before the rest of what they would say about it. Something is said where it is long enough
+    to be a thought, or names two things of ``about``, what she was shown. Nothing, where nothing she wrote does."""
     import re
 
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", words or "") if part.strip()]
     # A heading or a line that leads into what follows is not a thought (LIVE 20 October 2026: "**After it ends — my
     # thoughts:**" was said as one).
     said = [part for part in paragraphs if not re.fullmatch(r"#{1,6}\s[^\n]*|\*\*[^*\n]+\*\*\W*|[^\n]*:\W*", part)]
-    thought = next((part for part in said if len(re.findall(r"[A-Za-z']+", part)) >= A_THOUGHT_HAS_WORDS), "")
+    shown = _named(about)
+
+    def says_something(part: str) -> bool:
+        count = len(re.findall(r"[A-Za-z']+", part))
+        return count >= A_THOUGHT_HAS_WORDS and (not shown or count >= A_THOUGHT_STANDS_ALONE or len(_named(part) & shown) >= 2)
+
+    thought = next((part for part in said if says_something(part)), "")
     if not thought:
         return ""
     whole = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought)
