@@ -209,9 +209,12 @@ judged not viable says why.
 
 ## The formal-methods analysis
 
-- [ ] **F1. Causal-state transitions.** The v25 grain stage already learns a
+- **F1. Causal-state transitions.** The v25 grain stage already learns a
   predictive grain; a diagnostic compares the grain's transition structure with
-  and without a clamped source.
+  and without a clamped source. Not built: the v5 cut already runs each side
+  with the other clamped and reads the transition it produces, on the grain's
+  horizon, and now per direction (G8). A second reading of the same arms through
+  a discretised grain would add an estimator, not evidence.
 - [x] **F2. Phi-ID.** A time-lagged PID diagnostic (redundancy by minimum mutual
   information) beside the synergy line, with the permutation null. Built as
   `phi_r_by_domain`, in every run's report. Read offline on the pair at
@@ -304,3 +307,21 @@ since; the width now counts what arrived, in the order her model has learned.
 
 What none of this settles is unchanged: the four triples together, 511 cuts,
 one carrier, her 27B's reports under the controls, and seed 23.
+
+## Found while running, 21 October afternoon
+
+- **Her 27B's reports with her numbers printed** (15 anchors at `b815ecd41`):
+  readable numbers in most arms; the arms moved her valence by 0.087 between
+  raised and lowered; her reports did not follow (-0.013, SD 0.24). A reporter
+  tracking valence one for one needs about 75 anchors at the ground's level, so
+  the withheld run takes 80.
+- **Steering on her replies was off throughout**: no fusion certificate exists
+  for her 27B, so every reply ran at alpha 0. The withheld run is preceded by
+  `tools/measure_fusion_channel.py` on her checkpoint; without a certificate the
+  architecture has no route from her state to her words and the ground fails
+  honestly.
+- **Her cortex could not come back after it died**: recovery needed the lane
+  the in-process encoder held, and the encoder yielded only when idle at the
+  instant of asking. Fixed in `11b49627a` (drain, then yield, bounded).
+- **A run's own choice never saw the arbiter**: fixed in `086ec4bb5`, G3's
+  consequence is the fifth reason in `core/subject/choosing.py`.
