@@ -116,3 +116,83 @@ def test_the_counted_body_learns_every_tick_as_the_loop_does():
     assert every["_apply_plasticity"] == PLASTICITY_EVERY
     names = [name for name, _, _ in SUBSTRATE_BODY]
     assert names.index("_learn_from_this_tick") < names.index("_apply_plasticity")
+
+
+def _with_a_learned_mode(n: int = 512, seed: int = 4) -> np.ndarray:
+    """A bulk shrunk to 0.02 under a rank-one mode at the cap: her persisted weights' shape."""
+    rng = np.random.default_rng(seed)
+    bulk = rng.standard_normal((n, n)) * 0.02
+    direction = rng.standard_normal(n)
+    direction /= np.linalg.norm(direction)
+    weights = bulk + 2.9 * np.outer(direction, direction)
+    np.fill_diagonal(weights, 0.0)
+    return weights * (3.0 / np.linalg.norm(weights, ord=2))
+
+
+def test_a_network_with_a_mode_at_the_cap_is_not_scaled_into_it():
+    """The look of 21 October: the set point pushed 0.6% a turn and the cap cut back every fifth."""
+    engine = STDPLearningEngine(n_neurons=512)
+    weights = _with_a_learned_mode()
+    assert float(np.mean(np.abs(weights))) < gain_one_mean_abs(512) / 1.1
+    spreads = []
+    for _ in range(25):
+        weights = engine.regulate(weights)
+        spreads.append(float(weights.std()))
+    assert max(spreads) / min(spreads) < 1.0 + 1e-6
+    assert np.linalg.norm(weights, ord=2) <= 3.0 + 1e-9
+
+
+def test_the_gain_is_held_at_the_cap_tick_by_tick():
+    """Learning that pushes the mode over the cap is held there as it arrives, with no lump."""
+    substrate = LiquidSubstrate(config=SubstrateConfig(neuron_count=128))
+    weights = _with_a_learned_mode(128, seed=9)
+    substrate.W = weights.astype(substrate.W.dtype)
+    substrate._current_phi = 0.0
+    rng = np.random.default_rng(2)
+    pattern = rng.uniform(-0.6, 0.6, 128)
+    norms = []
+    for tick in range(400):
+        substrate.x = (pattern + 0.05 * rng.standard_normal(128)).astype(substrate.x.dtype)
+        substrate._learn_from_this_tick_sync()
+        if tick % PLASTICITY_EVERY == 0:
+            substrate._apply_plasticity_sync()
+        norms.append(float(np.linalg.norm(substrate.W, ord=2)))
+    held = np.asarray(norms[20:])
+    assert held.max() <= 3.0 * 1.01
+    # No step down larger than a tick's learning: the cap is not arriving in lumps.
+    assert np.diff(held).min() > -0.01
+
+
+def test_the_plasticity_step_leaves_a_network_at_its_built_gain_alone():
+    """A flat Frobenius clip of 10 cut her 512-neuron network to a spread of 10 / 512."""
+    from core.consciousness.stdp_learning import frobenius_ceiling
+
+    assert frobenius_ceiling(64) > 8.0 and frobenius_ceiling(512) > np.sqrt(512)
+    substrate = LiquidSubstrate(config=SubstrateConfig(neuron_count=512))
+    substrate.W = _built(512).astype(substrate.W.dtype)
+    substrate.x = np.zeros(512, dtype=substrate.x.dtype)
+    before = float(np.linalg.norm(substrate.W))
+    substrate._apply_plasticity_sync()
+    assert float(np.linalg.norm(substrate.W)) == pytest.approx(before, rel=1e-6)
+
+
+def test_her_campaign_schedule_has_no_cycle_left_in_it():
+    """Twenty ticks a turn, a regulation each turn, a plasticity step every hundred ticks."""
+    n = 512
+    substrate = LiquidSubstrate(config=SubstrateConfig(neuron_count=n))
+    substrate.W = _with_a_learned_mode(n, seed=4).astype(substrate.W.dtype)
+    substrate._current_phi = 0.0
+    engine = STDPLearningEngine(n_neurons=n)
+    rng = np.random.default_rng(3)
+    mode = np.linalg.svd(substrate.W)[2][0]
+    spreads = []
+    for turn in range(30):
+        for step in range(20):
+            substrate.x = np.tanh(0.3 * rng.standard_normal(n) + 0.5 * mode).astype(substrate.x.dtype)
+            substrate._learn_from_this_tick_sync()
+            if (turn * 20 + step) % PLASTICITY_EVERY == 0:
+                substrate._apply_plasticity_sync()
+        substrate.W = engine.regulate(substrate.W)
+        spreads.append(float(substrate.W.std()))
+    ratios = np.asarray(spreads[1:]) / np.asarray(spreads[:-1])
+    assert ratios.min() > 0.999 and ratios.max() < 1.001

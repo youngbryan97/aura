@@ -43,8 +43,42 @@ class _HowTheSubstrateLearns:
             if hasattr(self, "_current_phi") and self._current_phi > 0.5:
                 limited_phi = min(10.0, self._current_phi)
                 self.W += share * 0.1 * coactivity * limited_phi
+            # The gain held at its cap as the learning arrives, rather than cut
+            # back to it once a plasticity step. Her weights carry a learned mode
+            # whose singular value sits at the cap, so every tick's coactivity
+            # pushes it over, and a cap applied every hundred ticks is a
+            # five-turn sawtooth on the experiment clock. One step of power
+            # iteration a tick tracks the top singular value as it drifts.
+            self._hold_the_gain_locked()
             self._cached_connectivity_norm = float(np.linalg.norm(self.W))
             self._mark_weight_cache_dirty()
+
+    def _hold_the_gain_locked(self) -> float:
+        """One power-iteration step on the top singular value, and the cap applied to it.
+
+        Returns the estimate. It is a lower bound that converges as the weights
+        drift, so the exact cap in `STDPLearningEngine.regulate` stays the
+        backstop. The caller holds `sync_lock`.
+        """
+        from core.consciousness.stdp_learning import SPECTRAL_NORM_CAP
+
+        from .liquid_substrate import np
+
+        size = int(self.W.shape[1])
+        direction = getattr(self, "_top_direction", None)
+        if not isinstance(direction, np.ndarray) or direction.shape != (size,):
+            direction = np.full(size, 1.0 / np.sqrt(size))
+        image = self.W @ direction
+        estimate = float(np.linalg.norm(image))
+        if estimate > 0.0:
+            back = self.W.T @ image
+            length = float(np.linalg.norm(back))
+            if length > 0.0:
+                direction = back / length
+        self._top_direction = direction
+        if estimate > SPECTRAL_NORM_CAP:
+            self.W *= SPECTRAL_NORM_CAP / estimate
+        return estimate
 
     async def _apply_plasticity(self) -> None:
         await asyncio.to_thread(self._apply_plasticity_sync)
@@ -69,6 +103,8 @@ class _HowTheSubstrateLearns:
         weights inside their spectral and homeostatic bounds, which Hebbian
         growth needs, so that part still runs every step.
         """
+        from core.consciousness.stdp_learning import frobenius_ceiling
+
         from .liquid_substrate import (
             logger,
             np,
@@ -91,8 +127,9 @@ class _HowTheSubstrateLearns:
 
             # Normalization & clipping
             norm = np.linalg.norm(self.W)
-            if norm > 10.0:
-                self.W *= 10.0 / norm
+            ceiling = frobenius_ceiling(self.W.shape[0])
+            if norm > ceiling:
+                self.W *= ceiling / norm
             self.W = np.clip(self.W, -5.0, 5.0)
             self._cached_connectivity_norm = float(np.linalg.norm(self.W))
             self._mark_weight_cache_dirty()

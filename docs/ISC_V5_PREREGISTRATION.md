@@ -1809,3 +1809,22 @@ the weight sketch, whether C's change is predicted by the rest, the cheapest
 cut, and the S,D -> C triple. It decides nothing. Whatever it shows, the next
 seed-7 validation runs at the decisive design on the commit that carries this
 repair, and seed 23 is not launched on a commit without it.
+
+### Later the same night: the cycle had two more halves
+
+The look at `c428ae4b3` read the spread still going round five turns, at a
+fifteenth of the size: 0.01953 to 0.02002 and back. Her campaign substrate is
+built from her persisted weights, which carry a learned mode whose largest
+singular value already sits at the cap of 3.0 with the mean weight at half the
+set point, so the set point still scaled the matrix up 0.6% a turn. And the
+plasticity step clipped the Frobenius norm at a flat 10, which a gain-one
+network on 512 neurons (22.6) can never sit under: that clip is what had held
+her spread at 10 / 512 since the first plasticity step of every run.
+
+The set point now gives way to the cap, the cap is held tick by tick by one
+step of power iteration rather than cut back once a plasticity step, and the
+Frobenius ceiling is the gain-one network's own norm with the headroom the
+spectral cap allows, 1.5 sqrt(n). On her campaign schedule simulated at 512
+neurons the spread holds at 0.02102 with every turn's ratio inside 0.99998 to
+0.99999. Three tests fail on `c428ae4b3` and pass here. The look named above
+reruns on this commit, and its reading of `c428ae4b3` is kept beside it.

@@ -1109,6 +1109,8 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
         Adjusts ODE weights based on long-term memory resonance.
         Called by MemoryOptimizer or similar high-level services.
         """
+        from core.consciousness.stdp_learning import frobenius_ceiling
+
         with self.sync_lock:
             logger.info("🧠 Calibrating neutral substrate for long-term resonance.")
             # Shift weights towards the resonance vector (historical semantic density)
@@ -1119,8 +1121,9 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
             self.W = np.nan_to_num(self.W, nan=0.0, posinf=5.0, neginf=-5.0)
             # Re-normalize
             norm = np.linalg.norm(self.W)
-            if norm > 10.0:
-                self.W *= 10.0 / norm
+            ceiling = frobenius_ceiling(self.W.shape[0])
+            if norm > ceiling:
+                self.W *= ceiling / norm
             self.W = np.clip(self.W, -5.0, 5.0)
             self._cached_connectivity_norm = float(np.linalg.norm(self.W))
             self._mark_weight_cache_dirty()

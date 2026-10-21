@@ -65,9 +65,27 @@ MESU_LOCK_WINDOW = 100   # Must be below threshold for this many updates
 MESU_EMA_ALPHA = 0.02    # Exponential moving average for uncertainty tracking
 
 
+#: The largest singular value the substrate's weights may have. A cap on the
+#: system's gain, so a learned mode cannot drive the ODE into saturation.
+SPECTRAL_NORM_CAP = 3.0
+
+
 def gain_one_mean_abs(n: int) -> float:
     """The mean absolute weight of an n-neuron network drawn from N(0, 1/n)."""
     return float(np.sqrt(2.0 / (np.pi * max(1, int(n)))))
+
+
+def frobenius_ceiling(n: int) -> float:
+    """The largest Frobenius norm an n-neuron substrate's weights may have.
+
+    A network drawn from N(0, 1/n) has a Frobenius norm of sqrt(n) and a largest
+    singular value of 2, and `SPECTRAL_NORM_CAP` allows the gain half as much
+    again. The same headroom over the same network. This was a flat 10, which a
+    64-neuron network at its built gain (8) sits under and her 512-neuron one
+    (22.6) never could: the first plasticity step cut her bulk to 10 / 512 of a
+    spread and every step after it cut back whatever the set point had restored.
+    """
+    return float(SPECTRAL_NORM_CAP / 2.0 * np.sqrt(max(1, int(n))))
 
 
 class STDPLearningEngine:
@@ -308,9 +326,11 @@ class STDPLearningEngine:
         # Prevent the largest singular value from exceeding a safe bound.
         # This caps the maximum gain of the dynamical system, preventing
         # explosive state growth that leads to NaN in the substrate ODE.
-        spectral_norm_cap = 3.0
+        spectral_norm_cap = SPECTRAL_NORM_CAP
+        gain = spectral_norm_cap
         try:
             s_max = np.linalg.norm(updated_weights, ord=2)  # Largest singular value
+            gain = min(float(s_max), spectral_norm_cap)
             if s_max > spectral_norm_cap:
                 updated_weights *= spectral_norm_cap / s_max
                 logger.debug(
@@ -345,6 +365,15 @@ class STDPLearningEngine:
             if abs(ratio - 1.0) > 0.1:
                 # Gentle correction — move 0.5% toward target per tick
                 correction = 1.0 + homeostatic_rate * (ratio - 1.0)
+                # And never past the cap. A matrix whose largest singular
+                # value already sits at the cap with its mean below the set
+                # point is one that learning has given a strong mode, and the
+                # two bounds cannot both hold: scaled up, the cap cut it back
+                # at the next step, every step. Her persisted weights are that
+                # matrix, so the cycle survived the set point at a fifteenth
+                # of its size. The cap is the bound the dynamics need; the
+                # set point gives way to it.
+                correction = min(correction, spectral_norm_cap / gain) if gain > 0.0 else correction
                 updated_weights *= correction
 
         # ── NaN/Inf Guard ─────────────────────────────────────────────
