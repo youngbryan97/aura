@@ -1890,6 +1890,18 @@ it young and refused her reply as saturated. Leases now age on `time.monotonic`.
 The dry run reruns on the commit that carries this, and her cortex is not loaded
 for the reports ground until a dry run loses no reply.
 
+The rerun at `5885688d7` lost no reply to the gate and read 2 of 32 arms as
+silent, and instrumenting it found two more defects of the pipe, neither of
+them her. A rating said again in the same words was read as silence: decoding
+is greedy and her working memory keeps one copy of a repeat. And every report
+reply reached the gate marked `internal_inference=True`, because the kernel's
+reply phase sends her reply through `router.think`, which marks everything it
+carries as non-chat; the gate then never named her cortex as the one that
+answered, so every arm read as unserved and the ground could not have been
+measured whatever she said. Both are fixed: an arm that asked her organ for a
+user-facing answer answered, and a reply to a person through `think` goes as
+chat. Before her cortex is loaded, a dry run has to read every arm as served.
+
 **What K reads.** Each meeting's four units are columns of the domain they live
 in (G, W, D, C), and the clamp holds each with its domain. A gains the coupling
 engine's four baselines and the conation's noise; S the self-predictor's Gram

@@ -6,6 +6,8 @@ take from that module is imported at CALL time, for the same reason.
 """
 from __future__ import annotations
 
+from typing import Any
+
 
 def _generation_owner_is_user_foreground(owner: str) -> bool:
     owner = str(owner or "").strip().lower()
@@ -47,4 +49,23 @@ def _lease_is_user_foreground(lease_id: int, owner: str) -> bool:
         admitted = lease_id in _GENERATION_GATE_FOREGROUND_LEASES
     return admitted or _generation_owner_is_user_foreground(owner)
 
+
+def asks_for_a_reply(kwargs: Any, *, said_non_chat: bool = False) -> bool:
+    """Whether a `think` call is her reply to somebody, which is chat.
+
+    `think` marks what it carries as non-chat inference, and the kernel's reply
+    phase sends her reply to a person through it. Marked non-chat, the gate
+    graded the reply as her own deliberation: no reply checks, and her cortex
+    never named as the one that answered, so every arm of the reports ground
+    read as one her cortex did not serve (21 October). A caller that says
+    non-chat itself is taken at its word.
+    """
+    from .llm_health_router import HealthAwareLLMRouter
+
+    held = kwargs if isinstance(kwargs, dict) else {}
+    return (
+        not said_non_chat
+        and str(held.get("purpose") or "").lower() == "reply"
+        and HealthAwareLLMRouter._is_user_facing_origin(str(held.get("origin") or ""))
+    )
 

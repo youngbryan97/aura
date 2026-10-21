@@ -84,6 +84,7 @@ from core.utils.task_tracker import (
 
 from .llm_health_router_endpoint_call import _CallsTheEndpoint
 from .llm_health_router_gate_owners import (  # noqa: F401  (re-exported: they were defined here)
+    asks_for_a_reply,
     _generation_owner_is_user_foreground,
     _lease_is_user_foreground,
 )
@@ -518,7 +519,6 @@ def desktop_background_endpoint_deferral_reasons(
         if reason:
             reasons[name] = reason
     return reasons
-
 
 
 class _DeepLaneUnavailable(RuntimeError):
@@ -2360,7 +2360,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 system_prompt=system_prompt or "",
                 prefer_tier=prefer_tier,
                 schema=schema,
-                _non_chat_inference=True,
+                _non_chat_inference=not asks_for_a_reply(kwargs, said_non_chat=caller_non_chat),
                 **kwargs,
             )
             if isinstance(result, dict):
