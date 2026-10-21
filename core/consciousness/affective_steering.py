@@ -1100,8 +1100,6 @@ class AffectiveSteeringHook:
         source: str = "live_substrate_vector",
     ):
         """Called by SubstrateSyncThread at ~20Hz with the direct substrate vector."""
-        import mlx.core as mx
-
         state = np.asarray(substrate_x, dtype=np.float32).reshape(-1)
         if len(state) == 0 or not np.isfinite(state).all():
             # Substituting zeros here is not neutral — it is "she feels exactly
@@ -1203,12 +1201,13 @@ class AffectiveSteeringHook:
                 self._last_composite_np = None
                 self._cached_composite_mx = None
             else:
+                # Kept on the CPU here; the generation thread makes the MLX array when it builds its next pass
+                # (compute_composite_vector_mx), and it is uploaded with that pass. Made and evaluated here, at 20 Hz
+                # on sixteen hooks, it put GPU work from this thread between the passes of every generation
+                # (MEASURED 20 October 2026: her worker decoded at 9.1 tokens a second where her model, channels and
+                # head decode at 21.5 by themselves).
                 self._last_composite_np = composite_np.copy()
-                self._cached_composite_mx = mx.array(composite_np)
-
-                # Tier 3 Hardening: Zero-Copy MLX explicit evaluation
-                # This prevents lazy evaluation from stalling the main generation thread
-                mx.eval(self._cached_composite_mx)
+                self._cached_composite_mx = None
 
     def current_composite_vector(self) -> Any | None:
         """The real composite as numpy, or None when steering stood down.
@@ -1293,6 +1292,8 @@ class AffectiveSteeringHook:
         import mlx.core as mx
 
         with self._substrate_lock:
+            if self._cached_composite_mx is None and self._last_composite_np is not None:
+                self._cached_composite_mx = mx.array(self._last_composite_np)  # uploaded with the pass that uses it
             composite = self._cached_composite_mx
             if composite is not None and dtype is not None and composite.dtype != dtype:
                 # Casting is fast, but we avoid re-uploading
