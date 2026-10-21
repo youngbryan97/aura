@@ -19,7 +19,7 @@ CHECKS = frozenset({
     "numeric chart values", "source table disclosure", "idempotent rendering",
     "diagram edges", "stream completion", "missing data fallback", "metric cards",
     "user text unchanged", "code retained literally", "390px width", "background-tab click",
-    "closed shadow isolation", "nested screenshot suspension", "background activity indicator",
+    "closed shadow isolation", "nested screenshot suspension", "no conversation activity notifications",
 })
 
 

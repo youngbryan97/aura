@@ -202,51 +202,15 @@
         for (const code of root.querySelectorAll('.code-block-wrap code')) diagram(code);
     }
 
-    function activity(data) {
-        if (!data || !['navigating', 'reading', 'clicking', 'typing', 'scrolling', 'closed'].includes(data.action)) return;
-        let card = document.getElementById('aura-browser-activity');
-        if (!card) {
-            card = element('aside', 'aura-browser-activity');
-            card.id = 'aura-browser-activity';
-            card.setAttribute('aria-label', 'Aura browser activity');
-            const icon = element('img', '');
-            icon.src = '/static/neuron_glyph.svg';
-            icon.alt = '';
-            const body = element('div', 'browser-activity-body');
-            const status = element('div', 'browser-activity-status');
-            status.setAttribute('role', 'status');
-            const site = element('div', 'browser-activity-site');
-            const details = element('details', 'browser-activity-history');
-            details.append(element('summary', '', 'Recent activity'), element('ol', ''));
-            body.append(status, site, details);
-            const close = element('button', '', '×');
-            close.type = 'button';
-            close.setAttribute('aria-label', 'Dismiss browser activity');
-            close.addEventListener('click', () => card.remove());
-            card.append(icon, body, close);
-            const panel = document.querySelector('.chat-panel');
-            if (panel) { card.dataset.docked = 'true'; panel.prepend(card); }
-            else document.body.append(card);
+    // Older shells can still call this entry point while their assets update.
+    function activity() {
+        const stale = document.getElementById?.('aura-browser-activity');
+        if (stale) {
+            clearTimeout(stale.expiry);
+            stale.remove();
         }
-        const labels = { navigating: 'Opening a page', reading: 'Reading a page', clicking: 'Clicking', typing: 'Typing', scrolling: 'Scrolling', closed: 'Browser closed' };
-        const label = labels[data.action];
-        const finished = { navigating: 'Opened a page', reading: 'Read a page', clicking: 'Clicked', typing: 'Typed', scrolling: 'Scrolled', closed: 'Browser closed' };
-        const status = card.querySelector('.browser-activity-status');
-        status.textContent = data.stage === 'failed' ? `${label} · could not finish` : data.stage === 'completed' ? finished[data.action] : label;
-        let site = '';
-        try { site = new URL(data.url).hostname; } catch { /* No page address yet. */ }
-        card.querySelector('.browser-activity-site').textContent = `${site || 'Aura’s browser'}${data.visible === false ? ' · in the background' : ''}`;
-        card.dataset.active = String(data.stage === 'started');
-        const list = card.querySelector('ol');
-        const item = element('li', '', `${label} · ${site || 'browser'} · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
-        list.prepend(item);
-        while (list.children.length > 5) list.lastElementChild.remove();
-        clearTimeout(card.expiry);
-        card.expiry = setTimeout(() => {
-            card.dataset.active = 'false';
-            status.textContent = `Last activity: ${label.toLowerCase()}`;
-        }, 8000);
     }
+    activity();
 
     window.AuraConversationVisuals = Object.freeze({ enhance, activity, numberOf, flowOf });
 })();

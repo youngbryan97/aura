@@ -31,7 +31,7 @@
 .conversation-visual-source[open] > summary::before { content: '−'; }
 .conversation-visual-source summary:hover { color: var(--aura-fg, #f4ede4); }
 .conversation-visual-source table { width: 100%; margin-top: 12px; }
-.conversation-visual-source summary:focus-visible, .aura-browser-activity button:focus-visible, .browser-activity-history summary:focus-visible { outline: 2px solid var(--aura-accent, #b1a4ff); outline-offset: 4px; border-radius: 3px; }
+.conversation-visual-source summary:focus-visible { outline: 2px solid var(--aura-accent, #b1a4ff); outline-offset: 4px; border-radius: 3px; }
 .conversation-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 24px; margin: 24px 0 10px; }
 .conversation-metric { display: grid; align-content: start; gap: 10px; padding-left: 16px; border-left: 2px solid var(--visual-edge); }
 .conversation-metric strong { font: 500 2.15em/1.1 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.045em; }
@@ -43,27 +43,8 @@
 .conversation-flow rect { fill: var(--aura-raised, #211b2b); stroke: color-mix(in srgb, var(--aura-accent, #b1a4ff) 45%, transparent); stroke-width: 1; }
 .conversation-flow text { font: 14px system-ui, sans-serif; fill: var(--aura-fg, #f4ede4); }
 .conversation-flow .flow-edge-label { font-size: 12px; }
-.aura-browser-activity {
-    position: fixed; right: 22px; bottom: 24px; z-index: 500;
-    width: min(350px, calc(100vw - 32px)); box-sizing: border-box;
-    display: flex; align-items: flex-start; gap: 12px; padding: 15px 16px;
-    background: var(--aura-raised, #16141c); color: var(--aura-fg, #f4ede4);
-    border: 1px solid color-mix(in srgb, var(--aura-accent, #b1a4ff) 25%, transparent);
-    border-radius: 16px; box-shadow: 0 6px 24px #00000020, inset 0 1px 0 #ffffff07;
-    font: 13px/1.5 system-ui, sans-serif;
-}
-.aura-browser-activity[data-active="true"] { border-color: color-mix(in srgb, var(--aura-accent, #b1a4ff) 55%, transparent); }
-.aura-browser-activity[data-docked="true"] { position: relative; inset: auto; align-self: stretch; flex: 0 0 auto; width: auto; margin: 12px 16px 0; z-index: 2; box-shadow: inset 0 1px 0 #ffffff05; }
-.aura-browser-activity > img { width: 30px; height: 30px; flex: 0 0 30px; margin-top: 1px; }
-.browser-activity-body { flex: 1; min-width: 0; }
-.browser-activity-status { display: flex; align-items: center; gap: 8px; font-weight: 550; }
-.aura-browser-activity[data-active="true"] .browser-activity-status::after { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--aura-ok, #7fe0c7); }
-.browser-activity-site { overflow-wrap: anywhere; color: var(--aura-fg-dim, #c1baca); font-size: 11px; margin-top: 2px; }
-.browser-activity-history { margin-top: 8px; font-size: 11px; }
-.browser-activity-history summary { cursor: pointer; color: var(--aura-fg-dim, #c1baca); }
-.browser-activity-history ol { display: grid; gap: 8px; margin: 14px 0 3px; padding-left: 16px; }
-.aura-browser-activity > button { background: transparent; border: 0; border-radius: 6px; color: var(--aura-fg-dim, #c1baca); font: 18px/1 system-ui; cursor: pointer; padding: 4px; }
-.aura-browser-activity > button:hover { background: var(--aura-card-border, #ffffff0a); color: var(--aura-fg, #f4ede4); }
+/* Hide an old shell's banner during a partial asset refresh. */
+.aura-browser-activity { display: none !important; }
 @media (max-width: 540px) {
     .conversation-visual { padding: 20px 18px 12px; border-radius: 16px; }
     .conversation-chart-row { grid-template-columns: minmax(65px, 1fr) minmax(30px, 1fr) auto; gap: 10px; font-size: .95em; }
@@ -71,6 +52,5 @@
     .conversation-metrics { gap: 18px; }
     .conversation-metric { padding-left: 12px; }
     .conversation-metric strong { font-size: 1.85em; }
-    .aura-browser-activity { right: 16px; bottom: 12px; }
 }
 @media (prefers-reduced-motion: reduce) { .conversation-visual-source summary { transition: none; } }

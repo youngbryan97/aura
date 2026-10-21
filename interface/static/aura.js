@@ -2961,8 +2961,7 @@ function handleWsEvent(data) {
         triggerVoiceOrb('thinking');
     } else if (type === 'telemetry') {
         updateTelemetry(data);
-    } else if (type === 'browser_activity') {
-        window.AuraConversationVisuals?.activity(data);
+
     } else if (type === 'tool_event') {
         applyToolEvent(data);
     } else if (type === 'chat_stream_start') {

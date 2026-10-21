@@ -22,3 +22,18 @@ assert.equal(flowOf('graph TD\nA --> B\nstyle A fill:red'), null);
 assert.equal(flowOf('graph TD\nA --> B\nsubgraph example'), null);
 assert.equal(flowOf('graph TD\nA --> B\nthis is not a graph statement'), null);
 console.log('visual data and diagram contracts passed');
+
+// Repeated browser events have no conversation UI to create or announce.
+let removed = 0;
+let cancelled = 0;
+let stale = { expiry: 42, remove() { removed++; stale = null; } };
+context.document.getElementById = () => stale;
+context.clearTimeout = id => { assert.equal(id, 42); cancelled++; };
+for (let i = 0; i < 30; i++) {
+    for (const action of ['navigating', 'reading', 'clicking', 'typing', 'scrolling', 'closed']) {
+        context.window.AuraConversationVisuals.activity({ action, stage: 'started', visible: false });
+    }
+}
+assert.equal(removed, 1);
+assert.equal(cancelled, 1);
+console.log('browser events stay out of the conversation');
