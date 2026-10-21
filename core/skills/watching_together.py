@@ -44,6 +44,9 @@ _PLAYING: dict[str, dict[str, Any]] = {}
 _WATCHINGS: set[asyncio.Task] = set()
 
 
+#: How many remarks asking her to think out loud counts for, as remarks of hers taken up: a welcome of 0.8 to begin.
+INVITED_REMARKS = 3
+
 #: What she has of a video as it plays beside her, as the watching gives it (core/skills/watching_the_screen.py).
 AS_IT_PLAYS = ("As it plays on their screen beside her window, she sees it every few seconds, hears its sound, and "
                "speaks when something in it is worth saying.")
@@ -190,6 +193,9 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     who = who or who_she_is_with(taking._her_record())
     withs = taking._withs()
     held = withs.current(who) or withs.begin(who, f"watching {title}", proposed_by=THEM)
+    from core.intent.asks_for_remarks import asks_for_remarks
+
+    held.invited = max(held.invited, INVITED_REMARKS if asks_for_remarks(request) else 0)
     await _her_answer_settled(turn, at_most_s=ANSWER_WAITED_S)
     player = await open_player()
     if player is None:

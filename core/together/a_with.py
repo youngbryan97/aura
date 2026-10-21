@@ -118,6 +118,9 @@ class With:
     remarks: int = 0
     taken_up: int = 0
     went_by: int = 0
+    #: How many remarks the other asked for when it began ("think out loud while we watch"): counted as taken up in
+    #: how welcome a remark is, until her own record outweighs them (core/intent/asks_for_remarks.py).
+    invited: int = 0
     #: What she has already said her piece about.
     remarked_on: set[str] = field(default_factory=set)
     _waiting: Turn | None = None
@@ -241,6 +244,8 @@ class With:
         """
         if self.speaking(now) in (HER, THEM):
             return 0.0
+        if self.invited and not self.silences:
+            return 1.0  # asked to talk as it goes, and no pause of theirs to break
         return _share_below(self.silences, self.quiet(now))
 
     def welcome(self) -> float:
@@ -250,7 +255,7 @@ class With:
         nothing (Laplace 1814).
         """
         settled = self.remarks - self.went_by - (1 if self._waiting is not None else 0)
-        return (self.taken_up + 1) / (settled + 2)
+        return (self.taken_up + self.invited + 1) / (settled + self.invited + 2)
 
     # ── common ground ─────────────────────────────────────────────────
 
