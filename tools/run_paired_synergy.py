@@ -120,7 +120,13 @@ async def main() -> int:
     args = parser.parse_args()
 
     from core.subject.causal import DEFAULT_DELTA
-    from core.subject.driver import CONDITIONS, build_runtime, calibrate_clock, quiesce_organism, start_organism
+    from core.subject.driver import (
+        CONDITIONS,
+        build_runtime,
+        calibrate_clock,
+        quiesce_organism,
+        start_organism,
+    )
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.provenance import environment, next_run_directory
     from core.subject.recording import build_recording

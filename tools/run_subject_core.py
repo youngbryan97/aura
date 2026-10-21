@@ -676,6 +676,11 @@ async def main() -> int:
             item.as_dict() for item in kraskov_suite(without_registers(turns), seed=args.seed)
         ]
         evidence["synergy_v4_leave_one_condition_out"] = leave_one_condition_out(turns, seed=args.seed)
+        # And integrated information decomposed, each domain cut from the
+        # rest: what the whole carries that neither part does (F2).
+        from core.subject.phi_id import phi_r_by_domain
+
+        evidence["phi_id"] = phi_r_by_domain(turns)
         matrix, names = periphery_read
         turn_rows = recording.turn_rows()
         from core.subject.closure import coverage as periphery_coverage

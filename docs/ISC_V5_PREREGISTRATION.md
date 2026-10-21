@@ -2004,7 +2004,15 @@ The closure test reports an audit beside its criterion: each leak classified as
 a clock, a summary of the core's own past, state of an organ K reads that K does
 not take in, or an outside cause, and a planted cause the test must find. The
 synergy line is also reported with the conjunctive units held flat and with each
-condition left out. Neither changes a pass.
+condition left out, and every run reports Phi_R for each one-domain cut. Every
+swept cut also records each of its two directions decided on its own side's
+columns. None of these changes a pass.
+
+**A fork leaves the process's bookkeeping alone.** The fork's module scan
+restored the inference gate's lease tables, so a lease taken before a snapshot
+came back after every restore with no generation behind it, and a reply was
+refused as "gate saturated". A module now names its process state and the fork
+skips it. This changes what a fork carries, so it is named here.
 
 ### How it is read
 

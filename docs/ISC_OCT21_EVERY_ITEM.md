@@ -26,19 +26,26 @@ judged not viable says why.
   coordination over their use, and closed loops. Checked by the v5 sweep (G8)
   and by the paired-intervention test (G6c): separating any two parts must cost
   the whole something measurable.
-- [ ] **B3. Experience changes what she becomes (the hot stove).** The criterion is
+- [~] **B3. Experience changes what she becomes (the hot stove).** The criterion is
   a persistent change in later responses that fits the outcome, against an
   otherwise identical copy that was never exposed. Faster and more settled is
   one way it can show, not a requirement: a good learner can become slower or
   less sure after a bad outcome. Speed and confidence are recorded beside it.
   Built as a reflex test on her organism (`tools/the_second_time.py`): first,
   second and third exposure to a novel stimulus with an outcome, against a fork
-  that never met it.
-- [ ] **B4. Continuity while changing, with the chain written out.** Change is
+  that never met it. Built: twice the percept with a bad outcome held through
+  the turn, ordinary turns, then the percept alone, in both forks; specific
+  against an unburned percept, fitting if her valence on meeting it is lower
+  than the copy's, persistent across the turns between. Runs when the machine
+  is free.
+- [~] **B4. Continuity while changing, with the chain written out.** Change is
   local to what was experienced, and the path from an input to a changed
   behaviour can be shown step by step. Built as a trace of one experience
   through the writes it caused (`core/subject/provenance.py` is the base), and
-  checked by snapshot comparison before and after.
+  checked by snapshot comparison before and after. Built:
+  `core/subject/snapshot_diff.py` names every number that differs between the
+  exposed and unexposed forks after the same turns, largest first, and the
+  share that changed; the hot-stove tool records it.
 - [ ] **B5. Behaviour that coordination alone does not show.** A preference held
   consistently, an interjection, a change of mind. Recorded as behavioural
   evidence beside the battery, not as a criterion of it.
@@ -137,8 +144,10 @@ judged not viable says why.
   `tools/k_compact_sufficiency.py`, which moves each sketched array where its
   eight numbers cannot see and reads K a turn later against the floor. The
   probe runs when the machine is free.
-- [ ] **G8. Both directions of C|rest** under intervention, then the next weakest
-  cuts, with every control of the v5 design kept.
+- [x] **G8. Both directions of C|rest** under intervention, then the next weakest
+  cuts, with every control of the v5 design kept. Built: every swept cut
+  records each direction decided on its own side's columns
+  (`directional_decisions`), beside the whole cut's decision.
 - [ ] **G9. J* terms validated separately**: carrier (authoritative sweep),
   content (structure re-read), lineage (G11).
 - [~] **G10. Report path traced end to end**, with controls: printed number
@@ -182,11 +191,17 @@ judged not viable says why.
 - [ ] **F1. Causal-state transitions.** The v25 grain stage already learns a
   predictive grain; a diagnostic compares the grain's transition structure with
   and without a clamped source.
-- [ ] **F2. Phi-ID.** A time-lagged PID diagnostic (redundancy by minimum mutual
-  information) beside the synergy line, with the permutation null.
+- [x] **F2. Phi-ID.** A time-lagged PID diagnostic (redundancy by minimum mutual
+  information) beside the synergy line, with the permutation null. Built as
+  `phi_r_by_domain`, in every run's report. Read offline on the pair at
+  `5885688d7`: Phi_R is positive for every one-domain cut, codes on and off
+  (S lowest at 0.094 and 0.141, D highest at 0.82).
 - [ ] **F3. Self-model and intentions as priors over policies** in the
   free-energy engine's expected free energy. Checked by clamping the self-model
-  and reading the policy distribution.
+  and reading the policy distribution. Not built: the expected-free-energy
+  oracle in her code scores response text by a fixed heuristic and chooses none
+  of her acts. The arbiter chooses them, and G3 put consequence there; a prior
+  from her self-efficacy over act kinds goes there if W,A -> D still needs it.
 - **F4. IIT 4.0 system phi over 511 partitions.** Not computable on 491
   continuous columns. The v5 interventional sweep asks the same question
   operationally and is what is run.
@@ -209,7 +224,7 @@ judged not viable says why.
   `--counterbalance` on the run draws each round's order from a Williams design.
 - [ ] **F10. Continuity across restart and migration** as matching transition
   structure, read beside G11.
-- [ ] **F11. What an experience changed**, against a counterfactual fork that never
+- [~] **F11. What an experience changed**, against a counterfactual fork that never
   had it. Shared with B3.
 
 ## The review of this list (21 October)

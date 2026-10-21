@@ -136,6 +136,10 @@ class CutVerdict:
     #: was decided on this cut's own anchors at the look it stopped at. None
     #: where it was not scored.
     playback_decided: bool | None = None
+    #: Each direction of the cut read on its own side's columns: what the right
+    #: side gives the left, and the left the right. Diagnostic; `decided` is
+    #: the whole cut's.
+    directions: dict[str, Any] | None = None
 
     @property
     def name(self) -> str:
@@ -165,6 +169,7 @@ class CutVerdict:
             decided=bool(row.get("decided", False)),
             note=str(row.get("note", "")),
             playback_decided=row.get("playback_decided"),
+            directions=row.get("directions"),
         )
 
     def as_dict(self) -> dict[str, Any]:
@@ -179,7 +184,42 @@ class CutVerdict:
             "decided": self.decided,
             "note": self.note,
             "playback_decided": self.playback_decided,
+            "directions": self.directions,
         }
+
+
+def directional_decisions(
+    slot: dict[str, np.ndarray], left: Sequence[str], right: Sequence[str], **decide: Any
+) -> dict[str, Any]:
+    """The cut decided on each side's columns alone, so each direction is read on its own.
+
+    The cut arm composes the left side run with the right held at its anchor
+    and the right run with the left held. On the left's columns the cut against
+    the untouched run is what holding the right took from the left: the
+    influence from right to left. On the right's, the other way.
+    """
+    from core.subject.state import domain_slices
+
+    slices = domain_slices()
+    out: dict[str, Any] = {}
+    for label, side in (("into_left", left), ("into_right", right)):
+        columns = np.concatenate([np.arange(slices[d].start, slices[d].stop) for d in side if d in slices])
+        sub = {
+            key: (value[:, columns] if key in ("intact", "cut", "sham_a", "sham_b") else value)
+            for key, value in slot.items()
+        }
+        try:
+            _estimate, excess, lower, p_value = decide_cut(sub, **decide)
+        except ValueError as exc:
+            out[label] = {"note": str(exc)}
+            continue
+        out[label] = {
+            "excess_rate": round(float(excess), 6),
+            "lower_bound": round(float(lower), 6),
+            "p_value": round(float(p_value), 6),
+            "decided": bool(lower > 0.0),
+        }
+    return out
 
 
 @dataclass
@@ -668,6 +708,13 @@ async def sweep_cuts(
             verdict.lower_bound = lower
             verdict.p_value = p_value
             verdict.decided = lower > 0.0
+            # Each direction at the look that decided the cut, or at the last
+            # look it was read at.
+            verdict.directions = directional_decisions(
+                slot, verdict.left, verdict.right,
+                tau_seconds=tau_seconds, seed=seed + position, alpha=per_look, draws=draws,
+                **({"whiten": True} if whiten else {}),
+            )
             if on_progress is not None:
                 on_progress(round_index, verdict)
 
