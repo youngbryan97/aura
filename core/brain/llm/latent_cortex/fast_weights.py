@@ -56,6 +56,8 @@ _MODEL_LEASE_LOCK = checked_lock(
     rank=LockRank.REGISTRY,
 )
 _MODEL_LEASES: dict[int, tuple[Any, str]] = {}
+#: Which loaded model a lease points at is the process's, not hers.
+__process_state__ = ("_MODEL_LEASES",)
 
 # Targets whose adaptation provably cannot change any cached K/V value.
 #

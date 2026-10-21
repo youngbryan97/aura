@@ -426,6 +426,8 @@ __all__ = [
 
 _PENDING_LIMIT = 64
 _PENDING: OrderedDict[str, tuple[dict[str, Any], str, str, float, str, tuple[float, ...]]] = OrderedDict()
+#: Requests waiting for their responses belong to the process, not to her.
+__process_state__ = ("_PENDING",)
 _PENDING_LOCK = checked_lock(
     "endogenous_pair_recorder.pending", rank=LockRank.LEAF
 )

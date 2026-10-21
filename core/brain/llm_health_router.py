@@ -142,6 +142,8 @@ _GENERATION_GATE_FORCED_LEASES: set[int] = set()
 #: same turn, the retry then waited out the other, and the lane went cold on
 #: generation_gate_wait_timeout. The classification is kept with the lease.
 _GENERATION_GATE_FOREGROUND_LEASES: set[int] = set()
+#: The process's generations, not her: a fork restoring these brought back dead leases.
+__process_state__ = tuple(f"_GENERATION_GATE_{t}" for t in ("ACTIVE_LEASES", "LEASE_DEADLINES", "FORCED_LEASES", "FOREGROUND_LEASES"))
 _GENERATION_GATE_NEXT_LEASE_ID = 0
 _GENERATION_GATE_LAST_ACQUIRED_AT = 0.0
 _GENERATION_GATE_LAST_OWNER = ""
@@ -1165,7 +1167,6 @@ def _is_transient_local_runtime_failure(error: str) -> bool:
     )
 
 
-
 def _only_warming(reason: str) -> bool:
     """Whether a lane was skipped only because it is still coming up."""
     said = str(reason or "")
@@ -1368,7 +1369,6 @@ class HealthMonitorShim:
         if not ep:
             return False
         return ep.peek_available()
-
 
 
 #: Strips live measurements out of a deferral reason so repeats can be
@@ -2924,21 +2924,11 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 severity="info",
             )
 
-
-
     @staticmethod
     def _deterministic_intent_classification(prompt: str) -> str:
         if not str(prompt or "").strip():
             return "casual"
         return analyze_turn(prompt).semantic_mode
-
-
-
-
-
-
-
-
 
     @staticmethod
     def _tier_name(ep: EndpointHealth) -> str:

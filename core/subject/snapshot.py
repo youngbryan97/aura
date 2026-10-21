@@ -1407,8 +1407,14 @@ def _module_holdings(skip: frozenset[int] = frozenset()) -> dict[str, Any]:
             continue
         if _in_packages(module_name, _MACHINERY_PACKAGES):
             continue
+        # What a module says is the process's own bookkeeping, not hers: which
+        # generations hold the gate, which model a lease points at. Restoring
+        # it brought back leases whose generations had ended, and her next
+        # reply was refused as "gate saturated" with nothing running
+        # (the reports dry run of 21 October, two arms of thirty-two).
+        process_state = frozenset(getattr(module, "__process_state__", ()) or ())
         for name, value in list(vars(module).items()):
-            if name.startswith("__") or id(value) in seen or not _is_held_state(value):
+            if name.startswith("__") or name in process_state or id(value) in seen or not _is_held_state(value):
                 continue
             seen.add(id(value))
             out[f"{module_name}:{name}"] = value

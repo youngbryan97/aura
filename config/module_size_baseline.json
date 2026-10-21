@@ -114,7 +114,7 @@
       "max_class_methods": 8
     },
     "core/brain/llm_health_router.py": {
-      "lines": 3513,
+      "lines": 3509,
       "max_class_methods": 40
     },
     "core/brain/personality_engine.py": {
