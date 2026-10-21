@@ -11,11 +11,21 @@ from tests.test_source_points_keep_their_visible_detail import render
 pytestmark = pytest.mark.unit
 
 
-def distracted_coarse_search(monkeypatch, *, all_guesses=True, tracker=None):
+def distracted_coarse_search(monkeypatch, *, all_guesses=True, tracker=None, owned=True):
     if tracker is None:
         tracker = source.PointsBeforeReduction(limit=64)
         first = render()
+        tracker.see_source(first, first, .9)
         tracker.see_source(first, first, 1.)
+    if owned:
+        from core.perception.named_material_in_a_consumed_frame import MaterialMarks
+        from core.perception.pixels_consumed_by_the_observer import consumed_pixels
+        from core.perception.points_a_consumer_still_needs import MaterialRegion, MaterialRetention
+
+        names = tuple((p.number, p.born) for p in tracker.points)
+        marks = MaterialMarks('1'*32, 2, consumed_pixels(render(), 1.), 1., 1., tracker.points)
+        request = MaterialRetention(marks.epoch, 1., 1.5, names, (MaterialRegion((120., 70., 180., 130.), names),))
+        tracker.still_needed.request(request, marks)
     target = min(tracker._native_points, key=lambda p: np.hypot(p.x-150., p.y-100.))
     before = tracker._image
     original = source._follow
@@ -51,6 +61,13 @@ def test_neighbour_motion_cannot_restore_a_patch_whose_current_pixels_disagree(m
     after = render((151.25, 99.25))
     x, y = round(target.x+1.25), round(target.y-.75)
     after[y-6:y+7, x-6:x+7] = 15
+    current = tracker.see_source(after, after, 1.1)
+    assert target.number not in {p.number for p in current}
+
+
+def test_nearby_motion_without_a_material_owner_cannot_continue_a_missing_name(monkeypatch):
+    tracker, target = distracted_coarse_search(monkeypatch, owned=False)
+    after = render((151.25, 99.25))
     current = tracker.see_source(after, after, 1.1)
     assert target.number not in {p.number for p in current}
 
@@ -135,7 +152,7 @@ def test_distinct_accepted_hypotheses_cannot_silently_pick_one_identity(monkeypa
     old, measured = neighbourhood()
     first = module.NeighbourPatchSearch(4, 1., 1., 1.1, (29., 24.), 0., .2, ((0, 1.), (1, 1.), (2, 1.)))
     second = replace(first, position=(40., 24.))
-    monkeypatch.setattr(module, 'neighbour_patch_searches', lambda *_args: (first, second))
+    monkeypatch.setattr(module, '_owned_patch_searches', lambda *_args: (first, second))
     monkeypatch.setattr(module, '_follow', lambda _a, _b, points: (points, np.ones(len(points), dtype=bool)))
     monkeypatch.setattr(module, 'verified_patch_journeys', lambda _a, _b, _c, _d, _starts, guesses, _forward:
                         (guesses, np.full(2, .001), np.zeros(2), np.ones(2, dtype=bool)))
@@ -143,6 +160,52 @@ def test_distinct_accepted_hypotheses_cannot_silently_pick_one_identity(monkeypa
                               still_needed=SimpleNamespace(requests={}))
     current = module.recover_from_neighbour_searches(tracker, [], np.empty(0), 1.1, measured, measured)
     assert {p.number for p in current} == {0, 1, 2, 3}
+
+
+def test_other_material_cannot_supply_a_missing_owners_motion_witnesses():
+    from core.perception import patch_searches_from_neighbours_that_were_seen as module
+
+    old, measured = neighbourhood()
+    owner = tuple(((n, 1.), (old[n].x, old[n].y)) for n in (0, 1, 4))
+    other = tuple(((n, 1.), (old[n].x, old[n].y)) for n in (1, 2, 3))
+    tracker = SimpleNamespace(_native_points=old, _at=1., still_needed=SimpleNamespace(requests={(4, 1.): 1.5},
+        regions=(((10., 10., 40., 40.), owner, 1.5), ((10., 10., 40., 40.), other, 1.5))))
+    assert module.neighbour_patch_searches(old, measured, old[-1:], 1., 1.1)
+    assert module._owned_patch_searches(tracker, measured, old[-1:], 1.1) == ()
+
+
+@pytest.mark.parametrize('damage', ['expired', 'future', 'recycled', 'missing_request', 'target_not_owned',
+                                  'duplicate', 'malformed', 'list_key', 'nan_birth', 'too_many_regions'])
+def test_missing_or_invalid_material_membership_cannot_authorize_recovery(damage):
+    from core.perception import patch_searches_from_neighbours_that_were_seen as module
+
+    old, measured = neighbourhood()
+    anchors = tuple(((p.number, p.born), (p.x, p.y)) for p in old)
+    requests, until = {(4, 1.): 1.5}, 1.5
+    if damage == 'expired':
+        until = 1.1
+    elif damage == 'future':
+        until = 2.1
+    elif damage == 'recycled':
+        anchors = tuple(((p.number, .9), (p.x, p.y)) for p in old)
+    elif damage == 'missing_request':
+        requests = {}
+    elif damage == 'target_not_owned':
+        anchors = anchors[:-1]
+    elif damage == 'duplicate':
+        anchors = (anchors[0], *anchors)
+    elif damage == 'malformed':
+        anchors = (None, *anchors)
+    elif damage == 'list_key':
+        anchors = (([0, 1.], (20., 20.)), *anchors[1:])
+    elif damage == 'nan_birth':
+        anchors = (((0, float('nan')), (20., 20.)), *anchors[1:])
+    regions = (((10., 10., 40., 40.), anchors, until),)
+    if damage == 'too_many_regions':
+        regions *= 5
+    tracker = SimpleNamespace(_native_points=old, _at=1.,
+        still_needed=SimpleNamespace(requests=requests, regions=regions))
+    assert module._owned_patch_searches(tracker, measured, old[-1:], 1.1) == ()
 
 
 def test_search_capacity_is_bounded_before_numerical_work(monkeypatch):
@@ -176,6 +239,7 @@ def test_ordinary_observation_publishes_only_the_freshly_recovered_material(monk
     from core.perception.what_moves_in_the_picture import WhatMoves
 
     eyes = WhatMoves(width=320, points=source.PointsBeforeReduction(limit=64))
+    _seen(eyes, render(), .9)
     _events, old = _seen(eyes, render(), 1.)
     _tracker, target = distracted_coarse_search(monkeypatch, tracker=eyes.points)
     _events, current = _seen(eyes, render((151.25, 99.25)), 1.1)

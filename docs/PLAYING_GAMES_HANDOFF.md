@@ -1907,3 +1907,20 @@ The primary checkout was observed at `84d9fe6f5` after this worktree had
 pushed `66136ff21`; it has not been updated during Bryan's reserved demo/GPU
 work. Recheck current native source provenance before live testing. CPU-only,
 G09/holdout, precise staging and resident ownership restrictions continue.
+
+
+Downstream attribution caught and corrected a neighbour-recovery regression.
+Do not promote the unrestricted whole-reference improvement in `6574a6818`:
+one hundred recorded pictures selected a body 52 times with baseline and
+zero with unrestricted recovery. The correction requires one active consumer
+material group to own both the missing mark and its strictly measured
+neighbours. Proximity alone supplies no continuation. Current pixel and causal
+gates remain unchanged.
+
+The guarded comparison matches all one hundred baseline attribution rows and
+selects body 1 in 52, with no gain claimed. Focused tests pass 250; smoke 164
+with one skip and lint/compile/layering/writing pass. Receipts and private
+replay script are in `2026-10-21-recorded-control-attribution/`. Trace the exact
+failed path next; do not infer cause from the whole-reference count. No native
+proof, new inputs, model or GPU work. Continue CPU-only; preserve G09,
+holdouts, other edits, source provenance and resident lifecycle restrictions.

@@ -1193,3 +1193,40 @@ still `84d9fe6f5`, while this worktree and remote main held the newer fixes.
 It was left unchanged during the reserved demo/GPU work. Verify the actual
 native source revision before any later live proof. G09, holdouts and all
 resident lifecycle boundaries remain in force.
+
+
+### October 21: downstream attribution rejects unrestricted neighbour recovery
+
+- [x] Replayed one hundred actual retained pictures through ordinary observation
+  and `WhichIsHers`, with the run's independently recorded key acknowledgements
+  and trial labels. Labels later than a picture remain later; missing initial
+  neutral dates remain missing. Optional source-search admissions are identical.
+- [x] The prior component gain failed this downstream check. Baseline selected
+  a body in 52 pictures; unrestricted neighbour recovery selected none. The
+  earlier 3-to-6 whole-reference gain cannot justify that live connection.
+- [x] Restricted recovery to a consumer's still-active material group. Both
+  the missing mark and its independently measured witnesses must belong to
+  that group by number and birth. Another nearby material group cannot supply
+  the witnesses. Missing, expired, recycled, duplicate, malformed or excessive
+  memberships refuse. Current pixel, reverse, ambiguity and identity gates stay.
+- [x] The guarded paired replay selects the same body in the same 52 pictures
+  as baseline; every retained attribution row is identical, including observed
+  objects, motion dates, candidate statistics and independent trial counts.
+  Durations were 27.0002 and 26.9941 seconds. This restores existing evidence;
+  it establishes no attribution gain. The first hundred frames needed none of
+  the newly allowed recovery. The whole-ship gain from the unrestricted version
+  must not be carried forward as a result of this guarded version.
+- [x] Focused tests passed 250. Smoke passed 164 with one skip, and lint,
+  compile, layering and writing passed in 65.56 seconds. The invariant checks
+  that an unowned neighbourhood supplies no recovery search.
+- [ ] Exact downstream loss mechanism in the rejected unrestricted version
+  still needs a trace. No control threshold or rejection gate was relaxed.
+- [ ] Native ordinary play, sustained control, task success and demo readiness
+  remain open. This historical replay generates neither inputs nor feedback.
+
+Receipts: `artifacts/flash-campaign/2026-10-21-recorded-control-attribution/`.
+Keep `baseline.json` and `neighbour_search.json` as the failed comparison;
+`owned-baseline.json` and `owned-neighbour_search.json` are the guarded pair.
+The private replay script is retained beside them. No GPU, model, native
+runtime, G09 or holdout work ran. Preserve primary-checkout and resident
+ownership before any later native test.

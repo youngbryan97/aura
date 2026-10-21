@@ -1,8 +1,8 @@
 """Use independently measured neighbouring motion to propose another pixel search.
 
-Neighbours need not belong to one object. Their fitted transform only starts
-a new search. Current bidirectional colour fits and local ambiguity checks
-still decide whether a missing mark can continue.
+A consumer must have requested the same current material group. Its measured
+neighbours can start a new search; current bidirectional colour fits and local
+ambiguity checks still decide whether a missing mark can continue.
 """
 from __future__ import annotations
 
@@ -88,6 +88,41 @@ def neighbour_patch_searches(previous: tuple, measured: list, missing: tuple, be
     return tuple(result)
 
 
+def _owned_patch_searches(tracker: object, measured: list, missing: tuple, at: float) -> tuple:
+    """Spatial proximity cannot replace a current consumer's material membership."""
+    regions = getattr(tracker.still_needed, 'regions', ())
+    if not isinstance(regions, tuple) or len(regions) > 4:
+        return ()
+    result = {}
+    for region in regions:
+        if not isinstance(region, tuple) or len(region) != 3:
+            continue
+        _box, anchors, until = region
+        if (not isinstance(anchors, tuple) or not 3 <= len(anchors) <= 64
+                or type(until) not in (int, float) or not math.isfinite(until)
+                or not at < until <= tracker._at+1.):
+            continue
+        if any(not isinstance(anchor, tuple) or len(anchor) != 2
+               or not isinstance(anchor[0], tuple) or len(anchor[0]) != 2
+               or type(anchor[0][0]) is not int or anchor[0][0] < 0
+               or type(anchor[0][1]) not in (int, float) or not math.isfinite(anchor[0][1])
+               or not 0 <= anchor[0][1] <= tracker._at for anchor in anchors):
+            continue
+        owners = {key for key, _position in anchors}
+        if len(owners) != len(anchors):
+            continue
+        known = [p for p in measured if (p.number, p.born) in owners]
+        targets = tuple(p for p in missing if (p.number, p.born) in owners
+                        and tracker.still_needed.requests.get((p.number, p.born), -1.) > at)
+        offered = neighbour_patch_searches(tracker._native_points, known, targets, tracker._at, at)
+        for hint in offered:
+            peers = result.setdefault(hint.number, [])
+            if not any(math.dist(hint.position, old.position) < .2 and abs(hint.angle-old.angle) < .02 for old in peers):
+                peers.append(hint)
+    # Unsearched alternatives cannot be pruned into an apparently unique fit.
+    return tuple(h for peers in result.values() if len(peers) <= 3 for h in peers)
+
+
 def recover_from_neighbour_searches(tracker: object, image: list, colours: np.ndarray, at: float,
                                    measured: list, retained: list) -> list:
     """Newly recovered points cannot provide their own neighbourhood witnesses."""
@@ -95,7 +130,7 @@ def recover_from_neighbour_searches(tracker: object, image: list, colours: np.nd
     missing = [p for p in tracker._native_points if p.number not in visible]
     missing.sort(key=lambda p: (tracker.still_needed.requests.get((p.number, p.born), -1.) <= at,
                                 -p.pictures, p.error, p.number))
-    proposals = neighbour_patch_searches(tracker._native_points, measured, tuple(missing[:RECOVERY_LIMIT]), tracker._at, at)
+    proposals = _owned_patch_searches(tracker, measured, tuple(missing[:RECOVERY_LIMIT]), at)
     if not proposals:
         return retained
     old = {p.number: p for p in tracker._native_points}
@@ -127,10 +162,14 @@ def recover_from_neighbour_searches(tracker: object, image: list, colours: np.nd
 @invariant('perception.neighbour_motion_can_only_propose_a_patch_search', scope='perception',
            owner='core/perception/patch_searches_from_neighbours_that_were_seen.py', observational=False)
 def _neighbour_patch_search_invariant() -> tuple:
+    from types import SimpleNamespace
+
     old = tuple(SeenPoint(n, x, y, x, y, 1., 1., 1., 0., 1)
                 for n, (x, y) in enumerate(((20., 20.), (32., 20.), (20., 32.), (26., 26.))))
     assert neighbour_patch_searches(old, [], old[-1:], 1., 1.1) == ()
     current = [SeenPoint(p.number, p.x+3., p.y-2., p.x, p.y, p.born, 1., 1.1, .001, 2) for p in old[:3]]
     hints = neighbour_patch_searches(old, current, old[-1:], 1., 1.1)
     assert hints and hints[0].position == (29., 24.) and not isinstance(hints[0], SeenPoint)
+    tracker = SimpleNamespace(_native_points=old, _at=1., still_needed=SimpleNamespace(requests={}, regions=()))
+    assert _owned_patch_searches(tracker, current, old[-1:], 1.1) == ()
     return ()
