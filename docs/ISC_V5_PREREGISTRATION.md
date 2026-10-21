@@ -2028,3 +2028,14 @@ unchanged, and every fork reads along the same axes because the axes belong to
 the apparatus. No run reads it until `tools/k_compact_sufficiency.py` has
 measured, on the commit that would use it, how much of what each array does in
 a turn the random directions miss, and an addendum names the run.
+
+### Choice by consequence in a campaign turn
+
+A campaign turn chooses her act by a Borda count over reasons. The world was not
+one of them, so choice by consequence, built into her arbiter, never reached a
+run: the arbiter is driven by the mind tick, which a run does not step. The
+choice now has a fifth reason, her feeling about each act as a worth from
+nought to one times P(it works | W, act) / P(it works | act), learned from her
+own acts' outcomes in the run and credited to the world each was chosen in.
+With no record it ranks the acts as her feelings do. The validation pair that
+reads W,A -> D runs on the commit that carries this.

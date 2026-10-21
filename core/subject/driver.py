@@ -1316,6 +1316,13 @@ class SubjectRuntime(_HeldHost):
         if not hasattr(self, "_outcomes_by_kind"):
             self._outcomes_by_kind = {}
         self._outcomes_by_kind[str(kind)] = bool(ok)
+        # And in the world she chose it in, for the next choice made in a
+        # world like it (core/subject/choosing.py `expected_here`).
+        world = getattr(self, "world_at_choice", None)
+        if world is not None:
+            from core.agency.consequence import get_consequence_model
+
+            get_consequence_model().learn(f"act:{kind}", world, good=bool(ok))
 
     def _roll_the_log_if_long(self, kind: str) -> bool:
         """Trim the log when an append made it too long. Returns whether it bit.

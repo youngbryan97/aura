@@ -54,11 +54,13 @@ def choose(runtime: Any) -> tuple[str, str]:
 def weighed(runtime: Any, source: str, ledger: Any) -> str:
     """Every reason she has ranks the acts, and the act with the most support wins.
 
-    Four reasons: what she is attending to (the broadcast winner reaches action
+    Five reasons: what she is attending to (the broadcast winner reaches action
     selection as one voice, which is the global-workspace claim), how far below
     the fullest the drive an act serves has fallen, what she has come to feel
-    about the act (core/affect/feelings_about.py), and what a habit of it has
-    cost her against weighing. Each is turned into ranks and the ranks are
+    about the act (core/affect/feelings_about.py), what a habit of it has cost
+    her against weighing, and what she expects of it here: how she feels about
+    it times how much likelier this world makes it to work, learned from how
+    her acts came out in worlds like this one (core/agency/consequence.py). Each is turned into ranks and the ranks are
     summed, a Borda count, so no reason needs a weight set by hand. Ties go to
     what she is attending to, then to the order the acts are listed in.
     """
@@ -81,11 +83,13 @@ def weighed(runtime: Any, source: str, ledger: Any) -> str:
         )
 
     feelings = get_feelings_about()
+    felt = [float(feelings.pull_for_text(act)) for act in acts]
     reasons = (
         [1.0 if act == attended else 0.0 for act in acts],
         [pull(act) for act in acts],
-        [float(feelings.pull_for_text(act)) for act in acts],
+        felt,
         [-float(ledger.deficit(act)) for act in acts],
+        expected_here(runtime, acts, felt),
     )
     support = [0.0] * len(acts)
     for values in reasons:
@@ -93,6 +97,26 @@ def weighed(runtime: Any, source: str, ledger: Any) -> str:
             support[index] += rank
     best = max(range(len(acts)), key=lambda i: (support[i], acts[i] == attended, -i))
     return acts[best]
+
+
+def expected_here(runtime: Any, acts: Sequence[str], felt: Sequence[float]) -> list[float]:
+    """What each act is worth to her in the world as it stands: how she feels about it, times its odds here.
+
+    Her feeling about an act, from minus one to one, as a worth from nought to
+    one, times the likelihood ratio of this world among the worlds in which
+    that act worked. With no record every ratio is one and this ranks the acts
+    as her feelings do. The world is kept on the runtime, so the outcome of the
+    act can be credited to the world it was chosen in.
+    """
+    from core.agency.consequence import get_consequence_model, world_of
+
+    world = world_of(runtime.state)
+    runtime.world_at_choice = world
+    model = get_consequence_model()
+    return [
+        model.worth_here((1.0 + max(-1.0, min(1.0, value))) / 2.0, f"act:{act}", world)
+        for act, value in zip(acts, felt, strict=True)
+    ]
 
 
 def ranks(values: Sequence[float]) -> list[float]:

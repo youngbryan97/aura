@@ -66,6 +66,8 @@ include_rules = [
     # Her habits: the driver's acts go on the record as hers, and a habit
     # that has done worse than her weighing is discounted on drive alone.
     "+core.agency.habits_are_hers",
+    # What she expects of an act in the world as it stands, for a run's choice.
+    "+core.agency.consequence",
     # What she is like, from her own record of choices, read into S. Read only.
     "+core.agency.what_she_is_like",
     "+core.consciousness.consciousness_bridge",

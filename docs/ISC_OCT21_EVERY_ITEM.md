@@ -67,11 +67,13 @@ judged not viable says why.
 - [~] **P1. Attention (A, S -> G).** Passes v3 at 370 rounds with the codes
   (fraction 0.49, interaction lower bound +0.006) and fails without them.
   Preserved, and read again on every later commit.
-- [ ] **P2. Memory and perception (P, M -> W).** G2 and A3.
-- [ ] **P3. Decision-making (W, A -> D).** G3 and A4.
-- [ ] **P4. Recurrent cognition (S, D -> C).** G5 and A5.
-- [ ] **P5. Each coupling reads the domain, not a thin summary.** A3, A5.
-- [ ] **P6. Measurement that tells interaction from schedule.** G1, G6, F9.
+- [~] **P2. Memory and perception (P, M -> W).** G2 and A3, both built; the pair
+  at the next commit reads them.
+- [~] **P3. Decision-making (W, A -> D).** G3 built, A4 partly; read by the next pair.
+- [~] **P4. Recurrent cognition (S, D -> C).** G5 built, A5 partly; read by the next pair.
+- [x] **P5. Each coupling reads the domain, not a thin summary.** A3, A5: every
+  source domain is read in full and placed along its learned axes.
+- [~] **P6. Measurement that tells interaction from schedule.** G1, G6, F9 built.
 - [ ] **P7. All 511 cuts.** G8, the carrier rehearsal now running.
 - [~] **P8. Causal closure.** G7; the closure columns of `272ebdab7` are read by
   the validation finishing today.
@@ -81,21 +83,24 @@ judged not viable says why.
 
 ## The analysis of lag and pipe defects
 
-- [ ] **A1. Units integrate the turn that set them.** A unit recorded at turn t+1
+- [x] **A1. Units integrate the turn that set them.** A unit recorded at turn t+1
   holds (1 - lambda) of what it held plus the conjunction of the domains as they
   stood at turn t, so a turn's change is driven by that turn's sources. Offline
   on `validate-s7-5885688d7-r370` (diagnostic, no organism change): A,S->G and
   P,M->W pass, W,A->D clears its null with fraction 0.112 and fails only its
   interaction bound, S,D->C sits at 0.0118 against 0.0132.
-- [ ] **A2. Gain-field form.** Products of non-negative tuning curves carry both
+- [x] **A2. Gain-field form.** Products of non-negative tuning curves carry both
   main effects and the interaction; signed tanh products are close to invisible
   to a Gaussian-copula estimator. The live form follows the offline comparison.
-- [ ] **A3. Perception and memory read in full**, including the memory retrieval
+- [x] **A3. Perception and memory read in full**, including the memory retrieval
   state that does not repeat with the schedule.
-- [ ] **A4. World and affect in deliberation's own transitions**, drive and
-  urgency changes, not only a final score.
-- [ ] **A5. Self and intention read in full and acting on every tier of C**:
-  substrate, mesh and field.
+- [~] **A4. World and affect in deliberation's own transitions**, drive and
+  urgency changes, not only a final score. The choice itself now turns on the
+  world through G3; drive levels follow the act chosen, not yet the world
+  directly.
+- [~] **A5. Self and intention read in full and acting on every tier of C**:
+  substrate, mesh and field. The substrate by its transition (G5), the mesh by
+  its tier gains; the field only through the substrate it reads.
 - [x] **A6. Reports: two remaining empty-arm causes.** (a) a generation that ends
   inside its own thinking is answered again with the thinking closed, through the
   same gated path, before any fallback; (b) a draft that reports feeling low is
@@ -125,7 +130,9 @@ judged not viable says why.
   likelihood ratio of this world among those where it went well; crossed world
   and worth move the choice jointly, one gain on every score does not, and a
   feature that never mattered does not turn it
-  (`tests/test_choice_follows_what_she_expects_to_happen.py`).
+  (`tests/test_choice_follows_what_she_expects_to_happen.py`). A campaign turn
+  chooses through `core/subject/choosing.py`, not the arbiter, so the same
+  consequence is its fifth reason there, learned from the run's own outcomes.
 - [x] **G4. Control allocation's early return.** When self-efficacy is unreadable
   the conjunction's tier gains were skipped with it. Fixed with the state passed
   in explicitly and a test that one fork's change stays in that fork.
