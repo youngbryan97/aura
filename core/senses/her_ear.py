@@ -19,10 +19,12 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("Aura.HerEar")
@@ -117,8 +119,12 @@ def _asr_weights() -> str:
         return ASR_MODEL
 
 
-def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None, weights: str = ASR_MODEL) -> None:
-    """Hear the application's sound and write each settled stretch of words as a JSON line until stopped."""
+def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None, weights: str = ASR_MODEL,
+           hold: str = "") -> None:
+    """Hear the application's sound and write each settled stretch of words as a JSON line until stopped. While the
+    file ``hold`` exists the sound is kept and not yet written down: her voice is using the GPU the model would.
+    MEASURED 20 October 2026 beside her 27B: the model took 0.42 of real time on the GPU (1.78 on the CPU, too slow
+    to keep up), and while she watched her 27B decoded at 6 to 9 tokens a second where alone it decodes at 21."""
     import mlx.core as mx
     import numpy as np
     from parakeet_mlx import from_pretrained
@@ -138,6 +144,8 @@ def listen(bundle: str, *, out: Any = sys.stdout, at_most_s: float | None = None
     with model.transcribe_stream(context_size=CONTEXT) as heard:
         while at_most_s is None or time.monotonic() - began < at_most_s:
             time.sleep(STEP_S)
+            if hold and os.path.exists(hold):
+                continue  # what is heard waits in `pending`, to be written down once her voice is done
             with lock:
                 chunk = np.concatenate(pending) if pending else None
                 pending.clear()
@@ -164,6 +172,20 @@ class HerEar:
     why_not: str = ""
     _reader: Any = None
     _answered: Any = None
+    #: The file whose being there tells the ear's process to keep what it hears and wait.
+    hold: str = ""
+
+    def yields(self, to_her_voice: bool) -> None:
+        """Keep what is heard without writing it down while her voice uses the GPU, or go on writing it down."""
+        if not self.hold:
+            return
+        try:
+            if to_her_voice:
+                Path(self.hold).touch()
+            else:
+                Path(self.hold).unlink(missing_ok=True)
+        except OSError as why:
+            logger.debug("the ear's hold could not be changed: %s", why)
 
     async def start(self, *, ready_s: float = 60.0) -> bool:
         """Start listening; True once the ear reports it hears the application."""
@@ -176,8 +198,10 @@ class HerEar:
                                                constraints={"effect": "the sound of one application, heard",
                                                             "app": self.bundle, "user_visible": False}):
                 # A model process, declared as one with its weights named, so her model lanes count its memory.
+                self.hold = f"/tmp/aura-ear-hold-{os.getpid()}-{id(self)}"
                 self.process = await get_subprocess_gateway().spawn_async(
-                    [sys.executable, "-m", "core.senses.her_ear", "--app", self.bundle, "--model", _asr_weights()],
+                    [sys.executable, "-m", "core.senses.her_ear", "--app", self.bundle, "--model", _asr_weights(),
+                     "--hold", self.hold],
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL, source="core.senses.her_ear",
                     accelerator_capability="model")
         except (OSError, RuntimeError, ValueError, AttributeError, TypeError) as why:
@@ -217,6 +241,7 @@ class HerEar:
         return came
 
     async def stop(self) -> None:
+        self.yields(False)
         if self.process is not None and self.process.returncode is None:
             self.process.terminate()
             try:
@@ -232,9 +257,10 @@ def main() -> int:
     parser.add_argument("--app", required=True, help="the bundle identifier of the application to hear")
     parser.add_argument("--seconds", type=float, help="stop after this long (for a test)")
     parser.add_argument("--model", default=ASR_MODEL, help="the recognition model's weights: a folder or its name")
+    parser.add_argument("--hold", default="", help="while this file exists, keep the sound and write nothing down")
     args = parser.parse_args()
     try:
-        listen(args.app, at_most_s=args.seconds, weights=args.model)
+        listen(args.app, at_most_s=args.seconds, weights=args.model, hold=args.hold)
     except RuntimeError as why:
         print(json.dumps({"error": str(why)}), flush=True)
         return 1

@@ -444,7 +444,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # and a ceiling over thinking and saying together: left to the channel's own rule her answer thought through its
     # whole ceiling twice, five minutes before the film could open (LIVE 20 October 2026, 11:46 to 11:51).
     as_it_plays = remark and observation.startswith("playing")
-    thinks, says = (120, 120) if as_it_plays else (224, 288) if remark else (192, 256)
+    thinks, says = (120, 160) if as_it_plays else (224, 288) if remark else (192, 256)
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": max(thinks + says, A_CLOSED_QUESTIONS_FLOOR + 1),
                "private_channel_budget": thinks, "hard_output_token_ceiling": thinks + says,
@@ -476,9 +476,10 @@ A_THOUGHT_HAS_WORDS = 6
 
 
 #: A paragraph this long is a thought of its own; a shorter one is, where it names what she was shown. LIVE 20 October
-#: 2026, rehearsal 7, said as remarks: "I'm watching the zoom-out continue." and "I'm right here." Rehearsal 6's that
-#: Bryan called really good ran 15 to 25 words.
-A_THOUGHT_STANDS_ALONE = 15
+#: 2026, rehearsal 7, said as remarks: "I'm watching the zoom-out continue." and "I'm right here."; rehearsal 9, 21 and
+#: 25 words naming nothing seen or heard: "Oh — so it's already rolling, we're at about two and a half minutes in. Let me
+#: catch up with you on where I am." Rehearsal 6's that Bryan called really good each named what was on screen.
+A_THOUGHT_STANDS_ALONE = 35
 _NOT_ABOUT_ANYTHING = frozenset("""that this with they have what just here there right about from were when into like been
 them then than your will would could their which these those some more very really okay still watching along""".split())
 
@@ -502,6 +503,10 @@ def first_thought(words: str, about: str = "") -> str:
     shown = _named(about)
 
     def says_something(part: str) -> bool:
+        # Quoted whole, it is what was said in the video, not what she thinks of it (LIVE 20 October 2026, rehearsal 9:
+        # '*"In July of 2026, 700 AI agents hacked the infrastructure of Hugging Face..."*' was said as a remark).
+        if re.fullmatch(r"[*_\s]*[\"“].*[\"”][.…]*[*_\s]*", part, re.DOTALL):
+            return False
         count = len(re.findall(r"[A-Za-z']+", part))
         return count >= A_THOUGHT_HAS_WORDS and (not shown or count >= A_THOUGHT_STANDS_ALONE or len(_named(part) & shown) >= 2)
 
