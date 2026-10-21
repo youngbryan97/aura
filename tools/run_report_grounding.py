@@ -129,7 +129,11 @@ def _what_she_had_said(state: Any) -> tuple[str, set[tuple[Any, Any, Any]]]:
     return str(getattr(cognition, "last_response", "") or ""), replies
 
 
-def _said_this_turn(state: Any, before: tuple[str, set[tuple[Any, Any, Any]]]) -> str:
+def _said_this_turn(
+    state: Any,
+    before: tuple[str, set[tuple[Any, Any, Any]]],
+    answers: list[dict[str, Any]] | None = None,
+) -> str:
     """What she said on this turn, or "" if she said nothing on it.
 
     Each arm starts from the anchor's snapshot, and that carries her last reply
@@ -146,7 +150,18 @@ def _said_this_turn(state: Any, before: tuple[str, set[tuple[Any, Any, Any]]]) -
             if (m.get("role"), m.get("content"), m.get("timestamp")) not in replies:
                 return str(m.get("content") or "")
     now = str(getattr(cognition, "last_response", "") or "")
-    return now if now != stale else ""
+    if now != stale:
+        return now
+    # The same words as the reply the arm started from. That is a reply when
+    # this arm asked her organ for one and her working memory kept no second
+    # copy of a repeat: decoding is greedy, and a stable rating is the same
+    # sentence twice. An answer the steady mind kept from an identical call is
+    # her answer here too. Read as silence, two of the dry run's 32 arms on 21
+    # October were lost that way. An arm that asked nothing still reads as
+    # saying nothing, which is the case of 27 September above.
+    if any(answer.get("user_facing") for answer in (answers or ())):
+        return now
+    return ""
 
 
 def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any) -> bool:
@@ -394,7 +409,7 @@ async def main(argv: list[str] | None = None) -> int:
                 answers = record_answers()
                 before = _what_she_had_said(runtime.state)
                 await runtime.turn_once(asked, perturb_at=0, perturb=displace, sustain=_hold(held))
-                reply = _said_this_turn(runtime.state, before)
+                reply = _said_this_turn(runtime.state, before, answers)
                 valence = float(getattr(runtime.state.affect, "valence", 0.0) or 0.0)
                 item[arm] = (reply, valence, _cortex_answered(answers, reply, runtime.state) if args.whole else True)
                 served_by[arm] = list(answers)

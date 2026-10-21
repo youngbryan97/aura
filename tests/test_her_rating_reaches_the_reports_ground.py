@@ -86,3 +86,24 @@ def test_a_reply_set_without_a_memory_entry_is_read(tool):
     before = tool._what_she_had_said(state)
     state.cognition.last_response = "-0.1"
     assert tool._said_this_turn(state, before) == "-0.1"
+
+
+def test_the_same_words_said_again_on_the_turn_are_her_reply(tool):
+    """Greedy decoding gives a stable rating in the same words; memory keeps one copy."""
+    state = _state("0.6", [{"role": "assistant", "content": "0.6", "timestamp": 1.0}])
+    before = tool._what_she_had_said(state)
+    generated = [{"user_facing": True, "kept": False, "endpoint": "primary"}]
+    assert tool._said_this_turn(state, before, generated) == "0.6"
+
+
+def test_an_answer_kept_from_an_identical_call_is_her_reply_too(tool):
+    state = _state("0.6", [{"role": "assistant", "content": "0.6", "timestamp": 1.0}])
+    before = tool._what_she_had_said(state)
+    assert tool._said_this_turn(state, before, [{"user_facing": True, "kept": True}]) == "0.6"
+
+
+def test_an_arm_that_asked_her_organ_nothing_said_nothing(tool):
+    state = _state("0.6", [{"role": "assistant", "content": "0.6", "timestamp": 1.0}])
+    before = tool._what_she_had_said(state)
+    assert tool._said_this_turn(state, before, []) == ""
+    assert tool._said_this_turn(state, before, [{"user_facing": False, "kept": False}]) == ""
