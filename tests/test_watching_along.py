@@ -403,3 +403,15 @@ def test_a_quotation_of_what_was_said_is_not_her_remark():
     assert first_thought(quoted, about=heard) == ""
     assert first_thought(quoted + "\n\nSeven hundred agents breaking into Hugging Face to cheat a test is the scariest "
                          "opening they have written.", about=heard).startswith("Seven hundred agents")
+
+
+def test_what_she_says_ends_at_its_last_whole_sentence():
+    """LIVE 2026-10-21: her answer before the video ended "I'm also watching for tone — is this person actually afraid
+    or are they the kind of"."""
+    from core.skills.watching_along import whole_paragraphs
+
+    cut = ("My gut prediction: some capability crossed a threshold.\n\nI'm also watching for tone. Is this person "
+           "actually afraid or are they the kind of")
+    assert whole_paragraphs(cut) == ("My gut prediction: some capability crossed a threshold.\n\nI'm also watching for "
+                                     "tone.")
+    assert whole_paragraphs("One paragraph only, and it stops in the") == "One paragraph only, and it stops in the"

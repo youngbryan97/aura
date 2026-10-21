@@ -444,7 +444,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     # and a ceiling over thinking and saying together: left to the channel's own rule her answer thought through its
     # whole ceiling twice, five minutes before the film could open (LIVE 20 October 2026, 11:46 to 11:51).
     as_it_plays = remark and observation.startswith("playing")
-    thinks, says = (120, 160) if as_it_plays else (224, 288) if remark else (192, 256)
+    thinks, says = (120, 160) if as_it_plays else (224, 288) if remark else (160, 352)
     context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": "" if remark or exchanges or said else request,
                "turn_sensory_evidence": evidence.to_dict(), "max_tokens": max(thinks + says, A_CLOSED_QUESTIONS_FLOOR + 1),
                "private_channel_budget": thinks, "hard_output_token_ceiling": thinks + says,
@@ -457,7 +457,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
                [stamp_runtime_payload({"user": request, "aura": " ".join(said)})] if said else []}
     thought = await engine.think(request, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
     words = str(getattr(thought, "content", "") or "").strip()
-    return first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words) if remark else words
+    return first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words)
 
 
 def whole_paragraphs(words: str) -> str:
@@ -465,9 +465,18 @@ def whole_paragraphs(words: str) -> str:
     and stopped mid-sentence, under horizontal rules. A rule is not said."""
     import re
 
+    ends = r"[.!?…][\"'\u201d\u2019)*_]*"
     paragraphs = [part.strip() for part in re.split(r"\n\s*\n", words or "") if part.strip() and not re.fullmatch(r"[-*_\s]{3,}", part.strip())]
-    while len(paragraphs) > 1 and not re.search(r"[.!?…][\"'\u201d\u2019)*_]*$", paragraphs[-1]):
-        paragraphs.pop()
+    # The paragraph the ceiling cut ends at its last whole sentence, and goes where it has none (LIVE 21 October 2026,
+    # her answer before the video ended "or are they the kind of"); a paragraph alone stays as it is.
+    while paragraphs and not re.search(ends + "$", paragraphs[-1]):
+        whole = re.match(r"(?s)^(.*" + ends + r")(?:\s|$)", paragraphs[-1])
+        if whole:
+            paragraphs[-1] = whole.group(1).strip()
+        elif len(paragraphs) > 1:
+            paragraphs.pop()
+        else:
+            break
     return "\n\n".join(paragraphs)
 
 
