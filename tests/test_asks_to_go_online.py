@@ -17,6 +17,9 @@ pytestmark = pytest.mark.unit
     "Pull up Wikipedia's page on the Bronze Age collapse.",
     "Look it up online for me.",
     "Watch this with me: https://www.youtube.com/watch?v=RGQEwYsNdI4",
+    # Bryan, 20 October 2026, the demo's second video:
+    "Go to Allen Pan's YouTube channel, look through his videos, and pick the one that interests you most.",
+    "Head over to the Kurzgesagt channel on YouTube.",
 ])
 def test_going_somewhere_online(said):
     assert asks_to_go_online(said)
@@ -27,6 +30,7 @@ def test_going_somewhere_online(said):
     "Write me a short poem about the sea.",
     "How are you feeling today?",
     "What is 87952 times 587923?",
+    "I need to go to the store later.",
 ])
 def test_not_going_anywhere(said):
     assert not asks_to_go_online(said)

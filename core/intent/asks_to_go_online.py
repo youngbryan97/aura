@@ -36,7 +36,8 @@ _A_PLACE_ONLINE = (
 
 #: Going there, or doing something there: the verbs people use to send somebody to a place online.
 _GO_THERE = re.compile(
-    rf"\b(?:go|head|hop|jump)\s+(?:over\s+)?(?:to|on|onto)\s+{_A_PLACE_ONLINE}|"
+    # Whose place it is may come between: "Go to Allen Pan's YouTube channel" (Bryan, 20 October 2026, the demo).
+    rf"\b(?:go|head|hop|jump)\s+(?:over\s+)?(?:to|on|onto)\s+(?:[\w'’.-]+\s+){{0,5}}?{_A_PLACE_ONLINE}|"
     rf"\b(?:open|visit|browse|pull\s+up|load|check|search|look\s+(?:up|through|at))\s+(?:up\s+)?(?:the\s+)?{_A_PLACE_ONLINE}|"
     rf"\b(?:find|search\s+for|look\s+(?:for|up)|watch|read|pick|choose|play)\b[^.?!\n]{{0,80}}\b(?:on|from|in)\s+{_A_PLACE_ONLINE}|"
     rf"\b(?:look\s+it\s+up|search)\s+online\b|"
