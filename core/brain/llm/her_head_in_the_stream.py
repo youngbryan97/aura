@@ -35,7 +35,7 @@ import mlx.core as mx
 
 logger = logging.getLogger("LLM.HerHead")
 
-__all__ = ["HER_HEAD", "head_generate_step", "her_head_may_check", "her_own_head", "stream_generate_with_her_head"]
+__all__ = ["HER_HEAD", "head_generate_step", "her_head_may_check", "her_own_head", "stream_generate_with_her_head", "timed"]
 
 #: Where her head's weights are: the original release's multi-token prediction layer.
 HER_HEAD = Path.home() / ".aura" / "models" / "qwen3.8-27b-mtp-source" / "mtp_head.safetensors"
@@ -214,3 +214,24 @@ def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_t
                              generation_tps=(n + 1) / max(1e-9, time.perf_counter() - tic),
                              peak_memory=mx.get_peak_memory() / 1e9,
                              finish_reason="stop" if token in tokenizer.eos_token_ids else "length")
+
+
+def timed(responses: Any, each: Callable[[], None]) -> Generator[Any, None, None]:
+    """``responses`` passed on with ``each`` called as each comes, and at the end how long the generation waited on the
+    model and how long the token loop around it took. LIVE 20 October 2026 her worker decoded at 8 tokens a second
+    where her model, every channel and her head's drafts decode at 21.5 by themselves."""
+    waited = looped = 0.0
+    count = 0
+    asked = time.perf_counter()
+    try:
+        for response in responses:
+            came = time.perf_counter()
+            waited, count = waited + came - asked, count + 1
+            each()
+            yield response
+            asked = time.perf_counter()
+            looped += asked - came
+    finally:
+        if count > 1:
+            logger.info("⏱️ [WORKER] %d tokens: %.2fs waiting on the model, %.2fs in the token loop around it",
+                        count, waited, looped)
