@@ -50,7 +50,7 @@ def _frames(directory: Path, start: int, count: int):
 
 
 def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, frames: int, match_every: int,
-            sample_matched_appearances: bool = False) -> dict:
+            sample_matched_appearances: bool = False, request_material_extents: bool = False) -> dict:
     from core.runtime.classical_compute_boundary import current_classical_boundary
     from core.runtime.model_worker_policy import model_workers_allowed
 
@@ -70,9 +70,12 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     from core.perception.whole_referents_from_source_material import WholeReferentsInView
     from core.perception.source_material_groups_for_visual_attention import SourceMaterialGroupsInView
     from core.perception.what_things_look_like import LookingAtThings
+    from core.perception.a_source_extent_requested_in_play import SourceExtentRequest
 
     if not 1 <= frames <= 100 or not 1 <= match_every <= 100 or start < 0:
         raise ValueError('replay needs bounded frame and match counts')
+    if request_material_extents and not sample_matched_appearances:
+        raise ValueError('extent requests require the ordinary current-sampling path')
     if not 8 <= source.stat().st_size <= 40*1024*1024:
         raise ValueError('source bytes exceed their bound')
     raw = source.read_bytes()
@@ -82,6 +85,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     material_groups = SourceMaterialGroupsInView()
     geometry, proposals = SourceGeometryInCurrentPixels(), {}
     bindings, searches, rows = (), [], []
+    requests = ()
     began = time.monotonic()
     for index, (event, picture) in enumerate(_frames(recording, start, frames)):
         at = float(event['capture']['at'])
@@ -89,8 +93,10 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         if sample_matched_appearances:
             capture = dict(event['capture'])
             capture.pop('at')
+            options = dict(whole_referents=wholes, material_groups=material_groups,
+                           reference_frames=bindings, extent_requests=requests) if request_material_extents else {}
             _, state = _seen(observer, picture, CanvasFrameTime(at, **capture), fresh_references=geometry,
-                reference_proposals=tuple(proposals.values()), reference_tables=(table,))
+                reference_proposals=tuple(proposals.values()), reference_tables=(table,), **options)
         else:
             observer.see(picture, at)
         registered = {r.variant_key: r for r in catalog.references}
@@ -120,9 +126,17 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                 kept.append((reference, binding))
         bindings = tuple(kept)
         started = time.perf_counter()
-        seen = wholes.observe(observer, picture, at, tuple(current))
+        if request_material_extents:
+            # Broad search results become available to the following frame.
+            # The same worker call both consumes the demand and measures it.
+            seen = state.get('source_referents', {})
+            observer.source_material_groups = state.get('source_material_groups', {})
+        else:
+            seen = wholes.observe(observer, picture, at, tuple(current))
+            observer.source_material_groups = material_groups.observe(observer, picture, at, tuple(current), wholes=seen)
         observer.source_referents = seen
-        observer.source_material_groups = material_groups.observe(observer, picture, at, tuple(current), wholes=seen)
+        requests = tuple(SourceExtentRequest(g) for g in list(observer.source_material_groups.values())[:4]) \
+            if request_material_extents else ()
         eligible = LookingAtThings()._to_look_at(observer, None, set(), at=at)
         elapsed = time.perf_counter()-started
         rows.append(dict(sequence=event['sequence'], file=event['file'], at=at,
@@ -134,6 +148,8 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                 geometry_qualified=g.geometry_qualified, role=g.role, contact_verified=g.contact_verified,
                 observed_parts=list(g.observed_parts)) for g in observer.source_material_groups.values()],
             material_group_readings=list(material_groups.readings),
+            extent_receipts=list(state.get('source_extent_receipts', ())),
+            extent_requests_offered=len(requests),
             material_groups_eligible_for_naming=[q.number for q in eligible if q.number in observer.source_material_groups],
             sampling_hint=asdict(observer.sampling_hint_receipt) if observer.sampling_hint_receipt else None,
             fresh_geometry=len(state.get('fresh_source_reference_frames', ())),
@@ -154,6 +170,8 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         frames_with_whole_referents=sum(bool(row['referents']) for row in rows),
         frames_with_material_attention=sum(bool(row['material_groups']) for row in rows),
         frames_with_material_naming_candidates=sum(bool(row['material_groups_eligible_for_naming']) for row in rows),
+        extent_request_origin='diagnostic_current_material' if request_material_extents else None,
+        extent_requests_delivered=sum(len(row['extent_receipts']) for row in rows),
         distinct_whole_ids=len({w['number'] for row in rows for w in row['referents']}),
         frames_with_sampling_hints=sum(bool(row['sampling_hint']) for row in rows),
         frames_with_current_source_material=sum(bool(row['source_frames']) for row in rows),
@@ -172,6 +190,7 @@ def main() -> None:
     parser.add_argument('--frames', type=int, default=12)
     parser.add_argument('--match-every', type=int, default=8)
     parser.add_argument('--sample-matched-appearances', action='store_true')
+    parser.add_argument('--request-material-extents', action='store_true')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('a fresh output path is required')
@@ -180,7 +199,8 @@ def main() -> None:
     with classical_compute_boundary():
         result = measure(args.recording, args.source, args.catalog_root,
             start=args.start_sequence, frames=args.frames, match_every=args.match_every,
-            sample_matched_appearances=args.sample_matched_appearances)
+            sample_matched_appearances=args.sample_matched_appearances,
+            request_material_extents=args.request_material_extents)
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -191,6 +211,7 @@ def main() -> None:
     print(json.dumps({key: result[key] for key in ('measured_frames', 'frames_with_sampling_hints',
         'frames_with_current_source_material', 'frames_with_whole_referents',
         'frames_with_material_attention', 'frames_with_material_naming_candidates',
+        'extent_requests_delivered',
         'distinct_whole_ids', 'duration_s', 'model_workers', 'input_delivered', 'demo_ready')}))
 
 

@@ -311,6 +311,10 @@ def requested_target(choosing: Any) -> tuple | None:
         reading = replace(reading, binding=replace(reading.binding,
             region=relation_region_in_its_scene(reading.binding.region, choosing.moves, choosing.at)))
     choosing.goal_reading = reading
+    if reading.need is not None and reading.need.operation == 'measure_whole_extent':
+        from core.perception.a_source_extent_requested_in_play import request_source_extent
+
+        request_source_extent(choosing.moves, reading.need, choosing.at)
     binding = reading.binding
     choosing.goal_binding = binding
     if binding is not None:

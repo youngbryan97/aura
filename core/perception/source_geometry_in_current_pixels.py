@@ -146,7 +146,7 @@ class SourceGeometryInCurrentPixels:
             self.work_share.spent(seconds)
 
     def sampling_before_observation(self, picture, at, proposals: tuple, tables: tuple,
-                                    covered: tuple = ()):
+                                    covered: tuple = (), *, priority: tuple = ()):
         """Fresh correspondence can request corners before object grouping exists.
 
         Prior mandatory work buys one current refit. Its result is reused for
@@ -174,7 +174,7 @@ class SourceGeometryInCurrentPixels:
             return None
         began = time.perf_counter()
         try:
-            fits, unavailable = self._fits(picture, float(at), proposals, tables, covered, one_position=True)
+            fits, unavailable = self._fits(picture, float(at), proposals, tables, covered, one_position=True, priority=priority)
             self._prepared = capture, fits, unavailable
             hint = None
             if fits:
@@ -192,7 +192,7 @@ class SourceGeometryInCurrentPixels:
         return hint
 
     def measure_if_budget(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = (),
-                          *, essential_seconds: float) -> tuple:
+                          *, essential_seconds: float, priority: tuple = ()) -> tuple:
         """Repay prior optional refits before delaying another essential picture."""
         self.material_frames = ()
         self.material_status = ()
@@ -213,23 +213,23 @@ class SourceGeometryInCurrentPixels:
                     self.finish_sampling()
         self._essential_seconds = 0.
         if not proposals and not self.records:
-            return self.measure(picture, at, state, proposals, tables, covered, one_position=True)
+            return self.measure(picture, at, state, proposals, tables, covered, one_position=True, priority=priority)
         if not self.work_share.reserve(essential_seconds):
             return (), ('fresh_reference_work_deferred',)
         began = time.perf_counter()
         try:
-            return self.measure(picture, at, state, proposals, tables, covered, one_position=True)
+            return self.measure(picture, at, state, proposals, tables, covered, one_position=True, priority=priority)
         finally:
             self.work_share.spent(time.perf_counter()-began)
 
     def measure(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = (),
-                *, one_position: bool = False) -> tuple:
+                *, one_position: bool = False, priority: tuple = ()) -> tuple:
         self.material_frames = ()
         self.material_status = ()
         grid = _current_grid(picture, at, state)
         if grid is None:
             return (), ('fresh_reference_capture_unavailable',)
-        fits, unavailable = self._fits(picture, at, proposals, tables, covered, one_position=one_position)
+        fits, unavailable = self._fits(picture, at, proposals, tables, covered, one_position=one_position, priority=priority)
         return self._measured(fits, picture, at, state, grid, unavailable)
 
     def _measured(self, fits, picture, at, state, grid, unavailable):
@@ -256,7 +256,7 @@ class SourceGeometryInCurrentPixels:
             self.search_cursors[key][selected] = 0
         return _enclosed_measurements(tuple(measured)), tuple(unavailable)
 
-    def _fits(self, picture, at, proposals, tables, covered, *, one_position):
+    def _fits(self, picture, at, proposals, tables, covered, *, one_position, priority=()):
         self._searched = None
         if type(one_position) is not bool:
             return (), ('fresh_reference_position_capacity_unavailable',)
@@ -301,7 +301,10 @@ class SourceGeometryInCurrentPixels:
         hints = {key for key in covered if isinstance(key, tuple) and len(key) == 3
                  and isinstance(key[0], str) and type(key[1]) is int and isinstance(key[2], str)} \
             if isinstance(covered, tuple) and len(covered) <= 32 else set()
-        key = _reference_to_measure(tuple(self.records), hints, self.cursor)
+        from core.perception.a_source_extent_requested_in_play import extent_reference_to_measure
+
+        priority = priority if isinstance(priority, tuple) and len(priority) <= 4 else ()
+        key = extent_reference_to_measure(tuple(self.records), hints, self.cursor, priority, _reference_to_measure)
         self.cursor += 1
         reference, poses, revision = self.records[key]
         if any(other[:2] == key[:2] for other in self.records if other != key):

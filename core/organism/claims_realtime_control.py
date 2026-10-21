@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.a_source_extent_requested_in_play import _extent_demand_invariant
     from core.perception.source_material_groups_for_visual_attention import _material_attention_invariant
     from core.perception.visual_frames_in_a_source_declaration import _visual_frame_custody_invariant
     from core.perception.whole_referents_from_source_material import _whole_source_referent_invariant
@@ -78,7 +79,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('source_material_attention_cannot_supply_a_destination_extent', 'core/perception/source_material_groups_for_visual_attention.py',
+    return (('extent_requests_keep_owned_measurements_and_fair_background_turns', 'core/perception/a_source_extent_requested_in_play.py',
+             'tests/test_missing_extent_requests_current_measurement.py', lambda: _extent_demand_invariant() == (),
+             'A current owned missing-extent request can order one of four existing optional source refits; current measurements and refusals stay distinct from movement authority.'),
+            ('source_material_attention_cannot_supply_a_destination_extent', 'core/perception/source_material_groups_for_visual_attention.py',
              'tests/test_source_material_reaches_visual_attention.py', lambda: _material_attention_invariant() == (),
              'Current source-supported points can receive an instance naming query without supplying an object outline, contact surface or controlled body.'),
             ('visual_reference_variants_require_current_source_frames', 'core/perception/visual_frames_in_a_source_declaration.py',

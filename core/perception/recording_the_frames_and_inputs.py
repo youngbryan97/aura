@@ -388,6 +388,8 @@ def _source_reference_snapshot(moves: Any) -> dict:
             'object_bound': channel('source_reference_points'), 'continuing': channel('source_reference_frames'),
             'fresh': channel('fresh_source_reference_frames'),
             'material_attention': {'records': group_records, 'count': len(groups) if isinstance(groups, dict) else None},
+            'extent_requests': [dict(item) for item in getattr(moves, 'source_extent_receipts', ())[:4]
+                                if isinstance(item, dict)],
             'whole_referents': {'records': whole_records, 'count': len(wholes) if isinstance(wholes, dict) else None,
                                'readings': whole_readings}}
 

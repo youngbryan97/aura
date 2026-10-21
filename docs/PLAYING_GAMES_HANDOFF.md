@@ -1646,3 +1646,22 @@ Next turn the typed extent need into a bounded current measurement attempt.
 The request currently records missing evidence; it cannot repair the missing
 geometry by itself. Keep the source role/contact/controller bridge and native
 proof open. No GPU or resident runtime access is authorized for this work.
+
+The typed extent need is now connected. Goal selection queues the exact
+current owner; the worker validates its own material record and source,
+orders one of four existing optional refits, and retains the current
+measurement or refusal. This does not spend extra refit slots or change
+geometry gates. Requests cannot be acknowledged with stale pixel results.
+The ordinary observation-port test proves one-time consumption and cleanup.
+
+Request/capture tests: 133 passed. Retained-pixel replay returned seven
+diagnostic request responses: four current pixel-support refusals and three
+current-material unavailabilities. Six pictures offer material naming
+candidates; qualified whole referents remain zero. The diagnostic requests
+do not establish an actual model name or native-app task. Artifacts:
+`artifacts/flash-campaign/2026-10-20-requested-extent/`.
+
+Continue at the actual pixel-formation mismatch. Preserve the failed extent
+responses, then connect successfully measured extents through ownership and
+motion checks. Native proof, source role/contact/controller work and the
+56-game campaign remain open; use CPU only and preserve G09/holdouts.

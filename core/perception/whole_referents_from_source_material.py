@@ -239,15 +239,17 @@ class WholeReferentsInView:
                                    'reason': 'source_material_not_current'},)
                 continue
             reading = _whole_extent(reference, point, picture, marks)
+            visible = {(p.number, p.born) for p in marks.points}
+            anchors = frozenset((a[0], a[1]) for a in binding.anchors if (a[0], a[1]) in visible)
             self.readings += ({'source': reference.source, 'character_id': reference.declaration.character_id,
+                'mark_epoch': marks.epoch, 'material_anchors': tuple(sorted(anchors)),
+                'captured_at': at, 'picture_sha256': pixels.sha256,
                 'reason': reading.reason, 'bounds': reading.bounds, 'mean_colour_error': reading.mean_colour_error,
                 'maximum_edge_error': reading.maximum_edge_error, 'samples': reading.samples,
                 'visible_fraction': reading.visible_fraction, 'clipped_edges': reading.clipped_edges},)
             if reading.bounds is None:
                 continue
             extent = reading.bounds
-            visible = {(p.number, p.born) for p in marks.points}
-            anchors = frozenset((a[0], a[1]) for a in binding.anchors if (a[0], a[1]) in visible)
             parts = _material_parts(observer, anchors, at)
             x, y, w, h = extent
             if len(parts) > 32:

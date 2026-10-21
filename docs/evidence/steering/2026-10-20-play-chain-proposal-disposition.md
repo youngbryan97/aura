@@ -642,3 +642,42 @@ The material-attention checkpoint passed smoke (164 passed, one skipped),
 lint, compilation, layering and writing in 106.26 seconds. Its claim and pure
 invariant are registered. These checks certify the observation boundary;
 they supply no native-play or successful-arrival evidence.
+
+## An extent need now reaches a measured response
+
+- [x] The actual goal selector queues the exact current material owner when
+  its matching name lacks an extent. The worker checks the request against
+  its own previous material record, source and capture age. Copied owners,
+  future captures, expired requests and source changes are rejected.
+- [x] One of four existing optional refit slots can serve the requested
+  source family. The remaining turns use a compact ordinary counter, so
+  reserving that slot cannot repeatedly skip another reference. Existing
+  optional-work budgets, point counts and geometry thresholds remain intact.
+- [x] Whole-reference readings retain current capture/hash, epoch and named
+  material anchors. A response needs that current ownership. Old readings
+  cannot acknowledge a new frame. Refused, unavailable and measured extents
+  are separate statuses; a response itself grants no movement authority.
+- [x] A queued request is consumed once through the ordinary observation
+  port. A deferred submission retains it; repeated and closed observations
+  clear response records. The recorder keeps these responses separately.
+- [ ] Successful geometry for this original scene remains unresolved.
+  Native naming, goal binding, landing and demo proof remain open.
+
+The expanded request/capture regression group passed 133 tests in 17.98
+seconds. The earlier group passed 129 in 16.45 seconds. Retained-pixel replay
+delivered seven diagnostic material-extent requests through the actual
+observation function: four returned `current_extent_refused` for
+`whole_pixel_support_unresolved`, and three returned
+`current_material_unavailable`. It retained material naming candidates in
+six of twelve pictures and zero qualified whole referents. Diagnostic
+requests use current material directly; they are not evidence of a live
+semantic name or native task request. No model or physical input was used.
+
+Artifacts are under
+`artifacts/flash-campaign/2026-10-20-requested-extent/`. The next task is the
+actual pixel-formation mismatch; a connected retry has preserved that
+failure rather than converting it into a successful extent.
+
+The request checkpoint passed smoke (164 passed, one skipped), lint,
+compilation, layering and writing in 83.40 seconds. No native or GPU process
+was started, stopped or restarted. The zero-qualified-extent result remains.

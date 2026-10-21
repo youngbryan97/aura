@@ -79,10 +79,17 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
           material_retention: Any = None, fresh_references: Any = None,
           reference_proposals: tuple = (), reference_tables: tuple = (),
           reference_coverage: tuple = (), whole_referents: Any = None, material_groups: Any = None,
-          reference_frames: tuple = ()) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+          reference_frames: tuple = (), extent_requests: tuple = ()) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    from core.perception.a_source_extent_requested_in_play import current_extent_requests, measured_extent_receipts
+
+    requests, refused_requests = current_extent_requests(extent_requests,
+        getattr(material_groups, 'records', {}), float(at), reference_tables)
+    priorities = tuple(dict.fromkeys((r.material.source, r.material.character_id) for r in requests))
+    priority_options = {'priority': priorities} if priorities else {}
     prepare_sampling = getattr(fresh_references, 'sampling_before_observation', None)
     if callable(prepare_sampling):
-        proposed_hint = prepare_sampling(picture, at, reference_proposals, reference_tables, reference_coverage)
+        proposed_hint = prepare_sampling(picture, at, reference_proposals, reference_tables, reference_coverage,
+            **priority_options)
         if search_hint is None:
             search_hint = proposed_hint
     began = time.perf_counter()
@@ -101,7 +108,7 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
         # The eyes receive the full capture interval. Geometry uses the same
         # scalar capture value as their consumed-pixel and material receipts.
         frames, unavailable = fresh_references.measure_if_budget(picture, float(at), state, reference_proposals,
-            reference_tables, reference_coverage, essential_seconds=time.perf_counter()-began)
+            reference_tables, reference_coverage, essential_seconds=time.perf_counter()-began, **priority_options)
         state['fresh_source_reference_frames'], state['fresh_source_reference_status'] = frames, unavailable
         measured_frames = getattr(fresh_references, 'material_frames', ())
         state['fresh_source_material_frames'] = tuple((r.variant_key, b) for r, b in measured_frames)
@@ -129,6 +136,8 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
             state['source_material_groups'] = material_groups.observe(current, picture, float(at), tuple(matches),
                 wholes=state.get('source_referents', {}))
             state['source_material_group_readings'] = material_groups.readings
+    state['source_extent_receipts'] = (*refused_requests, *measured_extent_receipts(requests,
+        getattr(whole_referents, 'readings', ()), state.get('source_referents', {}), float(at), state.get('pixels_consumed')))
     return copy.deepcopy(happened), state
 
 
@@ -202,6 +211,8 @@ class PlayObservation:
         self._material_groups = SourceMaterialGroupsInView()
         self._mirror.source_material_groups = {}
         self._mirror.source_material_group_readings = ()
+        self._mirror.source_extent_requests = ()
+        self._mirror.source_extent_receipts = ()
         self._mirror.source_referents = {}
         self._mirror.source_referent_readings = ()
         self._mirror.source_reference_points = ()
@@ -288,6 +299,7 @@ class PlayObservation:
 
     async def see(self, picture: Any, at: float, *, search_hint: Any = None) -> list[dict[str, Any]] | None:
         """Return this frame's events, or None while its measurement is unavailable."""
+        self._mirror.source_extent_receipts = ()
         self._mirror.source_material_groups = {}
         self._mirror.source_material_group_readings = ()
         self._mirror.source_reference_points = ()
@@ -310,6 +322,8 @@ class PlayObservation:
         if at <= self._last_submitted_at:
             self._status = "repeated observation"
             return None
+        extent_requests = self._mirror.source_extent_requests
+        self._mirror.source_extent_requests = ()
         owned_picture, owned_at = copy.deepcopy(picture), copy.deepcopy(at)
         if search_hint is not None:
             from core.perception.a_search_hint_for_these_pixels import PixelSearchHint
@@ -333,8 +347,9 @@ class PlayObservation:
             material_retention=retention, fresh_references=self._fresh_references,
             reference_proposals=proposals, reference_tables=tables, reference_coverage=coverage,
             whole_referents=self._whole_referents, material_groups=self._material_groups,
-            reference_frames=reference_frames))
+            reference_frames=reference_frames, extent_requests=extent_requests))
         if operation is None:
+            self._mirror.source_extent_requests = extent_requests
             return None
         self._last_submitted_at = float(at)
         events = await self._wait(operation, self._frame_wait_s)
@@ -374,6 +389,8 @@ class PlayObservation:
         self._material_groups = None
         self._mirror.source_material_groups = {}
         self._mirror.source_material_group_readings = ()
+        self._mirror.source_extent_requests = ()
+        self._mirror.source_extent_receipts = ()
         self._mirror.source_referents = {}
         self._mirror.source_referent_readings = ()
         if self._references is not None:
