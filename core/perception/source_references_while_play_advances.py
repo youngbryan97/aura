@@ -21,6 +21,7 @@ from core.perception.a_source_point_on_visible_marks import SourcePointOnVisible
 from core.perception.points_a_consumer_still_needs import MaterialRetention, MaterialRegion
 from core.perception.a_visual_reference_in_the_picture import reference_appearances
 from core.perception.source_reference_proposals import SourceReferenceProposal
+from core.perception.named_material_in_a_consumed_frame import MaterialMarks
 from core.perception.visual_references_for_current_sources import (
     RegisteredVisualReference, _belongs, acquire_visual_references, current_visual_sources, reference_variant_coverage,
 )
@@ -40,6 +41,40 @@ def _acquired_for_play(tables: tuple, layers: tuple, root: Any):
 
     references, refused = with_source_layer_proposals(catalog.references, layers)
     return ReferencesAcquired(interleaved_reference_variants(references), (*catalog.unavailable, *refused))
+
+
+def retention_for_source_frames(observer: Any, at: float, frames: tuple) -> MaterialRetention | None:
+    """Keep only currently observed source marks within the existing point budget."""
+    marks = getattr(observer, 'material_marks', None)
+    if (not isinstance(marks, MaterialMarks) or marks.pixels != getattr(observer, 'pixels_consumed', None)
+            or type(at) not in (int, float) or not math.isfinite(at) or marks.pixels.at != at
+            or not isinstance(frames, tuple) or len(frames) > 64):
+        return None
+    visible = {(p.number, p.born) for p in marks.points}
+    retained, regions = set(), []
+    for item in frames:
+        if not isinstance(item, tuple) or len(item) != 2:
+            continue
+        reference, binding = item
+        if (not isinstance(reference, RegisteredVisualReference) or not isinstance(binding, SourcePointOnVisibleMarks)
+                or reference.source != binding.source or reference.coordinates.reference_sha256 != binding.reference_sha256):
+            continue
+        sample = binding.inspect(observer, at, source=reference.source).current
+        if sample is None:
+            continue
+        anchors = tuple((a[0], a[1]) for a in binding.anchors if (a[0], a[1]) in visible)
+        retained.update(anchors)
+        if sample.sampling_region is not None:
+            regions.append((sample.sampling_region, anchors))
+    names = tuple(sorted(retained)[:64])
+    if not names:
+        return None
+    proposed = []
+    for box, anchors in regions:
+        supported = tuple(key for key in anchors if key in names)
+        if len(supported) >= 3:
+            proposed.append(MaterialRegion(box, supported))
+    return MaterialRetention(marks.epoch, at, at+.5, names, tuple(proposed[:4]))
 
 
 @dataclass(frozen=True)
@@ -338,7 +373,8 @@ class SourceReferencesInPlay:
                     continue
                 key, binding = item
                 if (isinstance(key, tuple) and len(key) == 4 and isinstance(key[0], str)
-                        and type(key[1]) is int and isinstance(key[2], str) and type(key[3]) is int and key in registered):
+                        and type(key[1]) is int and isinstance(key[2], str)
+                        and type(key[3]) in (int, str) and key in registered):
                     delivered.append((registered[key], binding))
             self.frames, refused = _with_current_material_frames(self.frames, tuple(delivered), observer, at, self.tables)
             self.refused = (*self.refused[-31:], *refused)
@@ -354,30 +390,17 @@ class SourceReferencesInPlay:
         self.bindings = tuple(kept)
         self.points, conflicting = _coalesced(points)
         self.refused = (*self.refused[-31:], *conflicting)
-        kept_frames, source_frames, retained, regions = [], [], set(), []
+        kept_frames, source_frames = [], []
         for reference, binding in self.frames:
             sample = binding.inspect(observer, at, source=reference.source)
             if sample.current is not None:
                 kept_frames.append((reference, binding))
                 source_frames.append(SourceReferenceFrame(reference.source, reference.declaration.character_id,
                     reference.declaration.name, reference.coordinates.reference_sha256, sample.current))
-                retained.update((anchor[0], anchor[1]) for anchor in binding.anchors)
-                if sample.current.sampling_region is not None:
-                    regions.append((sample.current.sampling_region, tuple((a[0], a[1]) for a in binding.anchors)))
             else:
                 self.refused = (*self.refused[-31:], sample.reason)
         self.frames, self.source_frames = tuple(kept_frames), tuple(source_frames)
-        marks = getattr(observer, 'material_marks', None)
-        if retained and marks is not None:
-            visible = {(p.number, p.born) for p in marks.points}
-            names = tuple(sorted(retained & visible)[:64])
-            if names:
-                proposed = []
-                for box, anchors in regions:
-                    supported = tuple(key for key in anchors if key in names)
-                    if len(supported) >= 3:
-                        proposed.append(MaterialRegion(box, supported))
-                self.retention = MaterialRetention(marks.epoch, at, at+.5, names, tuple(proposed[:4]))
+        self.retention = retention_for_source_frames(observer, at, self.frames)
         if self._work is not None:
             self.status = self._work.kind+('_late' if now-self._work.started > 5. else '_pending')
             return self.points

@@ -1708,3 +1708,26 @@ working-coordinate precision and whole-extent gates.
 Do not count that private fit as current production perception or native
 play. Evidence remains under
 `artifacts/flash-campaign/2026-10-20-source-layer-composition/`.
+
+Bounded current-pixel pose refinement is now integrated into the existing
+optional refit. It requires training and held-out improvement, preserves
+every original patch observation and reports their actual new residual.
+The existing material-precision and whole-pixel/edge gates remain intact.
+A separate live handoff fix admits registered composition keys that the
+actor's old integer-only discriminator silently discarded.
+
+The replay now uses the same source-mark retention helper as ordinary play.
+In 32 retained pictures, current source material survives in 30 and whole
+referents qualify in 23. One building identity survives all 23 observations;
+a ship qualifies once with no control attribution. Building velocity
+uncertainty falls below the existing binding threshold and ends at 0.6668
+working pixels per second. These are recorded-pixel observations, not live
+names, bound goals, contact, landings or native success.
+
+Expanded tests: 228 passed; final refinement tests: 14 passed. Preserve the
+red composition-handoff test and omitted-retention replay as evidence.
+Artifacts: `artifacts/flash-campaign/2026-10-20-current-pixel-refinement/`.
+Next verify downstream source contact/coordinate requirements and ordinary
+naming/goal custody. Native proof still needs an authorized live-model run;
+the GPU remains reserved for Bryan's demos. Continue CPU-only code work,
+preserve G09/holdouts and do not restart the resident runtime.

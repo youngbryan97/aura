@@ -59,7 +59,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         raise RuntimeError('recorded-pixel measurement requires classical imports and model workers prohibited')
     boundary.require_intact()
     from core.perception.a_material_frame_kept_for_its_owner import keep_material_frame
-    from core.perception.source_references_while_play_advances import _matched, _with_current_material_frames
+    from core.perception.source_references_while_play_advances import _matched, _with_current_material_frames, retention_for_source_frames
     from core.perception.source_geometry_in_current_pixels import SourceGeometryInCurrentPixels
     from core.perception.source_reference_proposals import SourceReferenceProposal
     from core.perception.frames_as_they_are_drawn import CanvasFrameTime
@@ -93,6 +93,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     geometry, proposals = SourceGeometryInCurrentPixels(), {}
     bindings, searches, rows = (), [], []
     requests = ()
+    retention = None
     began = time.monotonic()
     for index, (event, picture) in enumerate(_frames(recording, start, frames)):
         at = float(event['capture']['at'])
@@ -103,9 +104,9 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
             options = dict(whole_referents=wholes, material_groups=material_groups,
                            reference_frames=bindings, extent_requests=requests) if request_material_extents else {}
             _, state = _seen(observer, picture, CanvasFrameTime(at, **capture), fresh_references=geometry,
-                reference_proposals=tuple(proposals.values()), reference_tables=(table,), **options)
+                reference_proposals=tuple(proposals.values()), reference_tables=(table,), material_retention=retention, **options)
         else:
-            observer.see(picture, at)
+            observer.see(picture, at, material_retention=retention)
         registered = {r.variant_key: r for r in catalog.references}
         offered = tuple((registered[key], binding) for key, binding in state.get('fresh_source_material_frames', ()))
         bindings, _ = _with_current_material_frames(bindings, offered, observer, at, (table,))
@@ -132,6 +133,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                 current.append((reference, binding, point))
                 kept.append((reference, binding))
         bindings = tuple(kept)
+        retention = retention_for_source_frames(observer, at, bindings)
         started = time.perf_counter()
         if request_material_extents:
             # Broad search results become available to the following frame.
@@ -149,6 +151,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         rows.append(dict(sequence=event['sequence'], file=event['file'], at=at,
             picture_sha256=observer.pixels_consumed.sha256, material_marks=len(observer.material_marks.points),
             source_frames=len(current), producer_seconds=elapsed, readings=list(wholes.readings),
+            retained_marks_admitted=getattr(observer, 'material_retention_admitted', None),
             material_groups=[dict(number=g.number, born=g.born, kind=g.kind, source=g.source,
                 character_id=g.character_id, box=list(g.box()), anchors=len(g.anchors),
                 material_bounds=list(g.material_bounds),
@@ -163,6 +166,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
             fresh_geometry_status=state.get('fresh_source_reference_status', ()),
             fresh_material_frames=len(state.get('fresh_source_material_frames', ())),
             fresh_material_status=state.get('fresh_source_material_status', ()),
+            pose_refinements=state.get('fresh_source_pose_refinements', ()),
             referents=[dict(number=w.number, born=w.born, kind=w.kind, source=w.source,
                 character_id=w.character_id, reference_sha256=w.reference_sha256,
                 box=list(w.box()), vx=w.vx, vy=w.vy, velocity_error=w.velocity_error,

@@ -19,6 +19,7 @@ include_rules = [
     "+core.perception.two_rasters_in_one_declared_pixel_frame", # Pure full-raster alignment canary, without rendering or file access.
     "+core.perception.source_layers_with_copied_positions", # Pure source-layer proposal canary; no execution-state authority.
     "+core.perception.composed_source_artwork_for_pixel_search", # Pure bounded artwork-construction canary; no input or rendering.
+    "+core.perception.a_reference_pose_refined_in_current_pixels", # Pure pose-refinement boundary canary; no file or model access.
     "+core.perception.whole_referents_from_source_material", # Pure whole-observation identity/contact canary; no capture or input.
     "+core.perception.a_source_method_with_resolved_values", # Pure bounded source arithmetic canary; no source I/O or input.
     "+core.agency.a_contrast_that_meets_both_tests", # Pure paired-gate ranking canary; no input or model execution.

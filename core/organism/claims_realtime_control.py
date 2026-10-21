@@ -3,6 +3,7 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.a_reference_pose_refined_in_current_pixels import _pixel_pose_refinement_invariant
     from core.perception.source_layers_with_copied_positions import _source_layer_proposal_invariant
     from core.perception.composed_source_artwork_for_pixel_search import _composed_source_artwork_invariant
     from core.perception.two_rasters_in_one_declared_pixel_frame import _dense_static_frame_invariant
@@ -82,7 +83,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('source_layers_propose_artwork_without_current_scene_authority', 'core/perception/source_layers_with_copied_positions.py',
+    return (('current_pixel_pose_refinement_keeps_its_original_patch_uncertainty', 'core/perception/a_reference_pose_refined_in_current_pixels.py',
+             'tests/test_current_pixels_refine_an_owned_reference_pose.py', lambda: _pixel_pose_refinement_invariant() == (),
+             'A bounded current-pixel correction needs held-out improvement and retains every original patch observation with its actual residual; existing material and whole-extent gates remain required.'),
+            ('source_layers_propose_artwork_without_current_scene_authority', 'core/perception/source_layers_with_copied_positions.py',
              'tests/test_source_layers_propose_composed_pixels.py', lambda: _source_layer_proposal_invariant() == () and _composed_source_artwork_invariant() == (),
              'Owned literal source attachments and copied positions can propose bounded registered artwork compositions; current pixels and material custody remain required, with execution and roles unresolved.'),
             ('thin_static_frames_need_complete_independent_pixel_agreement', 'core/perception/two_rasters_in_one_declared_pixel_frame.py',

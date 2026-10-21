@@ -773,3 +773,56 @@ physical input, G09 or holdout was used. Native gameplay remains unproven.
 Final source-layer regression passed 181 tests in 22.10 seconds. Smoke
 passed 164 tests with one skip; lint, compilation, layering and writing
 passed in 74.70 seconds. These include the corrected catalog-consumer test.
+
+## Current pixels refine the pose and the actor keeps its material
+
+- [x] One optional reference refit can now make a bounded affine correction
+  against the current picture. Training and held-out spatial tiles must
+  improve, including raw held-out RGB. Solver evaluations, correction size
+  and image work are bounded. The existing optional-work share pays for it.
+- [x] Original bidirectional patch observations remain unchanged. The new
+  actual maximum residual is recorded as the pose's uncertainty; it is not
+  replaced by the former smaller number. Existing material precision,
+  full-extent colour/outlier and edge gates still decide admission.
+- [x] A meaningful regression reproduced a live handoff defect: the actor
+  accepted only integer frame discriminators and discarded qualified
+  composition keys. The known registered key contract now admits those
+  explicit composition identities and retains their current named marks.
+- [x] The replay harness now calls the same bounded source-mark retention
+  helper as ordinary play. It previously omitted this consumer entirely.
+  Point capacity, expiry, current pixels, source hash and mark identity still
+  apply. No initial body, location or destination was supplied.
+- [ ] The live visual naming request, source-derived contact geometry,
+  reliable control/arrival and independently witnessed native play remain
+  unproven. Pixel qualification alone does not complete any of them.
+
+The first integrated twelve-picture replay admitted one whole source
+referent: mean error 0.000546, maximum edge error 0.00724 and zero outliers.
+That run had no point-retention consumer and exposed the handoff above.
+With the actual retention path, the longer 32-picture replay supplies
+qualified whole referents in 23 pictures and current source material in 30.
+One building identity survives all 23 of its qualified observations. A
+second identity is a single whole ship appearance, not confirmed control.
+Building velocity uncertainty falls from 7.7916 to below 2 working pixels
+per second as the retained time span grows, and ends at 0.6668. No model was
+asked, input delivered, goal bound, contact proved or native task passed.
+
+The first refinement group passed 50 tests. The live handoff regression
+failed before the key fix; the corrected continuity group passed 88 tests.
+An expanded group passed 228 tests in 108.32 seconds, including existing
+point-capacity/retention checks. The final 14 refinement tests also pass,
+including a scene where training-tile displacement contradicts held-out
+pixels and the proposed correction is refused. An earlier command named
+an absent retention-test file and collected no tests; its setup failure
+is retained. Shared-host timings are not real-time gameplay measurements.
+
+Evidence is under
+`artifacts/flash-campaign/2026-10-20-current-pixel-refinement/`. GPU, G09 and
+holdouts remain untouched. No resident runtime was started, stopped or
+restarted by this work.
+
+The current-pixel checkpoint passed smoke (164 passed, one skipped), lint,
+compilation, layering and writing in 361.27 seconds on the shared host.
+Smoke itself took 210.01 seconds and continued to make progress; an owned
+OS-level sample was retained while checking that delay. This is neither a
+real-time play-rate measurement nor a reason to change the native runtime.

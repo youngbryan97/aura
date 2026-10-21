@@ -267,3 +267,62 @@ def test_a_composed_appearance_is_not_present_merely_because_source_proposes_it(
             seen.update(registry.observe(observer, picture, 4., ((composed, binding,
                 binding.current(observer, 4., source=SOURCE)),)))
     assert not seen and not observer.things
+
+
+def test_the_live_reference_owner_keeps_a_fresh_composition_and_its_visible_marks(scene):
+    from core.cognition.a_guide_to_a_place import Guide, THE_GUIDE
+    from core.perception import source_references_while_play_advances as work
+    from core.perception.a_source_point_on_visible_marks import attach_source_point_to_visible_marks
+    from core.perception.pixels_consumed_by_the_observer import consumed_pixels
+
+    coordinates, _pose, picture, rgba, observer = scene
+    base = RegisteredVisualReference(SOURCE, BASE, replace(coordinates, source=SOURCE), rgba)
+    over_pixels = np.full((24, 24, 4), (20, 170, 210, 255), np.uint8)
+    composed = compose_source_layers(base, registered(OVER, over_pixels, (0., 0.)), proposal())
+    picture = picture.copy()
+    picture[30:94, 40:104] = composed.pixels[..., :3]
+    observer.pixels_consumed = consumed_pixels(picture, 4.)
+    observer.material_marks = replace(observer.material_marks, pixels=observer.pixels_consumed)
+    pose, = reference_appearances(picture, composed.pixels, scales=(1.,))
+    binding = attach_source_point_to_visible_marks(composed.coordinates, (0., 0.), pose, picture, composed.pixels,
+        observer, 4., source=SOURCE).binding
+    assert binding is not None
+    observer.fresh_source_material_frames = ((composed.variant_key, binding),)
+    owner = work.SourceReferencesInPlay()
+    owner.tables, owner.layers, owner.catalog = (TABLE,), (proposal(),), (composed,)
+    owner._loaded, owner._next = True, float('inf')
+    token = THE_GUIDE.set(Guide(program_visual_assets=(TABLE,), program_visual_layers=(proposal(),)))
+    try:
+        owner.advance(observer, picture, 4., (TABLE,), now=10.)
+        assert owner.frames == ((composed, binding),)
+        assert len(owner.source_frames) == 1 and owner.retention is not None
+        assert len(owner.retention.names) >= 3 and owner.retention.epoch == observer.material_marks.epoch
+        assert not observer.things
+    finally:
+        owner.retire()
+        THE_GUIDE.reset(token)
+
+
+@pytest.mark.parametrize('damage', ['marks', 'stale', 'source', 'bytes', 'item', 'capacity'])
+def test_retention_cannot_keep_unmeasured_or_unowned_source_marks(scene, damage):
+    from core.perception.source_references_while_play_advances import retention_for_source_frames
+
+    reference = registered(BASE, scene[3], scene[0].offset)
+    observer = scene[-1]
+    # This binding's source is intentionally independent of the reference.
+    original = attach(scene).binding
+    frames = ((reference, original),)
+    if damage == 'marks':
+        observer.material_marks = None
+    elif damage == 'stale':
+        observer.pixels_consumed = replace(observer.pixels_consumed, at=3.9)
+    elif damage == 'source':
+        pass
+    elif damage == 'bytes':
+        frames = ((replace(reference, source='source'), original),)
+        frames = ((replace(frames[0][0], coordinates=replace(reference.coordinates, reference_sha256='f'*64)), original),)
+    elif damage == 'item':
+        frames = (None,)
+    else:
+        frames = frames*65
+    assert retention_for_source_frames(observer, 4., frames) is None

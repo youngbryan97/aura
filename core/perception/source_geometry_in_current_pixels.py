@@ -138,6 +138,7 @@ class SourceGeometryInCurrentPixels:
         self.material_status = ()
         self._searched = None
         self._pending_seconds = None
+        self.refinement_readings = ()
 
     def finish_sampling(self):
         """Charge completed optional work even when observation was abandoned."""
@@ -153,6 +154,7 @@ class SourceGeometryInCurrentPixels:
         geometry after observation; neither the hint nor a fit grants identity.
         """
         self.finish_sampling()
+        self.refinement_readings = ()
         self._prepared = None
         self.material_frames = ()
         self.material_status = ()
@@ -212,6 +214,7 @@ class SourceGeometryInCurrentPixels:
                     self._pending_seconds += time.perf_counter()-began
                     self.finish_sampling()
         self._essential_seconds = 0.
+        self.refinement_readings = ()
         if not proposals and not self.records:
             return self.measure(picture, at, state, proposals, tables, covered, one_position=True, priority=priority)
         if not self.work_share.reserve(essential_seconds):
@@ -257,6 +260,7 @@ class SourceGeometryInCurrentPixels:
         return _enclosed_measurements(tuple(measured)), tuple(unavailable)
 
     def _fits(self, picture, at, proposals, tables, covered, *, one_position, priority=()):
+        self.refinement_readings = ()
         self._searched = None
         if type(one_position) is not bool:
             return (), ('fresh_reference_position_capacity_unavailable',)
@@ -322,6 +326,15 @@ class SourceGeometryInCurrentPixels:
             unavailable.append('fresh_reference_positions_unsearched')
         options = {'position': position} if one_position else {}
         found = near_reference_appearances(picture, reference.pixels, (poses[selected],), **options)
+        if found:
+            from core.perception.a_reference_pose_refined_in_current_pixels import refine_reference_pose
+
+            refined = refine_reference_pose(picture, reference.pixels, found[0])
+            self.refinement_readings = (dict(source=reference.source, character_id=reference.declaration.character_id,
+                reference_sha256=reference.key[2], captured_at=at, picture_sha256=found[0].picture_sha256,
+                **refined.receipt()),)
+            if refined.pose is not None:
+                found = (refined.pose, *found[1:])
         if found:
             self.records[key] = reference, _refitted_pose_bank(poses, selected, found), revision
             if len(found) > 1:

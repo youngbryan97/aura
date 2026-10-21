@@ -113,6 +113,7 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
         measured_frames = getattr(fresh_references, 'material_frames', ())
         state['fresh_source_material_frames'] = tuple((r.variant_key, b) for r, b in measured_frames)
         state['fresh_source_material_status'] = getattr(fresh_references, 'material_status', ())
+        state['fresh_source_pose_refinements'] = getattr(fresh_references, 'refinement_readings', ())
         if measured_frames:
             from types import SimpleNamespace
             from core.perception.source_references_while_play_advances import _with_current_material_frames
@@ -219,6 +220,7 @@ class PlayObservation:
         self._mirror.source_reference_frames = ()
         self._mirror.fresh_source_reference_frames = ()
         self._mirror.fresh_source_material_frames = ()
+        self._mirror.fresh_source_pose_refinements = ()
         self._mirror.fresh_source_reference_status = ()
         self._mirror.source_reference_status = 'no_current_source'
         self._mirror.source_reference_variant_coverage = ()
@@ -301,6 +303,7 @@ class PlayObservation:
     async def see(self, picture: Any, at: float, *, search_hint: Any = None) -> list[dict[str, Any]] | None:
         """Return this frame's events, or None while its measurement is unavailable."""
         self._mirror.source_extent_receipts = ()
+        self._mirror.fresh_source_pose_refinements = ()
         self._mirror.source_material_groups = {}
         self._mirror.source_material_group_readings = ()
         self._mirror.source_reference_points = ()
@@ -387,6 +390,7 @@ class PlayObservation:
             return
         self._closed = True
         self._fresh_references = None
+        self._mirror.fresh_source_pose_refinements = ()
         self._whole_referents = None
         self._material_groups = None
         self._mirror.source_material_groups = {}
