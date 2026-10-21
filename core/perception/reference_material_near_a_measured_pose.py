@@ -4,11 +4,10 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from PIL import Image
 from scipy import ndimage
 
 from core.perception.a_visual_reference_in_the_picture import (
-    ReferenceAppearance, _SceneCorrelations, _appearance_for_fit, _digest, _oriented_template,
+    ReferenceAppearance, _SceneCorrelations, _appearance_for_fit, _digest,
     _picture_view, _pictures_valid, _supported_fit,
 )
 from core.verify import invariant
@@ -48,6 +47,24 @@ def _positions_for_fit(places: tuple, position: int | None) -> tuple:
     return places if position is None else places[position % 3:position % 3+1]
 
 
+def _template_at_measured_shape(reference: np.ndarray, linear: np.ndarray, offset: np.ndarray,
+                                shape: tuple) -> tuple | None:
+    """Keep the measured affine shape, clipping only at the captured image edge."""
+    height, width = reference.shape[:2]
+    corners = np.array(((0., 0.), (width-1., 0.), (0., height-1.), (width-1., height-1.))) @ linear.T+offset
+    low = np.maximum(0, np.floor(corners.min(axis=0))).astype(int)
+    high = np.minimum(np.asarray(shape[::-1])-1, np.ceil(corners.max(axis=0))).astype(int)
+    size = high-low+1
+    if min(size) < 12:
+        return None
+    template_offset = offset-low
+    ys, xs = np.mgrid[:size[1], :size[0]]
+    places = (np.stack((xs, ys), axis=-1)-template_offset) @ np.linalg.inv(linear).T
+    template = np.stack([ndimage.map_coordinates(reference[..., c], [places[..., 1], places[..., 0]],
+        order=1, mode='constant', cval=0.) for c in range(4)], axis=-1)
+    return template, linear, template_offset, low
+
+
 def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
         proposals: tuple[ReferenceAppearance, ...], *, edge: int = 480,
         position: int | None = None) -> tuple[ReferenceAppearance, ...]:
@@ -66,8 +83,7 @@ def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
         return ()
     reference_hash, picture_hash = _digest(reference), _digest(picture)
     pixels, scale, origin, _ratio = _picture_view(picture, edge)
-    centre = (np.asarray(reference.shape[1::-1])-1)/2
-    source, found = Image.fromarray(reference), []
+    found = []
     for proposal in proposals:
         if not isinstance(proposal, ReferenceAppearance) or proposal.reference_sha256 != reference_hash:
             continue
@@ -78,14 +94,11 @@ def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
                     or np.linalg.cond(linear) > 100 or np.max(abs(offset)) > 8192):
                 continue
             viewed = linear*scale[:, None]
-            size = tuple(int(round(v)) for v in np.linalg.norm(viewed, axis=0)*np.asarray(source.size))
-            if min(size) < 12 or size[0] > pixels.shape[1] or size[1] > pixels.shape[0]:
+            placed_offset = scale*(offset-origin)
+            measured_template = _template_at_measured_shape(reference, viewed, placed_offset, pixels.shape[:2])
+            if measured_template is None:
                 continue
-            angle = math.atan2(viewed[1, 0], viewed[0, 0])
-            template, template_linear, template_offset = _oriented_template(source, size, angle)
-            if template.shape[0] > pixels.shape[0] or template.shape[1] > pixels.shape[1]:
-                continue
-            place = viewed @ centre+scale*(offset-origin)-(np.asarray(template.shape[1::-1])-1)/2
+            template, template_linear, template_offset, place = measured_template
             tried = set()
             for whole_picture in ((False, True) if position is None else (bool(position//3),)):
                 measured = False

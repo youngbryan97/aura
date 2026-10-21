@@ -22,7 +22,7 @@ from core.perception.points_a_consumer_still_needs import MaterialRetention, Mat
 from core.perception.a_visual_reference_in_the_picture import reference_appearances
 from core.perception.source_reference_proposals import SourceReferenceProposal
 from core.perception.visual_references_for_current_sources import (
-    RegisteredVisualReference, acquire_visual_references, current_visual_sources,
+    RegisteredVisualReference, _belongs, acquire_visual_references, current_visual_sources,
 )
 from core.runtime.executors import submit_blocking_io
 from core.runtime.lockdep import checked_thread_semaphore
@@ -136,6 +136,35 @@ def _finished(raw: Future, slots: Any) -> None:
             raw.exception()
     finally:
         slots.release()
+
+
+def _with_current_material_frames(retained: tuple, offered: tuple, observer: Any, at: float, tables: tuple) -> tuple:
+    """Renew a measured source frame using its own current named material."""
+    if not isinstance(offered, tuple) or len(offered) > 32:
+        return retained, ('source_frame_offer_capacity_unavailable',)
+    refused = []
+    for offer in offered:
+        if not isinstance(offer, tuple) or len(offer) != 2:
+            refused.append('source_frame_offer_unreadable')
+            continue
+        reference, fresh = offer
+        if (not isinstance(reference, RegisteredVisualReference) or not isinstance(fresh, SourcePointOnVisibleMarks)
+                or reference.source != fresh.source or reference.key[2] != fresh.reference_sha256
+                or not any(_belongs(reference, table) for table in current_visual_sources(tables))):
+            refused.append('source_frame_offer_source_changed')
+            continue
+        sample = fresh.inspect(observer, at, source=reference.source)
+        if sample.current is None:
+            refused.append(sample.reason)
+            continue
+        names = {(a[0], a[1]) for a in fresh.anchors}
+        retained = tuple((r, old) for r, old in retained if r.key != reference.key or old.epoch != fresh.epoch
+                         or len(names & {(a[0], a[1]) for a in old.anchors}) < 3)
+        if len(retained) < 64:
+            retained = (*retained, (reference, fresh))
+        else:
+            refused.append('source_frame_capacity_unavailable')
+    return retained, tuple(refused)
 
 
 class SourceReferencesInPlay:
@@ -277,6 +306,20 @@ class SourceReferencesInPlay:
         if not self.tables:
             self.status = 'no_current_source'
             return ()
+        offered = getattr(observer, 'fresh_source_material_frames', ())
+        if isinstance(offered, tuple) and len(offered) <= 32:
+            registered = {r.key: r for r in self.catalog}
+            registered.update((p.reference.key, p.reference) for p in self.proposals)
+            delivered = []
+            for item in offered:
+                if not isinstance(item, tuple) or len(item) != 2:
+                    continue
+                key, binding = item
+                if (isinstance(key, tuple) and len(key) == 3 and isinstance(key[0], str)
+                        and type(key[1]) is int and isinstance(key[2], str) and key in registered):
+                    delivered.append((registered[key], binding))
+            self.frames, refused = _with_current_material_frames(self.frames, tuple(delivered), observer, at, self.tables)
+            self.refused = (*self.refused[-31:], *refused)
         kept, points = [], []
         for reference, binding in self.bindings:
             sample = binding.inspect(observer, at, source=reference.source)

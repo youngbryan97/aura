@@ -453,3 +453,44 @@ counterexamples are retained in
 `artifacts/flash-campaign/2026-10-20-supplied-solutions-code/audit.json`.
 No GPU, model worker, G09, holdout or native input was used. The remaining
 viable producer work stays unchecked above; this is not a completion verdict.
+
+### Current source appearance reaches ordinary point sampling
+
+- [x] G1/G2: a qualified appearance can request current point sampling before
+  it owns any global marks. The ordinary observation worker refits one pose
+  against current RGB bytes, produces an exact-capture `PixelSearchHint`,
+  then uses the actual sampler. No source noun, body identity or role is added.
+- [x] The fast refitter retains its measured affine transform. It previously
+  rebuilt a rotated, axis-scaled template and required that whole template to
+  fit inside the image. The retained destination crosses the bottom boundary;
+  all six fast probes rejected even the original matched frame. The refitter
+  now renders the measured affine shape and clips its sampling template at
+  the image boundary. Six current bidirectional patch correspondences remain
+  required. Three independent affine/clipping fixtures pass; blank frames fail.
+- [x] The fit is reused after observation to attach its source frame to actual
+  current named marks. These enter the ordinary reference owner's retention
+  path under current source, hash, epoch and point checks. RGB reference data
+  stays private; the published handoff contains a source key and mark binding.
+  Stale/foreign offers fail, and renewal does not multiply the same binding.
+- [x] Optional work pays for refitting and subsequent material attachment.
+  Current observation supplies the next interval's allowance. Abandoned work
+  retains its charge; a refit never buys another refit with its own elapsed time.
+- [ ] Whole-object visibility remains unresolved for this retained destination.
+  The whole verifier refuses an object whose artwork crosses the canvas edge.
+  Current material is now established; distinguish clipping outside the image
+  from contradicted material inside it before publishing a partial observation.
+  Task role, collision/contact height and ordinary native play remain open.
+
+The regression group passed 200 tests in 32.21 seconds. The final source-owner
+group passed 17 tests in 6.25 seconds. Smoke: 164 passed, one skipped. Lint,
+compile, layering and writing passed; the gate supervisor took 89.48 seconds.
+All runs prohibited model workers and used the CPU-only import boundary.
+
+The final twelve-frame retained-pixel replay has seven consumed sampling hints,
+eight frames with current source material, and zero whole referents. A consumed
+hint reserves 64 points inside and 128 outside within the unchanged 192-point
+budget. The original zero result and intermediate failures remain retained.
+The current refusal is `whole_reference_out_of_view`; the independently viewed
+frame shows the destination's ladder extending below the image. Results are in
+`artifacts/flash-campaign/2026-10-20-current-reference-sampling/`.
+There was no physical input, language model, GPU, native run or demo verdict.

@@ -49,7 +49,8 @@ def _frames(directory: Path, start: int, count: int):
                 break
 
 
-def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, frames: int, match_every: int) -> dict:
+def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, frames: int, match_every: int,
+            sample_matched_appearances: bool = False) -> dict:
     from core.runtime.classical_compute_boundary import current_classical_boundary
     from core.runtime.model_worker_policy import model_workers_allowed
 
@@ -58,7 +59,11 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         raise RuntimeError('recorded-pixel measurement requires classical imports and model workers prohibited')
     boundary.require_intact()
     from core.perception.a_material_frame_kept_for_its_owner import keep_material_frame
-    from core.perception.source_references_while_play_advances import _matched
+    from core.perception.source_references_while_play_advances import _matched, _with_current_material_frames
+    from core.perception.source_geometry_in_current_pixels import SourceGeometryInCurrentPixels
+    from core.perception.source_reference_proposals import SourceReferenceProposal
+    from core.perception.frames_as_they_are_drawn import CanvasFrameTime
+    from core.perception.play_observation_without_holding_the_loop import _seen
     from core.perception.visual_assets_in_a_flash_file import read_flash_visual_assets
     from core.perception.visual_references_for_current_sources import acquire_visual_references
     from core.perception.what_moves_in_the_picture import WhatMoves
@@ -72,11 +77,22 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     table = read_flash_visual_assets(raw)
     catalog = acquire_visual_references((table,), root=catalog_root)
     observer, wholes = WhatMoves(), WholeReferentsInView()
+    geometry, proposals = SourceGeometryInCurrentPixels(), {}
     bindings, searches, rows = (), [], []
     began = time.monotonic()
     for index, (event, picture) in enumerate(_frames(recording, start, frames)):
         at = float(event['capture']['at'])
-        observer.see(picture, at)
+        state = {}
+        if sample_matched_appearances:
+            capture = dict(event['capture'])
+            capture.pop('at')
+            _, state = _seen(observer, picture, CanvasFrameTime(at, **capture), fresh_references=geometry,
+                reference_proposals=tuple(proposals.values()), reference_tables=(table,))
+        else:
+            observer.see(picture, at)
+        registered = {r.key: r for r in catalog.references}
+        offered = tuple((registered[key], binding) for key, binding in state.get('fresh_source_material_frames', ()))
+        bindings, _ = _with_current_material_frames(bindings, offered, observer, at, (table,))
         if index % match_every == 0:
             captured = keep_material_frame(observer, picture, at)
             if captured is None:
@@ -87,6 +103,9 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                 searches.append(dict(sequence=event['sequence'], source=reference.source,
                     character_id=reference.declaration.character_id, appearances=len(result.appearances),
                     object_origins=len(result.bindings), material_frames=len(result.frames), refused=list(result.refused)))
+                if result.appearances:
+                    proposals[reference.key] = SourceReferenceProposal(reference, result.capture,
+                        result.appearances, index+1)
                 found.extend((reference, binding) for binding in result.frames)
             bindings = (*bindings, *found)[-64:]
         current, kept = [], []
@@ -102,6 +121,11 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         rows.append(dict(sequence=event['sequence'], file=event['file'], at=at,
             picture_sha256=observer.pixels_consumed.sha256, material_marks=len(observer.material_marks.points),
             source_frames=len(current), producer_seconds=elapsed, readings=list(wholes.readings),
+            sampling_hint=asdict(observer.sampling_hint_receipt) if observer.sampling_hint_receipt else None,
+            fresh_geometry=len(state.get('fresh_source_reference_frames', ())),
+            fresh_geometry_status=state.get('fresh_source_reference_status', ()),
+            fresh_material_frames=len(state.get('fresh_source_material_frames', ())),
+            fresh_material_status=state.get('fresh_source_material_status', ()),
             referents=[dict(number=w.number, born=w.born, kind=w.kind, source=w.source,
                 character_id=w.character_id, reference_sha256=w.reference_sha256,
                 box=list(w.box()), vx=w.vx, vy=w.vy, velocity_error=w.velocity_error,
@@ -113,7 +137,10 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         unavailable=list(catalog.unavailable), searches=searches, frames=rows,
         frames_with_whole_referents=sum(bool(row['referents']) for row in rows),
         distinct_whole_ids=len({w['number'] for row in rows for w in row['referents']}),
+        frames_with_sampling_hints=sum(bool(row['sampling_hint']) for row in rows),
+        frames_with_current_source_material=sum(bool(row['source_frames']) for row in rows),
         duration_s=time.monotonic()-began, model_workers=False, input_delivered=False,
+        sample_matched_appearances=sample_matched_appearances,
         classical_boundary=boundary.report(), goal_bound=False, contact_proven=False, native_play=False, demo_ready=False)
 
 
@@ -126,6 +153,7 @@ def main() -> None:
     parser.add_argument('--start-sequence', type=int, default=0)
     parser.add_argument('--frames', type=int, default=12)
     parser.add_argument('--match-every', type=int, default=8)
+    parser.add_argument('--sample-matched-appearances', action='store_true')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('a fresh output path is required')
@@ -133,7 +161,8 @@ def main() -> None:
 
     with classical_compute_boundary():
         result = measure(args.recording, args.source, args.catalog_root,
-            start=args.start_sequence, frames=args.frames, match_every=args.match_every)
+            start=args.start_sequence, frames=args.frames, match_every=args.match_every,
+            sample_matched_appearances=args.sample_matched_appearances)
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -141,7 +170,8 @@ def main() -> None:
         gateway = get_file_write_gateway()
         gateway.ensure_directory(args.output.parent, source='recorded_source_parent_measurement')
         gateway.write_text(args.output, json.dumps(result, indent=2)+'\n', source='recorded_source_parent_measurement')
-    print(json.dumps({key: result[key] for key in ('measured_frames', 'frames_with_whole_referents',
+    print(json.dumps({key: result[key] for key in ('measured_frames', 'frames_with_sampling_hints',
+        'frames_with_current_source_material', 'frames_with_whole_referents',
         'distinct_whole_ids', 'duration_s', 'model_workers', 'input_delivered', 'demo_ready')}))
 
 

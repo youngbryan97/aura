@@ -8,7 +8,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from core.perception.a_source_point_on_visible_marks import VisibleSourcePoint
+from core.perception.a_source_point_on_visible_marks import VisibleSourcePoint, attach_source_point_to_visible_marks
+from core.perception.a_search_hint_for_these_pixels import _capture, make_search_hint
 from core.perception.affine_motion_from_named_points import affine_motion
 from core.perception.material_samples_in_a_reference_fit import material_samples
 from core.perception.named_material_in_a_consumed_frame import MaterialMarks
@@ -131,10 +132,86 @@ class SourceGeometryInCurrentPixels:
         self.search_cursors: dict = {}
         self.at = -math.inf
         self.work_share = OptionalWorkShare()
+        self._essential_seconds = 0.
+        self._prepared = None
+        self.material_frames = ()
+        self.material_status = ()
+        self._searched = None
+        self._pending_seconds = None
+
+    def finish_sampling(self):
+        """Charge completed optional work even when observation was abandoned."""
+        if self._pending_seconds is not None:
+            seconds, self._pending_seconds = self._pending_seconds, None
+            self.work_share.spent(seconds)
+
+    def sampling_before_observation(self, picture, at, proposals: tuple, tables: tuple,
+                                    covered: tuple = ()):
+        """Fresh correspondence can request corners before object grouping exists.
+
+        Prior mandatory work buys one current refit. Its result is reused for
+        geometry after observation; neither the hint nor a fit grants identity.
+        """
+        self.finish_sampling()
+        self._prepared = None
+        self.material_frames = ()
+        self.material_status = ()
+        if _capture(at) is None:
+            return None
+        capture = consumed_pixels(picture, float(at))
+        if capture is None:
+            return None
+        self._prepared = capture, (), ()
+        scope = current_visual_sources(tables)
+        if scope != self.scope:
+            self.scope, self.records, self.cursor, self.pose_cursors = scope, {}, 0, {}
+            self.search_cursors.clear()
+        cost, self._essential_seconds = self._essential_seconds, 0.
+        if not proposals and not self.records:
+            return None
+        if not self.work_share.reserve(cost):
+            self._prepared = capture, (), ('fresh_reference_work_deferred',)
+            return None
+        began = time.perf_counter()
+        try:
+            fits, unavailable = self._fits(picture, float(at), proposals, tables, covered, one_position=True)
+            self._prepared = capture, fits, unavailable
+            hint = None
+            if fits:
+                _reference, pose = fits[0]
+                height, width = picture.shape[:2]
+                x, y, w, h = pose.box
+                region = (max(0., x/width), max(0., y/height),
+                          min(1., (x+w)/width), min(1., (y+h)/height))
+                hint = make_search_hint(picture, at, normalized_region=region)
+        except BaseException:
+            self._prepared = None
+            self.work_share.spent(time.perf_counter()-began)
+            raise
+        self._pending_seconds = time.perf_counter()-began
+        return hint
 
     def measure_if_budget(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = (),
                           *, essential_seconds: float) -> tuple:
         """Repay prior optional refits before delaying another essential picture."""
+        self.material_frames = ()
+        self.material_status = ()
+        if self._prepared is not None:
+            capture, fits, unavailable = self._prepared
+            self._prepared = None
+            self._essential_seconds = essential_seconds
+            began = time.perf_counter()
+            try:
+                grid = _current_grid(picture, at, state)
+                if (grid is None or capture != state.get('pixels_consumed')
+                        or current_visual_sources(tables) != self.scope):
+                    return (), ('fresh_reference_capture_unavailable',)
+                return self._measured(fits, picture, at, state, grid, unavailable)
+            finally:
+                if self._pending_seconds is not None:
+                    self._pending_seconds += time.perf_counter()-began
+                    self.finish_sampling()
+        self._essential_seconds = 0.
         if not proposals and not self.records:
             return self.measure(picture, at, state, proposals, tables, covered, one_position=True)
         if not self.work_share.reserve(essential_seconds):
@@ -147,6 +224,40 @@ class SourceGeometryInCurrentPixels:
 
     def measure(self, picture, at, state, proposals: tuple, tables: tuple, covered: tuple = (),
                 *, one_position: bool = False) -> tuple:
+        self.material_frames = ()
+        self.material_status = ()
+        grid = _current_grid(picture, at, state)
+        if grid is None:
+            return (), ('fresh_reference_capture_unavailable',)
+        fits, unavailable = self._fits(picture, at, proposals, tables, covered, one_position=one_position)
+        return self._measured(fits, picture, at, state, grid, unavailable)
+
+    def _measured(self, fits, picture, at, state, grid, unavailable):
+        from types import SimpleNamespace
+
+        unavailable = list(unavailable)
+        measured = []
+        current = SimpleNamespace(**state)
+        for reference, pose in fits:
+            point = _current_point(reference, pose, picture, at, grid)
+            if point is None:
+                unavailable.append('fresh_reference_precision_unavailable')
+            else:
+                measured.append(CurrentSourceReference(reference.source, reference.declaration.character_id,
+                    reference.declaration.name, reference.coordinates.reference_sha256, state['pixels_consumed'], point))
+                attached = attach_source_point_to_visible_marks(reference.coordinates, (0., 0.), pose,
+                    picture, reference.pixels, current, at, source=reference.source)
+                if attached.binding is not None:
+                    self.material_frames = (*self.material_frames, (reference, attached.binding))
+                else:
+                    self.material_status = (*self.material_status, attached.reason)
+        if measured and self._searched is not None:
+            key, selected = self._searched
+            self.search_cursors[key][selected] = 0
+        return _enclosed_measurements(tuple(measured)), tuple(unavailable)
+
+    def _fits(self, picture, at, proposals, tables, covered, *, one_position):
+        self._searched = None
         if type(one_position) is not bool:
             return (), ('fresh_reference_position_capacity_unavailable',)
         scope = current_visual_sources(tables)
@@ -158,9 +269,6 @@ class SourceGeometryInCurrentPixels:
             return (), ()
         if not isinstance(proposals, tuple) or len(proposals) > 32:
             return (), ('fresh_reference_proposal_capacity_unavailable',)
-        grid = _current_grid(picture, at, state)
-        if not scope or grid is None:
-            return (), ('fresh_reference_capture_unavailable',) if scope else ()
         unavailable = []
         for proposal in proposals:
             if not isinstance(proposal, SourceReferenceProposal) or proposal.capture.at > at:
@@ -213,17 +321,10 @@ class SourceGeometryInCurrentPixels:
             self.records[key] = reference, _refitted_pose_bank(poses, selected, found), revision
             if len(found) > 1:
                 unavailable.append('fresh_reference_additional_matches_not_retained')
-        measured = []
-        for pose in found:
-            point = _current_point(reference, pose, picture, at, grid)
-            if point is None:
-                unavailable.append('fresh_reference_precision_unavailable')
-            else:
-                measured.append(CurrentSourceReference(reference.source, reference.declaration.character_id,
-                    reference.declaration.name, reference.coordinates.reference_sha256, state['pixels_consumed'], point))
         if one_position:
-            search[selected] = 0 if measured else (position+1) % 6
-        return _enclosed_measurements(tuple(measured)), tuple(unavailable)
+            search[selected] = (position+1) % 6
+            self._searched = key, selected
+        return tuple((reference, pose) for pose in found), tuple(unavailable)
 
 
 @invariant('perception.optional_geometry_repays_observation_time', scope='perception',
@@ -267,4 +368,37 @@ def _reference_attention_invariant() -> tuple:
         assert len(updated) == len(bank) and updated[index] == 'current'
         assert all(updated[j] == bank[j] for j in range(len(bank)) if j != index)
     assert _refitted_pose_bank(bank, 0, ()) == bank
+    return ()
+
+
+@invariant('perception.source_sampling_rechecks_current_pixels', scope='perception',
+           owner='core/perception/source_geometry_in_current_pixels.py', observational=False)
+def _reference_sampling_invariant() -> tuple:
+    from core.perception.a_visual_reference_in_the_picture import _digest, reference_appearances
+    from core.perception.coordinates_in_a_visual_reference import SourceImageCoordinates
+    from core.perception.frames_as_they_are_drawn import CanvasFrameTime
+    from core.perception.visual_assets_in_a_flash_file import DeclaredVisualAsset, FlashVisualAssets
+    from core.perception.visual_references_for_current_sources import RegisteredVisualReference
+
+    rgba = np.random.default_rng(873).integers(0, 255, (32, 40, 4), dtype=np.uint8)
+    rgba[..., 3] = 255
+    picture = np.zeros((96, 144, 3), np.uint8)
+    picture[24:56, 40:80] = rgba[..., :3]
+    source = 'swf:'+'3'*64
+    asset = DeclaredVisualAsset('unfamiliar', 12, 'sprite', 0, 39, (10,))
+    coordinates = SourceImageCoordinates(source, _digest(rgba), '0'*64,
+        (40, 32), ((1., 0.), (0., 1.)), (0., 0.), .01)
+    reference = RegisteredVisualReference(source, asset, coordinates, rgba)
+    poses = reference_appearances(picture, rgba, scales=(1.,))
+    proposal = SourceReferenceProposal(reference, consumed_pixels(picture, 1.), poses, 1)
+    table = FlashVisualAssets(source, (asset,))
+    at = CanvasFrameTime(2., lower=2., upper=2.01, arrived=2.02, source='canvas-bracket',
+        source_at=2., epoch=1, surface='document/canvas', sequence=1)
+    worker = SourceGeometryInCurrentPixels()
+    worker._essential_seconds = .3
+    hint = worker.sampling_before_observation(picture, at, (proposal,), (table,))
+    assert hint is not None and not hasattr(hint, 'number') and not hasattr(hint, 'role')
+    worker = SourceGeometryInCurrentPixels()
+    worker._essential_seconds = .3
+    assert worker.sampling_before_observation(picture*0, at, (proposal,), (table,)) is None
     return ()

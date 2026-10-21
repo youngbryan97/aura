@@ -80,18 +80,39 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
           reference_proposals: tuple = (), reference_tables: tuple = (),
           reference_coverage: tuple = (), whole_referents: Any = None,
           reference_frames: tuple = ()) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    prepare_sampling = getattr(fresh_references, 'sampling_before_observation', None)
+    if callable(prepare_sampling):
+        proposed_hint = prepare_sampling(picture, at, reference_proposals, reference_tables, reference_coverage)
+        if search_hint is None:
+            search_hint = proposed_hint
     began = time.perf_counter()
     kwargs = {'search_hint': search_hint} if search_hint is not None else {}
     if material_retention is not None and getattr(eyes, 'supports_material_retention', False):
         kwargs['material_retention'] = material_retention
-    happened = eyes.see(picture, at, **kwargs)
-    state = _detached_state(eyes)
+    try:
+        happened = eyes.see(picture, at, **kwargs)
+        state = _detached_state(eyes)
+    except BaseException:
+        finish_sampling = getattr(fresh_references, 'finish_sampling', None)
+        if callable(finish_sampling):
+            finish_sampling()
+        raise
     if fresh_references is not None:
         # The eyes receive the full capture interval. Geometry uses the same
         # scalar capture value as their consumed-pixel and material receipts.
         frames, unavailable = fresh_references.measure_if_budget(picture, float(at), state, reference_proposals,
             reference_tables, reference_coverage, essential_seconds=time.perf_counter()-began)
         state['fresh_source_reference_frames'], state['fresh_source_reference_status'] = frames, unavailable
+        measured_frames = getattr(fresh_references, 'material_frames', ())
+        state['fresh_source_material_frames'] = tuple((r.key, b) for r, b in measured_frames)
+        state['fresh_source_material_status'] = getattr(fresh_references, 'material_status', ())
+        if measured_frames:
+            from types import SimpleNamespace
+            from core.perception.source_references_while_play_advances import _with_current_material_frames
+
+            reference_frames, refused = _with_current_material_frames(reference_frames, measured_frames,
+                SimpleNamespace(**state), float(at), reference_tables)
+            state['fresh_source_material_status'] += refused
     if whole_referents is not None:
         from types import SimpleNamespace
 
@@ -176,6 +197,7 @@ class PlayObservation:
         self._mirror.source_reference_points = ()
         self._mirror.source_reference_frames = ()
         self._mirror.fresh_source_reference_frames = ()
+        self._mirror.fresh_source_material_frames = ()
         self._mirror.fresh_source_reference_status = ()
         self._mirror.source_reference_status = 'no_current_source'
 
@@ -258,6 +280,7 @@ class PlayObservation:
         self._mirror.source_reference_points = ()
         self._mirror.source_reference_frames = ()
         self._mirror.fresh_source_reference_frames = ()
+        self._mirror.fresh_source_material_frames = ()
         self._mirror.source_referents = {}
         self._mirror.source_referent_readings = ()
         if self._closed or isinstance(at, bool) or not isinstance(at, (float, int)) or not math.isfinite(at):
@@ -336,6 +359,7 @@ class PlayObservation:
         self._mirror.source_reference_points = ()
         self._mirror.source_reference_frames = ()
         self._mirror.fresh_source_reference_frames = ()
+        self._mirror.fresh_source_material_frames = ()
         self._mirror.source_reference_status = 'closed'
         self._generation += 1
         eyes, self._eyes = self._eyes, None

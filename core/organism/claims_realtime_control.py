@@ -25,7 +25,7 @@ def _play_execution_claims() -> tuple:
     )
     from core.runtime.classical_compute_boundary import _classical_import_invariant
     from core.perception.guarded_effects_in_flash_methods import _guarded_source_graph_invariant
-    from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant
+    from core.perception.source_geometry_in_current_pixels import _fresh_source_capture_invariant, _reference_sampling_invariant
     from core.perception.source_geometry_in_current_pixels import _reference_attention_invariant
     from core.perception.source_geometry_in_current_pixels import _optional_reference_share_invariant
     from core.perception.reference_material_near_a_measured_pose import _near_reference_material_invariant
@@ -76,7 +76,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('whole_source_observations_keep_separate_identity_and_unknown_contact', 'core/perception/whole_referents_from_source_material.py',
+    return (('source_appearances_reach_current_owned_sampling', 'core/perception/source_geometry_in_current_pixels.py',
+             'tests/test_source_appearances_reach_current_point_sampling.py', lambda: _reference_sampling_invariant() == (),
+             'A current refit can request a bounded share of exact-frame point sampling before any object is identified; optional work is repaid, geometry reuses the fit, and no role or controlled identity is assigned.'),
+            ('whole_source_observations_keep_separate_identity_and_unknown_contact', 'core/perception/whole_referents_from_source_material.py',
              'tests/test_whole_referents_require_current_source_material.py', lambda: _whole_source_referent_invariant() == (),
              'A whole reference needs continuing source marks and current opaque pixel support; its separate semantic observation cannot become a tracked body or infer contact, role, terminal speed or angle.'),
             ('source_arithmetic_requires_explicit_values_and_effects', 'core/perception/a_source_method_with_resolved_values.py',

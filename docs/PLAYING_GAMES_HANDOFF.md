@@ -1574,3 +1574,20 @@ Its repaired body selection is assigned True and its world supplies exact
 state. The new PY checklist in the proposal ledger records every mechanism,
 rejection and remaining calibration contract. Do not install its functions
 as purported drop-in Aura repairs or count its scores as original-game proof.
+
+The source appearance now reaches current point sampling before an object
+owns global marks. The fast refitter preserves affine shape and visible
+clipping; one fit supplies both the sampling hint and the current material
+attachment. The ordinary reference owner accepts those bindings and retains
+their measured points. Optional accounting covers both sides of observation.
+The regression group passed 200 tests, the final owner group 17; smoke 164
+passed, one skipped; lint/compile/layering/writing passed in 89.48 seconds.
+
+The final twelve-frame CPU replay has seven consumed hints and eight frames
+with current source material, against no destination material at the original
+checkpoint. It still has zero whole referents. The next measured refusal is
+`whole_reference_out_of_view`: the visible building's ladder leaves the bottom
+of the capture. Treat image clipping separately from in-frame occlusion,
+preserving unknown roles and contact geometry. Results and intermediate
+failures are in `artifacts/flash-campaign/2026-10-20-current-reference-sampling/`.
+No GPU, physical input, native runtime, G09 or holdout was used.
