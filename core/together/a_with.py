@@ -107,7 +107,7 @@ class With:
     who: str
     what: str
     proposed_by: str = THEM
-    began: float = field(default_factory=time.time)
+    began: float = field(default_factory=lambda: time.time())
     ended: float | None = None
     left_by: str = ""
     turns: deque[Turn] = field(default_factory=lambda: deque(maxlen=_WINDOW))
