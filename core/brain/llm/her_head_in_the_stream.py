@@ -174,7 +174,7 @@ def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_t
                                   draft_model: Any = None, **kwargs: Any) -> Generator[Any, None, None]:
     """mlx_lm's ``stream_generate`` where ``draft_model`` is her head; mlx_lm's own for anything else."""
     from mlx_lm import stream_generate
-    from mlx_lm.generate import GenerationResponse
+    from mlx_lm.generate import GenerationResponse, generation_stream, wired_limit
     from mlx_lm.tokenizer_utils import TokenizerWrapper
 
     from core.brain.llm.two_tokens_a_step import MTPHead
@@ -194,20 +194,24 @@ def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_t
     detokenizer = tokenizer.detokenizer
     tic = time.perf_counter()
     prompt_tps, n, token, logprobs, from_draft = 0.0, -1, 0, None, False
-    for n, (token, logprobs, from_draft) in enumerate(head_generate_step(prompt, model, draft_model,
-                                                                          max_tokens=max_tokens, **kwargs)):
-        if n == 0:
-            prompt_tps = prompt.size / max(1e-9, time.perf_counter() - tic)
-            tic = time.perf_counter()
-        if token in tokenizer.eos_token_ids:
-            break
-        detokenizer.add_token(token)
-        if (n + 1) == max_tokens:
-            break
-        yield GenerationResponse(text=detokenizer.last_segment, token=token, logprobs=logprobs, from_draft=from_draft,
-                                 prompt_tokens=prompt.size, prompt_tps=prompt_tps, generation_tokens=n + 1,
-                                 generation_tps=(n + 1) / max(1e-9, time.perf_counter() - tic),
-                                 peak_memory=mx.get_peak_memory() / 1e9, finish_reason=None)
+    # Her weights held in memory for the generation, as mlx_lm's own stream holds them: unwired, they could be paged
+    # out between passes while her app's other processes ran (MEASURED 20 October 2026: 9.9 tokens a second in her
+    # worker, 21.5 by itself; prompts read at 145 a second against 390).
+    with wired_limit(model, [generation_stream]):
+        for n, (token, logprobs, from_draft) in enumerate(head_generate_step(prompt, model, draft_model,
+                                                                              max_tokens=max_tokens, **kwargs)):
+            if n == 0:
+                prompt_tps = prompt.size / max(1e-9, time.perf_counter() - tic)
+                tic = time.perf_counter()
+            if token in tokenizer.eos_token_ids:
+                break
+            detokenizer.add_token(token)
+            if (n + 1) == max_tokens:
+                break
+            yield GenerationResponse(text=detokenizer.last_segment, token=token, logprobs=logprobs, from_draft=from_draft,
+                                     prompt_tokens=prompt.size, prompt_tps=prompt_tps, generation_tokens=n + 1,
+                                     generation_tps=(n + 1) / max(1e-9, time.perf_counter() - tic),
+                                     peak_memory=mx.get_peak_memory() / 1e9, finish_reason=None)
     detokenizer.finalize()
     yield GenerationResponse(text=detokenizer.last_segment, token=token, logprobs=logprobs, from_draft=from_draft,
                              prompt_tokens=prompt.size, prompt_tps=prompt_tps, generation_tokens=n + 1,
