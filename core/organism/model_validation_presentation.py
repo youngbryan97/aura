@@ -25,16 +25,18 @@ CHECKS = frozenset({
 
 def measured_presentation(root: Path | None = None) -> bool:
     root = root or Path(__file__).resolve().parents[2]
-    try:
-        receipt = json.loads((root / "docs/evidence/conversation-presence-2026-10-21.json").read_text())
-        if receipt.get("schema") != "aura.presentation.browser_measurement.v1":
-            raise NothingMeasured("No recognized browser presentation measurement.")
-        for path in SOURCES:
-            if receipt.get("sources", {}).get(path) != hashlib.sha256((root / path).read_bytes()).hexdigest():
-                raise NothingMeasured("Presentation source changed since its browser measurement.")
-    except (OSError, ValueError) as why:
-        raise NothingMeasured("No readable browser presentation measurement.") from why
-    return receipt.get("ok") is True and CHECKS <= set(receipt.get("checks", []))
+    for path in sorted((root / "docs/evidence").glob("conversation-presence-*.json"), reverse=True):
+        try:
+            receipt = json.loads(path.read_text())
+            if receipt.get("schema") != "aura.presentation.browser_measurement.v1":
+                continue
+            if any(receipt.get("sources", {}).get(source) != hashlib.sha256((root / source).read_bytes()).hexdigest()
+                   for source in SOURCES):
+                continue
+        except (OSError, ValueError):
+            continue
+        return receipt.get("ok") is True and CHECKS <= set(receipt.get("checks", []))
+    raise NothingMeasured("No browser presentation measurement matches the current source.")
 
 
 def install_presentation_claims(suite) -> None:
