@@ -1818,3 +1818,26 @@ sampling, mixed moving layers, animation and failed correspondence before
 changing tracking. Duplicate fits alter optional-work timing and are not
 play-rate evidence. CPU-only, G09/holdout and resident boundaries continue;
 ordinary native success is still unproved.
+
+
+October 21 CPU checkpoint: lost source marks can receive a bounded common-
+grid rigid refit. Both frames are resampled rather than interpolating only
+one. Existing good fits are unchanged; at most 32 lost marks are considered.
+A local repeat veto, independent reverse journey and current colour checks
+precede continuation. The original sampling discrepancy remains in error;
+this does not create body, goal or contact authority. Static reference
+registration continues to use the original fit.
+
+Tests passed 208, smoke 164 with one skip, and lint/compile/layering/writing
+passed. Preserve the limits: the ordinary-timing forty-picture replay has
+one whole ship, against the previous two, with different optional search
+admissions. Under the same retained admission schedule, baseline reproduces
+two ships and the new tracker produces three; whole-building frames remain
+28. Neither result establishes live control. All variants and the failed
+repeating-texture prototype remain under
+`artifacts/flash-campaign/2026-10-21-symmetric-patch-comparison/`.
+
+Next investigate feeding current retained material geometry into the next
+source search. The worker still searches pose banks captured by earlier
+reference jobs; point continuity and fresh search remain separate consumers.
+Preserve CPU-only work, G09/holdouts and resident-runtime ownership.

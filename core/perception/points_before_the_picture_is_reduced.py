@@ -302,9 +302,14 @@ class PointsBeforeReduction(FollowingPoints):
         height, width = image[0].shape
         valid &= (np.isfinite(found).all(axis=1) & (found[:, 0] >= 3) & (found[:, 0] < width - 3)
                   & (found[:, 1] >= 3) & (found[:, 1] < height - 3))
-        return [SeenPoint(p.number, float(found[i, 0]), float(found[i, 1]), p.x, p.y, p.born,
-                         self._at, at, float(errors[i]), p.pictures + 1)
-                for i, p in enumerate(self._native_points) if valid[i]]
+        measured = [SeenPoint(p.number, float(found[i, 0]), float(found[i, 1]), p.x, p.y, p.born,
+                             self._at, at, float(errors[i]), p.pictures + 1)
+                    for i, p in enumerate(self._native_points) if valid[i]]
+        if valid.all():
+            return measured
+        from core.perception.patches_compared_on_a_common_grid import recover_source_marks
+
+        return recover_source_marks(self, image, colours, at, measured)
 
 
 @invariant("perception.sampling_hint_receipt_comes_from_kept_points", scope="perception",

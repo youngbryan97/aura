@@ -13,6 +13,7 @@
 description = "core.organism: measured claims may exercise named observation custody, bounded meter discovery, local-material exploration costs, original point correspondence, bounded picture probes, lattice phase geometry, drawing-clock correlation, rigid point geometry, appearance parts and joined-foreground retention, saved program effects, exact source branch addresses, finite visual-frame boundaries and conditional arithmetic canaries, construction readiness, current navigation, picked-outcome and spatial-relation canaries; other imports remain closed."
 
 include_rules = [
+    "+core.perception.patches_compared_on_a_common_grid", # Pure bounded sampling/repetition canary; no model or input.
     "+core.perception.visual_frames_in_a_source_declaration", # Pure finite source-frame boundary canary; no file, renderer or input.
     "+core.perception.source_material_groups_for_visual_attention", # Pure current-material attention canary, without input or model calls.
     "+core.perception.a_source_extent_requested_in_play", # Pure extent-request scheduling canary; no model or physical input.

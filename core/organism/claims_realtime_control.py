@@ -1176,6 +1176,7 @@ def _visual_motion_claims() -> tuple:
         _source_point_precision_invariant,
     )
     from core.perception.points_shared_with_changing_regions import _point_capacity_invariant
+    from core.perception.patches_compared_on_a_common_grid import _common_grid_recovery_invariant
     from core.perception.points_that_keep_their_motion import (
         _owned_material_motion_invariant,
         _point_history_invariant,
@@ -1231,6 +1232,9 @@ def _visual_motion_claims() -> tuple:
         ("local_patch_fits_finish_independently", "core/perception/points_before_the_picture_is_reduced.py",
          "tests/test_patch_refinement_finishes_independently.py", lambda: _independent_patch_fit_invariant() == (),
          "Each local rigid patch fit reaches its own numerical stopping condition; batching unrelated patches preserves the isolated fit's result and final colour residual."),
+        ("common_grid_recovery_rejects_local_repetition", "core/perception/patches_compared_on_a_common_grid.py",
+         "tests/test_resampled_marks_keep_distinct_material.py", lambda: _common_grid_recovery_invariant() == (),
+         "Source-mark recovery compares both sampled patches on a common rigid grid, rejects measured nearby repeats and unobservable fits, and retains the original sampling discrepancy; it supplies no controlled-body identity."),
         ("graphics_hints_require_current_presentation", "core/perception/graphics_presented_on_canvas.py",
          "tests/test_graphics_presented_on_canvas.py", lambda: _presentation_custody_invariant() == (),
          "Geometric search hints follow recorded image versions and ordered public copies to a measured current canvas; visibility and object identity remain unverified."),

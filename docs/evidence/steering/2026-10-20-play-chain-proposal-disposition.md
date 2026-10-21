@@ -1024,3 +1024,50 @@ contains both gate reports and the failed 7-by-7 colour patches. Variant
 artifacts retain both failed replay reports. No input, model, GPU, G09,
 holdout or resident lifecycle work occurred. Native success and readiness
 remain open.
+
+
+### October 21: raster-phase loss, bounded recovery and paired scheduling
+
+- [x] Reproduced complete point-name loss on three analytic RGB scenes under
+  a half-pixel translation. The existing one-sided fit samples one raster
+  directly and interpolates the other, changing edge sharpness. All three
+  regressions failed before this repair; repeated-texture controls passed.
+- [x] Added a bounded rigid fit on a common intermediate grid. Existing
+  successful tracker results stay unchanged. At most 32 missing marks get
+  another current forward/reverse fit, with the original coarse gates,
+  closure and angular closure. Current colour, observability and image
+  borders still matter. Original one-sided sampling discrepancy remains in
+  the published error, capped at the existing source-mark .055 boundary.
+- [x] An initial unconditional common-grid prototype admitted wrong repeats
+  on a periodic texture. Recovery now probes three nearby alternative fits
+  from an eight-pixel surrounding grid and rejects measured repeats. This
+  is a local ambiguity veto, not proof of global uniqueness. No character,
+  game field, semantic role, input authority or destination is encoded.
+- [x] The numerical fit, capacity, replacement, capture, ordinary worker,
+  source-material renewal, static registration and variant-search group
+  passed 208 tests. A whole-picture analytic worker fixture crossed the
+  observer's scene-change boundary and failed; restricting the moving
+  texture to a quarter of the canvas tests continued observation correctly.
+- [ ] Reliable whole-body continuity and native gameplay remain open.
+
+Do not use the initial five-whole-ship prototype as a production result.
+The neighbour-only recovery produced one ship observation and was not
+connected. The final ordinary-timing replay has one whole ship and thirty
+whole-building pictures, against two and twenty-eight in the earlier
+baseline. Optional search admissions depend on actual CPU cost, so the two
+runs performed different searches. Both records remain retained.
+
+A paired replay fixed admissions to the saved baseline schedule. The
+baseline reproduced twenty-eight whole-building pictures and two whole
+ship observations; the new tracker retained twenty-eight and three.
+Durations were 10.2267 and 10.6475 seconds. These are retained-pixel CPU
+measurements with controlled scheduling, not live rates or gameplay wins.
+Keep the ordinary-timing regression visible when judging this checkpoint.
+
+Smoke passed 164 tests with one skip. Lint, compilation, layering and writing
+passed; the aggregate took 73.10 seconds. Added the measured invariant and
+its narrow dependency edge. Exact experiments, failures and paired records
+are in `artifacts/flash-campaign/2026-10-21-symmetric-patch-comparison/`.
+Continue the connection from retained material pose to the next reference
+search; do not promote geometry to control or contact authority. GPU, G09,
+holdouts and resident lifecycle remain untouched.
