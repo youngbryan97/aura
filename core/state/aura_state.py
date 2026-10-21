@@ -1316,6 +1316,7 @@ class AuraState:
     # committed, and empty is honest — an unsigned state says so.
     lineage_signature: str = ""
     lineage_entity_id: str = ""
+    transition_evidence: dict[str, Any] = field(default_factory=dict)  # core/state/person_transitions.py
 
     @property
     def mood(self) -> str:

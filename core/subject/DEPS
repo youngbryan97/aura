@@ -35,6 +35,10 @@ include_rules = [
     "+core.governance_context",
     "+core.runtime",
 
+    # Her entity key, from which the lineage key is derived, so a lineage
+    # signs with this install's secret rather than one written in the source.
+    "+core.identity.entity_key",
+
     # Where the organism's home and data directory resolve. The fork has to
     # hold the home when it sits outside the state root, and isolation has to
     # refuse a run whose data directory did not move with the root.

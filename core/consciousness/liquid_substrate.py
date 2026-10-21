@@ -25,6 +25,7 @@ from core.soma.effort import note_effort
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker, mark_task_protected
 
+from .conjunctive_codes import with_conjunction_current
 from .liquid_state_io import _KeepsItsStateOnDisk
 from .liquid_substrate_learning import PLASTICITY_EVERY, _HowTheSubstrateLearns
 
@@ -124,8 +125,6 @@ class SubstrateConfig:
     save_interval: int = 300  # Seconds between auto-saves
     adaptive_mode: bool = True  # Slow down on battery/idle
     state_file: Path | None = None
-
-
 
 
 class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
@@ -364,15 +363,6 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
         return self._state_revision
 
 
-
-
-
-
-
-
-
-
-
     def _init_soma(self):
         # Phase 16: Soma Integration
         try:
@@ -608,7 +598,7 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
             if self.device.type != "cpu":
                 x_torch = x_torch.to(self.device)
 
-            recurrent = weights @ x_torch
+            recurrent = with_conjunction_current(self, weights @ x_torch)
             activity = torch.tanh(recurrent)
             noise = (
                 torch.randn(self.config.neuron_count, device=self.device) * self.config.noise_level
@@ -1423,7 +1413,6 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
         with self.sync_lock:
             v = np.nan_to_num(self.v, nan=0.0, posinf=0.0, neginf=0.0)
             return float(max(0.0, min(1.0, np.mean(np.abs(v)))))
-
 
 
     def _apply_idle_decay(self, idle_seconds: float):

@@ -158,7 +158,7 @@
       "max_class_methods": 16
     },
     "core/consciousness/liquid_substrate.py": {
-      "lines": 1501,
+      "lines": 1495,
       "max_class_methods": 34
     },
     "core/consciousness/neural_mesh.py": {

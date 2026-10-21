@@ -14,9 +14,18 @@ from types import SimpleNamespace
 import pytest
 
 from core.consciousness import control_allocation
+from core.consciousness.conjunctive_codes import Conjunctions
 from core.consciousness.control_allocation import ControlAllocation, allocate_control, at_stake
 
 pytestmark = pytest.mark.unit
+
+
+def _standing_at(units):
+    """Codes whose units stand exactly at these values: a running mean of zero and a spread of one."""
+    return Conjunctions(
+        units={"recurrent": tuple(units)},
+        _unit_stats={("recurrent", k): (10, 0.0, 1.0) for k in range(len(units))},
+    )
 
 
 def test_what_is_at_stake_is_the_most_pressing_urgency_as_decided() -> None:
@@ -78,14 +87,14 @@ def test_the_gain_reaches_the_executive_tier(monkeypatch) -> None:
 
 
 def test_where_self_and_intention_meet_sets_every_tiers_gain(monkeypatch) -> None:
-    from core.consciousness.conjunctive_codes import Conjunctions, gain_from_units
+    from core.consciousness.conjunctive_codes import gain_from_units
 
     monkeypatch.setattr(control_allocation, "efficacy", lambda: 0.8)
     mesh = _Mesh()
     allocation = ControlAllocation()
     state = _state(0.6)
     units = (0.5, -0.3, 0.2, 0.7)
-    state.conjunctions = Conjunctions(units={"recurrent": units})
+    state.conjunctions = _standing_at(units)
     gain = allocate_control(mesh, allocation, state)
     tier = {name: gain_from_units(units, "recurrent", f"tier:{name}") for name in ("sensory", "association", "executive")}
     assert mesh.regional["sensory"][0] == tier["sensory"]
@@ -94,11 +103,31 @@ def test_where_self_and_intention_meet_sets_every_tiers_gain(monkeypatch) -> Non
     assert len({round(value, 9) for value in tier.values()}) == 3
 
 
-def test_without_a_model_of_herself_nothing_is_set(monkeypatch) -> None:
+def test_without_a_model_of_herself_control_is_neutral_and_the_tiers_still_move(monkeypatch) -> None:
+    """Until 21 October an unreadable self-model returned before the tiers were set."""
+    from core.consciousness.conjunctive_codes import gain_from_units
+
     monkeypatch.setattr(control_allocation, "efficacy", lambda: None)
     mesh = _Mesh()
-    assert allocate_control(mesh, ControlAllocation(), _state(0.9)) is None
-    assert mesh.regional == {}
+    allocation = ControlAllocation()
+    state = _state(0.9)
+    units = (0.4, -0.2, 0.6, 0.1)
+    state.conjunctions = _standing_at(units)
+    assert allocate_control(mesh, allocation, state) is None
+    assert allocation.steps == 0
+    assert mesh.regional["executive"][0] == gain_from_units(units, "recurrent", "tier:executive")
+    assert mesh.regional["sensory"][0] == gain_from_units(units, "recurrent", "tier:sensory")
+
+
+def test_one_forks_codes_reach_only_the_mesh_it_is_given(monkeypatch) -> None:
+    monkeypatch.setattr(control_allocation, "efficacy", lambda: 0.8)
+    left, right = _Mesh(), _Mesh()
+    a, b = _state(0.6), _state(0.6)
+    a.conjunctions = _standing_at((0.9, 0.9, 0.9, 0.9))
+    b.conjunctions = _standing_at((-0.9, -0.9, -0.9, -0.9))
+    allocate_control(left, ControlAllocation(), a)
+    allocate_control(right, ControlAllocation(), b)
+    assert left.regional["sensory"] != right.regional["sensory"]
 
 
 def test_the_neurochemical_push_carries_it(monkeypatch) -> None:

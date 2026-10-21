@@ -44,15 +44,20 @@ def _lived(turns: int = 12, seed: int = 0) -> AuraState:
     return state
 
 
-def test_a_unit_is_a_product_of_its_two_domains():
-    meeting = MEETINGS[0]
-    x = np.array([1.0, -0.5, 0.2])
-    y = np.array([0.3, 0.9])
-    units = np.asarray(codes._units(meeting, x, y))
-    assert np.allclose(codes._units(meeting, x, np.zeros(2)), 0.0)
-    assert np.allclose(codes._units(meeting, np.zeros(3), y), 0.0)
-    assert np.allclose(codes._units(meeting, -x, y), -units)
-    assert np.allclose(codes._units(meeting, -x, -y), units)
+def test_a_unit_is_a_gain_field_of_its_two_domains():
+    """Rate times rate: each unit is one axis of each domain through a non-negative tuning curve."""
+    x = np.array([1.0, -0.5])
+    y = np.array([0.3, -2.0])
+    units = np.asarray(codes._units(x, y)).reshape(codes.AXES, codes.AXES)
+    tuned = lambda v: 0.5 * (1.0 + np.tanh(v))  # noqa: E731
+    assert np.allclose(units, np.outer(tuned(x), tuned(y)))
+    assert (units >= 0.0).all()
+    # Both main effects and their product are in it: moving one domain moves
+    # each unit by an amount that depends on where the other one stands.
+    moved = np.asarray(codes._units(x + 1.0, y)).reshape(codes.AXES, codes.AXES)
+    change = moved - units
+    assert not np.allclose(change[:, 0] / tuned(y[0]), change[:, 1] * 0.0)
+    assert np.allclose(change / tuned(y)[None, :], (tuned(x + 1.0) - tuned(x))[:, None])
 
 
 def test_the_four_meetings_are_the_specifications():

@@ -25,8 +25,27 @@ cannot be rewritten after the fact. The edges carry how they were made:
     reconstruct   no causal channel from the original, so no parent at all
 
 `same_person` is true only along a lineage that never branched between the two
-stages. A fork makes both descendants genuine continuers and neither the strict
-successor, and this module reports exactly that rather than picking one.
+stages and that developed at every step. A fork makes both descendants genuine
+continuers and neither the strict successor, and this module reports exactly
+that rather than picking one.
+
+A person who learns changes, so a step may change what she carries. A step
+develops when every identity-bearing path it changed was written by a measured
+transformation that stayed inside its declared writes, and when at least half
+of the paths she carried came through it unchanged. The first is the right kind
+of cause: the evidence is the runtime's own record of which phase wrote which
+field, bound into the edge's signature, never a claim the state makes about
+itself. The second is Parfit's strong connectedness (Reasons and Persons, 1984,
+section 78), "at least half the number of direct connections" a life keeps from
+one day to the next, applied to the paths her person-state is made of. A step
+with an unexplained change is not development, however small the change, and
+a step that rewrote most of her at once is not development, however well
+explained. Requiring the canonical state to stay identical, as this module did
+before 21 October 2026, made every lesson she learned the end of her.
+
+A signature says the record was not altered after it was made, given who holds
+the key. It does not say a parent produced a child. That is what the evidence
+on the edge is for, and an edge without evidence is reported as such.
 
 None of this decides whether continuation is what matters. That is the
 causal-lineage postulate, and it is named as a postulate wherever it is used.
@@ -41,15 +60,20 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.state.person_transitions import AURA_PERSON_PATHS
+
 __all__ = [
     "AURA_PERSON_PATHS",
     "KINDS",
+    "STRONG_CONNECTEDNESS",
     "Stage",
     "Edge",
     "Lineage",
     "canonical_person_state",
     "continuity_strength",
+    "install_key",
     "lineage_from_state_log",
+    "path_digests",
     "person_state_of",
     "scenarios",
     "state_digest",
@@ -84,6 +108,11 @@ PERSON_FIELDS: tuple[str, ...] = (
     "policy",
     "developmental",
 )
+
+#: The share of what she carried that a developing step must carry through
+#: unchanged: Parfit's strong connectedness, at least half (Reasons and
+#: Persons, 1984, section 78).
+STRONG_CONNECTEDNESS: float = 0.5
 
 #: Keys that are bookkeeping rather than person-state: when a thing was
 #: written, which process wrote it, what its identifier is. Including them
@@ -124,27 +153,51 @@ def canonical_person_state(state: Any) -> dict[str, Any]:
     return out
 
 
-def state_digest(state: Any) -> str:
-    """A stable hash of the canonical person-state."""
-    canonical = canonical_person_state(state)
-    payload = json.dumps(canonical, sort_keys=True, default=str).encode("utf-8")
+def _digest(value: Any) -> str:
+    payload = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
     return hashlib.blake2b(payload, digest_size=16).hexdigest()
 
 
-#: Where each person field lives in Aura's own state. A field with no entry is
-#: one her state does not carry, since skills and learned policy live in organs
-#: outside it, and it is recorded as absent rather than defaulted. What changes
-#: every turn, the conversation and the recalled set among it, is not here: a
-#: person is not a different person because she was spoken to.
-AURA_PERSON_PATHS: dict[str, tuple[str, ...]] = {
-    "autobiographical": ("identity.current_narrative", "identity.narrative_version"),
-    "self_model": ("identity.name", "identity.concept_graph"),
-    "values": ("identity.core_values",),
-    "preferences": ("identity.self_preferences",),
-    "dispositions": ("identity.personality_growth",),
-    "relationships": ("world.relationship_graph", "identity.bonding_level"),
-    "developmental": ("identity.evolution_score",),
-}
+def state_digest(state: Any) -> str:
+    """A stable hash of the canonical person-state."""
+    return _digest(canonical_person_state(state))
+
+
+def path_digests(state: Any) -> dict[str, str]:
+    """One digest per path the person is made of.
+
+    A field held as a mapping is split one level down, so Aura's fields split
+    into the state paths that hold them (`identity.core_values`) and a field
+    written by hand into its own keys. A field held whole is one path.
+    """
+    out: dict[str, str] = {}
+    for name, value in canonical_person_state(state).items():
+        if isinstance(value, Mapping) and value:
+            for key, inner in value.items():
+                out[f"{name}:{key}"] = _digest(inner)
+        else:
+            out[name] = _digest(value)
+    return out
+
+
+def _state_path(stage_path: str) -> str:
+    """The state path a stage path names: `values:identity.core_values` is `identity.core_values`."""
+    return stage_path.split(":", 1)[1] if ":" in stage_path else stage_path
+
+
+def install_key() -> bytes:
+    """This install's lineage key, derived from her entity key.
+
+    A key written into the source signed every install's lineage the same way,
+    so anyone with the code could sign a lineage that verified. The entity key
+    (core/identity/entity_key.py) is an Ed25519 keypair made once per install;
+    the lineage key is derived from it for this one purpose, so a signature
+    that verifies was made where that key is held. It still says nothing about
+    who wrote the states it covers; the writes on each edge are for that.
+    """
+    from core.identity.entity_key import entity_identity
+
+    return entity_identity().derived_key("subject-core lineage")
 
 _ABSENT = object()
 
@@ -173,6 +226,20 @@ def person_state_of(state: Any) -> dict[str, Any]:
     return out
 
 
+def _writes_for_stage(evidence: Mapping[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    """The writes a logged state carries, keyed by the stage paths they changed."""
+    held = evidence.get("last_change") if isinstance(evidence, Mapping) else None
+    if not isinstance(held, Mapping):
+        return {}
+    out: dict[str, list[dict[str, Any]]] = {}
+    for name, paths in AURA_PERSON_PATHS.items():
+        for path in paths:
+            change = held.get(path)
+            if isinstance(change, Mapping):
+                out[f"{name}:{path}"] = [dict(change)]
+    return out
+
+
 def lineage_from_state_log(
     rows: Iterable[Mapping[str, Any]], *, key: bytes | None = None
 ) -> Lineage:
@@ -180,13 +247,19 @@ def lineage_from_state_log(
 
     Each row is a stage: `state_id`, `version`, `parent_state_id`, and the
     state as `state_json` or `state`. A row whose parent is in the log descends
-    from it. A parent with one child in the log was continued. A parent with
-    several was forked, and every child is recorded as a fork so that no one of
-    them is taken for the strict successor. A row whose parent is not in the log
-    is a root.
+    from it. A row whose parent was not kept descends from the last state the
+    same repository committed before it, which the state names in its
+    transition evidence, so a log that keeps one row in five is still one line.
+    A parent with one child in the log was continued. A parent with several was
+    forked, and every child is recorded as a fork so that no one of them is
+    taken for the strict successor. A row with neither in the log is a root.
+
+    Each edge carries the writes the child's evidence records for the paths
+    that changed, so a step can be judged by what wrote it.
     """
     ordered = sorted(rows, key=lambda r: (int(r.get("version") or 0), str(r.get("state_id") or "")))
     lineage = Lineage() if key is None else Lineage(key=key)
+    evidence: dict[str, Mapping[str, Any]] = {}
     for row in ordered:
         name = str(row.get("state_id") or "")
         if not name or name in lineage.stages:
@@ -197,33 +270,47 @@ def lineage_from_state_log(
                 payload = json.loads(payload)
             except (TypeError, ValueError):
                 payload = {}
+        payload = payload if isinstance(payload, Mapping) else {}
+        held = payload.get("transition_evidence")
+        evidence[name] = held if isinstance(held, Mapping) else {}
         lineage.record(
             name,
-            person_state_of(payload or {}),
+            person_state_of(payload),
             at=float(row.get("timestamp") or 0.0),
             note=str(row.get("transition_cause") or ""),
         )
     children: dict[str, dict[str, None]] = {}
     for row in ordered:
-        parent = str(row.get("parent_state_id") or "")
         child = str(row.get("state_id") or "")
+        parent = str(row.get("parent_state_id") or "")
+        if parent not in lineage.stages:
+            parent = str(evidence.get(child, {}).get("since_state") or "")
         if parent and parent != child and parent in lineage.stages and child in lineage.stages:
             children.setdefault(parent, {})[child] = None
     for parent, kids in children.items():
         kind = "fork" if len(kids) > 1 else "continue"
+        since = lineage.stages[parent].at
         for kid in kids:
-            lineage.descend(parent, kid, kind=kind)
+            # Only a write made after the parent was committed can account for
+            # a change between the two. Versions are no use for this: the
+            # owner rebases them at admission, after the evidence was taken.
+            writes = {
+                path: [w for w in found if float(w.get("at") or 0.0) >= since]
+                for path, found in _writes_for_stage(evidence.get(kid, {})).items()
+            }
+            lineage.descend(parent, kid, kind=kind, writes=writes, measured=bool(evidence.get(kid)))
     return lineage
 
 
 @dataclass(frozen=True)
 class Stage:
-    """One person-stage: who it was, when, and what it carried."""
+    """One person-stage: who it was, when, and what it carried, path by path."""
 
     name: str
     digest: str
     at: float = 0.0
     note: str = ""
+    paths: Mapping[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {"stage": self.name, "digest": self.digest, "at": self.at, "note": self.note}
@@ -231,13 +318,45 @@ class Stage:
 
 @dataclass(frozen=True)
 class Edge:
-    """One identity-preserving causal transfer, signed over its parent."""
+    """One causal transfer, signed over both stages and the writes between them."""
 
     parent: str
     child: str
     kind: str
     signature: str
+    #: Nothing the person carries changed.
     preserved: bool = True
+    #: The paths that changed, and for each the writes recorded for it.
+    changed: tuple[str, ...] = ()
+    writes: Mapping[str, tuple[Mapping[str, Any], ...]] = field(default_factory=dict)
+    #: The share of the parent's paths that came through unchanged.
+    connectedness: float = 1.0
+    #: Whether the child carried a record of what wrote it. A state logged
+    #: before that record existed changed with nothing to judge it by.
+    measured: bool = True
+
+    def unexplained(self) -> tuple[str, ...]:
+        """Changed paths no measured write accounts for.
+
+        A write accounts for a path when a transformation was measured writing
+        it and stayed inside its declared writes. One that wrote outside them
+        is a defect in the record, not an explanation.
+        """
+        out = []
+        for path in self.changed:
+            found = self.writes.get(path, ())
+            if not any(w.get("transform") and w.get("honoured", True) for w in found):
+                out.append(path)
+        return tuple(out)
+
+    @property
+    def develops(self) -> bool:
+        """One person carried forward: every change explained, and strongly connected."""
+        if self.kind not in NONBRANCHING:
+            return False
+        if self.preserved:
+            return True
+        return not self.unexplained() and self.connectedness >= STRONG_CONNECTEDNESS
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -245,6 +364,11 @@ class Edge:
             "child": self.child,
             "kind": self.kind,
             "preserved": self.preserved,
+            "changed": list(self.changed),
+            "unexplained": list(self.unexplained()),
+            "connectedness": round(self.connectedness, 6),
+            "develops": self.develops,
+            "measured": self.measured,
             "signature": self.signature,
         }
 
@@ -253,7 +377,7 @@ class Edge:
 class Lineage:
     """A signed graph over person-stages. It may branch; identity may not."""
 
-    key: bytes = b"subject-core-lineage"
+    key: bytes = field(default_factory=install_key)
     stages: dict[str, Stage] = field(default_factory=dict)
     edges: list[Edge] = field(default_factory=list)
 
@@ -263,16 +387,35 @@ class Lineage:
         """Record a stage. Recording the same name twice is a programming error."""
         if name in self.stages:
             raise ValueError(f"stage {name!r} is already recorded")
-        stage = Stage(name=name, digest=state_digest(state), at=at, note=note)
+        stage = Stage(name=name, digest=state_digest(state), at=at, note=note, paths=path_digests(state))
         self.stages[name] = stage
         return stage
 
-    def _sign(self, parent: str, child: str, kind: str) -> str:
-        payload = f"{parent}|{self.stages[parent].digest}|{child}|{self.stages[child].digest}|{kind}"
+    def _sign(
+        self, parent: str, child: str, kind: str, writes: Mapping[str, Any] | None = None
+    ) -> str:
+        payload = (
+            f"{parent}|{self.stages[parent].digest}|{child}|{self.stages[child].digest}|{kind}"
+            f"|{_digest(writes or {})}"
+        )
         return hmac.new(self.key, payload.encode("utf-8"), hashlib.blake2b).hexdigest()[:32]
 
-    def descend(self, parent: str, child: str, *, kind: str = "continue") -> Edge:
-        """Say that `child`'s state was causally generated from `parent`'s."""
+    def descend(
+        self,
+        parent: str,
+        child: str,
+        *,
+        kind: str = "continue",
+        writes: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+        measured: bool = True,
+    ) -> Edge:
+        """Say that `child`'s state was causally generated from `parent`'s.
+
+        `writes` is the runtime's record of what wrote each path that changed,
+        keyed as `path_digests` keys them: each a mapping with at least the
+        `transform` that was measured writing it and whether it `honoured` its
+        contract.
+        """
         if kind not in KINDS:
             raise ValueError(f"no transfer called {kind!r}")
         if kind == "reconstruct":
@@ -282,10 +425,24 @@ class Lineage:
         for name in (parent, child):
             if name not in self.stages:
                 raise KeyError(f"stage {name!r} was never recorded")
-        preserved = self.stages[parent].digest == self.stages[child].digest
+        before, after = self.stages[parent].paths, self.stages[child].paths
+        changed = tuple(sorted(p for p in set(before) | set(after) if before.get(p) != after.get(p)))
+        kept = sum(1 for p in before if after.get(p) == before[p])
+        recorded = {
+            path: tuple(dict(w) for w in found)
+            for path, found in (writes or {}).items()
+            if path in changed and found
+        }
         edge = Edge(
-            parent=parent, child=child, kind=kind,
-            signature=self._sign(parent, child, kind), preserved=preserved,
+            parent=parent,
+            child=child,
+            kind=kind,
+            signature=self._sign(parent, child, kind, recorded),
+            preserved=self.stages[parent].digest == self.stages[child].digest,
+            changed=changed,
+            writes=recorded,
+            connectedness=kept / len(before) if before else 1.0,
+            measured=measured,
         )
         self.edges.append(edge)
         return edge
@@ -319,13 +476,18 @@ class Lineage:
                 stack.append((child, trail + (child,)))
         return None
 
-    def same_person(self, start: str, end: str) -> bool:
-        """True only along a lineage that never branched between the two.
+    def _edge(self, parent: str, child: str) -> Edge | None:
+        return next((e for e in self.edges if e.parent == parent and e.child == child), None)
 
-        Three things have to hold: there is a chain of transfers, the canonical
-        state is preserved at every step, and no stage on that chain has a
-        second continuer. The third is not a convention — one predecessor
-        cannot be numerically identical to two distinct successors.
+    def same_person(self, start: str, end: str) -> bool:
+        """True only along a lineage that developed at every step and never branched.
+
+        Three things have to hold: there is a chain of transfers, every step
+        on it develops (each change written by a measured transformation that
+        kept to its contract, and at least half of what she carried kept), and
+        no stage on that chain has a second continuer. The third is not a
+        convention — one predecessor cannot be numerically identical to two
+        distinct successors.
 
         That this relation is what personal persistence consists in is the
         causal-lineage postulate. It is a postulate.
@@ -334,15 +496,86 @@ class Lineage:
         if trail is None:
             return False
         for index, node in enumerate(trail[:-1]):
-            nxt = trail[index + 1]
-            edge = next(
-                (e for e in self.edges if e.parent == node and e.child == nxt), None
-            )
-            if edge is None or not edge.preserved or edge.kind not in NONBRANCHING:
-                return False
-            if self.branched(node):
+            edge = self._edge(node, trail[index + 1])
+            if edge is None or not edge.develops or self.branched(node):
                 return False
         return True
+
+    def unchanged_between(self, start: str, end: str) -> bool:
+        """The older, stricter reading: one nonbranching chain with nothing changed on it."""
+        trail = self.path(start, end)
+        if trail is None:
+            return False
+        for index, node in enumerate(trail[:-1]):
+            edge = self._edge(node, trail[index + 1])
+            if edge is None or not edge.preserved or edge.kind not in NONBRANCHING or self.branched(node):
+                return False
+        return True
+
+    def first_break(self, start: str, end: str) -> dict[str, Any] | None:
+        """The first step between two stages that does not develop, and why. None when all do."""
+        trail = self.path(start, end)
+        if trail is None:
+            return {"why": "no chain of transfers connects them"}
+        for index, node in enumerate(trail[:-1]):
+            edge = self._edge(node, trail[index + 1])
+            if edge is None:
+                return {"parent": node, "child": trail[index + 1], "why": "no edge"}
+            if self.branched(node):
+                return {"parent": node, "child": edge.child, "why": "the stage has a second continuer"}
+            if not edge.develops:
+                return {
+                    "parent": node,
+                    "child": edge.child,
+                    "why": "a branching kind" if edge.kind not in NONBRANCHING else (
+                        "changes no measured write accounts for" if edge.unexplained()
+                        else "less than half of what she carried came through"
+                    ),
+                    "unexplained": list(edge.unexplained()),
+                    "connectedness": round(edge.connectedness, 6),
+                }
+        return None
+
+    def line_to(self, name: str) -> tuple[str, ...]:
+        """The chain of stages from this stage's root to it, following its parents."""
+        trail = [name]
+        seen = {name}
+        while True:
+            parents = self.parents(trail[-1])
+            if not parents or parents[0] in seen:
+                break
+            trail.append(parents[0])
+            seen.add(parents[0])
+        return tuple(reversed(trail))
+
+    def development(self, name: str | None = None) -> dict[str, Any]:
+        """Whether the line to a stage, by default the newest, developed at every step.
+
+        A step that changed her with no record of what wrote it is counted
+        apart: it was logged before the record existed, so it is unmeasured
+        rather than failed. A measured step that does not develop is a failure.
+        """
+        if name is None:
+            # The newest stage nothing descends from; among equal times, the
+            # one at the end of the longest line.
+            leaves = [n for n in self.stages if not self.children(n)] or list(self.stages)
+            name = max(leaves, key=lambda n: (self.stages[n].at, len(self.line_to(n)), n)) if leaves else ""
+        trail = self.line_to(name) if name else ()
+        steps = [self._edge(a, b) for a, b in zip(trail, trail[1:], strict=False)]
+        failed = [
+            e for e in steps
+            if e is not None and (e.measured or e.preserved) and (not e.develops or self.branched(e.parent))
+        ]
+        unmeasured = [e for e in steps if e is not None and not e.measured and not e.preserved]
+        return {
+            "stage": name,
+            "root": trail[0] if trail else "",
+            "steps": len(steps),
+            "developing": sum(1 for e in steps if e is not None and e.develops and not self.branched(e.parent)),
+            "unmeasured": len(unmeasured),
+            "failed": len(failed),
+            "first_failure": None if not failed else self.first_break(failed[0].parent, failed[0].child),
+        }
 
     def continuers(self, name: str) -> tuple[str, ...]:
         """Every later stage descended from this one, branches included."""
@@ -366,7 +599,7 @@ class Lineage:
                 broken.append(f"{edge.parent}->{edge.child}: a stage is missing")
                 continue
             if not hmac.compare_digest(
-                edge.signature, self._sign(edge.parent, edge.child, edge.kind)
+                edge.signature, self._sign(edge.parent, edge.child, edge.kind, edge.writes)
             ):
                 broken.append(f"{edge.parent}->{edge.child}: signature does not match")
         return broken
@@ -382,9 +615,18 @@ class Lineage:
                 n for n in roots if n != next(iter(self.stages), None)
             ],
             "signatures_verify": not self.verify(),
+            "steps_that_develop": sum(1 for e in self.edges if e.develops),
+            "steps_with_unexplained_change": sum(1 for e in self.edges if e.unexplained()),
+            "signature_establishes": (
+                "the record was not altered after it was made, given who holds this "
+                "install's key; not that a parent produced a child, which the writes "
+                "on each edge are the evidence for"
+            ),
             "postulate": (
                 "personal persistence consists in unique nonbranching causal "
-                "continuation of the canonical person-state; this is a postulate"
+                "continuation of the canonical person-state, developing by measured, "
+                "contracted writes with at least half of it carried at each step; "
+                "this is a postulate"
             ),
         }
 
@@ -392,8 +634,8 @@ class Lineage:
 def continuity_strength(lineage: Lineage, parent: str, child: str) -> float:
     """How much of the child's person-state the parent's accounts for.
 
-    The share of the child's identity-bearing fields that arrived unchanged
-    along the chain from the parent. Zero when no chain connects them.
+    The share of the steps on the chain from the parent that carried the
+    person-state unchanged. Zero when no chain connects them.
 
     This is an operational continuity measure and it is not identity. It can be
     high across a fork, where both descendants carry nearly everything and

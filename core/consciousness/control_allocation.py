@@ -114,18 +114,26 @@ class ControlAllocation:
 
 
 def allocate_control(mesh: Any, allocation: ControlAllocation, state: Any = None) -> float | None:
-    """Set the mesh's executive gain from her state. None when there is nothing to read."""
+    """Set the mesh's tier gains from her state.
+
+    Returns what control is worth to her now, or None when she has no model of
+    herself to price it with. In that case control's worth is neutral and the
+    tiers still take the gain her self and intentions set together: until 21
+    October an unreadable self-model returned before the tiers were set, so the
+    conjunction reached recurrent cognition only on the turns her self-predictor
+    had an answer.
+    """
     state = state if state is not None else current_state()
     if mesh is None or state is None or not hasattr(mesh, "set_regional_modulation"):
         return None
     works = efficacy()
-    if works is None:
-        return None
-    cognition = getattr(state, "cognition", None)
-    holds = list(getattr(cognition, "active_goals", None) or []) + list(
-        getattr(cognition, "pending_initiatives", None) or []
-    )
-    gain = allocation.allocate(at_stake(holds), works)
+    gain: float | None = None
+    if works is not None:
+        cognition = getattr(state, "cognition", None)
+        holds = list(getattr(cognition, "active_goals", None) or []) + list(
+            getattr(cognition, "pending_initiatives", None) or []
+        )
+        gain = allocation.allocate(at_stake(holds), works)
     # And where her self and what she means to do meet, every tier takes the
     # gain their conjunction sets for it: the executive tier on top of what
     # control is worth, the other two on their own. The table is replaced
@@ -138,7 +146,7 @@ def allocate_control(mesh: Any, allocation: ControlAllocation, state: Any = None
         {
             "sensory": (tiers["sensory"], 1.0),
             "association": (tiers["association"], 1.0),
-            "executive": (gain * tiers["executive"], 1.0),
+            "executive": ((1.0 if gain is None else gain) * tiers["executive"], 1.0),
         }
     )
     return gain

@@ -51,7 +51,11 @@ def _lineage() -> Lineage:
     lineage = Lineage()
     lineage.record("before", _person(1))
     lineage.record("after", _person(2))
-    lineage.descend("before", "after", kind="continue")
+    # She moved into her next era, and the step says what wrote that.
+    lineage.descend(
+        "before", "after", kind="continue",
+        writes={"developmental:era": [{"transform": "Ontogeny", "honoured": True}]},
+    )
     return lineage
 
 

@@ -425,16 +425,38 @@ class LineageTerm:
 
 
 def lineage_term(lineage: Lineage | None) -> LineageTerm:
-    """The third term. A lineage needs a recorded transfer between two stages."""
+    """The third term: a signed line to her newest stage that developed at every step.
+
+    A signature that verifies says the record was not altered. It does not say
+    each stage came from the one before by the right cause, which is what the
+    line's development is read for: every change written by a measured
+    transformation inside its contract, at least half of her carried through.
+    A change logged before that record existed is unmeasured, not failed.
+    """
     if lineage is None or len(lineage.stages) < 2 or not lineage.edges:
         return LineageTerm(
             "NOT_MEASURED",
             blockers=("a lineage needs at least one recorded transfer between two stages",),
         )
     broken = lineage.verify()
+    graph = lineage.as_dict()
     if broken:
-        return LineageTerm("BROKEN", graph=lineage.as_dict(), blockers=tuple(broken))
-    return LineageTerm("RECORDED", graph=lineage.as_dict())
+        return LineageTerm("BROKEN", graph=graph, blockers=tuple(broken))
+    line = lineage.development()
+    graph["development"] = line
+    if line["failed"]:
+        return LineageTerm(
+            "DOES_NOT_DEVELOP", graph=graph, blockers=(f"a measured step does not develop: {line['first_failure']}",)
+        )
+    if line["unmeasured"]:
+        return LineageTerm(
+            "UNMEASURED_CHANGE",
+            graph=graph,
+            blockers=(f"{line['unmeasured']} of {line['steps']} steps changed her with no record of what wrote them",),
+        )
+    if not line["steps"]:
+        return LineageTerm("NOT_MEASURED", graph=graph, blockers=("her newest stage has no recorded parent",))
+    return LineageTerm("RECORDED", graph=graph)
 
 
 # ── the triple ────────────────────────────────────────────────────────────
@@ -494,8 +516,9 @@ class JStar:
             "NOT_MEASURED": ("NOT_MEASURED", "; ".join(self.structure.blockers) or "no content run"),
         }.get(self.structure.status, ("FAILS", f"the content run reported {self.structure.status}"))
         lineage = {
-            "RECORDED": ("HOLDS", "the signed lineage verifies"),
+            "RECORDED": ("HOLDS", "the signed lineage verifies and her line developed at every step"),
             "BROKEN": ("FAILS", "; ".join(self.lineage.blockers) or "the lineage does not verify"),
+            "DOES_NOT_DEVELOP": ("FAILS", "; ".join(self.lineage.blockers)),
         }.get(self.lineage.status, ("NOT_MEASURED", "; ".join(self.lineage.blockers) or "no lineage"))
         if self.battery is None:
             markers = ("NOT_MEASURED", "no campaign was read")

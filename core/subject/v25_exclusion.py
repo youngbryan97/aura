@@ -21,6 +21,17 @@ with, because the Haar measure of the multiplicative reals is dt/t and its
 integral diverges. So the output is the Pareto frontier, which is a single
 candidate when one dominates and a symmetry class when none does.
 
+Every pair is compared on one grid of horizons, the same for all of them:
+the grid named in advance, or else the horizons every competing candidate was
+measured at. Comparing each pair only where those two happened to overlap let
+dominance cycle (A over B at one horizon, B over C at a second, C over A at a
+third) and the frontier came out empty with three carriers standing. On one
+grid, dominance is the product order on vectors of the same length, which is
+transitive, so a finite set of carriers always has a non-dominated member. A
+pair that cannot be compared on the grid, because one of them was not measured
+at some horizon of it, is unresolved: neither excludes the other, and the
+report says the evidence did not decide.
+
 That is not an unfinished calculation. Two supports related by an exact
 symmetry of the causal structure get equal values from every permutation-
 invariant functional, so no intrinsic symmetry-respecting law can separate
@@ -42,8 +53,12 @@ from typing import Any, Mapping, Sequence
 __all__ = [
     "Candidate",
     "ExclusionReport",
+    "common_grid",
     "dominates",
+    "frontier_grid",
+    "measured_on",
     "pareto_frontier",
+    "unresolved_pairs",
     "strongly_connected_components",
     "select_carriers",
 ]
@@ -164,41 +179,90 @@ class Candidate:
         }
 
 
-def dominates(left: Mapping[float, float], right: Mapping[float, float]) -> bool:
-    """`left >= right` at every shared horizon, and strictly greater somewhere.
+def measured_on(spectrum: Mapping[float, float], grid: Sequence[float]) -> bool:
+    """Whether a spectrum has a value at every horizon of the grid."""
+    return bool(grid) and all(tau in spectrum for tau in grid)
 
-    Horizons neither measured at are not evidence either way, so the comparison
-    runs over the horizons both were measured at. With none in common the
-    spectra are incomparable and this is False, which keeps both on the
-    frontier rather than letting an unmeasured gap decide.
+
+def common_grid(spectra: Sequence[Mapping[float, float]]) -> tuple[float, ...]:
+    """The horizons every one of these spectra was measured at."""
+    if not spectra:
+        return ()
+    shared = set(spectra[0])
+    for spectrum in spectra[1:]:
+        shared &= set(spectrum)
+    return tuple(sorted(shared))
+
+
+def dominates(
+    left: Mapping[float, float],
+    right: Mapping[float, float],
+    grid: Sequence[float] | None = None,
+) -> bool:
+    """`left >= right` at every horizon of the grid, and strictly greater at one.
+
+    The grid defaults to the horizons both were measured at, which is the
+    common grid of a field of two. A pair not both measured on the whole grid
+    is not compared, and this is False both ways: an unmeasured horizon is not
+    evidence either way, and letting it decide is how dominance came to cycle.
     """
-    shared = set(left) & set(right)
-    if not shared:
+    horizons = tuple(grid) if grid is not None else common_grid([left, right])
+    if not (measured_on(left, horizons) and measured_on(right, horizons)):
         return False
-    if not all(left[tau] >= right[tau] for tau in shared):
+    if not all(left[tau] >= right[tau] for tau in horizons):
         return False
-    return any(left[tau] > right[tau] for tau in shared)
+    return any(left[tau] > right[tau] for tau in horizons)
 
 
-def pareto_frontier(candidates: Sequence[Candidate]) -> tuple[Candidate, ...]:
-    """The non-dominated carriers among those that overlap.
+def _competing(candidates: Sequence[Candidate]) -> list[Candidate]:
+    return [c for c in candidates if c.carrier]
+
+
+def frontier_grid(candidates: Sequence[Candidate], grid: Sequence[float] | None = None) -> tuple[float, ...]:
+    """The one grid every pair is compared on: the one named, or the common one."""
+    if grid is not None:
+        return tuple(sorted(grid))
+    return common_grid([c.spectrum for c in _competing(candidates)])
+
+
+def pareto_frontier(
+    candidates: Sequence[Candidate], grid: Sequence[float] | None = None
+) -> tuple[Candidate, ...]:
+    """The non-dominated carriers among those that overlap, all compared on one grid.
 
     Disjoint candidates do not compete: two processes that share no part are
     two subjects, not one subject and a loser. Only overlap triggers exclusion.
     """
-    live = [c for c in candidates if c.carrier]
+    live = _competing(candidates)
+    horizons = frontier_grid(candidates, grid)
     out: list[Candidate] = []
     for candidate in live:
         beaten = False
         for other in live:
             if other is candidate or not (candidate.support & other.support):
                 continue
-            if dominates(other.spectrum, candidate.spectrum):
+            if dominates(other.spectrum, candidate.spectrum, horizons):
                 beaten = True
                 break
         if not beaten:
             out.append(candidate)
     return tuple(sorted(out, key=lambda c: (-len(c.support), "".join(sorted(c.support)))))
+
+
+def unresolved_pairs(
+    candidates: Sequence[Candidate], grid: Sequence[float] | None = None
+) -> tuple[tuple[str, str], ...]:
+    """Overlapping carriers that could not be compared, because one was not measured on the grid."""
+    live = _competing(candidates)
+    horizons = frontier_grid(candidates, grid)
+    out = []
+    for index, a in enumerate(live):
+        for b in live[index + 1 :]:
+            if not (a.support & b.support):
+                continue
+            if not (measured_on(a.spectrum, horizons) and measured_on(b.spectrum, horizons)):
+                out.append(tuple(sorted(("".join(sorted(a.support)), "".join(sorted(b.support))))))
+    return tuple(sorted(out))
 
 
 @dataclass
@@ -210,6 +274,9 @@ class ExclusionReport:
     frontier: tuple[Candidate, ...] = ()
     whole_core_is_one_component: bool = False
     whole_core_closed: bool = False
+    #: The horizons every pair was compared on, and the pairs it could not compare.
+    grid: tuple[float, ...] = ()
+    unresolved: tuple[tuple[str, str], ...] = ()
 
     @property
     def unique_carrier(self) -> Candidate | None:
@@ -226,6 +293,8 @@ class ExclusionReport:
     def status(self) -> str:
         if not self.frontier:
             return "NOT_FOUND"
+        if self.unresolved:
+            return "UNRESOLVED"
         if len(self.frontier) == 1:
             return "FOUND"
         overlapping = any(
@@ -248,6 +317,8 @@ class ExclusionReport:
             "candidates": [c.as_dict() for c in self.candidates],
             "frontier": ["".join(sorted(c.support)) for c in self.frontier],
             "symmetry_class": list(self.symmetry_class),
+            "compared_on_horizons": list(self.grid),
+            "unresolved_pairs": ["|".join(pair) for pair in self.unresolved],
             "selected_carrier": None if carrier is None else "".join(sorted(carrier.support)),
             "selected_tau_star_seconds": None if carrier is None else carrier.tau_star,
             "selected_peak_rate": None if carrier is None else round(carrier.peak, 6),
@@ -259,13 +330,15 @@ def select_carriers(
     edges: Sequence[tuple[str, str]],
     spectra: Mapping[frozenset[str], Mapping[float, float]],
     closure: Mapping[frozenset[str], tuple[bool, float]],
+    grid: Sequence[float] | None = None,
 ) -> ExclusionReport:
     """Carriers from the graph, the closure result and the measured spectra.
 
     `spectra` and `closure` are keyed by support. A support with no spectrum is
     recorded as a candidate that was never measured rather than as one that
     scored zero — the difference between those two is the whole reason the
-    authority gate exists.
+    authority gate exists. `grid` is the horizons named in advance; without one
+    the comparison runs on the horizons every carrier was measured at.
     """
     components = strongly_connected_components(nodes, edges)
     whole = frozenset(nodes)
@@ -294,7 +367,9 @@ def select_carriers(
     return ExclusionReport(
         components=components,
         candidates=candidates,
-        frontier=pareto_frontier(candidates),
+        frontier=pareto_frontier(candidates, grid),
         whole_core_is_one_component=one_component,
         whole_core_closed=whole_closed,
+        grid=frontier_grid(candidates, grid),
+        unresolved=unresolved_pairs(candidates, grid),
     )

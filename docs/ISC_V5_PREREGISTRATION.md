@@ -1917,3 +1917,65 @@ and lesion skipped) runs twice on one commit: as built, and with
 first and not the second is credited to the codes. Neither run decides anything.
 Seed 23 is launched only on a commit both have been read on, and its own
 addendum names the commit and any switch.
+
+## Addendum, 21 October 2026, afternoon: the pair at 5885688d7, and the next commit
+
+### What the pair read
+
+Seed 7, 370 rounds, at `5885688d7`, as built and with the codes off. With the
+codes, A,S -> G passes the v3 bars (fraction 0.494, synergy 0.0267 against a
+shifted null of 0.0073, interaction lower bound +0.0061); without them it does
+not (lower bound -0.0158). P,M -> W fails its shifted null in both arms (0.170
+against 0.205 with the codes), so that coupling follows the schedule. W,A -> D
+reads worse with the codes (fraction 0.025) than without (0.086). S,D -> C fails
+in both. Closure fails in both (leak 0.0130 and 0.0126 against shuffled q95 of
+0.0026 and 0.0063). 17 of 24 under v1 in both.
+
+### Organism changes in the next commit
+
+**The codes, rewritten.** A unit is now a gain field, rate times rate: each of
+the two domains is read in full, standardised, and placed along its two leading
+principal axes, learned from its running covariance (the directions Hebbian
+learning of a domain's inputs converges to; Oja 1982, Sanger 1989); each axis
+passes through a non-negative tuning curve, (1 + tanh v) / 2, and the four units
+of a meeting are the products of one axis of each domain (Salinas and Abbott
+1996). Signed products of tanh projections are nearly invisible to a Gaussian
+copula estimator; products of non-negative rates carry both main effects and the
+interaction. Each unit integrates across cycles at her affect's momentum, so a
+cycle's change follows what the two domains held over the cycles before it. A
+consumer's gain reads where the units stand against their own running range.
+
+**Control allocation without a self-model.** When self-efficacy cannot be read,
+the executive tier's gain from control's worth is neutral and the tier gains the
+recurrent units set still apply; before, the early return skipped both.
+
+**Self and intention in the substrate's own transition.** dx/dt = -x + tanh(W x
++ B phi), phi where the recurrent meeting's units stand, B a fixed input matrix
+seeded from its name, the current linear in phi and at a typical standing as
+strong as the recurrent drive's running root mean square. Her substrate runs
+with the consciousness bridge blending the mesh's projection into it at 0.35
+every bridge tick; in that regime, offline, the current leaves the mesh's
+pattern as decodable as before (held-out R squared 0.999 on and off), pins no
+neuron, moves the spread from 0.0176 to 0.0184, and makes where self and
+intention stand decodable from the substrate (0.0 to 0.992).
+
+**What wrote each change to her person.** Every commit carries the person paths'
+digests and, for each path, the last measured transformation that wrote it, read
+from the runtime's provenance receipts. The person paths are watched around every
+transformation, so a contracted phase writing one it did not declare is recorded
+as a contract violation at warning.
+
+### Analysis changes
+
+The lineage judges a step by development rather than by an unchanged hash: each
+changed person path written by a measured transformation inside its contract,
+and at least half the paths carried unchanged (Parfit's strong connectedness).
+The bridge's lineage term holds when the signed line to her newest stage
+developed at every measured step; a change logged before the evidence existed is
+reported as unmeasured. The lineage key is derived from the install's entity key.
+Exclusion compares every pair of overlapping carriers on one grid of horizons and
+reports pairs it could not compare as unresolved.
+
+### How it is read
+
+The same pair, on the next commit. Nothing moves a threshold.

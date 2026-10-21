@@ -507,6 +507,25 @@ class EntityIdentity:
             ),
         }
 
+    def derived_key(self, purpose: str) -> bytes:
+        """A secret for one purpose, derived from this entity's private key.
+
+        HMAC of the purpose under the raw private key, the extract step of HKDF
+        (RFC 5869), so each purpose gets its own key, none of them reveals the
+        private key, and a rotation of the entity key rotates every one.
+        """
+
+        import hmac
+
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            NoEncryption,
+            PrivateFormat,
+        )
+
+        raw = self._private_key.private_bytes(Encoding.Raw, PrivateFormat.Raw, NoEncryption())
+        return hmac.new(raw, str(purpose).encode("utf-8"), hashlib.sha256).digest()
+
     def _public_key(self) -> Any:
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 

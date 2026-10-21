@@ -193,23 +193,24 @@ class ConsciousnessPhase(BasePhase):
         See core/consciousness/conjunctive_codes.py.
         """
         try:
-            from core.consciousness.conjunctive_codes import bind, gain_from_units, into_substrate
+            from core.consciousness.conjunctive_codes import bind, gain_from_units, into_substrate, standing_of
 
             codes = bind(state)
             if codes is None:
                 return
             workspace = get_runtime_service("global_workspace", default=None)
             if workspace is not None:
-                workspace.attention_units = codes.units.get("attention", ())
+                workspace.attention_units = standing_of(codes, "attention")
             world = get_runtime_service("unified_world_model", default=None)
             learned = getattr(world, "learned", None) if world is not None else None
             if learned is not None:
-                learned.learning_precision = gain_from_units(codes.units.get("world", ()), "world", "learning")
+                learned.learning_precision = gain_from_units(standing_of(codes, "world"), "world", "learning")
             substrate = get_runtime_service("liquid_substrate", default=None) or (
                 get_runtime_service("conscious_substrate", default=None)
             )
             if substrate is not None:
                 state.response_modifiers["conjunction_band"] = round(into_substrate(substrate, codes), 8)
+                substrate.conjunction_drive = standing_of(codes, "recurrent")
         except _CONSCIOUSNESS_PHASE_ERRORS as exc:
             record_degradation(
                 "consciousness_phase",

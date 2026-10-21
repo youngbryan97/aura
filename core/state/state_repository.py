@@ -25,6 +25,7 @@ from core.utils.task_tracker import get_task_tracker
 
 from ..bus.shared_mem_bus import SharedMemoryTransport
 from ..container import ServiceContainer
+from .person_transitions import take_person_evidence
 
 if TYPE_CHECKING:
     from .aura_state import (
@@ -219,7 +220,6 @@ class StateVersionConflictError(Exception):
 
 def _is_user_facing_origin(origin: Any) -> bool:
     return is_user_facing_origin(origin)
-
 
 
 def _declared(cls: Any, saved: Any) -> dict[str, Any]:
@@ -535,6 +535,7 @@ class StateRepository:
     ) -> AuraState:
         """Queue a state transition for atomic owner-side processing."""
         trace_id = trace_id or f"trace_{int(time.time() * 1000)}"
+        take_person_evidence(self, new_state)
         if self.is_vault_owner:
             await self._enqueue_owner_commit(
                 {
@@ -1402,7 +1403,6 @@ class StateRepository:
         self._deferred_commit_count += 1
         self._last_commit_deferred_at = time.time()
         self._last_commit_deferred_reason = str(reason or "unspecified")[:512]
-
 
     def _should_use_bounded_db_snapshot(self, state: AuraState, cause: str) -> bool:
         origin = getattr(state, "transition_origin", "") or getattr(

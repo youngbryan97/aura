@@ -73,7 +73,7 @@ import hashlib
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping
 
 __all__ = [
     "BranchSpec",
@@ -305,6 +305,23 @@ UNCONTRACTED_PHASES: frozenset[str] = frozenset(
 
 _CONTRACTS: dict[str, CognitiveTransformContract] = {}
 _WATCHED: tuple[str, ...] | None = None
+#: Paths watched around every transformation whether or not a contract names
+#: them, because something downstream asks who wrote them.
+_ALSO_WATCHED: set[str] = set()
+
+
+def watch_also(paths: Iterable[str]) -> None:
+    """Watch these paths around every transformation, contracted or not.
+
+    A contracted phase is measured only against the fields some contract
+    names, so a write it makes to any other field leaves no receipt. The
+    lineage asks which transformation wrote each identity-bearing field, and a
+    field no contract named would have had no answer.
+    """
+
+    global _WATCHED
+    _ALSO_WATCHED.update(str(path) for path in paths)
+    _WATCHED = None
 
 
 def register_contract(contract: CognitiveTransformContract) -> CognitiveTransformContract:
@@ -381,6 +398,7 @@ def watched_fields() -> tuple[str, ...]:
         for contract in _CONTRACTS.values():
             paths.update(contract.reads)
             paths.update(contract.writes)
+        paths.update(_ALSO_WATCHED)
         _WATCHED = tuple(sorted(paths))
     return _WATCHED
 
