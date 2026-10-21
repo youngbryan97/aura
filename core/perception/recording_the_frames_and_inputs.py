@@ -353,6 +353,14 @@ def _source_reference_snapshot(moves: Any) -> dict:
 
     statuses = getattr(moves, 'fresh_source_reference_status', None)
     wholes = getattr(moves, 'source_referents', None)
+    groups = getattr(moves, 'source_material_groups', None)
+    group_records = [{**{name: scalar(getattr(item, name, None)) for name in
+        ('number', 'born', 'kind', 'seen', 'x', 'y', 'w', 'h', 'source', 'character_id',
+         'geometry_qualified', 'role', 'contact_verified')},
+        'material_bounds': list(getattr(item, 'material_bounds', ())),
+        'anchors': [list(a) for a in sorted(getattr(item, 'anchors', ()))[:128]],
+        'observed_parts': [list(p) for p in getattr(item, 'observed_parts', ())[:32]],
+        'pixels': pixels(getattr(item, 'pixels', None))} for item in islice(groups.values(), 64)] if isinstance(groups, dict) else None
     readings = getattr(moves, 'source_referent_readings', ())
     coverage = getattr(moves, 'source_reference_variant_coverage', ())
     variants = [] if isinstance(coverage, tuple) else None
@@ -379,6 +387,7 @@ def _source_reference_snapshot(moves: Any) -> dict:
             'fresh_status': [scalar(v) for v in statuses[:64]] if isinstance(statuses, (tuple, list)) else None,
             'object_bound': channel('source_reference_points'), 'continuing': channel('source_reference_frames'),
             'fresh': channel('fresh_source_reference_frames'),
+            'material_attention': {'records': group_records, 'count': len(groups) if isinstance(groups, dict) else None},
             'whole_referents': {'records': whole_records, 'count': len(wholes) if isinstance(wholes, dict) else None,
                                'readings': whole_readings}}
 

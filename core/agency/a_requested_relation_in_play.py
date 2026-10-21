@@ -120,6 +120,8 @@ def _box(thing: Any) -> tuple[float, float, float, float] | None:
 
 def relation_edges_observed(relation: str, mine: Any, target: Any) -> bool:
     """An image boundary cannot supply an unseen edge of the target."""
+    if getattr(target, 'geometry_qualified', True) is not True:
+        return False
     edges = getattr(target, 'clipped_edges', (False, False, False, False))
     if not isinstance(edges, tuple) or len(edges) != 4 or any(type(v) is not bool for v in edges):
         return False
@@ -184,8 +186,7 @@ def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
     for thing in things:
         if getattr(thing, 'number', None) == getattr(mine, 'number', None):
             continue
-        if (isinstance(thing, WholeSourceReferent)
-                and (getattr(mine, 'number', None), getattr(mine, 'born', None), getattr(mine, 'kind', None))
+        if ((getattr(mine, 'number', None), getattr(mine, 'born', None), getattr(mine, 'kind', None))
                 in getattr(thing, 'observed_parts', ())):
             continue
         name = names.for_thing(thing) if isinstance(names, NamesInScene) else names.get(getattr(thing, 'kind', -1), '')
@@ -219,6 +220,8 @@ def read_destination(request: SpatialRequest, mine: Any, things: Sequence[Any], 
     target = candidates[0]
     if getattr(target, 'seen', None) != at:
         return refused('referent_not_current')
+    if getattr(target, 'geometry_qualified', True) is not True:
+        return refused('referent_extent_unavailable')
     if isinstance(target, WholeSourceReferent) and (target.vx is None or target.vy is None
             or target.velocity_error is None or target.velocity_error > max(2., .5*math.hypot(target.vx, target.vy))):
         return refused('referent_motion_unavailable')

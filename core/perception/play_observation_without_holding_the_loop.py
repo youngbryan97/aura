@@ -78,7 +78,7 @@ def _started(factory: Callable[..., Any], kinds: list[Any]) -> tuple[Any, dict[s
 def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
           material_retention: Any = None, fresh_references: Any = None,
           reference_proposals: tuple = (), reference_tables: tuple = (),
-          reference_coverage: tuple = (), whole_referents: Any = None,
+          reference_coverage: tuple = (), whole_referents: Any = None, material_groups: Any = None,
           reference_frames: tuple = ()) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     prepare_sampling = getattr(fresh_references, 'sampling_before_observation', None)
     if callable(prepare_sampling):
@@ -113,7 +113,7 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
             reference_frames, refused = _with_current_material_frames(reference_frames, measured_frames,
                 SimpleNamespace(**state), float(at), reference_tables)
             state['fresh_source_material_status'] += refused
-    if whole_referents is not None:
+    if whole_referents is not None or material_groups is not None:
         from types import SimpleNamespace
 
         current = SimpleNamespace(**state)
@@ -122,8 +122,13 @@ def _seen(eyes: Any, picture: Any, at: float, *, search_hint: Any = None,
             sample = binding.inspect(current, float(at), source=reference.source).current
             if sample is not None:
                 matches.append((reference, binding, sample))
-        state['source_referents'] = whole_referents.observe(current, picture, float(at), tuple(matches))
-        state['source_referent_readings'] = whole_referents.readings
+        if whole_referents is not None:
+            state['source_referents'] = whole_referents.observe(current, picture, float(at), tuple(matches))
+            state['source_referent_readings'] = whole_referents.readings
+        if material_groups is not None:
+            state['source_material_groups'] = material_groups.observe(current, picture, float(at), tuple(matches),
+                wholes=state.get('source_referents', {}))
+            state['source_material_group_readings'] = material_groups.readings
     return copy.deepcopy(happened), state
 
 
@@ -192,6 +197,11 @@ class PlayObservation:
         from core.perception.whole_referents_from_source_material import WholeReferentsInView
 
         self._whole_referents = WholeReferentsInView()
+        from core.perception.source_material_groups_for_visual_attention import SourceMaterialGroupsInView
+
+        self._material_groups = SourceMaterialGroupsInView()
+        self._mirror.source_material_groups = {}
+        self._mirror.source_material_group_readings = ()
         self._mirror.source_referents = {}
         self._mirror.source_referent_readings = ()
         self._mirror.source_reference_points = ()
@@ -278,6 +288,8 @@ class PlayObservation:
 
     async def see(self, picture: Any, at: float, *, search_hint: Any = None) -> list[dict[str, Any]] | None:
         """Return this frame's events, or None while its measurement is unavailable."""
+        self._mirror.source_material_groups = {}
+        self._mirror.source_material_group_readings = ()
         self._mirror.source_reference_points = ()
         self._mirror.source_reference_frames = ()
         self._mirror.fresh_source_reference_frames = ()
@@ -320,7 +332,8 @@ class PlayObservation:
         operation = self._submit("frame", lambda: _seen(eyes, owned_picture, owned_at, search_hint=search_hint,
             material_retention=retention, fresh_references=self._fresh_references,
             reference_proposals=proposals, reference_tables=tables, reference_coverage=coverage,
-            whole_referents=self._whole_referents, reference_frames=reference_frames))
+            whole_referents=self._whole_referents, material_groups=self._material_groups,
+            reference_frames=reference_frames))
         if operation is None:
             return None
         self._last_submitted_at = float(at)
@@ -336,6 +349,10 @@ class PlayObservation:
         active = {table.source for table in tables}
         self._mirror.source_referents = {number: item for number, item in self._mirror.source_referents.items()
             if item.source in active and item.pixels == self._mirror.pixels_consumed and item.seen == at}
+        self._mirror.source_material_groups = {number: item for number, item in self._mirror.source_material_groups.items()
+            if item.source in active and item.pixels == self._mirror.pixels_consumed and item.seen == at}
+        self._mirror.source_material_group_readings = tuple(item for item in self._mirror.source_material_group_readings
+            if item.get('source') is None or item['source'] in active)
         self._mirror.source_referent_readings = tuple(item for item in self._mirror.source_referent_readings
             if item.get('source') is None or item['source'] in active)
         self._mirror.fresh_source_reference_frames = tuple(frame for frame in self._mirror.fresh_source_reference_frames
@@ -354,6 +371,9 @@ class PlayObservation:
         self._closed = True
         self._fresh_references = None
         self._whole_referents = None
+        self._material_groups = None
+        self._mirror.source_material_groups = {}
+        self._mirror.source_material_group_readings = ()
         self._mirror.source_referents = {}
         self._mirror.source_referent_readings = ()
         if self._references is not None:

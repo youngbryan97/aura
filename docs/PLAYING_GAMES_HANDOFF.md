@@ -1628,3 +1628,21 @@ valid place to look; a partial group must not authorize movement, invent
 width or acquire its source label as a task role. Preserve the zero results.
 The current variant artifacts are under
 `artifacts/flash-campaign/2026-10-20-reference-frame-variants/`.
+
+Current source material now reaches ordinary visual naming independently of
+whole-reference extent qualification. Inspection windows use the current
+source projection, with the measured point span retained separately. These
+groups stay outside physical/body tracking and cannot supply a destination
+point or relation region. A matching name produces the typed extent request.
+The worker filters source changes and clears repeated/closed observations.
+
+Focused regression: 131 passed. The retained twelve-frame CPU replay offers
+material naming candidates in six pictures, against three with the initial
+point-span boxes. It still has zero qualified whole referents. No model was
+asked and no inputs were delivered. Results remain under
+`artifacts/flash-campaign/2026-10-20-material-attention/`.
+
+Next turn the typed extent need into a bounded current measurement attempt.
+The request currently records missing evidence; it cannot repair the missing
+geometry by itself. Keep the source role/contact/controller bridge and native
+proof open. No GPU or resident runtime access is authorized for this work.

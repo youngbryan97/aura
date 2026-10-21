@@ -68,6 +68,8 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     from core.perception.visual_references_for_current_sources import acquire_visual_references, reference_variant_coverage
     from core.perception.what_moves_in_the_picture import WhatMoves
     from core.perception.whole_referents_from_source_material import WholeReferentsInView
+    from core.perception.source_material_groups_for_visual_attention import SourceMaterialGroupsInView
+    from core.perception.what_things_look_like import LookingAtThings
 
     if not 1 <= frames <= 100 or not 1 <= match_every <= 100 or start < 0:
         raise ValueError('replay needs bounded frame and match counts')
@@ -77,6 +79,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     table = read_flash_visual_assets(raw)
     catalog = acquire_visual_references((table,), root=catalog_root)
     observer, wholes = WhatMoves(), WholeReferentsInView()
+    material_groups = SourceMaterialGroupsInView()
     geometry, proposals = SourceGeometryInCurrentPixels(), {}
     bindings, searches, rows = (), [], []
     began = time.monotonic()
@@ -118,10 +121,20 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         bindings = tuple(kept)
         started = time.perf_counter()
         seen = wholes.observe(observer, picture, at, tuple(current))
+        observer.source_referents = seen
+        observer.source_material_groups = material_groups.observe(observer, picture, at, tuple(current), wholes=seen)
+        eligible = LookingAtThings()._to_look_at(observer, None, set(), at=at)
         elapsed = time.perf_counter()-started
         rows.append(dict(sequence=event['sequence'], file=event['file'], at=at,
             picture_sha256=observer.pixels_consumed.sha256, material_marks=len(observer.material_marks.points),
             source_frames=len(current), producer_seconds=elapsed, readings=list(wholes.readings),
+            material_groups=[dict(number=g.number, born=g.born, kind=g.kind, source=g.source,
+                character_id=g.character_id, box=list(g.box()), anchors=len(g.anchors),
+                material_bounds=list(g.material_bounds),
+                geometry_qualified=g.geometry_qualified, role=g.role, contact_verified=g.contact_verified,
+                observed_parts=list(g.observed_parts)) for g in observer.source_material_groups.values()],
+            material_group_readings=list(material_groups.readings),
+            material_groups_eligible_for_naming=[q.number for q in eligible if q.number in observer.source_material_groups],
             sampling_hint=asdict(observer.sampling_hint_receipt) if observer.sampling_hint_receipt else None,
             fresh_geometry=len(state.get('fresh_source_reference_frames', ())),
             fresh_geometry_status=state.get('fresh_source_reference_status', ()),
@@ -139,6 +152,8 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         reference_variant_coverage=[asdict(c) for c in reference_variant_coverage(catalog.references)],
         unavailable=list(catalog.unavailable), searches=searches, frames=rows,
         frames_with_whole_referents=sum(bool(row['referents']) for row in rows),
+        frames_with_material_attention=sum(bool(row['material_groups']) for row in rows),
+        frames_with_material_naming_candidates=sum(bool(row['material_groups_eligible_for_naming']) for row in rows),
         distinct_whole_ids=len({w['number'] for row in rows for w in row['referents']}),
         frames_with_sampling_hints=sum(bool(row['sampling_hint']) for row in rows),
         frames_with_current_source_material=sum(bool(row['source_frames']) for row in rows),
@@ -175,6 +190,7 @@ def main() -> None:
         gateway.write_text(args.output, json.dumps(result, indent=2)+'\n', source='recorded_source_parent_measurement')
     print(json.dumps({key: result[key] for key in ('measured_frames', 'frames_with_sampling_hints',
         'frames_with_current_source_material', 'frames_with_whole_referents',
+        'frames_with_material_attention', 'frames_with_material_naming_candidates',
         'distinct_whole_ids', 'duration_s', 'model_workers', 'input_delivered', 'demo_ready')}))
 
 

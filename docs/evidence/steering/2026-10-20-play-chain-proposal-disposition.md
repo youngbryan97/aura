@@ -599,3 +599,46 @@ After sorting within variant families, the 17 canaries passed again in 4.07
 seconds and final smoke passed 164 tests with one skip in 62.31 seconds.
 The large difference between shared-host run times is not a control-rate
 measurement. No performance or demo qualification follows from these gates.
+
+## Current material can reach naming without a qualified outline
+
+- [x] G1/G3: a separate current source-material group now reaches the ordinary
+  instance-query path when whole-reference pixel reconciliation refuses it.
+  Its inspection window uses the current source projection, clipped to the
+  capture. The span of actual named points is retained separately as
+  `material_bounds`. Neither is a qualified object or contact extent.
+- [x] Naming retains current capture, source family and continuing mark
+  ownership. Directly shared material can combine inspection questions;
+  a chain joining disjoint instances is refused. Source labels do not name
+  the group. These records remain outside physical/body tracking.
+- [x] A named material group produces `referent_extent_unavailable` and the
+  typed `measure_whole_extent` request. Destination points and relation
+  regions reject it, including direct calls. A group containing the observed
+  body cannot become its destination. No geometry gate was loosened.
+- [x] The ordinary observation worker publishes these groups, filters source
+  changes and clears repeated or closed observations. The recorder keeps
+  material attention separate from qualified whole referents.
+- [ ] The extent request still needs a successful measurement provider. A
+  diagnostic need alone cannot authorize movement or complete the task.
+- [ ] Native naming, bound destinations, successful arrivals, the 56-game
+  campaign and independent ordinary-app demonstration remain unproven.
+
+The first point-span replay retained material attention in six of twelve
+pictures, but only three pictures offered naming queries. The small boxes
+would repeat fragment-only inspection. Using the current source projection
+as a proposed inspection window raised naming eligibility to six pictures.
+The final replay retained seven sampling hints and eight current source
+material frames. Qualified whole referents remain zero. No model was asked,
+no input was delivered, and no task success is inferred from eligibility.
+
+The focused group passed 131 tests in 19.75 seconds after the window and
+overlap changes. The earlier implementation passed 128 tests in 28.65 seconds.
+An initial command named an absent test file and collected no tests; that
+setup failure remains recorded. Artifacts are under
+`artifacts/flash-campaign/2026-10-20-material-attention/`. GPU, resident runtime,
+G09 and holdouts remain untouched.
+
+The material-attention checkpoint passed smoke (164 passed, one skipped),
+lint, compilation, layering and writing in 106.26 seconds. Its claim and pure
+invariant are registered. These checks certify the observation boundary;
+they supply no native-play or successful-arrival evidence.

@@ -302,8 +302,9 @@ class WholeReferentsInView:
 
 
 def scene_referents(observer: Any) -> tuple:
-    """Whole referents can be named and bound; physical-body tracking stays separate."""
+    """Current material can be named; each type keeps its own geometry authority."""
     from collections.abc import Mapping
+    from core.perception.source_material_groups_for_visual_attention import SourceMaterialGroup
 
     things = getattr(observer, 'things', {})
     result = list(things.values()) if isinstance(things, Mapping) else []
@@ -311,6 +312,11 @@ def scene_referents(observer: Any) -> tuple:
     if isinstance(extra, Mapping):
         known = {getattr(item, 'number', None) for item in result}
         result.extend(item for item in extra.values() if isinstance(item, WholeSourceReferent)
+                      and item.number not in known and item.pixels == getattr(observer, 'pixels_consumed', None))
+    material = getattr(observer, 'source_material_groups', {})
+    if isinstance(material, Mapping):
+        known = {getattr(item, 'number', None) for item in result}
+        result.extend(item for item in material.values() if isinstance(item, SourceMaterialGroup)
                       and item.number not in known and item.pixels == getattr(observer, 'pixels_consumed', None))
     return tuple(result)
 
