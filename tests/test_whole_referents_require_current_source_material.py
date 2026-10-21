@@ -237,6 +237,9 @@ def test_named_whole_reaches_actual_goal_binding_and_never_body_tracking(scene, 
                               stance=lambda _thing: 'meet')
     monkeypatch.setattr('core.agency.a_requested_relation_in_play.observed_names', lambda _moves: names.scene(observer, {}))
     assert requested_target(chooser)[1:] == ('meet', whole)
+    from core.agency.a_requested_region_in_a_plan import current_requested_region
+
+    assert current_requested_region(chooser).target_owner == (whole.number, whole.born, whole.kind)
     assert not observer.things and whole.number not in observer.things
     assert not referents_to_observe(request, observer, mine, names.scene(observer, {}), 4.1)
     # Unnamed whole artwork gets a normal boxed observation, with unchanged prompts.

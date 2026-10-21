@@ -1744,3 +1744,28 @@ Artifacts: `artifacts/flash-campaign/2026-10-20-supplied-source-state/`.
 This supplies arithmetic capability, not a live-state producer or a contact
 contract. Continue those connections without assigning physical roles from
 field names or treating an artwork box as a collision surface.
+
+The next consumer gap was the unused `ObservedRelationRegion`: ordinary
+planning rewarded box overlap even for requested `on`/`inside` relations.
+The planner now rechecks owners, current extents and observer basis, then
+scores region distance through the forecast and terminal relative speed.
+Requested overlap supplies no predicted contact reward; known hazards and
+other earned contacts keep their ordinary scoring. `Imagined.relation` and
+the actual choice record separate this geometric prediction from observed
+contact and success, which remain unknown.
+
+Short measured push/brake/neutral candidates address small inertial moves
+at the real control cadence. The current-region objective removes a fixed
+switch penalty that left a stopped body outside the region. Accumulated
+floating-point score ties prefer fewer actuations. Retain the failed tests
+and diagnoses under
+`artifacts/flash-campaign/2026-10-20-requested-regions-in-planning/`.
+These fixtures explicitly supply names, identity and control measurements;
+they do not close visual acquisition or original-game contact requirements.
+
+The final region group passed 217 tests, including all sixteen direct/
+acceleration feedback cases with independently integrated physics and input
+delay. Smoke passed 164 with one skip; lint, compilation, layering and writing
+passed. Continue the upstream moving-body continuity diagnosis and the
+source contact/unit bridge. No native run was made, and no demo readiness
+is claimed. Keep CPU-only work and all G09/holdout boundaries.

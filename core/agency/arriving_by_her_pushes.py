@@ -16,6 +16,30 @@ from core.verify import invariant
 BRAKING_SHARE = .7
 
 
+def braking_pulse_holds(pushes: Mapping[str, tuple], step: float, horizon: float) -> tuple:
+    """Bounded push, opposing push and neutral candidates at the executable cadence.
+
+    A single control interval can overshoot a small displacement. Two held
+    accelerations can move and remove speed before the remaining forecast.
+    Every candidate still requires ordinary model scoring and fresh feedback.
+    """
+    if (not isinstance(pushes, Mapping) or '' not in pushes or len(pushes) > 16
+            or not all(type(v) in (int, float) and math.isfinite(v) for v in (step, horizon))
+            or not 0 < 2*step < horizon
+            or any(not isinstance(key, str) or not isinstance(push, tuple) or len(push) != 2
+                   or any(type(v) not in (int, float) or not math.isfinite(v) for v in push)
+                   for key, push in pushes.items())):
+        return ()
+    candidates = []
+    for first in sorted(key for key in pushes if key):
+        for second in sorted(key for key in pushes if key and key != first):
+            a, b = pushes[first], pushes[second]
+            opposition = a[0]*b[0]+a[1]*b[1]
+            if math.isfinite(opposition) and opposition < 0:
+                candidates.append(((0., first), (step, second), (2*step, '')))
+    return tuple(candidates[:32])
+
+
 def arrival_key(position: tuple, going: tuple, goal: tuple, pushes: Mapping[str, tuple],
                 step: float, held: str = "", *, near: tuple = (0., 0.), gentle: float = 0.) -> str | None:
     """Choose a measured push toward a speed that can be stopped in the room left.
@@ -114,4 +138,15 @@ def _arrival_braking_invariant() -> tuple:
     assert arrival_key((100., 100.), (math.nan, 0.), (200., None), pushes, .1) is None
     assert arrival_excess((100., 100.), (200., 0.), (200., None), pushes, (24., 24.), 12.) > 70.
     assert arrival_excess((100., 100.), (20., 0.), (200., None), pushes, (24., 24.), 12.) == 0.
+    return ()
+
+
+@invariant('agency.braking_pulses_keep_the_executable_control_cadence', scope='agency',
+           owner='core/agency/arriving_by_her_pushes.py', observational=False)
+def _braking_pulse_invariant() -> tuple:
+    pushes = {'': (0., 0.), 'a': (-80., 0.), 'b': (80., 0.)}
+    candidates = braking_pulse_holds(pushes, .1, 1.)
+    assert candidates == (((0., 'a'), (.1, 'b'), (.2, '')), ((0., 'b'), (.1, 'a'), (.2, '')))
+    assert not braking_pulse_holds({'a': (-80., 0.), 'b': (80., 0.)}, .1, 1.)
+    assert not braking_pulse_holds(pushes, .1, .2)
     return ()

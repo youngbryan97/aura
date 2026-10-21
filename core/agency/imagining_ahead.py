@@ -34,7 +34,8 @@ from typing import Any
 
 import numpy as np
 
-from core.agency.arriving_by_her_pushes import arrival_excess, arrival_holds, stopping_distance
+from core.agency.arriving_by_her_pushes import arrival_excess, arrival_holds, braking_pulse_holds, stopping_distance
+from core.agency.a_requested_region_in_a_plan import RelationForecast, RelationInPlan, current_requested_region
 
 __all__ = ["HORIZON_S", "Plan", "best_plan", "plans_to_imagine"]
 
@@ -108,6 +109,7 @@ class Imagined:
     covers: int = 0
     #: Whether the plans imagined differ in what they meet: where none does, imagining has nothing to choose between.
     decides: bool = False
+    relation: RelationForecast | None = None
 
 
 @dataclass
@@ -135,6 +137,10 @@ class _Scene:
     arriving: bool = False
     arrival_near: tuple[float, float] = (0., 0.)
     arrival_gentle: float = 0.
+    arrival_goal: tuple = (None, None)
+    relation: RelationInPlan | None = None
+    relation_bounds: np.ndarray = field(default_factory=lambda: np.zeros((0, 0, 4)))
+    relation_velocity: tuple[float, float] = (0., 0.)
     delay: float = 0.
     #: The ground its code names, laid on her picture, with what she has gone over of it.
     ground: Any = None
@@ -181,11 +187,14 @@ def best_plan(choosing: Any, held: str, goal: tuple[float | None, float | None],
     """The plan that comes out best for ``choosing`` (the real-time player's arithmetic of one decision), holding
     ``held`` now and meaning to be at ``goal``; None where there is nothing to imagine with: no thing of hers, or no way
     she knows of moving it."""
-    scene = _the_scene(choosing, horizon)
+    scene = _the_scene(choosing, horizon, goal=goal)
     if scene is None:
         return None
     plans = plans_to_imagine(["", *scene.ways], list(scene.paths), held,
                              every=float(getattr(choosing, "next_picture_s", 0.0) or 0.0))
+    if scene.relation is not None and scene.pushes is not None:
+        cadence = max(STEP_S, float(getattr(choosing, 'next_picture_s', STEP_S)))
+        plans.extend(Plan(sequence) for sequence in braking_pulse_holds(scene.pushes, cadence, horizon))
     arrival = None
     if arrive_at is not None and scene.pushes is not None:
         cadence = max(STEP_S, float(getattr(choosing, "next_picture_s", STEP_S)))
@@ -193,19 +202,33 @@ def best_plan(choosing: Any, held: str, goal: tuple[float | None, float | None],
         gentle = choosing.meeting.gentle_below(arrive_at.kind) if hasattr(choosing.meeting, "gentle_below") else None
         if gentle is None:
             gentle = GENTLE_SHARE * max(math.hypot(*p) for p in scene.pushes.values())
-        arrival = arrival_holds(scene.start, scene.going, goal, scene.pushes, scene.times.tolist(), cadence, held,
-                                near=near, gentle=gentle)
+        arrival_goal = goal
+        if scene.relation is not None:
+            arrival_goal = scene.relation.nearest(scene.start, scene.delay)
+            # The centre region already accounts for both extents. Aim to
+            # settle there; zero desired speed asserts no safe-contact limit.
+            near, gentle = (0., 0.), 0.
+        arrival = (arrival_holds(scene.start, scene.going, arrival_goal, scene.pushes, scene.times.tolist(), cadence, held,
+                                 near=near, gentle=gentle) if arrival_goal is not None else None)
         if arrival:
             scene.arriving = True
             scene.arrival_near, scene.arrival_gentle = near, gentle
+            scene.arrival_goal = arrival_goal
             plans.append(Plan(arrival))
     imagined = [_run(scene, plan, goal, held, choosing.caution) for plan in plans]
     best = max(imagined, key=lambda one: one.worth)
-    best.decides = bool(arrival) or len({(one.gets, one.costs, one.covers) for one in imagined}) > 1
+    if scene.relation is not None:
+        # Round-off in a nominally stopped velocity must not buy another
+        # push/brake cycle. This is a score tie, not a geometric tolerance.
+        tolerance = 64 * len(scene.times) * math.ulp(max(1., abs(float(best.worth))))
+        tied = [one for one in imagined if abs(float(one.worth-best.worth)) <= tolerance
+                and (one.gets, one.costs, one.covers) == (best.gets, best.costs, best.covers)]
+        best = min(tied, key=lambda one: (len(one.plan.held)+len(one.plan.presses), one.plan.first != held))
+    best.decides = bool(arrival) or scene.relation is not None or len({(one.gets, one.costs, one.covers) for one in imagined}) > 1
     return best
 
 
-def _the_scene(choosing: Any, horizon: float) -> _Scene | None:
+def _the_scene(choosing: Any, horizon: float, *, goal: tuple | None = None) -> _Scene | None:
     mine = getattr(choosing, "mine", None)
     ways = dict(getattr(choosing, "ways", {}) or {})
     # Nothing to imagine with: no thing of hers, no way she knows of moving it, or no world seen around it.
@@ -242,6 +265,19 @@ def _the_scene(choosing: Any, horizon: float) -> _Scene | None:
             scene.start = (mine.x + mine.vx * response + .5 * ax * response ** 2,
                            mine.y + mine.vy * response + .5 * ay * response ** 2)
             scene.going = (mine.vx + ax * response, mine.vy + ay * response)
+    region = current_requested_region(choosing, goal)
+    if region is not None:
+        target = choosing.goal_binding.thing
+        path = _its_path(getattr(choosing, 'physics', None), target, horizon * max(PACES) + response)
+        relation = RelationInPlan(region, (float(target.x), float(target.y)), path)
+        bands = [[relation.bounds_after(response + float(when) * pace) for when in times] for pace in PACES]
+        if all(bounds is not None for band in bands for bounds in band) and len(times) >= 2:
+            scene.relation = relation
+            scene.relation_bounds = np.asarray(bands)
+            dt = float(times[-1] - times[-2])
+            last = PACES.index(1.)
+            scene.relation_velocity = tuple((scene.relation_bounds[last, -1, :2]
+                                             - scene.relation_bounds[last, -2, :2]) / dt)
     _the_world_run_forward(choosing, scene)
     return scene
 
@@ -254,6 +290,12 @@ def _the_world_run_forward(choosing: Any, scene: _Scene) -> None:
     # A kind that costs her as much getting by her as touching her is nothing to keep clear of (what_meeting_things_does).
     anyway = getattr(getattr(choosing, "meeting", None), "lands_anyway", ())
     things = [(t, 0.0 if int(t.kind) in anyway else worth_of.get(choosing.stance(t), 0.0)) for t in choosing.others()]
+    binding = getattr(choosing, 'goal_binding', None)
+    if (binding is not None and getattr(getattr(binding, 'request', None), 'relation', None) in ('on', 'inside')
+            and getattr(getattr(choosing, 'meeting', None), 'spatial_request', None) == binding.request):
+        # Overlap with a requested region supplies no contact reward. Keep
+        # independently known danger and all other earned interactions.
+        things = [(t, w) for t, w in things if w <= 0. or t is not binding.thing]
     things = [(t, w) for t, w in things if w != 0.0]
     physics = getattr(choosing, "physics", None)
     # What she plans with is a construal of the scene, as people's is (value-guided construal, Ho et al. 2022): what
@@ -401,26 +443,43 @@ def _run(scene: _Scene, plan: Plan, goal: tuple[float | None, float | None], hel
         met, covers = _ground_gone_over(scene.ground, xs, ys)
         worth += met
     gx, gy = goal
+    relation_forecast = None
     if gx is not None or gy is not None:
         reach = max(1.0, max((math.hypot(*way) for way in scene.ways.values()), default=1.0) * float(times[-1]))
         if scene.arriving:
             reach = max(reach, math.hypot((scene.start[0] - gx) if gx is not None else 0.,
                                          (scene.start[1] - gy) if gy is not None else 0.))
         far = math.hypot((xs[-1] - gx) if gx is not None else 0.0, (ys[-1] - gy) if gy is not None else 0.0)
+        if scene.relation is not None:
+            bands = scene.relation_bounds
+            dx = np.maximum(0., np.maximum(bands[:, :, 0]-xs, xs-bands[:, :, 2]))
+            dy = np.maximum(0., np.maximum(bands[:, :, 1]-ys, ys-bands[:, :, 3]))
+            distances = np.hypot(dx, dy)
+            far = float(distances[:, -1].mean())
+            # Track the region throughout the forecast. An endpoint alone
+            # can prefer a detour that only returns at the horizon's end.
+            worth -= FAR_FROM_THE_GOAL * min(2., float(distances.mean()) / reach)
+            relative_speed = math.hypot(vx-scene.relation_velocity[0], vy-scene.relation_velocity[1])
+            worth -= FAR_FROM_THE_GOAL * min(2., relative_speed * float(times[-1]) / reach)
+            relation_forecast = RelationForecast(scene.relation.region, far, float(distances.mean()), relative_speed)
         worth -= FAR_FROM_THE_GOAL * min(2.0, far / reach)
         if scene.arriving and scene.pushes is not None:
             # A plan ending near the place at speed still has to stop. Give
             # it the cost of half that remaining room beyond the horizon.
-            room = stopping_distance(going, goal, scene.pushes)
+            room = stopping_distance(going, scene.arrival_goal, scene.pushes)
             worth -= FAR_FROM_THE_GOAL * .5 * room / reach
-            excess = arrival_excess((float(xs[-1]), float(ys[-1])), going, goal, scene.pushes,
+            excess = arrival_excess((float(xs[-1]), float(ys[-1])), going, scene.arrival_goal, scene.pushes,
                                     scene.arrival_near, scene.arrival_gentle)
             worth -= LOSS * excess / max(1., scene.arrival_gentle)
-    if plan.first != held:
-        worth -= CHANGING
-    if not plan.first and len(plan.held) > 1:
-        worth -= WAITING * plan.held[1][0]
-    return Imagined(plan, worth, gets, costs, (float(xs[-1]), float(ys[-1])), covers)
+    # A fixed switch tax can leave a current geometric constraint unmet.
+    # Region tracking already scores waiting, and the scene owns delivery
+    # delay. Stable plan ordering still resolves equal alternatives.
+    if scene.relation is None:
+        if plan.first != held:
+            worth -= CHANGING
+        if not plan.first and len(plan.held) > 1:
+            worth -= WAITING * plan.held[1][0]
+    return Imagined(plan, worth, gets, costs, (float(xs[-1]), float(ys[-1])), covers, relation=relation_forecast)
 
 
 def _chased(scene: _Scene, layer: int, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:

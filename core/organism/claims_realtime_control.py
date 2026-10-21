@@ -3,6 +3,8 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.agency.arriving_by_her_pushes import _braking_pulse_invariant
+    from core.agency.a_requested_region_in_a_plan import _planned_relation_invariant
     from core.perception.symbolic_motion_in_flash_methods import _initial_source_path_invariant
     from core.perception.a_reference_pose_refined_in_current_pixels import _pixel_pose_refinement_invariant
     from core.perception.source_layers_with_copied_positions import _source_layer_proposal_invariant
@@ -84,7 +86,13 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('supplied_source_state_selects_paths_before_enumeration', 'core/perception/symbolic_motion_in_flash_methods.py',
+    return (('braking_pulses_keep_the_executable_control_cadence', 'core/agency/arriving_by_her_pushes.py',
+             'tests/test_requested_regions_guide_plans_without_contact_rewards.py', lambda: _braking_pulse_invariant() == (),
+             'A bounded measured acceleration bank supplies opposing push and neutral candidates with no switch before the next control interval; model scoring and feedback remain required.'),
+            ('requested_regions_keep_current_owners_and_acceptance_unknown', 'core/agency/a_requested_region_in_a_plan.py',
+             'tests/test_requested_regions_guide_plans_without_contact_rewards.py', lambda: _planned_relation_invariant() == (),
+             'Current owned relation regions guide geometric approach while collision, terminal limits and observed success remain unqualified.'),
+            ('supplied_source_state_selects_paths_before_enumeration', 'core/perception/symbolic_motion_in_flash_methods.py',
              'tests/test_source_methods_resolve_only_supplied_values.py', lambda: _initial_source_path_invariant() == (),
              'Explicit primitive source snapshots select their current branches before path enumeration, preserve branch sites and input custody, and cannot be resolved with a different snapshot.'),
             ('current_pixel_pose_refinement_keeps_its_original_patch_uncertainty', 'core/perception/a_reference_pose_refined_in_current_pixels.py',

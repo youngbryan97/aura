@@ -468,7 +468,8 @@ def record_play_choice(choosing: Any, key: str, why: str, aim: Any, at: Any) -> 
     imagined = getattr(choosing, 'planned', None)
     planned = (dict(first=imagined.plan.first, holds=list(imagined.plan.held),
                     worth=float(imagined.worth), decides=bool(imagined.decides),
-                    gets=int(imagined.gets), costs=int(imagined.costs), ends_at=list(imagined.ends_at))
+                    gets=int(imagined.gets), costs=int(imagined.costs), ends_at=list(imagined.ends_at),
+                    **(dict(relation=asdict(imagined.relation)) if getattr(imagined, 'relation', None) is not None else {}))
                if imagined is not None else None)
     recorder.offer(recorder.event('play_choice', at=float(at), key=key, why=why,
         capture={'at': float(at), **{field: getattr(at, field) for field in _TIME_FIELDS if hasattr(at, field)}},

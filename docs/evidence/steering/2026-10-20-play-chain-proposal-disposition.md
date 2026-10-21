@@ -837,6 +837,59 @@ Smoke passed 164 tests with one skip; lint, compilation, layering and writing
 passed. The bounded aggregate finished in 325.35 seconds. No model worker,
 GPU call, physical input or resident lifecycle operation was used.
 
+## Requested relation regions reach ordinary planning
+
+- [x] Four regressions reproduced an unused producer: the binder published
+  a centre region for `on`/`inside`, while the planner still rewarded box
+  overlap and pursued the object's centre. A body partly outside a panel
+  earned a predicted contact; a body already inside could be moved again.
+- [x] The planner now checks current body/target identities, sample time,
+  extents and observer basis against the binding before consuming its region.
+  A current whole source referent can supply it without entering the physical
+  object table. Changed goals, scene epochs or owners refuse that objective.
+- [x] Current geometric objectives use distance throughout the forecast,
+  terminal region distance and relative speed. The target follows the same
+  world forecast and delivery delay as other things. A missing future target
+  supplies no relation forecast. This remains a translation forecast; shape
+  changes and hidden collision geometry have no inferred acceptance rule.
+- [x] Overlap with a requested `on`/`inside` referent grants no predicted
+  contact reward. Independently known harm and other earned interactions
+  remain in ordinary scoring. Geometric progress is recorded separately,
+  with observed contact and success explicitly unknown.
+- [x] Bounded push/opposing-push/neutral candidates use measured accelerations
+  and the executable control cadence. They supply no new control authority.
+  A fixed key-switch tax no longer vetoes a small geometric correction.
+  Floating-point score ties prefer fewer actuations; this changes no region
+  boundary or physical tolerance.
+- [ ] Source-defined contact surfaces, terminal velocity/angle limits and
+  native visual naming/control proof remain open. A line at an artwork's
+  upper edge still does not prove that the environment accepts contact there.
+
+The first integrated group passed 85 tests and failed one approach test:
+endpoint-only scoring preferred a detour. Path and terminal-speed scoring
+then passed 94 tests. The custody run passed 88 tests and failed two legacy
+record-shape checks; absent forecast fields are now omitted. A feedback
+fixture exposed a 0.6-pixel stopped offset, followed by eight pulse-feedback
+failures from velocity round-off. Exact interval and substep diagnoses are
+retained. Score ties now account for the forecast's accumulation length;
+the independent feedback tests remain the acceptance check.
+
+Artifacts: `artifacts/flash-campaign/2026-10-20-requested-regions-in-planning/`.
+Fixtures supply explicit semantic names, body identity and motion parameters.
+They exercise the ordinary binder, chooser and recorder without a model,
+actual browser inputs, original-game state or a native-play verdict.
+
+The final focused group passed 217 tests in 23.03 seconds. All sixteen
+independent bounded containment feedback cases passed: eight starting
+positions for direct motion and eight for acceleration, with 50 ms delivery
+delay and 100 ms control turns. Eight successive settled observations were
+required. Four explicit velocity round-off cases also passed. Current whole
+source geometry reaches the region consumer, and the real choice-record
+hook retains the made forecast without running target selection again.
+Smoke passed 164 tests with one skip. Lint, compilation, layering and writing
+also passed; the aggregate took 65.95 seconds on this shared host. The GPU
+and resident runtime were untouched. No live-readiness verdict follows.
+
 The first refinement group passed 50 tests. The live handoff regression
 failed before the key fix; the corrected continuity group passed 88 tests.
 An expanded group passed 228 tests in 108.32 seconds, including existing
