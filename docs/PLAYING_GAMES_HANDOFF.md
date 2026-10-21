@@ -1863,3 +1863,20 @@ Continue the partial-material-to-control connection; a whole-body appearance
 cannot be a prerequisite to discovering which material responds to input.
 Preserve the causal trial gates, independent input ownership, geometry/contact
 unknowns, CPU-only reservation and G09/holdouts. Native success remains open.
+
+
+The visual-motion authority boundary now applies beyond whole references.
+Capture-backed partial-material questions and new visual records cannot
+inherit direct-state credit from a missing field. Current tracked motion
+requires both its capture and its motion timestamp. A failed check cannot
+be undone by `motion_status` echoing `measured`. Explicit direct-state ports
+and existing exact-state observations remain usable. Four red tests exposed
+this; the 195-test group and smoke/lint/compile/layering/writing pass.
+Evidence: `2026-10-21-visual-motion-authority/`.
+
+Continue acquisition and control from persistent partial material. A possible
+next pixel experiment is using independently measured neighbouring motion
+as another starting guess for lost patches, then retaining all current
+bidirectional, colour, repetition and identity gates. The earlier neighbour
+prototype required an already requested source region and did not improve
+ship perception; do not restore it unchanged. Native readiness remains open.

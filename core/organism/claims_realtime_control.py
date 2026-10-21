@@ -1198,7 +1198,7 @@ def _visual_motion_claims() -> tuple:
         _continuing_texture_invariant,
     )
     from core.perception.the_whole_patch_around_a_visible_corner import _whole_patch_invariant
-    from core.perception.translation_from_visible_support import _translation_support_invariant
+    from core.perception.translation_from_visible_support import _captured_motion_authority_invariant, _translation_support_invariant
     from core.perception.triangles_from_public_draws import _triangle_assembly_invariant
     from core.perception.what_moves_in_the_picture import (
         _material_trail_invariant,
@@ -1410,6 +1410,9 @@ def _visual_motion_claims() -> tuple:
         ("control_motion_requires_agreeing_current_support", "core/perception/translation_from_visible_support.py",
          "tests/test_translation_needs_visible_support.py", lambda: _translation_support_invariant() == (),
          "Detected box movement requires agreeing current visible support before it teaches control responses or physics."),
+        ("visual_capture_cannot_default_to_measured_motion", "core/perception/translation_from_visible_support.py",
+         "tests/test_capture_owned_material_does_not_claim_direct_state.py", lambda: _captured_motion_authority_invariant() == (),
+         "Capture-backed visual observations require matching capture and motion times; missing declarations cannot grant direct-state or measured-motion authority, while declared direct-state ports remain usable."),
         ("control_measurements_resume_on_new_observed_segments", "core/agency/which_one_answers_to_her.py",
          "tests/test_translation_needs_visible_support.py", lambda: _motion_segments_invariant() == (),
          "An incomplete motion reading starts a fresh measured segment of the held input; contradictory motion retires that trial."),

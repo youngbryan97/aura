@@ -14,6 +14,7 @@ import numpy as np
 from scipy import ndimage
 
 from core.perception.boundary_support_for_translation import boundaries_agree, visible_boundary
+from core.perception.pixels_consumed_by_the_observer import PixelsConsumed
 from core.verify import invariant
 
 PIXEL_UNCERTAINTY = 2.0
@@ -105,20 +106,44 @@ DIRECT = "direct"
 
 def told_directly(thing: Any) -> bool:
     """Whether a thing's going was told, not tracked from pixels."""
-    return getattr(thing, "motion_evidence", DIRECT) == DIRECT
+    default = 'unavailable' if isinstance(getattr(thing, 'pixels', None), PixelsConsumed) else DIRECT
+    return getattr(thing, "motion_evidence", default) == DIRECT
 
 
 def motion_was_measured(thing: Any, at: float) -> bool:
     """Pixel tracks expose their motion timestamp; things told directly, and direct state observations, use their own
     timestamp. Offline 2026-10-12 every thing a world told directly was taken for one whose going was never measured,
     and nothing it did under any key was learned from."""
-    return getattr(thing, "seen", at) == at and (told_directly(thing) or getattr(thing, "motion_measured_at", at) == at)
+    if getattr(thing, 'seen', at) != at:
+        return False
+    if told_directly(thing):
+        return True
+    capture = getattr(thing, 'pixels', None)
+    visual = isinstance(capture, PixelsConsumed)
+    return (getattr(thing, 'motion_measured_at', None if visual else at) == at
+            and (not visual or capture.at == at))
 
 
 def motion_status(thing: Any, at: float) -> str:
     if motion_was_measured(thing, at):
         return "measured"
-    return getattr(thing, "motion_evidence", "unavailable") if getattr(thing, "seen", at) == at else "unavailable"
+    evidence = getattr(thing, 'motion_evidence', 'unavailable') if getattr(thing, 'seen', at) == at else 'unavailable'
+    return 'unavailable' if evidence in (DIRECT, 'measured') else evidence
+
+
+@invariant('perception.visual_capture_cannot_default_to_measured_motion', scope='perception',
+           owner='core/perception/translation_from_visible_support.py', observational=False)
+def _captured_motion_authority_invariant() -> tuple:
+    from types import SimpleNamespace
+
+    item = SimpleNamespace(seen=1., pixels=PixelsConsumed(1., (32, 32, 3), '0'*64))
+    assert not told_directly(item) and motion_status(item, 1.) == 'unavailable'
+    item.motion_evidence = 'measured'
+    assert not motion_was_measured(item, 1.) and motion_status(item, 1.) == 'unavailable'
+    item.motion_measured_at = 1.
+    assert motion_was_measured(item, 1.)
+    assert motion_was_measured(SimpleNamespace(seen=1.), 1.)
+    return ()
 
 
 @invariant("perception.control_motion_needs_agreeing_visible_support", scope="perception",

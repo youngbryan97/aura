@@ -1116,3 +1116,24 @@ requiring a completed whole referent first. Source geometry, material
 identity and controlled-body identity remain separate evidence layers. Keep
 CPU-only work, all G09/holdout exclusions and resident ownership. No native
 play or readiness claim has been made.
+
+
+### October 21: general capture-backed motion authority
+
+- [x] Four red cases exposed the same inherited direct-state default on
+  ordinary partial-material questions, visual records without a motion
+  timestamp, and a stale capture carrying a fresh motion label.
+- [x] The generic motion predicate now requires matching capture and measured
+  motion dates for capture-backed visual values. `motion_status` cannot
+  turn a failed timestamp check back into measured evidence by echoing the
+  original label. Explicit direct-state ports and existing exact-state ports
+  keep their authority; this does not discard those source observations.
+- [x] The affected material, pointer, measured-prefix and causal-control group
+  passed 195 tests. Smoke passed 164 with one skip; lint, compilation,
+  layering and writing passed in 66.18 seconds. The new invariant is registered.
+- [ ] This closes accidental authority, not discovery or gameplay. Partial
+  material still needs an actual current motion/control path before it can
+  teach a response. No control threshold was relaxed.
+
+Artifacts: `artifacts/flash-campaign/2026-10-21-visual-motion-authority/`.
+No model, GPU, physical input, G09, holdout or resident lifecycle work.
