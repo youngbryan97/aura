@@ -265,3 +265,17 @@ def test_each_remark_answers_what_she_was_shown_before_it_and_the_request_comes_
     assert pairs[1][0].startswith("(what was playing) playing, at 0:52") and pairs[1][1] == "The society framing is doing a lot of work."
     assert pairs[2] == ("what do you mean by that?", "That coordinating is not the same as a society.")
     assert len(pairs) == 3
+
+
+def test_a_turn_of_her_own_reads_all_she_has_said_in_the_watching():
+    """LIVE 2026-10-21: a remark turn kept 3 of 6 exchanges, those that bore on the request by meaning, and she told
+    the video's hook a third time."""
+    from core.brain.cognitive_engine import _desktop_history_messages_from_context
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    talk = [stamp_runtime_payload({"user": "Watch this with me and think out loud.", "aura": "I expect agents."})]
+    talk += [stamp_runtime_payload({"user": f"(what was playing) look {n}", "aura": f"Remark {n} about the cats."})
+             for n in range(6)]
+    messages, _note = _desktop_history_messages_from_context(
+        {"recent_completed_exchanges": talk, "her_own_turn": True, "visible_user_message": "agents agents agents"})
+    assert [m["content"] for m in messages if m["role"] == "assistant"][1:] == [f"Remark {n} about the cats." for n in range(6)]

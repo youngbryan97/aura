@@ -233,7 +233,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     def she_said(words: str) -> None:
         worth.remarked()
         playing["said"].append((playing["at"], words))
-        spoken.append((time.time(), shown_last["observation"], words))
+        spoken.append((time.time(), shown_last["observation"][-500:], words))  # its newest looks: a watching stays short to read
         taking.she_said(words, who=who, unprompted=True)
 
     async def her_turn_in_it(asked: str, observation: str, said: list[str]) -> str:

@@ -1309,7 +1309,9 @@ def _desktop_history_messages_from_context(
     reached = reached_exchange_messages(
         context.get("recent_completed_exchanges"),
         budget_chars=budget_chars,
-        request=str(context.get("visible_user_message") or ""),
+        # A turn of her own answers nobody: nothing to measure what bears on, and what she has said in it stays whole
+        # (LIVE 21 October 2026, a remark that kept 3 of 6 exchanges told the video's hook a third time).
+        request="" if context.get("her_own_turn") else str(context.get("visible_user_message") or ""),
         max_pairs=max_pairs,
         on_unattested=_note_unattested_exchange,
     )
