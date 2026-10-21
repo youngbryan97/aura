@@ -12,12 +12,23 @@ with it.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import json
+import math
 import time
 from collections.abc import Mapping
 from typing import Any
 
-__all__ = ["AURA_PERSON_PATHS", "PersonWatch", "person_paths", "take_person_evidence"]
+__all__ = [
+    "AURA_PERSON_PATHS",
+    "PersonWatch",
+    "UnmeasurableError",
+    "canonical",
+    "canonical_digest",
+    "person_paths",
+    "take_person_evidence",
+]
 
 #: Where each person field lives in Aura's own state. A field with no entry is
 #: one her state does not carry, since skills and learned policy live in organs
@@ -48,14 +59,42 @@ def _at(state: Any, dotted: str) -> Any:
     return node
 
 
-def _digest(value: Any) -> str:
-    # The same bounded rendering the transformation receipts use, so a value
-    # too large to digest whole is cut at the same place on both sides.
-    try:
-        rendered = repr(value)
-    except Exception:  # noqa: BLE001 - a __repr__ that raises must not stop a commit
-        rendered = f"<unrepresentable {type(value).__name__}>"
-    return hashlib.sha1(rendered[:4096].encode("utf-8", errors="ignore")).hexdigest()[:12]
+class UnmeasurableError(TypeError):
+    """A value whose content has no canonical form here, so no digest can stand for it."""
+
+
+def canonical(value: Any) -> Any:
+    """A value as plain data with one spelling, or `UnmeasurableError`.
+
+    Mappings by sorted string key, sequences in order, floats rounded to six
+    places (a person is not someone else because a float drifted in its last
+    bits), dataclasses by their fields. Nothing is cut short and nothing falls
+    back to `repr`: two values that differ anywhere digest differently, and a
+    value of a kind this does not know is refused rather than guessed at.
+    """
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise UnmeasurableError("a non-finite number")
+        return round(value, 6)
+    if isinstance(value, Mapping):
+        if not all(isinstance(key, str) for key in value):
+            raise UnmeasurableError("a mapping with keys that are not text")
+        return {key: canonical(value[key]) for key in sorted(value)}
+    if isinstance(value, (list, tuple)):
+        return [canonical(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted((canonical(item) for item in value), key=lambda item: json.dumps(item, sort_keys=True))
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return {f.name: canonical(getattr(value, f.name)) for f in dataclasses.fields(value)}
+    raise UnmeasurableError(f"a value of type {type(value).__name__}")
+
+
+def canonical_digest(value: Any) -> str:
+    """The full SHA-256 of a value's canonical form. Raises `UnmeasurableError`."""
+    payload = json.dumps(canonical(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _writer(path: str, since: float) -> dict[str, Any]:
@@ -93,7 +132,13 @@ class PersonWatch:
         self._digests: dict[str, str] = {}
 
     def evidence(self, state: Any) -> dict[str, Any]:
-        digests = {path: _digest(_at(state, path)) for path in person_paths()}
+        digests: dict[str, str] = {}
+        unmeasurable: dict[str, str] = {}
+        for path in person_paths():
+            try:
+                digests[path] = canonical_digest(_at(state, path))
+            except UnmeasurableError as exc:
+                unmeasurable[path] = str(exc)
         before = getattr(state, "transition_evidence", None)
         carried = dict(before.get("last_change", {})) if isinstance(before, Mapping) else {}
         version = int(getattr(state, "version", 0) or 0)
@@ -101,11 +146,18 @@ class PersonWatch:
             for path, digest in digests.items():
                 if digest != self._digests.get(path):
                     carried[path] = {"version": version, **_writer(path, self._at)}
+            # A path with no canonical form cannot be seen to change, so any
+            # measured write to it since the last commit is kept as evidence.
+            for path in unmeasurable:
+                wrote = _writer(path, self._at)
+                if wrote:
+                    carried[path] = {"version": version, "unmeasurable": True, **wrote}
         out = {
             "since_state": self._state_id,
             "since_version": self._version,
             "version": version,
             "paths": digests,
+            "unmeasurable": unmeasurable,
             "last_change": carried,
         }
         self._state_id = str(getattr(state, "state_id", "") or "")
@@ -145,7 +197,7 @@ def _watch_the_person() -> None:
         from core.runtime.cognitive_contract import watch_also
     except ImportError:
         return
-    watch_also(person_paths())
+    watch_also(person_paths(), whole=True)
 
 
 _watch_the_person()

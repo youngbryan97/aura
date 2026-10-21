@@ -549,12 +549,12 @@ async def perturb_organs(
         # reports, so the model is shown a world slightly other than the one it
         # is in — which is what displacing a model of the world means.
         try:
-            from core.world_model.observe_cycle import action_of, observation_of
+            from core.world_model.observe_cycle import conditioning_of, observation_of
 
             if state is None:
                 raise ValueError("displacing the world model needs the situation")
             observation = observation_of(state) + float(delta)
-            organs.world_model.observe(observation, action_of(state), learn=True)
+            organs.world_model.observe(observation, conditioning_of(state), learn=True)
             hit = True
         # not a failure: the comment beside it says it: an organ that refuses was not
         # displaced, and `hit` is the record of whether it landed.

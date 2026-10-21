@@ -427,6 +427,16 @@ async def main(argv: list[str] | None = None) -> int:
 
         evidence.update(ground(arms, seed=args.seed))
         evidence["reached_her_cortex"] = _reached_her_cortex(steered_by)
+        # Whether her model could read her state's numbers, and whether her
+        # residual stream was steered by it. A report shown its own state may
+        # be copying it; the bridge reads only a run with them withheld.
+        from core.brain.what_she_is_given import readings_of_herself_withheld
+
+        evidence["conditions"] = {
+            "readings_of_herself": "withheld" if readings_of_herself_withheld() else "printed",
+            "steering": "off" if os.environ.get("AURA_DISABLE_AFFECTIVE_STEERING", "").strip().lower()
+            in {"1", "true", "yes", "on"} else "on",
+        }
         evidence["arms"] = [
             {
                 arm: {

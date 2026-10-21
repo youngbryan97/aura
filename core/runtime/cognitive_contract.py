@@ -308,19 +308,26 @@ _WATCHED: tuple[str, ...] | None = None
 #: Paths watched around every transformation whether or not a contract names
 #: them, because something downstream asks who wrote them.
 _ALSO_WATCHED: set[str] = set()
+#: Paths digested whole rather than through the bounded rendering.
+_WHOLE: set[str] = set()
 
 
-def watch_also(paths: Iterable[str]) -> None:
+def watch_also(paths: Iterable[str], *, whole: bool = False) -> None:
     """Watch these paths around every transformation, contracted or not.
 
     A contracted phase is measured only against the fields some contract
     names, so a write it makes to any other field leaves no receipt. The
     lineage asks which transformation wrote each identity-bearing field, and a
-    field no contract named would have had no answer.
+    field no contract named would have had no answer. ``whole`` digests the
+    full rendering: the bounded one stops at 4,096 characters, so a write past
+    that point would leave no receipt.
     """
 
     global _WATCHED
-    _ALSO_WATCHED.update(str(path) for path in paths)
+    named = [str(path) for path in paths]
+    _ALSO_WATCHED.update(named)
+    if whole:
+        _WHOLE.update(named)
     _WATCHED = None
 
 
@@ -589,8 +596,17 @@ def observed_field_digest(
         targets = watched_fields()
     digest: dict[str, str] = {}
     for path in targets:
-        digest[path] = _digest_value(_resolve(state, path))
+        value = _resolve(state, path)
+        digest[path] = _digest_whole(value) if path in _WHOLE else _digest_value(value)
     return digest
+
+
+def _digest_whole(value: Any) -> str:
+    try:
+        rendered = repr(value)
+    except Exception:  # noqa: BLE001 — a __repr__ that raises must not kill a tick
+        rendered = f"<unrepresentable {type(value).__name__}>"
+    return hashlib.sha256(rendered.encode("utf-8", errors="ignore")).hexdigest()
 
 
 def diff_digests(before: Mapping[str, str], after: Mapping[str, str]) -> tuple[str, ...]:

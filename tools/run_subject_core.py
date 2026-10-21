@@ -158,8 +158,12 @@ async def _record(
     named: Any = None,
     *,
     strict: bool = True,
+    orders: Any = None,
 ) -> tuple[list[Any], tuple[np.ndarray, tuple[str, ...]]]:
     """Live the rounds, keeping each frame's core state and periphery reading.
+
+    ``orders`` gives each round its own order of the conditions; without it
+    every round takes them in the order given.
 
     The periphery goes straight into an array. `read_periphery` returns a dict
     of up to four hundred entries whose keys it formats fresh every call, so a
@@ -173,7 +177,7 @@ async def _record(
     frames: list[Any] = []
     periphery = PeripheryAccumulator()
     for index in range(rounds):
-        for condition in conditions:
+        for condition in (orders[index] if orders is not None else conditions):
             for reading in await runtime.turn_once(condition):
                 frames.append(reading)
                 periphery.note(read_periphery(runtime.kernel))
@@ -225,6 +229,13 @@ def _scales(recording: Any) -> dict[str, np.ndarray]:
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rounds", type=int, default=120, help="baseline turns per condition")
+    parser.add_argument(
+        "--counterbalance",
+        action="store_true",
+        help="each round takes the conditions in an order from a Williams design, "
+             "rows drawn at random per block of rounds, so no condition always "
+             "follows the same one (diagnostic; the decisive design keeps the fixed order)",
+    )
     parser.add_argument("--trials", type=int, default=6, help="paired interventions per source per condition")
     parser.add_argument("--turns", type=int, default=2, help="turns each intervention arm runs")
     # At least two trials per action kind, so ownership is asked about acting
@@ -562,8 +573,13 @@ async def main() -> int:
         from core.subject.named_readings import NamedAccumulator
 
         named = NamedAccumulator()
+        orders = None
+        if args.counterbalance:
+            from core.subject.counterbalance import round_orders
+
+            orders = round_orders(CONDITIONS, args.rounds, seed=args.seed)
         frames, periphery_read = await _record(
-            runtime, CONDITIONS, args.rounds, named, strict=not args.allow_degraded
+            runtime, CONDITIONS, args.rounds, named, strict=not args.allow_degraded, orders=orders
         )
         recording = build_recording(
             frames,
@@ -645,6 +661,21 @@ async def main() -> int:
         from core.subject.synergy import kraskov_suite
 
         evidence["synergy_kraskov"] = [item.as_dict() for item in kraskov_suite(turns, seed=args.seed)]
+        # Diagnostics beside the frozen line, counted in no total: the same
+        # reading with the conjunctive units held flat, so a pass cannot come
+        # from the target reading the units, and with each condition left out
+        # in turn, so a pass that one condition carries says so
+        # (docs/ISC_OCT21_EVERY_ITEM.md, G1 and F7).
+        from core.subject.synergy import leave_one_condition_out, without_registers
+
+        evidence["synergy_v4_without_registers"] = [
+            item.as_dict()
+            for item in synergy_suite(without_registers(turns), seed=args.seed, of="change", clocks_out=True)
+        ]
+        evidence["synergy_kraskov_without_registers"] = [
+            item.as_dict() for item in kraskov_suite(without_registers(turns), seed=args.seed)
+        ]
+        evidence["synergy_v4_leave_one_condition_out"] = leave_one_condition_out(turns, seed=args.seed)
         matrix, names = periphery_read
         turn_rows = recording.turn_rows()
         from core.subject.closure import coverage as periphery_coverage

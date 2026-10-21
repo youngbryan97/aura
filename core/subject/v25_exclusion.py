@@ -22,15 +22,19 @@ integral diverges. So the output is the Pareto frontier, which is a single
 candidate when one dominates and a symmetry class when none does.
 
 Every pair is compared on one grid of horizons, the same for all of them:
-the grid named in advance, or else the horizons every competing candidate was
-measured at. Comparing each pair only where those two happened to overlap let
+the grid named in advance, or else every horizon any competing candidate was
+measured at, so a horizon one of them lacks is missing rather than dropped. Comparing each pair only where those two happened to overlap let
 dominance cycle (A over B at one horizon, B over C at a second, C over A at a
 third) and the frontier came out empty with three carriers standing. On one
 grid, dominance is the product order on vectors of the same length, which is
 transitive, so a finite set of carriers always has a non-dominated member. A
 pair that cannot be compared on the grid, because one of them was not measured
 at some horizon of it, is unresolved: neither excludes the other, and the
-report says the evidence did not decide.
+report names the horizons each one is missing. A missing horizon is never read
+as zero. Where a candidate carries an interval at each horizon, one dominates
+another only where its lower bound clears the other's upper bound; intervals
+ordered that way are still a strict partial order, so the frontier cannot
+empty, and a difference the intervals do not separate decides nothing.
 
 That is not an unfinished calculation. Two supports related by an exact
 symmetry of the causal structure get equal values from every permutation-
@@ -57,6 +61,8 @@ __all__ = [
     "dominates",
     "frontier_grid",
     "measured_on",
+    "missing_horizons",
+    "outranks",
     "pareto_frontier",
     "unresolved_pairs",
     "strongly_connected_components",
@@ -138,6 +144,8 @@ class Candidate:
     spectrum: dict[float, float] = field(default_factory=dict)
     leak: float = 0.0
     note: str = ""
+    #: Horizon -> (lower, upper) bound on the rate, where the run measured one.
+    bounds: dict[float, tuple[float, float]] = field(default_factory=dict)
 
     @property
     def admissible(self) -> bool:
@@ -201,12 +209,12 @@ def dominates(
 ) -> bool:
     """`left >= right` at every horizon of the grid, and strictly greater at one.
 
-    The grid defaults to the horizons both were measured at, which is the
-    common grid of a field of two. A pair not both measured on the whole grid
-    is not compared, and this is False both ways: an unmeasured horizon is not
-    evidence either way, and letting it decide is how dominance came to cycle.
+    The grid defaults to every horizon either was measured at. A pair not
+    both measured on the whole grid is not compared, and this is False both
+    ways: an unmeasured horizon is not evidence either way, and comparing each
+    pair only where it overlapped is how dominance came to cycle.
     """
-    horizons = tuple(grid) if grid is not None else common_grid([left, right])
+    horizons = tuple(grid) if grid is not None else tuple(sorted(set(left) | set(right)))
     if not (measured_on(left, horizons) and measured_on(right, horizons)):
         return False
     if not all(left[tau] >= right[tau] for tau in horizons):
@@ -219,10 +227,44 @@ def _competing(candidates: Sequence[Candidate]) -> list[Candidate]:
 
 
 def frontier_grid(candidates: Sequence[Candidate], grid: Sequence[float] | None = None) -> tuple[float, ...]:
-    """The one grid every pair is compared on: the one named, or the common one."""
+    """The one grid every pair is compared on: the one named, or every horizon any of them has."""
     if grid is not None:
         return tuple(sorted(grid))
-    return common_grid([c.spectrum for c in _competing(candidates)])
+    return tuple(sorted({tau for c in _competing(candidates) for tau in c.spectrum}))
+
+
+def _bounded(candidate: Candidate, horizons: Sequence[float]) -> bool:
+    return bool(horizons) and all(tau in candidate.bounds for tau in horizons)
+
+
+def outranks(left: Candidate, right: Candidate, horizons: Sequence[float]) -> bool:
+    """`left` dominates `right` on the grid, by intervals where both carry them.
+
+    With intervals, left's lower bound has to reach right's upper bound at every
+    horizon and pass it at one. With point values only, the point comparison.
+    Either way a candidate not measured on the whole grid outranks nothing and
+    is outranked by nothing.
+    """
+    if not (measured_on(left.spectrum, horizons) and measured_on(right.spectrum, horizons)):
+        return False
+    if _bounded(left, horizons) and _bounded(right, horizons):
+        if not all(left.bounds[tau][0] >= right.bounds[tau][1] for tau in horizons):
+            return False
+        return any(left.bounds[tau][0] > right.bounds[tau][1] for tau in horizons)
+    return dominates(left.spectrum, right.spectrum, horizons)
+
+
+def missing_horizons(
+    candidates: Sequence[Candidate], grid: Sequence[float] | None = None
+) -> dict[str, tuple[float, ...]]:
+    """For each competing carrier, the horizons of the grid it was not measured at."""
+    horizons = frontier_grid(candidates, grid)
+    out = {}
+    for candidate in _competing(candidates):
+        lacking = tuple(tau for tau in horizons if tau not in candidate.spectrum)
+        if lacking:
+            out["".join(sorted(candidate.support))] = lacking
+    return out
 
 
 def pareto_frontier(
@@ -241,7 +283,7 @@ def pareto_frontier(
         for other in live:
             if other is candidate or not (candidate.support & other.support):
                 continue
-            if dominates(other.spectrum, candidate.spectrum, horizons):
+            if outranks(other, candidate, horizons):
                 beaten = True
                 break
         if not beaten:
@@ -277,6 +319,9 @@ class ExclusionReport:
     #: The horizons every pair was compared on, and the pairs it could not compare.
     grid: tuple[float, ...] = ()
     unresolved: tuple[tuple[str, str], ...] = ()
+    #: Which horizons each carrier lacks, and whether every comparison had intervals.
+    missing: dict[str, tuple[float, ...]] = field(default_factory=dict)
+    with_uncertainty: bool = False
 
     @property
     def unique_carrier(self) -> Candidate | None:
@@ -319,6 +364,8 @@ class ExclusionReport:
             "symmetry_class": list(self.symmetry_class),
             "compared_on_horizons": list(self.grid),
             "unresolved_pairs": ["|".join(pair) for pair in self.unresolved],
+            "missing_horizons": {name: list(taus) for name, taus in self.missing.items()},
+            "decided_with_uncertainty": self.with_uncertainty,
             "selected_carrier": None if carrier is None else "".join(sorted(carrier.support)),
             "selected_tau_star_seconds": None if carrier is None else carrier.tau_star,
             "selected_peak_rate": None if carrier is None else round(carrier.peak, 6),
@@ -331,6 +378,7 @@ def select_carriers(
     spectra: Mapping[frozenset[str], Mapping[float, float]],
     closure: Mapping[frozenset[str], tuple[bool, float]],
     grid: Sequence[float] | None = None,
+    bounds: Mapping[frozenset[str], Mapping[float, tuple[float, float]]] | None = None,
 ) -> ExclusionReport:
     """Carriers from the graph, the closure result and the measured spectra.
 
@@ -360,6 +408,7 @@ def select_carriers(
                 spectrum=spectrum,
                 leak=float(leak) if leak == leak else 0.0,
                 note="" if spectrum else "no spectrum was measured for this support",
+                bounds=dict((bounds or {}).get(support, {})),
             )
         )
 
@@ -372,4 +421,6 @@ def select_carriers(
         whole_core_closed=whole_closed,
         grid=frontier_grid(candidates, grid),
         unresolved=unresolved_pairs(candidates, grid),
+        missing=missing_horizons(candidates, grid),
+        with_uncertainty=all(_bounded(c, frontier_grid(candidates, grid)) for c in _competing(candidates)),
     )

@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -109,8 +109,8 @@ def _sketch(value: Any, name: str, out: dict[str, float]) -> None:
         out[f"{name}#"] = 0.0
         return
     out[f"{name}#"] = float(size)
-    for field, number in summary.items():
-        out[f"{name}.{field}"] = number
+    for part, number in summary.items():
+        out[f"{name}.{part}"] = number
 
 
 def _numbers(
@@ -366,6 +366,9 @@ class ClosureReport:
     #: columns dropped because their name says they hold a moment.
     differenced: tuple[str, ...] = ()
     dropped_as_clocks: tuple[str, ...] = ()
+    #: What each leak is, and whether the test finds a cause planted outside K.
+    #: Diagnostic: neither changes `closed`.
+    audit: dict[str, Any] = field(default_factory=dict)
 
     @property
     def measured(self) -> bool:
@@ -420,6 +423,7 @@ class ClosureReport:
             "largest_leaks": [
                 {"variable": name, "gain": round(value, 5)} for name, value in self.top_leaks
             ],
+            "audit": self.audit,
         }
 
 
@@ -599,7 +603,11 @@ def closure_gain(
                 ranked.append((name, float(gain)))
         ranked.sort(key=lambda pair: -pair[1])
 
+    audit = audit_leaks(
+        now, nxt, outside, kept_names, ranked[:rank], differenced, seed=seed, draws=draws
+    )
     return ClosureReport(
+        audit=audit,
         loss_core=core.loss,
         loss_core_and_periphery=both.loss,
         loss_shuffled_periphery=shuffled_loss,
@@ -615,3 +623,99 @@ def closure_gain(
             name for name, flag in zip(names, clocks, strict=True) if flag
         ),
     )
+
+
+def _organ_of(name: str) -> str:
+    """The organ a periphery column belongs to, under the name K uses for it."""
+    head = name.split(".instance.", 1)[0]
+    head = head[len("service."):] if head.startswith("service.") else head.split(".", 1)[0]
+    return _ORGAN_ALIASES.get(head, head)
+
+
+def audit_leaks(
+    now: np.ndarray,
+    nxt: np.ndarray,
+    outside: np.ndarray,
+    names: tuple[str, ...],
+    ranked: Sequence[tuple[str, float]],
+    differenced: tuple[str, ...],
+    *,
+    seed: int = 0,
+    draws: int = 16,
+) -> dict[str, Any]:
+    """What each leak is, and whether the test can find a cause it was not shown.
+
+    Each leaking column is read three ways. One that only moves one way is
+    entered as its increment, and is named a clock. One whose gain is gone
+    once K's own previous frame is in the model was carrying the core's own
+    past: K is not Markov at this grain, and the column is a memory of K,
+    not a cause from outside. One whose organ K already reads is that organ's
+    state K does not take in. What is left is an outside cause or unread state.
+
+    The positive control plants a column that carries part of K's next frame,
+    a fixed readout of it with as much noise again, and runs it through the
+    same shuffled floor. A test that does not find it could not have found a
+    leak either.
+    """
+    from core.subject.estimate import fit_predict, split_rows
+
+    core_organs = set(_ORGAN_ALIASES.values())
+    rows = now.shape[0]
+    out: dict[str, Any] = {"leaks": []}
+    if rows < 61:
+        return out
+    past_now, past_prev, past_next = now[1:], now[:-1], nxt[1:]
+    train, validate, test = split_rows(rows - 1)
+    with_past = np.hstack([past_now, past_prev])
+    base_past = fit_predict(with_past, past_next, train=train, validate=validate, test=test)
+    index_of = {name: i for i, name in enumerate(names)}
+    for name, gain in ranked:
+        column = outside[1:, index_of[name] : index_of[name] + 1]
+        single = fit_predict(
+            np.hstack([with_past, column]), past_next,
+            train=train, validate=validate, test=test, own_width=with_past.shape[1],
+        )
+        scale = base_past.loss if base_past.loss > 1e-12 else 1.0
+        gain_given_past = (base_past.loss - single.loss) / scale
+        organ = _organ_of(name)
+        if name in differenced:
+            kind = "a clock, entered as its increment"
+        elif gain_given_past <= 0.0:
+            kind = "a summary of the core's own past"
+        elif organ in core_organs:
+            kind = "state of an organ K reads, which K does not take in"
+        else:
+            kind = "an outside cause or unread state"
+        out["leaks"].append({
+            "variable": name,
+            "gain": round(float(gain), 6),
+            "gain_given_the_core_past": round(float(gain_given_past), 6),
+            "organ": organ,
+            "kind": kind,
+        })
+
+    rng = np.random.default_rng(seed + 1)
+    readout = rng.standard_normal(nxt.shape[1])
+    signal = (nxt - nxt.mean(axis=0)) / np.where(nxt.std(axis=0) > 1e-12, nxt.std(axis=0), 1.0)
+    planted = signal @ readout
+    planted = (planted + rng.standard_normal(rows) * planted.std())[:, None]
+    train, validate, test = split_rows(rows)
+    core = fit_predict(now, nxt, train=train, validate=validate, test=test)
+    scale = core.loss if core.loss > 1e-12 else 1.0
+    found = fit_predict(np.hstack([now, planted]), nxt, train=train, validate=validate, test=test, own_width=now.shape[1])
+    floor = []
+    for _ in range(max(1, draws)):
+        order = rng.permutation(rows)
+        shuffled = fit_predict(
+            np.hstack([now, planted[order]]), nxt,
+            train=train, validate=validate, test=test, own_width=now.shape[1],
+        )
+        floor.append((core.loss - shuffled.loss) / scale)
+    leak = (core.loss - found.loss) / scale
+    high = float(np.quantile(floor, 0.95)) if len(floor) > 1 else floor[0]
+    out["planted_cause"] = {
+        "leak": round(float(leak), 6),
+        "shuffled_q95": round(high, 6),
+        "detected": bool(leak > max(0.0, high)),
+    }
+    return out

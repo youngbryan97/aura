@@ -47,8 +47,57 @@ from core.utils.injected_blocks import (
 
 _FLAG_SYSTEM_TEXT = declare("AURA_SYSTEM_TEXT", kind=FlagKind.STRING, default='',
                             description="keep gives her model the system text again", owner="prompt")
+_FLAG_OF_HERSELF = declare(
+    "AURA_READINGS_OF_HERSELF", kind=FlagKind.STRING, default="",
+    description="withheld keeps every reading of her own state out of the text her model is given, "
+                "for the reports ground's control arm",
+    owner="subject_core",
+)
 
-__all__ = ["STILL_WORDED", "for_her_model", "her_turn_is_still_worded", "readings_in", "what_she_is_given"]
+#: Her own state, as the readings print it: a name of one of her states, a few
+#: words at most, then a number. A line carrying one goes when her readings are
+#: withheld, and so does a line naming her mood.
+_SELF_STATE_READOUT = re.compile(
+    r"(?i)\b(valence|arousal|distress|dominance|mood|energy|free.energy|fe|fluency|confidence|"
+    r"ambivalence|strain|frustration|curiosity|focus|stress|fatigue|tension|wellbeing|pleasure|"
+    r"vitality|drive|drives|hedonic|affect)\b[^\n\d]{0,24}[-+]?\d*\.?\d+"
+)
+_MOOD_LINE = re.compile(r"(?i)\b(mood|feeling|felt)\b\s*(:|reads|is|was)")
+
+
+def readings_of_herself_withheld() -> bool:
+    """Whether the control arm that keeps her state out of her model's text is on."""
+    return str(_FLAG_OF_HERSELF.value() or "").strip().lower() == "withheld"
+
+
+def without_self_state(messages: Any) -> Any:
+    """The readings with every line that prints her own state taken out.
+
+    Only the runtime's readings are touched: what the person said and what she
+    said stay as they were said.
+    """
+    if not isinstance(messages, list):
+        return messages
+    out = []
+    for message in messages:
+        if isinstance(message, dict) and str(message.get("role") or "").lower() == RUNTIME_EVIDENCE_ROLE:
+            kept = [
+                line for line in str(message.get("content") or "").splitlines()
+                if not _SELF_STATE_READOUT.search(line) and not _MOOD_LINE.search(line)
+            ]
+            message = {**message, "content": "\n".join(kept)}
+        out.append(message)
+    return out
+
+__all__ = [
+    "STILL_WORDED",
+    "for_her_model",
+    "her_turn_is_still_worded",
+    "readings_in",
+    "readings_of_herself_withheld",
+    "what_she_is_given",
+    "without_self_state",
+]
 
 #: Flags on a turn's context whose lanes still put their contract in words.
 STILL_WORDED: tuple[str, ...] = (
@@ -304,7 +353,8 @@ def for_her_model(
     if not user_facing or her_turn_is_still_worded(context):
         _census(messages, system_prompt, origin, "")
         return messages, system_prompt
-    of_herself = _OF_HERSELF if _turns_to_her(said) else ()
+    withheld = readings_of_herself_withheld()
+    of_herself = _OF_HERSELF if _turns_to_her(said) and not withheld else ()
     told = len(str(system_prompt or "")) + sum(
         len(str(message.get("content") or ""))
         for message in (messages if isinstance(messages, list) else [])
@@ -316,6 +366,8 @@ def for_her_model(
         markers=(*_READINGS, *_REMEMBERED, *of_herself, *(marker for _name, marker in observables)),
         of_this_turn=_of_this_turn(said),
     )
+    if withheld:
+        given = without_self_state(given)
     logger.info(
         "🧵 [NO SYSTEM TEXT] %d characters the runtime wrote were not dispatched; "
         "%d messages go to her model; readings: %s.",

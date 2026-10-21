@@ -1965,16 +1965,46 @@ from the runtime's provenance receipts. The person paths are watched around ever
 transformation, so a contracted phase writing one it did not declare is recorded
 as a contract violation at warning.
 
+**Memory in the world model's transition.** What she recalled (its content as
+a coordinate, the best recollection's score, how intensely it was relived)
+enters the world model beside the action, in the input that advances its
+hidden state, so it conditions the next prediction: W(t+1) = f(W(t), P(t),
+M(t), A(t)). It used free slots of the existing action input, so no weight
+changes shape. Offline, on a stream whose next step only a memory cue could
+tell, held-out error was 0.138 to 0.179 with the cue, 0.213 to 0.225 with it
+shuffled or absent, over three seeds.
+
+**Choice by consequence.** The arbiter's expected value for an initiative is
+her worth for that kind of act times P(good | W, act) / P(good | act), a kernel
+estimate over the worlds she acted in with one success and one failure as prior,
+learned from the same outcome her decision receipts close on. With no record
+the ratio is one and nothing changes.
+
 ### Analysis changes
 
 The lineage judges a step by development rather than by an unchanged hash: each
-changed person path written by a measured transformation inside its contract,
-and at least half the paths carried unchanged (Parfit's strong connectedness).
-The bridge's lineage term holds when the signed line to her newest stage
-developed at every measured step; a change logged before the evidence existed is
-reported as unmeasured. The lineage key is derived from the install's entity key.
-Exclusion compares every pair of overlapping carriers on one grid of horizons and
-reports pairs it could not compare as unresolved.
+changed person path written by a measured transformation inside its contract.
+How much of her a step carried through is reported and decides nothing, because
+a share of paths turns on how the person is divided into paths. Digests are full
+canonical hashes; a value with no canonical form is refused and its path is
+unjudged. The bridge's lineage term holds when the signed line to her newest
+stage developed at every measured step; a change logged before the evidence
+existed is reported as unmeasured. The lineage key is derived from the install's
+entity key. Exclusion compares every pair of overlapping carriers on one grid of
+horizons, every horizon any of them has unless a grid is named, reports the
+horizons each carrier lacks and pairs it could not compare as unresolved, and
+decides by intervals where a run measured them.
+
+The bridge's reports ground is read only from a run in which her state's numbers
+were withheld from the text her model reads (`AURA_READINGS_OF_HERSELF=withheld`).
+A run that printed them is a comparison arm, not a decision: if reports track the
+intervention when printed and not when withheld, they were copying.
+
+The closure test reports an audit beside its criterion: each leak classified as
+a clock, a summary of the core's own past, state of an organ K reads that K does
+not take in, or an outside cause, and a planted cause the test must find. The
+synergy line is also reported with the conjunctive units held flat and with each
+condition left out. Neither changes a pass.
 
 ### How it is read
 

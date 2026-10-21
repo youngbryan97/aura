@@ -15,6 +15,7 @@ import re
 import time
 from collections import deque
 from dataclasses import dataclass
+from typing import Any
 
 from core.autonomy.research_goal_filter import (
     is_stale_or_prompt_scaffold_goal,
@@ -361,7 +362,7 @@ class InitiativeArbiter:
         best.rationale = "; ".join(rationale_parts)
 
         self._selection_history.append(best)
-        self._record_choice_for_learning(best, scored)
+        self._record_choice_for_learning(best, scored, state)
         # Which harder tasks lost to this one on cost alone. Each such loss
         # moves that task's cost score toward free at the next arbitration.
         # See core/agency/easier_loss.py.
@@ -376,7 +377,9 @@ class InitiativeArbiter:
         self._log_selection(best)
         return best
 
-    def _record_choice_for_learning(self, best: ScoredInitiative, scored: list[ScoredInitiative]) -> None:
+    def _record_choice_for_learning(
+        self, best: ScoredInitiative, scored: list[ScoredInitiative], state: Any = None
+    ) -> None:
         """Register this choice with the preference learner so its outcome can later
         author her weighting. Best-effort: never let learning capture break selection."""
         try:
@@ -395,6 +398,10 @@ class InitiativeArbiter:
             # close the receipt with what followed. See core/agency/habits_are_hers.py.
             if isinstance(best.initiative, dict):
                 best.initiative.setdefault("metadata", {})["decision_choice_id"] = decision_id
+            if decision_id and state is not None:
+                from core.agency.consequence import act_kind, get_consequence_model, world_of
+
+                get_consequence_model().opened(decision_id, act_kind(_goal(best.initiative)), world_of(state))
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Decision-preference capture skipped: %s", exc)
 
@@ -424,6 +431,17 @@ class InitiativeArbiter:
         scores["identity_relevance"] = self._score_identity_relevance(initiative, state)
         scores["tension_resolution"] = self._score_tension_resolution(initiative)
         scores["expected_value"] = self._score_expected_value(initiative)
+        # Conditioned on the world she is in: what acts of this kind have been
+        # worth, times how much likelier this world makes them to go well.
+        # See core/agency/consequence.py.
+        try:
+            from core.agency.consequence import act_kind, worth_in_this_world
+
+            scores["expected_value"] = worth_in_this_world(
+                scores["expected_value"], act_kind(_goal(initiative)), state
+            )
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("the world did not reach what this initiative is worth: %s", exc)
         scores["resource_cost"] = self._score_resource_cost(initiative)
         # A task she keeps passing over for something cheaper and worth less
         # costs less each time. See core/agency/easier_loss.py.

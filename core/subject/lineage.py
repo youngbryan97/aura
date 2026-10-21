@@ -31,17 +31,21 @@ that rather than picking one.
 
 A person who learns changes, so a step may change what she carries. A step
 develops when every identity-bearing path it changed was written by a measured
-transformation that stayed inside its declared writes, and when at least half
-of the paths she carried came through it unchanged. The first is the right kind
-of cause: the evidence is the runtime's own record of which phase wrote which
-field, bound into the edge's signature, never a claim the state makes about
-itself. The second is Parfit's strong connectedness (Reasons and Persons, 1984,
-section 78), "at least half the number of direct connections" a life keeps from
-one day to the next, applied to the paths her person-state is made of. A step
-with an unexplained change is not development, however small the change, and
-a step that rewrote most of her at once is not development, however well
-explained. Requiring the canonical state to stay identical, as this module did
-before 21 October 2026, made every lesson she learned the end of her.
+transformation that stayed inside its declared writes: the right kind of cause,
+read from the runtime's own record of which phase wrote which field, bound into
+the edge's signature, never a claim the state makes about itself. A step with
+an unexplained change is not development, however small the change. Requiring
+the canonical state to stay identical, as this module did before 21 October
+2026, made every lesson she learned the end of her.
+
+How much of her a step carried through unchanged is reported and decides
+nothing. A share of paths depends on how the person is divided into paths: one
+changed path of two keeps a half, and the same change written as two paths of
+three keeps a third. A rule that turned on that share would turn on the
+encoding. The relation is reported in its parts (`relations`): a chain of
+transfers, every change attributed, a unique successor, and the state
+unchanged. `same_person` is the first three together, and that it is identity
+is the postulate named below.
 
 A signature says the record was not altered after it was made, given who holds
 the key. It does not say a parent produced a child. That is what the evidence
@@ -55,17 +59,17 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import itertools
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from core.state.person_transitions import AURA_PERSON_PATHS
+from core.state.person_transitions import AURA_PERSON_PATHS, UnmeasurableError, canonical_digest
 
 __all__ = [
     "AURA_PERSON_PATHS",
     "KINDS",
-    "STRONG_CONNECTEDNESS",
     "Stage",
     "Edge",
     "Lineage",
@@ -109,11 +113,6 @@ PERSON_FIELDS: tuple[str, ...] = (
     "developmental",
 )
 
-#: The share of what she carried that a developing step must carry through
-#: unchanged: Parfit's strong connectedness, at least half (Reasons and
-#: Persons, 1984, section 78).
-STRONG_CONNECTEDNESS: float = 0.5
-
 #: Keys that are bookkeeping rather than person-state: when a thing was
 #: written, which process wrote it, what its identifier is. Including them
 #: makes two stages differ because a clock moved.
@@ -154,8 +153,21 @@ def canonical_person_state(state: Any) -> dict[str, Any]:
 
 
 def _digest(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, default=str).encode("utf-8")
-    return hashlib.blake2b(payload, digest_size=16).hexdigest()
+    """The full canonical digest, or a mark naming why there is none.
+
+    The mark is unique to the reading, so two unmeasurable values never
+    compare equal and an unmeasurable path always reads as unjudged.
+    """
+    try:
+        return canonical_digest(value)
+    except UnmeasurableError as exc:
+        return f"{UNMEASURABLE}{exc}|{next(_READINGS)}"
+
+
+#: How a path whose value has no canonical form is marked, and a count that
+#: makes each such mark its own: an object's id is reused once it is freed.
+UNMEASURABLE = "unmeasurable:"
+_READINGS = itertools.count()
 
 
 def state_digest(state: Any) -> str:
@@ -329,11 +341,14 @@ class Edge:
     #: The paths that changed, and for each the writes recorded for it.
     changed: tuple[str, ...] = ()
     writes: Mapping[str, tuple[Mapping[str, Any], ...]] = field(default_factory=dict)
-    #: The share of the parent's paths that came through unchanged.
+    #: The share of the parent's paths that came through unchanged. Reported,
+    #: never decisive: it depends on how the person is divided into paths.
     connectedness: float = 1.0
     #: Whether the child carried a record of what wrote it. A state logged
     #: before that record existed changed with nothing to judge it by.
     measured: bool = True
+    #: Paths with no canonical form in either stage.
+    unmeasurable: tuple[str, ...] = ()
 
     def unexplained(self) -> tuple[str, ...]:
         """Changed paths no measured write accounts for.
@@ -344,19 +359,29 @@ class Edge:
         """
         out = []
         for path in self.changed:
+            if path in self.unmeasurable:
+                # Whether it changed at all cannot be read; it is unjudged.
+                continue
             found = self.writes.get(path, ())
             if not any(w.get("transform") and w.get("honoured", True) for w in found):
                 out.append(path)
         return tuple(out)
 
+    def unjudged(self) -> tuple[str, ...]:
+        """Changed paths whose value has no canonical form, so no change can be judged."""
+        return tuple(path for path in self.changed if path in self.unmeasurable)
+
+    @property
+    def attributed(self) -> bool:
+        """Every change on this step was written by a measured transformation inside its contract."""
+        return not self.unexplained() and not self.unjudged()
+
     @property
     def develops(self) -> bool:
-        """One person carried forward: every change explained, and strongly connected."""
+        """One person carried forward: a nonbranching kind, and every change attributed."""
         if self.kind not in NONBRANCHING:
             return False
-        if self.preserved:
-            return True
-        return not self.unexplained() and self.connectedness >= STRONG_CONNECTEDNESS
+        return self.preserved or self.attributed
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -366,7 +391,9 @@ class Edge:
             "preserved": self.preserved,
             "changed": list(self.changed),
             "unexplained": list(self.unexplained()),
+            "unjudged": list(self.unjudged()),
             "connectedness": round(self.connectedness, 6),
+            "attributed": self.attributed,
             "develops": self.develops,
             "measured": self.measured,
             "signature": self.signature,
@@ -443,6 +470,10 @@ class Lineage:
             writes=recorded,
             connectedness=kept / len(before) if before else 1.0,
             measured=measured,
+            unmeasurable=tuple(
+                sorted(p for p in set(before) | set(after)
+                       if before.get(p, "").startswith(UNMEASURABLE) or after.get(p, "").startswith(UNMEASURABLE))
+            ),
         )
         self.edges.append(edge)
         return edge
@@ -479,15 +510,47 @@ class Lineage:
     def _edge(self, parent: str, child: str) -> Edge | None:
         return next((e for e in self.edges if e.parent == parent and e.child == child), None)
 
+    def relations(self, start: str, end: str) -> dict[str, bool]:
+        """The relation between two stages, part by part.
+
+        `chain_continuity`: a chain of signed transfers leads from one to the
+        other. `change_attributed`: every change on it was written by a measured
+        transformation inside its contract. `unique_successor`: nothing on it
+        branched. `state_preserved`: nothing the person carries changed.
+        `same_person` is the first three, and that it is identity is the
+        causal-lineage postulate.
+        """
+        trail = self.path(start, end)
+        if trail is None:
+            return {
+                "chain_continuity": False,
+                "change_attributed": False,
+                "unique_successor": False,
+                "state_preserved": False,
+                "same_person": False,
+            }
+        steps = [self._edge(a, b) for a, b in zip(trail, trail[1:], strict=False)]
+        attributed = all(e is not None and (e.preserved or e.attributed) for e in steps)
+        unique = all(
+            e is not None and e.kind in NONBRANCHING and not self.branched(e.parent) for e in steps
+        )
+        preserved = all(e is not None and e.preserved for e in steps)
+        return {
+            "chain_continuity": all(e is not None for e in steps),
+            "change_attributed": attributed,
+            "unique_successor": unique,
+            "state_preserved": preserved,
+            "same_person": attributed and unique,
+        }
+
     def same_person(self, start: str, end: str) -> bool:
         """True only along a lineage that developed at every step and never branched.
 
         Three things have to hold: there is a chain of transfers, every step
         on it develops (each change written by a measured transformation that
-        kept to its contract, and at least half of what she carried kept), and
-        no stage on that chain has a second continuer. The third is not a
-        convention — one predecessor cannot be numerically identical to two
-        distinct successors.
+        kept to its contract), and no stage on that chain has a second
+        continuer. The third is not a convention — one predecessor cannot be
+        numerically identical to two distinct successors.
 
         That this relation is what personal persistence consists in is the
         causal-lineage postulate. It is a postulate.
@@ -529,7 +592,7 @@ class Lineage:
                     "child": edge.child,
                     "why": "a branching kind" if edge.kind not in NONBRANCHING else (
                         "changes no measured write accounts for" if edge.unexplained()
-                        else "less than half of what she carried came through"
+                        else "changes to values with no canonical form"
                     ),
                     "unexplained": list(edge.unexplained()),
                     "connectedness": round(edge.connectedness, 6),
@@ -562,11 +625,14 @@ class Lineage:
             name = max(leaves, key=lambda n: (self.stages[n].at, len(self.line_to(n)), n)) if leaves else ""
         trail = self.line_to(name) if name else ()
         steps = [self._edge(a, b) for a, b in zip(trail, trail[1:], strict=False)]
+        unmeasured = [
+            e for e in steps
+            if e is not None and not e.preserved and (not e.measured or (e.unjudged() and not e.unexplained()))
+        ]
         failed = [
             e for e in steps
-            if e is not None and (e.measured or e.preserved) and (not e.develops or self.branched(e.parent))
+            if e is not None and e not in unmeasured and (not e.develops or self.branched(e.parent))
         ]
-        unmeasured = [e for e in steps if e is not None and not e.measured and not e.preserved]
         return {
             "stage": name,
             "root": trail[0] if trail else "",
@@ -624,9 +690,8 @@ class Lineage:
             ),
             "postulate": (
                 "personal persistence consists in unique nonbranching causal "
-                "continuation of the canonical person-state, developing by measured, "
-                "contracted writes with at least half of it carried at each step; "
-                "this is a postulate"
+                "continuation of the canonical person-state, developing only by "
+                "measured, contracted writes; this is a postulate"
             ),
         }
 

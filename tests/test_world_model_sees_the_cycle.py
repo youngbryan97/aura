@@ -44,6 +44,7 @@ from core.world_model.observe_cycle import (  # noqa: E402
     GOAL_WIDTH,
     OBSERVATION_READINGS,
     OBSERVATION_WIDTH,
+    PERCEIVED_WIDTH,
     PRESSURE_READINGS,
 )
 
@@ -86,7 +87,10 @@ def test_the_cycle_reaches_the_model_and_the_surprise_comes_back():
     assert len(model.seen) == 1
     observation, action, learn = model.seen[0]
     assert observation.size == OBSERVATION_WIDTH
-    assert action.size == 4
+    # What she did, then what she recalled: memory conditions the transition.
+    from core.world_model.observe_cycle import ACTION_READINGS, MEMORY_CONTEXT_WIDTH
+
+    assert action.size == ACTION_READINGS + MEMORY_CONTEXT_WIDTH
     assert learn is True
 
 
@@ -117,7 +121,9 @@ def test_the_observation_carries_what_she_recalled_and_not_only_how_much():
     """
     from core.world_model.observe_cycle import observation_of
 
-    assert OBSERVATION_WIDTH == OBSERVATION_READINGS + CONTENT_WIDTH + GOAL_WIDTH + PRESSURE_READINGS
+    assert OBSERVATION_WIDTH == (
+        OBSERVATION_READINGS + CONTENT_WIDTH + PERCEIVED_WIDTH + GOAL_WIDTH + PRESSURE_READINGS
+    )
 
     def _with(recalled):
         state = AuraState.default()
@@ -202,7 +208,9 @@ def test_pressure_is_the_deepest_shortfall_and_not_their_sum():
 def test_the_new_readings_come_after_everything_the_model_has_already_learned():
     """An insertion would move every later feature onto a weight learned for
     another one, so the layout is pinned: readings, then what she recalled,
-    then what she intends, then drive pressure."""
+    then what arrived, then what she intends, then drive pressure. What arrived
+    went in on 25 September ahead of the two after it, and her model has
+    learned that order since."""
     from core.world_model.observe_cycle import _coordinate
 
     state = _every_drive_full(AuraState.default())
@@ -211,7 +219,9 @@ def test_the_new_readings_come_after_everything_the_model_has_already_learned():
     state.motivation.budgets["curiosity"]["level"] = 75.0
     vector = observation_of(state)
     recalled_at = OBSERVATION_READINGS
-    goal_at = recalled_at + CONTENT_WIDTH
-    assert list(vector[recalled_at:goal_at]) == pytest.approx(_coordinate("the disk is nearly full"))
+    goal_at = recalled_at + CONTENT_WIDTH + PERCEIVED_WIDTH
+    assert list(vector[recalled_at:recalled_at + CONTENT_WIDTH]) == pytest.approx(
+        _coordinate("the disk is nearly full")
+    )
     assert list(vector[goal_at:goal_at + GOAL_WIDTH]) == pytest.approx(_coordinate("free some space", GOAL_WIDTH))
     assert vector[goal_at + GOAL_WIDTH] == pytest.approx(0.25)

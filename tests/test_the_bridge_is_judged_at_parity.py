@@ -30,7 +30,13 @@ pytestmark = pytest.mark.unit
 REPO = Path(__file__).resolve().parents[1]
 
 ALL_MARKERS = {line: True for line in MARKER_LINES}
-GROUNDED = {"measured": True, "holds": True, "why": "reports moved with the displaced state and not under the sham"}
+WITHHELD = {"readings_of_herself": "withheld", "steering": "on"}
+GROUNDED = {
+    "measured": True,
+    "holds": True,
+    "why": "reports moved with the displaced state and not under the sham",
+    "conditions": WITHHELD,
+}
 
 
 def _j(
@@ -121,7 +127,7 @@ def test_a_measured_failure_outweighs_a_missing_measurement() -> None:
 
 
 def test_reports_that_do_not_track_the_state_fail_the_reports_ground() -> None:
-    j = _j(battery=ALL_MARKERS, reports={"measured": True, "holds": False, "why": "moved under the sham too"})
+    j = _j(battery=ALL_MARKERS, reports={"measured": True, "holds": False, "why": "moved under the sham too", "conditions": WITHHELD})
     assert _status(j, "reports") == "FAILS"
     assert j.bridge == "BELOW_PARITY"
 
@@ -180,3 +186,11 @@ def test_a_content_report_whose_push_did_not_last_is_not_counted_as_her_failing(
     assert structure_term(new).status == "AGREES_BUT_DOES_NOT_TRACK"
     separate = {**old, "verdict": "SEPARATE_STRUCTURES"}
     assert structure_term(separate).status == "SEPARATE_STRUCTURES"
+
+
+def test_a_reports_run_that_showed_her_her_own_numbers_decides_nothing():
+    shown = {**GROUNDED, "conditions": {"readings_of_herself": "printed", "steering": "on"}}
+    j = _j(battery=ALL_MARKERS, reports=shown)
+    reading = {r.key: r for r in j.parity()}["reports"]
+    assert reading.status == "NOT_MEASURED"
+    assert "withheld" in reading.why

@@ -5,7 +5,10 @@ experience at t2, the two joined by a signed transition that verifies, and
 `same_person(t1, t2)` came back False, because every identity-preserving step
 had to keep the canonical state's hash. Any learning ended identity. A step now
 develops when each path it changed was written by a measured transformation
-that kept to its contract and at least half of what she carried came through.
+that kept to its contract. A second review the same day showed that a rule on
+the share of paths carried through turns on how the person is divided into
+paths, and that the commit digest stopped reading at 4,096 characters; both are
+pinned here.
 """
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ from dataclasses import replace
 
 import pytest
 
-from core.subject.lineage import STRONG_CONNECTEDNESS, Lineage, lineage_from_state_log
+from core.subject.lineage import Lineage, lineage_from_state_log
 
 pytestmark = pytest.mark.unit
 
@@ -71,20 +74,32 @@ def test_a_write_outside_its_contract_does_not_explain_the_change():
     assert line.same_person("t1", "t2") is False
 
 
-def test_most_of_her_rewritten_at_once_is_not_development_however_well_explained():
-    after = _person(
-        autobiographical=["someone else's life"],
-        self_model={"name": "Other", "efficacy": 0.1},
-        values=["obedience"],
-        preferences={"depth": 0.1},
-        dispositions={"curiosity": 0.0},
-        skills=["nothing"],
+def test_the_verdict_does_not_turn_on_how_the_person_is_divided_into_paths():
+    """One kept path and one changed: a half. The same change as two paths: a third. One verdict."""
+    two = Lineage()
+    two.record("t1", {"values": ["honesty"], "preferences": {"depth": 0.8}}, at=1.0)
+    two.record("t2", {"values": ["honesty"], "preferences": {"depth": 0.6}}, at=3.0)
+    coarse = two.descend("t1", "t2", writes={"preferences:depth": _wrote()})
+    three = Lineage()
+    three.record("t1", {"values": ["honesty"], "preferences": {"depth": 0.8, "depth_again": 0.8}}, at=1.0)
+    three.record("t2", {"values": ["honesty"], "preferences": {"depth": 0.6, "depth_again": 0.6}}, at=3.0)
+    fine = three.descend(
+        "t1", "t2", writes={"preferences:depth": _wrote(), "preferences:depth_again": _wrote()}
     )
-    line = _two_stages(after)
-    edge = line.descend("t1", "t2", writes={path: _wrote() for path in line.stages["t2"].paths})
-    assert not edge.unexplained()
-    assert edge.connectedness < STRONG_CONNECTEDNESS
-    assert line.same_person("t1", "t2") is False
+    assert coarse.connectedness == pytest.approx(1 / 2) and fine.connectedness == pytest.approx(1 / 3)
+    assert two.same_person("t1", "t2") == three.same_person("t1", "t2") is True
+
+
+def test_the_relation_is_reported_in_its_parts():
+    line = _two_stages(_person(preferences={"depth": 0.6}))
+    line.descend("t1", "t2", writes={"preferences:depth": _wrote()})
+    assert line.relations("t1", "t2") == {
+        "chain_continuity": True,
+        "change_attributed": True,
+        "unique_successor": True,
+        "state_preserved": False,
+        "same_person": True,
+    }
 
 
 def test_learning_does_not_make_a_fork_one_person():
@@ -178,3 +193,57 @@ def test_a_logged_state_whose_parent_was_pruned_descends_from_the_last_one_commi
     line = lineage_from_state_log(rows)
     assert [(e.parent, e.child) for e in line.edges] == [("s1", "s5")]
     assert line.same_person("s1", "s5")
+
+
+def test_a_change_past_the_first_4096_characters_is_still_a_change():
+    from core.state.person_transitions import canonical_digest
+
+    first, second = "x" * 5000 + "A", "x" * 5000 + "B"
+    assert canonical_digest(first) != canonical_digest(second)
+    other = Lineage()
+    other.record("t1", _person(autobiographical=[first]), at=1.0)
+    other.record("t2", _person(autobiographical=[second]), at=3.0)
+    assert other.descend("t1", "t2").changed == ("autobiographical",)
+
+
+def test_the_order_keys_were_written_in_is_not_a_change():
+    from core.state.person_transitions import canonical_digest
+
+    assert canonical_digest({"b": 2, "a": 1}) == canonical_digest({"a": 1, "b": 2})
+
+
+def test_a_value_with_no_canonical_form_is_refused_and_left_unjudged():
+    from core.state.person_transitions import UnmeasurableError, canonical_digest
+
+    with pytest.raises(UnmeasurableError):
+        canonical_digest(object())
+    line = Lineage()
+    line.record("t1", _person(policy={"defer_below": object()}), at=1.0)
+    line.record("t2", _person(policy={"defer_below": object()}), at=3.0)
+    edge = line.descend("t1", "t2")
+    assert edge.unjudged() == ("policy:defer_below",)
+    assert line.development()["unmeasured"] == 1 and line.development()["failed"] == 0
+
+
+def test_a_phase_writing_past_the_first_4096_characters_leaves_a_receipt():
+    import core.state.person_transitions  # noqa: F401 - registers the person paths
+    from core.runtime.cognitive_provenance import begin_transformation
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.identity.current_narrative = "x" * 5000 + "A"
+    measuring = begin_transformation("NarrativePhase", state)
+    state.identity.current_narrative = "x" * 5000 + "B"
+    receipt = measuring.complete(state, publish_violation=False)
+    assert "identity.current_narrative" in receipt.observed_writes
+
+
+def test_a_restored_backup_beside_a_branch_that_went_on_is_not_one_person():
+    line = Lineage()
+    line.record("monday", _person(), at=1.0)
+    line.record("friday", _person(preferences={"depth": 0.6}), at=5.0)
+    line.record("saturday", _person(), at=6.0)
+    line.descend("monday", "friday", writes={"preferences:depth": _wrote()})
+    line.descend("monday", "saturday", kind="restore")
+    assert line.relations("monday", "saturday")["unique_successor"] is False
+    assert line.same_person("monday", "friday") is False

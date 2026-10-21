@@ -89,42 +89,65 @@ judged not viable says why.
 
 ## The analysis of function, measurement and J*
 
-- [ ] **G1. A coupling's register is not its effect.** A second, diagnostic
+- [x] **G1. A coupling's register is not its effect.** A second, diagnostic
   synergy reading with the conjunction registers excluded from the target, beside
-  the official one.
-- [ ] **G2. Memory conditions the world model's prediction**, not only its step
+  the official one. Built: `without_registers`, reported in every run as
+  `synergy_v4_without_registers` and its Kraskov twin.
+- [x] **G2. Memory conditions the world model's prediction**, not only its step
   size: W(t+1) = f(W(t), P(t), M(t), A(t)). Checked by identical copies with
-  different retained experience given the same observation.
-- [ ] **G3. Choice by consequence**: Q(a) = sum over outcomes of P(o | W, a) U(o |
+  different retained experience given the same observation. Built: memory
+  enters the transition beside the action (`conditioning_of`); held-out error
+  0.138 to 0.179 with memory against 0.213 to 0.225 shuffled or absent
+  (`tests/test_memory_conditions_what_the_world_model_predicts.py`).
+- [x] **G3. Choice by consequence**: Q(a) = sum over outcomes of P(o | W, a) U(o |
   A, S, G) - C(a). Checked by the four crossed conditions of world prediction and
   valuation, and by a case where the choice should hold despite a feeling.
+  Built: `core/agency/consequence.py`, her worth for the act times the
+  likelihood ratio of this world among those where it went well; crossed world
+  and worth move the choice jointly, one gain on every score does not, and a
+  feature that never mattered does not turn it
+  (`tests/test_choice_follows_what_she_expects_to_happen.py`).
 - [x] **G4. Control allocation's early return.** When self-efficacy is unreadable
   the conjunction's tier gains were skipped with it. Fixed with the state passed
   in explicitly and a test that one fork's change stays in that fork.
   (`tests/test_control_is_allocated_by_what_it_is_worth.py`)
-- [~] **G5. Self and intention inside the recurrent transition**:
+- [x] **G5. Self and intention inside the recurrent transition**:
   C(t+1) = tanh(W C(t) + B phi(S, D) + I(t)), B fixed and bounded. Checked by four
   copies: S moved, D moved, both, neither. Built (`substrate_current`), with the
   four copies and the competence check of R2 in
   `tests/test_self_and_intention_enter_the_substrate.py`. Her substrate runs
   slaved to the mesh (the bridge blends the mesh's projection in at 0.35 every
   bridge tick), and in that regime the current costs nothing measured and makes
-  self and intention decodable from it (R squared 0.0 to 0.992). The organism
-  reading is the next pair.
-- [ ] **G6. Three lines of synergy evidence**: (a) the frozen v5 line, (b) the
+  self and intention decodable from it (R squared 0.0 to 0.992). Four forks
+  leave an interaction in her later substrate state a thousand times the floor
+  of two identical forks, and none with the current off; a displacement
+  contracts. The organism reading is the next pair.
+- [~] **G6. Three lines of synergy evidence**: (a) the frozen v5 line, (b) the
   Kraskov estimator already in `core/subject/synergy.py`, (c) paired causal
-  interventions on both sources.
-- [ ] **G7. Closure audit**: every leak classified, a hidden-broker positive
+  interventions on both sources. (b) is in every report: at `5885688d7` it
+  passes A,S -> G and P,M -> W with the codes and only A,S -> G without. (c) is
+  `tools/run_paired_synergy.py`, five forks per triple, sign flips against the
+  floor of two identical forks; it runs when the machine is free.
+- [~] **G7. Closure audit**: every leak classified, a hidden-broker positive
   control, held-out future prediction. The pair at `5885688d7` names the leaks:
   the unified field's learned input weights (C's own state, which K does not
   read), a confirmation counter (a clock), and running medians of the phi
-  estimators (summaries of the core's own past).
+  estimators (summaries of the core's own past). Built: `audit_leaks` in every
+  closure report, with a planted cause the test must find, and
+  `tools/k_compact_sufficiency.py`, which moves each sketched array where its
+  eight numbers cannot see and reads K a turn later against the floor. The
+  probe runs when the machine is free.
 - [ ] **G8. Both directions of C|rest** under intervention, then the next weakest
   cuts, with every control of the v5 design kept.
 - [ ] **G9. J* terms validated separately**: carrier (authoritative sweep),
   content (structure re-read), lineage (G11).
-- [ ] **G10. Report path traced end to end**, with controls: printed number
-  withheld, steering off, an unrelated perturbation.
+- [~] **G10. Report path traced end to end**, with controls: printed number
+  withheld, steering off, an unrelated perturbation. Built:
+  `AURA_READINGS_OF_HERSELF=withheld` keeps every reading of her state out of
+  her model's text; the run records that and steering; the bridge reads the
+  ground only from a withheld run. The run at `b815ecd41`, under way since
+  11:25, prints them and is the comparison arm. The world-model control arm
+  was already in the tool.
 - [x] **G11. Lineage that survives learning.** `same_person()` asks every
   transition to keep the canonical-state hash, so any learning ends identity.
   A developmental relation is built: causal continuity of signed transitions with
@@ -175,13 +198,15 @@ judged not viable says why.
   predictive sufficiency. Effective information is about causal effects under
   specified interventions, which is a different quantity; nothing here claims
   the grain stage measures it. Not built now.
-- [ ] **F7. Out-of-sample, leave-one-condition-out reading** of each triple.
+- [x] **F7. Out-of-sample, leave-one-condition-out reading** of each triple.
+  `synergy_v4_leave_one_condition_out` in every run's report.
 - [ ] **F8. Preregistered falsification on fresh seeds.** Seed 23 is that; its
   addendum states the predictions before it runs.
-- [ ] **F9. Schedule apart from measurement**: condition orders randomised and
+- [x] **F9. Schedule apart from measurement**: condition orders randomised and
   counterbalanced when the data are collected, so an effect that follows the
   schedule cannot follow it. Shuffling a recorded series afterwards would break
   real temporal dependence along with the schedule, so it is not used.
+  `--counterbalance` on the run draws each round's order from a Williams design.
 - [ ] **F10. Continuity across restart and migration** as matching transition
   structure, read beside G11.
 - [ ] **F11. What an experience changed**, against a counterfactual fork that never
@@ -211,3 +236,33 @@ carrier, whether her 27B's reports move with intervention under the controls,
 and whether any of it holds on seed 23. A correct exclusion can still return
 several carriers or none. Those are measurements, and they are read as they
 come.
+
+## The proof lab of 21 October
+
+A second package came the same afternoon: seven tests, three against the code.
+Each finding and what was done with it.
+
+- **Truncated digest.** `PersonWatch` hashed `repr(value)[:4096]`, so a change
+  past that point went unseen. Now a full SHA-256 of a canonical form that
+  refuses kinds it does not know, and the receipts digest person paths whole.
+- **The half rule depends on the encoding.** One kept path of two is a half;
+  the same change as two paths of three is a third. The share is reported and
+  decides nothing; the relation is reported in its parts.
+- **Exclusion cycle.** Reproduced and fixed as G12, with missing horizons named
+  and interval dominance where a run measured intervals.
+- **The sketch is not sufficient in general.** Two matrices with the same eight
+  numbers send a state 1.72 apart. `tools/k_compact_sufficiency.py` measures
+  whether that matters for each array K reads, in her organism.
+- **The frozen synergy scorer can fail a real nonlinear effect.** Not relaxed.
+  The paired-intervention probe and the register-free reading sit beside it.
+- **Functional models for G2, G3, G5.** Built in her code, each with its own
+  test against the proof lab's acceptance criteria.
+- **Reports with the numbers withheld.** Built as G10.
+- **Seed 23 untouched** until the revised system is frozen.
+
+Also found on the way: the world model's observation had grown to 30 numbers
+against a declared 26 since 25 September, and three of its tests had failed
+since; the width now counts what arrived, in the order her model has learned.
+
+What none of this settles is unchanged: the four triples together, 511 cuts,
+one carrier, her 27B's reports under the controls, and seed 23.

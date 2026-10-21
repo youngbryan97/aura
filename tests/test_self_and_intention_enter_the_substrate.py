@@ -103,7 +103,7 @@ def test_four_copies_self_moved_drives_moved_both_and_neither():
 def _substrate(tmp_path, n: int = 128):
     from core.consciousness.liquid_substrate import LiquidSubstrate, SubstrateConfig
 
-    return LiquidSubstrate(config=SubstrateConfig(neuron_count=n, state_file=str(tmp_path / "substrate.npy")))
+    return LiquidSubstrate(config=SubstrateConfig(neuron_count=n, state_file=tmp_path / "substrate.npy"))
 
 
 def _as_she_runs(substrate, phis, mesh, projection):
@@ -156,3 +156,52 @@ def test_in_her_regime_the_substrate_carries_self_and_intention_and_loses_nothin
     error = max(np.std(carried_on), np.std(carried_off)) / np.sqrt(carried_on.size)
     assert carried_on.mean() > carried_off.mean() + 2.0 * error
     assert np.mean(np.abs(on) > 0.95) <= np.mean(np.abs(off) > 0.95)
+
+
+def test_four_forks_leave_an_interaction_in_her_later_state_and_none_with_the_current_off(tmp_path, monkeypatch):
+    """Neither moved, self moved, intention moved, both: the contrast in the substrate turns later.
+
+    A decoder reading where the units stand is not enough; what both moving does
+    to her later state has to differ from the sum of each alone, and with the
+    current switched off the same four forks must leave no such difference.
+    """
+    state = _lived()
+    phis = {
+        (s, d): np.array(_moved(state, self_moved=s, drives_moved=d))
+        for s in (False, True) for d in (False, True)
+    }
+    rng = np.random.default_rng(6)
+    projection = rng.standard_normal((128, 8)) / np.sqrt(8)
+    mesh = rng.standard_normal((6, 8))
+
+    def later(phi, label):
+        substrate = _substrate(tmp_path / label)
+        return _as_she_runs(substrate, [phi] * 6, mesh, projection)[-1]
+
+    def contrast(prefix):
+        x = {key: later(phi, f"{prefix}{key}") for key, phi in phis.items()}
+        return x[(True, True)] - x[(True, False)] - x[(False, True)] + x[(False, False)]
+
+    on = contrast("on")
+    # Two forks with nothing between them still differ in the last float
+    # bits (the gain hold's power iteration starts from a random vector).
+    floor = later(phis[(False, False)], "again") - later(phis[(False, False)], "once more")
+    monkeypatch.setenv(codes.DISABLE_ENV, "1")
+    off = contrast("off")
+    # Measured 21 October: 0.145 on, 8.6e-6 off, against 1.4e-4 between
+    # identical forks. Two orders of magnitude either side is the claim.
+    assert np.linalg.norm(on) > 100 * np.linalg.norm(floor)
+    assert np.linalg.norm(off) < np.linalg.norm(on) / 100
+
+
+def test_in_her_regime_the_driven_substrate_forgets_a_displacement(tmp_path):
+    """Two copies a small step apart, given the same inputs, come together: the turn map contracts."""
+    rng = np.random.default_rng(8)
+    projection = rng.standard_normal((128, 8)) / np.sqrt(8)
+    mesh = rng.standard_normal((8, 8))
+    phis = rng.standard_normal((8, 4))
+    a, b = _substrate(tmp_path / "a"), _substrate(tmp_path / "b")
+    b.x = np.clip(b.x + 0.05 * rng.standard_normal(b.x.shape), -1, 1)
+    start = float(np.linalg.norm(a.x - b.x))
+    ends = [_as_she_runs(s, phis, mesh, projection)[-1] for s in (a, b)]
+    assert float(np.linalg.norm(ends[0] - ends[1])) < start

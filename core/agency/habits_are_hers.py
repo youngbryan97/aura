@@ -445,9 +445,15 @@ def appraise(closed: list[tuple[Any, float, float]]) -> int:
     if decisions:
         from core.agency.decision_preference_learner import get_decision_preference_learner
 
+        from core.agency.consequence import get_consequence_model
+
         learner = get_decision_preference_learner()
+        consequences = get_consequence_model()
         for event in decisions:
             learner.resolve_choice(event.decision_id, amount)
+            # And what the world she chose in made of it, for the next choice
+            # made in a world like it. See core/agency/consequence.py.
+            consequences.resolved(event.decision_id, amount)
             done += 1
     return done
 

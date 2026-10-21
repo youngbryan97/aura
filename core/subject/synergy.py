@@ -438,13 +438,16 @@ def synergy(
     seed: int = 0,
     of: str = "level",
     clocks_out: bool = False,
+    keep: np.ndarray | None = None,
 ) -> SynergyReport:
     """Syn(A_t, B_t ; Y_{t+1}) with a shifted null and an interaction check.
 
     ``of="change"`` scores Y_{t+1} - Y_t instead of Y_{t+1}. The null and the
     interaction check read the same target, so the comparison stays one
     comparison. ``clocks_out`` reads every domain without its counters
-    (`without_clocks`), which is how ISC-v5 scores the line.
+    (`without_clocks`), which is how ISC-v5 scores the line. ``keep`` marks the
+    transitions to score, one flag per step from a row to the next; the
+    components are still read off every row.
     """
     if of not in TARGET_READINGS:
         raise ValueError(f"synergy is about a target's {' or '.join(TARGET_READINGS)}, not {of!r}")
@@ -454,6 +457,9 @@ def synergy(
     raw_b = _components(recording.domain(source_b)[:-1])
     following = recording.domain(target)
     raw_y = _components(following[1:] - following[:-1] if of == "change" else following[1:])
+    if keep is not None:
+        mask = np.asarray(keep, dtype=bool)[: raw_a.shape[0]]
+        raw_a, raw_b, raw_y = raw_a[mask], raw_b[mask], raw_y[mask]
     rows = raw_a.shape[0]
     # The floor a partition is scored on, so an arm too short for one measure
     # is too short for both.
@@ -560,11 +566,66 @@ TRIPLES: tuple[tuple[str, str, str], ...] = (
 
 
 def synergy_suite(
-    recording: Recording, *, seed: int = 0, of: str = "level", clocks_out: bool = False
+    recording: Recording,
+    *,
+    seed: int = 0,
+    of: str = "level",
+    clocks_out: bool = False,
+    keep: np.ndarray | None = None,
 ) -> list[SynergyReport]:
     if clocks_out:
         recording = without_clocks(recording)
-    return [synergy(recording, a, b, y, seed=seed, of=of) for a, b, y in TRIPLES]
+    return [synergy(recording, a, b, y, seed=seed, of=of, keep=keep) for a, b, y in TRIPLES]
+
+
+def without_registers(recording: Recording) -> Recording:
+    """The recording with the conjunctive units held flat in every domain.
+
+    A unit bound from two domains is a column of the domain it acts in, so the
+    synergy line can find the two sources in the target by reading the unit
+    itself. That is the coupling's register, not its effect. Read without the
+    registers, what synergy is left is what the units did to the rest of the
+    target. Diagnostic: the frozen line reads the recording as recorded.
+    """
+    registers = np.array([".conj_" in name for name in recording.columns], dtype=bool)
+    if not registers.any():
+        return recording
+    x = recording.x.copy()
+    x[:, registers] = 0.0
+    return replace(recording, x=x)
+
+
+def leave_one_condition_out(
+    recording: Recording,
+    *,
+    seed: int = 0,
+    triples: tuple[tuple[str, str, str], ...] = TRIPLES,
+) -> dict[str, list[dict[str, Any]]]:
+    """The v5 reading of each triple with every condition left out in turn.
+
+    A triple that passes only because of one condition, or fails only because
+    of one, says so here. A step is left out when either of its rows is in the
+    condition, so no step joins the end of one block to the start of another.
+    """
+    conditions = np.asarray(recording.conditions)
+    out: dict[str, list[dict[str, Any]]] = {}
+    for left_out in sorted(set(conditions.tolist())):
+        keep = (conditions[:-1] != left_out) & (conditions[1:] != left_out)
+        out[str(left_out)] = [
+            {
+                "triple": f"{','.join(item.sources)}->{item.target}",
+                "fraction": round(item.normalised, 4),
+                "synergy": round(item.synergy, 5),
+                "shifted_q99": round(item.raw_null_q99, 5),
+                "gain_lower_bound": round(item.interaction_lower_bound, 5),
+                "passes_v3": bool(item.passes_v3),
+            }
+            for item in (
+                synergy(without_clocks(recording), a, b, y, seed=seed, of="change", keep=keep)
+                for a, b, y in triples
+            )
+        ]
+    return out
 
 
 # ── A line that can see a product ───────────────────────────────────────────

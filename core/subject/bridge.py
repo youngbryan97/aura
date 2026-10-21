@@ -430,8 +430,8 @@ def lineage_term(lineage: Lineage | None) -> LineageTerm:
     A signature that verifies says the record was not altered. It does not say
     each stage came from the one before by the right cause, which is what the
     line's development is read for: every change written by a measured
-    transformation inside its contract, at least half of her carried through.
-    A change logged before that record existed is unmeasured, not failed.
+    transformation inside its contract. A change logged before that record
+    existed, or to a value with no canonical form, is unmeasured, not failed.
     """
     if lineage is None or len(lineage.stages) < 2 or not lineage.edges:
         return LineageTerm(
@@ -529,10 +529,19 @@ class JStar:
             markers = ("HOLDS", f"{', '.join(MARKER_LINES)} pass")
         else:
             markers = ("FAILS", f"{[line for line in MARKER_LINES if not self.battery[line]]} fail")
+        printed = ((self.reports or {}).get("conditions") or {}).get("readings_of_herself") != "withheld"
         if not self.reports or not self.reports.get("measured"):
             reports = (
                 "NOT_MEASURED",
                 str((self.reports or {}).get("why") or "no report-grounding run was read"),
+            )
+        elif printed:
+            # A report that could read its own state's numbers may be copying
+            # them. Only a run with those withheld decides the ground.
+            reports = (
+                "NOT_MEASURED",
+                "her model was shown her state's numbers in this run; the ground is read "
+                "only from a run with them withheld (AURA_READINGS_OF_HERSELF=withheld)",
             )
         else:
             reports = ("HOLDS" if self.reports.get("holds") else "FAILS", str(self.reports.get("why") or ""))

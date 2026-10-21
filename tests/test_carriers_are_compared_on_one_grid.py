@@ -17,6 +17,8 @@ from core.subject.v25_exclusion import (
     ExclusionReport,
     dominates,
     frontier_grid,
+    missing_horizons,
+    outranks,
     pareto_frontier,
     unresolved_pairs,
 )
@@ -56,8 +58,40 @@ def test_a_named_grid_leaves_out_of_the_comparison_a_carrier_not_measured_on_it(
     assert not dominates(full.spectrum, partial.spectrum, grid)
     assert {c.support for c in pareto_frontier([full, partial], grid)} == {full.support, partial.support}
     assert unresolved_pairs([full, partial], grid) == (("AB", "BC"),)
-    # On the horizons both have, the stronger one wins outright.
-    assert [c.support for c in pareto_frontier([full, partial])] == [full.support]
+    # With no grid named, the grid is every horizon either has, so the same
+    # pair is unresolved rather than decided on the two horizons they share.
+    assert {c.support for c in pareto_frontier([full, partial])} == {full.support, partial.support}
+    assert missing_horizons([full, partial]) == {"BC": (4.0,)}
+
+
+def test_a_lead_the_intervals_do_not_separate_decides_nothing():
+    high = _carrier("AB", {1.0: 0.30, 2.0: 0.30})
+    low = _carrier("BC", {1.0: 0.20, 2.0: 0.20})
+    assert [c.support for c in pareto_frontier([high, low])] == [high.support]
+    high.bounds = {1.0: (0.15, 0.45), 2.0: (0.15, 0.45)}
+    low.bounds = {1.0: (0.05, 0.35), 2.0: (0.05, 0.35)}
+    assert {c.support for c in pareto_frontier([high, low])} == {high.support, low.support}
+    high.bounds = {1.0: (0.26, 0.34), 2.0: (0.26, 0.34)}
+    low.bounds = {1.0: (0.16, 0.24), 2.0: (0.16, 0.24)}
+    assert [c.support for c in pareto_frontier([high, low])] == [high.support]
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_interval_dominance_never_empties_the_frontier(seed: int):
+    rng = random.Random(seed)
+    horizons = (1.0, 2.0, 4.0)
+    candidates = []
+    for _ in range(rng.randint(2, 7)):
+        support = "".join(sorted(rng.sample("PIAGCSMWDN", rng.randint(2, 5))))
+        centre = {tau: rng.choice((0.1, 0.2, 0.3, 0.4)) for tau in horizons}
+        width = rng.choice((0.0, 0.04, 0.12))
+        item = _carrier(support, centre)
+        item.bounds = {tau: (value - width, value + width) for tau, value in centre.items()}
+        candidates.append(item)
+    assert pareto_frontier(candidates)
+    for a, b, c in itertools.permutations(candidates, 3):
+        if outranks(a, b, horizons) and outranks(b, c, horizons):
+            assert outranks(a, c, horizons)
 
 
 @pytest.mark.parametrize("seed", range(40))

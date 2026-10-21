@@ -69,7 +69,11 @@ OBSERVATION_READINGS: int = 17
 #: and an insertion would move each of those onto a feature it never saw.
 GOAL_WIDTH: int = CONTENT_WIDTH
 PRESSURE_READINGS: int = 1
-OBSERVATION_WIDTH: int = OBSERVATION_READINGS + CONTENT_WIDTH + GOAL_WIDTH + PRESSURE_READINGS
+#: What arrived, as a coordinate, between the recalled and the intended ones.
+PERCEIVED_WIDTH: int = CONTENT_WIDTH
+OBSERVATION_WIDTH: int = (
+    OBSERVATION_READINGS + CONTENT_WIDTH + PERCEIVED_WIDTH + GOAL_WIDTH + PRESSURE_READINGS
+)
 
 
 def observation_of(state: Any) -> np.ndarray:
@@ -122,7 +126,10 @@ def observation_of(state: Any) -> np.ndarray:
             # new — and not what it was. Perception reached the world model at
             # 0.17 against a bar of 0.30 on the seed-7 run of 25 September,
             # which was one of the two channels leaving the world model with an
-            # in-degree of two while every other domain had eight or nine.
+            # in-degree of two while every other domain had eight or nine. It
+            # went in here on that day, which moved the intended coordinate and
+            # the pressure onto weights learned for other readings; her model
+            # has learned this order since, so it stays.
             *_perceived(percepts),
             # What she is trying to do, and not only how many things. The goal
             # count above moves by one when an intention is added, among twenty
@@ -261,6 +268,37 @@ def action_of(state: Any) -> np.ndarray:
     )
 
 
+#: Where the memory context sits in the conditioning vector: after the four
+#: action readings, in slots the model's sixteen-wide action input already had.
+ACTION_READINGS: int = 4
+MEMORY_CONTEXT_WIDTH: int = CONTENT_WIDTH + 2
+
+
+def memory_context_of(state: Any) -> np.ndarray:
+    """What she brought back from memory this cycle, as the model's transition sees it.
+
+    The recalled content as a coordinate, how strongly the best recollection
+    scored, and how intensely a memory was relived. It enters beside the action,
+    in the input that advances the model's hidden state, so it conditions what
+    the model predicts next: W(t+1) = f(W(t), P(t), M(t), A(t)). Inside the
+    observation it was only something to reconstruct, and a gain from
+    reconstructing memory is not memory informing a prediction of the world.
+    """
+    cognition = getattr(state, "cognition", None)
+    scores = list(getattr(cognition, "memory_scores", []) or []) if cognition else []
+    relived = getattr(cognition, "relived", None) if cognition else None
+    intensity = _num(relived.get("intensity")) if isinstance(relived, dict) else 0.0
+    return np.array(
+        [*_recalled(cognition), max((_num(v) for v in scores), default=0.0), intensity],
+        dtype=np.float64,
+    )
+
+
+def conditioning_of(state: Any) -> np.ndarray:
+    """What the model's transition is conditioned on: what she did, and what she recalled."""
+    return np.concatenate([action_of(state), memory_context_of(state)])
+
+
 def observe_cycle(state: Any, world_model: Any = None) -> float | None:
     """Show the model this turn. Returns the surprise, or None if it could not.
 
@@ -274,7 +312,7 @@ def observe_cycle(state: Any, world_model: Any = None) -> float | None:
             world_model = ServiceContainer.get("unified_world_model", default=None)
         if world_model is None:
             return None
-        world_model.observe(observation_of(state), action_of(state), learn=True)
+        world_model.observe(observation_of(state), conditioning_of(state), learn=True)
         surprise = world_model.surprise()
         return None if surprise is None else float(surprise)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
