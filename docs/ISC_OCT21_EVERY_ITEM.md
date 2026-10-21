@@ -46,9 +46,16 @@ judged not viable says why.
   `core/subject/snapshot_diff.py` names every number that differs between the
   exposed and unexposed forks after the same turns, largest first, and the
   share that changed; the hot-stove tool records it.
-- [ ] **B5. Behaviour that coordination alone does not show.** A preference held
+- [~] **B5. Behaviour that coordination alone does not show.** A preference held
   consistently, an interjection, a change of mind. Recorded as behavioural
-  evidence beside the battery, not as a criterion of it.
+  evidence beside the battery, not as a criterion of it. Built:
+  `tools/what_she_does_of_her_own.py` reads her conation record. On 21 October,
+  6 of the 149 things she has met hold a liking more than two standard errors
+  from indifference: bicycles (0.73, 5 contacts), watching along with someone
+  (0.12, 131), attending to her social drive (0.16, 68) liked; turns about
+  herself (-0.18, 193), the desktop influence probe (-0.14, 143) and attending
+  to her affect engine (-0.18, 58) disliked. Interjections and changes of mind
+  have no record to read yet.
 - [~] **B6. Reports that come from her state, not from prose.** A report has to
   move because her state moved, through her architecture. Built as G10: the
   reports ground with the printed number withheld and with steering on and off.
@@ -89,10 +96,15 @@ judged not viable says why.
   urgency changes, not only a final score.
 - [ ] **A5. Self and intention read in full and acting on every tier of C**:
   substrate, mesh and field.
-- [ ] **A6. Reports: two remaining empty-arm causes.** (a) a generation that ends
+- [x] **A6. Reports: two remaining empty-arm causes.** (a) a generation that ends
   inside its own thinking is answered again with the thinking closed, through the
   same gated path, before any fallback; (b) a draft that reports feeling low is
   never discarded for tone. Both checked on the code before changing it.
+  Neither needed a change: the decoder closes her private channel at its budget
+  (`a_bounded_private_channel.py`), and the only self-report gate fires on
+  questions about consciousness or feeling as such, not on the reports
+  question. The empty arms were ghost gate leases a fork restored, fixed in
+  `af442ec1b`.
 
 ## The analysis of function, measurement and J*
 
@@ -222,8 +234,10 @@ judged not viable says why.
   schedule cannot follow it. Shuffling a recorded series afterwards would break
   real temporal dependence along with the schedule, so it is not used.
   `--counterbalance` on the run draws each round's order from a Williams design.
-- [ ] **F10. Continuity across restart and migration** as matching transition
-  structure, read beside G11.
+- [~] **F10. Continuity across restart and migration** as matching transition
+  structure, read beside G11. Built: `core/subject/continuity.py` fits her
+  turn-to-turn dynamics before a break and reads how well they predict after
+  it against dynamics fitted after; read on the first run that spans a restart.
 - [~] **F11. What an experience changed**, against a counterfactual fork that never
   had it. Shared with B3.
 
