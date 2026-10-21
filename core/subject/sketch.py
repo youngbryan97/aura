@@ -54,8 +54,14 @@ def _directions(size: int) -> np.ndarray:
     return held
 
 
-def sketch(value: Any) -> dict[str, float] | None:
-    """The array's moments and projections, or None when it holds no finite number."""
+def sketch(value: Any, axes: Any = None) -> dict[str, float] | None:
+    """The array's moments and projections, or None when it holds no finite number.
+
+    ``axes`` is a calibrated pair (centre, directions) for this array: its own
+    leading principal axes, fixed before a run records (core/subject/calibrated_axes.py).
+    Given one that fits, the projections are where the array stands along
+    them; otherwise along the frozen random directions.
+    """
     try:
         flat = np.asarray(value, dtype=np.float64).reshape(-1)
     # not a failure: the docstring above says it: None when it holds no finite number.
@@ -70,6 +76,12 @@ def sketch(value: Any) -> dict[str, float] | None:
         "min": float(flat.min()),
         "max": float(flat.max()),
     }
+    if axes is not None:
+        centre, directions = axes
+        if np.shape(centre) == flat.shape and np.shape(directions) == (SKETCH_WIDTH, flat.size):
+            for index, column in enumerate(np.asarray(directions) @ (flat - np.asarray(centre))):
+                out[f"p{index}"] = float(column)
+            return out
     for index, column in enumerate(_directions(flat.size) @ flat):
         out[f"p{index}"] = float(column)
     return out

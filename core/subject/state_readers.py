@@ -437,10 +437,17 @@ def _in_flight(organ: Any, attribute: str, *, source: str) -> list[float]:
     held = getattr(organ, attribute, None)
     if held is None:
         return [0.0] * len(SKETCH_FIELDS)
-    summary = sketch(held)
+    summary = sketch(held, axes=_calibrated(source))
     if summary is None:
         return [0.0] * len(SKETCH_FIELDS)
     return [summary[part] for part in SKETCH_FIELDS]
+
+
+def _calibrated(source: str) -> Any:
+    """The axes a run fixed for this array before recording, if it fixed any."""
+    from .calibrated_axes import axes_for
+
+    return axes_for(source)
 
 
 def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
@@ -464,7 +471,7 @@ def _sketched(organ: Any, attribute: str, *, source: str) -> list[float]:
         held = getattr(held, step, None)
         if held is None:
             break
-    summary = sketch(held)
+    summary = sketch(held, axes=_calibrated(source))
     if summary is None:
         _miss(source, "no finite state")
         return [0.0] * len(SKETCH_FIELDS)

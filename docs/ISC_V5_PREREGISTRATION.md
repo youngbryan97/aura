@@ -2017,3 +2017,14 @@ skips it. This changes what a fork carries, so it is named here.
 ### How it is read
 
 The same pair, on the next commit. Nothing moves a threshold.
+
+### Available and not yet used: K reading along each array's own axes
+
+`--calibrated-axes` lives one pass of the conditions before recording and fixes,
+for each array K reads through the sketch, its four leading principal axes over
+that pass; the sketch's four projection columns then read along those axes
+instead of frozen random directions. K's width and every other column are
+unchanged, and every fork reads along the same axes because the axes belong to
+the apparatus. No run reads it until `tools/k_compact_sufficiency.py` has
+measured, on the commit that would use it, how much of what each array does in
+a turn the random directions miss, and an addendum names the run.

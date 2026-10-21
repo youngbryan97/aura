@@ -230,6 +230,12 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--rounds", type=int, default=120, help="baseline turns per condition")
     parser.add_argument(
+        "--calibrated-axes",
+        action="store_true",
+        help="before recording, live one pass of the conditions and fix each sketched "
+             "array's leading principal axes for its four projection columns",
+    )
+    parser.add_argument(
         "--counterbalance",
         action="store_true",
         help="each round takes the conditions in an order from a Williams design, "
@@ -561,6 +567,10 @@ async def main() -> int:
     # which is half a standard deviation of deliberation's spread and one and a
     # half of the workspace's, from nothing but how long the machine took.
     evidence["notes"]["clock"] = await calibrate_clock(runtime, CONDITIONS)
+    if args.calibrated_axes:
+        from core.subject.calibrated_axes import calibration_pass
+
+        evidence["notes"]["calibrated_axes"] = await calibration_pass(runtime, CONDITIONS)
     reading = evidence["notes"]["clock"]
     _log(
         f"experiment clock at {reading['step']:.4f}s a frame, "

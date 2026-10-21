@@ -155,7 +155,9 @@ judged not viable says why.
   closure report, with a planted cause the test must find, and
   `tools/k_compact_sufficiency.py`, which moves each sketched array where its
   eight numbers cannot see and reads K a turn later against the floor. The
-  probe runs when the machine is free.
+  probe runs when the machine is free. Built beside it, off by default:
+  `--calibrated-axes`, which reads each sketched array along its own leading
+  axes fixed before recording (`core/subject/calibrated_axes.py`).
 - [x] **G8. Both directions of C|rest** under intervention, then the next weakest
   cuts, with every control of the v5 design kept. Built: every swept cut
   records each direction decided on its own side's columns

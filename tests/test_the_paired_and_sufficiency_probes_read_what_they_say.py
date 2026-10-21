@@ -52,7 +52,8 @@ def test_a_hidden_direction_leaves_all_eight_numbers_where_they_were():
 
 
 def test_the_probe_finds_every_array_k_reads_through_the_sketch():
-    probe = _tool("k_compact_sufficiency")
-    sources = probe.sketched_sources()
+    from core.subject.calibrated_axes import sketched_sources
+
+    sources = sketched_sources()
     assert "organ:substrate.x" in sources and "organ:substrate.W" in sources
     assert all(source.startswith("organ:") for source in sources)

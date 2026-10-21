@@ -50,19 +50,6 @@ def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
 
-def sketched_sources() -> list[str]:
-    """Every organ attribute K reads through the sketch, as `organ:<organ>.<attr>`."""
-    from core.subject.state import DOMAINS, schema
-
-    out: list[str] = []
-    for domain in DOMAINS:
-        block = schema(domain)
-        for name, source in zip(block.features, block.sources, strict=True):
-            if source.startswith("organ:") and name.endswith("_p0") and source not in out:
-                out.append(source)
-    return out
-
-
 def _resolve(organs: Any, source: str) -> tuple[Any, str, Any]:
     organ_name, _, path = source[len("organ:"):].partition(".")
     holder = getattr(organs, organ_name, None)
@@ -73,14 +60,19 @@ def _resolve(organs: Any, source: str) -> tuple[Any, str, Any]:
     return holder, parts[-1], value
 
 
-def hidden_direction(array: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """A unit direction the sketch cannot see, zero at the array's extremes."""
+def hidden_direction(array: np.ndarray, rng: np.random.Generator, axes: Any = None) -> np.ndarray:
+    """A unit direction the sketch cannot see, zero at the array's extremes.
+
+    Orthogonal to the directions the sketch projects on: the calibrated axes
+    when the run fixed some for this array, the frozen random ones otherwise.
+    """
     from core.subject.sketch import _directions
 
     flat = np.asarray(array, dtype=np.float64).ravel()
     size = flat.size
     extremes = {int(np.argmin(flat)), int(np.argmax(flat))}
-    rows = [*_directions(size), np.ones(size), flat - flat.mean()]
+    looks = np.asarray(axes[1]) if axes is not None else _directions(size)
+    rows = [*looks, np.ones(size), flat - flat.mean()]
     for index in extremes:
         row = np.zeros(size)
         row[index] = 1.0
@@ -153,6 +145,7 @@ async def main() -> int:
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.provenance import environment, next_run_directory
     from core.subject.recording import build_recording
+    from core.subject.calibrated_axes import axes_for, sketched_sources
     from core.subject.sketch import sketch
 
     run_dir = next_run_directory(args.out)
@@ -196,7 +189,7 @@ async def main() -> int:
                 snapshot = runtime.snapshot()
                 holder, attr, value = _resolve(runtime.organs, source)
                 base = np.array(value, dtype=np.float64, copy=True)
-                hidden = hidden_direction(base, rng)
+                hidden = hidden_direction(base, rng, axes_for(source))
                 visible = visible_direction(base)
                 size = min(turn_change, _room(base, hidden), _room(base, visible))
                 if size <= 0.0:
