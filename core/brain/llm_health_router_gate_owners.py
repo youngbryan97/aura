@@ -51,20 +51,22 @@ def _lease_is_user_foreground(lease_id: int, owner: str) -> bool:
 
 
 def asks_for_a_reply(kwargs: Any, *, said_non_chat: bool = False) -> bool:
-    """Whether a `think` call is her reply to somebody, which is chat.
+    """Whether a non-chat call is her reply to somebody, which the gate has to see as one.
 
-    `think` marks what it carries as non-chat inference, and the kernel's reply
-    phase sends her reply to a person through it. Marked non-chat, the gate
-    graded the reply as her own deliberation: no reply checks, and her cortex
-    never named as the one that answered, so every arm of the reports ground
-    read as one her cortex did not serve (21 October). A caller that says
-    non-chat itself is taken at its word.
+    `think` marks what it carries as non-chat inference, which keeps it off the
+    tool hand-off (that path calls `think` again), and the kernel's reply phase
+    sends her reply to a person through it. The router turned non-chat into
+    `internal_inference` for the gate, so the gate graded the reply as her own
+    deliberation: no reply checks, and her cortex never named as the one that
+    answered, so every arm of the reports ground read as one her cortex did not
+    serve (21 October). A caller that says internal itself is taken at its word.
     """
     from .llm_health_router import HealthAwareLLMRouter
 
     held = kwargs if isinstance(kwargs, dict) else {}
     return (
         not said_non_chat
+        and not held.get("internal_inference")
         and str(held.get("purpose") or "").lower() == "reply"
         and HealthAwareLLMRouter._is_user_facing_origin(str(held.get("origin") or ""))
     )
