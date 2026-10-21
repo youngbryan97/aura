@@ -933,6 +933,52 @@ first refused the new model-validation import. Its explicit narrow DEPS
 edge now permits that synthetic canary; layering and writing passed on the
 corrected dependency check. No baseline or unrelated dependency was changed.
 
+## Registered source-frame variants can propose a recovery search
+
+- [x] A distinct `SourceFramePoseHint` carries an unmeasured search shape
+  between registered frames of one source asset. Both coordinate maps and
+  exact image identities participate. It is not a `ReferenceAppearance`;
+  material sampling and source-coordinate projection reject it as evidence.
+- [x] The ordinary reference owner derives bounded sibling hints from actual
+  captured matches. Hints cannot seed further hints or replace an actual
+  target-frame match. Changed sources clear them. Compositions are excluded.
+- [x] The existing local/wider patch search can consume the hint and must
+  produce new forward/reverse current correspondences before geometry or
+  material can qualify. No new refit position or model budget is granted.
+- [x] Initial unconditional scheduling lost the lone whole-ship observation
+  in the forty-picture replay. A one-quarter scheduling limit alone did not
+  restore it. These failed measurements remain retained. The final rule
+  admits variant fallback only after the measured shape exhausts its six
+  local/wider search positions; working measured searches keep their turns.
+  Eligible variants can then use one quarter of optional admissions.
+- [ ] Reliable animated-body continuity, contact geometry and ordinary
+  native-app success remain unproved. Current whole identity still has its
+  own reference-image and shared-material requirements across variants.
+
+The first hint group passed 72 tests, the search-share group 127, and the
+expanded correspondence/ordinary-owner group 157. Fallback tests passed 158.
+Tests cover two different affine source registrations, current changed
+pixels, missing material, source/capture mismatch, mutable inputs and the
+ordinary owner handoff without granting an object or controlled identity.
+
+The final forty-picture fallback replay retained 28 pictures with whole
+referents and two whole ship observations. A ship frame appeared in thirteen
+qualified custody readings; four attachments still lost original marks.
+The new anchor diagnosis says those marks are absent from the tracker,
+rather than present with changed birth, interrupted count or high published
+error. This remains intermittent perception, not causal body confirmation.
+
+Artifacts: `artifacts/flash-campaign/2026-10-20-source-variant-search-hints/`.
+The final replay took 9.40 seconds. CPU work, source bytes and retained pixels
+only; no model, input delivery, task result or native-readiness claim.
+Count correction: the final JSON contains ten qualified ship-frame custody
+readings and four `original_marks_missing` refusals. The preceding thirteen
+was a transcription error. The two whole ship observations are unchanged.
+Smoke passed 164 tests with one skip; lint, compilation, layering and writing
+passed in the bounded aggregate. No GPU work or resident lifecycle operation
+was performed. Save this as a general fallback capability with the measured
+gameplay limits still open.
+
 The first refinement group passed 50 tests. The live handoff regression
 failed before the key fix; the corrected continuity group passed 88 tests.
 An expanded group passed 228 tests in 108.32 seconds, including existing

@@ -7,7 +7,7 @@ import numpy as np
 from scipy import ndimage
 
 from core.perception.a_visual_reference_in_the_picture import (
-    ReferenceAppearance, _SceneCorrelations, _appearance_for_fit, _digest,
+    ReferenceAppearance, SourceFramePoseHint, _SceneCorrelations, _appearance_for_fit, _digest,
     _picture_view, _pictures_valid, _supported_fit,
 )
 from core.verify import invariant
@@ -66,7 +66,7 @@ def _template_at_measured_shape(reference: np.ndarray, linear: np.ndarray, offse
 
 
 def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
-        proposals: tuple[ReferenceAppearance, ...], *, edge: int = 480,
+        proposals: tuple[ReferenceAppearance | SourceFramePoseHint, ...], *, edge: int = 480,
         position: int | None = None) -> tuple[ReferenceAppearance, ...]:
     """Refit at most four poses against current pixels with the ordinary patch gates.
 
@@ -85,7 +85,7 @@ def near_reference_appearances(picture: np.ndarray, reference: np.ndarray,
     pixels, scale, origin, _ratio = _picture_view(picture, edge)
     found = []
     for proposal in proposals:
-        if not isinstance(proposal, ReferenceAppearance) or proposal.reference_sha256 != reference_hash:
+        if not isinstance(proposal, (ReferenceAppearance, SourceFramePoseHint)) or proposal.reference_sha256 != reference_hash:
             continue
         try:
             linear, offset = np.asarray(proposal.linear, float), np.asarray(proposal.offset, float)

@@ -363,6 +363,9 @@ class SourceReferencesInPlay:
         if not self.tables:
             self.status = 'no_current_source'
             return ()
+        from core.perception.search_hints_for_source_frame_variants import with_source_variant_hints
+
+        self.proposals = with_source_variant_hints(self.proposals, self.catalog)
         offered = getattr(observer, 'fresh_source_material_frames', ())
         if isinstance(offered, tuple) and len(offered) <= 32:
             registered = {r.variant_key: r for r in self.catalog}

@@ -39,6 +39,37 @@ class ReferenceAppearance:
         return tuple(np.asarray(self.linear) @ np.asarray(point) + self.offset)
 
 
+@dataclass(frozen=True)
+class SourceFramePoseHint:
+    """A registered sibling frame's possible pose, without measured correspondence."""
+
+    reference_sha256: str
+    picture_sha256: str
+    linear: tuple[tuple[float, float], tuple[float, float]]
+    offset: tuple[float, float]
+    donor_variant: tuple[str, int, str, int]
+
+    def __post_init__(self) -> None:
+        import re
+
+        linear, offset = np.asarray(self.linear, float), np.asarray(self.offset, float)
+        if (linear.shape != (2, 2) or offset.shape != (2,) or not np.isfinite(linear).all()
+                or not np.isfinite(offset).all() or np.linalg.det(linear) <= 1e-8 or np.linalg.cond(linear) > 100
+                or np.max(abs(offset)) > 8192 or np.linalg.norm(linear, ord=2) > 8.
+                or not isinstance(self.donor_variant, tuple) or len(self.donor_variant) != 4
+                or not isinstance(self.donor_variant[0], str) or not 1 <= len(self.donor_variant[0]) <= 512
+                or type(self.donor_variant[1]) is not int or self.donor_variant[1] < 0
+                or type(self.donor_variant[3]) is not int or not 1 <= self.donor_variant[3] <= 4096
+                or any(not isinstance(sha, str) or not re.fullmatch('[0-9a-f]{64}', sha)
+                       for sha in (self.reference_sha256, self.picture_sha256, self.donor_variant[2]))):
+            raise ValueError('a source-frame search hint needs bounded geometry and donor custody')
+        object.__setattr__(self, 'linear', tuple(tuple(float(v) for v in row) for row in linear))
+        object.__setattr__(self, 'offset', tuple(float(v) for v in offset))
+
+    def project(self, point: tuple[float, float]) -> tuple[float, float]:
+        return tuple(np.asarray(self.linear) @ np.asarray(point) + self.offset)
+
+
 def _digest(pixels: np.ndarray) -> str:
     return hashlib.sha256(str(pixels.shape).encode() + pixels.tobytes()).hexdigest()
 

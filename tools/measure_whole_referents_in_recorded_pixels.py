@@ -75,6 +75,7 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     from core.perception.flash_action_sources import read_flash_action_streams
     from core.perception.composed_source_artwork_for_pixel_search import with_source_layer_proposals, composition_record
     from core.perception.visual_references_for_current_sources import ReferencesAcquired, interleaved_reference_variants
+    from core.perception.search_hints_for_source_frame_variants import with_source_variant_hints
 
     if not 1 <= frames <= 100 or not 1 <= match_every <= 100 or start < 0:
         raise ValueError('replay needs bounded frame and match counts')
@@ -126,15 +127,24 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
                         result.appearances, index+1)
                 found.extend((reference, binding) for binding in result.frames)
             bindings = (*bindings, *found)[-64:]
+            proposals = {p.reference.variant_key: p for p in with_source_variant_hints(tuple(proposals.values()), catalog.references)}
         current, kept, frame_readings = [], [], []
         for reference, binding in bindings:
             sample = binding.inspect(observer, at, source=reference.source)
             point = sample.current
+            visible = {p.number: p for p in observer.material_marks.points}
+            steps = observer.material_marks.sequence-binding.sequence
+            missing = dict(absent=0, changed_birth=0, interrupted=0, patch_error=0, retained=0)
+            for number, born, pictures, _x, _y in binding.anchors:
+                p = visible.get(number)
+                reason = ('absent' if p is None else 'changed_birth' if p.born != born else
+                          'interrupted' if p.pictures != pictures+steps else 'patch_error' if p.error > .055 else 'retained')
+                missing[reason] += 1
             frame_readings.append(dict(source=reference.source, character_id=reference.declaration.character_id,
                 reference_sha256=reference.key[2], reference_frame_number=reference.frame_number,
                 attached_at=binding.at, reason=sample.reason, initial_anchors=len(binding.anchors),
                 current_support=point.support if point is not None else None,
-                current_error=point.error if point is not None else None))
+                current_error=point.error if point is not None else None, original_anchor_reading=missing))
             if point is not None:
                 current.append((reference, binding, point))
                 kept.append((reference, binding))

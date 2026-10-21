@@ -1785,3 +1785,19 @@ moving-body perception. Source animation variants remain disconnected from
 the geometry that could propose their next search. Continue that connection
 and current-pixel proof. Artifacts:
 `artifacts/flash-campaign/2026-10-20-moving-material-custody/`.
+
+Registered animation variants now get explicitly unmeasured pose hints from
+an actual sibling-frame match through both source coordinate maps. Existing
+pixel correspondence must verify the new frame before any material is
+published. Hints cannot create identity, chain from hints, replace an actual
+match or pass material/source-coordinate gates. The ordinary owner supplies
+them to the existing worker. Fallback begins after six measured-shape search
+positions fail and receives at most one quarter of optional admissions.
+
+Do not restore unconditional variant scheduling: both its initial replay
+and the simple one-quarter schedule lost the lone whole ship. The fallback
+replay has two whole ship observations in forty pictures; perception remains
+intermittent. Its anchor diagnosis shows dropped tracker points. Next inspect
+individual forward/reverse/local-refinement gates for a good final fit being
+discarded upstream. Hint tests passed 158. Artifacts:
+`artifacts/flash-campaign/2026-10-20-source-variant-search-hints/`.

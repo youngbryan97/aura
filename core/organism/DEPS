@@ -113,6 +113,7 @@ include_rules = [
     "+core.perception.points_shared_with_changing_regions", # Pure check of point capacity shared with changing regions.
     "+core.perception.position_from_the_same_points", # Pure check of original marks supporting a measured path.
     "+core.perception.source_material_renewed_through_shared_marks", # Pure synthetic canary for source-frame renewal through current pixel support.
+    "+core.perception.search_hints_for_source_frame_variants", # Pure canary separating unmeasured frame hints from current material.
     "+core.perception.continuing_material_before_outlines", # Pure check of unambiguous material correspondence.
     "+core.perception.graphics_presented_on_canvas", # Pure check of current public copy provenance.
     "+core.perception.shader_position_math", # Pure check of bounded declared position arithmetic.

@@ -121,6 +121,24 @@ def _refitted_pose_bank(poses: tuple, index: int, found: tuple) -> tuple:
     return (*poses[:index], found[0], *poses[index+1:]) if found else poses
 
 
+def _reference_search_share(records: dict, cursor: int, exhausted: frozenset = frozenset()) -> tuple:
+    """Failed measured shapes can yield one in four optional admissions to variants."""
+    from core.perception.a_visual_reference_in_the_picture import SourceFramePoseHint
+
+    measured, hinted = [], []
+    for key, (_reference, poses, _revision) in records.items():
+        if poses and all(isinstance(p, SourceFramePoseHint) for p in poses):
+            if key[:2] in exhausted:
+                hinted.append(key)
+        else:
+            measured.append(key)
+    if not hinted:
+        return tuple(measured), cursor
+    if not measured:
+        return tuple(hinted), cursor
+    return (tuple(hinted), cursor//4) if cursor % 4 == 3 else (tuple(measured), cursor-cursor//4)
+
+
 class SourceGeometryInCurrentPixels:
     """Worker-owned optional measurements: one pose of one reference per frame."""
 
@@ -130,6 +148,7 @@ class SourceGeometryInCurrentPixels:
         self.cursor = 0
         self.pose_cursors: dict = {}
         self.search_cursors: dict = {}
+        self.failed_positions: dict = {}
         self.at = -math.inf
         self.work_share = OptionalWorkShare()
         self._essential_seconds = 0.
@@ -168,6 +187,7 @@ class SourceGeometryInCurrentPixels:
         if scope != self.scope:
             self.scope, self.records, self.cursor, self.pose_cursors = scope, {}, 0, {}
             self.search_cursors.clear()
+            self.failed_positions.clear()
         cost, self._essential_seconds = self._essential_seconds, 0.
         if not proposals and not self.records:
             return None
@@ -268,6 +288,7 @@ class SourceGeometryInCurrentPixels:
         if scope != self.scope or at <= self.at:
             self.scope, self.records, self.cursor, self.pose_cursors = scope, {}, 0, {}
             self.search_cursors.clear()
+            self.failed_positions.clear()
         self.at = at
         if not scope or not self.records and not proposals:
             return (), ()
@@ -300,6 +321,8 @@ class SourceGeometryInCurrentPixels:
                     poses = proposal.appearances
                     unavailable.append('fresh_reference_prior_search_retired')
             self.records[reference.variant_key] = reference, poses, proposal.revision
+            for index in range(4):
+                self.failed_positions.pop((reference.variant_key, index), None)
         if not self.records:
             return (), tuple(unavailable)
         hints = {key for key in covered if isinstance(key, tuple) and len(key) == 3
@@ -308,7 +331,11 @@ class SourceGeometryInCurrentPixels:
         from core.perception.a_source_extent_requested_in_play import extent_reference_to_measure
 
         priority = priority if isinstance(priority, tuple) and len(priority) <= 4 else ()
-        key = extent_reference_to_measure(tuple(self.records), hints, self.cursor, priority, _reference_to_measure)
+        exhausted = frozenset(key[:2] for (key, _pose), positions in self.failed_positions.items() if len(positions) == 6)
+        search_keys, search_cursor = _reference_search_share(self.records, self.cursor, exhausted)
+        if not search_keys:
+            return (), (*unavailable, 'fresh_reference_variant_waits_for_measured_search')
+        key = extent_reference_to_measure(search_keys, hints, search_cursor, priority, _reference_to_measure)
         self.cursor += 1
         reference, poses, revision = self.records[key]
         if any(other[:2] == key[:2] for other in self.records if other != key):
@@ -326,6 +353,12 @@ class SourceGeometryInCurrentPixels:
             unavailable.append('fresh_reference_positions_unsearched')
         options = {'position': position} if one_position else {}
         found = near_reference_appearances(picture, reference.pixels, (poses[selected],), **options)
+        if found:
+            self.failed_positions.pop((key, selected), None)
+        elif one_position:
+            self.failed_positions.setdefault((key, selected), set()).add(position)
+        else:
+            self.failed_positions[key, selected] = set(range(6))
         if found:
             from core.perception.a_reference_pose_refined_in_current_pixels import refine_reference_pose
 
