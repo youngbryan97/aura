@@ -681,3 +681,47 @@ failure rather than converting it into a successful extent.
 The request checkpoint passed smoke (164 passed, one skipped), lint,
 compilation, layering and writing in 83.40 seconds. No native or GPU process
 was started, stopped or restarted. The zero-qualified-extent result remains.
+
+## A separate source layer explains the pixel mismatch
+
+The private nearest-raster inspection localized the disagreement. At its
+fitted pose, source rows 80–130 match the retained capture exactly; rows
+0–39 have mean error 0.07661 and rows 40–79 have mean error 0.04098.
+A bounded translation search found the same optimum in all bands. The
+source bitmap's opaque RGB and alpha also match the exported bitmap, so
+alpha extraction does not explain this discrepancy.
+
+The source creates another graphic at a higher depth and assigns it the
+same x/y as the underlying graphic. Its declared asset 60 is the thin
+foreground railing. Combining its registered raster with asset 57 at that
+source-declared shared origin reduced mean error from 0.03303 to 0.00124;
+the fraction above 0.12 fell from 9.0605% to 0.3900%. Exact matches rose
+from 85.2294% to 98.4182%. This uses a private fitted pose and a static source
+relationship, not a current execution-state receipt. Nothing was admitted
+into production perception, motion or a task-success score by this probe.
+
+The foreground export first failed registration: the patch matcher requires
+large opaque interiors, which thin artwork lacks. A new fallback tests full
+independent static rasters on their declared common grid, including alpha
+and premultiplied colour. It requires distinguishable translations on both
+axes and checks every pixel/channel within two 8-bit quantization steps.
+Existing successful and ambiguous feature registrations keep their path.
+It estimates no live pose, body, contact or task role.
+
+- [x] Thin static registration: one meaningful red test became green; the
+  expanded source/registration group passed 101 tests in 11.28 seconds.
+  The independent original-layer export/registration now passes in 3.20
+  seconds using CPU Java and a software browser. Its earlier failed receipt
+  remains under `2026-10-20-pixel-formation/overlapping-layer/`.
+- [ ] General source-derived layered appearance proposals still need
+  implementation, current pixel validation and ordinary observation tests.
+  The foreground's source placement cannot be installed as live state.
+- [ ] Qualified whole extents, landing and native demonstration remain open.
+
+Private diagnostics are under
+`artifacts/flash-campaign/2026-10-20-pixel-formation/`; registration evidence
+is under `artifacts/flash-campaign/2026-10-20-thin-frame-registration/`.
+
+The thin-frame checkpoint passed smoke (164 passed, one skipped), lint,
+compilation, layering and writing in 83.94 seconds. No live model or task
+was exercised by those checks.

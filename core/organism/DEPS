@@ -16,6 +16,7 @@ include_rules = [
     "+core.perception.visual_frames_in_a_source_declaration", # Pure finite source-frame boundary canary; no file, renderer or input.
     "+core.perception.source_material_groups_for_visual_attention", # Pure current-material attention canary, without input or model calls.
     "+core.perception.a_source_extent_requested_in_play", # Pure extent-request scheduling canary; no model or physical input.
+    "+core.perception.two_rasters_in_one_declared_pixel_frame", # Pure full-raster alignment canary, without rendering or file access.
     "+core.perception.whole_referents_from_source_material", # Pure whole-observation identity/contact canary; no capture or input.
     "+core.perception.a_source_method_with_resolved_values", # Pure bounded source arithmetic canary; no source I/O or input.
     "+core.agency.a_contrast_that_meets_both_tests", # Pure paired-gate ranking canary; no input or model execution.

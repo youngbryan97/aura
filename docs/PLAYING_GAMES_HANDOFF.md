@@ -1665,3 +1665,24 @@ Continue at the actual pixel-formation mismatch. Preserve the failed extent
 responses, then connect successfully measured extents through ownership and
 motion checks. Native proof, source role/contact/controller work and the
 56-game campaign remain open; use CPU only and preserve G09/holdouts.
+
+The pixel mismatch has a measured cause: the source places a separate
+foreground graphic over the underlying building. At the private fitted pose,
+composing both registered rasters at the source-declared common origin cuts
+mean error from 0.03303 to 0.00124 and outliers above 0.12 from 9.0605% to
+0.3900%. This remains a private diagnostic; no placement has been assumed
+as current runtime state and no production extent has been admitted.
+
+Thin foreground artwork also exposed a registration gap. A full-raster
+static fallback now requires independent alpha/premultiplied-colour agreement
+on the declared pixel grid and distinguishable shifts on both axes. It
+preserves existing successful/ambiguous feature registrations. Tests: 101
+passed; the previously failed original-layer registration now passes through
+CPU Java and a software browser. Artifacts:
+`artifacts/flash-campaign/2026-10-20-thin-frame-registration/` and
+`artifacts/flash-campaign/2026-10-20-pixel-formation/`.
+
+Next implement general layered appearance proposals from bounded source
+placements, then independently require current pixels and original material
+ownership. Source relationships can propose a picture; they cannot certify
+that those objects currently exist or supply collision/control authority.

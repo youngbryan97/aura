@@ -146,6 +146,12 @@ def calibrated_source_coordinates(source: str, svg: bytes, svg_pixels: np.ndarra
         return None
     poses = reference_appearances(reference[..., :3], svg_pixels, scales=(1.,), edge=512)
     if len(poses) != 1:
+        if not poses and (reference.shape[1], reference.shape[0]) == size:
+            from core.perception.two_rasters_in_one_declared_pixel_frame import same_declared_pixel_frame
+
+            if same_declared_pixel_frame(svg_pixels, reference):
+                return SourceImageCoordinates(source, _digest(reference), hashlib.sha256(svg).hexdigest(),
+                    size, linear, offset, 0.)
         return None
     pose = poses[0]
     # These are exports of one whole frame. A common subimage cannot align
