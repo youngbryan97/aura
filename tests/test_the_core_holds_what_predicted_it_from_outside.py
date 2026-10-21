@@ -349,3 +349,33 @@ def test_the_fields_state_and_weights_are_different_columns():
     assert _column(reading, "C.field_state_mean") == pytest.approx(0.4)
     assert _column(reading, "C.field_weight_mean") == pytest.approx(0.25)
     assert "C.field_state_mean" in feature_names() and "C.field_weight_mean" in feature_names()
+
+
+# ── what is arriving at the mesh ─────────────────────────────────────────
+
+
+class _Mesh:
+    def __init__(self, sensory=None, association=None) -> None:
+        self.column_activations = np.zeros(64, dtype=np.float32)
+        self._sensory_buffer = sensory
+        self._association_buffer = association
+
+
+def test_input_in_flight_at_the_mesh_is_part_of_recurrent_cognition():
+    """The six largest leaks on arms-0675c4217 were the mesh's two injection buffers."""
+    sensory = np.linspace(-0.5, 0.5, 1024).astype(np.float32)
+    reading = _read(AuraState.default(), Organs(mesh=_Mesh(sensory=sensory)))
+    assert _column(reading, "C.mesh_sensory_in_max") == pytest.approx(0.5, abs=1e-6)
+    assert _column(reading, "C.mesh_sensory_in_sd") > 0.0
+    assert _column(reading, "C.mesh_association_in_sd") == 0.0
+
+
+def test_nothing_in_flight_reads_as_no_input_and_not_as_a_miss():
+    from core.subject.state import recording_misses
+
+    with recording_misses() as missed:
+        reading = _read(AuraState.default(), Organs(mesh=_Mesh()))
+    for part in ("mean", "sd", "min", "max", "p0"):
+        assert _column(reading, f"C.mesh_sensory_in_{part}") == 0.0
+        assert _column(reading, f"C.mesh_association_in_{part}") == 0.0
+    assert not any("_buffer" in source for source in missed)

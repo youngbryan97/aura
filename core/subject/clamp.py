@@ -126,12 +126,16 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.modifiers.creativity_mod",
         "cognition.modifiers.urgency_flag",
         "cognition.modifiers.overall_vitality",
+        # Its conjunctive code (core/consciousness/conjunctive_codes.py).
+        "conjunctions.units.attention",
     ),
     "C": (
         "cognition.current_mode",
         "cognition.phenomenal_state",
         "phi_estimate",
         "loop_cycle",
+        # Its conjunctive code (core/consciousness/conjunctive_codes.py).
+        "conjunctions.units.recurrent",
     ),
     "S": (
         # What the unity monitor decided about whose the last bound moment was
@@ -205,6 +209,8 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         "cognition.made_minor",
         # Who she is talking to. See core/state/aura_state.py.
         "cognition.current_partner",
+        # Its conjunctive code (core/consciousness/conjunctive_codes.py).
+        "conjunctions.units.world",
     ),
     "D": (
         # Her habits and reflexes, and how the worst of them is doing against
@@ -249,6 +255,8 @@ CLAMPED_FIELDS: dict[str, tuple[str, ...]] = {
         # What her impulse has been worth. See core/agency/asking_the_impulse.py.
         "cognition.impulse",
         "cognition.fuel",
+        # Its conjunctive code (core/consciousness/conjunctive_codes.py).
+        "conjunctions.units.deliberation",
     ),
     # The reservoir is clamped through the runtime rather than the state; see
     # `RESERVOIR_FIELDS` and `Clamp.capture`.

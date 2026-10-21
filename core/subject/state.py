@@ -51,6 +51,11 @@ from typing import Any
 import numpy as np
 
 from core.state.percepts import read_percept
+#: Units at each conjunctive code, as core/consciousness/conjunctive_codes.py
+#: has them. Repeated rather than imported: the instrument does not import the
+#: organ it measures, and a test holds the two equal.
+CONJUNCTION_UNITS: int = 4
+
 from core.subject.sketch import (  # noqa: F401  (state_readers takes sketch from here at call time)
     SKETCH_FIELDS,
     sketch,
@@ -203,6 +208,8 @@ class Organs:
     #: What she is like, read from her own record of choices. See
     #: core/agency/what_she_is_like.py.
     portrait: Any = None
+    #: What she wants and what she cares about (core/conation/what_she_wants.py).
+    wants: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -261,9 +268,12 @@ class Organs:
             worth, credit = get_worth_ledger(), get_credit_ledger()
             good_news, reserve = get_good_news_ledger(), get_reserve_ledger()
             portrait = get_portrait_reader()
+            from core.conation.what_she_wants import get_what_she_wants
+
+            wants = get_what_she_wants()
         # not a failure: absent ledgers are absent organs, as the agency ledger above.
         except ImportError:
-            worth = credit = good_news = reserve = portrait = None
+            worth = credit = good_news = reserve = portrait = wants = None
         return cls(
             workspace=runtime("global_workspace"),
             substrate=runtime("conscious_substrate"),
@@ -285,6 +295,7 @@ class Organs:
             good_news=good_news,
             reserve=reserve,
             portrait=portrait,
+            wants=wants,
         )
 
 
@@ -630,6 +641,17 @@ _SCHEMAS: dict[str, Schema] = {
             # from outside the core, where it was the largest single leak of the
             # 25 September run. A feeling nothing in the affect domain held.
             ("dread", "organ:homeostasis.prospective_dread"),
+            # Where her feeling usually sits and how far it usually strays, which
+            # every felt deviation is measured from: what counts as a good moment
+            # for her. Kept by the coupling engine and read from outside the core
+            # as its two largest leaks on seed 7 at 370 rounds (validate-s7-84d9fe6f5).
+            ("feeling_valence_centre", "organ:homeostasis._valence_centre"),
+            ("feeling_valence_scatter", "organ:homeostasis._valence_scatter"),
+            ("feeling_arousal_centre", "organ:homeostasis._arousal_centre"),
+            ("feeling_arousal_scatter", "organ:homeostasis._arousal_scatter"),
+            # How noisy she has found her own readings of what she wants, which
+            # sets how much a new reading moves them. See core/conation/what_she_wants.py.
+            ("wants_noise", "organ:wants._noise"),
             # What the last turn was worth against what she had come to expect,
             # how large that was against her recent turns, and each channel's
             # error and expectation. The expectation is what a payoff is priced
@@ -704,6 +726,9 @@ _SCHEMAS: dict[str, Schema] = {
             ("earned_best", "organ:credit.read"),
             ("earned_worst", "organ:credit.read"),
             ("earned_sources", "organ:credit.read"),
+            # The units where her feeling and her self meet, which scale every
+            # bid by its source. See core/consciousness/conjunctive_codes.py.
+            *((f"conj_attention_{k}", "conjunctions.units.attention") for k in range(CONJUNCTION_UNITS)),
         ),
     ),
     "C": _sch(
@@ -750,6 +775,14 @@ _SCHEMAS: dict[str, Schema] = {
             # See core/subject/sketch.py.
             *((f"substrate_state_{part}", "organ:substrate.x") for part in SKETCH_FIELDS),
             *((f"mesh_state_{part}", "organ:mesh.column_activations") for part in SKETCH_FIELDS),
+            # And what is arriving at the mesh: its sensory and association
+            # tiers' input, written by the body and by memory and consumed at
+            # the mesh's next step. Afferent input in flight is the column's
+            # synaptic state, and on seed 7 at 370 rounds these two buffers were
+            # the six largest leaks into the core (arms-0675c4217, control). An
+            # empty buffer is no input in flight, a reading of zero.
+            *((f"mesh_sensory_in_{part}", "organ:mesh._sensory_buffer") for part in SKETCH_FIELDS),
+            *((f"mesh_association_in_{part}", "organ:mesh._association_buffer") for part in SKETCH_FIELDS),
             # And the third recurrent state, the unified field's own: the
             # integrated state the rest of the stack reads from and writes into.
             # Its weights were brought in and its state was not, and on the
@@ -787,6 +820,13 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"felt_before_{part}", "organ:phi_core._affective_state_visits")
                 for part in SKETCH_FIELDS
             ),
+            # The field's chemistry weights, which its plasticity rewrites beside
+            # W_field; the closure test read them from outside the core on seed 7
+            # at 370 rounds (validate-s7-84d9fe6f5).
+            *((f"field_chemistry_{part}", "organ:field.W_chem") for part in SKETCH_FIELDS),
+            # The units where her self and what she means to do meet, which drive
+            # their band of the substrate. See core/consciousness/conjunctive_codes.py.
+            *((f"conj_recurrent_{k}", "conjunctions.units.recurrent") for k in range(CONJUNCTION_UNITS)),
         ),
     ),
     "S": _sch(
@@ -925,6 +965,10 @@ _SCHEMAS: dict[str, Schema] = {
             ("choice_narrowness", "organ:portrait.columns"),
             ("values_over_drive", "organ:portrait.columns"),
             ("values_foretell_choice", "organ:portrait.columns"),
+            # What her self-predictor has seen, as the Gram matrix its ridge fit
+            # is solved from: what it has learned of her, which the closure test
+            # read from outside the core on seed 7 at 370 rounds.
+            *((f"self_predictor_{part}", "organ:self_prediction._gram") for part in SKETCH_FIELDS),
         ),
     ),
     "M": _sch(
@@ -1025,6 +1069,9 @@ _SCHEMAS: dict[str, Schema] = {
             # test read it from outside and it was the largest leak of the run.
             # It is what her own silence is measured against.
             ("turns_since_user_spoke", "cognition.turns_since_user_spoke"),
+            # The units where perception and memory meet, which set how far each
+            # experience moves the learned model. See core/consciousness/conjunctive_codes.py.
+            *((f"conj_world_{k}", "conjunctions.units.world") for k in range(CONJUNCTION_UNITS)),
         ),
     ),
     "D": _sch(
@@ -1151,6 +1198,9 @@ _SCHEMAS: dict[str, Schema] = {
             # so it decides how long she can keep at something. See
             # core/soma/reserve.py.
             ("energy_reserve", "organ:reserve.share"),
+            # The units where the world and her feeling meet, which weigh each
+            # initiative by its source. See core/consciousness/conjunctive_codes.py.
+            *((f"conj_deliberation_{k}", "conjunctions.units.deliberation") for k in range(CONJUNCTION_UNITS)),
         ),
     ),
     "N": _sch(

@@ -137,6 +137,9 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         source="organ:homeostasis.prospective_dread",
     ) or {}
     head.append(_f(homeostasis.get("prospective_dread")))
+    for name in ("_valence_centre", "_valence_scatter", "_arousal_centre", "_arousal_scatter"):
+        head.append(_held_number(organs.homeostasis, name, source=f"organ:homeostasis.{name}"))
+    head.append(_held_number(organs.wants, "_noise", source="organ:wants._noise"))
     reading = _call(organs.worth, "read", None, source="organ:worth.read")
     error = getattr(reading, "error", {}) or {}
     head.append(_f(getattr(reading, "worth", 0.0)))
@@ -195,6 +198,7 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _f(modifiers.get("overall_vitality"), 1.0),
             1.0 if modifiers.get("urgency_flag") else 0.0,
             *_earned(organs.credit, workspace.get("last_winner")),
+            *_conjunction(state, "attention"),
         ],
         dtype=np.float64,
     )
@@ -298,6 +302,8 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     )
     head.extend(_sketched(organs.substrate, "x", source="organ:substrate.x"))
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
+    head.extend(_in_flight(organs.mesh, "_sensory_buffer", source="organ:mesh._sensory_buffer"))
+    head.extend(_in_flight(organs.mesh, "_association_buffer", source="organ:mesh._association_buffer"))
     head.extend(_sketched(organs.field, "F", source="organ:field.F"))
     head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
     shares = _call(organs.field, "input_shares", {}, source="organ:field.input_shares") or {}
@@ -314,6 +320,8 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
             source="organ:phi_core._affective_state_visits",
         )
     )
+    head.extend(_sketched(organs.field, "W_chem", source="organ:field.W_chem"))
+    head.extend(_conjunction(state, "recurrent"))
     return np.array(head, dtype=np.float64)
 
 
@@ -378,6 +386,59 @@ def _shared_out(organ: Any, attribute: str, *, source: str) -> list[float]:
     summary = sketch(counts / total)
     if summary is None:
         _miss(source, "no finite state")
+        return [0.0] * len(SKETCH_FIELDS)
+    return [summary[part] for part in SKETCH_FIELDS]
+
+
+def _held_number(organ: Any, attribute: str, *, source: str) -> float:
+    """One number an organ keeps as an attribute, a miss when the organ is absent."""
+    from .state import _f, _miss
+
+    if organ is None:
+        _miss(source, "organ absent")
+        return 0.0
+    if not hasattr(organ, attribute):
+        _miss(source, "no such reading")
+        return 0.0
+    return _f(getattr(organ, attribute))
+
+
+def _conjunction(state: Any, meeting: str) -> list[float]:
+    """The units of one conjunctive code, at rest when none has been bound.
+
+    Before the first cycle closes, and with the codes switched off, there are
+    no units, which is a state of rest rather than a failed reading.
+    See core/consciousness/conjunctive_codes.py.
+    """
+    from .state import CONJUNCTION_UNITS, _f
+
+    codes = getattr(state, "conjunctions", None)
+    units = getattr(codes, "units", None)
+    values = units.get(meeting) if isinstance(units, Mapping) else None
+    if not values:
+        return [0.0] * CONJUNCTION_UNITS
+    out = [_f(value) for value in list(values)[:CONJUNCTION_UNITS]]
+    return out + [0.0] * (CONJUNCTION_UNITS - len(out))
+
+
+def _in_flight(organ: Any, attribute: str, *, source: str) -> list[float]:
+    """An organ's pending input through the shared sketch, and zeros when none is pending.
+
+    The mesh consumes each injection buffer at its next step and sets it back to
+    None, so most frames find nothing in flight. That is a reading, no input
+    arriving, and it sketches as the zero array would; only an absent organ is
+    a miss.
+    """
+    from .state import SKETCH_FIELDS, _miss, sketch
+
+    if organ is None:
+        _miss(source, "organ absent")
+        return [0.0] * len(SKETCH_FIELDS)
+    held = getattr(organ, attribute, None)
+    if held is None:
+        return [0.0] * len(SKETCH_FIELDS)
+    summary = sketch(held)
+    if summary is None:
         return [0.0] * len(SKETCH_FIELDS)
     return [summary[part] for part in SKETCH_FIELDS]
 
@@ -529,6 +590,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     head.append(_f(portrait.get("narrowness")))
     head.append(_f(portrait.get("values_over_drive")))
     head.append(_f(portrait.get("values_foretell_choice")))
+    head.extend(_sketched(organs.self_prediction, "_gram", source="organ:self_prediction._gram"))
     return np.array(head, dtype=np.float64)
 
 
@@ -690,6 +752,7 @@ def _read_W(state: Any, organs: Organs) -> np.ndarray:
             # turn of silence and three is the whole of what this says, and
             # between thirty and forty it says nothing new.
             _sat(_f(_dig(state, "cognition.turns_since_user_spoke")), 8.0),
+            *_conjunction(state, "world"),
         ],
         dtype=np.float64,
     )
@@ -799,6 +862,7 @@ def _read_D(state: Any, organs: Organs) -> np.ndarray:
     head.append(_sat(_f(habits.get("to_change")), 4.0))
     head.append(_f(habits.get("largest_deficit")))
     head.append(_f(_call(organs.reserve, "share", 0.0, source="organ:reserve.share")))
+    head.extend(_conjunction(state, "deliberation"))
     return np.array(head, dtype=np.float64)
 
 

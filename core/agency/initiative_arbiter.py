@@ -196,6 +196,20 @@ class InitiativeArbiter:
         except (ImportError, AttributeError, TypeError, ValueError) as exc:
             logger.debug("what she feels about things did not reach arbitration: %s", exc)
 
+        # What the world as she models it and what she feels set together for
+        # each kind of initiative: a value is a belief about what will happen
+        # weighed by how it would feel, and neither alone. The gain is the
+        # deliberation units' for the initiative's source, bound as the last
+        # cycle closed. See core/consciousness/conjunctive_codes.py.
+        try:
+            from core.consciousness.conjunctive_codes import gain
+
+            for item in scored:
+                kind = str(item.initiative.get("source") or item.initiative.get("type") or "initiative")
+                item.final_score *= gain(state, "deliberation", kind)
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            logger.debug("the world and her feeling did not meet in arbitration: %s", exc)
+
         # A habit that has done worse than her weighing does not fire on drive
         # alone: its score counts for less by the deficit, and preference below
         # can still pick it. See core/agency/habits_are_hers.py.

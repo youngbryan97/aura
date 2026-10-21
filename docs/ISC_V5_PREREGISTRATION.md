@@ -1828,3 +1828,80 @@ spectral cap allows, 1.5 sqrt(n). On her campaign schedule simulated at 512
 neurons the spread holds at 0.02102 with every turn's ratio inside 0.99998 to
 0.99999. Three tests fail on `c428ae4b3` and pass here. The look named above
 reruns on this commit, and its reading of `c428ae4b3` is kept beside it.
+
+## Addendum, 21 October 2026, morning: where her domains meet, and what the core was leaving out
+
+Two organism changes and one change to what K reads, named before any run reads
+them. No threshold moves and no criterion is rescored. What motivated them was
+read on seed 7, the diagnostic seed: `validate-s7-84d9fe6f5-r370` (main before
+the substrate repair) and the looks `look-s7-c428ae4b3-r100`,
+`look-s7-d3555f8e8-r100` and its `-pool` arm.
+
+### What was read
+
+Synergy fails on all four triples at 370 rounds. Read with every column's
+condition mean removed, as a diagnostic only, most of what synergy there is
+follows the eight-condition schedule: P,M -> W reads 0.207 as recorded and 0.031
+with the schedule out, and the held-out interaction gain is 0.0 to 0.017 on
+every triple. Her domains combine by sums: a workspace bid is a priority times
+factors that each read one thing, an initiative's score likewise, and the
+world model learns at one step size whatever she perceived. The shifted null is
+read as the schedule-aligned shifts' synergy, so a triple passes only when its
+target depends on its two sources turn by turn.
+
+Causal closure fails at 0.0331 against a shuffled q95 of 0.0000. The largest
+leaks are the coupling engine's running centre and scatter of her arousal (the
+baseline every felt deviation is measured from), the noise her conation has
+found in its own readings, the field's chemistry weights, and her
+self-predictor's Gram matrix; on `arms-0675c4217` they were the mesh's two
+injection buffers.
+
+### The changes
+
+**Conjunctive codes** (`core/consciousness/conjunctive_codes.py`). At each of
+the four meetings the specification names, four mixed-selectivity units, each
+tanh(u . x) * tanh(v . y) of the two domains' standardised readings with fixed
+random directions seeded from the meeting's name (Rigotti et al. 2013; Salinas
+and Abbott 1996). Bound in the consciousness phase as each cycle closes, carried
+on her state, and acting through the next cycle in the domain they live in:
+attention scales each workspace bid by a gain the units set for its source; the
+learned world model's step size is scaled by its units; each initiative's score
+is scaled by the deliberation units for its source; and all sixteen units drive
+a new band of the substrate at 72 to 87. A gain is exp(w . m / 2) with w a fixed
+random direction per consumer, so units at rest leave everything as it was.
+`AURA_DISABLE_CONJUNCTIONS=1` is the ablation.
+
+The recurrent meeting also sets the gain of each of the mesh's three tiers, the
+executive tier's on top of what control is worth (`control_allocation`). C now
+has 112 columns and its leading change components are blocks like the mesh's
+state sketch, so four columns and a sixteen-neuron band in a 512-neuron
+substrate would not reach what the synergy estimator reads; neuromodulatory gain
+on cortex is how self and intention reach recurrent cognition in a brain
+(Aston-Jones and Cohen 2005), and the table control allocation writes each tick
+is where it composes.
+
+**A reports-pipeline repair named here because it serves the bridge's reports
+ground.** The 1.5B dry run of the reports ground lost 9 of 32 replies at
+`d3555f8e8` and 6 of 32 on a second, instrumented run. A subject run installs an
+experiment clock in place of `time.time`, and the router stamped and aged its
+generation-gate leases on it, so a background generation holding the gate for
+seventy-five real seconds read as 0.6 seconds old: the foreground ladder judged
+it young and refused her reply as saturated. Leases now age on `time.monotonic`.
+The dry run reruns on the commit that carries this, and her cortex is not loaded
+for the reports ground until a dry run loses no reply.
+
+**What K reads.** Each meeting's four units are columns of the domain they live
+in (G, W, D, C), and the clamp holds each with its domain. A gains the coupling
+engine's four baselines and the conation's noise; S the self-predictor's Gram
+matrix through the shared sketch; C the field's chemistry weights and the mesh's
+in-flight sensory and association input, an empty buffer reading as no input.
+K goes from 438 to 491 columns.
+
+### How it is read, and what it decides
+
+Seed 7 at the decisive design (370 rounds, six trials, three-turn arms, nulls
+and lesion skipped) runs twice on one commit: as built, and with
+`AURA_DISABLE_CONJUNCTIONS=1`. A synergy triple or closure that passes in the
+first and not the second is credited to the codes. Neither run decides anything.
+Seed 23 is launched only on a commit both have been read on, and its own
+addendum names the commit and any switch.

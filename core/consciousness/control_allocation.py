@@ -126,5 +126,19 @@ def allocate_control(mesh: Any, allocation: ControlAllocation, state: Any = None
         getattr(cognition, "pending_initiatives", None) or []
     )
     gain = allocation.allocate(at_stake(holds), works)
-    mesh.set_regional_modulation({"executive": (gain, 1.0)})
+    # And where her self and what she means to do meet, every tier takes the
+    # gain their conjunction sets for it: the executive tier on top of what
+    # control is worth, the other two on their own. The table is replaced
+    # whole on each tick, so the two have to be set together here or one would
+    # reset the other. See core/consciousness/conjunctive_codes.py.
+    from core.consciousness.conjunctive_codes import gain as conjunction_gain
+
+    tiers = {tier: conjunction_gain(state, "recurrent", f"tier:{tier}") for tier in ("sensory", "association", "executive")}
+    mesh.set_regional_modulation(
+        {
+            "sensory": (tiers["sensory"], 1.0),
+            "association": (tiers["association"], 1.0),
+            "executive": (gain * tiers["executive"], 1.0),
+        }
+    )
     return gain

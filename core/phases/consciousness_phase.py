@@ -179,7 +179,43 @@ class ConsciousnessPhase(BasePhase):
             record_degradation("consciousness_phase", exc, action="selfhood layers not advanced")
 
         self._every_domain_into_the_shared_block(new_state)
+        self._bind_where_domains_meet(new_state)
         return new_state
+
+    @staticmethod
+    def _bind_where_domains_meet(state: AuraState) -> None:
+        """The four conjunctive codes, bound from where each domain ended this cycle.
+
+        Last in the turn, after the relay, because every domain has written by
+        then; each code is the context its domain runs the next cycle in. The
+        attention and world-model units are handed to the organs that use them,
+        and all sixteen go into their band of the substrate.
+        See core/consciousness/conjunctive_codes.py.
+        """
+        try:
+            from core.consciousness.conjunctive_codes import bind, gain_from_units, into_substrate
+
+            codes = bind(state)
+            if codes is None:
+                return
+            workspace = get_runtime_service("global_workspace", default=None)
+            if workspace is not None:
+                workspace.attention_units = codes.units.get("attention", ())
+            world = get_runtime_service("unified_world_model", default=None)
+            learned = getattr(world, "learned", None) if world is not None else None
+            if learned is not None:
+                learned.learning_precision = gain_from_units(codes.units.get("world", ()), "world", "learning")
+            substrate = get_runtime_service("liquid_substrate", default=None) or (
+                get_runtime_service("conscious_substrate", default=None)
+            )
+            if substrate is not None:
+                state.response_modifiers["conjunction_band"] = round(into_substrate(substrate, codes), 8)
+        except _CONSCIOUSNESS_PHASE_ERRORS as exc:
+            record_degradation(
+                "consciousness_phase",
+                exc,
+                action="her domains were not bound where they meet this turn",
+            )
 
     _RELAY: Any = None
 

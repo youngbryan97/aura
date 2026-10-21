@@ -73,7 +73,25 @@ def test_the_gain_reaches_the_executive_tier(monkeypatch) -> None:
     allocate_control(mesh, allocation, _state(0.5))
     gain = allocate_control(mesh, allocation, _state(0.9))
     assert gain is not None and gain > 1.0
-    assert mesh.regional == {"executive": (gain, 1.0)}
+    # With no conjunctive code bound yet every tier's own gain is one.
+    assert mesh.regional == {"sensory": (1.0, 1.0), "association": (1.0, 1.0), "executive": (gain, 1.0)}
+
+
+def test_where_self_and_intention_meet_sets_every_tiers_gain(monkeypatch) -> None:
+    from core.consciousness.conjunctive_codes import Conjunctions, gain_from_units
+
+    monkeypatch.setattr(control_allocation, "efficacy", lambda: 0.8)
+    mesh = _Mesh()
+    allocation = ControlAllocation()
+    state = _state(0.6)
+    units = (0.5, -0.3, 0.2, 0.7)
+    state.conjunctions = Conjunctions(units={"recurrent": units})
+    gain = allocate_control(mesh, allocation, state)
+    tier = {name: gain_from_units(units, "recurrent", f"tier:{name}") for name in ("sensory", "association", "executive")}
+    assert mesh.regional["sensory"][0] == tier["sensory"]
+    assert mesh.regional["association"][0] == tier["association"]
+    assert mesh.regional["executive"][0] == gain * tier["executive"]
+    assert len({round(value, 9) for value in tier.values()}) == 3
 
 
 def test_without_a_model_of_herself_nothing_is_set(monkeypatch) -> None:

@@ -586,7 +586,13 @@ class LearnedWorldModel:
         scale = 1.0 / len(caches)
         total_norm = math.sqrt(sum(float(np.sum((g * scale) ** 2)) for g in grads.values()))
         clip = min(1.0, _GRAD_CLIP_NORM / (total_norm + 1e-8))
-        self._adam_step({name: g * scale * clip for name, g in grads.items()})
+        # How far this experience moves the model is a precision set from
+        # outside it: what she perceived and what it called up together, bound
+        # as the last cycle closed (core/consciousness/conjunctive_codes.py).
+        # On the step and not the gradient, because Adam divides a gradient's
+        # scale back out. One until something has set it.
+        precision = float(getattr(self, "learning_precision", 1.0) or 1.0)
+        self._adam_step({name: g * scale * clip for name, g in grads.items()}, rate=precision)
         self._last_loss = loss / len(caches)
         self._train_steps += 1
         note_effort("train_steps", 1.0)
@@ -654,10 +660,13 @@ class LearnedWorldModel:
             loss = self._mini_batch_update()
         return loss
 
-    def _adam_step(self, grads: dict[str, np.ndarray]) -> None:
-        """Adam. Plain SGD on a VRNN objective in float32 does not stay stable."""
+    def _adam_step(self, grads: dict[str, np.ndarray], *, rate: float = 1.0) -> None:
+        """Adam. Plain SGD on a VRNN objective in float32 does not stay stable.
+
+        `rate` multiplies the configured learning rate for this step.
+        """
         self._adam_t += 1
-        lr = self.config.learning_rate
+        lr = self.config.learning_rate * rate
         b1, b2, eps = 0.9, 0.999, 1e-8
         bias1 = 1.0 - b1 ** self._adam_t
         bias2 = 1.0 - b2 ** self._adam_t

@@ -248,6 +248,10 @@ def _core_attributes() -> dict[str, set[str]]:
 #: key the schema uses for it. The same object reaches the walk under several
 #: names, and the core's own readings have to be excluded under all of them.
 _ORGAN_ALIASES: dict[str, str] = {
+    "what_she_wants": "wants",
+    "neural_mesh": "mesh",
+    "unified_field": "field",
+    "homeostatic_coupling": "homeostasis",
     "workspace": "workspace",
     "global_workspace": "workspace",
     "substrate": "substrate",

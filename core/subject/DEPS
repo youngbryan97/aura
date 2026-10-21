@@ -89,6 +89,9 @@ include_rules = [
     # read as organs of A and G. Read only.
     "+core.affect.what_it_was_worth",
     "+core.affect.what_winning_earned",
+    # What she wants: the affect domain reads the noise her conation has found
+    # in its own readings, which the closure test read from outside the core.
+    "+core.conation.what_she_wants",
     # Construct the same observation/action vectors the measured cycle uses.
     "+core.world_model.observe_cycle",
 
