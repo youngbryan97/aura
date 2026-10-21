@@ -725,3 +725,51 @@ is under `artifacts/flash-campaign/2026-10-20-thin-frame-registration/`.
 The thin-frame checkpoint passed smoke (164 passed, one skipped), lint,
 compilation, layering and writing in 83.94 seconds. No live model or task
 was exercised by those checks.
+
+## Layered source appearances reach ordinary pixel search
+
+- [x] The program reader derives literal attachment pairs, depth order and
+  copied x/y positions from owned bytecode effects. An acyclic lifted prefix
+  can propose artwork even when later source loops remain unresolved. The
+  proposal explicitly retains unknown execution, aliases, later mutations,
+  current frames and current pixels. Source names establish no task role.
+- [x] Registered component rasters compose through their measured source
+  coordinate maps, with premultiplied-alpha blending and bounded output.
+  Component frames, coordinate identities and instruction addresses remain
+  in provenance. A composition adds no declared static-frame coverage.
+- [x] The current program read carries proposals into the ordinary guide and
+  reference worker. Its catalog keeps raw references and bounded composed
+  alternatives. Missing components and exceeded capacities remain refusals.
+  A failed/new source read clears the proposal scope.
+- [x] Synthetic ordinary-pixel tests admit the actually presented composite
+  while rejecting the contradicted single layer and the absent composite.
+  Body, role and collision authority remain separate.
+- [ ] Retained original captures still have zero qualified whole referents.
+  Layer composition removes much of the RGB disagreement but leaves a
+  measurable pose/edge error; no threshold has been changed.
+
+The first expanded run passed 172 tests and failed one new fixture that
+called a nonexistent catalog method. The fixture now calls the actual
+consumer; that setup failure is retained. Original-pixel replay derives
+the layer relationship automatically and observes its composite. It has
+seven material/naming-candidate pictures out of twelve, eight diagnostic
+extent responses and zero qualified whole referents. One composite reading
+has mean error 0.02283 and maximum edge error 0.45375. The local-resolution
+experiment likewise produces zero qualified whole referents and remains
+private.
+
+A separate private photometric experiment on the correct composite reduces
+whole mean error from 0.02213 to 0.000523, with zero samples above 0.12 and
+maximum error 0.03876. Held-out smoothed error improves from 0.03536 to
+0.02744. Its maximum residual against the original patch correspondences
+increases from 1.99835 to 2.38481 native pixels; any integration must retain
+that measured uncertainty and the existing material-precision gate. This is
+an unintegrated diagnostic, not an admitted pose or gameplay result.
+
+Artifacts are under
+`artifacts/flash-campaign/2026-10-20-source-layer-composition/`. No live model,
+physical input, G09 or holdout was used. Native gameplay remains unproven.
+
+Final source-layer regression passed 181 tests in 22.10 seconds. Smoke
+passed 164 tests with one skip; lint, compilation, layering and writing
+passed in 74.70 seconds. These include the corrected catalog-consumer test.

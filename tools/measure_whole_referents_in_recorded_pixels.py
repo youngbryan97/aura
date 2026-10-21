@@ -71,6 +71,10 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     from core.perception.source_material_groups_for_visual_attention import SourceMaterialGroupsInView
     from core.perception.what_things_look_like import LookingAtThings
     from core.perception.a_source_extent_requested_in_play import SourceExtentRequest
+    from core.perception.source_layers_with_copied_positions import source_layer_proposals
+    from core.perception.flash_action_sources import read_flash_action_streams
+    from core.perception.composed_source_artwork_for_pixel_search import with_source_layer_proposals, composition_record
+    from core.perception.visual_references_for_current_sources import ReferencesAcquired, interleaved_reference_variants
 
     if not 1 <= frames <= 100 or not 1 <= match_every <= 100 or start < 0:
         raise ValueError('replay needs bounded frame and match counts')
@@ -81,6 +85,9 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
     raw = source.read_bytes()
     table = read_flash_visual_assets(raw)
     catalog = acquire_visual_references((table,), root=catalog_root)
+    layers = source_layer_proposals(read_flash_action_streams(raw), (table,))
+    references, refused_layers = with_source_layer_proposals(catalog.references, layers)
+    catalog = ReferencesAcquired(interleaved_reference_variants(references), (*catalog.unavailable, *refused_layers))
     observer, wholes = WhatMoves(), WholeReferentsInView()
     material_groups = SourceMaterialGroupsInView()
     geometry, proposals = SourceGeometryInCurrentPixels(), {}
@@ -166,6 +173,9 @@ def measure(recording: Path, source: Path, catalog_root: Path, *, start: int, fr
         recording=str(recording.resolve()), requested_frames=frames, measured_frames=len(rows),
         source_complete=table.complete, catalog_references=len(catalog.references),
         reference_variant_coverage=[asdict(c) for c in reference_variant_coverage(catalog.references)],
+        source_layer_proposals=[asdict(layer) for layer in layers],
+        composed_reference_proposals=sum(bool(getattr(r, 'components', ())) for r in catalog.references),
+        composed_reference_records=[record for r in catalog.references if (record := composition_record(r)) is not None],
         unavailable=list(catalog.unavailable), searches=searches, frames=rows,
         frames_with_whole_referents=sum(bool(row['referents']) for row in rows),
         frames_with_material_attention=sum(bool(row['material_groups']) for row in rows),

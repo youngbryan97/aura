@@ -1686,3 +1686,25 @@ Next implement general layered appearance proposals from bounded source
 placements, then independently require current pixels and original material
 ownership. Source relationships can propose a picture; they cannot certify
 that those objects currently exist or supply collision/control authority.
+
+Layered proposals now run from owned bytecode effects through ProgramRead,
+the guide and the ordinary reference-worker catalog. Components compose
+through registered source coordinates with alpha blending; their source
+frames and instruction provenance remain explicit. These are possible
+search pictures, with execution/aliases/current frames unresolved. Raw
+references keep their static-frame coverage. Current pixels still decide
+whether a composed appearance is present.
+
+The original twelve-picture replay derives the layer automatically but
+still admits zero whole referents. A composed reading has mean error
+0.02283 and maximum edge error 0.45375. Native local refitting also fails
+and remains private. A private photometric refinement of the correct
+composite reduces full mean error to 0.000523 and maximum error to 0.03876,
+with zero samples above 0.12. Held-out error improves, but original patch
+residual rises to 2.38481 native pixels. Next build bounded current-pixel
+pose refinement with explicit measured uncertainty; preserve the existing
+working-coordinate precision and whole-extent gates.
+
+Do not count that private fit as current production perception or native
+play. Evidence remains under
+`artifacts/flash-campaign/2026-10-20-source-layer-composition/`.

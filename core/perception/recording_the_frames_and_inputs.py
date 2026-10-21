@@ -372,7 +372,8 @@ def _source_reference_snapshot(moves: Any) -> dict:
             'missing_count': len(missing) if isinstance(missing, tuple) else None,
             'missing_truncated': len(missing) > 128 if isinstance(missing, tuple) else None})
     whole_readings = [{name: scalar(item.get(name)) for name in
-        ('source', 'character_id', 'reason', 'mean_colour_error', 'maximum_edge_error', 'samples', 'visible_fraction')}
+        ('source', 'character_id', 'reference_sha256', 'composition_identity', 'reason', 'mean_colour_error',
+         'maximum_edge_error', 'colour_outlier_fraction', 'samples', 'visible_fraction')}
         for item in readings[:128] if isinstance(item, dict)] if isinstance(readings, (tuple, list)) else None
     whole_records = [{**{name: scalar(getattr(item, name, None)) for name in
         ('number', 'born', 'kind', 'seen', 'x', 'y', 'w', 'h', 'source', 'reference_sha256',
@@ -383,6 +384,8 @@ def _source_reference_snapshot(moves: Any) -> dict:
         'pixels': pixels(getattr(item, 'pixels', None))} for item in islice(wholes.values(), 128)] if isinstance(wholes, dict) else None
     return {'pixels': pixels(getattr(moves, 'pixels_consumed', None)),
             'reference_variants': variants,
+            'composed_search_references': [dict(record) for record in getattr(moves, 'source_reference_compositions', ())[:32]
+                                          if isinstance(record, dict)],
             'status': scalar(getattr(moves, 'source_reference_status', None)),
             'fresh_status': [scalar(v) for v in statuses[:64]] if isinstance(statuses, (tuple, list)) else None,
             'object_bound': channel('source_reference_points'), 'continuing': channel('source_reference_frames'),

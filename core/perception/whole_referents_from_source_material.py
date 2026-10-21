@@ -100,6 +100,7 @@ class WholeExtentReading:
     samples: int | None = None
     visible_fraction: float | None = None
     clipped_edges: tuple[bool, bool, bool, bool] = (False, False, False, False)
+    colour_outlier_fraction: float | None = None
 
 
 def _whole_extent(reference: RegisteredVisualReference, point: VisibleSourcePoint,
@@ -158,7 +159,8 @@ def _whole_extent(reference: RegisteredVisualReference, point: VisibleSourcePoin
         errors += abs(observed-colours[take, channel])/(3*255.)
     mean, edge_error = float(errors.mean()), max(float(errors[edge[take]].max()) for edge in edges)
     metrics = dict(mean_colour_error=mean, maximum_edge_error=edge_error, samples=len(errors),
-                   visible_fraction=fraction, clipped_edges=clipped)
+                   visible_fraction=fraction, clipped_edges=clipped,
+                   colour_outlier_fraction=float(np.count_nonzero(errors > .12)/len(errors)))
     if mean > .055 or np.count_nonzero(errors > .12) > .05*len(errors):
         return WholeExtentReading('whole_pixel_support_unresolved', **metrics)
     if edge_error > .12:
@@ -242,10 +244,13 @@ class WholeReferentsInView:
             visible = {(p.number, p.born) for p in marks.points}
             anchors = frozenset((a[0], a[1]) for a in binding.anchors if (a[0], a[1]) in visible)
             self.readings += ({'source': reference.source, 'character_id': reference.declaration.character_id,
+                'reference_sha256': reference.coordinates.reference_sha256,
+                'composition_identity': getattr(reference, 'composition_identity', None),
                 'mark_epoch': marks.epoch, 'material_anchors': tuple(sorted(anchors)),
                 'captured_at': at, 'picture_sha256': pixels.sha256,
                 'reason': reading.reason, 'bounds': reading.bounds, 'mean_colour_error': reading.mean_colour_error,
                 'maximum_edge_error': reading.maximum_edge_error, 'samples': reading.samples,
+                'colour_outlier_fraction': reading.colour_outlier_fraction,
                 'visible_fraction': reading.visible_fraction, 'clipped_edges': reading.clipped_edges},)
             if reading.bounds is None:
                 continue

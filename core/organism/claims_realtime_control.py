@@ -3,6 +3,8 @@ from typing import Any
 
 
 def _play_execution_claims() -> tuple:
+    from core.perception.source_layers_with_copied_positions import _source_layer_proposal_invariant
+    from core.perception.composed_source_artwork_for_pixel_search import _composed_source_artwork_invariant
     from core.perception.two_rasters_in_one_declared_pixel_frame import _dense_static_frame_invariant
     from core.perception.a_source_extent_requested_in_play import _extent_demand_invariant
     from core.perception.source_material_groups_for_visual_attention import _material_attention_invariant
@@ -80,7 +82,10 @@ def _play_execution_claims() -> tuple:
     from core.skills.sovereign_browser_drawing import _cover_press_invariant, _notice_word_boundaries_invariant
     from core.skills.sovereign_browser_the_program import _current_program_bytes_invariant
 
-    return (('thin_static_frames_need_complete_independent_pixel_agreement', 'core/perception/two_rasters_in_one_declared_pixel_frame.py',
+    return (('source_layers_propose_artwork_without_current_scene_authority', 'core/perception/source_layers_with_copied_positions.py',
+             'tests/test_source_layers_propose_composed_pixels.py', lambda: _source_layer_proposal_invariant() == () and _composed_source_artwork_invariant() == (),
+             'Owned literal source attachments and copied positions can propose bounded registered artwork compositions; current pixels and material custody remain required, with execution and roles unresolved.'),
+            ('thin_static_frames_need_complete_independent_pixel_agreement', 'core/perception/two_rasters_in_one_declared_pixel_frame.py',
              'tests/test_thin_static_frames_keep_measured_coordinates.py', lambda: _dense_static_frame_invariant() == (),
              'Equal declared static frames can transfer coordinates through complete alpha/premultiplied-colour agreement with distinguishable translations on both axes; no live pose or body identity is inferred.'),
             ('extent_requests_keep_owned_measurements_and_fair_background_turns', 'core/perception/a_source_extent_requested_in_play.py',

@@ -157,6 +157,8 @@ class Guide:
     world_its_code_makes: Any = None
     #: Current source declarations only; they give no observed names or control identity.
     program_visual_assets: tuple[Any, ...] = ()
+    #: Source layers propose pictures only; current pixels still establish what is visible.
+    program_visual_layers: tuple[Any, ...] = ()
     #: Where the thing that draws it lies in her picture of play (left, top, width, height, as shares of the picture);
     #: None for the whole picture.
     stage_in_her_picture: Any = None
@@ -277,6 +279,7 @@ class Guide:
         # A new acquisition replaces the current source scope, including a
         # failed acquisition. Historical declarations cannot keep artwork live.
         self.program_visual_assets = tuple(getattr(read, 'visual_assets', ()) or ())
+        self.program_visual_layers = tuple(getattr(read, 'visual_layers', ()) or ())
         if not read:
             return
         at = time.monotonic() if at is None else at

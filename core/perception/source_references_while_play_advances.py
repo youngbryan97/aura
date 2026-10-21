@@ -31,6 +31,17 @@ from core.verify import invariant
 _SLOTS = checked_thread_semaphore('perception.source_reference_operations', 1)
 
 
+def _acquired_for_play(tables: tuple, layers: tuple, root: Any):
+    catalog = acquire_visual_references(tables, root=root)
+    if not layers:
+        return catalog
+    from core.perception.composed_source_artwork_for_pixel_search import with_source_layer_proposals
+    from core.perception.visual_references_for_current_sources import ReferencesAcquired, interleaved_reference_variants
+
+    references, refused = with_source_layer_proposals(catalog.references, layers)
+    return ReferencesAcquired(interleaved_reference_variants(references), (*catalog.unavailable, *refused))
+
+
 @dataclass(frozen=True)
 class SourceReferencePoint:
     """A current source origin, with provenance and no inferred task role."""
@@ -176,8 +187,10 @@ class SourceReferencesInPlay:
         self.root = root
         self.interval_s = interval_s
         self.tables: tuple = ()
+        self.layers: tuple = ()
         self.catalog: tuple = ()
         self.variant_coverage: tuple = ()
+        self.compositions: tuple = ()
         self.bindings: tuple = ()
         self.points: tuple = ()
         self.frames: tuple = ()
@@ -240,6 +253,9 @@ class SourceReferencesInPlay:
         if work.kind == 'catalog':
             self.catalog, self.unavailable = result.references, result.unavailable
             self.variant_coverage = reference_variant_coverage(self.catalog)
+            from core.perception.composed_source_artwork_for_pixel_search import composition_record
+
+            self.compositions = tuple(record for r in self.catalog if (record := composition_record(r)) is not None)
             self._loaded = True
             # Metadata readiness must not spend the interval between pixel searches.
             self._next = work.started
@@ -293,9 +309,12 @@ class SourceReferencesInPlay:
             self.status = 'capture_not_measured'
             return ()
         tables = current_visual_sources(tables)
-        if tables != self.tables:
+        layers = source_layers_in_play(tables)
+        if tables != self.tables or layers != self.layers:
+            self.layers = layers
             self.tables, self.catalog, self.bindings = tables, (), ()
             self.variant_coverage = ()
+            self.compositions = ()
             self.frames = ()
             self.proposals = ()
             self.unavailable, self.refused = (), ()
@@ -365,8 +384,8 @@ class SourceReferencesInPlay:
         if now < self._next:
             return self.points
         if not self._loaded:
-            captured_tables = self.tables
-            self._submit('catalog', lambda: acquire_visual_references(captured_tables, root=self.root), now)
+            captured_tables, captured_layers = self.tables, self.layers
+            self._submit('catalog', lambda: _acquired_for_play(captured_tables, captured_layers, self.root), now)
         elif self.catalog:
             reference = self.catalog[self._cursor % len(self.catalog)]
             turn = self._cursor//len(self.catalog)
@@ -386,6 +405,8 @@ class SourceReferencesInPlay:
         self._closed = True
         self._generation += 1
         self.catalog, self.bindings, self.points = (), (), ()
+        self.layers = ()
+        self.compositions = ()
         self.frames, self.source_frames, self.retention = (), (), None
         self.proposals = ()
         self.views = {}
@@ -399,6 +420,17 @@ def source_tables_in_play() -> tuple:
     from core.cognition.a_guide_to_a_place import THE_GUIDE
 
     return current_visual_sources(getattr(THE_GUIDE.get(), 'program_visual_assets', ()))
+
+
+def source_layers_in_play(tables: tuple) -> tuple:
+    from core.cognition.a_guide_to_a_place import THE_GUIDE
+    from core.perception.source_layers_with_copied_positions import SourceLayerProposal
+
+    layers = getattr(THE_GUIDE.get(), 'program_visual_layers', ())
+    sources = {table.source for table in tables}
+    if not isinstance(layers, tuple) or len(layers) > 32:
+        return ()
+    return tuple(layer for layer in layers if isinstance(layer, SourceLayerProposal) and layer.source in sources)
 
 
 @invariant('perception.retired_reference_workers_cannot_publish', scope='perception',

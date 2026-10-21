@@ -222,6 +222,7 @@ class PlayObservation:
         self._mirror.fresh_source_reference_status = ()
         self._mirror.source_reference_status = 'no_current_source'
         self._mirror.source_reference_variant_coverage = ()
+        self._mirror.source_reference_compositions = ()
 
     @property
     def status(self) -> str:
@@ -379,6 +380,7 @@ class PlayObservation:
             self._mirror.source_reference_frames = self._references.source_frames
             self._mirror.source_reference_status = self._references.status
             self._mirror.source_reference_variant_coverage = getattr(self._references, 'variant_coverage', ())
+            self._mirror.source_reference_compositions = getattr(self._references, 'compositions', ())
 
     def _retire(self) -> None:
         if self._closed:
@@ -401,6 +403,7 @@ class PlayObservation:
         self._mirror.fresh_source_material_frames = ()
         self._mirror.source_reference_status = 'closed'
         self._mirror.source_reference_variant_coverage = ()
+        self._mirror.source_reference_compositions = ()
         self._generation += 1
         eyes, self._eyes = self._eyes, None
         operation, self._operation = self._operation, None

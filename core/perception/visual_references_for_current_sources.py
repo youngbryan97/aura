@@ -72,6 +72,8 @@ def reference_variant_coverage(references: tuple[RegisteredVisualReference, ...]
     """Static reference coverage cannot establish an active frame or task outcome."""
     groups = {}
     for reference in references:
+        if getattr(reference, 'components', ()):
+            continue  # A composition supplies no additional declared timeline-frame coverage.
         groups.setdefault((reference.source, reference.declaration.character_id), []).append(reference)
     result = []
     for (source, character), variants in groups.items():
