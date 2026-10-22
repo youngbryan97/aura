@@ -2234,3 +2234,29 @@ It enters with F3 in the first pair after `4b1022f25`, at seed 7, 370 rounds,
 codes on and off, calibrated axes and one clock in both arms. The two changes
 are not separated by that pair. Each line is read against its frozen bar, not
 against the pair before. Seed 23 stays untouched. Nothing moves a threshold.
+
+## Addendum, 22 October 2026, afternoon: two untouched forks made identical again
+
+The carrier rehearsal at `b720050b9` decided 37 of 38 cuts at both horizons and
+refused at the cut that separates C from the rest at two seconds: the cut
+moved C by 0.063 and two untouched forks of the same anchors moved it by 0.099.
+The untouched forks are the sham floor every cut and every intervention arm is
+read against, and they should be identical up to the arm. Probed directly, two
+untouched forks of one anchor parted for two reasons:
+
+- From frame 9, at `b720050b9` only: the appraisal named in the midday addendum
+  was a callable object, the fork skips a phase's callable attributes, and its
+  record of which turn it had already appraised was not restored, so the second
+  fork read the outcome checks as unmeasured. `1dc098201` makes it a plain
+  method; the fork now carries it.
+- From frame 33, the first frame of the next turn, at every commit probed: the
+  machine's disk and network counters were read around the resource observer,
+  so the host a run declares did not hold them, and interoception pushed the
+  machine's disk traffic into the mesh's sensory tier. `f78644bbd` reads them
+  through the observer, which holds them like every other answer about the
+  machine.
+
+Neither change touches what the organism does with what it reads. Both change
+what an untouched fork is, so both enter every run from `f78644bbd` on: the next
+pair, and the carrier rehearsal run again, whose C cut is read against the new
+floor. Nothing moves a threshold.
