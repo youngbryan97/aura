@@ -474,3 +474,12 @@ state only since 18 October; too few for the capture's test to keep a
 direction. It has to be her ordinary conversation, not the reports run's
 replies: a direction fitted on what she says about her feelings, then used to
 test what she says about her feelings, would be circular.
+- **Her cortex was shut down by a body she was being shown (22 October,
+  02:24).** In the withheld reports run a stress condition declared 95% memory,
+  and the gate read the declared host as the machine: it downgraded her cortex
+  mid-run, shut it down, and refused the reload for forty minutes on a machine
+  90% free. The run stood at anchor 13 of 80. Fixed in `9c5baab1f`: whether a
+  model lane fits is asked of the observer under any declared host, while her
+  felt reading stays the declared one. The withheld run starts again at that
+  commit from anchor 1, so its 80 anchors come from one organism; the fusion
+  measurement is not repeated, since it loads the model alone.
