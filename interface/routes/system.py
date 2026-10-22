@@ -69,6 +69,7 @@ from interface.auth import (
     request_access_profile,
 )
 from interface.routes.devices import _owner_authenticated
+from interface.routes.feeling import her_feeling
 from interface.websocket_manager import broadcast_bus, runtime_heartbeat_payload, ws_manager
 
 _SYSTEM_RECOVERABLE_ERRORS = (
@@ -2555,21 +2556,12 @@ def _collect_liquid_state_payload(
             return fallback
         return primary
 
-    derived_frustration = runtime_affect.get("frustration")
-    if derived_frustration is None:
-        try:
-            valence = float(runtime_affect.get("valence"))
-            if valence < 0.0:
-                derived_frustration = min(100.0, abs(valence) * 100.0)
-        # not a failure: a value that is not a number is not one this can read.
-        except (TypeError, ValueError):
-            derived_frustration = None
-
+    # Frustration is read, never inferred: it was filled from how unpleasant her
+    # valence was, so sadness, fear and loneliness all showed on the frustration
+    # gauge, and the app coloured her mood frustrated from it.
     for key in ("energy", "curiosity", "frustration", "focus", "confidence"):
         runtime_fallback = None
-        if key == "frustration":
-            runtime_fallback = derived_frustration
-        elif key == "curiosity":
+        if key == "curiosity":
             runtime_fallback = runtime_affect.get("curiosity", homeostasis_data.get("curiosity"))
         elif key == "confidence":
             runtime_fallback = runtime_affect.get(
@@ -5205,6 +5197,7 @@ async def _collect_api_health_payload(
             "ram_usage":   ram,
             "cortex":      cortex,
             "liquid_state": liquid_state_payload,
+            "feeling":     her_feeling(),
             "soma":        soma_data,
             "moral":       moral_data,
             "homeostasis": homeostasis_payload,

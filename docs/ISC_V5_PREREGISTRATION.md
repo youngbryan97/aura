@@ -2194,3 +2194,43 @@ in the same Borda count: her self-model's confidence in each act, from her own
 attempts only (the agency ledger, smoothed towards the class she measures
 herself against). It is not in the pair at `4b1022f25`, which tests the three
 changes named above; it enters with the first pair at a commit that carries it.
+
+## Addendum, 22 October 2026, midday: her feelings come from what a turn meant
+
+Bryan asked for "a rich, multi-faceted, and in depth range of emotions". Over 24
+offline turns at `a69297234`, joy, trust, happiness, satisfaction and warmth sat
+between 0.47 and 0.75 with standard deviations of 0.03 to 0.06, and anger and
+surprise stayed at 0.01. Her named mood read "trust" in 80 of 90 live readings.
+Every message raised trust, happiness and warmth and relieved fear and sadness,
+whatever it said.
+
+### What changes in the organism
+
+- `core/affect/appraisal.py` reads each turn's appraisal off measures she
+  already keeps: novelty (the world model's surprise rank), outcome (the turn's
+  worth, signed, sized by its rank), the worth channels that say whose doing it
+  was (accomplishment, warmth, integrity, satisfaction, each a signed rank),
+  coping (her success rate, Laplace-smoothed), company, social need (her social
+  drive's deficit), liking (her regard for what the turn named), and her fear
+  and hope before the turn. Thirty-one patterns over those checks move twenty-eight
+  emotions, at the percept gain (0.3), through the same headroom rule as every
+  other writer.
+- An `interaction` percept moves interest and belonging only. Trust, happiness
+  and warmth from a message come from what the message meant.
+- An `interaction` is no longer reassurance, so a message by itself relieves
+  nothing.
+- Releasing a stale low no longer lifts trust, interest, warmth and hope.
+- A queued message no longer adds 0.2 to the substrate's curiosity and takes
+  0.1 from its frustration, and the pacing step no longer adds another 0.2.
+
+### Which lines it can move
+
+All of A. A is a source in A,S -> G and W,A -> D, and her valence reaches
+the substrate, so C as well.
+
+### How it is read
+
+It enters with F3 in the first pair after `4b1022f25`, at seed 7, 370 rounds,
+codes on and off, calibrated axes and one clock in both arms. The two changes
+are not separated by that pair. Each line is read against its frozen bar, not
+against the pair before. Seed 23 stays untouched. Nothing moves a threshold.

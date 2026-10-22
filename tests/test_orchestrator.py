@@ -901,7 +901,9 @@ async def test_acquire_next_message(orchestrator, mock_container):
     msg = await orchestrator._acquire_next_message()
 
     assert msg == "Test Message"
-    assert mock_ls.update.called
+    # A message arriving does not move her substrate by itself; what it meant
+    # reaches it through her affect. See core/affect/appraisal.py.
+    assert not mock_ls.update.called
 
 
 @pytest.mark.asyncio

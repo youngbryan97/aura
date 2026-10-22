@@ -148,13 +148,6 @@ class MessageHandlingMixin:
 
             logger.info("📦 Decoded message from queue: %s", str(message)[:60])
 
-            # Pacing stim (optional boost during high activity)
-            if hasattr(self, "liquid_state") and self.liquid_state:
-                if hasattr(self.liquid_state, "update"):
-                    self._fire_and_forget(
-                        self.liquid_state.update(delta_curiosity=0.2), name="liquid_pacing_acquire"
-                    )
-
             return message
 
         # not a failure: an empty queue is what a non-blocking get reaches.

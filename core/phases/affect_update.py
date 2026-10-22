@@ -11,6 +11,7 @@ from core.health.degraded_events import get_unified_failure_state
 from core.kernel.bridge import Phase
 from core.phases.affect_readings import AFFECT_UPDATE_ERRORS as _AFFECT_UPDATE_ERRORS
 from core.phases.affect_readings import AffectReadings
+from core.phases.affect_appraisal import TurnAppraisal
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.self.still_standing import note_turn
 from core.social.their_rise import glad_into
@@ -117,9 +118,10 @@ def _weighted_mean(reading, weights: dict[str, float]) -> float:
     return sum(reading(name) * weight for name, weight in weights.items()) / total
 
 
+# A message arriving is not reassurance by itself; a warm one is, and so is a
+# conversation that has gone on. Whether a message helped is the appraisal's.
 _REASSURANCE_PERCEPTS = {
     "positive_interaction",
-    "interaction",
     "extended_dialogue",
     "deep_expression",
     "goal_achieved",
@@ -203,10 +205,26 @@ def _mood_settling() -> SettlingCertificate:
 register_settling("affect.mood_baseline", _mood_settling)
 
 
+#: The share of a feeling's room a percept of full strength moves it by. The
+#: appraisal of a turn moves feelings at the same gain, so what a turn meant and
+#: what arrived in it are felt on one scale. See core/affect/appraisal.py.
+PERCEPT_GAIN = 0.3
+
+
 def _kind_leans_positive(kind: str) -> bool:
     """Whether a kind moves her positive emotions more than her negative ones, by valence's own weights."""
     named = PERCEPT_EMOTIONS.get(str(kind or ""), ())
     return sum(_POSITIVE_AFFECT_WEIGHTS.get(n, 0.0) - _NEGATIVE_AFFECT_WEIGHTS.get(n, 0.0) for n in named) > 0.0
+
+
+def _origin(state: Any) -> str:
+    """Where the turn came from, in the spelling `_USER_FACING_ORIGINS` uses."""
+    return str(getattr(state.cognition, "current_origin", "") or "").strip().lower().replace("-", "_")
+
+
+def _addressed(state: Any) -> bool:
+    """Whether somebody addressed her this turn."""
+    return _origin(state) in _USER_FACING_ORIGINS
 
 
 def bump_emotion(emotions: dict, name: str, delta: float) -> None:
@@ -281,6 +299,8 @@ class AffectUpdatePhase(Phase):
         #: The readings taken after the channels settle; each reports a
         #: failure through this phase's degradation record.
         self.readings = AffectReadings(self._record_phase_degradation)
+        #: What the turn meant to her, and the feelings that makes.
+        self.appraisal = TurnAppraisal(self._record_phase_degradation, gain=PERCEPT_GAIN, bump=bump_emotion)
 
     @staticmethod
     def _clip01(value: Any) -> float:
@@ -364,6 +384,10 @@ class AffectUpdatePhase(Phase):
         for item in recent_percepts:
             mark_consumed(item, "affect")
         self._record_what_others_did(recent_percepts)
+        # And what the turn meant to her: how new it was, how it went against
+        # what she expected, whose doing that was, whether she can do anything
+        # about it, and who is here. See core/affect/appraisal.py.
+        self.appraisal(state, affect, company=_addressed(state))
         state.world.trim_percepts()
 
         # 3.5. Conversation Feedback — close the loop from discourse state → affect
@@ -1224,7 +1248,7 @@ class AffectUpdatePhase(Phase):
             
             # 1. Base Type Impacts
             for emotion in emotion_map.get(event_type, []):
-                self._bump_emotion(affect, emotion, float(intensity) * 0.3)
+                self._bump_emotion(affect, emotion, float(intensity) * PERCEPT_GAIN)
 
             if event_type in _REASSURANCE_PERCEPTS:
                 for emotion in ("fear", "sadness", "upset", "frustration", "loneliness", "longing"):
@@ -1485,7 +1509,7 @@ class AffectUpdatePhase(Phase):
         recent_percepts: list[dict],
     ) -> None:
         """Release stale distress on foreground turns without masking real failures."""
-        origin = str(getattr(state.cognition, "current_origin", "") or "").strip().lower().replace("-", "_")
+        origin = _origin(state)
         if origin not in _USER_FACING_ORIGINS and not objective:
             return
 
@@ -1550,13 +1574,9 @@ class AffectUpdatePhase(Phase):
                 continue
             self._set_emotion(affect, emotion, max(baseline, current - (relief * 0.65)))
 
-        for emotion, delta in {
-            "trust": 0.05,
-            "interest": 0.04,
-            "warmth": 0.04,
-            "hope": 0.035,
-        }.items():
-            self._bump_emotion(affect, emotion, delta)
+        # Releasing a stale low used to lift trust, interest, warmth and hope as
+        # well, on every foreground turn it ran: a turn with nothing wrong in it
+        # was read as a good one. Whether it was good is the appraisal's to say.
 
         affect.social_hunger = max(0.0, affect.social_hunger - 0.08)
         affect.markers["stale_negative_affect_regulated"] = {

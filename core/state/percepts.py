@@ -56,7 +56,12 @@ DEFAULT_INTENSITY: float = 0.5
 #: percept grid has to be built from the mechanism rather than from whoever
 #: wrote the experiment. It belongs beside the percept it describes.
 PERCEPT_EMOTIONS: dict[str, list[str]] = {
-    "interaction": ["trust", "happiness", "interest", "warmth", "belonging"],
+    # Being addressed draws her attention and is company. Whether the person is
+    # to be trusted, or what they said warms or gladdens her, depends on what
+    # the message meant, which is the appraisal's (core/affect/appraisal.py):
+    # with those here every message raised trust, and her named mood read
+    # "trust" in 80 of 90 live readings on 22 October.
+    "interaction": ["interest", "belonging"],
     "positive_interaction": ["joy", "trust", "happiness", "interest", "pride", "gratitude", "warmth", "hope", "satisfaction", "belonging"],
     "extended_dialogue": ["happiness", "interest", "curiosity", "warmth", "hope", "belonging"],
     "deep_expression": ["interest", "trust", "curiosity", "satisfaction", "inspiration"],

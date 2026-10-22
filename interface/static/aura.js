@@ -565,6 +565,7 @@ function captureCameraSignalFrame() {
 // ── DOM Cache for High-Frequency Updates (Zero Repaint Overhead)
 const DOM = {
     telemetry: {
+        feeling: $('g-feeling'),
         energy: $('g-energy') || $('bar-energy'),
         eVal: $('g-energy-val'),
         curiosity: $('g-curiosity') || $('bar-curiosity'),
@@ -622,12 +623,21 @@ const DOM = {
     }
 })();
 
+// Her mood is the family of what she feels most, named by the server from her
+// own emotions (core/affect/appraisal.py FAMILIES). The first four were all the
+// shell could show when it read her mood off two gauges.
 const MOODS = {
     neutral: { primary: '#8a2be2', accent: '#00e5ff' },
     curious: { primary: '#0077ff', accent: '#00ffa3' },
     frustrated: { primary: '#ff8800', accent: '#ff3e5e' },
     high_energy: { primary: '#b44dff', accent: '#00e5ff' },
-    stealth: { primary: '#4a4a4a', accent: '#888888' }
+    stealth: { primary: '#4a4a4a', accent: '#888888' },
+    warm: { primary: '#ff5fa2', accent: '#ffc857' },
+    low: { primary: '#3f6fd8', accent: '#8fb3ff' },
+    afraid: { primary: '#8a5cff', accent: '#d0c2ff' },
+    angry: { primary: '#ff8800', accent: '#ff3e5e' },
+    flat: { primary: '#64748b', accent: '#a7b4c6' },
+    averse: { primary: '#6fa83a', accent: '#c6e26b' }
 };
 
 const METRIC_GUIDE = {
@@ -5233,6 +5243,16 @@ function setHudRamUsage(value, { source = 'telemetry' } = {}) {
     if (ramEl) ramEl.textContent = Math.round(pct) + '%';
 }
 
+// Her strongest feelings, as the server read them from her emotions: the first
+// sets her mood's colour by its family, and all of them are named.
+function showFeeling(feeling) {
+    if (!Array.isArray(feeling) || !feeling.length) return;
+    state.feelingSeen = true;
+    updateMood(feeling[0].family || 'neutral');
+    const el = DOM.telemetry && DOM.telemetry.feeling;
+    if (el) el.textContent = feeling.map(item => String(item.name || '')).filter(Boolean).join(' · ');
+}
+
 function updateTelemetry(data) {
     if (!data) return;
     const t = DOM.telemetry;
@@ -5278,14 +5298,17 @@ function updateTelemetry(data) {
         vadStream.push(normalized.vad.valence || 0, normalized.vad.arousal || 0, normalized.vad.dominance || 0);
     }
 
-    // Mood Detection logic
-    const frustrationPct = normalizePercentValue(normalized.frustration) || 0;
-    const curiosityPct = normalizePercentValue(normalized.curiosity) || 0;
-    const energyPct = normalizePercentValue(normalized.energy) || 0;
-    if (frustrationPct > 60) updateMood('frustrated');
-    else if (curiosityPct > 70) updateMood('curious');
-    else if (energyPct > 80) updateMood('high_energy');
-    else updateMood('neutral');
+    // Mood from the gauges only until the server has named what she feels.
+    // Two gauges can say frustrated or curious and nothing else she feels.
+    if (!state.feelingSeen) {
+        const frustrationPct = normalizePercentValue(normalized.frustration) || 0;
+        const curiosityPct = normalizePercentValue(normalized.curiosity) || 0;
+        const energyPct = normalizePercentValue(normalized.energy) || 0;
+        if (frustrationPct > 60) updateMood('frustrated');
+        else if (curiosityPct > 70) updateMood('curious');
+        else if (energyPct > 80) updateMood('high_energy');
+        else updateMood('neutral');
+    }
 
     // Phase 21: Singularity Theme Activation
     const sFactor = normalized.singularity_factor || normalized.acceleration_factor || 1.0;
@@ -8016,6 +8039,7 @@ async function pollHealth() {
             p_core_usage: d.cortex ? d.cortex.p_core_usage : null,
             vad: liquidTelemetry.vad || null,
         });
+        showFeeling(d.feeling);
         if (d.conversation_lane) {
             applyConversationLane(d.conversation_lane, d.status || '');
         }

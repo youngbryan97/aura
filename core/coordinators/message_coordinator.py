@@ -105,23 +105,12 @@ class MessageCoordinator:
             msg = _safe_text(msg, max_chars=MAX_MESSAGE_CHARS)
 
             logger.info("Processing queued message: %s", str(msg)[:100])
-            if hasattr(orch, "liquid_state") and orch.liquid_state:
-                update = orch.liquid_state.update(delta_curiosity=0.2, delta_frustration=-0.1)
-                try:
-                    get_task_tracker().create_task(
-                        update,
-                        name="message_coordinator.liquid_state_update",
-                    )
-                except (RuntimeError, TypeError, ValueError) as exc:
-                    close = getattr(update, "close", None)
-                    if callable(close):
-                        close()
-                    _emit_message_fault(
-                        exc,
-                        action="continued message processing without liquid-state side update",
-                        severity="warning",
-                        stage="acquire_next_message.liquid_state",
-                    )
+            # A message arriving raised her substrate's curiosity by a fifth and
+            # lowered its frustration by a tenth, whatever the message was, and
+            # the pacing step raised curiosity by another fifth: the gauge the
+            # app colours her mood from read curious after every message. Her
+            # curiosity reaches the substrate from her affect each turn, where
+            # what the message meant has been appraised.
             orch._last_thought_time = time.time()
             return msg
         # not a failure: an empty queue means no message is waiting, which is the answer.

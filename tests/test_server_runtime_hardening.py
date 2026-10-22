@@ -3901,7 +3901,8 @@ def test_collect_liquid_state_payload_prefers_runtime_signal_over_zero_stub():
 
     assert payload["energy"] == 64.0
     assert payload["curiosity"] == 24.0
-    assert payload["frustration"] == 100.0
+    # An unpleasant valence is not frustration; with none read, none is shown.
+    assert payload["frustration"] == 0.0
     assert payload["confidence"] == 87.0
 
 
@@ -4121,7 +4122,7 @@ async def test_conversation_loop_reflection_task_is_tracked(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_message_coordinator_acquire_next_message_tracks_liquid_state_update(monkeypatch):
+async def test_a_message_arriving_does_not_move_her_substrate_by_itself(monkeypatch):
     import core.coordinators.message_coordinator as message_coordinator_module
 
     created = {}
@@ -4147,8 +4148,8 @@ async def test_message_coordinator_acquire_next_message_tracks_liquid_state_upda
     await asyncio.sleep(0)
 
     assert message == "hello"
-    assert created["name"] == "message_coordinator.liquid_state_update"
-    orch.liquid_state.update.assert_awaited_once()
+    assert "name" not in created
+    orch.liquid_state.update.assert_not_awaited()
 
 
 @pytest.mark.asyncio
