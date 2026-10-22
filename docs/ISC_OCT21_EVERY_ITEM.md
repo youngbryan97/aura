@@ -419,3 +419,16 @@ sketched array along its own axes.
   so the coordinator waited fourteen hours for shards. Fixed in `59fb05a5e`; a
   small sharded run at that commit reached the cuts in both workers. A fresh
   rehearsal starts beside the next pair.
+- **The fit's one-standard-error rule decides what the closure test and the
+  interaction bar can see.** A noisy copy of one column's next change (signal
+  to noise one), handed to the fit beside K, left that column's loss at 0.2764
+  with it and without it on the codes-off arm of `086ec4bb5`: among penalties
+  whose validation error is within one standard error of the best, the rule
+  takes the most penalised, and on errors this heavy-tailed that drops even a
+  strong extra column. It is why the audit's planted cause was missed there,
+  and very likely why S,D -> C's interaction gain is exactly zero on every
+  fold. The rule is part of the frozen estimator and is not changed; a cause or
+  an interaction has to be large and steady to be seen through it. Planting the
+  cause on K's leading change, or on its least predictable column, did not
+  help, and the audit keeps its first form.
+
