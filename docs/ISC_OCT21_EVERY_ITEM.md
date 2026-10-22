@@ -585,3 +585,19 @@ object holding descriptors as process furniture; the anchor pickler did not.
 `b720050b9`: such an object travels only if it names the descriptors it opens
 again, and travels without them; the audit chain does, and any other becomes
 the reader's own. Relaunched at `b720050b9` at 12:51.
+
+## Two untouched forks, made identical again (22 October, 14:00)
+
+The carrier rehearsal at `b720050b9` refused at C|rest at two seconds because
+two untouched forks of the same anchors moved C by 0.099, more than the cut
+did. Probed one anchor at a time, two untouched forks parted at frame 9 at
+that commit (the appraisal's reader, skipped by the fork as a callable,
+`1dc098201`) and at frame 33 at every commit (the machine's disk traffic,
+read around the declared host and felt through interoception, `f78644bbd`).
+At `f78644bbd` they agree in every domain through 66 frames except one affect
+column, free energy, by 8e-8 at frame 46.
+
+The disk traffic was in the recordings as well as the forks: whatever the
+machine's disk was doing reached C's sensory input on every turn, from outside
+her core. The carrier rehearsal runs again at `f78644bbd`, and the next pair
+runs there.
