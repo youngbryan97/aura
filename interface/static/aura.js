@@ -9779,6 +9779,12 @@ async function reconcileAutoListenFromSettings({ reportFailure = true } = {}) {
         return { status: 'applied', detail: 'ambient listening remains stopped' };
     }
 
+    // An explicitly opened conversation owns the microphone until it ends.
+    // Settings refreshes reconcile ambient listening, not the focused surface.
+    if (haveDuplex && duplex.isActive() && !duplex.isAmbient()) {
+        return { status: 'applied', detail: 'focused voice conversation owns capture' };
+    }
+
     // The resident server-side voice engine is the canonical desktop owner.
     // Do not open a second getUserMedia stream when sounddevice owns capture.
     if (state.voiceSummary && state.voiceSummary.server_capture === true) {

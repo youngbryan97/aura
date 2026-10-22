@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "checks": [
+    "local interrupt before server command",
+    "both playback lanes flushed",
+    "late audio rejected",
+    "next turn plays",
+    "no routine metrics notices",
+    "physical microphone stopped",
+    "390px width",
+    "keyboard containment",
+    "focus restored",
+    "settings refresh preserves focused voice"
+  ],
+  "stopped": {
+    "sent": [
+      {
+        "command": "barge_in",
+        "played_ms": 165.33333333333334,
+        "utterance_id": 7,
+        "at": 4776.600000023842
+      }
+    ],
+    "ports": [
+      {
+        "type": "flush",
+        "at": 4776.399999976158
+      },
+      {
+        "type": "flush",
+        "at": 4776.399999976158
+      }
+    ]
+  }
+}

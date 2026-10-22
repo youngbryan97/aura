@@ -17,6 +17,8 @@ worker that had just logged a completed generation.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from core.brain.inference_gate import InferenceGate
@@ -55,6 +57,25 @@ def test_a_served_lane_counts_as_resident(monkeypatch) -> None:
     )
 
     assert InferenceGate._cortex_already_resident() is True
+
+
+@pytest.mark.parametrize("alive,initialised,identity,expected", [
+    (True, True, True, True),
+    (True, True, None, True),
+    (False, True, True, False),
+    (True, False, True, False),
+    (True, True, False, False),
+])
+def test_a_confirmed_load_does_not_require_another_models_worth_of_ram(
+    monkeypatch, alive, initialised, identity, expected,
+):
+    gate = SimpleNamespace(
+        _mlx_client=SimpleNamespace(is_alive=lambda: alive, _init_done=initialised),
+        get_conversation_status=lambda: {"state": "ready", "conversation_ready": True,
+                                         "runtime_identity_ok": identity, "has_generated_successfully": False},
+    )
+    monkeypatch.setattr("core.container.ServiceContainer.peek", staticmethod(lambda *a, **kw: gate))
+    assert InferenceGate._cortex_already_resident() is expected
 
 
 def test_a_raising_probe_does_not_break_admission(monkeypatch) -> None:

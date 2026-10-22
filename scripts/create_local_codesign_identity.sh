@@ -19,7 +19,6 @@ trap 'rm -rf "${WORK_DIR}"' EXIT
 trust_identity_for_codesign() {
     if security find-certificate -c "${IDENTITY_NAME}" -p "${KEYCHAIN}" > "${WORK_DIR}/codesign.crt" 2>/dev/null; then
         security add-trusted-cert \
-            -d \
             -r trustRoot \
             -p codeSign \
             -k "${KEYCHAIN}" \
@@ -27,6 +26,7 @@ trust_identity_for_codesign() {
             >/dev/null 2>&1 || true
     fi
     security set-key-partition-list \
+        -l "${IDENTITY_NAME}" \
         -S apple-tool:,apple:,codesign: \
         -s \
         -k "${AURA_LOCAL_CODESIGN_KEYCHAIN_PASSWORD:-}" \
@@ -95,7 +95,6 @@ security import "${WORK_DIR}/codesign.p12" \
     -f pkcs12 \
     -k "${KEYCHAIN}" \
     -P "${P12_PASSWORD}" \
-    -A \
     -T /usr/bin/codesign \
     >/dev/null
 

@@ -1011,6 +1011,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             # navigation. When no grant is available the action proceeds
             # without one and is judged exactly as it was before.
             if granted.approved:
+                # The gateway binds this lease to its decision source. The
+                # caller's transport origin can name a different boundary.
+                authority_view["authority_origin"] = str(granted.source or source)[:240]
                 # The token is a field; the grant id and receipt live in
                 # `constraints`. Reading only attributes found the token and
                 # not its grant, and the will answered

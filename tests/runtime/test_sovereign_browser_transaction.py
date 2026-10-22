@@ -100,6 +100,46 @@ async def test_direct_browser_execution_uses_action_executor(
 
 
 @pytest.mark.asyncio
+async def test_browser_carries_the_granted_origin_across_the_api_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.executive.authority_gateway as gateway_module
+    import core.skills.sovereign_browser as browser_module
+
+    grant = SimpleNamespace(
+        approved=True,
+        source="api.skill.execute",
+        standing_authority_token="signed-browser-lease",
+        constraints={
+            "standing_authority_grant_id": "browser-grant",
+            "standing_authority_receipt_id": "browser-receipt",
+        },
+    )
+    authorize = AsyncMock(return_value=grant)
+    monkeypatch.setattr(
+        gateway_module, "get_authority_gateway",
+        lambda: SimpleNamespace(authorize_tool_execution=authorize),
+    )
+    captured: dict[str, Any] = {}
+
+    async def executor(**kwargs: Any) -> dict[str, Any]:
+        captured.update(kwargs)
+        return {"ok": True}
+
+    monkeypatch.setattr(browser_module.ActionExecutor, "execute", executor)
+    await browser_module.SovereignBrowserSkill().execute(
+        {"mode": "browse", "url": "https://example.test/"},
+        {"source": "api.skill.execute", "origin": "live_skill_api"},
+    )
+
+    authority = captured["authority_context"]
+    assert authority["authority_origin"] == grant.source
+    assert authority["standing_authority_token"] == grant.standing_authority_token
+    assert authority["standing_authority_grant_id"] == "browser-grant"
+    assert authorize.await_args.kwargs["source"] == grant.source
+
+
+@pytest.mark.asyncio
 async def test_action_executor_managed_browser_does_not_reenter_executor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

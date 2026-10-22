@@ -8,6 +8,7 @@ from pathlib import Path
 from core.organism.nothing_measured import NothingMeasured
 
 SOURCES = (
+    "interface/static/aura.js",
     "core/voice/duplex/config.py", "core/voice/duplex/tts_stream.py",
     "core/voice/duplex/pocket_speech.py", "core/voice/duplex/session.py",
     "interface/static/voice_mode.js", "interface/static/voice_mode.css",
@@ -18,6 +19,7 @@ CHECKS = frozenset({
     "local interrupt before server command", "late audio rejected", "next turn plays",
     "physical microphone stopped", "390px width", "keyboard containment", "focus restored",
     "local model synthesis", "no routine metrics notices",
+    "settings refresh preserves focused voice",
 })
 
 

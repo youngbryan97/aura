@@ -783,7 +783,7 @@ class _WatchesTheCortexComeUp:
 
     @staticmethod
     def _cortex_already_resident() -> bool:
-        """True when the conversation model is loaded and has served a turn.
+        """True when the conversation model has verified resident weights.
 
         Deliberately conservative in both directions. It requires evidence that
         the model is actually up — a lane that merely intends to load does not
@@ -812,9 +812,19 @@ class _WatchesTheCortexComeUp:
         try:
             if not bool(lane.get("conversation_ready")):
                 return False
-            # "Ready" without a completed generation is an intention, not a
-            # residency: the weights may still be streaming in.
-            return bool(lane.get("has_generated_successfully"))
+            if lane.get("has_generated_successfully"):
+                return True
+            # The first user turn follows model initialisation too. A ready
+            # label alone is insufficient, but the live worker's completed
+            # load handshake proves the weights are resident before that turn.
+            client = getattr(gate, "_mlx_client", None)
+            return bool(
+                lane.get("runtime_identity_ok") is not False
+                and lane.get("state") == "ready"
+                and client is not None
+                and getattr(client, "_init_done", False) is True
+                and client.is_alive()
+            )
         # not a failure: a lane status that will not read is not a proven residency, and
         # False is the refusing direction.
         except (AttributeError, TypeError, ValueError):
