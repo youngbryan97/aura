@@ -325,3 +325,12 @@ one carrier, her 27B's reports under the controls, and seed 23.
   instant of asking. Fixed in `11b49627a` (drain, then yield, bounded).
 - **A run's own choice never saw the arbiter**: fixed in `086ec4bb5`, G3's
   consequence is the fifth reason in `core/subject/choosing.py`.
+- **No certificate could hold.** The fifth criterion, that her own replies stay
+  as likely under the steering, had no tool that scored it, so every
+  measurement would have been refused for want of a reading. Built in
+  `6a03d0eb8`: the fusion tool scores 32 of her prose replies with this
+  checkpoint at each alpha, hooks set to the state each was said in. The
+  withheld run measures it first.
+- **The carrier rehearsal** at `5885688d7` stood still from 11:05 to 17:14 while
+  the reports run held the machine, and resumed at 77 of 128 anchors in its
+  grain stage.
