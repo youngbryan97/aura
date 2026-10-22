@@ -140,7 +140,8 @@ def _measure(
             f"separation {certificate.state_separation:.3f} "
             f"changed {certificate.prompts_that_change}/{certificate.prompts} "
             f"margin {certificate.margin_delta:+.4f} "
-            f"noise-margin {certificate.control_margin_delta:+.4f} -> "
+            f"noise-margin {certificate.control_margin_delta:+.4f} "
+            f"voice {_voice(certificate)} -> "
             f"{'holds' if certificate.holds else certificate.why_not()}",
             flush=True,
         )
@@ -193,6 +194,12 @@ def _probe_descriptor(arguments, checkpoint: Path, build_descriptor) -> dict:
         raise ValueError(f"fusion_probe_active_identity_required:{resolution.reason}")
     return build_descriptor(checkpoint,
         repository_id="" if arguments.model_path else arguments.model)
+
+
+def _voice(certificate) -> str:
+    if certificate.voice_delta is None:
+        return "unread"
+    return f"{certificate.voice_delta:+.4f} nats/token over {certificate.voice_replies}"
 
 
 def her_replies(path: Path, model_name: str, count: int, seed: int) -> list[tuple[str, list[float]]]:
