@@ -1,4 +1,4 @@
-"""Plasticity keeps the mesh's synapses off their bound, and the codes are bound fresh.
+"""Plasticity keeps the mesh's synapses off their bound.
 
 On 21 October the mesh's strongest weight climbed from 0.8 to the clip of one in
 every validation run with the conjunctive gains on, and stayed at 0.8 with them
@@ -7,8 +7,6 @@ as a clock. Soft bounds strengthen a synapse by less the nearer it is to one and
 weaken it in proportion to its strength (van Rossum, Bi and Turrigiano 2000).
 """
 from __future__ import annotations
-
-import copy
 
 import numpy as np
 
@@ -33,18 +31,3 @@ def test_repeated_causal_pairings_leave_every_synapse_below_one():
     for _ in range(200):
         mesh._apply_stdp(2.0)
     assert float(np.max(np.abs(column.W))) < 1.0
-
-
-def test_a_unit_is_this_cycles_gain_field_whatever_her_affect_carries_over():
-    from core.consciousness.conjunctive_codes import bind
-    from core.state.aura_state import AuraState
-
-    rng = np.random.default_rng(3)
-    state = AuraState.default()
-    for _ in range(10):
-        state.affect.valence = float(rng.normal(0.0, 0.3))
-        state.identity.stability = float(rng.uniform())
-        bind(state)
-    slow, quick = copy.deepcopy(state), copy.deepcopy(state)
-    slow.affect.momentum, quick.affect.momentum = 0.99, 0.01
-    assert bind(slow).units == bind(quick).units

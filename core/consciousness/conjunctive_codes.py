@@ -28,8 +28,8 @@ of its two domains' axes: a rate along one axis times a rate along the other,
 a product of two non-negative tuning curves. A signed product of two centred
 signals is nearly invisible to anything that reads rank-linear structure, and it
 is not what a rate is; a product of rates carries each domain's own effect and
-their interaction together, which is what a gain field is. Each unit is bound
-fresh each cycle.
+their interaction together, which is what a gain field is. Each unit carries
+over from the cycle before at her affect's momentum.
 
     feeling and self       meet at attention            A, S -> G
     perception and memory  meet at the world model      P, M -> W
@@ -370,6 +370,9 @@ def readings(state: Any) -> dict[str, list[float]]:
 #: make the four units of a meeting, one per pairing.
 AXES: int = 2
 
+#: Her affect's own carry-over from one update to the next, used when her state
+#: does not say (core/state/aura_state.py, `AffectVector.momentum`).
+_MOMENTUM_AT_REST: float = 0.85
 
 
 def _tuned(value: float) -> float:
@@ -486,12 +489,12 @@ def _units(x: np.ndarray, y: np.ndarray) -> tuple[float, ...]:
 def bind(state: Any) -> Conjunctions | None:
     """Bind this cycle's domains into the four codes, on her state. None when switched off.
 
-    Each unit is this cycle's gain field of where its two domains ended it.
-    From 21 October to the pair at `086ec4bb5` each unit carried over from the
-    cycle before at her affect's momentum, and a cycle's change in a unit was
-    then about a seventh of its conjunction. In that pair attention, which the
-    units bound fresh had carried at `5885688d7` (and still did with the
-    registers held flat), failed with the codes on and off alike.
+    Each unit carries over from the cycle before at the rate her feelings carry
+    over, her affect's momentum, and takes the rest from this cycle's gain field.
+    Bound fresh each cycle, the units moved with nothing that persists, and the
+    synergy between two domains and the third read at a level the eight-condition
+    schedule reproduced; integrated, a cycle's change follows what the two
+    domains held across the cycles before it.
     """
     if disabled():
         return None
@@ -505,8 +508,17 @@ def bind(state: Any) -> Conjunctions | None:
             return None
     read = readings(state)
     placed = {domain: held.along_its_axes(domain, held.standardise(domain, values)) for domain, values in read.items()}
+    momentum = _number(_dig(state, "affect.momentum", _MOMENTUM_AT_REST))
+    momentum = min(1.0, max(0.0, momentum if momentum > 0.0 else _MOMENTUM_AT_REST))
     for meeting in MEETINGS:
-        held.units[meeting.name] = _units(placed[meeting.sources[0]], placed[meeting.sources[1]])
+        fresh = _units(placed[meeting.sources[0]], placed[meeting.sources[1]])
+        before = held.units.get(meeting.name)
+        if before is None or len(before) != len(fresh):
+            held.units[meeting.name] = fresh
+        else:
+            held.units[meeting.name] = tuple(
+                momentum * old + (1.0 - momentum) * new for old, new in zip(before, fresh, strict=True)
+            )
         held.standing(meeting.name, held.units[meeting.name])
     return held
 

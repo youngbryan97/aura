@@ -2137,9 +2137,12 @@ The full reading is in `docs/ISC_OCT21_EVERY_ITEM.md`.
 
 ### Organism changes in the next commit
 
-1. **The conjunctive units are bound fresh each cycle.** They carried over at
-   her affect's momentum from the afternoon of 21 October, so a cycle's change
-   in a unit was about a seventh of its conjunction, and the line reads change.
+1. *Withdrawn before any run read it:* binding the conjunctive units fresh
+   each cycle. The calibrated pair at `d4b8ecab3`, read early the same night,
+   passed A,S -> G with the units carried over at her affect's momentum, so
+   the carry-over was not what cost it at `086ec4bb5`; reading K along its own
+   axes was the difference. Codes on, that pair passed three triples (A,S -> G,
+   P,M -> W, W,A -> D); codes off, two.
 2. **The mesh's STDP is soft-bounded** (van Rossum, Bi and Turrigiano 2000): a
    synapse strengthens by its distance from one and weakens in proportion to
    its strength. Under hard bounds the strongest weight climbed to the clip in
