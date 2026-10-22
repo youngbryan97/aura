@@ -596,16 +596,15 @@ class _BuildsTheLivingContext:
         segments: Any,
         state: Any,
     ) -> None:
-        from .inference_gate import (
-            InferenceGate,
-            psutil,
-        )
+        from .inference_gate import psutil
 
         memory_pressure = None
         if mem_monitor is not None:
             memory_pressure = getattr(mem_monitor, "pressure", None)
         if memory_pressure is None and psutil is not None:
-            memory_pressure = InferenceGate._recent_virtual_memory().percent
+            # Her body as she lives in it, which in a run is the declared host;
+            # the gate's own memory reading is the machine's.
+            memory_pressure = psutil.virtual_memory().percent
         # Only render fields that were actually observed. Missing hardware
         # telemetry must appear as UNAVAILABLE — fabricating 0% CPU and a
         # "stable" thermal label would present dead sensors as calm

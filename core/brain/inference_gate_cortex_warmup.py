@@ -25,6 +25,9 @@ import time
 from typing import Any
 
 from core.runtime import resource_psutil as psutil
+
+#: The facade's own memory reader, to tell it from a probe put in its place.
+_FACADE_VIRTUAL_MEMORY = psutil.virtual_memory
 from core.runtime.errors import record_degradation
 from core.runtime.shutdown_coordinator import is_shutdown_requested
 
@@ -168,6 +171,11 @@ class _WatchesTheCortexComeUp:
         )
 
         probe = psutil.virtual_memory
+        # Whether a model fits is a question about the machine, so under a
+        # host a run declares it reads the machine (resource_psutil). A probe
+        # put in its place is asked as it is.
+        if probe is _FACADE_VIRTUAL_MEMORY:
+            probe = psutil.machine_virtual_memory
         probe_key = id(probe)
         now = time.monotonic()
         with InferenceGate._virtual_memory_memo_lock:

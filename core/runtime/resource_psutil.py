@@ -88,12 +88,26 @@ def _host_counter(api: str, fields: tuple[str, ...]) -> Any:
     return None if raw is None else _counter_namespace(raw, fields)
 
 
-def virtual_memory() -> Any:
+def machine_virtual_memory() -> Any:
+    """`virtual_memory` of the machine itself, under any host a run declares."""
+    return virtual_memory(machine=True)
+
+
+def virtual_memory(*, machine: bool = False) -> Any:
     # The psutil compatibility API promises host memory, not recursive process
     # accounting. The latter walks every process parent on macOS and was being
     # paid by hot-path callers every few seconds, including on the event loop.
     # Explicit process-tree consumers still use ResourceObserver.memory().
-    memory = get_resource_observer().memory(include_process_tree=False)
+    #
+    # `machine` asks the observer under any declared host: what she feels of
+    # her body is the declared reading, and whether a model fits in memory is a
+    # question about the machine. A subject run's stress condition declared 95%
+    # and her cortex, dead mid-run, was refused its reload for hours on a
+    # machine 90% free (22 October).
+    observer = get_resource_observer()
+    if machine:
+        observer = getattr(observer, "machine", observer)
+    memory = observer.memory(include_process_tree=False)
     if memory.available:
         return SimpleNamespace(
             total=memory.total_bytes,
@@ -506,6 +520,7 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "cpu_count",
+    "machine_virtual_memory",
     "cpu_freq",
     "cpu_percent",
     "cpu_stats",

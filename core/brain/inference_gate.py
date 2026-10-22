@@ -3669,7 +3669,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
             return True
         return any(token in reason for token in _ACTIVE_GENERATION_BUSY_REASONS)
 
-
     @staticmethod
     def _desktop_safe_boot_enabled() -> bool:
         """Return True only for explicit reduced recovery safe boot."""
@@ -3720,7 +3719,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
             return float(maximum)
         return value
 
-
     #: One RAM reading shared by everything that asks within this window.
     #:
     #: _cortex_warmup_admission_snapshot called psutil.virtual_memory() directly
@@ -3736,8 +3734,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
     _virtual_memory_memo: tuple[float, int, Any] | None = None
     _virtual_memory_memo_lock = _threading.Lock()
 
-
-
     #: What actually happened to a load attempt. Both defer warmup — the GPU
     #: thrash is the same either way — but they are not the same event, and
     #: recording an overrun as a kill puts a process termination in the record
@@ -3746,26 +3742,12 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
     LOAD_SETBACK_KILL = "stuck_load_kill"
     LOAD_SETBACK_OVERRUN = "warmup_budget_overrun"
 
-
     #: How long a lane-transition lease is honoured before it is considered
     #: abandoned. Long enough for a cancel-and-verify pass, short enough that a
     #: crashed holder cannot wedge recovery for good.
     _LANE_TRANSITION_LEASE_S = 30.0
 
-
-
-
-
-
-
-
-
-
-
     _FORCE_WARMUP_FLAG = "AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE"
-
-
-
 
     # Admission/backoff outcomes are the ladder DECIDING not to load a tier
     # right now — the designed backpressure that lets a lower rung serve the
@@ -3797,17 +3779,21 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         text = str(exc or "")
         return any(marker in text for marker in cls._EXPECTED_BACKPRESSURE_MARKERS)
 
-
-
-
-
-
     @staticmethod
     def _headroom_snapshot(requested_tier: str = "primary") -> dict[str, Any]:
         try:
+            from core.runtime.resource_observation import get_resource_observer
             from core.utils.memory_monitor import get_memory_pressure_snapshot
 
-            snapshot = get_memory_pressure_snapshot()
+            # Whether a lane fits is a question about the machine. Under a host
+            # a run declares, the observer underneath answers it: a stress
+            # condition's declared 95% downgraded her cortex mid-run and shut it
+            # down on a machine 90% free (22 October).
+            machine = getattr(get_resource_observer(), "machine", None)
+            snapshot = (
+                get_memory_pressure_snapshot(observer=machine) if machine is not None
+                else get_memory_pressure_snapshot()
+            )
             total_gb = float(snapshot.total_gb)
             available_gb = float(snapshot.available_gb)
             pressure_pct = float(snapshot.pressure_pct)
@@ -4231,9 +4217,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         self._initialized = False
 
     on_stop = cleanup
-
-
-
 
     @staticmethod
     def _model_now_serving(requested_tier: str) -> str:
@@ -5566,8 +5549,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
             logger.debug("Own process tree unreadable, leaving the pid set short: %s", exc)
         return frozenset(p for p in pids if p and p != "0")
 
-
-
     async def ensure_foreground_ready(self, timeout: float | None = None) -> dict[str, Any]:  # noqa: ASYNC109
         """Ensure the 32B conversation lane has actually attempted warmup for this turn."""
         if is_shutdown_requested():
@@ -5737,7 +5718,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                 return lane
             raise RuntimeError(str(lane.get("last_failure_reason") or "foreground_lane_not_ready"))
         return lane
-
 
     async def _ensure_cortex_recovery(self) -> None:
         """Proactively recover the 32B primary brain if it died (e.g., laptop sleep).
@@ -8118,11 +8098,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         "updated_at",
     )
 
-
-
-
-
-
     #: One budget for assembling live context, whichever shape it takes.
     #: Only the FULL assembly was ever bounded; the compact builder — including
     #: the one used as the full builder's timeout fallback — was awaited bare,
@@ -8320,27 +8295,14 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
         self._living_mind_receipt = receipt
         return rendered
 
-
-
-
-
-
-
-
-
     #: Shapes already reported, so one unstamped producer does not flood the
     #: degradation trail on every turn.
     _unstamped_grounding_seen: set[str] = set()
-
-
-
 
     #: Characters and prefixes a value could use to impersonate contract
     #: structure. Newlines create a sibling bullet; a leading "#" creates a
     #: sibling section; a leading "-" or "*" creates a sibling constraint.
     _CONTRACT_STRUCTURE_PREFIXES = ("-", "*", "#", ">", "•")
-
-
 
     # How turn-volatile each live-mind section is. 0 = stable across a
     # conversation (identity, contracts, policy), 2 = changes every turn by
@@ -8353,9 +8315,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
     #: is trimmed. One list, because the deep prompt builder trims against
     #: it too and two copies of a list like this drift apart quietly.
     CRITICAL_FOREGROUND_HEADERS = _CRITICAL_FOREGROUND_HEADERS
-
-
-
 
     # A foreground prompt is two different things wearing one number: the
     # scaffold the model READS, and the answer the person WANTS. The profile
@@ -8386,15 +8345,10 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
     _SCAFFOLD_TO_REQUEST_RATIO = 8
     _SCAFFOLD_FLOOR_CHARS = 2_400
 
-
-
-
     #: Where a system block gets its middle removed. Same convention the
     #: per-message compactor uses, so a trimmed prompt reads the same wherever
     #: the trim happened.
     _PROMPT_FIT_MARKER = "\n…[middle omitted to fit the serving context window]…\n"
-
-
 
     #: What the grounding may spend on a turn that is not budget-constrained.
     #: Generous on purpose: every profile except the contract lane already has
@@ -8406,10 +8360,6 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
     #: identity prefix and one for the fresh state projection.
     _STATE_REPORT_TOTAL_BUDGET_CHARS = 4_200
     _STATE_REPORT_GROUNDING_BUDGET_CHARS = 1_400
-
-
-
-
 
     async def generate(  # noqa: ASYNC109
         self,

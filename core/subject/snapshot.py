@@ -1662,6 +1662,11 @@ class _HeldObserver:
     def provenance(self) -> Any:
         return self._inner.provenance
 
+    @property
+    def machine(self) -> Any:
+        """The real observer underneath, for questions about the machine rather than about her."""
+        return getattr(self._inner, "machine", self._inner)
+
     def _held(self, name: str, args: tuple, kwargs: dict) -> Any:
         key = (name, args, tuple(sorted(kwargs.items())))
         if key not in self._answers:

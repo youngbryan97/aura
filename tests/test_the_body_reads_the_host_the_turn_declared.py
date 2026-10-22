@@ -118,3 +118,33 @@ def test_her_process_size_is_held_where_the_run_declared_it() -> None:
     host.declare(STRESS)
     assert host.memory().process_rss_bytes == at_start
     assert host.memory().percent == 88.0, "the declared reading still moves with the turn"
+
+
+def test_whether_a_model_fits_is_asked_of_the_machine_not_of_her_body() -> None:
+    """A run's stress condition declared 95% memory, her cortex died mid-run,
+    and the gate refused its reload for hours on a machine 90% free (22
+    October): the reload decision had read the body she was being shown."""
+    from core.brain.inference_gate import InferenceGate
+    from core.runtime import resource_psutil
+
+    roomy = SimulatedResourceObserver(cpu_percent=3.0, memory_percent=10.0, cpu_count=18)
+    previous = set_resource_observer_for_test(_DeclaredHost(roomy, STRESS))
+    InferenceGate._virtual_memory_memo = None
+    try:
+        assert resource_psutil.virtual_memory().percent == 88.0
+        assert resource_psutil.virtual_memory(machine=True).percent == 10.0
+        assert InferenceGate._recent_virtual_memory().percent == 10.0
+    finally:
+        set_resource_observer_for_test(previous)
+        InferenceGate._virtual_memory_memo = None
+
+
+def test_whether_her_cortex_lane_fits_is_asked_of_the_machine() -> None:
+    from core.brain.inference_gate import InferenceGate
+
+    roomy = SimulatedResourceObserver(cpu_percent=3.0, memory_percent=10.0, cpu_count=18)
+    previous = set_resource_observer_for_test(_DeclaredHost(roomy, STRESS))
+    try:
+        assert InferenceGate._headroom_snapshot("primary")["pressure_pct"] == 10.0
+    finally:
+        set_resource_observer_for_test(previous)
