@@ -1854,8 +1854,6 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
     #: A slow one used to hold every turn behind it.
     _AUGMENTATION_TIMEOUT_S = 2.0
 
-
-
     #: What a caller-supplied contract may contribute to the system prompt.
     #: The same limits the inference gate applies to the same two strings —
     #: they were bounded there and concatenated raw here.
@@ -1915,7 +1913,6 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         if len(text) <= limit:
             return text
         return text[: max(1, limit - 1)].rstrip() + "…"
-
 
     @staticmethod
     def _normalize_mode(mode: ThinkingMode | str | Any) -> ThinkingMode:
@@ -2197,14 +2194,6 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
             logger.debug("CognitiveEngine origin resolution degraded: %s", exc)
 
         return "system"
-
-
-
-
-
-
-
-
 
     async def think(
         self,

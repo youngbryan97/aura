@@ -499,7 +499,6 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     #: would be wrong for every one that adds a field.
     result_schema = THE_SHARED_RESULT
 
-
     name = "sovereign_browser"
     description = "Browse the web, search for information, or interact with websites (click, type, etc.)."
     input_model = BrowserInput
@@ -1506,7 +1505,6 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     #: a wall: the first repeat may be a re-render, the second is a loop.
     PURSUE_STALL_LIMIT = 2
 
-
     #: Controls offered to one decision. A live questionnaire renders 83, most
     #: of them site furniture — nav, language, login, footer — and every one of
     #: them is prefill on every round. Measured: 3,183-token prompts with 2,471
@@ -1526,12 +1524,6 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
     #: is six or so; the cap is what keeps a pathological page from opening a
     #: hundred generations at once.
     PURSUE_PARALLEL_ITEMS = 8
-
-
-
-
-
-
 
     async def _handle_pursue(
         self,

@@ -570,8 +570,6 @@ class SteeringVectorLibrary(_ReadsACachedVector):
             logger.debug("Steering vector source inference failed: %s", exc)
         return "configured_caa"
 
-
-
     def _register_vector(self, vector: SteeringVector) -> None:
         provenance = VectorProvenance(
             source=vector.source,
@@ -2265,14 +2263,6 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
         """Enable or disable all steering without removing hooks."""
         for hook in self._hooks:
             hook._active = active
-
-
-
-
-
-
-
-
 
     def get_status(self) -> dict[str, Any]:
         return {

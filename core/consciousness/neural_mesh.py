@@ -950,7 +950,6 @@ class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
 
     # ── Inter-column connectivity ────────────────────────────────────────
 
-
     def _apply_recurrent_feedback(self, dt: float, gain: float,
                                    noise_sigma: float, now: float):
         """Apply top-down recurrent feedback from executive to sensory tiers.
@@ -1755,13 +1754,6 @@ class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
             expected_len=expected_len,
             action="sanitized association ingress before NeuralMesh injection",
         )
-
-
-
-
-
-
-
 
     def get_executive_projection(self) -> np.ndarray:
         """Project full 4096-d state down to 64-d for LiquidSubstrate injection.
