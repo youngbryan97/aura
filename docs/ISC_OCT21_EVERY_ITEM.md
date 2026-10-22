@@ -349,3 +349,36 @@ one carrier, her 27B's reports under the controls, and seed 23.
   stops nothing in a run, so no reading moved. Fixed in `9ed231da3`.
 - **The distillation queue warned on every drop**, 1,564 times in one run.
   Said once since `435c8791a`.
+
+## The pair at `086ec4bb5` (read 21 October, 22:00)
+
+Seed 7, 370 rounds, codes on and off. v1 17/24 in both arms.
+
+| v5 synergy (v3 bars) | codes on | codes off |
+|---|---|---|
+| A,S -> G | fails, 0.0068 under shifted 0.0159 | fails, 0.0186 under 0.0234 |
+| P,M -> W | fails, 0.163 under 0.208 (0.275 over 0.214 without registers) | passes, 0.298 over 0.229 |
+| W,A -> D | passes, 0.126 over 0.081, gain bound +0.076 | passes, 0.072 over 0.049 |
+| S,D -> C | fails on the gain bound alone (0.021 over 0.018, bound 0) | fails, 0.0047 under 0.0403 |
+
+- **G2 and G3 work without the codes.** P,M -> W and W,A -> D pass with the
+  codes off; W,A -> D failed both arms at `5885688d7`.
+- **The gain-field codes cost what the signed ones had.** At `5885688d7` the
+  signed codes passed A,S -> G, and still did with the registers held flat
+  (0.0255 over 0.0073), so that was an effect. The gain-field, leaky form
+  passes it in neither arm.
+- **The codes' register in W costs P,M -> W**: it passes with the registers
+  flat and fails as recorded.
+- **S,D -> C fails at model selection.** Every fold's interaction gain is
+  exactly zero: the one-standard-error rule turns the product columns off. C's
+  change is read through its field chemistry and shares, the mesh's sensory
+  input and the mesh's state; the substrate, where G5's current acts, is in
+  none of its first three components.
+- **The codes-on closure reading is degenerate, not leaky.** Its core-only loss
+  is 2.6e-05 against 0.17 to 0.19 in the other three arms: one K column,
+  `C.mesh_weight_max`, sits 5,333 training spreads off on the test rows and
+  carries the whole pooled loss. The mesh's weights reach the clip of one under
+  the tier gains and are then scaled back by the column's norm cap: a regime
+  switch, the class the substrate's five-turn cycle was.
+- **The codes-off closure audit missed its planted cause**, so that audit was
+  underpowered there.
