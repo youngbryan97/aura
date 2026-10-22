@@ -108,7 +108,7 @@ def test_the_phase_feels_what_the_turn_meant(monkeypatch):
     unkind = Appraisal(their_doing=-0.9, coping=0.9, company=1.0, social_need=0.0, novelty=0.2)
     monkeypatch.setattr(phase.appraisal, "read", lambda *_a, **_k: unkind)
     before = dict(state.affect.emotions)
-    felt = phase.appraisal(state, state.affect, company=True)
+    felt = phase.appraisal.feel(state, state.affect, company=True)
     assert felt["anger"] > 0.8
     assert state.affect.emotions["anger"] > before["anger"]
     assert state.affect.emotions["trust"] <= before["trust"]
@@ -130,3 +130,17 @@ def test_the_app_names_what_she_feels_most_and_its_family():
     assert [item["family"] for item in shown] == ["angry", "warm", "low"]
     # Every emotion she has belongs to a family the app can colour.
     assert set(state.affect.emotions) <= set(FAMILIES)
+
+
+def test_a_fork_carries_what_the_appraisal_has_already_read():
+    # 22 October: the appraisal was callable, the fork skips callable
+    # attributes, and two untouched forks of one anchor parted at frame 9
+    # because the second thought it had already appraised the turn.
+    from types import SimpleNamespace
+
+    from core.phases.affect_update import AffectUpdatePhase
+    from core.subject.snapshot import _organ_state
+
+    phase = AffectUpdatePhase(SimpleNamespace())
+    assert not callable(phase.appraisal)
+    assert "appraisal" in _organ_state(phase)

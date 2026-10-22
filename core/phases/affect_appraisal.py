@@ -102,7 +102,11 @@ class TurnAppraisal:
                 logger.debug("the %s check could not be read: %s", name, exc)
         return Appraisal(**checks)
 
-    def __call__(self, state: AuraState, affect: AffectVector, *, company: bool) -> dict[str, float]:
+    # A method rather than `__call__`: the subject fork carries a phase's
+    # attributes but skips callable ones, so a callable appraisal left its
+    # reader out of every snapshot, and two untouched forks of one anchor
+    # parted at the ninth frame (22 October).
+    def feel(self, state: AuraState, affect: AffectVector, *, company: bool) -> dict[str, float]:
         """Appraise the turn and move each emotion it names; returns what it felt."""
         try:
             appraisal = self.read(state, affect, company=company)

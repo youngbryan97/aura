@@ -387,7 +387,7 @@ class AffectUpdatePhase(Phase):
         # And what the turn meant to her: how new it was, how it went against
         # what she expected, whose doing that was, whether she can do anything
         # about it, and who is here. See core/affect/appraisal.py.
-        self.appraisal(state, affect, company=_addressed(state))
+        self.appraisal.feel(state, affect, company=_addressed(state))
         state.world.trim_percepts()
 
         # 3.5. Conversation Feedback — close the loop from discourse state → affect
