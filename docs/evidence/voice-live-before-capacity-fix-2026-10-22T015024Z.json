@@ -1,0 +1,140 @@
+{
+  "failure": null,
+  "schema": "aura.voice.live_probe.v1",
+  "input": "Known prerecorded utterance injected as 16k PCM through production voice websocket; actual OS audio output rendered reply. Physical microphone acoustics were not tested.",
+  "ready": {
+    "type": "voice.ready",
+    "tts_engine": "pocket",
+    "vad_backend": "silero_onnx",
+    "asr_available": true,
+    "sample_rate_in": 16000,
+    "sample_rate_out": 24000
+  },
+  "final": {
+    "type": "voice.final",
+    "text": "Hello.",
+    "endpoint_reason": "silence_met_neutral",
+    "decode_ms": 293.2,
+    "addressed": true,
+    "address_rung": "explicit",
+    "address_why": [
+      "the floor was opened deliberately"
+    ]
+  },
+  "first_reply_audio_after_input_end_ms": 46027.13966707233,
+  "events": [
+    {
+      "at_ms": 83.71812489349395,
+      "type": "voice.state",
+      "state": "preparing"
+    },
+    {
+      "at_ms": 86.81145799346268,
+      "type": "voice.ready",
+      "tts_engine": "pocket",
+      "vad_backend": "silero_onnx",
+      "asr_available": true,
+      "sample_rate_in": 16000,
+      "sample_rate_out": 24000
+    },
+    {
+      "at_ms": 133.2209169631824,
+      "type": "voice.state",
+      "state": "listening"
+    },
+    {
+      "at_ms": 472.5994999753311,
+      "type": "voice.state",
+      "state": "user_speaking"
+    },
+    {
+      "at_ms": 1202.98320800066,
+      "type": "voice.partial",
+      "stable": "",
+      "tentative": "Hello.",
+      "decode_ms": 186.9
+    },
+    {
+      "at_ms": 1625.8085829904303,
+      "type": "voice.state",
+      "state": "thinking"
+    },
+    {
+      "at_ms": 1628.107582917437,
+      "type": "voice.final",
+      "text": "Hello.",
+      "endpoint_reason": "silence_met_neutral",
+      "decode_ms": 293.2,
+      "addressed": true,
+      "address_rung": "explicit",
+      "address_why": [
+        "the floor was opened deliberately"
+      ]
+    },
+    {
+      "at_ms": 1977.7955419849604,
+      "type": "voice.partial",
+      "stable": "Hello.",
+      "tentative": "",
+      "decode_ms": 452.5
+    },
+    {
+      "at_ms": 2061.86949997209,
+      "type": "voice.filler",
+      "text": "mm\u2026",
+      "tier": 1,
+      "cause": "unknown"
+    },
+    {
+      "at_ms": 3566.2178329657763,
+      "type": "voice.filler",
+      "text": "hm, one sec.",
+      "tier": 2,
+      "cause": "unknown"
+    },
+    {
+      "at_ms": 10892.286041984335,
+      "type": "voice.filler",
+      "text": "sorry, still working on it.",
+      "tier": 3,
+      "cause": "unknown"
+    },
+    {
+      "at_ms": 46326.833667000756,
+      "type": "voice.reply",
+      "text": "Hello. I'm here \u2014 awake and quiet for now. What's on your mind?"
+    },
+    {
+      "at_ms": 46327.26924994495,
+      "type": "voice.state",
+      "state": "speaking"
+    },
+    {
+      "at_ms": 47207.655041944236,
+      "type": "voice.chunk",
+      "text": "Hello. I'm here \u2014",
+      "seq": 0,
+      "utterance_id": 1
+    },
+    {
+      "at_ms": 49165.250874939375,
+      "type": "voice.chunk",
+      "text": "awake and quiet for now. What's on your mind?",
+      "seq": 1,
+      "utterance_id": 1
+    },
+    {
+      "at_ms": 52231.975541915745,
+      "type": "voice.metrics",
+      "asr_ms": 0.0,
+      "asr_speculative_ms": 293.2,
+      "cognition_ms": 44698.4,
+      "tts_first_chunk_ms": 879.0,
+      "time_to_first_audio_ms": 45581.7
+    }
+  ],
+  "output_samples": 117645,
+  "source_revision": "ad82fb34f5082c7d740fcc7ff6702ae2fe267380",
+  "measured_at": "2026-10-22T015024Z",
+  "verdict": "Full voice path worked for Hello, but 46.0s first-audio latency fails the intended conversational experience."
+}

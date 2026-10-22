@@ -169,7 +169,16 @@ def _names(message: str) -> list[str]:
             continue
         first = stripped.split(" ", 1)[0]
         for match in _NAME_SHAPE.finditer(stripped):
-            text = match.group(0).strip()
+            text = match.group(0).strip().rstrip(".,;:!?")
+            # A greeting can share a capitalised span with its addressee.
+            # Remove the already-classified sentence opening before deciding
+            # whom it names: "Hello Aura" addresses her, while "Hello Ada
+            # Lovelace" still names somebody outside this conversation.
+            if match.start() == 0:
+                words = text.split()
+                while len(words) > 1 and words[0].lower() in _CAPITALISED_BUT_ORDINARY:
+                    words.pop(0)
+                text = " ".join(words)
             if text.lower() in _NOT_A_SUBJECT or text.lower() in _CAPITALISED_BUT_ORDINARY:
                 continue
             # A single capitalised word that only leads the sentence is

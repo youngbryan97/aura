@@ -207,10 +207,12 @@ class _AnswersTheDesktopDirectly:
             # 512-token floor: a live conversational reply must have room to
             # finish its sentences even after advisory reductions.
             max_tokens = max(512, min(max_tokens, 1024))
-        # ``max_tokens`` is already the question-shaped, route-approved budget.
-        # Preserve it unless memory pressure is truly critical. The MLX gate
-        # keeps 64/32-token critical and emergency caps hard.
-        completion_floor = max_tokens  # a turn of hers answering nobody keeps the room its caller gave it
+        # The allocation includes spare room for finishing a sentence. The
+        # completion floor describes the work the visible request requires;
+        # the worker also uses it to decide whether computation is unresolved.
+        # Passing the allocation as that floor made a greeting open a private
+        # reasoning channel just because conversational replies get 512 tokens.
+        completion_floor = min(max_tokens, max(1, int(structural_answer_floor)))
         return (int(context.get("max_tokens") or max_tokens),) * 2 if context.get("her_own_turn") else (completion_floor, max_tokens)
 
     @staticmethod
