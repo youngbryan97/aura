@@ -824,6 +824,11 @@ _SCHEMAS: dict[str, Schema] = {
             # W_field; the closure test read them from outside the core on seed 7
             # at 370 rounds (validate-s7-84d9fe6f5).
             *((f"field_chemistry_{part}", "organ:field.W_chem") for part in SKETCH_FIELDS),
+            # And the whole of what the field learns its inputs through, of which
+            # the chemistry weights are one block. Its other blocks, the mesh,
+            # binding, body and substrate weights, were the largest leaks into
+            # the core in the closure test of 21 October (validate-s7-5885688d7).
+            *((f"field_input_{part}", "organ:field._W_input_batched") for part in SKETCH_FIELDS),
             # The units where her self and what she means to do meet, which drive
             # their band of the substrate. See core/consciousness/conjunctive_codes.py.
             *((f"conj_recurrent_{k}", "conjunctions.units.recurrent") for k in range(CONJUNCTION_UNITS)),

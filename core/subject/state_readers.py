@@ -321,6 +321,7 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
         )
     )
     head.extend(_sketched(organs.field, "W_chem", source="organ:field.W_chem"))
+    head.extend(_sketched(organs.field, "_W_input_batched", source="organ:field._W_input_batched"))
     head.extend(_conjunction(state, "recurrent"))
     return np.array(head, dtype=np.float64)
 

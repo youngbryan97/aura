@@ -240,8 +240,18 @@ def _core_attributes() -> dict[str, set[str]]:
             path = source[len("organ:") :]
             organ, _, attribute = path.partition(".")
             if organ and attribute:
-                out.setdefault(organ, set()).add(attribute.split(".")[0])
+                read = attribute.split(".")[0]
+                out.setdefault(organ, set()).add(read)
+                out[organ].update(_VIEWS_OF.get((organ, read), ()))
     return out
+
+
+#: Attributes that are fixed slices of one the core reads, so reading the one
+#: is reading them. The unified field learns its inputs in one matrix and keeps
+#: the per-source blocks as its column slices (core/consciousness/unified_field_learning.py).
+_VIEWS_OF: dict[tuple[str, str], tuple[str, ...]] = {
+    ("field", "_W_input_batched"): ("W_mesh", "W_chem", "W_bind", "W_intero", "W_substrate"),
+}
 
 
 #: Container and organ names that hold one of the core's organs, by the organ

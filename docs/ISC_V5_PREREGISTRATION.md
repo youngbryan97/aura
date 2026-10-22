@@ -2039,3 +2039,42 @@ nought to one times P(it works | W, act) / P(it works | act), learned from her
 own acts' outcomes in the run and credited to the world each was chosen in.
 With no record it ranks the acts as her feelings do. The validation pair that
 reads W,A -> D runs on the commit that carries this.
+
+### The withheld reports run: how many anchors, and why
+
+The printed run at `b815ecd41` answered 13 anchors before its cortex was lost to
+memory pressure (resumed from them). Her 27B gave a readable number in most
+arms. The arms moved her computed valence by 0.087 between raised and lowered
+(SD 0.067); her reports did not follow (raised minus lowered -0.013, SD 0.237).
+At that spread, a reporter whose number moved one for one with her valence
+would need about 75 anchors for 80% power at the ground's 0.01, and 24 would
+leave it at a z near 1.2. The withheld run takes 80 anchors. The dose, the
+tests and their level are unchanged; only the count of anchors, which no
+criterion fixes, is set here, from a run that cannot decide the ground.
+
+## Addendum, 21 October 2026, evening: K along her own axes, and the field's input matrix
+
+**What the sufficiency probe read** (`tools/k_compact_sufficiency.py`, at
+`086ec4bb5`, the organism quieted as the battery quiets it, three moments per
+array, a step the size of one turn's ordinary change). For the substrate's state,
+a change the eight-number sketch cannot see moved K a turn later as much as a
+change it sees: hidden over visible 1.03, against a floor of two identical forks
+of 0.001 to 0.009. The field's state and weights, the substrate's weights, the
+self-model's weights and the phi estimators' visit counts read at 0.0004 to 0.05
+of visible; the mesh's buffers and the field's chemistry weights at the floor.
+The substrate's state is where the self-and-intention current acts, so K was
+reading that coupling through about four parts in 512.
+
+**The next pair reads K along calibrated axes** (`--calibrated-axes`): one pass
+of the conditions before recording fixes each sketched array's four leading
+principal axes, and the four projection columns read along them. K's width is
+unchanged by it.
+
+**C reads the field's input matrix.** The unified field learns its inputs in one
+matrix (`_W_input_batched`) and keeps the per-source blocks as its column
+slices. C reads that matrix through the sketch, eight columns, and the closure
+test counts the blocks as views of what C reads. Its blocks were the largest
+leaks into the core at `5885688d7`. K goes from 491 to 499 columns.
+
+Both are organism-reading changes for the next pair at seed 7 (codes on and off,
+calibrated axes in both). Nothing moves a threshold.
