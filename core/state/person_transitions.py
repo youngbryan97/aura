@@ -100,26 +100,22 @@ def canonical_digest(value: Any) -> str:
 def _writer(path: str, since: float) -> dict[str, Any]:
     """The newest measured write to `path` since `since`, or an empty record."""
     try:
-        from core.runtime.cognitive_provenance import recent_graphs
+        from core.runtime.cognitive_provenance import last_writer_since
     except ImportError:
         return {}
-    for graph in reversed(recent_graphs(64)):
-        if graph.ended_at and graph.ended_at < since:
-            break
-        receipt = graph.last_writer(path)
-        if receipt is None:
-            continue
-        objective = str(getattr(graph, "objective", "") or "")
-        return {
-            "transform": receipt.transform,
-            "honoured": bool(receipt.honoured_contract),
-            "contract": receipt.contract_hash,
-            "branch": receipt.branch,
-            "tick": graph.tick_id,
-            "objective": hashlib.sha1(objective.encode("utf-8")).hexdigest()[:12] if objective else "",
-            "at": receipt.at,
-        }
-    return {}
+    held = last_writer_since(path, since)
+    if held is None:
+        return {}
+    receipt, tick, objective = held
+    return {
+        "transform": receipt.transform,
+        "honoured": bool(receipt.honoured_contract),
+        "contract": receipt.contract_hash,
+        "branch": receipt.branch,
+        "tick": tick,
+        "objective": hashlib.sha1(objective.encode("utf-8")).hexdigest()[:12] if objective else "",
+        "at": receipt.at,
+    }
 
 
 class PersonWatch:

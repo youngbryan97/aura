@@ -57,6 +57,7 @@ __all__ = [
     "begin_transformation",
     "close_tick",
     "current_graph",
+    "last_writer_since",
     "note_branch",
     "open_tick",
     "recent_graphs",
@@ -154,6 +155,33 @@ _CURRENT: contextvars.ContextVar[CognitiveProvenanceGraph | None] = contextvars.
 )
 _RING: deque[CognitiveProvenanceGraph] = deque(maxlen=_RING_SIZE)
 _RING_LOCK = checked_lock("cognitive_provenance_ring")
+
+#: Each field's newest writer, kept as the receipt is made. The ring holds the
+#: last 64 ticks and her mind tick opens one every few seconds, so a write made
+#: minutes before her state was committed had left the ring by the time her
+#: lineage asked what made it: on 21 October every change to her evolution score
+#: in her live log was recorded with no writer. One entry per field written.
+_LAST_WRITERS: dict[str, tuple[TransformationReceipt, str, str]] = {}
+_LAST_WRITERS_LOCK = checked_lock("cognitive_provenance_last_writers")
+
+
+def _note_writer(receipt: TransformationReceipt, graph: CognitiveProvenanceGraph | None) -> None:
+    if receipt.skipped or not receipt.observed_writes:
+        return
+    tick = graph.tick_id if graph is not None else ""
+    objective = graph.objective if graph is not None else ""
+    with _LAST_WRITERS_LOCK:
+        for path in receipt.observed_writes:
+            _LAST_WRITERS[path] = (receipt, tick, objective)
+
+
+def last_writer_since(path: str, since: float) -> tuple[TransformationReceipt, str, str] | None:
+    """The newest measured write to `path` made at or after `since`, with its tick and objective."""
+    with _LAST_WRITERS_LOCK:
+        held = _LAST_WRITERS.get(path)
+    if held is None or held[0].at < since:
+        return None
+    return held
 
 
 def current_graph() -> CognitiveProvenanceGraph | None:
@@ -376,6 +404,7 @@ class _Transformation:
         )
         if graph is not None:
             graph.add(receipt)
+        _note_writer(receipt, graph)
         if undeclared and publish_violation:
             _report_violation(self._name, undeclared)
         return receipt
@@ -468,5 +497,7 @@ def _report_violation(transform: str, undeclared: tuple[str, ...]) -> None:
 def reset_provenance_for_test() -> None:
     with _RING_LOCK:
         _RING.clear()
+    with _LAST_WRITERS_LOCK:
+        _LAST_WRITERS.clear()
     _CURRENT.set(None)
     _ACTIVE.set(None)

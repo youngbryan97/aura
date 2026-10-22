@@ -294,3 +294,27 @@ def test_unchanged_steps_after_the_last_unrecorded_change_are_not_development():
     assert development["steps_since_the_record"] == 0
     assert development["before_the_record"] == 1
     assert lineage_term(line).status == "NOT_MEASURED"
+
+
+def test_a_write_is_attributed_however_many_ticks_pass_before_the_commit():
+    """Her mind tick opens a record every few seconds and the ring keeps 64, so
+    a write minutes before a commit had left it: on 21 October every change to
+    her evolution score in her live log was recorded with no writer."""
+    from core.runtime.cognitive_provenance import begin_transformation, close_tick, open_tick
+    from core.state.aura_state import AuraState
+    from core.state.person_transitions import PersonWatch
+
+    watch = PersonWatch()
+    first = AuraState.default()
+    first.transition_evidence = watch.evidence(first)
+    second = first.derive("growth")
+    graph = open_tick(objective="a turn that grew her")
+    measuring = begin_transformation("AffectUpdatePhase", second)
+    second.identity.evolution_score = float(second.identity.evolution_score or 0.0) + 0.05
+    measuring.complete(second, publish_violation=False)
+    close_tick(graph)
+    for _ in range(200):
+        close_tick(open_tick(objective="an idle tick"))
+    second.transition_evidence = watch.evidence(second)
+    change = second.transition_evidence["last_change"]["identity.evolution_score"]
+    assert change["transform"] == "AffectUpdatePhase"
