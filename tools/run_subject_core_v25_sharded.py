@@ -210,7 +210,32 @@ def main() -> int:
     print(f"started {len(children)} processes; manifest at {base / 'launch.json'}")
     if not args.wait:
         return 0
-    return max(child.wait() for child in children)
+    return supervise(children, [entry["name"] for entry in started], base / "logs" / "launcher.log")
+
+
+def supervise(children: list[subprocess.Popen], names: list[str], log_path: Path, *, every: float = 30.0) -> int:
+    """Wait for every process; one that fails stops the rest and says which.
+
+    Each process was waited for in turn, so a worker that died was noticed only
+    when every one before it had finished. On 21 October all three workers
+    died a minute after the anchors arrived and the coordinator waited fourteen
+    hours for their shards.
+    """
+    while True:
+        codes = [child.poll() for child in children]
+        failed = [(name, code) for name, code in zip(names, codes, strict=True) if code not in (None, 0)]
+        if failed:
+            with open(log_path, "a", encoding="utf-8") as log:
+                log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} stopping the launch: {failed} exited\n")
+            for child, code in zip(children, codes, strict=True):
+                if code is None:
+                    child.terminate()
+            for child in children:
+                child.wait()
+            return max(code for _name, code in failed)
+        if all(code is not None for code in codes):
+            return 0
+        time.sleep(every)
 
 
 if __name__ == "__main__":

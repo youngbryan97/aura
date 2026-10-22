@@ -1304,7 +1304,12 @@ async def main() -> int:
             if args.baseline_only:
                 _log(f"baseline only: recording saved in {run_dir}")
                 return 0
-        else:
+        # A worker on the coordinator's anchors records no baseline, so it has
+        # none to recall: it took the scale, the doses and the anchors from the
+        # bank. Recalling sent every worker of the 21 October rehearsal after a
+        # recording it never made, a minute after the anchors arrived, and the
+        # coordinator waited fourteen hours for shards that could not come.
+        elif shared_bank is None:
             from core.subject.recording import load_recording
 
             recording = load_recording(run_dir)
