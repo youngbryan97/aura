@@ -542,3 +542,46 @@ reports ground would need. The capture at the layers her signed generation
 actually steers (3 to 63, every fourth) is next, then a diagnostic fusion
 measurement over her own directions: whether they keep her voice where the
 authored ones did not.
+
+The diagnostic ran, and its "hers" arm cannot be read. The captured directions
+were swapped in at their raw length, four to five, where the authored vectors
+are far shorter: at the same alpha her directions moved the next-token
+distribution by 10.4 against the authored 0.037, so the arm measured length and
+not direction. The swap also dropped the authored valence, energy and arousal
+vectors. The rerun (`voice_diagnostic_matched.py` in the scratch tree) scales
+each of her directions to the authored vector's length at the same hook and
+keeps the other three, so the two arms differ in the direction of curiosity and
+frustration only. The authored arm repeats the night's finding: her own replies
+are less likely by 0.19 to 3.40 nats a token under the authored steering.
+
+## Her feelings from what a turn meant (22 October, midday)
+
+Bryan asked whether she feels more than frustration and curiosity. In the app
+she could not show anything else: the mood was computed in the browser from the
+frustration and curiosity gauges, the frustration gauge was filled from any
+unpleasant valence, and every message added 0.4 to the substrate's curiosity.
+Underneath, her named mood read "trust" in 80 of 90 live readings, because
+every message raised trust, happiness and warmth whatever it said, and over 24
+offline turns anger and surprise stayed at 0.01.
+
+`27c097bf9` appraises each turn from measures she already keeps and lets
+thirty-one patterns move twenty-eight emotions (core/affect/appraisal.py), takes
+out the fixed pushes, and has the app name her three strongest feelings and
+colour her mood by the family of the first. Over 48 offline turns the
+appraisal's strongest three ranged over surprise, frustration, boredom,
+interest, remorse, unhappiness, awe, confusion and pride; her named mood was
+still joy in 39, held up by the harness's own goal-achieved percepts. `30b7fe7c7`
+records her feelings beside every reply, so a later capture can find a
+direction for each kind of feeling and not only for curiosity and frustration.
+It is named in the preregistration and enters with F3 in the next pair.
+
+## The carrier rehearsal at `4b1022f25` (died 22 October, 10:34)
+
+Two of its three workers failed at their first restore: their receipts database
+held twelve lines of a ghost-frame audit chain. The chain had travelled to them
+in an anchor, pickled with the coordinator's descriptor numbers, and in those
+workers the numbers named the database. The in-process fork already treats an
+object holding descriptors as process furniture; the anchor pickler did not.
+`b720050b9`: such an object travels only if it names the descriptors it opens
+again, and travels without them; the audit chain does, and any other becomes
+the reader's own. Relaunched at `b720050b9` at 12:51.
