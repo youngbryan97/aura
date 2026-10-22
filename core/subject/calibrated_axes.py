@@ -23,7 +23,9 @@ import numpy as np
 
 from core.subject.sketch import SKETCH_WIDTH
 
-__all__ = ["axes_for", "calibrate", "calibration_pass", "clear", "described", "fitted", "sketched_sources"]
+__all__ = [
+    "axes_for", "calibrate", "calibration_pass", "clear", "described", "fitted", "load", "save", "sketched_sources",
+]
 
 _AXES: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 _DESCRIBED: dict[str, dict[str, Any]] = {}
@@ -77,6 +79,33 @@ def clear() -> None:
     _DESCRIBED.clear()
 
 
+def save(path: Any) -> int:
+    """Write the fixed axes, so another process reads K along the same ones. Returns how many."""
+    import io
+
+    from core.runtime.atomic_writer import atomic_write_bytes
+
+    sources = sorted(_AXES)
+    arrays: dict[str, np.ndarray] = {"sources": np.asarray(sources, dtype=str)}
+    for index, source in enumerate(sources):
+        centre, vectors = _AXES[source]
+        arrays[f"centre_{index}"], arrays[f"vectors_{index}"] = centre, vectors
+    buffer = io.BytesIO()
+    np.savez(buffer, **arrays)
+    atomic_write_bytes(path, buffer.getvalue())
+    return len(sources)
+
+
+def load(path: Any) -> int:
+    """Read axes another process fixed, in place of fitting them here. Returns how many."""
+    clear()
+    with np.load(path, allow_pickle=False) as held:
+        for index, source in enumerate(held["sources"].tolist()):
+            _AXES[str(source)] = (held[f"centre_{index}"], held[f"vectors_{index}"])
+            _DESCRIBED[str(source)] = {"calibrated": True, "loaded_from": str(path)}
+    return len(_AXES)
+
+
 def sketched_sources() -> list[str]:
     """Every organ attribute K reads through the sketch, as `organ:<organ>.<attr>`."""
     from core.subject.state import DOMAINS, schema
@@ -91,10 +120,16 @@ def sketched_sources() -> list[str]:
 
 
 def _resolve(organs: Any, source: str) -> Any:
+    """The array a source names; a reader method is called, as K's reader calls it."""
     organ_name, _, path = source[len("organ:"):].partition(".")
     held = getattr(organs, organ_name, None)
     for part in path.split("."):
         held = getattr(held, part, None) if held is not None else None
+    if callable(held):
+        try:
+            held = held()
+        except Exception:  # noqa: BLE001 - a reader that raises gives no axes, as K reads a miss
+            return None
     return held
 
 

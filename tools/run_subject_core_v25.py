@@ -393,6 +393,8 @@ async def _learn_grain(
 
 #: Where the coordinator leaves its anchors for the shards.
 ANCHOR_BANK = "anchor_bank.bin"
+#: The axes the coordinator read K along, beside its bank, for its workers.
+CALIBRATED_AXES = "calibrated_axes.npz"
 
 
 def _write_anchor_bank(path: Path, bank: dict[str, Any]) -> int:
@@ -1017,6 +1019,10 @@ async def main() -> int:
         ),
     )
     parser.add_argument(
+        "--calibrated-axes", action="store_true",
+        help="read each sketched array of K along axes fixed before recording, as the campaign does",
+    )
+    parser.add_argument(
         "--whiten",
         action="store_true",
         help=(
@@ -1211,6 +1217,29 @@ async def main() -> int:
     clock = await calibrate_clock(runtime, conditions)
     frame_seconds = float(clock.get("step", 1.0 / 33.0))
     _log(f"experiment clock at {frame_seconds:.4f}s a frame")
+    # K along its own axes, as the campaign reads it (`--calibrated-axes` in
+    # tools/run_subject_core.py): one organism, one K. A worker reads the
+    # coordinator's axes; anything else fits them here.
+    axes_note: dict[str, Any] | None = None
+    if args.calibrated_axes:
+        from core.subject import calibrated_axes
+
+        if shard is not None and args.share_anchors:
+            axes_file = Path(args.shard_dir or (args.out / "shards")) / CALIBRATED_AXES
+            deadline = time.monotonic() + float(args.shard_wait_seconds or 86400.0)
+            while not await asyncio.to_thread(axes_file.exists):
+                if time.monotonic() >= deadline:
+                    raise SystemExit(f"refusing: no calibrated axes at {axes_file} when the wait ran out")
+                await asyncio.sleep(30.0)
+            axes_note = {"loaded": calibrated_axes.load(axes_file), "from": str(axes_file)}
+        else:
+            axes_note = {"fitted": await calibrated_axes.calibration_pass(runtime, conditions)}
+            if args.from_shards:
+                written = await asyncio.to_thread(
+                    calibrated_axes.save, Path(args.from_shards) / CALIBRATED_AXES
+                )
+                axes_note["written_for_the_shards"] = written
+        _log(f"K read along calibrated axes: {', '.join(f'{k} {v}' for k, v in axes_note.items() if k != 'fitted')}")
 
     evidence: dict[str, Any] = {
         "campaign": fingerprint,
@@ -1234,6 +1263,8 @@ async def main() -> int:
             {"from_stage": resumed["stage"], "at": time.time(), "commit": fingerprint.get("commit")}
         )
         evidence = carried
+    if axes_note is not None:
+        evidence["calibrated_axes"] = axes_note
 
     try:
         failures_before = dict(getattr(runtime, "failures", {}) or {})

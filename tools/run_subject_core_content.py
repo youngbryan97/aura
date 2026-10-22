@@ -216,6 +216,10 @@ async def main() -> int:
     )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--quick", action="store_true")
+    parser.add_argument(
+        "--calibrated-axes", action="store_true",
+        help="read each sketched array of K along axes fixed before recording, as the campaign does",
+    )
     parser.add_argument("--conditions", type=int, default=0)
     parser.add_argument("--classes", type=int, default=0, help="use only the first N classes")
     args = parser.parse_args()
@@ -267,10 +271,16 @@ async def main() -> int:
         )
     await start_organism(runtime)
     clock = await calibrate_clock(runtime, conditions)
+    axes_note: dict[str, Any] | None = None
+    if args.calibrated_axes:
+        from core.subject.calibrated_axes import calibration_pass
+
+        axes_note = await calibration_pass(runtime, conditions)
 
     evidence: dict[str, Any] = {
         "environment": environment(),
         "clock": clock,
+        "calibrated_axes": axes_note,
         "scope": "substrate_only",
         "displaced_domain": DISPLACED_DOMAIN,
         "agreement_bar": AGREEMENT_BAR,
