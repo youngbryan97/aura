@@ -144,3 +144,17 @@ def test_a_fork_carries_what_the_appraisal_has_already_read():
     phase = AffectUpdatePhase(SimpleNamespace())
     assert not callable(phase.appraisal)
     assert "appraisal" in _organ_state(phase)
+
+
+def test_her_own_tick_between_messages_is_still_in_company():
+    # Live on 22 October her ticks between messages had origin "system", and
+    # the appraisal felt the conversation as loneliness 0.98.
+    from core.phases.affect_update import _addressed
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.current_origin = "system"
+    assert not _addressed(state)
+    state.cognition.working_memory.append({"role": "user", "content": "you there?"})
+    state.cognition.working_memory.append({"role": "assistant", "content": "I am."})
+    assert _addressed(state)

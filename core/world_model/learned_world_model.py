@@ -82,6 +82,9 @@ _TRAIN_PASSES_PER_CYCLE = 4
 #: checkpoint directory had been empty since the day it was created.
 _CHECKPOINT_INTERVAL_S = 120.0
 
+#: How often the training lane runs, in seconds.
+TRAIN_INTERVAL_S = 2.0
+
 
 @dataclass
 class WorldModelConfig:
@@ -191,7 +194,7 @@ class LearnedWorldModel:
         self._pending_since_train = 0
         self._trainer_thread: threading.Thread | None = None
         self._trainer_stop = threading.Event()
-        self._train_interval = 2.0
+        self._train_interval = TRAIN_INTERVAL_S
 
         # Metrics
         self._step_count = 0
@@ -609,7 +612,7 @@ class LearnedWorldModel:
     # can straddle an update, and for a model that is continuously retrained
     # that is not a price at all.
 
-    def start_training(self, *, interval_s: float = 2.0) -> None:
+    def start_training(self, *, interval_s: float = TRAIN_INTERVAL_S) -> None:
         """Run the training lane in the background. Idempotent."""
         if self._trainer_thread is not None:
             return
@@ -637,21 +640,32 @@ class LearnedWorldModel:
 
     def _train_loop(self) -> None:
         while not self._trainer_stop.wait(self._train_interval):
-            try:
-                if self._pending_since_train <= 0:
-                    continue
-                self._pending_since_train = 0
-                for _ in range(_TRAIN_PASSES_PER_CYCLE):
-                    if len(self._replay) < _BPTT_WINDOW:
-                        break
-                    self._mini_batch_update()
-                if time.time() - self._last_checkpoint >= _CHECKPOINT_INTERVAL_S:
-                    self.save()
-            except (ValueError, FloatingPointError, MemoryError, RuntimeError) as exc:
-                record_degradation(
-                    "learned_world_model", exc, severity="warning",
-                    action="world-model training cycle failed; the model keeps its weights",
-                )
+            self.train_cycle()
+
+    def train_cycle(self) -> None:
+        """One iteration of the training lane: learn from what arrived since the last.
+
+        The lane's whole loop body, so the subject-core harness can step it on
+        its own clock (core/subject/steppable.py). On one clock the harness
+        stopped the lane and stepped nothing in its place, so the model never
+        learned during a run, and the precision her perception and memory set
+        on each update together never reached it (22 October).
+        """
+        try:
+            if self._pending_since_train <= 0:
+                return
+            self._pending_since_train = 0
+            for _ in range(_TRAIN_PASSES_PER_CYCLE):
+                if len(self._replay) < _BPTT_WINDOW:
+                    break
+                self._mini_batch_update()
+            if time.time() - self._last_checkpoint >= _CHECKPOINT_INTERVAL_S:
+                self.save()
+        except (ValueError, FloatingPointError, MemoryError, RuntimeError) as exc:
+            record_degradation(
+                "learned_world_model", exc, severity="warning",
+                action="world-model training cycle failed; the model keeps its weights",
+            )
 
     def train_now(self, passes: int = 1) -> float:
         """Synchronous training, for tests and for dream-cycle consolidation."""

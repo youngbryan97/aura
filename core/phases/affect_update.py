@@ -223,8 +223,18 @@ def _origin(state: Any) -> str:
 
 
 def _addressed(state: Any) -> bool:
-    """Whether somebody addressed her this turn."""
-    return _origin(state) in _USER_FACING_ORIGINS
+    """Whether somebody is with her: this turn is theirs, or one of her recent turns was.
+
+    Her own ticks come between the messages of a conversation with an origin
+    of "system", and live on 22 October they appraised the hour she spent
+    being talked to as an hour alone. Recent is the window the safety reading
+    counts presence over (core/affect/safety.py).
+    """
+    if _origin(state) in _USER_FACING_ORIGINS:
+        return True
+    from core.affect.safety import read_safety
+
+    return read_safety([], list(getattr(state.cognition, "working_memory", []) or [])).presence > 0.0
 
 
 def bump_emotion(emotions: dict, name: str, delta: float) -> None:

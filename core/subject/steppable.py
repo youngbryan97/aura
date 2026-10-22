@@ -49,6 +49,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.world_model.learned_world_model import TRAIN_INTERVAL_S
+
 logger = logging.getLogger("Aura.Subject.Steppable")
 
 __all__ = ["Steps", "frame_seconds", "layers_of", "missing_entry_points", "step_once"]
@@ -108,8 +110,8 @@ def frame_seconds() -> float:
     return max(1e-6, float(clock.step))
 
 
-#: The nine free-running cognitive layers, in the order the bridge brings them
-#: up. Each rate and each method name is the one inside that loop's own
+#: The free-running cognitive layers, in the order the bridge brings them up,
+#: and the world model's training lane. Each rate and each method name is the one inside that loop's own
 #: `while self._running:` body, so nothing here is a second implementation.
 LAYERS: tuple[Layer, ...] = (
     Layer("NeuralMesh", "bridge", "neural_mesh", 10.0, (Call("_tick"),)),
@@ -150,6 +152,10 @@ LAYERS: tuple[Layer, ...] = (
     Layer("ConsciousnessBridge", "bridge", "", 10.0, (Call("_integration_tick"),)),
     Layer("ClosedCausalLoop", "consciousness", "closed_loop", 1.0 / 2.5, (Call("step"),)),
     Layer("StreamOfBeing", "consciousness", "stream_of_being", 1.0 / 2.5, (Call("step"),)),
+    # The world model's training lane, on a plain thread rather than a task.
+    # Stopped at bring-up like the rest, and until 22 October stepped by
+    # nothing, so a run on one clock never trained it.
+    Layer("LearnedWorldModel", "world_model", "", 1.0 / TRAIN_INTERVAL_S, (Call("train_cycle"),)),
 )
 
 

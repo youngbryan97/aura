@@ -61,6 +61,8 @@ class Organism:
     bridge: Any = None
     heartbeat: Any = None
     substrate: Any = None
+    #: The learned world model, whose training lane the harness steps.
+    world_model: Any = None
     up: list[str] = field(default_factory=list)
     down: dict[str, str] = field(default_factory=dict)
     #: The free-running cognitive loops this stopped, by name. They are part of
@@ -141,6 +143,7 @@ async def bring_up(*, with_bridge: bool = True, quiet: bool = False) -> Organism
 
     organism.heartbeat = getattr(organism.consciousness, "heartbeat", None)
     organism.substrate = getattr(organism.consciousness, "liquid_substrate", None)
+    organism.world_model = getattr(optional_service("unified_world_model", default=None), "learned", None)
 
     # The affect phase pushes valence and arousal into the substrate under the
     # key `liquid_substrate`, which only the desktop boot registers. Offline

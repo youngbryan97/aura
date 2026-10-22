@@ -2260,3 +2260,24 @@ Neither change touches what the organism does with what it reads. Both change
 what an untouched fork is, so both enter every run from `f78644bbd` on: the next
 pair, and the carrier rehearsal run again, whose C cut is read against the new
 floor. Nothing moves a threshold.
+
+## Addendum, 22 October 2026, late afternoon: the world model learns on the run's clock
+
+The pair at `4b1022f25` passed causal closure in the codes-on arm for the first
+time (leak -0.0175, closed) and read v1 18 of 24, and lost P,M -> W in both
+arms (codes on 0.168 against a shift of 0.203; it had passed at `d4b8ecab3`). One
+clock stops the world model's training lane at bring-up, and, unlike the mesh
+and the other free-running layers, nothing stepped it on the run's clock: in a
+run on one clock the world model never learned. Its update is where perception
+and memory act on it together, as a precision set from both.
+
+From the commit that carries it, the harness steps the lane's whole body,
+`train_cycle`, at the lane's own rate of one cycle every two seconds of the
+run's time, beside the other stepped layers (`core/subject/steppable.py`). Both
+arms of a paired trial train the same number of times. The pair after it runs
+at that commit. W is the target of P,M -> W and a source of W,A -> D, so both
+lines can move. Nothing moves a threshold.
+
+The appraisal's company check now also counts somebody having spoken in her
+last eight turns (the window the safety reading uses), so her own ticks between
+the messages of a conversation are no longer appraised as time alone.
