@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.voice.duplex.session import DuplexVoiceSession, TurnMetrics
+from core.voice.duplex.session import DuplexVoiceSession, TurnMetrics, _measure_cognition
 
 
 @pytest.mark.asyncio
@@ -19,7 +19,7 @@ async def test_finished_cognition_is_measured_without_waiting_for_audio_or_touch
         return 'A complete answer.'
 
     task = asyncio.create_task(cognition())
-    session._measure_cognition(SimpleNamespace(task=task), time.perf_counter() - .1)
+    _measure_cognition(session._metrics, SimpleNamespace(task=task), time.perf_counter() - .1)
     next_turn = session._metrics = TurnMetrics()
     release.set()
     await task

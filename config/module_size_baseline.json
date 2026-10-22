@@ -3,7 +3,7 @@
   "description": "Modules already above the size thresholds, and the total oversize budget. Individual entries may move; the total may only shrink. A file that has shrunk must be re-recorded, because a stale entry is headroom nobody earned.",
   "max_new_module_lines": 2000,
   "max_new_class_methods": 30,
-  "oversize_budget_lines": 124307,
+  "oversize_budget_lines": 124304,
   "modules": {
     "core/adaptation/adaptive_immunity.py": {
       "lines": 3693,
@@ -50,7 +50,7 @@
       "max_class_methods": 5
     },
     "core/brain/inference_gate.py": {
-      "lines": 11357,
+      "lines": 11344,
       "max_class_methods": 146
     },
     "core/brain/latent_cortex_service.py": {
