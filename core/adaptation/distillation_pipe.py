@@ -118,9 +118,15 @@ class DistillationPipe:
             if len(self._pending) > self._max_pending:
                 overflow = len(self._pending) - self._max_pending
                 del self._pending[:overflow]
+                first = not self._dropped_pending
                 self._dropped_pending += overflow
-                logger.warning(
-                    "🧪 Distillation queue full (%d): dropped %d oldest item(s), %d total dropped.",
+                # Said once. A full queue dropping its oldest item is the bound
+                # doing its job, and a run that flags faster than the teacher
+                # drains it said so 1,564 times (21 October). Every drop after
+                # the first is counted in `stats["dropped_from_queue"]`.
+                (logger.warning if first else logger.debug)(
+                    "🧪 Distillation queue full (%d): dropped %d oldest item(s), %d total dropped; "
+                    "later drops are counted in its stats.",
                     self._max_pending, overflow, self._dropped_pending,
                 )
         logger.info(

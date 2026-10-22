@@ -171,6 +171,24 @@ async def test_pending_queue_is_bounded(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_a_full_queue_says_so_once(tmp_path, caplog):
+    """A run that flagged faster than the teacher drained warned on every drop:
+    1,564 warnings in one validation run on 21 October."""
+    import logging
+
+    from core.adaptation.distillation_pipe import DistillationPipe
+
+    pipe = DistillationPipe(dataset_path=str(tmp_path / "ds.jsonl"))
+    pipe._max_pending = 10
+    with caplog.at_level(logging.DEBUG):
+        for i in range(50):
+            await pipe.flag_for_distillation(f"prompt {i}", "response", 0.1)
+    full = [r for r in caplog.records if "queue full" in r.getMessage()]
+    assert [r.levelno for r in full].count(logging.WARNING) == 1
+    assert pipe.stats["dropped_from_queue"] == 40
+
+
+@pytest.mark.asyncio
 async def test_exhausted_items_land_in_a_dead_letter(tmp_path):
     """Items were discarded with no record while the cycle still reported ok."""
     from core.adaptation.distillation_pipe import DistillationPipe
