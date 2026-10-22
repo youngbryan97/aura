@@ -711,6 +711,7 @@ NOT_STORES: dict[str, str] = {
     "AURA_NETHACK_PATH": "a game binary",
     "AURA_MODEL_PATH": "model weights",
     "AURA_MODELS_DIR": "model weights",
+    "AURA_VOICE_POCKET_DIR": "voice model weights",
     "AURA_CODE_MODEL_PATH": "model weights",
     "AURA_FUSED_MODEL_ROOT": "model weights",
     "AURA_CORTEX_AUTHORITY_KEY_FILE": "the key that signs the installation's promotion evidence, read and never written by a run",

@@ -31,6 +31,23 @@ class OwnsDescriptors:
 
     __slots__ = ()
 
+    #: The attributes holding descriptors, for a class that opens them again
+    #: when they are None. Such a class can travel to another process without
+    #: them (core/subject/anchor_travel.py); one that names none travels as the
+    #: reader's own object, because its numbers name other files over there.
+    #: On 22 October a ghost-frame chain carried from the carrier coordinator
+    #: wrote its frames through the coordinator's descriptor numbers into two
+    #: workers' receipts database.
+    DESCRIPTORS: tuple[str, ...] = ()
+
+    def __getstate__(self) -> dict[str, Any]:
+        if not self.DESCRIPTORS:
+            raise TypeError(f"{type(self).__qualname__} holds descriptors it does not open again")
+        state = dict(vars(self))
+        for name in self.DESCRIPTORS:
+            state[name] = None
+        return state
+
     def __copy__(self) -> Any:
         return self
 

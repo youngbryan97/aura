@@ -126,6 +126,10 @@ class AuditChain(OwnsDescriptors):
     MANIFEST.txt) suitable for offline auditing.
     """
 
+    #: Opened again on the next append when None, so a chain read in another
+    #: process starts with its own descriptors. See core/runtime/descriptor_owner.py.
+    DESCRIPTORS = ("_append_fd", "_lock_fd")
+
     CHAIN_FILENAME = "_chain.jsonl"
 
     def __init__(self, root: Path):
