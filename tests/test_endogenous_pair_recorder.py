@@ -164,3 +164,30 @@ def test_the_job_hook_holds_the_steering_state_beside_the_endogenous_state(monke
     hooks.attach_endogenous_state({"id": "r1", "messages": [{"role": "user", "content": "hi"}]},
                                   override=_state().to_payload())
     assert held["steering"] == [0.5, 0.25]
+
+
+def test_each_pair_records_what_she_felt_beside_the_steering_state(tmp_path, monkeypatch):
+    # 22 October: the steering state has no discrete emotion, so a capture could
+    # only ever find directions for curiosity and frustration. See core/affect/appraisal.py.
+    import json
+
+    monkeypatch.setenv("AURA_ENDOGENOUS_PAIR_DIR", str(tmp_path))
+    recorder.reset_pending()
+    recorder.remember_pending("a", _state().to_payload(), lane="chat", felt={"anger": 0.41, "upset": 0.2})
+    recorder.remember_pending("b", _state().to_payload(), lane="chat")
+    assert asyncio.run(recorder.record_response_async("a", "That was not fair."))
+    assert asyncio.run(recorder.record_response_async("b", "Nothing risen."))
+    rows = [json.loads(line) for line in (tmp_path / "pairs.jsonl").read_text().splitlines()]
+    assert rows[0]["felt"] == {"anger": 0.41, "upset": 0.2}
+    assert "felt" not in rows[1]
+
+
+def test_the_job_hook_reads_her_feelings_from_her_live_state(monkeypatch):
+    from types import SimpleNamespace
+
+    from core.brain.llm import endogenous_client_hooks as hooks
+
+    affect = SimpleNamespace(emotions={"anger": 0.5, "joy": 0.1}, mood_baselines={"anger": 0.1, "joy": 0.2})
+    repo = SimpleNamespace(_current=SimpleNamespace(affect=affect))
+    monkeypatch.setattr("core.runtime.service_access.resolve_state_repository", lambda default=None: repo)
+    assert hooks._felt_now() == {"anger": pytest.approx(0.4)}

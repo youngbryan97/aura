@@ -114,6 +114,23 @@ def _steering_now() -> list[float] | None:
         return None
 
 
+def _felt_now() -> dict[str, float]:
+    """Her feelings above where each rests, from her live state; empty when unreadable."""
+    try:
+        from core.affect.appraisal import feeling_now
+        from core.runtime.service_access import resolve_state_repository
+
+        affect = getattr(getattr(resolve_state_repository(default=None), "_current", None), "affect", None)
+        if affect is None:
+            return {}
+        emotions = dict(affect.emotions or {})
+        risen = feeling_now(emotions, dict(affect.mood_baselines or {}), len(emotions))
+        return {str(item["name"]): float(item["above_rest"]) for item in risen}
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("her feelings not read for the pair: %s", exc)
+        return {}
+
+
 def attach_endogenous_state(
     req: dict[str, Any],
     *,
@@ -166,6 +183,7 @@ def attach_endogenous_state(
             model=str(model_path or ""),
             prompt=asked,
             steering=_steering_now(),
+            felt=_felt_now(),
         )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("endogenous state not attached to job: %s", exc)
