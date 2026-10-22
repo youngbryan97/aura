@@ -39,7 +39,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-__all__ = ["DisplacementEstimate", "decide", "per_anchor"]
+__all__ = ["DisplacementEstimate", "DisplacementMetric", "decide", "displacement_metric", "per_anchor"]
 
 
 @dataclass(frozen=True)
@@ -78,6 +78,43 @@ def per_anchor(
         np.einsum("ij,jk,ik->i", moved, precision, moved),
         np.einsum("ij,jk,ik->i", parted, precision, parted),
     )
+
+
+@dataclass(frozen=True)
+class DisplacementMetric:
+    """The distance `per_anchor` reads, fitted on a baseline: moving subspace, shrunk precision.
+
+    Dividing each column by its own spread lets a column that barely moved in
+    the baseline turn any later change into thousands of spreads: the hot-stove
+    probe's first run read 30,042 against 30,047 that way, every other column
+    lost in it.
+    """
+
+    moving: np.ndarray
+    root: np.ndarray
+
+    def whitened(self, delta: np.ndarray) -> np.ndarray:
+        """A difference of states in coordinates where this distance is the plain one."""
+        return np.atleast_2d(np.asarray(delta, dtype=np.float64)) @ self.moving @ self.root
+
+    def squared(self, delta: np.ndarray) -> np.ndarray:
+        """The squared distance of each row of a difference of states."""
+        return np.sum(self.whitened(delta) ** 2, axis=1)
+
+
+def displacement_metric(baseline: np.ndarray) -> DisplacementMetric:
+    """Fit the metric on baseline states, one per row."""
+    from sklearn.covariance import LedoitWolf
+
+    pool = np.asarray(baseline, dtype=np.float64)
+    centre = pool.mean(axis=0)
+    _, spectrum, basis = np.linalg.svd(pool - centre, full_matrices=False)
+    if spectrum.size == 0 or spectrum[0] <= 0.0:
+        return DisplacementMetric(np.zeros((pool.shape[1], 0)), np.zeros((0, 0)))
+    tolerance = spectrum[0] * max(pool.shape) * np.finfo(np.float64).eps
+    moving = basis[: int(np.sum(spectrum > tolerance))].T
+    precision = LedoitWolf().fit((pool - centre) @ moving).precision_
+    return DisplacementMetric(moving, np.linalg.cholesky(precision))
 
 
 def decide(

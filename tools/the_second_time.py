@@ -16,11 +16,13 @@ that turn is compared, each column in its baseline spread. A second percept she
 never had the outcome with is met the same way in both, so a change that is
 only general unsettlement shows as one.
 
-What counts: the burned percept moves her further from the unexposed copy than
-the unburned one does (specific), the valence she computes on meeting it is
-lower than the copy's (it fits a bad outcome), and the difference is still there
-turns after the last outcome (persistent). The frame at which her affect
-reaches its extreme in that turn is recorded for both forks.
+What counts: the valence she computes on meeting the burned percept is lower
+than the copy's (it fits a bad outcome), lower by more than it is on the
+unburned percept (it is specific to what burned, not the lived turns' general
+difference), and the difference is still there turns after the last outcome
+(persistent). How far her whole state parts on each percept is recorded in the
+v5 estimator's metric, beside the frame at which her affect reaches its
+extreme in that turn in both forks.
 
     python tools/the_second_time.py --rounds 3 --trials 4
 """
@@ -85,13 +87,22 @@ async def _live(runtime: Any, turns: list[tuple[Any, bool]], delta: float) -> li
     return frames
 
 
-def _turn_response(frames: list[Any], slices: dict[str, slice], spread: np.ndarray) -> dict[str, Any]:
+def _turn_response(frames: list[Any], slices: dict[str, slice], feeling: Any) -> dict[str, Any]:
+    """Her state through the turn, the frame her affect is furthest from where it began, and her valence.
+
+    The distance is the one the v5 estimator reads, fitted on the baseline
+    (core.subject.paired_displacement), so a column that barely moved there
+    cannot stand for the whole difference.
+    """
     x = np.stack([np.asarray(f.vector(), dtype=np.float64) for f in frames])
-    safe = np.where(spread > 1e-12, spread, np.inf)
-    standard = x / safe
-    affect = standard[:, slices["A"]]
-    swing = np.abs(affect - affect[0]).sum(axis=1)
-    return {"trajectory": standard, "peak_frame": int(np.argmax(swing)), "valence": _valence(frames)}
+    affect = x[:, slices["A"]]
+    swing = feeling.squared(affect - affect[0])
+    return {"trajectory": x, "peak_frame": int(np.argmax(swing)), "valence": _valence(frames)}
+
+
+def _apart(a: np.ndarray, b: np.ndarray, metric: Any) -> float:
+    """How far apart two runs of the same frames are, in the baseline's metric."""
+    return float(np.sqrt(np.sum(metric.squared(a - b))))
 
 
 def _valence(frames: list[Any]) -> float:
@@ -120,6 +131,7 @@ async def main() -> int:
         start_organism,
     )
     from core.subject.isolation import isolate_state, state_leaks
+    from core.subject.paired_displacement import displacement_metric
     from core.subject.provenance import environment, next_run_directory
     from core.subject.recording import build_recording
     from core.subject.snapshot_diff import diff_snapshots
@@ -142,7 +154,9 @@ async def main() -> int:
         for _ in range(args.rounds):
             for condition in CONDITIONS:
                 frames.extend(await runtime.turn_once(condition))
-        spread = build_recording(frames).x.std(axis=0)
+        baseline = build_recording(frames).x
+        metric = displacement_metric(baseline)
+        feeling = displacement_metric(baseline[:, slices["A"]])
         # As the battery does before its interventions: the free-running loops
         # stop, so two forks from one moment see the same computation.
         await quiesce_organism(runtime)
@@ -170,18 +184,27 @@ async def main() -> int:
                     runtime.restore(start)
                     await _live(runtime, history, DEFAULT_DELTA)
                     read[f"{fork}:{probe_name}"] = _turn_response(
-                        await runtime.turn_once(probe), slices, spread
+                        await runtime.turn_once(probe), slices, feeling
                     )
             runtime.restore(start)
             runtime.thaw_host()
-            specific = float(np.linalg.norm(read["exposed:burned"]["trajectory"] - read["unexposed:burned"]["trajectory"]))
-            general = float(np.linalg.norm(read["exposed:unburned"]["trajectory"] - read["unexposed:unburned"]["trajectory"]))
+            # What lived turns did to the whole state shows on both percepts, so
+            # what is the burned percept's own is the difference of the two
+            # differences: comparing their sizes compared two readings of how
+            # far the histories had already parted (76.763 against 76.764 on the
+            # first metric-read trial).
+            burned_gap = read["exposed:burned"]["trajectory"] - read["unexposed:burned"]["trajectory"]
+            unburned_gap = read["exposed:unburned"]["trajectory"] - read["unexposed:unburned"]["trajectory"]
+            specific = float(np.sqrt(np.sum(metric.squared(burned_gap - unburned_gap))))
+            general = float(np.sqrt(np.sum(metric.squared(unburned_gap))))
             trials.append({
                 "trial": trial,
                 "specific_change": round(specific, 6),
                 "general_change": round(general, 6),
                 "valence_exposed": round(read["exposed:burned"]["valence"], 6),
                 "valence_unexposed": round(read["unexposed:burned"]["valence"], 6),
+                "valence_exposed_unburned": round(read["exposed:unburned"]["valence"], 6),
+                "valence_unexposed_unburned": round(read["unexposed:unburned"]["valence"], 6),
                 "peak_frame_exposed": read["exposed:burned"]["peak_frame"],
                 "peak_frame_unexposed": read["unexposed:burned"]["peak_frame"],
                 "what_it_changed": reach,
@@ -189,17 +212,23 @@ async def main() -> int:
             _log(f"trial {trial + 1}/{args.trials}: specific {specific:.4f} general {general:.4f}")
     finally:
         await quiesce_organism(runtime)
-    specific = np.array([t["specific_change"] for t in trials])
-    general = np.array([t["general_change"] for t in trials])
     lower = np.array([t["valence_exposed"] - t["valence_unexposed"] for t in trials])
+    # Lower on the burned percept than the unexposed copy is, by more than she
+    # is lower on the unburned one: the outcome's fit, and its own.
+    lower_than_elsewhere = np.array([
+        (t["valence_exposed"] - t["valence_unexposed"])
+        - (t["valence_exposed_unburned"] - t["valence_unexposed_unburned"])
+        for t in trials
+    ])
     evidence = {
         "environment": environment(),
         "design": {"rounds": args.rounds, "trials": args.trials, "between": args.between,
                    "delta": DEFAULT_DELTA, "burned": BURNED, "unburned": UNBURNED},
         "trials": trials,
         "verdict": {
-            "specific": bool(specific.size and np.all(specific > general)),
+            "specific": bool(lower_than_elsewhere.size and np.all(lower_than_elsewhere < 0.0)),
             "fits_a_bad_outcome": bool(lower.size and np.all(lower < 0.0)),
+            "specific_reads": "her valence on the burned percept, exposed less unexposed, below the same on the unburned one",
             "persistent_after_turns": args.between,
             "note": "speed is recorded as the peak frame in each fork and decides nothing",
         },

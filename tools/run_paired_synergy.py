@@ -88,7 +88,12 @@ def sign_flip_p(values: np.ndarray, *, seed: int, draws: int = DRAWS) -> float:
 
 
 def summarise(contrasts: list[np.ndarray], floors: list[np.ndarray], *, seed: int) -> dict[str, Any]:
-    """The interaction's size against the floor's, trial by trial, and whether it keeps a direction."""
+    """The interaction's size against the floor's, trial by trial, and whether it keeps a direction.
+
+    Each contrast arrives in the target's whitened baseline coordinates
+    (core.subject.paired_displacement), so a size is the distance the v5
+    estimator reads.
+    """
     size = np.array([np.linalg.norm(c) for c in contrasts])
     floor = np.array([np.linalg.norm(f) for f in floors])
     out: dict[str, Any] = {
@@ -128,6 +133,7 @@ async def main() -> int:
         start_organism,
     )
     from core.subject.isolation import isolate_state, state_leaks
+    from core.subject.paired_displacement import displacement_metric
     from core.subject.provenance import environment, next_run_directory
     from core.subject.recording import build_recording
     from core.subject.state import domain_slices
@@ -154,11 +160,10 @@ async def main() -> int:
             for condition in CONDITIONS:
                 frames.extend(await runtime.turn_once(condition))
         recording = build_recording(frames)
-        spread = recording.x.std(axis=0)
+        metrics = {y: displacement_metric(recording.x[:, slices[y]]) for _a, _b, y in TRIPLES}
         # As the battery does before its interventions: the free-running loops
         # stop, so two forks from one moment see the same computation.
         await quiesce_organism(runtime)
-        safe = np.where(spread > 1e-12, spread, np.inf)
         for trial in range(args.trials):
             for condition in CONDITIONS:
                 await runtime.turn_once(condition)
@@ -170,10 +175,13 @@ async def main() -> int:
                     read = {}
                     for name, displace in arms:
                         vector = await _arm(runtime, snapshot, condition, displace, DEFAULT_DELTA, args.turns)
-                        read[name] = vector[slices[y]] / safe[slices[y]]
+                        read[name] = vector[slices[y]]
                     key = f"{a},{b}->{y}"
-                    held[key]["contrast"].append(read["both"] - read["first"] - read["second"] + read["neither"])
-                    held[key]["floor"].append(read["again"] - read["neither"])
+                    metric = metrics[y]
+                    held[key]["contrast"].append(
+                        metric.whitened(read["both"] - read["first"] - read["second"] + read["neither"])[0]
+                    )
+                    held[key]["floor"].append(metric.whitened(read["again"] - read["neither"])[0])
                 runtime.restore(snapshot)
                 runtime.thaw_host()
             _log(f"trial {trial + 1}/{args.trials}")
