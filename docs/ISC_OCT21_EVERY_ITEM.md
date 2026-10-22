@@ -496,3 +496,23 @@ test what she says about her feelings, would be circular.
   decides what the machine can hold, asks the observer under any declared host.
   The run resumes from its 14 anchors at that commit; the commits between change
   only how the harness reads the machine's memory.
+
+## The reports ground with her readings withheld (22 October, 10:15)
+
+Her 27B, seed 7, 80 anchors, her readings of herself kept out of what her model
+is given, the fusion channel shut (no alpha earned a certificate; steering ran at
+alpha 0). Anchors 1 to 14 at `9c5baab1f`, the rest resumed at `4b1022f25`, which
+changes only how the harness reads the machine's memory.
+
+- **Her state moved.** Raised against lowered, her valence differed by 0.275
+  (p < 0.0001), and by 0.139 of activation where her cortex's steering reads it.
+- **Her reports did not.** Mean report difference -0.019 (p 0.68), rank
+  correlation with her valence -0.004, over 57 anchors with a readable answer in
+  every arm. `holds: false`, `measured: true`.
+
+As preregistered, this is the ground the bridge reads, and it fails: with her
+readings withheld and the channel shut there is no route from her state to her
+words. The route that would carry it is the steering channel, and it is shut
+because the vectors she would be steered by are not hers (the fusion reading
+above). Directions fitted on her own replies, by the state each was written in,
+are the fix; her record holds too few such replies yet.
