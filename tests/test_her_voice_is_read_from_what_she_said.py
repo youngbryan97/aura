@@ -57,9 +57,16 @@ def test_the_draw_is_seeded_and_bounded(tmp_path):
 class _Hook:
     def __init__(self) -> None:
         self.updates: list[np.ndarray] = []
+        self.overridden = None
 
     def update_substrate_vector(self, vector, *, source: str) -> None:
         self.updates.append(np.asarray(vector))
+
+    def current_composite_vector(self):
+        return np.array([3.0, 4.0])
+
+    def override_composite_vector(self, vector) -> None:
+        self.overridden = vector
 
 
 class _Tokenizer:
@@ -69,23 +76,34 @@ class _Tokenizer:
 
 def test_the_reading_is_steered_minus_plain_per_token(monkeypatch):
     alphas: list[float] = []
-    # Steered paths score -1 a token and plain ones -3, so the reading is +2.
-    monkeypatch.setattr(fusion_probe, "chat_ids", lambda tokenizer, prompt: [0])
-    monkeypatch.setattr(
-        fusion_probe, "_log_likelihood",
-        lambda model, prompt, tokens: (-1.0 if alphas[-1] else -3.0) * len(tokens),
-    )
     hook = _Hook()
-    delta, scored = fusion_probe.voice_reading(
+    # Her direction scores -1 a token, a random one -5, and no steering -3, so
+    # her reading is +2 and the random direction's is -2.
+    monkeypatch.setattr(fusion_probe, "chat_ids", lambda tokenizer, prompt: [0])
+
+    def scored(model, prompt, tokens):
+        if not alphas[-1]:
+            return -3.0 * len(tokens)
+        if hook.overridden is not None:
+            assert np.isclose(np.linalg.norm(hook.overridden), 5.0)
+            return -5.0 * len(tokens)
+        return -1.0 * len(tokens)
+
+    monkeypatch.setattr(fusion_probe, "_log_likelihood", scored)
+    delta, counted, control = fusion_probe.voice_reading(
         None, _Tokenizer(), [hook], alphas.append, 0.2,
         [(SPOKEN, [0.5, 0.5]), ("one", [0.5]), (SPOKEN, [float("nan")])],
+        rng=np.random.default_rng(1),
     )
-    assert scored == 1
-    assert delta == 2.0
-    # The hooks were set to the state she said it in, and the steering ends off.
+    assert counted == 1
+    assert delta == 2.0 and control == -2.0
+    # The hooks were set to the state she said it in, the random direction was
+    # taken off again, and the steering ends off.
     assert np.allclose(hook.updates[-1], [0.5, 0.5])
+    assert hook.overridden is None
     assert alphas[-1] == 0.0
 
 
 def test_nothing_to_read_is_no_reading():
-    assert fusion_probe.voice_reading(None, _Tokenizer(), [], lambda alpha: None, 0.2, []) == (None, 0)
+    reading = fusion_probe.voice_reading(None, _Tokenizer(), [], lambda alpha: None, 0.2, [])
+    assert reading == (None, 0, None)

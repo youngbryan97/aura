@@ -199,7 +199,9 @@ def _probe_descriptor(arguments, checkpoint: Path, build_descriptor) -> dict:
 def _voice(certificate) -> str:
     if certificate.voice_delta is None:
         return "unread"
-    return f"{certificate.voice_delta:+.4f} nats/token over {certificate.voice_replies}"
+    control = certificate.voice_control_delta
+    beside = "" if control is None else f" (random direction {control:+.4f})"
+    return f"{certificate.voice_delta:+.4f} nats/token over {certificate.voice_replies}{beside}"
 
 
 def her_replies(path: Path, model_name: str, count: int, seed: int) -> list[tuple[str, list[float]]]:

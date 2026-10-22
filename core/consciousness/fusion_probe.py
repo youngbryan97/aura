@@ -169,8 +169,12 @@ def _walk(model: Any, prompt_ids: Sequence[int], path_ids: Sequence[int]) -> lis
 #: hooks steer, so the cost is bounded by reading the opening only.
 VOICE_TOKENS = 64
 
-#: The turn a stored reply is scored as answering. The pairs keep no prompt,
-#: and the same one is used steered and unsteered, so it cancels.
+#: The turn a stored reply is scored as answering. Her replies were all said
+#: with steering off. Scored in the context she said them in, steering of any
+#: kind could only make them less likely on average (by the divergence between
+#: the two distributions), so the criterion could not be met by any channel that
+#: arrives. Scored after a turn that carries none of her state, the steering has
+#: to supply what that context did, and a direction that is hers can.
 VOICE_PROMPT = "Go on."
 
 
@@ -181,7 +185,8 @@ def voice_reading(
     set_alpha: Callable[[float], None],
     alpha: float,
     replies: Sequence[tuple[str, Sequence[float]]],
-) -> tuple[float | None, int]:
+    rng: Any = None,
+) -> tuple[float | None, int, float | None]:
     """Whether her own stored replies are any less likely under the steering.
 
     Each reply is scored token by token with the hooks set to the state she
@@ -190,11 +195,17 @@ def voice_reading(
     steered minus the unsteered log-likelihood per token, in nats, and how
     many replies were scored. A direction that takes her words away from her
     makes them less likely; one that is hers does not.
+
+    With `rng`, each reply is also scored under a random direction of the
+    same length at each layer, and its mean is the third value. It decides
+    nothing: it says whether her direction keeps her words better than an
+    arbitrary displacement of that size does, which the bar alone cannot.
     """
     import numpy as np
 
     prompt_ids = chat_ids(tokenizer, VOICE_PROMPT)
     deltas: list[float] = []
+    controls: list[float] = []
     for text, state in replies:
         tokens = _reply_tokens(tokenizer, str(text or ""))[:VOICE_TOKENS]
         vector = np.asarray(state, dtype=np.float32).reshape(-1)
@@ -205,13 +216,31 @@ def voice_reading(
                 hook.update_substrate_vector(vector, source="voice_reading")
         set_alpha(alpha)
         steered = _log_likelihood(model, prompt_ids, tokens)
+        if rng is not None:
+            for hook in hooks:
+                hook.override_composite_vector(_same_length_noise(hook.current_composite_vector(), rng))
+            control = _log_likelihood(model, prompt_ids, tokens)
+            for hook in hooks:
+                hook.override_composite_vector(None)
         set_alpha(0.0)
         plain = _log_likelihood(model, prompt_ids, tokens)
         deltas.append((steered - plain) / len(tokens))
+        if rng is not None:
+            controls.append((control - plain) / len(tokens))
     set_alpha(0.0)
     if not deltas:
-        return None, 0
-    return float(np.mean(deltas)), len(deltas)
+        return None, 0, None
+    return float(np.mean(deltas)), len(deltas), (float(np.mean(controls)) if controls else None)
+
+
+def _same_length_noise(value: Any, rng: Any) -> Any:
+    """A random direction with the length of `value`, or None where there is no value."""
+    import numpy as np
+
+    if value is None:
+        return None
+    noise = rng.normal(size=np.shape(value)).astype(np.float32)
+    return noise * (float(np.linalg.norm(value)) / float(np.linalg.norm(noise)))
 
 
 def _reply_tokens(tokenizer: Any, text: str) -> list[int]:
@@ -440,14 +469,16 @@ def _measure_fusion(
         ]
         diverged = [index for index in divergences if index >= 0]
 
-        voice_delta, voice_replies = (
-            voice_reading(model, tokenizer, hooks, set_alpha, alpha, replies) if replies else (None, 0)
+        voice_delta, voice_replies, voice_control_delta = (
+            voice_reading(model, tokenizer, hooks, set_alpha, alpha, replies, rng=rng)
+            if replies else (None, 0, None)
         )
         set_alpha(alpha)
         certificate = FusionCertificate(
             measurement_protocol=FUSION_MEASUREMENT_PROTOCOL,
             voice_delta=voice_delta,
             voice_replies=voice_replies,
+            voice_control_delta=voice_control_delta,
             model_identity=model_identity,
             basis_sha256=basis,
             model_name=model_name,

@@ -171,6 +171,9 @@ class FusionCertificate:
     voice_delta: float | None = None
     #: How many of her replies that reading was taken over.
     voice_replies: int = 0
+    #: The same reading under a random direction of her direction's length.
+    #: Recorded beside the criterion and deciding nothing.
+    voice_control_delta: float | None = None
 
     @property
     def keeps_her_voice(self) -> bool:
@@ -368,6 +371,10 @@ def load_certificates(*, root: Path | None = None,
                     float(payload["voice_delta"]) if payload.get("voice_delta") is not None else None
                 ),
                 voice_replies=int(payload.get("voice_replies", 0) or 0),
+                voice_control_delta=(
+                    float(payload["voice_control_delta"])
+                    if payload.get("voice_control_delta") is not None else None
+                ),
             )
             if key not in found or certificate.measured_at >= found[key].measured_at:
                 found[key] = certificate

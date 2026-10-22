@@ -2106,3 +2106,12 @@ that carries it. Steps before that are before the record whether or not they
 changed anything, so a log with no recorded step reads not measured. Before
 this, unchanged steps after the last unrecorded change counted as development,
 and her live log, which carries no record yet, read as three developing steps.
+
+**Why her replies are scored after "Go on.", and what sits beside the bar.**
+Her replies were all said with steering off. Scored in the context she said them
+in, any steering would make them less likely on average, by the divergence
+between the steered and unsteered distributions, so no channel that arrives
+could meet the bar. Scored after a turn that carries none of her state, the
+steering has to supply what her context did. Each reply is also scored under a
+random direction of the same length at each layer; that reading is recorded
+beside the bar and decides nothing.
