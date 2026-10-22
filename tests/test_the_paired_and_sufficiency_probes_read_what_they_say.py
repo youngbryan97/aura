@@ -57,3 +57,20 @@ def test_the_probe_finds_every_array_k_reads_through_the_sketch():
     sources = sketched_sources()
     assert "organ:substrate.x" in sources and "organ:substrate.W" in sources
     assert all(source.startswith("organ:") for source in sources)
+
+
+def test_an_array_mostly_at_its_minimum_still_has_room_to_move_unseen():
+    """A buffer that is mostly zeros: the hidden step must leave every zero where it is."""
+    from core.subject.sketch import sketch
+
+    probe = _tool("k_compact_sufficiency")
+    rng = np.random.default_rng(5)
+    buffer = np.zeros(1024)
+    buffer[rng.choice(1024, 200, replace=False)] = rng.uniform(0.1, 1.0, 200)
+    hidden = probe.hidden_direction(buffer, rng)
+    step = probe._room(buffer, hidden)
+    assert step > 0.0
+    plus, minus = buffer + step * hidden, buffer - step * hidden
+    assert max(abs(sketch(plus)[k] - sketch(minus)[k]) for k in sketch(plus)) < 1e-9
+    visible = probe.visible_direction(buffer)
+    assert probe._room(buffer, visible) > 0.0

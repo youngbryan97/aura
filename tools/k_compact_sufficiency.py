@@ -60,6 +60,10 @@ def _resolve(organs: Any, source: str) -> tuple[Any, str, Any]:
     return holder, parts[-1], value
 
 
+#: How many directions the sketch projects on.
+SKETCH_LOOKS = 4
+
+
 def hidden_direction(array: np.ndarray, rng: np.random.Generator, axes: Any = None) -> np.ndarray:
     """A unit direction the sketch cannot see, zero at the array's extremes.
 
@@ -70,28 +74,32 @@ def hidden_direction(array: np.ndarray, rng: np.random.Generator, axes: Any = No
 
     flat = np.asarray(array, dtype=np.float64).ravel()
     size = flat.size
-    extremes = {int(np.argmin(flat)), int(np.argmax(flat))}
+    # Every entry at the minimum or the maximum, ties included: a buffer that
+    # is mostly zeros has thousands at its minimum, and moving any of them
+    # moves the minimum the sketch reads.
+    extremes = np.flatnonzero((flat == flat.min()) | (flat == flat.max()))
+    free = np.setdiff1d(np.arange(size), extremes)
+    if free.size <= SKETCH_LOOKS + 2:
+        return np.zeros(np.shape(array))
     looks = np.asarray(axes[1]) if axes is not None else _directions(size)
-    rows = [*looks, np.ones(size), flat - flat.mean()]
-    for index in extremes:
-        row = np.zeros(size)
-        row[index] = 1.0
-        rows.append(row)
-    basis = np.vstack(rows)
-    v = rng.standard_normal(size)
-    v -= basis.T @ np.linalg.lstsq(basis @ basis.T, basis @ v, rcond=None)[0]
-    v[list(extremes)] = 0.0
+    basis = np.vstack([*looks, np.ones(size), flat - flat.mean()])[:, free]
+    v = np.zeros(size)
+    draw = rng.standard_normal(free.size)
+    draw -= basis.T @ np.linalg.lstsq(basis @ basis.T, basis @ draw, rcond=None)[0]
+    v[free] = draw
     norm = float(np.linalg.norm(v))
     return (v / norm).reshape(np.shape(array)) if norm > 0 else v.reshape(np.shape(array))
 
 
-def visible_direction(array: np.ndarray) -> np.ndarray:
-    """A unit direction the sketch does see: its first projection."""
+def visible_direction(array: np.ndarray, axes: Any = None) -> np.ndarray:
+    """A unit direction the sketch does see: its first projection, kept off the extremes."""
     from core.subject.sketch import _directions
 
-    size = int(np.asarray(array).size)
-    d = _directions(size)[0]
-    return (d / np.linalg.norm(d)).reshape(np.shape(array))
+    flat = np.asarray(array, dtype=np.float64).ravel()
+    d = np.array(np.asarray(axes[1])[0] if axes is not None else _directions(flat.size)[0], dtype=np.float64)
+    d[(flat == flat.min()) | (flat == flat.max())] = 0.0
+    norm = float(np.linalg.norm(d))
+    return (d / norm).reshape(np.shape(array)) if norm > 0 else d.reshape(np.shape(array))
 
 
 def _room(array: np.ndarray, direction: np.ndarray) -> float:
@@ -190,7 +198,7 @@ async def main() -> int:
                 holder, attr, value = _resolve(runtime.organs, source)
                 base = np.array(value, dtype=np.float64, copy=True)
                 hidden = hidden_direction(base, rng, axes_for(source))
-                visible = visible_direction(base)
+                visible = visible_direction(base, axes_for(source))
                 size = min(turn_change, _room(base, hidden), _room(base, visible))
                 if size <= 0.0:
                     moments.append({"skipped": "no room inside the extremes"})
