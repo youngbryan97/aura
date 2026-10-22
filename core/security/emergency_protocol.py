@@ -228,6 +228,29 @@ class EmergencyProtocol:
 
         self._respond_to_threat()
 
+    def clear_threat(self, source: str) -> None:
+        """A condition that has ended is no longer a threat.
+
+        A resource strain was flagged while it lasted and nothing said when it
+        ended, and the score is recomputed only when something is flagged, so
+        it kept every strain it had ever seen. In the validation run of 21
+        October a declared strain came and went each round, and the score
+        climbed 0.27, 0.46, 0.59, 0.68 over four of them, entered minimal mode
+        and never left it.
+        """
+        kept = [signal for signal in self._signals if signal.source != source]
+        if len(kept) == len(self._signals):
+            return
+        self._signals = kept
+        # What remains decides it, and nothing that remains can raise it.
+        self._threat_score = min(self._threat_score, self._raw_threat()) if kept else 0.0
+        if self._minimal_mode and self._threat_score < MINIMAL_MODE_THRESHOLD:
+            self._minimal_mode = False
+            logger.info(
+                "EmergencyProtocol: %s cleared; leaving minimal mode (threat=%.2f)",
+                source, self._threat_score,
+            )
+
     @property
     def threat_score(self) -> float:
         return self._threat_score
@@ -294,7 +317,11 @@ class EmergencyProtocol:
         if not self._signals:
             self._threat_score = 0.0
             return
+        # EMA smoothing
+        self._threat_score = 0.7 * self._threat_score + 0.3 * self._raw_threat()
 
+    def _raw_threat(self) -> float:
+        """The recency-weighted severity of the signals held, before smoothing."""
         now = time.time()
         weighted_sum = 0.0
         weight_total = 0.0
@@ -305,9 +332,7 @@ class EmergencyProtocol:
             weighted_sum += sig.severity * decay
             weight_total += decay
 
-        raw = weighted_sum / max(weight_total, 1.0)
-        # EMA smoothing
-        self._threat_score = 0.7 * self._threat_score + 0.3 * raw
+        return weighted_sum / max(weight_total, 1.0)
 
     # ── Encrypted Snapshot ─────────────────────────────────────────────────
 

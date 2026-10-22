@@ -2115,3 +2115,10 @@ could meet the bar. Scored after a turn that carries none of her state, the
 steering has to supply what her context did. Each reply is also scored under a
 random direction of the same length at each layer; that reading is recorded
 beside the bar and decides nothing.
+
+**A strain that ends stops counting as a threat** (from `f6f8d0f70`'s successor
+on). Her emergency protocol kept every declared strain a run had shown it, and
+from the fourth round of each validation run sat in minimal mode, which in a
+run stops nothing (neither service it names has a switch). The resource
+monitor now says when a strain ends and the protocol drops it. Nothing the
+battery reads comes from the protocol; this is named because it is her code.

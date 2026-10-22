@@ -194,6 +194,8 @@ class ResourceMonitor:
         self._cpu_high = cpu_high
         self._mem_high = mem_high
         self._disk_high = disk_high
+        #: Whether the last sample was under strain, so its end can be said.
+        self._straining = False
 
     def sample(self) -> dict[str, float]:
         try:
@@ -239,7 +241,16 @@ class ResourceMonitor:
         if s.get("disk", 0) >= self._disk_high:
             breaches.append(("disk", s["disk"]))
         if not breaches:
+            if self._straining:
+                self._straining = False
+                try:
+                    from core.security.emergency_protocol import get_emergency_protocol
+
+                    get_emergency_protocol().clear_threat("immune:resource_monitor")
+                except _ENFORCEMENT_ERRORS as exc:
+                    logger.debug("Resource monitor could not clear its strain: %s", exc)
             return None
+        self._straining = True
         worst = max(breaches, key=lambda kv: kv[1])
         try:
             from core.security.immune_system import ThreatClass, get_immune_system
