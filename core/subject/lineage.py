@@ -612,11 +612,16 @@ class Lineage:
         return tuple(reversed(trail))
 
     def development(self, name: str | None = None) -> dict[str, Any]:
-        """Whether the line to a stage, by default the newest, developed at every step.
+        """Whether the line to a stage, by default the newest, developed at every step since the record began.
 
-        A step that changed her with no record of what wrote it is counted
-        apart: it was logged before the record existed, so it is unmeasured
-        rather than failed. A measured step that does not develop is a failure.
+        The record of what wrote each change began on 21 October 2026, and her
+        line runs back months before it. Steps before the first one that carries
+        the record are counted apart as before the record: nothing can say what
+        wrote them, and they are neither development nor its failure. After it,
+        a step that changed her with no record (a state committed by a process
+        that does not take the evidence) is unmeasured, and a measured step
+        that does not develop is a failure. The claim this supports is the
+        scope it says: since the record began.
         """
         if name is None:
             # The newest stage nothing descends from; among equal times, the
@@ -625,19 +630,31 @@ class Lineage:
             name = max(leaves, key=lambda n: (self.stages[n].at, len(self.line_to(n)), n)) if leaves else ""
         trail = self.line_to(name) if name else ()
         steps = [self._edge(a, b) for a, b in zip(trail, trail[1:], strict=False)]
+        # A step that changed nothing needs no record of what wrote it. The
+        # record began at the first step that carries one; with none, after the
+        # last change nothing recorded.
+        first = next((i for i, e in enumerate(steps) if e is not None and e.measured), None)
+        if first is None:
+            changed = [i for i, e in enumerate(steps) if e is not None and not e.preserved]
+            began = changed[-1] + 1 if changed else 0
+        else:
+            began = first
+        before, since = steps[:began], steps[began:]
         unmeasured = [
-            e for e in steps
+            e for e in since
             if e is not None and not e.preserved and (not e.measured or (e.unjudged() and not e.unexplained()))
         ]
         failed = [
-            e for e in steps
+            e for e in since
             if e is not None and e not in unmeasured and (not e.develops or self.branched(e.parent))
         ]
         return {
             "stage": name,
             "root": trail[0] if trail else "",
             "steps": len(steps),
-            "developing": sum(1 for e in steps if e is not None and e.develops and not self.branched(e.parent)),
+            "before_the_record": sum(1 for e in before if e is not None and not e.preserved),
+            "steps_since_the_record": len(since),
+            "developing": sum(1 for e in since if e is not None and e.develops and not self.branched(e.parent)),
             "unmeasured": len(unmeasured),
             "failed": len(failed),
             "first_failure": None if not failed else self.first_break(failed[0].parent, failed[0].child),

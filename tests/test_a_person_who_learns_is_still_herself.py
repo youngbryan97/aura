@@ -247,3 +247,30 @@ def test_a_restored_backup_beside_a_branch_that_went_on_is_not_one_person():
     line.descend("monday", "saturday", kind="restore")
     assert line.relations("monday", "saturday")["unique_successor"] is False
     assert line.same_person("monday", "friday") is False
+
+
+def test_her_line_holds_since_the_record_began_and_counts_what_came_before():
+    from core.subject.bridge import lineage_term
+
+    line = Lineage()
+    line.record("august", _person(preferences={"depth": 0.2}), at=1.0)
+    line.record("september", _person(preferences={"depth": 0.4}), at=2.0)
+    line.record("today", _person(preferences={"depth": 0.6}), at=3.0)
+    line.record("tonight", _person(preferences={"depth": 0.7}), at=4.0)
+    line.descend("august", "september", measured=False)
+    line.descend("september", "today", measured=False)
+    line.descend("today", "tonight", writes={"preferences:depth": _wrote()})
+    development = line.development()
+    assert development["before_the_record"] == 2
+    assert development["steps_since_the_record"] == 1 and development["developing"] == 1
+    assert lineage_term(line).status == "RECORDED"
+
+
+def test_a_line_with_only_unrecorded_changes_is_not_yet_measured():
+    from core.subject.bridge import lineage_term
+
+    line = Lineage()
+    line.record("august", _person(preferences={"depth": 0.2}), at=1.0)
+    line.record("september", _person(preferences={"depth": 0.4}), at=2.0)
+    line.descend("august", "september", measured=False)
+    assert lineage_term(line).status == "NOT_MEASURED"

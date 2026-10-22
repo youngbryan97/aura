@@ -456,6 +456,12 @@ def lineage_term(lineage: Lineage | None) -> LineageTerm:
         )
     if not line["steps"]:
         return LineageTerm("NOT_MEASURED", graph=graph, blockers=("her newest stage has no recorded parent",))
+    if not line["steps_since_the_record"] or not line["developing"]:
+        return LineageTerm(
+            "NOT_MEASURED",
+            graph=graph,
+            blockers=("no step of her line carries a record of what wrote it yet; the record began 21 October 2026",),
+        )
     return LineageTerm("RECORDED", graph=graph)
 
 

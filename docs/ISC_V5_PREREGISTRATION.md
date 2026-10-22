@@ -2078,3 +2078,11 @@ leaks into the core at `5885688d7`. K goes from 491 to 499 columns.
 
 Both are organism-reading changes for the next pair at seed 7 (codes on and off,
 calibrated axes in both). Nothing moves a threshold.
+
+**The lineage term's scope.** Her line to her newest stage runs back months
+before the record of what wrote each change began (21 October 2026). Changes
+before the first step that carries the record are counted and reported as
+before the record; they are neither development nor its failure. The term holds
+when her line has at least one step since the record began and every step since
+then developed; a step that changed nothing needs no record. The claim it
+supports is that scope: since the record began.
