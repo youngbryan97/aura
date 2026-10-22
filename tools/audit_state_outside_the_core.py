@@ -84,6 +84,7 @@ OUTSIDE_K: dict[str, str] = {
     "lineage_signature": "the signature over that lineage record",
     "transition_cause": "why the last transition happened, kept for the record",
     "transition_origin": "and where it came from",
+    "transition_evidence": "the record of what wrote each person path since the last commit, read by the lineage; nothing computes from it",
     "formation_timestamp": "when the identity was formed",
     "last_evolution_timestamp": "when it last changed",
     "last_tick": "when motivation last ran",
