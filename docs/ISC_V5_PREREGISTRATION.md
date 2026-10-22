@@ -2100,3 +2100,9 @@ unsteered, and the reading is the mean difference in log-likelihood per token.
 The bar is the one the certificate already carried: zero. If no alpha holds,
 the reports run reads her state through her prompt only, as before, and the
 report says the forward-pass route was not open.
+
+**When the record begins.** The record begins at the first step of her line
+that carries it. Steps before that are before the record whether or not they
+changed anything, so a log with no recorded step reads not measured. Before
+this, unchanged steps after the last unrecorded change counted as development,
+and her live log, which carries no record yet, read as three developing steps.

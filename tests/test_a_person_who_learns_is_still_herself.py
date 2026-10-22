@@ -274,3 +274,23 @@ def test_a_line_with_only_unrecorded_changes_is_not_yet_measured():
     line.record("september", _person(preferences={"depth": 0.4}), at=2.0)
     line.descend("august", "september", measured=False)
     assert lineage_term(line).status == "NOT_MEASURED"
+
+
+def test_unchanged_steps_after_the_last_unrecorded_change_are_not_development():
+    """Her live log on 21 October: no step carried a record, and her newest
+    stage sat three unchanged steps after the last change. Those steps say
+    nothing about what wrote her, so the term is not yet measured."""
+    from core.subject.bridge import lineage_term
+
+    line = Lineage()
+    line.record("august", _person(preferences={"depth": 0.2}), at=1.0)
+    line.record("september", _person(preferences={"depth": 0.4}), at=2.0)
+    line.record("evening", _person(preferences={"depth": 0.4}), at=3.0)
+    line.record("night", _person(preferences={"depth": 0.4}), at=4.0)
+    line.descend("august", "september", measured=False)
+    line.descend("september", "evening", measured=False)
+    line.descend("evening", "night", measured=False)
+    development = line.development()
+    assert development["steps_since_the_record"] == 0
+    assert development["before_the_record"] == 1
+    assert lineage_term(line).status == "NOT_MEASURED"

@@ -630,15 +630,13 @@ class Lineage:
             name = max(leaves, key=lambda n: (self.stages[n].at, len(self.line_to(n)), n)) if leaves else ""
         trail = self.line_to(name) if name else ()
         steps = [self._edge(a, b) for a, b in zip(trail, trail[1:], strict=False)]
-        # A step that changed nothing needs no record of what wrote it. The
-        # record began at the first step that carries one; with none, after the
-        # last change nothing recorded.
+        # The record began at the first step that carries one. After that, a
+        # step that changed nothing needs no record of what wrote it. Before
+        # it, a step that changed nothing shows nothing either: on 21 October
+        # her live log carried no record at all, and three unchanged steps
+        # after its last change read as three steps of development.
         first = next((i for i, e in enumerate(steps) if e is not None and e.measured), None)
-        if first is None:
-            changed = [i for i, e in enumerate(steps) if e is not None and not e.preserved]
-            began = changed[-1] + 1 if changed else 0
-        else:
-            began = first
+        began = len(steps) if first is None else first
         before, since = steps[:began], steps[began:]
         unmeasured = [
             e for e in since
