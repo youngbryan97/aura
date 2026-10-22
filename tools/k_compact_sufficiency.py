@@ -122,6 +122,12 @@ def _set(holder: Any, attr: str, value: np.ndarray) -> None:
     setattr(holder, attr, np.array(value, dtype=np.asarray(getattr(holder, attr)).dtype, copy=True))
 
 
+def _writable(holder: Any, attr: str) -> bool:
+    """Whether the attribute can be written back: a computed property cannot."""
+    found = getattr(type(holder), attr, None)
+    return not (isinstance(found, property) and found.fset is None)
+
+
 async def _fork_reading(runtime: Any, snapshot: Any, condition: Any, change: Any = None) -> np.ndarray:
     runtime.restore(snapshot)
     if change is not None:
@@ -200,6 +206,10 @@ async def main() -> int:
                 runtime.freeze_host()
                 snapshot = runtime.snapshot()
                 holder, attr, value = _resolve(runtime.organs, source)
+                if not _writable(holder, attr):
+                    runtime.thaw_host()
+                    moments.append({"skipped": "computed from other state, so it cannot be moved on its own"})
+                    break
                 base = np.array(value, dtype=np.float64, copy=True)
                 hidden = hidden_direction(base, rng, axes_for(source))
                 visible = visible_direction(base, axes_for(source))
