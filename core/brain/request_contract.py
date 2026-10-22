@@ -260,6 +260,7 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "user_surface_continuation_resume_handle": Field_(Kind.HEX_CAPABILITY_128),
     "user_surface_conversation_resume_handle": Field_(Kind.HEX_CAPABILITY_128),
     "semantic_completion_contract": Field_(Kind.BOOL),
+    "stream_user_surface": Field_(Kind.BOOL),
     # ── live-mind readiness claims (authority-relevant) ─────────────────
     "live_mind_controls_bound": Field_(Kind.BOOL, policy=True),
     "live_mind_generation_controls": Field_(Kind.OPAQUE),

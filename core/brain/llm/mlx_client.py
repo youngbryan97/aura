@@ -4847,6 +4847,7 @@ def _build_the_generation_request(
         "id": req_id,
         "seq": self._job_seq_counter,
         "action": "generate",
+        "stream_user_surface": kwargs.get("stream_user_surface") is True,
         "prompt": prompt,
         "messages": kwargs.get("messages"),
         "tools": kwargs.get("tools"),
@@ -9053,6 +9054,13 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     continue
                 if status in {"progress", "token"}:
                     self._record_worker_stream_progress(res, status=status, action=action)
+                    if owned_response and res.get('reply_preview'):
+                        from core.brain.llm.reply_previews import publish_owned_reply_preview
+
+                        publish_owned_reply_preview(
+                            self._pending_generations,
+                            getattr(self, '_pending_reply_previews', {}), res,
+                        )
                     live_intero = res.get("interoception_live")
                     if isinstance(live_intero, dict) and live_intero:
                         try:
@@ -10317,6 +10325,15 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
     def _generate_inner_part_3(self, deadline, foreground_request, fut, prompt, req, req_id):
         self._pending_generations[req_id] = fut
+        if req.get('stream_user_surface') is True and foreground_request:
+            from core.brain.llm.reply_previews import ReplyPreviewDelivery
+            from core.conversation.reply_stream import active_reply_stream
+
+            channel = active_reply_stream()
+            if channel is not None:
+                if not hasattr(self, '_pending_reply_previews'):
+                    self._pending_reply_previews = {}
+                self._pending_reply_previews[req_id] = ReplyPreviewDelivery(channel)
         self._current_gen_future = fut
         self._active_generations += 1
         self._active_generation_started_at = time.time()
@@ -11420,6 +11437,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         *,
         release_lane: bool = True,
     ) -> None:
+        getattr(self, '_pending_reply_previews', {}).pop(request_id, None)
         if foreground_watchdog is not None:
             foreground_watchdog.cancel()
         if self._foreground_generation_watchdog is foreground_watchdog:

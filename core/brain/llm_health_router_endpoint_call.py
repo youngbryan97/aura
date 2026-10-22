@@ -1479,6 +1479,7 @@ class _CallsTheEndpoint:
                                 "user_surface_completion_floor",
                                 "user_surface_validation_prompt",
                                 "semantic_completion_contract",
+                                "stream_user_surface",
                                 "user_surface_continuation_contract",
                                 "user_surface_continuation_partial",
                                 "user_surface_continuation_resume_handle",

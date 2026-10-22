@@ -534,6 +534,9 @@ class _AnswersTheDesktopDirectly:
             if "top_p" in live_mind_generation_controls:
                 router_kwargs["top_p"] = live_mind_generation_controls["top_p"]
         router_generation_metadata_sink: dict[str, Any] = {}
+        from core.conversation.reply_stream import active_reply_stream
+
+        router_kwargs['stream_user_surface'] = active_reply_stream() is not None
         router_kwargs["_generation_metadata_sink"] = (
             router_generation_metadata_sink
         )
@@ -955,13 +958,11 @@ class _AnswersTheDesktopDirectly:
         resume_capability = project_user_surface_resume_capability(
             context,
             continuation_contract=continuation_contract,
+            # State, memory and identity readings arrive as fresh evidence
+            # after cached dialogue. They share this lane's authority head;
+            # only a different execution or decoder contract needs a rebuild.
             conversation_contract_compatible=not any(
                 (
-                    memory_state_contract,
-                    runtime_fact_status_contract,
-                    self_condition_contract,
-                    capability_inventory_contract,
-                    identity_continuity_contract,
                     bool(context.get("desktop_execution_contract", False)),
                     bool(context.get("strict_answer_contract", False)),
                     bool(context.get("strict_value_contract", False)),

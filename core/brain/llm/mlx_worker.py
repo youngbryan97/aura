@@ -7749,6 +7749,7 @@ def _mlx_worker_loop(
                                         clean_kwargs,
                                         when_a_pass_ends=_when_a_pass_ends,
                                     )
+                                    emitted_reply_preview = ''
                                     for response in generation_passes:
                                         final_generation_response = response
                                         if first_token_latency_s is None:
@@ -8016,6 +8017,25 @@ def _mlx_worker_loop(
                                                     progress_msg["interoception_live"] = live_intero
                                             ipc_writer.put(progress_msg)
                                             last_progress_emit_at = progress_now
+
+                                        if job.get('stream_user_surface') is True and current_response.strip() != emitted_reply_preview:
+                                            from core.brain.llm.reply_previews import (
+                                                ready_reply_preview,
+                                            )
+
+                                            preview = ready_reply_preview(
+                                                job, current_response, thinking=native_thinking,
+                                                attempt=internal_attempt,
+                                                previous=emitted_reply_preview,
+                                            )
+                                            if preview:
+                                                emitted_reply_preview = preview
+                                                ipc_writer.put({
+                                                    'id': job.get('id'), 'action': 'generate',
+                                                    'status': 'progress', 'reply_preview': preview,
+                                                    'tokens_generated': decoded_before_attempt + token_count,
+                                                    'timestamp': progress_now,
+                                                })
 
                                         # [PERF] Mid-generation cache clearing removed — was forcing Metal to
                                         # reallocate GPU memory every 32 tokens, creating micro-stalls.

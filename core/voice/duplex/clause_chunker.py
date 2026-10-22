@@ -59,6 +59,22 @@ def _is_false_sentence_end(text: str, index: int) -> bool:
     return len(word) == 1
 
 
+def completed_sentence_prefix(text: str, *, first_only: bool = False) -> str:
+    """Keep only sentence boundaries confirmed by following whitespace."""
+    end = 0
+    for match in _SENTENCE_END.finditer(text):
+        if _is_false_sentence_end(text, match.start()):
+            continue
+        # An enumerator starts a list item; its period does not finish one.
+        sentence = text[end:match.start()].strip()
+        if re.fullmatch(r"\d+\.", sentence):
+            continue
+        end = match.end()
+        if first_only:
+            break
+    return text[:end]
+
+
 def _split_at(pattern: re.Pattern[str], text: str) -> list[str]:
     parts: list[str] = []
     last = 0
@@ -194,6 +210,13 @@ class StreamingChunker:
         max_splits = max(1, len(self._buffer))
         for _ in range(max_splits):
             budget = self._max if self._emitted_first else self._first_max
+            if not self._emitted_first:
+                opener = completed_sentence_prefix(self._buffer, first_only=True)
+                if opener and len(opener.strip()) <= budget:
+                    out.append(opener.strip())
+                    self._buffer = self._buffer[len(opener):]
+                    self._emitted_first = True
+                    continue
             if len(self._buffer) <= budget:
                 break
             prior_length = len(self._buffer)

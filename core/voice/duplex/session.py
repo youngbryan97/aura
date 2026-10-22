@@ -1147,6 +1147,7 @@ class DuplexVoiceSession:
             if turn is None:
                 await self._set_state(SessionState.LISTENING)
                 return
+            self._measure_cognition(turn, cognition_started)
 
             # Cognition now runs in its own task so its reply can be read
             # while it forms — which means cancelling *this* task no longer
@@ -1157,10 +1158,6 @@ class DuplexVoiceSession:
             async with self._cognition_bound_to_this_turn(turn):
                 streamed = await self._speak_streamed_reply(turn)
                 reply = await turn.final()
-                self._metrics.cognition_ms = (
-                    time.perf_counter() - cognition_started
-                ) * 1000.0
-                self._metrics.reply_ready_at = time.monotonic()
 
                 if streamed:
                     return
@@ -1992,15 +1989,27 @@ class DuplexVoiceSession:
         await self._send_json(receipt)
         await self._mind.publish("voice_device_state", dict(receipt))
 
+    def _measure_cognition(self, turn: Any, started: float) -> None:
+        """Record cognition when it finishes, independently of audio playback."""
+        metrics = self._metrics
+
+        def finished(_task: Any) -> None:
+            metrics.cognition_ms = (time.perf_counter() - started) * 1000.
+            metrics.reply_ready_at = time.monotonic()
+
+        turn.task.add_done_callback(finished)
+
     async def _run_typed_turn(self, text: str) -> None:
         """A typed message while in voice mode still gets a spoken answer."""
         try:
             await self._send_json({"type": protocol.EVT_FINAL, "text": text, "typed": True})
             self._start_fillers()
+            cognition_started = time.perf_counter()
             turn = await self._mind.respond_streaming(text)
             if turn is None:
                 await self._set_state(SessionState.LISTENING)
                 return
+            self._measure_cognition(turn, cognition_started)
             async with self._cognition_bound_to_this_turn(turn):
                 if await self._speak_streamed_reply(turn):
                     return

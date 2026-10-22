@@ -31,15 +31,18 @@ is not.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import re
 import time
+from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.lockdep import LockRank, checked_lock
+from core.verify.invariants import Violation, invariant
 
 logger = logging.getLogger("Aura.Cognition.EvidenceRelevance")
 
@@ -254,6 +257,7 @@ _LOCK = checked_lock("evidence_relevance.cache")
 _ANCHOR_CACHE: dict[str, Any] = {}
 _REQUEST_CACHE: dict[str, Any] = {}
 _ALIGNMENT_QUERY_CACHE: dict[str, Any] = {}
+_DOCUMENT_CACHE: OrderedDict[str, Any] = OrderedDict()
 _SHARED_ENGINE_LEASE: Any | None = None
 _CACHE_ENGINE_TOKEN: tuple[str, str, int, int] | None = None
 #: Bounded: this is a per-turn lookup, not a store.
@@ -358,6 +362,7 @@ def _bind_cache_to_engine(engine: Any) -> None:
         _ANCHOR_CACHE.clear()
         _REQUEST_CACHE.clear()
         _ALIGNMENT_QUERY_CACHE.clear()
+        _DOCUMENT_CACHE.clear()
         _CACHE_ENGINE_TOKEN = token
     # The anchors are cold again, so the next turn may ask for a warm again.
     _WARMING["asked"] = False
@@ -534,7 +539,7 @@ def _embed(text: str, *, as_query: bool = False) -> Any | None:
         return None
 
 
-def _embed_documents(texts: Sequence[str]) -> list[Any | None]:
+def _encode_documents(texts: Sequence[str], embedder: Any) -> list[Any | None]:
     """Encode document-side evidence anchors in one model invocation.
 
     The routing catalogue is a fixed document cohort. Encoding each sentence
@@ -546,7 +551,6 @@ def _embed_documents(texts: Sequence[str]) -> list[Any | None]:
     wanted = [str(text or "") for text in texts]
     if not wanted:
         return []
-    embedder = _embedder()
     if embedder is not None:
         embed_batch = getattr(embedder, "embed_batch", None)
         if callable(embed_batch):
@@ -562,7 +566,65 @@ def _embed_documents(texts: Sequence[str]) -> list[Any | None]:
                     len(wanted),
                     len(vectors),
                 )
-    return [_embed(text) for text in wanted]
+    vectors = []
+    for text in wanted:
+        try:
+            vectors.append(embedder.embed(text) if embedder is not None else None)
+        except (RuntimeError, ValueError, TypeError, OSError) as exc:
+            logger.debug("Evidence relevance embedding failed: %s", exc)
+            vectors.append(None)
+    return vectors
+
+
+def _embed_documents(texts: Sequence[str]) -> list[Any | None]:
+    """Reuse unchanged evidence only within the encoder that measured it."""
+    wanted = [str(text or "") for text in texts]
+    if not wanted:
+        return []
+    engine = _embedder()
+    if engine is None:
+        return [None] * len(wanted)
+    _bind_cache_to_engine(engine)
+    keys = [hashlib.sha256(text.encode('utf-8', 'surrogatepass')).hexdigest() for text in wanted]
+    missing: dict[str, str] = {}
+    with _LOCK:
+        generation = _CACHE_ENGINE_TOKEN
+        if generation != _engine_token(engine):
+            return [None] * len(wanted)
+        found = {key: _DOCUMENT_CACHE[key] for key in keys if key in _DOCUMENT_CACHE}
+        for key in found:
+            _DOCUMENT_CACHE.move_to_end(key)
+        for key, text in zip(keys, wanted, strict=True):
+            if key not in found:
+                missing[key] = text
+    if missing:
+        vectors = _encode_documents(list(missing.values()), engine)
+        with _LOCK:
+            if generation != _CACHE_ENGINE_TOKEN or generation != _engine_token(engine):
+                # An in-flight encode cannot populate a replacement engine's cache.
+                return [None] * len(wanted)
+            for key, vector in zip(missing, vectors, strict=True):
+                found[key] = vector
+                try:
+                    retained_width = len(vector) if vector is not None else 0
+                except TypeError:
+                    retained_width = 0
+                if 0 < retained_width <= 4096:
+                    _DOCUMENT_CACHE[key] = vector
+                    _DOCUMENT_CACHE.move_to_end(key)
+            while len(_DOCUMENT_CACHE) > _REQUEST_CACHE_MAX:
+                _DOCUMENT_CACHE.popitem(last=False)
+    return [found.get(key) for key in keys]
+
+
+@invariant('cognition.evidence_document_cache_bounded', scope='cognition',
+           owner='core/cognition/evidence_relevance.py')
+def document_cache_is_bounded():
+    """Retained document vectors cannot grow past their serving budget."""
+    with _LOCK:
+        count = len(_DOCUMENT_CACHE)
+    if count > _REQUEST_CACHE_MAX:
+        yield Violation(subject='evidence-documents', message=f'{count} retained vectors exceed {_REQUEST_CACHE_MAX}.')
 
 
 def _cosine(left: Any, right: Any) -> float:

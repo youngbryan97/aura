@@ -9752,7 +9752,10 @@ async def test_cognitive_engine_quick_reply_places_self_condition_evidence_in_mo
     assert call["self_condition_contract"] is True
     assert call["self_condition_contract_covers_turn"] is True
     assert call["max_tokens"] == 512
-    assert call["user_surface_completion_floor"] == 512
+    # Allocated capacity includes finishing room; the semantic floor measures
+    # the request itself. Inflating that floor can open private reasoning for
+    # an ordinary conversational turn.
+    assert call["user_surface_completion_floor"] == 256
     # The authority head is one stable string. The self-condition directive
     # governs THIS turn, so it travels with the turn rather than sitting in the
     # head every turn shares — five variants of that head meant no two turns
@@ -14133,10 +14136,18 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_ordinary_turn_forwards_exact_conversation_resume_to_router(monkeypatch):
+@pytest.mark.parametrize('contract', [
+    None, 'memory_state_contract', 'runtime_fact_status_contract', 'self_condition_contract',
+    'capability_inventory_contract', 'identity_continuity_contract',
+])
+@pytest.mark.parametrize('streaming', [False, True])
+async def test_ordinary_turn_forwards_exact_conversation_resume_to_router(monkeypatch, contract, streaming):
+    from contextlib import nullcontext
+
     from core.brain import cognitive_engine as ce_module
     from core.brain.cognitive_engine import CognitiveEngine
     from core.brain.types import ThinkingMode
+    from core.conversation.reply_stream import ReplyStreamChannel, bind_reply_stream
 
     calls = []
 
@@ -14159,17 +14170,21 @@ async def test_ordinary_turn_forwards_exact_conversation_resume_to_router(monkey
         "visible_user_message": "How did you know that?",
         "user_surface_conversation_resume_handle": "f" * 32,
     }
+    if contract:
+        context[contract] = True
 
-    thought = await CognitiveEngine()._direct_desktop_quick_reply(
-        "How did you know that?",
-        ThinkingMode.FAST,
-        "user",
-        context,
-        timeout_s=60.0,
-    )
+    with bind_reply_stream(ReplyStreamChannel()) if streaming else nullcontext():
+        thought = await CognitiveEngine()._direct_desktop_quick_reply(
+            "How did you know that?",
+            ThinkingMode.FAST,
+            "user",
+            context,
+            timeout_s=60.0,
+        )
 
     assert thought is not None
     assert calls[0]["user_surface_conversation_resume_handle"] == "f" * 32
+    assert calls[0]["stream_user_surface"] is streaming
 
 
 @pytest.mark.asyncio
