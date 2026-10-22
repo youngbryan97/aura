@@ -148,3 +148,20 @@ def test_whether_her_cortex_lane_fits_is_asked_of_the_machine() -> None:
         assert InferenceGate._headroom_snapshot("primary")["pressure_pct"] == 10.0
     finally:
         set_resource_observer_for_test(previous)
+
+
+def test_every_memory_gate_reads_the_machine_under_a_declared_host() -> None:
+    """The gate's own reading was fixed first and the model client's guards
+    still refused her cortex's respawn at a declared 95% (22 October): every
+    gate that asks the memory monitor asks about the machine."""
+    from core.utils.memory_monitor import get_memory_pressure_snapshot
+
+    roomy = SimulatedResourceObserver(cpu_percent=3.0, memory_percent=10.0, cpu_count=18)
+    previous = set_resource_observer_for_test(_DeclaredHost(roomy, STRESS))
+    try:
+        snapshot = get_memory_pressure_snapshot(force_refresh=True)
+        assert snapshot.pressure_pct == 10.0
+        assert not snapshot.refuse_heavy_local_generation
+    finally:
+        set_resource_observer_for_test(previous)
+        get_memory_pressure_snapshot(force_refresh=True)

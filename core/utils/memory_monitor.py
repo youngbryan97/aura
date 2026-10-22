@@ -311,10 +311,21 @@ def get_memory_pressure_snapshot(
     max_age_s: float | None = None,
     observer: ResourceObserver | None = None,
 ) -> MemoryPressureSnapshot:
-    """Return one canonical unified-memory pressure decision for runtime gates."""
+    """Return one canonical unified-memory pressure decision for runtime gates.
+
+    The gates this serves decide what the machine can hold: whether a model
+    spawns, whether heavy generation runs. Under a host a run declares (the
+    body she is shown, which her guard organs read through other paths) they
+    ask the observer underneath. On 22 October a stress condition's declared
+    95% refused her cortex's respawn twice in one reports run, on a machine 90%
+    free.
+    """
 
     global _SNAPSHOT_CACHE
-    resource_observer = observer or get_resource_observer()
+    if observer is None:
+        observer = get_resource_observer()
+        observer = getattr(observer, "machine", observer)
+    resource_observer = observer
     provenance = resource_observer.provenance
     cache_key = (id(resource_observer), provenance.source.value, provenance.scenario_id)
     ttl = _memory_snapshot_cache_ttl_s() if max_age_s is None else max(0.0, float(max_age_s))
