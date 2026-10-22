@@ -2122,3 +2122,33 @@ from the fourth round of each validation run sat in minimal mode, which in a
 run stops nothing (neither service it names has a switch). The resource
 monitor now says when a strain ends and the protocol drops it. Nothing the
 battery reads comes from the protocol; this is named because it is her code.
+
+## Addendum, 21 October 2026, night: the pair at `086ec4bb5`, and the next commit
+
+### What the pair read
+
+Codes on: v5 synergy passes W,A -> D only. Codes off: P,M -> W and W,A -> D.
+A,S -> G fails in both arms; it passed at `5885688d7` with the signed, fresh
+units, and still did with the registers held flat. S,D -> C fails at the
+interaction bound: model selection turns the product columns off on every fold.
+The codes-on closure reading is degenerate: one column, the mesh's strongest
+weight, climbed to the clip of one late in the run and carries the whole loss.
+The full reading is in `docs/ISC_OCT21_EVERY_ITEM.md`.
+
+### Organism changes in the next commit
+
+1. **The conjunctive units are bound fresh each cycle.** They carried over at
+   her affect's momentum from the afternoon of 21 October, so a cycle's change
+   in a unit was about a seventh of its conjunction, and the line reads change.
+2. **The mesh's STDP is soft-bounded** (van Rossum, Bi and Turrigiano 2000): a
+   synapse strengthens by its distance from one and weakens in proportion to
+   its strength. Under hard bounds the strongest weight climbed to the clip in
+   both codes-on runs (from 0.8; it stayed at 0.8 with the codes off).
+
+The gain-field form, the learned axes, G2, G3 and G5 are unchanged. Nothing
+moves a threshold.
+
+### How it is read
+
+A pair at seed 7, 370 rounds, codes on and off, calibrated axes in both, read
+by the same lines. Seed 23 stays untouched until the system is frozen.

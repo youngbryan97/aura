@@ -1633,6 +1633,15 @@ class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
             # the measured densities above describe the mesh at construction and
             # nothing was holding them there.
             dw = dw * (col.W != 0)
+            # Soft bounds: a synapse strengthens by less the nearer it is to the
+            # bound of one and weakens in proportion to its strength (van
+            # Rossum, Bi and Turrigiano 2000; Guetig et al. 2003). With hard
+            # bounds alone, potentiation piled weights up at the clip: on 21
+            # October the mesh's strongest weight climbed from 0.8 to 1.0 in
+            # every run with the conjunctive gains on and sat there, a trend the
+            # core read as a clock, and stayed at 0.8 with them off.
+            strength = np.abs(col.W)
+            dw = np.where(dw > 0.0, dw * (1.0 - strength), dw * strength).astype(np.float32)
 
             # Both rules change a synapse's STRENGTH; neither may change what it
             # does. An inhibitory synapse is negative, so strengthening it means
