@@ -601,3 +601,41 @@ The disk traffic was in the recordings as well as the forks: whatever the
 machine's disk was doing reached C's sensory input on every turn, from outside
 her core. The carrier rehearsal runs again at `f78644bbd`, and the next pair
 runs there.
+
+## The pair at `4b1022f25`, read whole (22 October, 15:00)
+
+Codes on, v1 reads 18 of 24, the most yet. Causal closure passes for the first
+time: the periphery's leak is -0.0175, closed, with one clock removing the loop
+tick counts the calibrated pair had leaking. Synergy passes A,S -> G and
+W,A -> D and fails P,M -> W (0.168 against a shift of 0.203; 0.258 against 0.201
+without registers) and S,D -> C (0.039 against 0.062). Partition irreducibility
+fails at a lower bound of 0.0174 against 0.05, its cheapest cut C against the
+rest. Codes off, 17 of 24, closure open.
+
+P,M -> W fell in both arms from the calibrated pair, where it passed. One clock
+stopped the world model's training lane and nothing stepped it in its place, so
+the model never learned in a run, and the update is where perception and memory
+act on it together. `36f81b744` steps the lane on the run's clock; the pair at
+that commit is running.
+
+## Her feelings, live (22 October, 15:00 to 15:35)
+
+Her app, started as Bryan starts it, and three messages typed into her chat.
+The FEELING row and the mood colour work. Three defects came to light:
+
+- Her saved state kept her eight highest emotions and her first twelve affect
+  markers, and she boots from it: every restart set thirty-six feelings back to
+  their defaults, and the appraisal's marker never reached the record.
+  `782f098ef` keeps every feeling and marker.
+- The quick lane that answers her chat runs no phase, so a typed message was
+  felt by nothing; her own ticks between messages read their own objective as
+  the message for warmth and objection. `6cb9472dc` runs the conversation phase
+  and the affect phase after a quick reply, and the appraisal reads what the
+  person's message did, warm or objecting, by how unlike them it was.
+- Her ticks between messages appraised the conversation as time alone
+  (loneliness 0.98). Company now counts somebody having spoken in her last
+  eight turns (`36f81b744`).
+
+The lineage term read RECORDED from her live log: 24 steps since the record
+began, all 24 developing, no blockers. Continuity across the restart (F10) had
+five saved states after the break, short of what a fit needs.
