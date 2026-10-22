@@ -1,0 +1,255 @@
+{
+  "schema": "aura.voice.presentation_measurement.v1",
+  "ok": true,
+  "measured_at": "2026-10-22T041326Z",
+  "sources": {
+    "interface/static/aura.js": "d527530f7ccf3e90d7ad59dc4169d915379ba256a817dfcbf9f6da678b157c92",
+    "core/voice/duplex/config.py": "0d613f311535f63509ceede752402607611e4ae927147813903b69d9ea5186ad",
+    "core/voice/duplex/tts_stream.py": "52066155d2515d29ebb16fddf490a784c16509a3790ea86c3e92f385fb3e6a78",
+    "core/voice/duplex/pocket_speech.py": "6262a0bd67f830699cc9045e093af6dccab5ef8d856019353a5189b3f3fa7820",
+    "core/voice/duplex/session.py": "3379db2ac80eb2128ada46c0089f855e83ee507f8539d003bd624818dd394bf9",
+    "core/voice/duplex/original_speech.py": "e4c6d0e9178b7348ec5d96dfd248fe02121e68edf1bf4bc8066eb3af75735fc8",
+    "core/voice/duplex/treatment.py": "d7e3ee0e2f40834cd34654db9622fc7fae343b9d7b63f8bb1a866f81903723e9",
+    "tools/voice/original_speech_worker.py": "5d7cb1502443043d69327616ac2eb721bf319d9b73b571bd5c797267b25871c1",
+    "interface/static/voice_mode.js": "ab3648fe10e529dfb4841f704c102d6d5efc6d2e9ad33dd0a0aada23e55c2db4",
+    "interface/static/voice_mode.css": "c6bc4ba03fca7d8ad622d20ef1fefa209bbd3766b70c6b68fed8b1457be4ef70",
+    "interface/static/voice-capture-processor.js": "8ccc24035c35796f4350744ffeedace8e89aff44c686617039e58ec4dfe17272",
+    "interface/static/voice-playback-processor.js": "63184d778ba39204fd6f39d512258d52862b9b4e8ec218f7b1aea6c060325d71"
+  },
+  "checks": [
+    "390px width",
+    "both playback lanes flushed",
+    "focus restored",
+    "keyboard containment",
+    "late audio rejected",
+    "local interrupt before server command",
+    "local model synthesis",
+    "next turn plays",
+    "no routine metrics notices",
+    "physical microphone stopped",
+    "ready audio does not wait for another clause",
+    "settings refresh preserves focused voice",
+    "voice preview is playback"
+  ],
+  "ui": {
+    "ok": true,
+    "checks": [
+      "local interrupt before server command",
+      "both playback lanes flushed",
+      "late audio rejected",
+      "next turn plays",
+      "no routine metrics notices",
+      "physical microphone stopped",
+      "390px width",
+      "keyboard containment",
+      "focus restored",
+      "settings refresh preserves focused voice",
+      "voice preview is playback"
+    ],
+    "stopped": {
+      "sent": [
+        {
+          "command": "barge_in",
+          "played_ms": 112,
+          "utterance_id": 7,
+          "at": 528.6000000238419
+        }
+      ],
+      "ports": [
+        {
+          "type": "flush",
+          "at": 528.5
+        },
+        {
+          "type": "flush",
+          "at": 528.5
+        }
+      ]
+    }
+  },
+  "artifacts": "docs/evidence/presentation/2026-10-22T041326Z",
+  "production_wrapper": {
+    "schema": "aura.voice.selected_a_production_probe.v1",
+    "voice_id": "aura_kiwi",
+    "synthetic_output": true,
+    "engine": "voxcpm2",
+    "language_model_bits": 8,
+    "treatment": "clean",
+    "loaded_s": 7.160331415943801,
+    "loaded_status": {
+      "schema": "aura.voice.tts_model_runtime.v1",
+      "engine": "voxcpm2",
+      "loaded": true,
+      "warmed": false,
+      "model_lane_owned": true,
+      "accepting_synthesis": true,
+      "active_syntheses": 0,
+      "closing": false
+    },
+    "closed_status": {
+      "schema": "aura.voice.tts_model_runtime.v1",
+      "engine": "none",
+      "loaded": false,
+      "warmed": false,
+      "model_lane_owned": false,
+      "accepting_synthesis": false,
+      "active_syntheses": 0,
+      "closing": true
+    },
+    "samples": [
+      {
+        "name": "new-dialogue",
+        "text": "Okay, I see what happened. Give me a second. I'll fix the timing, and then we can try it again.",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/production-new-dialogue.wav",
+        "engine": "voxcpm2",
+        "sample_rate": 24000,
+        "duration_s": 6.400166666666666,
+        "whole_clause_s": 3.8481605839915574,
+        "selected_samples": 153604,
+        "production_samples": 153604,
+        "audition_correlation": 0.999999999999925,
+        "max_sample_difference": 1.1893826012965292e-07
+      },
+      {
+        "name": "preview",
+        "text": "Okay. Here's how I sound now.",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/production-preview.wav",
+        "engine": "voxcpm2",
+        "sample_rate": 24000,
+        "duration_s": 2.0801666666666665,
+        "whole_clause_s": 1.3690802910132334
+      },
+      {
+        "name": "casual",
+        "text": "Yeah, that makes sense. I think we're getting closer. What do you want to try next?",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/production-casual.wav",
+        "engine": "voxcpm2",
+        "sample_rate": 24000,
+        "duration_s": 4.000166666666667,
+        "whole_clause_s": 2.5060617910930887
+      },
+      {
+        "name": "technical",
+        "text": "The timing is better now. I'll check the next step and let you know what I find.",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/production-technical.wav",
+        "engine": "voxcpm2",
+        "sample_rate": 24000,
+        "duration_s": 4.800166666666667,
+        "whole_clause_s": 2.881432041991502
+      }
+    ],
+    "limits": "Production synthesis wrapper with real model ownership; no added mask or pitch shift. This does not measure end-to-end conversation latency."
+  },
+  "recognition": [
+    {
+      "name": "new-dialogue",
+      "expected": "Okay, I see what happened. Give me a second. I'll fix the timing, and then we can try it again.",
+      "recognized": "Okay, I see what happened. Give me a second. I'll fix the timing and then we can try it again.",
+      "word_sequence_matches": true
+    },
+    {
+      "name": "preview",
+      "expected": "Okay. Here's how I sound now.",
+      "recognized": "Okay, here's how I sound now.",
+      "word_sequence_matches": true
+    },
+    {
+      "name": "casual",
+      "expected": "Yeah, that makes sense. I think we're getting closer. What do you want to try next?",
+      "recognized": "Yeah that makes sense. I think we're getting closer. What do you want to try next?",
+      "word_sequence_matches": true
+    },
+    {
+      "name": "technical",
+      "expected": "The timing is better now. I'll check the next step and let you know what I find.",
+      "recognized": "The timing is better now. I'll check the next step and let you know what I find.",
+      "word_sequence_matches": true
+    }
+  ],
+  "selected_profile": {
+    "engine": "voxcpm2",
+    "voice_id": "aura_kiwi",
+    "synthetic_output": true,
+    "selection": "Bryan selected A by far and approved the faster 8-bit language-layer version.",
+    "conditioning": "Short car-scene audio plus matching transcript, continuation API, seed 821211, 10 diffusion steps, guidance 2.",
+    "language_model_bits": 8,
+    "acoustic_weights": "bf16",
+    "compile_solver": true,
+    "output_sample_rate": 24000,
+    "output_rms": 0.09,
+    "additional_mask": false,
+    "pitch_shift": false,
+    "reference_storage": "Local only; no source recordings or model weights in this checkpoint.",
+    "manifest_sha256": "68ab19c6672480a65d6efbb0ba4bce7581f19f56d75ec64fcd733169d6a4ea6d"
+  },
+  "optimization_measurements": {
+    "baseline": [
+      {
+        "name": "baseline",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/baseline.wav",
+        "synthesis_s": 15.365518874954432,
+        "duration_s": 6.400166666666666,
+        "peak_gb": 8.145417228
+      },
+      {
+        "name": "compiled-cold",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/compiled-cold.wav",
+        "synthesis_s": 17.090182625106536,
+        "duration_s": 6.400166666666666,
+        "peak_gb": 8.145417364,
+        "correlation": 1.0,
+        "max_difference": 0.0
+      },
+      {
+        "name": "compiled-warm",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/compiled-warm.wav",
+        "synthesis_s": 14.408802249934524,
+        "duration_s": 6.400166666666666,
+        "peak_gb": 8.145417364,
+        "correlation": 1.0,
+        "max_difference": 0.0
+      }
+    ],
+    "solver_and_language_layers": [
+      {
+        "name": "compiled-solver-cold",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/compiled-solver-cold.wav",
+        "synthesis_s": 13.438065833062865,
+        "duration_s": 6.400166666666666,
+        "peak_gb": 8.1454231,
+        "correlation": 0.9957205791230994,
+        "max_difference": 0.1907406598329544
+      },
+      {
+        "name": "compiled-solver-warm",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/compiled-solver-warm.wav",
+        "synthesis_s": 10.724700000020675,
+        "duration_s": 6.400166666666666,
+        "peak_gb": 8.1454231,
+        "correlation": 0.9957205791230994,
+        "max_difference": 0.1907406598329544
+      },
+      {
+        "name": "lm8bit",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-a-2026-10-21/lm8bit.wav",
+        "synthesis_s": 4.933958041947335,
+        "duration_s": 6.400166666666666,
+        "peak_gb": 8.1454231,
+        "correlation": 0.8030524981032786,
+        "max_difference": 0.6261595487594604
+      }
+    ],
+    "limits": "Sequential local probes. Timing varies with host load; waveform correlation does not establish subjective fidelity."
+  },
+  "repository_checks": {
+    "focused_voice_tests": 30,
+    "smoke_passed": 164,
+    "smoke_skipped": 1,
+    "lint": true,
+    "compile": true,
+    "layering": true,
+    "writing": true,
+    "full_suite_run": false
+  },
+  "limits": "UI fixture uses simulated microphone and transport. The production wrapper used the real selected model with model-lane ownership. No live conversational latency or ChatGPT Voice parity is established here."
+}

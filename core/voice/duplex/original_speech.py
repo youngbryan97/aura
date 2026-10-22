@@ -15,18 +15,22 @@ from typing import Any
 
 import numpy as np
 
+from core.runtime.lockdep import LockRank, checked_lock
+
 logger = logging.getLogger("Aura.Voice.Original")
 
 
 class OriginalSpeech:
     name = "qwen_original"
 
-    def __init__(self, manifest: Path, python: Path) -> None:
+    def __init__(self, manifest: Path, python: Path, engine: str = "qwen_original") -> None:
         self.manifest = manifest
         self.python = python
+        self.name = engine
         self.process: subprocess.Popen | None = None
         self.voices = frozenset({"aura_velvet"})
         self._buffer = bytearray()
+        self._lock = checked_lock("voice.tts.reference_worker", rank=LockRank.LEAF)
 
     def _receive(self, timeout: float) -> dict[str, Any]:
         assert self.process is not None and self.process.stdout is not None
@@ -53,6 +57,10 @@ class OriginalSpeech:
     def load(self) -> bool:
         try:
             settings = json.loads(self.manifest.read_text())
+            if self.name not in {"qwen_original", "voxcpm2"} or settings.get(
+                "engine", "qwen_original",
+            ) != self.name:
+                raise ValueError("Prepared voice engine does not match the selected engine")
             root = Path(settings["model_directory"])
             reference = Path(settings["reference_audio"])
             voice_id = settings.get("voice_id", "aura_velvet")
@@ -62,7 +70,16 @@ class OriginalSpeech:
                 raise ValueError("Prepared voice identifier is invalid")
             if not self.python.is_file() or not root.is_absolute() or not reference.is_absolute():
                 raise ValueError("Original speech requires prepared absolute local paths")
-            if not (root / "model.safetensors").is_file():
+            index = root / "model.safetensors.index.json"
+            if index.is_file():
+                shards = set(json.loads(index.read_text())["weight_map"].values())
+                if not shards or any(
+                    not isinstance(shard, str) or Path(shard).name != shard
+                    or not shard.endswith(".safetensors") or not (root / shard).is_file()
+                    for shard in shards
+                ):
+                    raise ValueError("Prepared speech model shards are absent or invalid")
+            elif not (root / "model.safetensors").is_file():
                 raise ValueError("Original speech model weights are absent")
             if hashlib.sha256(reference.read_bytes()).hexdigest() != settings["reference_sha256"]:
                 raise ValueError("Original voice reference changed")
@@ -83,11 +100,19 @@ class OriginalSpeech:
             return False
 
     def synthesize(self, text: str, spec: Any) -> tuple[np.ndarray, int]:
-        if self.process is None or self.process.stdin is None:
-            raise RuntimeError("Original speech worker is not loaded")
-        request = json.dumps({"text": text, "speed": float(spec.speed)}) + "\n"
-        self.process.stdin.write(request.encode())
-        result = self._receive(45)
+        # Backchannels and replies share this pipe. A request must receive its
+        # own audio before the next request can use the worker.
+        with self._lock:
+            if self.process is None or self.process.stdin is None:
+                raise RuntimeError("Original speech worker is not loaded")
+            request = json.dumps({"text": text, "speed": float(spec.speed)}) + "\n"
+            try:
+                self.process.stdin.write(request.encode())
+                result = self._receive(45)
+            except (OSError, RuntimeError, ValueError):
+                # A timed-out response cannot become the next sentence.
+                self.close()
+                raise
         audio = np.frombuffer(base64.b64decode(result["audio"], validate=True), dtype="<f4").copy()
         if not np.isfinite(audio).all():
             raise ValueError("Original speech returned nonfinite audio")

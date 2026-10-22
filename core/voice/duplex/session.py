@@ -68,6 +68,7 @@ from core.voice.duplex.paralinguistics import (
 )
 from core.voice.duplex.prosody import (
     ProsodyCompiler,
+    ProsodySpec,
     carry_breakthrough,
     live_affect,
     live_speech_profile,
@@ -1769,14 +1770,20 @@ class DuplexVoiceSession:
                 return
             await asyncio.sleep(0.05)
 
-    async def _speak_aside(self, text: str, opcode: protocol.AudioOpcode, gain: float) -> None:
+    async def _speak_aside(
+        self, text: str, opcode: protocol.AudioOpcode, gain: float, *, nominal: bool = False,
+    ) -> None:
         """Synthesise a backchannel or filler.
 
         Asides deliberately do not touch ``_speaking``: they are not turns,
         they must not be interruptible as if they were, and they must not
         overwrite the record of what she actually said.
         """
-        spec = self._prosody_spec()
+        # Voice selection auditions the prepared voice, independently of the
+        # current conversation's affect, mirroring and speaking-rate overrides.
+        spec = (ProsodySpec(voice=self._voice_override or self._config.tts.voice,
+                            speed=self._config.tts.speed)
+                if nominal else self._prosody_spec())
         # An aside is not a line she arrives at, so it carries no bend.
         spec = spec.scaled(gain=spec.gain * gain).without_bend()
         token = CancellationToken()
@@ -1929,7 +1936,7 @@ class DuplexVoiceSession:
                     )
                     self._turn_task = self._spawn(self._speak_aside(
                         "Okay. Here's how I sound now.",
-                        protocol.AudioOpcode.BACKCHANNEL, 1.0,
+                        protocol.AudioOpcode.BACKCHANNEL, 1.0, nominal=True,
                     ))
         elif command == protocol.CMD_TEXT:
             text = str(message.get("text") or "").strip()

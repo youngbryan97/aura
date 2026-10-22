@@ -358,6 +358,9 @@ class StreamingTts:
         candidate = acquire_synchronous_in_process_model_lane(
             owner_id=f"voice-duplex-tts:{id(self)}",
             model_path=(
+                "voice-duplex/tts/voxcpm2"
+                if self._config.engine == "voxcpm2"
+                else
                 "voice-duplex/tts/qwen-original"
                 if self._config.engine == "qwen_original"
                 else
@@ -366,7 +369,8 @@ class StreamingTts:
                 else "voice-duplex/tts/pocket-kokoro-piper"
             ),
             purpose="serve",
-            request_gb=(8.0 if self._config.engine == "qwen_original" else
+            request_gb=(10.0 if self._config.engine == "voxcpm2" else
+                        8.0 if self._config.engine == "qwen_original" else
                         3.0 if clone_enabled else (1.75 if self._config.engine != "kokoro" else 0.75)),
             priority=30,
             preemptible=False,
@@ -472,8 +476,10 @@ class StreamingTts:
                 if await loop.run_in_executor(self._pool, pocket.load):
                     self._state.pocket = pocket
 
-            if self._config.engine == "qwen_original":
-                original = OriginalSpeech(self._config.original_manifest, self._config.original_python)
+            if self._config.engine in {"qwen_original", "voxcpm2"}:
+                original = OriginalSpeech(
+                    self._config.original_manifest, self._config.original_python, self._config.engine,
+                )
                 with self._lifecycle_lock:
                     if self._closing:
                         return False

@@ -36,6 +36,110 @@ def test_worker_is_reaped_before_memory_ownership_is_released():
     assert order == ['reap', 'release']
 
 
+def test_timed_out_audio_cannot_become_the_next_sentence(monkeypatch):
+    engine = OriginalSpeech(Path('/unused'), Path(__file__))
+    writes, closed = [], []
+    engine.process = SimpleNamespace(stdin=SimpleNamespace(write=writes.append))
+    def timeout(_):
+        raise TimeoutError('no response')
+    def close():
+        closed.append(True)
+        engine.process = None
+    monkeypatch.setattr(engine, '_receive', timeout)
+    monkeypatch.setattr(engine, 'close', close)
+    with pytest.raises(TimeoutError):
+        engine.synthesize('First sentence.', ProsodySpec(voice='aura_kiwi'))
+    with pytest.raises(RuntimeError, match='not loaded'):
+        engine.synthesize('Next sentence.', ProsodySpec(voice='aura_kiwi'))
+    assert len(writes) == 1 and closed == [True]
+
+
+@pytest.mark.parametrize('engine', ['qwen_original', 'voxcpm2'])
+@pytest.mark.parametrize('shards', ['complete', 'missing', 'traversal'])
+def test_sharded_reference_model_is_complete_before_worker_start(tmp_path, monkeypatch, engine, shards):
+    reference = tmp_path / 'reference.wav'
+    reference.write_bytes(b'prepared')
+    (tmp_path / 'part1.safetensors').touch()
+    if shards == 'complete':
+        (tmp_path / 'part2.safetensors').touch()
+    second = '../part2.safetensors' if shards == 'traversal' else 'part2.safetensors'
+    (tmp_path / 'model.safetensors.index.json').write_text(json.dumps({
+        'weight_map': {'first.weight': 'part1.safetensors', 'second.weight': second},
+    }))
+    manifest = tmp_path / 'manifest.json'
+    manifest.write_text(json.dumps({
+        'engine': engine, 'voice_id': 'aura_kiwi', 'model_directory': str(tmp_path),
+        'reference_audio': str(reference),
+        'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(),
+    }))
+    spawned = []
+    monkeypatch.setattr('core.voice.duplex.original_speech.subprocess.Popen',
+                        lambda *a, **kw: spawned.append(a) or SimpleNamespace())
+    speech = OriginalSpeech(manifest, Path(__file__), engine)
+    monkeypatch.setattr(speech, '_receive', lambda _: {'ready': True})
+    assert speech.load() is (shards == 'complete')
+    assert bool(spawned) is (shards == 'complete')
+    assert speech.name == engine
+
+
+def test_voxcpm_uses_the_continuation_api_from_the_selected_audition():
+    from tools.voice.original_speech_worker import generation_options
+
+    options = generation_options({
+        'engine': 'voxcpm2', 'reference_audio': '/local/kiwi.wav',
+        'reference_text': 'The reference sentence.',
+        'inference_timesteps': 10, 'cfg_value': 2.,
+    })
+    assert options == {
+        'prompt_audio': '/local/kiwi.wav', 'prompt_text': 'The reference sentence. ',
+        'inference_timesteps': 10, 'cfg_value': 2., 'max_tokens': 300,
+    }
+    # VoxCPM2 ignores ref_text. Passing it would silently choose another mode.
+    assert 'ref_text' not in options and 'ref_audio' not in options
+
+
+def test_faster_voxcpm_keeps_the_acoustic_modules_at_full_precision():
+    from tools.voice.original_speech_worker import prepare_model
+
+    solver = object()
+    compiled = object()
+    model = SimpleNamespace(
+        base_lm=object(), residual_lm=object(), audio_vae=object(),
+        feat_decoder=SimpleNamespace(solve_euler=solver), parameters=lambda: 'weights',
+    )
+    acoustic = model.audio_vae, model.feat_decoder
+    quantized, evaluated = [], []
+    def compile_method(fn):
+        assert fn is solver
+        return compiled
+    mx = SimpleNamespace(compile=compile_method, eval=evaluated.append, clear_cache=lambda: None)
+    nn = SimpleNamespace(quantize=lambda module, **kw: quantized.append((module, kw)))
+    prepare_model(model, {'engine': 'voxcpm2', 'language_model_bits': 8, 'compile_solver': True}, mx, nn)
+    assert quantized == [(model.base_lm, {'group_size': 64, 'bits': 8}),
+                         (model.residual_lm, {'group_size': 64, 'bits': 8})]
+    assert (model.audio_vae, model.feat_decoder) == acoustic
+    assert model.feat_decoder.solve_euler is compiled
+    assert evaluated == ['weights']
+
+
+@pytest.mark.parametrize('engine,budget,path', [
+    ('voxcpm2', 10., 'voice-duplex/tts/voxcpm2'),
+    ('qwen_original', 8., 'voice-duplex/tts/qwen-original'),
+])
+def test_prepared_worker_reserves_its_model_family_and_measured_memory(monkeypatch, engine, budget, path):
+    admitted = []
+    lease = SimpleNamespace(release=lambda **kw: True)
+    monkeypatch.setattr('core.runtime.model_lane_control.acquire_synchronous_in_process_model_lane',
+                        lambda **kw: admitted.append(kw) or lease)
+    tts = StreamingTts(TtsConfig(engine=engine))
+    try:
+        assert tts._acquire_model_lane() is lease
+        assert admitted[0]['request_gb'] == budget
+        assert admitted[0]['model_path'] == path
+    finally:
+        tts.shutdown()
+
+
 @pytest.mark.parametrize('voice_id', ['aura_kiwi', None, 'Kiwi', 'aura_' + 'x' * 65])
 def test_prepared_profile_advertises_its_verified_voice_identifier(tmp_path, monkeypatch, voice_id):
     reference = tmp_path / 'reference.wav'
