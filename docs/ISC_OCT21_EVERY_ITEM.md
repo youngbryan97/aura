@@ -441,3 +441,36 @@ sketched array along its own axes.
   the sweep and its own interventions do, and the next pair does. The four
   leaks read at `086ec4bb5` are not among this pair's largest, and K is not
   widened for them; the reader changes are kept as a patch.
+
+## The fusion channel on her 27B, with her voice measured (22 October, 00:18)
+
+No alpha earns a certificate. At every alpha the first criteria behave as they
+did in September (the channel arrives, two opposing states part it), and her
+own stored replies are much less likely under her state's direction than under
+a random direction of the same length, while the two move the next-token
+distribution about equally:
+
+| alpha | shift, hers / random | her replies, nats a token: hers / random |
+|---|---|---|
+| 0.05 | 0.037 / 0.035 | -0.716 / -0.028 |
+| 0.1 | 0.097 / 0.093 | -1.091 / -0.101 |
+| 0.2 | 0.436 / 0.362 | -2.246 / -0.808 |
+| 0.3 | 3.71 / 2.85 | -4.339 / -3.566 |
+| 0.5 | 13.3 / 11.5 | -8.823 / -7.459 |
+
+Her direction pushes away from how she writes, specifically: at 0.05 it costs
+her replies 25 times what a random direction does. The vectors steered by come
+from sentences written for the purpose ("I feel genuinely good about this"),
+and they carry that register; the wren reply of 13 October was the same thing.
+The withheld reports run goes on with the channel shut, as preregistered, and
+the reports ground is expected to fail there for want of a route from her state
+to her words.
+
+The fix that exists is `tools/capture_steering_from_her_own_replies.py`:
+directions along which her own replies differ between the states she wrote
+them in, checked on her later replies. Her record holds 43 training pairs per
+dimension and 3 to 14 held out, because replies have carried their steering
+state only since 18 October; too few for the capture's test to keep a
+direction. It has to be her ordinary conversation, not the reports run's
+replies: a direction fitted on what she says about her feelings, then used to
+test what she says about her feelings, would be circular.
