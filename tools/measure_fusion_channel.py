@@ -60,6 +60,12 @@ def main() -> int:
     parser.add_argument("--require-active-cortex", action="store_true",
                         help="require the signed resident identity before loading or attaching")
     parser.add_argument("--seed", type=int, default=20260908)
+    parser.add_argument(
+        "--replies",
+        default=str(Path(os.environ.get("AURA_ROOT") or REPO) / "data" / "endogenous_language" / "pairs.jsonl"),
+        help="her recorded replies with the steering state each was said in, for the voice reading",
+    )
+    parser.add_argument("--voice", type=int, default=32, help="how many of her replies the voice reading scores")
     arguments = parser.parse_args()
 
     from core.brain.llm.model_artifact_profile import build_model_artifact_descriptor
@@ -153,6 +159,7 @@ def _measure(
         seed=arguments.seed,
         runner="tools/measure_fusion_channel.py",
         on_result=report,
+        replies=her_replies(Path(arguments.replies), checkpoint.name, arguments.voice, arguments.seed),
     )
 
     holding = [certificate for certificate in certificates if certificate.holds]
@@ -186,6 +193,39 @@ def _probe_descriptor(arguments, checkpoint: Path, build_descriptor) -> dict:
         raise ValueError(f"fusion_probe_active_identity_required:{resolution.reason}")
     return build_descriptor(checkpoint,
         repository_id="" if arguments.model_path else arguments.model)
+
+
+def her_replies(path: Path, model_name: str, count: int, seed: int) -> list[tuple[str, list[float]]]:
+    """Replies she said with this checkpoint to a person, each with the steering state it was said in.
+
+    Drawn at random, from the run's seed, across all of them, so the reading
+    covers her register over time and not one evening's.
+    """
+    import json
+    import random
+
+    if count <= 0 or not path.exists():
+        return []
+    found: list[tuple[str, list[float]]] = []
+    with path.open(encoding="utf-8") as handle:
+        for line in handle:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            text, state = str(row.get("text") or ""), row.get("s")
+            if (
+                str(row.get("model") or "") == model_name
+                and str(row.get("lane") or "").startswith("foreground")
+                and isinstance(state, list)
+                and state
+                and len(text.split()) >= 8
+                # Her words, not a structured plan some lane asked her for.
+                and not text.lstrip().startswith(("{", "["))
+            ):
+                found.append((text, [float(v) for v in state]))
+    random.Random(seed).shuffle(found)
+    return found[:count]
 
 
 if __name__ == "__main__":

@@ -2086,3 +2086,17 @@ before the record; they are neither development nor its failure. The term holds
 when her line has at least one step since the record began and every step since
 then developed; a step that changed nothing needs no record. The claim it
 supports is that scope: since the record began.
+
+**The fusion certificate's fifth criterion is measured.** The withheld reports
+run starts by measuring the fusion channel on her 27B. A certificate holds only
+when her own stored replies are no less likely under the steering than without
+it, and until this commit no tool scored that, so no certificate could hold.
+`tools/measure_fusion_channel.py` now scores 32 of her replies at each alpha:
+replies she gave a person with this checkpoint, drawn from
+`data/endogenous_language/pairs.jsonl` by the run's seed, prose only (a lane
+that asked her for a JSON plan is not her voice). Each is scored over its first
+64 tokens with the hooks set to the state the pair recorded for it, steered and
+unsteered, and the reading is the mean difference in log-likelihood per token.
+The bar is the one the certificate already carried: zero. If no alpha holds,
+the reports run reads her state through her prompt only, as before, and the
+report says the forward-pass route was not open.

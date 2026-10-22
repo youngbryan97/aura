@@ -164,6 +164,75 @@ def _walk(model: Any, prompt_ids: Sequence[int], path_ids: Sequence[int]) -> lis
     return distributions
 
 
+#: How much of each stored reply the voice reading scores, in tokens. A reply's
+#: opening carries its register, and decoding a token at a time is what the
+#: hooks steer, so the cost is bounded by reading the opening only.
+VOICE_TOKENS = 64
+
+#: The turn a stored reply is scored as answering. The pairs keep no prompt,
+#: and the same one is used steered and unsteered, so it cancels.
+VOICE_PROMPT = "Go on."
+
+
+def voice_reading(
+    model: Any,
+    tokenizer: Any,
+    hooks: Sequence[Any],
+    set_alpha: Callable[[float], None],
+    alpha: float,
+    replies: Sequence[tuple[str, Sequence[float]]],
+) -> tuple[float | None, int]:
+    """Whether her own stored replies are any less likely under the steering.
+
+    Each reply is scored token by token with the hooks set to the state she
+    was in when she said it (the steering array the pair recorded) at this
+    alpha, and again with steering off. Returns the mean, over replies, of the
+    steered minus the unsteered log-likelihood per token, in nats, and how
+    many replies were scored. A direction that takes her words away from her
+    makes them less likely; one that is hers does not.
+    """
+    import numpy as np
+
+    prompt_ids = chat_ids(tokenizer, VOICE_PROMPT)
+    deltas: list[float] = []
+    for text, state in replies:
+        tokens = _reply_tokens(tokenizer, str(text or ""))[:VOICE_TOKENS]
+        vector = np.asarray(state, dtype=np.float32).reshape(-1)
+        if len(tokens) < 2 or vector.size == 0 or not np.isfinite(vector).all():
+            continue
+        for _ in range(SETTLE_UPDATES):
+            for hook in hooks:
+                hook.update_substrate_vector(vector, source="voice_reading")
+        set_alpha(alpha)
+        steered = _log_likelihood(model, prompt_ids, tokens)
+        set_alpha(0.0)
+        plain = _log_likelihood(model, prompt_ids, tokens)
+        deltas.append((steered - plain) / len(tokens))
+    set_alpha(0.0)
+    if not deltas:
+        return None, 0
+    return float(np.mean(deltas)), len(deltas)
+
+
+def _reply_tokens(tokenizer: Any, text: str) -> list[int]:
+    """A reply's own tokens, without the markers a tokenizer adds to a fresh sequence."""
+    try:
+        return list(tokenizer.encode(text, add_special_tokens=False))
+    except TypeError:
+        return list(tokenizer.encode(text))
+
+
+def _log_likelihood(model: Any, prompt_ids: Sequence[int], tokens: Sequence[int]) -> float:
+    """The log-likelihood of a token path after a prompt, decoded one token at a time."""
+    import mlx.core as mx
+
+    distributions = _walk(model, prompt_ids, tokens)
+    total = 0.0
+    for distribution, token in zip(distributions, tokens, strict=False):
+        total += float(mx.log(mx.maximum(distribution[int(token)], 1e-12)))
+    return total
+
+
 def _greedy_path(model: Any, prompt_ids: Sequence[int], steps: int) -> list[int]:
     """The tokens the model produces here, under whatever steering is active."""
     import mlx.core as mx
@@ -237,6 +306,7 @@ def measure_fusion(
     seed: int = 20260908,
     runner: str = "core/consciousness/fusion_probe.measure_fusion",
     on_result: Callable[[FusionCertificate], None] | None = None,
+    replies: Sequence[tuple[str, Sequence[float]]] = (),
 ) -> list[FusionCertificate]:
     """Measure under the caller's publication lock and restore every hook.
 
@@ -250,7 +320,7 @@ def measure_fusion(
         return _measure_fusion(
             model, tokenizer, hooks, set_alpha, model_identity=model_identity,
             model_name=model_name, alphas=alphas, steps=steps, seed=seed,
-            runner=runner, on_result=on_result,
+            runner=runner, on_result=on_result, replies=replies,
         )
 
 
@@ -267,6 +337,7 @@ def _measure_fusion(
     seed: int = 20260908,
     runner: str = "core/consciousness/fusion_probe.measure_fusion",
     on_result: Callable[[FusionCertificate], None] | None = None,
+    replies: Sequence[tuple[str, Sequence[float]]] = (),
 ) -> list[FusionCertificate]:
     """Measure the substrate-to-forward-pass channel on a model already loaded.
 
@@ -369,8 +440,14 @@ def _measure_fusion(
         ]
         diverged = [index for index in divergences if index >= 0]
 
+        voice_delta, voice_replies = (
+            voice_reading(model, tokenizer, hooks, set_alpha, alpha, replies) if replies else (None, 0)
+        )
+        set_alpha(alpha)
         certificate = FusionCertificate(
             measurement_protocol=FUSION_MEASUREMENT_PROTOCOL,
+            voice_delta=voice_delta,
+            voice_replies=voice_replies,
             model_identity=model_identity,
             basis_sha256=basis,
             model_name=model_name,
