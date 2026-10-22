@@ -1,0 +1,21 @@
+{
+  "schema": "aura.voice.original_design.v1",
+  "name": "velvet",
+  "synthetic_original": true,
+  "reference_recording": null,
+  "design": "An adult woman with a distinctive low contralto voice and a neutral American English accent. Close, dry studio recording. Smooth dark timbre with a faint husky edge, steady and self-possessed. Speak conversationally with precise consonants, relaxed pacing, narrow pitch movement, and understated warmth. No theatrical acting, no whispering, no exaggerated breathiness.",
+  "seed": 73519,
+  "text": "I'm Aura. We can take a moment. Tell me what you're thinking, and we'll work through it together. There is no need to rush. I'd rather get it right.",
+  "model": {
+    "repo": "mlx-community/Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16",
+    "revision": "7d3824abff87e49756bb0f83fb5411de75d160c4",
+    "directory": "/Users/bryan/.cache/huggingface/hub/models--mlx-community--Qwen3-TTS-12Hz-1.7B-VoiceDesign-bf16/snapshots/7d3824abff87e49756bb0f83fb5411de75d160c4"
+  },
+  "sample_rate": 24000,
+  "samples": 278400,
+  "duration_s": 11.6,
+  "synthesis_s": 24.36172558402177,
+  "first_chunk_ms": 7823.696542065591,
+  "peak_mlx_gb": 5.196775091,
+  "rss_bytes": 3342958592
+}

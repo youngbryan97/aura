@@ -21,6 +21,24 @@ CHECKS = frozenset({
     "user text unchanged", "code retained literally", "390px width", "background-tab click",
     "closed shadow isolation", "nested screenshot suspension", "no conversation activity notifications",
 })
+GRADIENT_SOURCES = ("interface/static/ambient_gradient.js", "interface/static/aura.css",
+                    "interface/static/index.html")
+
+
+def measured_gradient(root: Path | None = None) -> bool:
+    root = root or Path(__file__).resolve().parents[2]
+    for path in sorted((root / "docs/evidence").glob("ambient-gradient-*.json"), reverse=True):
+        try:
+            receipt = json.loads(path.read_text())
+            if any(receipt.get("sources", {}).get(p) != hashlib.sha256((root / p).read_bytes()).hexdigest()
+                   for p in GRADIENT_SOURCES):
+                continue
+        except (OSError, ValueError):
+            continue
+        return receipt.get("ok") is True and {
+            "pixels change over time", "reduced motion stops movement", "voice mode stops background work",
+        } <= set(receipt.get("checks", []))
+    raise NothingMeasured("No gradient measurement matches the current source.")
 
 
 def measured_presentation(root: Path | None = None) -> bool:
@@ -61,3 +79,15 @@ def install_presentation_claims(suite) -> None:
                           owner="interface/static/conversation_visuals.js", asserted_in=__file__,
                           evidence=Evidence.MEASURED_SYNTHETIC,
                           evidence_note="Offline Chromium UI fixture using production renderers. No resident-model conversation or native desktop cursor was measured."))
+    gradient_statement = "The measured chat colour field changes pixels and stops moving for reduced motion and focused voice."
+    suite.add_test(ValidationTest(
+        name="ambient_gradient_measured", description=gradient_statement, required_capability="",
+        observation=Observation(name="ambient_gradient", value=True, source="docs/evidence/ambient-gradient-*.json"),
+        predict=lambda _m: measured_gradient(),
+        score=lambda p, o: boolean_score(bool(p), expected=bool(o.value), subject="ambient gradient"),
+        owner="interface/static/ambient_gradient.js",
+    ))
+    suite.add_claim(Claim(statement=gradient_statement, test="ambient_gradient_measured",
+                          owner="interface/static/ambient_gradient.js", asserted_in=__file__,
+                          evidence=Evidence.MEASURED_SYNTHETIC,
+                          evidence_note="Rendered Chromium fixture. This does not measure native WebKit GPU usage."))

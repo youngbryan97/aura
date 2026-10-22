@@ -1,0 +1,5 @@
+# Install in the isolated AURA_VOICE_ORIGINAL_PYTHON environment. Do not
+# replace the resident Cortex environment's MLX or Transformers packages.
+mlx-audio==0.6.1
+librosa==0.11.0
+soundfile==0.14.0

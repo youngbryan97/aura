@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "checks": [
+    "pixels change over time",
+    "160x120 field",
+    "no blur",
+    "input usable",
+    "reduced motion stops movement",
+    "voice mode stops background work",
+    "light theme",
+    "390px width"
+  ],
+  "samplePaintMs": 0.1,
+  "schema": "aura.gradient.measurement.v1",
+  "measured_at": "2026-10-22T025421Z",
+  "sources": {
+    "interface/static/ambient_gradient.js": "0b85f1045e469a2191439ed20164020f70ae8beb808fac72701d52356f98174b",
+    "interface/static/aura.css": "791eb680a4acef4ccc93d5ed412c2d9a4c6a4093e02829b1faa97a55815b0eaa",
+    "interface/static/index.html": "09dcb52f1b87371e29fab09b1665d89f76da170a2b81a67fd343b119f1396357"
+  },
+  "artifacts": "docs/evidence/presentation/2026-10-22T025421Z",
+  "limits": "Rendered Chromium fixture. Native WebKit GPU usage is unmeasured."
+}

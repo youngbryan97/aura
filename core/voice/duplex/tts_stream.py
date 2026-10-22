@@ -37,6 +37,7 @@ from core.runtime.lockdep import LockRank, checked_lock
 from core.utils.task_tracker import get_task_tracker
 from core.verify.invariants import Violation, invariant
 from core.voice.duplex.config import OUTPUT_RATE, TtsConfig
+from core.voice.duplex.original_speech import OriginalSpeech, SpeechWorkerLease
 from core.voice.duplex.pocket_speech import PocketSpeech
 from core.voice.duplex.prosody import ProsodySpec
 
@@ -306,7 +307,7 @@ def _resample(samples: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
 
 @dataclass(slots=True)
 class _EngineState:
-    pocket: PocketSpeech | None = None
+    pocket: PocketSpeech | OriginalSpeech | None = None
     clone: _ClonedVoiceEngine | None = None
     kokoro: _KokoroEngine | None = None
     piper: _PiperEngine | None = None
@@ -362,7 +363,8 @@ class StreamingTts:
                 else "voice-duplex/tts/pocket-kokoro-piper"
             ),
             purpose="serve",
-            request_gb=3.0 if clone_enabled else (1.75 if self._config.engine != "kokoro" else 0.75),
+            request_gb=(8.0 if self._config.engine == "qwen_original" else
+                        3.0 if clone_enabled else (1.75 if self._config.engine != "kokoro" else 0.75)),
             priority=30,
             preemptible=False,
             evict=self._evict_model_lane,
@@ -467,6 +469,20 @@ class StreamingTts:
                 if await loop.run_in_executor(self._pool, pocket.load):
                     self._state.pocket = pocket
 
+            if self._config.engine == "qwen_original":
+                original = OriginalSpeech(self._config.original_manifest, self._config.original_python)
+                with self._lifecycle_lock:
+                    if self._closing:
+                        return False
+                    # A load owns memory too. Shutdown must keep the lease
+                    # while the native worker is still entering its model.
+                    self._active_syntheses += 1
+                await asyncio.shield(loop.run_in_executor(
+                    self._pool, self._load_original_owned, original, lease,
+                ))
+                if self._closing:
+                    return False
+
             if self._state.pocket is None:
                 kokoro = _KokoroEngine(self._config)
                 if await loop.run_in_executor(self._pool, kokoro.load):
@@ -514,6 +530,17 @@ class StreamingTts:
                 logger.error("No TTS engine available — the voice lane cannot speak")
             return self.available
 
+    def _load_original_owned(self, original: OriginalSpeech, lease: Any) -> None:
+        try:
+            if original.load():
+                with self._lifecycle_lock:
+                    self._state.pocket = original
+                    self._lane_lease = SpeechWorkerLease(lease, original)
+        finally:
+            # This runs on native completion even if the awaiting session was
+            # cancelled. Closing the session cannot orphan a loading worker.
+            self._finish_synthesis()
+
     @property
     def available(self) -> bool:
         return bool(
@@ -537,7 +564,7 @@ class StreamingTts:
         if self._state.clone:
             return "xtts_clone"
         if self._state.pocket:
-            return "pocket"
+            return self._state.pocket.name
         if self._state.kokoro:
             return "kokoro"
         if self._state.piper:
@@ -689,6 +716,10 @@ class StreamingTts:
                     )
                 if spec.gain != 1.0:
                     samples = samples * float(spec.gain)
+                if self._config.treatment != "clean":
+                    from core.voice.duplex.treatment import treat_voice
+
+                    samples = treat_voice(samples, OUTPUT_RATE, self._config.treatment)
                 if spec.trailing_pause_ms > 0:
                     pad = int(OUTPUT_RATE * spec.trailing_pause_ms / 1000.0)
                     if pad > 0:

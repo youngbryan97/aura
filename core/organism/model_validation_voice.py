@@ -11,6 +11,8 @@ SOURCES = (
     "interface/static/aura.js",
     "core/voice/duplex/config.py", "core/voice/duplex/tts_stream.py",
     "core/voice/duplex/pocket_speech.py", "core/voice/duplex/session.py",
+    "core/voice/duplex/original_speech.py", "core/voice/duplex/treatment.py",
+    "tools/voice/original_speech_worker.py",
     "interface/static/voice_mode.js", "interface/static/voice_mode.css",
     "interface/static/voice-capture-processor.js", "interface/static/voice-playback-processor.js",
 )
@@ -20,6 +22,7 @@ CHECKS = frozenset({
     "physical microphone stopped", "390px width", "keyboard containment", "focus restored",
     "local model synthesis", "no routine metrics notices",
     "settings refresh preserves focused voice",
+    "voice preview is playback",
 })
 
 

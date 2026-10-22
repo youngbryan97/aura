@@ -1792,6 +1792,7 @@ class DuplexVoiceSession:
             return
         if result is None or self._closed:
             return
+        self._echo.note_spoken(result.text)
         await self._send_binary(
             protocol.encode_audio(
                 float32_to_pcm16(result.samples),
@@ -1922,6 +1923,14 @@ class DuplexVoiceSession:
                      "current": requested}
                 )
                 await self._mind.publish("voice_changed", {"voice": requested})
+                if message.get("preview") is True:
+                    await self._cancel_active_turn(
+                        reason="voice_preview", return_to_listening=True,
+                    )
+                    self._turn_task = self._spawn(self._speak_aside(
+                        "This is my voice. Take your time.",
+                        protocol.AudioOpcode.BACKCHANNEL, 1.0,
+                    ))
         elif command == protocol.CMD_TEXT:
             text = str(message.get("text") or "").strip()
             if text:

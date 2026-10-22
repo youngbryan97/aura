@@ -272,6 +272,11 @@ class TtsConfig:
     """Prepared Pocket speech, Kokoro fallback, optional licensed XTTS clone."""
 
     engine: str = field(default_factory=lambda: os.environ.get("AURA_VOICE_TTS_ENGINE", "auto"))
+    original_manifest: Path = field(default_factory=lambda: Path(os.environ.get(
+        "AURA_VOICE_ORIGINAL_MANIFEST", str(Path.home() / ".aura/live-source/data/voice_models/aura-velvet/manifest.json"))))
+    original_python: Path = field(default_factory=lambda: Path(os.environ.get(
+        "AURA_VOICE_ORIGINAL_PYTHON", str(Path.home() / ".aura/voice-lab/qwen-env/bin/python"))))
+    treatment: str = field(default_factory=lambda: os.environ.get("AURA_VOICE_TREATMENT", "clean"))
     pocket_directory: Path = field(default_factory=lambda: Path(os.environ.get(
         "AURA_VOICE_POCKET_DIR", str(Path.home() / ".aura/live-source/data/voice_models/pocket"))))
 

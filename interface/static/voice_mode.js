@@ -272,7 +272,7 @@
               </button>
             </div>
 
-            <div class="vm-voice-picker" id="vm-voice-picker" role="listbox" aria-label="Voice"></div>
+            <div class="vm-voice-picker" id="vm-voice-picker" role="listbox" aria-label="Voice" hidden></div>
 
             <div class="vm-meta" id="vm-meta"></div>
           </div>`;
@@ -297,8 +297,10 @@
         el.voicePicker = root.querySelector('#vm-voice-picker');
 
         el.voiceBtn.addEventListener('click', () => {
-            root.classList.toggle('vm-show-voices');
-            el.voiceBtn.classList.toggle('vm-active');
+            const show = !root.classList.contains('vm-show-voices');
+            root.classList.toggle('vm-show-voices', show);
+            el.voicePicker.hidden = !show;
+            el.voiceBtn.classList.toggle('vm-active', show);
             renderVoicePicker();
         });
 
@@ -1034,6 +1036,7 @@
     // grouping plus a readable name, so choosing a voice is a two-second
     // decision instead of a lookup table.
     const VOICE_PREFIX = {
+        aura: 'Aura',
         af: 'US · female', am: 'US · male',
         bf: 'UK · female', bm: 'UK · male',
         ef: 'ES · female', em: 'ES · male',
@@ -1081,11 +1084,12 @@
                 chip.setAttribute('aria-selected', String(item.id === state.currentVoice));
                 chip.addEventListener('click', () => {
                     state.currentVoice = item.id;
-                    sendCommand('set_voice', { voice: item.id });
-                    // Speak a line in the new voice immediately: picking a
-                    // voice you cannot hear is guesswork.
-                    sendCommand('text', { text: 'Okay — this is how I sound now.' });
+                    interruptPlayback();
+                    state.rejectAsides = false;
+                    // A voice sample is playback, never a user message.
+                    sendCommand('set_voice', { voice: item.id, preview: true });
                     renderVoicePicker();
+                    el.voicePicker.querySelector('[aria-selected="true"]')?.focus();
                 });
                 row.appendChild(chip);
             }

@@ -348,6 +348,7 @@ body.vm-active .app-shell {
 
 /* ── voice picker ────────────────────────────────────────────────────── */
 
+.vm-voice-picker[hidden] { display: none; }
 .vm-voice-picker {
     width: 100%;
     max-height: 0;

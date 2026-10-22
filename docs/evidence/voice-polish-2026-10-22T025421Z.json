@@ -1,0 +1,356 @@
+{
+  "schema": "aura.voice.presentation_measurement.v1",
+  "ok": true,
+  "measured_at": "2026-10-22T025421Z",
+  "sources": {
+    "interface/static/aura.js": "d527530f7ccf3e90d7ad59dc4169d915379ba256a817dfcbf9f6da678b157c92",
+    "core/voice/duplex/config.py": "0d613f311535f63509ceede752402607611e4ae927147813903b69d9ea5186ad",
+    "core/voice/duplex/tts_stream.py": "bbf3dec78aede0873cca452a2f351c2465651cc7ae1eb986a2ac0ef44c99682f",
+    "core/voice/duplex/pocket_speech.py": "6262a0bd67f830699cc9045e093af6dccab5ef8d856019353a5189b3f3fa7820",
+    "core/voice/duplex/session.py": "afa1bdcdbb9e7ad56e8b33af8b9631953009f4c98cd342ddc1766bf8c1b5c1f6",
+    "core/voice/duplex/original_speech.py": "46c9a3942d7e102035d7941a2627e3b5badfa4c447c7b201af258b62d964e142",
+    "core/voice/duplex/treatment.py": "9740ba940c8fc9515518f1be1796e538d91d229221ed28e852eb5dac3d2da2ff",
+    "tools/voice/original_speech_worker.py": "795560689a3bda68b31b50e8a146b933c4e8939925330b627d1ba5fddef8e3a0",
+    "interface/static/voice_mode.js": "ab3648fe10e529dfb4841f704c102d6d5efc6d2e9ad33dd0a0aada23e55c2db4",
+    "interface/static/voice_mode.css": "c6bc4ba03fca7d8ad622d20ef1fefa209bbd3766b70c6b68fed8b1457be4ef70",
+    "interface/static/voice-capture-processor.js": "8ccc24035c35796f4350744ffeedace8e89aff44c686617039e58ec4dfe17272",
+    "interface/static/voice-playback-processor.js": "63184d778ba39204fd6f39d512258d52862b9b4e8ec218f7b1aea6c060325d71"
+  },
+  "checks": [
+    "390px width",
+    "both playback lanes flushed",
+    "focus restored",
+    "keyboard containment",
+    "late audio rejected",
+    "local interrupt before server command",
+    "local model synthesis",
+    "next turn plays",
+    "no routine metrics notices",
+    "physical microphone stopped",
+    "ready audio does not wait for another clause",
+    "settings refresh preserves focused voice",
+    "voice preview is playback"
+  ],
+  "ui": {
+    "ok": true,
+    "checks": [
+      "local interrupt before server command",
+      "both playback lanes flushed",
+      "late audio rejected",
+      "next turn plays",
+      "no routine metrics notices",
+      "physical microphone stopped",
+      "390px width",
+      "keyboard containment",
+      "focus restored",
+      "settings refresh preserves focused voice",
+      "voice preview is playback"
+    ],
+    "stopped": {
+      "sent": [
+        {
+          "command": "barge_in",
+          "played_ms": 165.33333333333334,
+          "utterance_id": 7,
+          "at": 617.1999999284744
+        }
+      ],
+      "ports": [
+        {
+          "type": "flush",
+          "at": 617
+        },
+        {
+          "type": "flush",
+          "at": 617
+        }
+      ]
+    }
+  },
+  "clause_latency": [
+    {
+      "engine": "kokoro",
+      "text": "Hello there.",
+      "speed": 1.0,
+      "ready_audio_ms": 183.78912506159395,
+      "duration_s": 0.9386666666666666
+    },
+    {
+      "engine": "kokoro",
+      "text": "Hello there.",
+      "speed": 0.92,
+      "ready_audio_ms": 203.65283300634474,
+      "duration_s": 0.9813333333333333
+    },
+    {
+      "engine": "kokoro",
+      "text": "You can interrupt me at any time.",
+      "speed": 1.0,
+      "ready_audio_ms": 276.7881250474602,
+      "duration_s": 1.7493333333333334
+    },
+    {
+      "engine": "kokoro",
+      "text": "You can interrupt me at any time.",
+      "speed": 0.92,
+      "ready_audio_ms": 294.7411669883877,
+      "duration_s": 1.8346666666666667
+    },
+    {
+      "engine": "kokoro",
+      "text": "The first sentence should play while the next one is still being written.",
+      "speed": 1.0,
+      "ready_audio_ms": 455.41320904158056,
+      "duration_s": 3.2853333333333334
+    },
+    {
+      "engine": "kokoro",
+      "text": "The first sentence should play while the next one is still being written.",
+      "speed": 0.92,
+      "ready_audio_ms": 479.4210409745574,
+      "duration_s": 3.4346666666666668
+    },
+    {
+      "engine": "pocket",
+      "text": "Hello there.",
+      "speed": 1.0,
+      "ready_audio_ms": 134.04212496243417,
+      "duration_s": 1.28
+    },
+    {
+      "engine": "pocket",
+      "text": "Hello there.",
+      "speed": 0.92,
+      "ready_audio_ms": 149.77912500035018,
+      "duration_s": 1.3912916666666666
+    },
+    {
+      "engine": "pocket",
+      "text": "You can interrupt me at any time.",
+      "speed": 1.0,
+      "ready_audio_ms": 181.3038329128176,
+      "duration_s": 1.76
+    },
+    {
+      "engine": "pocket",
+      "text": "You can interrupt me at any time.",
+      "speed": 0.92,
+      "ready_audio_ms": 185.5222909944132,
+      "duration_s": 2.0
+    },
+    {
+      "engine": "pocket",
+      "text": "The first sentence should play while the next one is still being written.",
+      "speed": 1.0,
+      "ready_audio_ms": 312.8441250883043,
+      "duration_s": 3.36
+    },
+    {
+      "engine": "pocket",
+      "text": "The first sentence should play while the next one is still being written.",
+      "speed": 0.92,
+      "ready_audio_ms": 305.4348749574274,
+      "duration_s": 3.47825
+    }
+  ],
+  "candidate_native_stream": {
+    "results": [
+      {
+        "text": "Hello there.",
+        "first_pcm_ms": 36.70399996917695,
+        "total_ms": 124.54870797228068,
+        "duration_s": 1.28,
+        "chunks": 13
+      },
+      {
+        "text": "You can interrupt me at any time.",
+        "first_pcm_ms": 25.60799999628216,
+        "total_ms": 180.8385420590639,
+        "duration_s": 2.08,
+        "chunks": 22
+      },
+      {
+        "text": "The first sentence should play while the next one is still being written.",
+        "first_pcm_ms": 25.929916999302804,
+        "total_ms": 274.4365829275921,
+        "duration_s": 3.2,
+        "chunks": 33
+      }
+    ],
+    "peak_rss_bytes": 1247985664
+  },
+  "recognition": [
+    {
+      "file": "fixture-0",
+      "recognized": "Hello.",
+      "decode_ms": 1476.681208005175
+    },
+    {
+      "file": "fixture-1",
+      "recognized": "Hello Aura. Please tell me in one short sentence what you can hear.",
+      "decode_ms": 72.85300001967698
+    },
+    {
+      "file": "fixture-2",
+      "recognized": "A natural voice should leave room for a pause, and stop when I interrupt.",
+      "decode_ms": 66.54295790940523
+    },
+    {
+      "file": "pocket-0",
+      "recognized": "Hello there.",
+      "decode_ms": 46.07675003353506
+    },
+    {
+      "file": "pocket-1",
+      "recognized": "You can interrupt me at any time.",
+      "decode_ms": 54.93812495842576
+    },
+    {
+      "file": "pocket-2",
+      "recognized": "The first sentence should play while the next one is still being written.",
+      "decode_ms": 73.37408291641623
+    }
+  ],
+  "onnx_threads": [
+    {
+      "threads": 0,
+      "ms": [
+        185.55,
+        459.08,
+        771.74
+      ],
+      "median_ms": 459.08,
+      "waveform": [
+        {
+          "samples": 18944,
+          "baseline_samples": 18944,
+          "snr_db": 218.51
+        },
+        {
+          "samples": 58880,
+          "baseline_samples": 58880,
+          "snr_db": 217.3
+        },
+        {
+          "samples": 101376,
+          "baseline_samples": 101376,
+          "snr_db": 217.27
+        }
+      ]
+    },
+    {
+      "threads": 1,
+      "ms": [
+        800.83,
+        1782.35,
+        2820.02
+      ],
+      "median_ms": 1782.35,
+      "waveform": [
+        {
+          "samples": 18944,
+          "baseline_samples": 18944,
+          "snr_db": 218.51
+        },
+        {
+          "samples": 58880,
+          "baseline_samples": 58880,
+          "snr_db": 217.3
+        },
+        {
+          "samples": 101376,
+          "baseline_samples": 101376,
+          "snr_db": 25.96
+        }
+      ]
+    },
+    {
+      "threads": 2,
+      "ms": [
+        495.33,
+        1083.7,
+        1635.18
+      ],
+      "median_ms": 1083.7,
+      "waveform": [
+        {
+          "samples": 18944,
+          "baseline_samples": 18944,
+          "snr_db": 218.51
+        },
+        {
+          "samples": 58880,
+          "baseline_samples": 58880,
+          "snr_db": 217.3
+        },
+        {
+          "samples": 101376,
+          "baseline_samples": 101376,
+          "snr_db": 25.96
+        }
+      ]
+    },
+    {
+      "threads": 4,
+      "ms": [
+        312.53,
+        683.22,
+        1058.71
+      ],
+      "median_ms": 683.22,
+      "waveform": [
+        {
+          "samples": 18944,
+          "baseline_samples": 18944,
+          "snr_db": 218.51
+        },
+        {
+          "samples": 58880,
+          "baseline_samples": 58880,
+          "snr_db": 217.3
+        },
+        {
+          "samples": 101376,
+          "baseline_samples": 101376,
+          "snr_db": 25.99
+        }
+      ]
+    },
+    {
+      "threads": 6,
+      "ms": [
+        242.37,
+        530.51,
+        866.23
+      ],
+      "median_ms": 530.51,
+      "waveform": [
+        {
+          "samples": 18944,
+          "baseline_samples": 18944,
+          "snr_db": 218.51
+        },
+        {
+          "samples": 58880,
+          "baseline_samples": 58880,
+          "snr_db": 217.3
+        },
+        {
+          "samples": 101376,
+          "baseline_samples": 101376,
+          "snr_db": 25.96
+        }
+      ]
+    }
+  ],
+  "artifacts": "docs/evidence/presentation/2026-10-22T025421Z",
+  "limits": "Current Chromium fixture with simulated microphone and transport. Local original-voice synthesis measured separately. This is not proof of end-to-end conversational latency or listener preference.",
+  "validation": {
+    "voice_and_launch_tests": "169 passed",
+    "additional_contracts": "13 passed",
+    "smoke": "164 passed, 1 skipped",
+    "lint_compile_layering_writing": "passed",
+    "governance": "167 existing regressions; none added by these changes"
+  },
+  "prior_model_measurements": "docs/evidence/voice-polish-2026-10-22T013710Z.json; synthesis measurements retained from that receipt. This repeat measures the current UI and settings reconciliation."
+}
