@@ -224,7 +224,7 @@ judged not viable says why.
   `phi_r_by_domain`, in every run's report. Read offline on the pair at
   `5885688d7`: Phi_R is positive for every one-domain cut, codes on and off
   (S lowest at 0.094 and 0.141, D highest at 0.82).
-- [ ] **F3. Self-model and intentions as priors over policies** in the
+- [~] **F3. Self-model and intentions as priors over policies** in the
   free-energy engine's expected free energy. Checked by clamping the self-model
   and reading the policy distribution. Not built: the expected-free-energy
   oracle in her code scores response text by a fixed heuristic and chooses none
@@ -234,6 +234,12 @@ judged not viable says why.
   does not need it to pass; the item stays open because a prior over her acts
   from her self-model needs a mapping from act to what it expresses that her
   code does not yet hold, and one written by hand would be the constant.
+  Built on 22 October without one: her agency ledger keeps, under each act's
+  name, what she has seen herself bring off, so her self-model's confidence in
+  each act is the prior, and a campaign turn ranks it beside the other five
+  reasons. Two ledgers that differ only there rank her acts apart
+  (`tests/test_a_run_chooses_by_what_it_expects_here.py`); the organism's
+  reading, S clamped and her choices read, comes with the first pair carrying it.
 - **F4. IIT 4.0 system phi over 511 partitions.** Not computable on 491
   continuous columns. The v5 interventional sweep asks the same question
   operationally and is what is run.

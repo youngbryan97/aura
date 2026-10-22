@@ -2187,3 +2187,10 @@ The four leaks of `086ec4bb5` (how her turns are going, the mesh's modulation,
 the phi core's surrogate, the self-predictor's weights) are not among the
 calibrated pair's largest, and K is not widened for them now.
 
+
+**Her self-model as a prior over her acts (F3), from the pair after the next
+one.** A campaign turn's choice takes a sixth reason, ranked with the other five
+in the same Borda count: her self-model's confidence in each act, from her own
+attempts only (the agency ledger, smoothed towards the class she measures
+herself against). It is not in the pair at `4b1022f25`, which tests the three
+changes named above; it enters with the first pair at a commit that carries it.

@@ -54,13 +54,16 @@ def choose(runtime: Any) -> tuple[str, str]:
 def weighed(runtime: Any, source: str, ledger: Any) -> str:
     """Every reason she has ranks the acts, and the act with the most support wins.
 
-    Five reasons: what she is attending to (the broadcast winner reaches action
+    Six reasons: what she is attending to (the broadcast winner reaches action
     selection as one voice, which is the global-workspace claim), how far below
     the fullest the drive an act serves has fallen, what she has come to feel
     about the act (core/affect/feelings_about.py), what a habit of it has cost
-    her against weighing, and what she expects of it here: how she feels about
+    her against weighing, what she expects of it here: how she feels about
     it times how much likelier this world makes it to work, learned from how
-    her acts came out in worlds like this one (core/agency/consequence.py). Each is turned into ranks and the ranks are
+    her acts came out in worlds like this one (core/agency/consequence.py), and
+    what she believes she can do with it: her self-model's confidence in the
+    act, from her own attempts only (core/agency/authorship.py), the prior her
+    self-model sets over her acts. Each is turned into ranks and the ranks are
     summed, a Borda count, so no reason needs a weight set by hand. Ties go to
     what she is attending to, then to the order the acts are listed in.
     """
@@ -90,6 +93,7 @@ def weighed(runtime: Any, source: str, ledger: Any) -> str:
         felt,
         [-float(ledger.deficit(act)) for act in acts],
         expected_here(runtime, acts, felt),
+        believed_she_can(acts),
     )
     support = [0.0] * len(acts)
     for values in reasons:
@@ -117,6 +121,23 @@ def expected_here(runtime: Any, acts: Sequence[str], felt: Sequence[float]) -> l
         model.worth_here((1.0 + max(-1.0, min(1.0, value))) / 2.0, f"act:{act}", world)
         for act, value in zip(acts, felt, strict=True)
     ]
+
+
+def believed_she_can(acts: Sequence[str]) -> list[float]:
+    """Her self-model's confidence in each act, from her own attempts only.
+
+    The prior over what she does that her model of herself sets: an act she
+    has seen herself bring off ranks above one she has seen herself fail at.
+    Her attempts are kept by the agency ledger under the act's name, smoothed
+    towards the class she measures herself against, and watching something
+    else succeed does not enter it. Bryan's analysis of 21 October asked for
+    the self-model as a prior over policies, checked by clamping the self-model
+    and reading the choice.
+    """
+    from core.agency.authorship import get_agency_ledger
+
+    ledger = get_agency_ledger()
+    return [float(ledger.confidence(act)) for act in acts]
 
 
 def ranks(values: Sequence[float]) -> list[float]:
