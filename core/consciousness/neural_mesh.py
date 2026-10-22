@@ -1215,6 +1215,21 @@ class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
             recurrent = np.einsum('cij,cj->ci', self._W_batch, x_matrix)  # (64, 64)
             activity = np.tanh(gain_by_column[:, None] * (recurrent + ext))
         recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
+        # Self and intention enter the executive tier's transition as an input
+        # current, as they enter the substrate's (core/consciousness/
+        # conjunctive_codes.py, `substrate_current`), at the strength of the
+        # tier's own recurrent drive. On 21 October the core's change was read
+        # through the mesh and the field, and the substrate, where the current
+        # acted alone, was in none of its first three components.
+        from core.consciousness.conjunctive_codes import substrate_current
+
+        executive = slice(cfg.association_end, None)
+        current = substrate_current(self, recurrent[executive].reshape(-1))
+        if current is not None:
+            activity[executive] = np.tanh(
+                gain_by_column[executive, None]
+                * (recurrent[executive] + ext[executive] + current.reshape(recurrent[executive].shape))
+            )
         activity = np.nan_to_num(activity, nan=0.0, posinf=1.0, neginf=-1.0)
 
         # Lateral inhibition: per-column inhibitory pool

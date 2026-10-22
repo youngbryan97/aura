@@ -2145,6 +2145,11 @@ The full reading is in `docs/ISC_OCT21_EVERY_ITEM.md`.
    its strength. Under hard bounds the strongest weight climbed to the clip in
    both codes-on runs (from 0.8; it stayed at 0.8 with the codes off).
 
+3. **Self and intention enter the mesh's executive tier** as an input current,
+   the same current G5 puts into the substrate, at the strength of the tier's
+   own recurrent drive. The core's change is read through the field and the
+   mesh, and the substrate was in none of its first three components.
+
 The gain-field form, the learned axes, G2, G3 and G5 are unchanged. Nothing
 moves a threshold.
 

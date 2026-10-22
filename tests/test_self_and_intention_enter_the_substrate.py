@@ -205,3 +205,33 @@ def test_in_her_regime_the_driven_substrate_forgets_a_displacement(tmp_path):
     start = float(np.linalg.norm(a.x - b.x))
     ends = [_as_she_runs(s, phis, mesh, projection)[-1] for s in (a, b)]
     assert float(np.linalg.norm(ends[0] - ends[1])) < start
+
+
+def _mesh_after(drive, ticks: int = 6, *, monkeypatch=None, disabled: bool = False):
+    from core.consciousness.neural_mesh import MeshConfig, NeuralMesh
+
+    if monkeypatch is not None:
+        if disabled:
+            monkeypatch.setenv("AURA_DISABLE_CONJUNCTIONS", "1")
+        else:
+            monkeypatch.delenv("AURA_DISABLE_CONJUNCTIONS", raising=False)
+    mesh = NeuralMesh(MeshConfig(total_neurons=512, columns=16, neurons_per_column=32, sensory_end=4, association_end=10))
+    mesh._rng = np.random.default_rng(0)
+    if drive is not None:
+        mesh.conjunction_drive = tuple(drive)
+    for _ in range(ticks):
+        mesh._tick_inner()
+    return np.array([column.x for column in mesh.columns])
+
+
+def test_self_and_intention_reach_the_mesh_executive_tier(monkeypatch):
+    """The core's change is read mostly through the mesh and the field, and the
+    substrate, where the current acted alone, was in none of its first three
+    components (21 October)."""
+    plain = _mesh_after(None, monkeypatch=monkeypatch)
+    driven = _mesh_after((1.5, -1.0, 0.5, 2.0), monkeypatch=monkeypatch)
+    at_mean = _mesh_after((0.0, 0.0, 0.0, 0.0), monkeypatch=monkeypatch)
+    off = _mesh_after((1.5, -1.0, 0.5, 2.0), monkeypatch=monkeypatch, disabled=True)
+    assert not np.allclose(plain[10:], driven[10:])
+    assert np.allclose(plain, at_mean)
+    assert np.allclose(plain, off)

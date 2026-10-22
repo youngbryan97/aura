@@ -211,6 +211,11 @@ class ConsciousnessPhase(BasePhase):
             if substrate is not None:
                 state.response_modifiers["conjunction_band"] = round(into_substrate(substrate, codes), 8)
                 substrate.conjunction_drive = standing_of(codes, "recurrent")
+            # And the mesh's executive tier, the part of recurrent cognition
+            # the core's change is mostly read through (core/neural_mesh.py).
+            mesh = get_runtime_service("neural_mesh", default=None)
+            if mesh is not None:
+                mesh.conjunction_drive = standing_of(codes, "recurrent")
         except _CONSCIOUSNESS_PHASE_ERRORS as exc:
             record_degradation(
                 "consciousness_phase",
