@@ -483,3 +483,10 @@ test what she says about her feelings, would be circular.
   felt reading stays the declared one. The withheld run starts again at that
   commit from anchor 1, so its 80 anchors come from one organism; the fusion
   measurement is not repeated, since it loads the model alone.
+- **And again at anchor 14.** `9c5baab1f` fixed two of the gate's own memory
+  readers; the model client's guards read the memory monitor, which still
+  answered from the declared host, and refused her worker's respawn. Fixed for
+  the class in `4b1022f25`: the memory monitor, which serves every gate that
+  decides what the machine can hold, asks the observer under any declared host.
+  The run resumes from its 14 anchors at that commit; the commits between change
+  only how the harness reads the machine's memory.
