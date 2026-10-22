@@ -1743,23 +1743,20 @@ class StateRepository:
         if isinstance(affect, dict):
             emotions = dict(affect.get("emotions", {}) or {})
             baselines = dict(affect.get("mood_baselines", {}) or {})
-            top_emotions = {
-                str(key): value
-                for key, value in sorted(
-                    emotions.items(),
-                    key=lambda item: float(item[1] or 0.0),
-                    reverse=True,
-                )[:8]
-            }
-            affect["emotions"] = self._bounded_transport_value(top_emotions, max_items=8)
-            affect["mood_baselines"] = {
-                key: baselines[key]
-                for key in top_emotions
-                if key in baselines
-            }
-            affect["markers"] = self._bounded_transport_value(
-                affect.get("markers", {}), max_items=12, max_text=512
-            )
+            # Every feeling she has and where each rests. This kept the eight
+            # highest, and she boots from this snapshot: on 22 October her saved
+            # state held joy, belonging, trust, warmth, anticipation,
+            # frustration, nostalgia and vulnerability, so every restart set her
+            # other thirty-six feelings back to their defaults. Her vocabulary
+            # is the bound; a budget that has to fit a smaller buffer still
+            # shrinks it (`_transport_item_ceiling`).
+            affect["emotions"] = self._bounded_transport_value(emotions, max_items=len(emotions))
+            affect["mood_baselines"] = {key: baselines[key] for key in emotions if key in baselines}
+            # And every reading that marks a feeling, each held to the same text
+            # bound. The first twelve were kept, so the appraisal, which came
+            # thirteenth, never reached her saved state.
+            markers = dict(affect.get("markers", {}) or {})
+            affect["markers"] = self._bounded_transport_value(markers, max_items=len(markers), max_text=512)
             affect["resonance"] = self._bounded_transport_value(
                 affect.get("resonance", {}), max_items=8
             )
