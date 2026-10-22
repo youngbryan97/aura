@@ -372,6 +372,8 @@ class WhatSheWants(_WantReadouts):
         #: sit more than two standard errors from indifference, fell back
         #: within them, or came to be held the other way. The last 256.
         self._minds: list[dict[str, Any]] = []
+        #: Each with that ended: what it was and her remarks in it, the last 256.
+        self._withs: list[dict[str, Any]] = []
         self._standing: list[Want] = []
         self._engine = engine
         self._path = Path(path) if path is not None else None
@@ -503,6 +505,14 @@ class WhatSheWants(_WantReadouts):
 
 
     # ── where she went, and what she started and did not finish ─────────
+
+    def note_with(self, summary: Mapping[str, Any]) -> None:
+        """A with that ended, and her remarks in it (core/together/a_with.py)."""
+        with self._lock:
+            self._withs.append(dict(summary))
+            del self._withs[:-_WINDOW]
+            payload = _held(self)
+        _save(self, payload)
 
     def went(self, key: str, way: str, *, label: str = "", where: str = "") -> None:
         """She went to a thing herself, this way. Credited when the turn is read.
@@ -1063,6 +1073,7 @@ def _load(self) -> None:
         self._forecasts = max(0, int(stored.get("forecasts", 0)))
         self._miss = max(0.0, min(2.0, float(stored.get("miss", 0.0))))
         self._minds = [dict(row) for row in stored.get("minds", []) if isinstance(row, dict)][-_WINDOW:]
+        self._withs = [dict(row) for row in stored.get("withs", []) if isinstance(row, dict)][-_WINDOW:]
     except (AttributeError, KeyError, TypeError, ValueError) as exc:
         self._things.clear()
         self._turns = self._good_turns = self._read = 0
@@ -1098,6 +1109,7 @@ def _held(self) -> dict[str, Any]:
         "forecasts": self._forecasts,
         "miss": self._miss,
         "minds": list(self._minds),
+        "withs": list(self._withs),
     }
 
 

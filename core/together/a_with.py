@@ -49,6 +49,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
 
 __all__ = ["HER", "IT", "THEM", "Grounded", "Shown", "Together", "Turn", "With", "get_together"]
@@ -371,7 +372,8 @@ class Together:
                 return None
             held.leave(by, at)
             self._past.append(held)
-            return held
+        _on_her_record(held)
+        return held
 
     def status(self) -> dict[str, Any]:
         with self._lock:
@@ -379,6 +381,26 @@ class Together:
                 "open": [held.status() for held in self._withs.values() if held.open],
                 "past": len(self._past),
             }
+
+
+def _on_her_record(held: With) -> None:
+    """A with that ended goes on her record: what it was, and her remarks in it.
+
+    A with is held in memory and goes when the process does, so her
+    interjections, the remarks nobody asked for, and whether they were taken
+    up left nothing to read afterwards (Bryan, 21 October 2026).
+    """
+    try:
+        from core.conation.what_she_wants import get_what_she_wants
+
+        get_what_she_wants().note_with({
+            "who": held.who, "what": held.what, "proposed_by": held.proposed_by,
+            "began": held.began, "ended": held.ended, "left_by": held.left_by,
+            "remarks": held.remarks, "taken_up": held.taken_up, "went_by": held.went_by,
+            "invited": held.invited,
+        })
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("together", exc, severity="warning", action="a with that ended was not put on her record")
 
 
 _TOGETHER: Together | None = None

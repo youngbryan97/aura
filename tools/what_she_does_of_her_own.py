@@ -55,6 +55,10 @@ def report(record: dict[str, Any]) -> dict[str, Any]:
         "views_formed": sum(1 for row in minds if row.get("to") and not row.get("from")),
         "views_let_go": sum(1 for row in minds if row.get("from") and not row.get("to")),
         "changes_of_mind": [row for row in minds if row.get("turned")][-12:],
+        # Her interjections: remarks nobody asked for, in the withs that ended.
+        "interjections": sum(int(row.get("remarks") or 0) for row in record.get("withs") or []),
+        "interjections_taken_up": sum(int(row.get("taken_up") or 0) for row in record.get("withs") or []),
+        "interjections_went_by": sum(int(row.get("went_by") or 0) for row in record.get("withs") or []),
         "turns": record.get("turns"),
         "things_met": len(things),
         "likings_held": len(standing),

@@ -41,3 +41,35 @@ def test_the_record_keeps_what_changed_across_a_restart(tmp_path):
     saved.write_text(json.dumps(_held(first)), encoding="utf-8")
     again = WhatSheWants(saved, engine=ConationEngine())
     assert again._minds == first._minds and again._minds[0]["thing"] == KEY
+
+
+def test_her_interjections_in_a_with_stay_on_her_record(tmp_path, monkeypatch):
+    """A with is held in memory, so her remarks nobody asked for, and whether
+    they were taken up, went with the process."""
+    import importlib.util
+    import sys
+    from pathlib import Path
+
+    from core.conation import what_she_wants
+    from core.together.a_with import HER, THEM, Together
+
+    record = WhatSheWants(tmp_path / "wants.json", engine=ConationEngine())
+    monkeypatch.setattr(what_she_wants, "get_what_she_wants", lambda: record)
+    together = Together()
+    held = together.begin("ines", "watching a video", at=0.0)
+    held.said(HER, 10.0, about=["topic:wrens"], until=12.0, unprompted=True)
+    held.said(THEM, 13.0, about=["topic:wrens"], until=15.0)
+    held.said(HER, 40.0, about=["topic:boots"], until=42.0, unprompted=True)
+    held.said(HER, 60.0, about=["topic:rain"], until=61.0, unprompted=True)
+    together.end("ines", by=THEM, at=90.0)
+    assert record._withs[-1]["remarks"] == 3 and record._withs[-1]["taken_up"] == 1
+
+    repo = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("own_under_test", repo / "tools" / "what_she_does_of_her_own.py")
+    tool = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = tool
+    spec.loader.exec_module(tool)
+    from core.conation.what_she_wants import _held
+
+    report = tool.report(_held(record))
+    assert report["interjections"] == 3 and report["interjections_taken_up"] == 1
