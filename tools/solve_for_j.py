@@ -109,12 +109,20 @@ def survey(path: Path) -> dict[str, Any]:
 
 
 def _person_part(data: Any) -> dict[str, Any]:
-    """The part of a logged state the person reader looks at, and nothing else."""
+    """The part of a logged state the person reader looks at, and nothing else.
+
+    With the record of what changed her and what wrote it. Without it every
+    step of her line read as unrecorded: on 21 October her live rows carried
+    the record from the first boot on the new code, and the bridge still said
+    none did, because this dropped it.
+    """
     if not isinstance(data, dict):
         return {}
     out: dict[str, Any] = {}
     if "identity" in data:
         out["identity"] = data["identity"]
+    if isinstance(data.get("transition_evidence"), dict):
+        out["transition_evidence"] = data["transition_evidence"]
     world = data.get("world")
     if isinstance(world, dict) and "relationship_graph" in world:
         out["world"] = {"relationship_graph": world["relationship_graph"]}

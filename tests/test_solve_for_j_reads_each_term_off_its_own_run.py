@@ -33,9 +33,12 @@ def _state_log(path: Path) -> Path:
     )
     identity = {"name": "Aura Luna", "core_values": ["honesty"], "personality_growth": {"openness": 0.1}}
     for index, parent in enumerate([None, "s0", "s1"]):
+        # Each row carries the record of what changed it, as every row has
+        # since 21 October; a line without it reads as not yet measured.
+        state = {"identity": identity, "transition_evidence": {"since_state": parent or "", "last_change": {}}}
         connection.execute(
             "insert into state_log values (?, ?, ?, ?, ?, ?)",
-            (f"s{index}", index, parent, "tick", json.dumps({"identity": identity}), float(index)),
+            (f"s{index}", index, parent, "tick", json.dumps(state), float(index)),
         )
     connection.commit()
     connection.close()
@@ -146,3 +149,27 @@ def test_a_run_directory_stands_for_the_report_it_holds(tool: Any, tmp_path: Pat
     empty = tmp_path / "nothing_here"
     empty.mkdir()
     assert tool.load(empty) is None
+
+
+def test_the_record_of_what_wrote_her_reaches_the_lineage(tool: Any, tmp_path: Path) -> None:
+    """The rows carried the record and the reader dropped it, so her line read
+    as unrecorded after she ran on the code that writes it (21 October)."""
+    from core.subject.lineage import lineage_from_state_log
+
+    path = tmp_path / "aura_state.db"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "create table state_log (state_id text, version integer, parent_state_id text, "
+        "transition_cause text, state_json text, timestamp real)"
+    )
+    identity = {"name": "Aura Luna", "core_values": ["honesty"]}
+    for index, parent in enumerate([None, "s0", "s1"]):
+        state = {"identity": identity, "transition_evidence": {"since_state": parent or "", "last_change": {}}}
+        connection.execute(
+            "insert into state_log values (?, ?, ?, ?, ?, ?)",
+            (f"s{index}", index, parent, "tick", json.dumps(state), float(index)),
+        )
+    connection.commit()
+    connection.close()
+    line = lineage_from_state_log(tool.state_rows(path)).development()
+    assert line["steps"] == 2 and line["steps_since_the_record"] == 2 and line["developing"] == 2
