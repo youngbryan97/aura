@@ -46,7 +46,7 @@ judged not viable says why.
   `core/subject/snapshot_diff.py` names every number that differs between the
   exposed and unexposed forks after the same turns, largest first, and the
   share that changed; the hot-stove tool records it.
-- [~] **B5. Behaviour that coordination alone does not show.** A preference held
+- [x] **B5. Behaviour that coordination alone does not show.** A preference held
   consistently, an interjection, a change of mind. Recorded as behavioural
   evidence beside the battery, not as a criterion of it. Built:
   `tools/what_she_does_of_her_own.py` reads her conation record. On 21 October,
@@ -54,8 +54,12 @@ judged not viable says why.
   from indifference: bicycles (0.73, 5 contacts), watching along with someone
   (0.12, 131), attending to her social drive (0.16, 68) liked; turns about
   herself (-0.18, 193), the desktop influence probe (-0.14, 143) and attending
-  to her affect engine (-0.18, 58) disliked. Interjections and changes of mind
-  have no record to read yet.
+  to her affect engine (-0.18, 58) disliked. Changes of mind are on her record
+  since `fc623c126`: each time a liking forms beyond two standard errors,
+  lapses, or comes to be held opposite to the last way she held it. Her
+  interjections since `ebf2ea4e9`: each with that ends keeps the remarks she
+  made that nobody asked for, how many were taken up and how many went by.
+  The same tool reads all three.
 - [~] **B6. Reports that come from her state, not from prose.** A report has to
   move because her state moved, through her architecture. Built as G10: the
   reports ground with the printed number withheld and with steering on and off.
@@ -226,6 +230,10 @@ judged not viable says why.
   oracle in her code scores response text by a fixed heuristic and chooses none
   of her acts. The arbiter chooses them, and G3 put consequence there; a prior
   from her self-efficacy over act kinds goes there if W,A -> D still needs it.
+  On 21 October W,A -> D passed with the codes on and off in two pairs, so it
+  does not need it to pass; the item stays open because a prior over her acts
+  from her self-model needs a mapping from act to what it expresses that her
+  code does not yet hold, and one written by hand would be the constant.
 - **F4. IIT 4.0 system phi over 511 partitions.** Not computable on 491
   continuous columns. The v5 interventional sweep asks the same question
   operationally and is what is run.
@@ -404,3 +412,10 @@ sketched array along its own axes.
   the self-and-intention current into the mesh's executive tier as well as the
   substrate, and soft-bounds the mesh's STDP so its strongest weight no longer
   climbs to the clip.
+- **The carrier rehearsal never ran.** All three workers of
+  `carrier-s7-5885688d7` died at 08:29, a minute after the coordinator's anchors
+  arrived: a worker on shared anchors took the resume path and looked for a
+  recording it never made. The launcher waited for its processes one at a time,
+  so the coordinator waited fourteen hours for shards. Fixed in `59fb05a5e`; a
+  small sharded run at that commit reached the cuts in both workers. A fresh
+  rehearsal starts beside the next pair.
