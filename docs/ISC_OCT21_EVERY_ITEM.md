@@ -382,3 +382,25 @@ Seed 7, 370 rounds, codes on and off. v1 17/24 in both arms.
   switch, the class the substrate's five-turn cycle was.
 - **The codes-off closure audit missed its planted cause**, so that audit was
   underpowered there.
+
+## The calibrated pair at `d4b8ecab3` (read early, 21 October, 22:00)
+
+The same codes as `086ec4bb5`; K reads the field's input matrix and every
+sketched array along its own axes.
+
+| v5 synergy (v3 bars) | codes on | codes off |
+|---|---|---|
+| A,S -> G | passes, 0.0170 over shifted 0.0127 | fails, 0.0461 under 0.0483 |
+| P,M -> W | passes, 0.300 over 0.229 | passes, 0.232 over 0.200 |
+| W,A -> D | passes, 0.049 over 0.025 | passes, 0.090 over 0.053 |
+| S,D -> C | fails, 0.0087 under 0.0262 | fails, 0.0137 under 0.0269 |
+
+- **Codes on, three of the four triples pass** on the frozen line. Attention
+  passes only with the codes, as it did at `5885688d7`.
+- **Reading K along its own axes was what attention lacked**, not the units'
+  carry-over: the change to fresh units made the same evening was withdrawn
+  before any run read it.
+- **S,D -> C is the one left.** The commit for the next pair (`1884dd098`) puts
+  the self-and-intention current into the mesh's executive tier as well as the
+  substrate, and soft-bounds the mesh's STDP so its strongest weight no longer
+  climbs to the clip.
