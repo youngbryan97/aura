@@ -1,4 +1,4 @@
-"""Local PCM transport for an original voice in the isolated speech environment."""
+"""Local PCM transport for a prepared reference voice in the speech environment."""
 from __future__ import annotations
 
 import base64
@@ -22,12 +22,15 @@ def main() -> None:
             from mlx_audio.tts.utils import load_model
 
             settings = json.loads(Path(sys.argv[1]).read_text())
+            temperature = float(settings.get("temperature", .7))
+            if not .05 <= temperature <= 1.2:
+                raise ValueError("Speech temperature must be between 0.05 and 1.2")
             model = load_model(settings["model_directory"])
 
             def generate(text, speed=1.0):
                 chunks = [np.asarray(r.audio) for r in model.generate(
                     text, ref_audio=settings["reference_audio"], ref_text=settings["reference_text"],
-                    lang_code="English", temperature=.7, max_tokens=500, stream=False,
+                    lang_code="English", temperature=temperature, max_tokens=500, stream=False,
                 )]
                 if not chunks:
                     raise RuntimeError("Original speech produced no audio")

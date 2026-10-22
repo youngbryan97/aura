@@ -1,4 +1,4 @@
-"""Own a prepared original voice in an isolated local MLX speech worker."""
+"""Own a prepared reference voice in an isolated local MLX speech worker."""
 from __future__ import annotations
 
 import base64
@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import selectors
 import subprocess
 import time
@@ -54,6 +55,11 @@ class OriginalSpeech:
             settings = json.loads(self.manifest.read_text())
             root = Path(settings["model_directory"])
             reference = Path(settings["reference_audio"])
+            voice_id = settings.get("voice_id", "aura_velvet")
+            if not isinstance(voice_id, str) or not re.fullmatch(
+                r"[a-z][a-z0-9]{0,23}_[a-z0-9][a-z0-9_]{0,39}", voice_id,
+            ):
+                raise ValueError("Prepared voice identifier is invalid")
             if not self.python.is_file() or not root.is_absolute() or not reference.is_absolute():
                 raise ValueError("Original speech requires prepared absolute local paths")
             if not (root / "model.safetensors").is_file():
@@ -69,6 +75,7 @@ class OriginalSpeech:
             )
             if self._receive(90).get("ready") is not True:
                 raise RuntimeError("Original speech worker did not become ready")
+            self.voices = frozenset({voice_id})
             return True
         except (OSError, RuntimeError, ValueError, KeyError, TypeError) as exc:
             logger.warning("Original speech unavailable: %s", exc)

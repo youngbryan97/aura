@@ -27,7 +27,7 @@ async def test_voice_preview_never_enters_cognition_or_the_transcript(monkeypatc
         await session.handle_command({"command": "set_voice", "voice": "alba", "preview": True})
         await session._turn_task
         play.assert_awaited_once_with(
-            "This is my voice. Take your time.", AudioOpcode.BACKCHANNEL, 1.0,
+            "Okay. Here's how I sound now.", AudioOpcode.BACKCHANNEL, 1.0,
         )
         responder.assert_not_awaited()
         assert not any(event["type"] in {"voice.final", "voice.reply"} for event in events)

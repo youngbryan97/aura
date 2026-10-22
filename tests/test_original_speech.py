@@ -36,6 +36,28 @@ def test_worker_is_reaped_before_memory_ownership_is_released():
     assert order == ['reap', 'release']
 
 
+@pytest.mark.parametrize('voice_id', ['aura_kiwi', None, 'Kiwi', 'aura_' + 'x' * 65])
+def test_prepared_profile_advertises_its_verified_voice_identifier(tmp_path, monkeypatch, voice_id):
+    reference = tmp_path / 'reference.wav'
+    reference.write_bytes(b'prepared local voice')
+    (tmp_path / 'model.safetensors').touch()
+    manifest = tmp_path / 'manifest.json'
+    manifest.write_text(json.dumps({
+        'model_directory': str(tmp_path), 'reference_audio': str(reference),
+        'reference_sha256': hashlib.sha256(reference.read_bytes()).hexdigest(),
+        'voice_id': voice_id,
+    }))
+    spawned = []
+    monkeypatch.setattr('core.voice.duplex.original_speech.subprocess.Popen',
+                        lambda *args, **kwargs: spawned.append(args) or SimpleNamespace())
+    engine = OriginalSpeech(manifest, Path(__file__))
+    monkeypatch.setattr(engine, '_receive', lambda timeout: {'ready': True})
+    assert engine.load() is (voice_id == 'aura_kiwi')
+    assert bool(spawned) is (voice_id == 'aura_kiwi')
+    if spawned:
+        assert engine.voices == {'aura_kiwi'}
+
+
 @pytest.mark.asyncio
 async def test_shutdown_during_model_load_keeps_ownership_until_native_completion(monkeypatch):
     import core.voice.duplex.tts_stream as module

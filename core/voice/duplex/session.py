@@ -1928,7 +1928,7 @@ class DuplexVoiceSession:
                         reason="voice_preview", return_to_listening=True,
                     )
                     self._turn_task = self._spawn(self._speak_aside(
-                        "This is my voice. Take your time.",
+                        "Okay. Here's how I sound now.",
                         protocol.AudioOpcode.BACKCHANNEL, 1.0,
                     ))
         elif command == protocol.CMD_TEXT:
