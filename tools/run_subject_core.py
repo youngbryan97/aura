@@ -236,6 +236,12 @@ async def main() -> int:
              "array's leading principal axes for its four projection columns",
     )
     parser.add_argument(
+        "--one-clock",
+        action="store_true",
+        help="stop the free-running loops when the organism comes up, so the recording is "
+             "the organism the harness steps, as the interventions and the v5 sweep are",
+    )
+    parser.add_argument(
         "--counterbalance",
         action="store_true",
         help="each round takes the conditions in an order from a Williams design, "
@@ -566,6 +572,14 @@ async def main() -> int:
     # same organs and the same host, and still saw different amounts of time —
     # which is half a standard deviation of deliberation's spread and one and a
     # half of the workspace's, from nothing but how long the machine took.
+    # The interventions and the v5 sweep read the organism the harness steps;
+    # with this, so does the recording. On 21 October the free-running loops'
+    # tick counts, entered as their increments, were three of the six largest
+    # leaks into the core with the codes on (validate-s7-d4b8ecab3-r370-axes):
+    # the machine's timing reaching K through how often each loop ran in a turn.
+    if args.one_clock:
+        evidence["notes"]["stopped_at_bring_up"] = await quiesce_organism(runtime)
+        _log(f"stopped {len(evidence['notes']['stopped_at_bring_up'])} free-running loops at bring-up")
     evidence["notes"]["clock"] = await calibrate_clock(runtime, CONDITIONS)
     if args.calibrated_axes:
         from core.subject.calibrated_axes import calibration_pass
@@ -725,9 +739,10 @@ async def main() -> int:
             f"cut {phi.best_cut}"
         )
 
-    # The recording is taken with the organism running as it runs. The
-    # interventions are not: two arms have to see the same computation, and a
-    # loop ticking at whatever rate the machine allows makes them incomparable.
+    # The recording is taken with the organism running as it runs, unless the
+    # run said --one-clock. The interventions are not: two arms have to see the
+    # same computation, and a loop ticking at whatever rate the machine allows
+    # makes them incomparable.
     stopped = await quiesce_organism(runtime)
     if "interventions" in done:
         # The earlier process's readings describe the recording; this one's

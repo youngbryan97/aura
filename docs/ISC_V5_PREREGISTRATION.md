@@ -2160,3 +2160,30 @@ moves a threshold.
 
 A pair at seed 7, 370 rounds, codes on and off, calibrated axes in both, read
 by the same lines. Seed 23 stays untouched until the system is frozen.
+
+## Addendum, 21 October 2026, late night: the calibrated pair, and the campaign on one clock
+
+### What the calibrated pair at `d4b8ecab3` read
+
+Codes on, three of the four triples pass the frozen line (A,S -> G, P,M -> W,
+W,A -> D); codes off, two. v1 17 of 24 in both. Closure fails in both arms. Codes
+off, the leak is 0.0054 against a shuffled leak of 0.0053, nearly closed, and
+what is left is summaries of the core's own past. Codes on, the leak is 0.0127,
+and three of its six largest parts are the free-running loops' tick counts,
+entered as their increments: the machine's timing, reaching K through how often
+each loop ran in a turn.
+
+### The campaign on one clock
+
+`--one-clock` stops the free-running loops when the organism comes up, as the
+v5 sweep has since 29 September (`isc_v5.ONE_CLOCK`) and as the campaign
+already does before its interventions. The recording is then the organism the
+harness steps, the same organism the interventions and the sweep read. The next
+pair runs with it in both arms, with `--calibrated-axes`, at a commit carrying
+the soft-bounded STDP and the executive-tier current named in the night
+addendum above. Nothing moves a threshold.
+
+The four leaks of `086ec4bb5` (how her turns are going, the mesh's modulation,
+the phi core's surrogate, the self-predictor's weights) are not among the
+calibrated pair's largest, and K is not widened for them now.
+
