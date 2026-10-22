@@ -147,6 +147,10 @@ async def main() -> int:
     parser.add_argument("--rounds", type=int, default=3, help="baseline rounds over the conditions")
     parser.add_argument("--pairs", type=int, default=3, help="moments probed per array")
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--calibrated-axes", action="store_true",
+        help="fix each array's leading axes on a pass before probing, as a run with the option does",
+    )
     args = parser.parse_args()
 
     from core.subject.calibrated_axes import axes_for, sketched_sources
@@ -187,6 +191,10 @@ async def main() -> int:
                         history[source].append(np.array(value, dtype=np.float64, copy=True))
         recording = build_recording(frames)
         spread = recording.x.std(axis=0)
+        if args.calibrated_axes:
+            from core.subject.calibrated_axes import calibration_pass
+
+            evidence["calibrated_axes"] = await calibration_pass(runtime, CONDITIONS)
         # As the battery does before its interventions: the free-running loops
         # stop, so two forks from one moment see the same computation.
         evidence["stopped_loops"] = await quiesce_organism(runtime)
