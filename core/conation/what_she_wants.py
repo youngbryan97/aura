@@ -368,6 +368,10 @@ class WhatSheWants(_WantReadouts):
         self._forecast: dict[str, float] = {}
         self._forecasts = 0
         self._miss = 0.0
+        #: Each time a view of hers formed, lapsed or turned: a liking came to
+        #: sit more than two standard errors from indifference, fell back
+        #: within them, or came to be held the other way. The last 256.
+        self._minds: list[dict[str, Any]] = []
         self._standing: list[Want] = []
         self._engine = engine
         self._path = Path(path) if path is not None else None
@@ -439,8 +443,22 @@ class WhatSheWants(_WantReadouts):
             for thing in things:
                 gain = thing.unsure / total
                 shares[thing.key] = gain
+                held_before = _way_held(thing)
                 thing.liking = max(-1.0, min(1.0, thing.liking + gain * error))
                 thing.unsure = max(floor, thing.unsure * (1.0 - gain))
+                held_now = _way_held(thing)
+                if held_now != held_before:
+                    # Turned: held now the other way from the last way she held
+                    # it. A reversal passes through indifference on the way.
+                    last = next(
+                        (row["to"] for row in reversed(self._minds) if row["thing"] == thing.key and row["to"]),
+                        0,
+                    )
+                    self._minds.append({
+                        "thing": thing.key, "label": thing.label, "turn": self._turns,
+                        "from": held_before, "to": held_now, "turned": last * held_now < 0,
+                    })
+                    del self._minds[:-_WINDOW]
                 thing.contacts += 1
                 thing.good += liking > 0.0
                 thing.last = self._turns
@@ -1044,6 +1062,7 @@ def _load(self) -> None:
         self._decided = dict(decided) if isinstance(decided, dict) and decided.get("thing") else None
         self._forecasts = max(0, int(stored.get("forecasts", 0)))
         self._miss = max(0.0, min(2.0, float(stored.get("miss", 0.0))))
+        self._minds = [dict(row) for row in stored.get("minds", []) if isinstance(row, dict)][-_WINDOW:]
     except (AttributeError, KeyError, TypeError, ValueError) as exc:
         self._things.clear()
         self._turns = self._good_turns = self._read = 0
@@ -1052,6 +1071,14 @@ def _load(self) -> None:
             "what_she_wants", exc, severity="warning",
             action="started with nothing met; the stored record had another shape",
         )
+
+
+def _way_held(thing: Any) -> int:
+    """Which way she holds a thing: +1 or -1 beyond two standard errors of indifference, else 0."""
+    error = math.sqrt(thing.unsure) if thing.unsure > 0.0 else math.inf
+    if abs(thing.liking) <= 2.0 * error:
+        return 0
+    return 1 if thing.liking > 0.0 else -1
 
 
 def _held(self) -> dict[str, Any]:
@@ -1070,6 +1097,7 @@ def _held(self) -> dict[str, Any]:
         "decided": self._decided,
         "forecasts": self._forecasts,
         "miss": self._miss,
+        "minds": list(self._minds),
     }
 
 

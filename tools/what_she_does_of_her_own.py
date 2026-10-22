@@ -50,7 +50,11 @@ def report(record: dict[str, Any]) -> dict[str, Any]:
     things = list(record.get("things") or [])
     standing = held(things)
     decided = record.get("decided") or {}
+    minds = [row for row in record.get("minds") or [] if isinstance(row, dict)]
     return {
+        "views_formed": sum(1 for row in minds if row.get("to") and not row.get("from")),
+        "views_let_go": sum(1 for row in minds if row.get("from") and not row.get("to")),
+        "changes_of_mind": [row for row in minds if row.get("turned")][-12:],
         "turns": record.get("turns"),
         "things_met": len(things),
         "likings_held": len(standing),
