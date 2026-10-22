@@ -334,3 +334,18 @@ one carrier, her 27B's reports under the controls, and seed 23.
 - **The carrier rehearsal** at `5885688d7` stood still from 11:05 to 17:14 while
   the reports run held the machine, and resumed at 77 of 128 anchors in its
   grain stage.
+- **Her lineage read as recorded with nothing recorded.** With no recorded
+  step on her line, the record was taken to begin after the last change, so
+  three unchanged steps counted as development and her live log read RECORDED.
+  Fixed in `f6f8d0f70`: it reads not measured until she runs on code that
+  takes the record. The queue gives her a forty-minute live window on the
+  newest main after the pair at `086ec4bb5`, reads her line, and closes her.
+- **The voice reading, end to end on a 1.5B** (vectors derived for it, since
+  her signed generation is bound to her 27B): at alpha 0.2 her direction made
+  four of her replies 0.030 nats a token less likely and a same-length random
+  direction 0.097. Her 27B is measured in the withheld run.
+- **Her emergency protocol kept every declared strain.** Each validation run
+  entered minimal mode by its fourth strain round and never left; minimal mode
+  stops nothing in a run, so no reading moved. Fixed in `9ed231da3`.
+- **The distillation queue warned on every drop**, 1,564 times in one run.
+  Said once since `435c8791a`.
