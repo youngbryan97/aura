@@ -432,3 +432,12 @@ sketched array along its own axes.
   cause on K's leading change, or on its least predictable column, did not
   help, and the audit keeps its first form.
 
+- **The calibrated pair, read in full (23:30).** v1 17 of 24 in both arms;
+  the synergy lines as read early. Closure: codes off, a leak of 0.0054 against
+  a shuffled leak of 0.0053, what is left being summaries of the core's own
+  past, and the audit found its planted cause. Codes on, 0.0127, with the
+  free-running loops' tick counts among the largest leaks: the machine's
+  timing reaching K. The campaign can now run on one clock (`8becd28fa`), as
+  the sweep and its own interventions do, and the next pair does. The four
+  leaks read at `086ec4bb5` are not among this pair's largest, and K is not
+  widened for them; the reader changes are kept as a patch.
