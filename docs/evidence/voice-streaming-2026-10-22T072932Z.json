@@ -1,0 +1,147 @@
+{
+  "schema": "aura.voice.streaming_measurement.v1",
+  "ok": true,
+  "measured_at": "2026-10-22T07:29:32.732114+00:00",
+  "implementation_revision": "f45c6e2cf06ad82b48ad0a5b2a95de248f65cd35",
+  "sources": {
+    "core/brain/cognitive_engine_quick_reply.py": "53db77a0794a85287dd0f6d40c6f723725bddf67b78c715050645a6d5389b1e6",
+    "core/brain/request_contract.py": "e1a168cbeef403e3e6b09a9e9d2a77395016e13e87a301547721db277caaac36",
+    "core/brain/inference_gate_turn_setup.py": "ceddfe1437473c1a4e4ec1327809a4cee6b17289b6e7207b83966956e6e57e36",
+    "core/brain/llm_health_router_endpoint_call.py": "5fee77579986605014b254369988c68f89ec9c070c735a363ff4f983483c13df",
+    "core/brain/llm/mlx_client.py": "a4a53c23c328035036c7e48bc8bf4c826ab8b1878112a0a48453977cd206774e",
+    "core/brain/llm/mlx_worker.py": "dd500b6cb7a24226d84e3b4fb62df80b1838d92cfbfcae03dfd9d99343e9251c",
+    "core/brain/llm/reply_previews.py": "8c26c8d175dbf06cbb3722b3276cc5c9de30f7235372a305ddfcd14f290f9f76",
+    "core/brain/llm/mlx_worker_surface_quality.py": "a69ab33ef0b033bef15cf3fa5e8bb06982c2fc10ec799d4caf9c2d402ce12f58",
+    "core/conversation/reply_stream.py": "a512f52517539d180d49e9227dda3cc404f54016ee417d1dee40e69b115ecf07",
+    "core/cognition/evidence_relevance.py": "a7a9165c0973e63706905db18b162bc058b98cc7746916ecd6993a6c9b15cab5",
+    "core/voice/duplex/clause_chunker.py": "565250239d38c1c056157d29370bd017314777176be590e8f35b2a0a05e4f0ff",
+    "core/voice/duplex/governed_stream.py": "36e543a6471e0f280610c7f68e71f374d9f0a1043ca61c62632231150b2bed53",
+    "core/voice/duplex/session.py": "a02ec3df916b5951a1e899413956fbb0747f8cee2fe861019739fde3aac20fd3",
+    "tests/test_governed_reply_previews.py": "3fd4b4453ced5fec3cf115738b5bc4b5323d4ddb3bb948d155e36c2155153f81",
+    "tests/test_voice_sentence_onset.py": "5447638374f4f3599714db7214a67594bec276f64a1f521896f2a8d093ac5cf7",
+    "tests/test_evidence_documents_are_not_encoded_again.py": "373a81cd1ca0ece267350159850fd4834ca75315c6389869706fe3668f7a0731",
+    "tests/test_voice_cognition_is_timed_before_playback.py": "98c340928983883ca093672155b0e8288f78a9f01235a844f2556afcdb37a467",
+    "tests/test_server_conversation_lane.py": "6d43996403578d553e82453942805980728f3b94b5e19f32fcbb73657af3dca8"
+  },
+  "checks": [
+    "cancelled and foreign previews rejected",
+    "checked opener released before cognition finishes",
+    "cognition measured independently of playback",
+    "history vectors bound to encoder",
+    "ordinary state contracts retain conversation resume",
+    "owning request channel captured",
+    "sentence boundary lookahead"
+  ],
+  "scope": "Offline transport, caching and timing contracts with injected model frames, embedding engines and speech callbacks. Real clause gates and reconciliation also have existing focused coverage.",
+  "live_latency_measured": false,
+  "real_synthesis_exercised": false,
+  "physical_microphone_exercised": false,
+  "actual_os_playback_exercised": false,
+  "passed": 158,
+  "runs": [
+    {
+      "label": "sentence-onset",
+      "passed": 8,
+      "summary": "8 passed in 2.27s",
+      "log_sha256": "854daab4bce6dedf4be9a639598ff1838986d4a4fd9ede0c2a903d8006ba187e"
+    },
+    {
+      "label": "checked-previews",
+      "passed": 26,
+      "summary": "26 passed in 3.58s",
+      "log_sha256": "11b9ca542f930affab252f869bd2ab2078e4c0178484e619c34b044ddf203814"
+    },
+    {
+      "label": "document-cache",
+      "passed": 8,
+      "summary": "8 passed in 2.18s",
+      "log_sha256": "174d3b833d772524ffbc2d97c21677728742b5b62f1a9199d32f8a9f11c7c6b6"
+    },
+    {
+      "label": "duplex-focused",
+      "passed": 9,
+      "summary": "9 passed, 108 deselected in 2.77s",
+      "log_sha256": "85c995fb76866996aa0b2ab1d185f48bf169119956f8a6680cdffec17c9bc1fc"
+    },
+    {
+      "label": "quick-reply-focused",
+      "passed": 13,
+      "summary": "13 passed, 394 deselected in 3.32s",
+      "log_sha256": "94451e6d7dcf42f1cb0015355c3acaf6e3ddedbaf18cb7fa6248d1d02506a9c6"
+    },
+    {
+      "label": "stream-measurement",
+      "passed": 2,
+      "summary": "2 passed in 1.44s",
+      "log_sha256": "12ebd56af50dd556b0d34d363cf2e41ae73267599ef4ae15344a291ecf6ee3ac"
+    },
+    {
+      "label": "presentation-measurement",
+      "passed": 1,
+      "summary": "1 passed in 1.40s",
+      "log_sha256": "a855b3c5f70f8cab19bae7fe75831012c6b74396f5ebb0b0985cd31c75146cd9"
+    },
+    {
+      "label": "embedding-existing",
+      "passed": 2,
+      "summary": "2 passed, 9 deselected in 1.47s",
+      "log_sha256": "c7f0df3525fb9891024df47d4c4afde44a9483e63d3da440581054ec7a4207b1"
+    },
+    {
+      "label": "cognition-clock",
+      "passed": 1,
+      "summary": "1 passed in 1.46s",
+      "log_sha256": "271e673dafc49d58dd8cc057b3c73869f6a08dac635fba8173269f7a3b981495"
+    },
+    {
+      "label": "ready-audio",
+      "passed": 2,
+      "summary": "2 passed in 1.47s",
+      "log_sha256": "d62807e8cf882b3175d29107b27641c8ea8d8af8f9da8e9d2815f2e74c360a97"
+    },
+    {
+      "label": "reply-context",
+      "passed": 16,
+      "summary": "16 passed in 1.97s",
+      "log_sha256": "9a1b63652c8017b7a964a3f45aa463c4ebbd59fc29804f469c064e3b5472e542"
+    },
+    {
+      "label": "reply-close",
+      "passed": 2,
+      "summary": "2 passed in 1.46s",
+      "log_sha256": "35fb015ee616292f890bd836f75e7de19d40b10c1641cf0be5fa8c85337a43b3"
+    },
+    {
+      "label": "request-contract",
+      "passed": 48,
+      "summary": "48 passed in 2.97s",
+      "log_sha256": "9ffff910f743aa313c6a857da019192f2ad2bef06a3216a5bee5c2abf407e585"
+    },
+    {
+      "label": "existing-streaming",
+      "passed": 14,
+      "summary": "14 passed in 2.14s",
+      "log_sha256": "6429725d85b1b7b212c9f133c922e3c9faa8598463d332eed568105a57028865"
+    },
+    {
+      "label": "reconciliation",
+      "passed": 6,
+      "summary": "6 passed in 1.69s",
+      "log_sha256": "a0f5a00938f165d911608a0e9984c09388ceb867ac8eb42a84f44fdac6f41177"
+    }
+  ],
+  "deferred": [
+    "Full smoke and aggregate gates on the final source, per the user instruction to leave CPU and memory to the active 27B campaign.",
+    "Native activation and real conversational voice timing, until the reports campaign releases the machine."
+  ],
+  "prior_broad_run": {
+    "passed": 574,
+    "failed": 1,
+    "failure": "self_condition semantic floor expected 512, actual 256; reproduced with unchanged 090672eef quick reply methods. Assertion now distinguishes the 512-token allocation from the 256-token semantic floor; 13 affected quick-reply cases pass."
+  },
+  "prior_smoke": {
+    "passed": 164,
+    "skipped": 1,
+    "scope": "Passed before the final sentence-buffer and cache-race changes; this is not final-source smoke proof."
+  }
+}
