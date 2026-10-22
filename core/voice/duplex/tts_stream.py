@@ -358,6 +358,9 @@ class StreamingTts:
         candidate = acquire_synchronous_in_process_model_lane(
             owner_id=f"voice-duplex-tts:{id(self)}",
             model_path=(
+                "voice-duplex/tts/qwen-original"
+                if self._config.engine == "qwen_original"
+                else
                 "voice-duplex/tts/xtts-kokoro-piper"
                 if clone_enabled
                 else "voice-duplex/tts/pocket-kokoro-piper"
