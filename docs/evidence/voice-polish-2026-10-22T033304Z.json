@@ -1,0 +1,183 @@
+{
+  "schema": "aura.voice.presentation_measurement.v1",
+  "ok": true,
+  "measured_at": "2026-10-22T033304Z",
+  "sources": {
+    "interface/static/aura.js": "d527530f7ccf3e90d7ad59dc4169d915379ba256a817dfcbf9f6da678b157c92",
+    "core/voice/duplex/config.py": "0d613f311535f63509ceede752402607611e4ae927147813903b69d9ea5186ad",
+    "core/voice/duplex/tts_stream.py": "ae0d962626858bd05a98a989714d9142a928887f06066fec7241ceed4ee71314",
+    "core/voice/duplex/pocket_speech.py": "6262a0bd67f830699cc9045e093af6dccab5ef8d856019353a5189b3f3fa7820",
+    "core/voice/duplex/session.py": "f3250cc8bce478d14e095735bc81986ac5ec42418df8b99b332868e25f663351",
+    "core/voice/duplex/original_speech.py": "badca9b5d9d373d6ab3437e6a3a1ca898168aaf745bc1472df0cfb8586a4b53b",
+    "core/voice/duplex/treatment.py": "d7e3ee0e2f40834cd34654db9622fc7fae343b9d7b63f8bb1a866f81903723e9",
+    "tools/voice/original_speech_worker.py": "32d0c8dd732e2aeba2e52f7698ed4649cb724e20898b7c01c57842aa1ca5b7b5",
+    "interface/static/voice_mode.js": "ab3648fe10e529dfb4841f704c102d6d5efc6d2e9ad33dd0a0aada23e55c2db4",
+    "interface/static/voice_mode.css": "c6bc4ba03fca7d8ad622d20ef1fefa209bbd3766b70c6b68fed8b1457be4ef70",
+    "interface/static/voice-capture-processor.js": "8ccc24035c35796f4350744ffeedace8e89aff44c686617039e58ec4dfe17272",
+    "interface/static/voice-playback-processor.js": "63184d778ba39204fd6f39d512258d52862b9b4e8ec218f7b1aea6c060325d71"
+  },
+  "checks": [
+    "390px width",
+    "both playback lanes flushed",
+    "focus restored",
+    "keyboard containment",
+    "late audio rejected",
+    "local interrupt before server command",
+    "local model synthesis",
+    "next turn plays",
+    "no routine metrics notices",
+    "physical microphone stopped",
+    "ready audio does not wait for another clause",
+    "settings refresh preserves focused voice",
+    "voice preview is playback"
+  ],
+  "ui": {
+    "ok": true,
+    "checks": [
+      "local interrupt before server command",
+      "both playback lanes flushed",
+      "late audio rejected",
+      "next turn plays",
+      "no routine metrics notices",
+      "physical microphone stopped",
+      "390px width",
+      "keyboard containment",
+      "focus restored",
+      "settings refresh preserves focused voice",
+      "voice preview is playback"
+    ],
+    "stopped": {
+      "sent": [
+        {
+          "command": "barge_in",
+          "played_ms": 165.33333333333334,
+          "utterance_id": 7,
+          "at": 613.1000000238419
+        }
+      ],
+      "ports": [
+        {
+          "type": "flush",
+          "at": 612.8999999761581
+        },
+        {
+          "type": "flush",
+          "at": 612.8999999761581
+        }
+      ]
+    }
+  },
+  "production_wrapper": {
+    "schema": "aura.voice.selected_character_profile_probe.v1",
+    "voice_id": "aura_kiwi",
+    "reference": "user-selected blended scene references",
+    "temperature": 0.65,
+    "treatment": "veil_deep",
+    "loaded_s": 8.75620250008069,
+    "loaded_status": {
+      "schema": "aura.voice.tts_model_runtime.v1",
+      "engine": "qwen_original",
+      "loaded": true,
+      "warmed": false,
+      "model_lane_owned": true,
+      "accepting_synthesis": true,
+      "active_syntheses": 0,
+      "closing": false
+    },
+    "closed_status": {
+      "schema": "aura.voice.tts_model_runtime.v1",
+      "engine": "none",
+      "loaded": false,
+      "warmed": false,
+      "model_lane_owned": false,
+      "accepting_synthesis": false,
+      "active_syntheses": 0,
+      "closing": true
+    },
+    "samples": [
+      {
+        "name": "preview",
+        "text": "Okay. Here's how I sound now.",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-blend-register-2026-10-21/preview.wav",
+        "engine": "qwen_original",
+        "sample_rate": 24000,
+        "duration_s": 2.16,
+        "whole_clause_s": 1.8027163329534233
+      },
+      {
+        "name": "casual",
+        "text": "Yeah, that makes sense. I think we're getting closer. What do you want to try next?",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-blend-register-2026-10-21/casual.wav",
+        "engine": "qwen_original",
+        "sample_rate": 24000,
+        "duration_s": 4.72,
+        "whole_clause_s": 2.4712622079532593
+      },
+      {
+        "name": "technical",
+        "text": "The timing is better now. I'll check the next step and let you know what I find.",
+        "path": "/Users/bryan/.aura/voice-lab/kiwi-reference/selected-blend-register-2026-10-21/technical.wav",
+        "engine": "qwen_original",
+        "sample_rate": 24000,
+        "duration_s": 3.92,
+        "whole_clause_s": 2.124868124956265
+      }
+    ],
+    "limits": "Actual production synthesis wrapper in a separate bounded process. This does not measure conversational response latency or establish a listener fidelity score."
+  },
+  "recognition": [
+    {
+      "name": "preview",
+      "expected": "Okay. Here's how I sound now.",
+      "recognized": "Okay, here's how I sound now.",
+      "word_sequence_matches": true
+    },
+    {
+      "name": "casual",
+      "expected": "Yeah, that makes sense. I think we're getting closer. What do you want to try next?",
+      "recognized": "Yeah, that makes sense. I think we're getting closer. What do you want to try next?",
+      "word_sequence_matches": true
+    },
+    {
+      "name": "technical",
+      "expected": "The timing is better now. I'll check the next step and let you know what I find.",
+      "recognized": "The timing is better now. I'll check the next step and let you know what I find.",
+      "word_sequence_matches": true
+    }
+  ],
+  "selected_profile": {
+    "voice_id": "aura_kiwi",
+    "reference": "Bryan selected the blend of Kiwi English-dub scene references from his supplied clips.",
+    "synthetic_output": true,
+    "original_design_reference": false,
+    "treatment": "veil_deep",
+    "temperature": 0.65,
+    "raw_reference_storage": "Local voice-model assets only; no reference recordings included in this checkpoint.",
+    "delivery": "Restored the selected blend settings; mild envelope gain contrast supplies emphasis without pitch or time transforms."
+  },
+  "tests": "17 focused voice tests passed; required repository checks recorded separately.",
+  "limits": "UI uses simulated socket and microphone; the production synthesis wrapper ran locally with the prepared voice model. ASR agreement does not establish listener preference or fidelity, and this receipt does not measure live conversational latency.",
+  "same_recording_comparison": {
+    "schema": "aura.voice.same_recording_mask_comparison.v1",
+    "source": "user-reference-candidates-2026-10-21/mixed-new-dialogue.wav",
+    "output": "selected-blend-register-2026-10-21/selected-same-recording.wav",
+    "same_base_samples": true,
+    "pitch_shift_algorithm": false,
+    "time_stretch_algorithm": false,
+    "source_samples": 155520,
+    "output_samples": 155520,
+    "median_estimated_pitch_difference_cents": -0.06547763503297616,
+    "limits": "YIN estimates compare the same speech before and after amplitude, filtering, saturation and short mask reflections. This is pitch preservation evidence, not a subjective match score."
+  },
+  "prior_ui_receipt": "docs/evidence/voice-polish-2026-10-22T032732Z.json",
+  "repository_checks": {
+    "focused_voice_tests": 17,
+    "smoke_passed": 164,
+    "smoke_skipped": 1,
+    "lint": true,
+    "compile": true,
+    "layering": true,
+    "writing": true,
+    "full_suite_run": false
+  }
+}

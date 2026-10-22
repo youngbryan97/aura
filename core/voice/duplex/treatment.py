@@ -40,6 +40,18 @@ def treat_voice(samples: np.ndarray, sample_rate: int, treatment: str = "clean")
     wet = .82 * np.tanh(wet * 1.35)
     dry = .08 if deep else .26
     mixed = dry * audio + (1 - dry) * wet
+    if deep:
+        # Restore a little emphasis after saturation. This follows the
+        # recorded syllable energy and changes gain only, never pitch or time.
+        width = max(1, round(sample_rate * .04))
+        power = np.pad(audio.astype(np.float64) ** 2,
+                       (width // 2, width - width // 2 - 1), mode="edge")
+        cumulative = np.concatenate(([0.], np.cumsum(power)))
+        envelope = np.sqrt(np.maximum(0., (cumulative[width:] - cumulative[:-width]) / width))
+        voiced = envelope[envelope > envelope.max() * .08]
+        if voiced.size:
+            centre = max(float(np.percentile(voiced, 60)), 1e-8)
+            mixed *= np.clip(1 + .12 * (envelope / centre - 1), .96, 1.08)
     # The same transfer curve applies to the whole clause; there is no
     # per-block normalisation that could pump at streaming boundaries.
     return np.clip(mixed, -.97, .97).astype(np.float32)
