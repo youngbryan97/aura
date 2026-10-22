@@ -67,6 +67,12 @@
         serverState: 'idle',
         speechUtteranceId: 0,
         expectedSpeechSeq: 0,
+        interruptedUtterances: new Set(),
+        rejectAsides: false,
+        rejectPendingSpeech: false,
+        returnFocus: null,
+        lastVisualScale: null,
+        lastVisualGlow: null,
         lastPlaybackReportMs: -1,
         currentReplyMirrored: false,
         reconnectAttempts: 0,
@@ -216,15 +222,17 @@
         root.setAttribute('role', 'dialog');
         root.setAttribute('aria-label', 'Voice conversation');
         root.setAttribute('aria-modal', 'true');
+        root.hidden = true;
         root.innerHTML = `
           <div class="vm-scrim"></div>
           <div class="vm-stage">
-            <div class="vm-status" id="vm-status">connecting</div>
+            <div class="vm-heading"><span class="vm-identity">Aura</span><span class="vm-status" id="vm-status" role="status">Connecting</span></div>
 
             <div class="vm-orb-wrap" id="vm-orb-wrap">
               <div class="vm-orb-glow" id="vm-orb-glow"></div>
               <div class="vm-orb" id="vm-orb">
                 <div class="vm-orb-inner"></div>
+                <img class="vm-neuron" src="/static/neuron_glyph.svg" alt="">
                 <div class="vm-orb-ring vm-ring-1"></div>
                 <div class="vm-orb-ring vm-ring-2"></div>
               </div>
@@ -240,6 +248,7 @@
 
             <div class="vm-transcript" id="vm-transcript" aria-live="polite"></div>
 
+            <div class="vm-hint" id="vm-hint">You can interrupt me at any time.</div>
             <div class="vm-controls">
               <button type="button" class="vm-btn" id="vm-mute" title="Mute microphone" aria-label="Mute microphone">
                 <span class="vm-ico" id="vm-mute-ico"></span>
@@ -270,6 +279,7 @@
         document.body.appendChild(root);
 
         el.status = root.querySelector('#vm-status');
+        el.hint = root.querySelector('#vm-hint');
         el.orbWrap = root.querySelector('#vm-orb-wrap');
         el.orb = root.querySelector('#vm-orb');
         el.glow = root.querySelector('#vm-orb-glow');
@@ -293,10 +303,7 @@
         });
 
         el.mute.addEventListener('click', toggleMute);
-        el.interrupt.addEventListener('click', () => sendCommand('barge_in', {
-            played_ms: state.playedMs,
-            utterance_id: state.speechUtteranceId,
-        }));
+        el.interrupt.addEventListener('click', interruptPlayback);
         el.transcriptToggle.addEventListener('click', () => {
             root.classList.toggle('vm-show-transcript');
             el.transcriptToggle.classList.toggle('vm-active');
@@ -307,10 +314,7 @@
         // gesture people reach for instinctively when they want it to stop.
         el.orbWrap.addEventListener('click', () => {
             if (state.sessionState === 'speaking') {
-                sendCommand('barge_in', {
-                    played_ms: state.playedMs,
-                    utterance_id: state.speechUtteranceId,
-                });
+                interruptPlayback();
             }
         });
 
@@ -328,17 +332,21 @@
             // foreground one.
             return;
         }
-        if (e.key === 'Escape') {
+        if (e.key === 'Tab') {
+            const controls = [...root.querySelectorAll('button:not(:disabled), [tabindex="0"]')]
+                .filter(node => node.getClientRects().length);
+            const at = controls.indexOf(document.activeElement);
+            if (!controls.length) return;
+            if (e.shiftKey && at <= 0) { e.preventDefault(); controls[controls.length - 1].focus(); }
+            else if (!e.shiftKey && (at < 0 || at === controls.length - 1)) { e.preventDefault(); controls[0].focus(); }
+        } else if (e.key === 'Escape') {
             e.preventDefault();
             leaveFocusedMode();
         } else if (e.code === 'Space' && e.target === document.body) {
             // Space is the universal "stop talking" key here.
             e.preventDefault();
             if (state.sessionState === 'speaking') {
-                sendCommand('barge_in', {
-                    played_ms: state.playedMs,
-                    utterance_id: state.speechUtteranceId,
-                });
+                interruptPlayback();
             }
         } else if (e.key.toLowerCase() === 'm' && e.target === document.body) {
             e.preventDefault();
@@ -602,6 +610,9 @@
         state.ready = false;
         state.serverReady = false;
         state.serverState = 'idle';
+        state.interruptedUtterances.clear();
+        state.rejectPendingSpeech = false;
+        state.rejectAsides = false;
         resetSpeechPlayback();
         const ws = new WebSocket(wsUrl());
         ws.binaryType = 'arraybuffer';
@@ -657,7 +668,7 @@
                 state.ready = true;
                 setStatus(state.serverState === 'idle' ? 'listening' : state.serverState);
                 ambient.setEnabled(state.ambient);
-                showMeta(`${msg.tts_engine} · ${msg.vad_backend}${msg.asr_available ? '' : ' · ASR unavailable'}`);
+                if (!msg.asr_available) showMeta('Speech recognition is unavailable.');
                 sendCommand('list_voices');
                 sendCommand('set_floor', { open: !state.ambient });
                 return true;
@@ -721,11 +732,11 @@
 
             case 'voice.state':
                 state.serverState = msg.state || 'idle';
-                setStatus(state.ready ? state.serverState : 'preparing');
                 if (typeof msg.muted === 'boolean') {
                     state.muted = msg.muted;
                     if (el.mute) el.mute.classList.toggle('vm-active', state.muted);
                 }
+                setStatus(state.ready ? state.serverState : 'preparing');
                 ambient.setState(msg.state);
                 break;
 
@@ -736,6 +747,7 @@
                 break;
 
             case 'voice.final':
+                if (msg.text && msg.addressed !== false) state.rejectPendingSpeech = false;
                 state.partialStable = '';
                 state.partialTentative = '';
                 if (msg.text && msg.addressed === false) {
@@ -769,6 +781,7 @@
                 break;
 
             case 'voice.chunk':
+                if (state.rejectPendingSpeech || state.interruptedUtterances.has(Number(msg.utterance_id))) break;
                 // Caption follows the audio clause by clause, so the words
                 // on screen are the words currently in the air.
                 if (msg.utterance_id && msg.utterance_id !== state.speechUtteranceId) {
@@ -827,7 +840,6 @@
 
             case 'voice.metrics':
                 state.metrics = msg;
-                showMeta(`${Math.round(msg.time_to_first_audio_ms)} ms to first word`);
                 // Metrics are emitted once the utterance has actually been
                 // heard, which is the honest moment to close the chat bubble.
                 ambient.replyDone();
@@ -879,6 +891,7 @@
         const payload = bytes.subarray(HEADER_BYTES);
 
         if (opcode === OPCODE.SPEECH) {
+            if (state.rejectPendingSpeech || state.interruptedUtterances.has(utteranceId)) return;
             if (utteranceId !== state.speechUtteranceId) {
                 beginSpeechUtterance(utteranceId, seq);
             } else if (seq !== state.expectedSpeechSeq) {
@@ -894,7 +907,7 @@
             if (payload.length > 0) state.expectedSpeechSeq = (seq + 1) & 0xffff;
             if ((flags & 1) && payload.length === 0) return;
         }
-        if (payload.length === 0) return;
+        if (payload.length === 0 || (opcode !== OPCODE.SPEECH && state.rejectAsides)) return;
 
         // Copy: the worklet takes ownership of the buffer it is handed.
         const pcm = new Int16Array(payload.length / 2);
@@ -907,7 +920,23 @@
         node.port.postMessage({ type: 'push', pcm: pcm.buffer }, [pcm.buffer]);
     }
 
+    function interruptPlayback() {
+        if (!state.active) return;
+        if (state.speechUtteranceId) {
+            state.interruptedUtterances.add(state.speechUtteranceId);
+            if (state.interruptedUtterances.size > 32) state.interruptedUtterances.delete(state.interruptedUtterances.values().next().value);
+        }
+        state.rejectAsides = true;
+        state.rejectPendingSpeech = true;
+        // Silence the audio thread before waiting for the server's receipt.
+        for (const node of [state.speechNode, state.asideNode]) node?.port.postMessage({ type: 'flush' });
+        state.auraLevel = 0;
+        setStatus('listening');
+        sendCommand('barge_in', { played_ms: state.playedMs, utterance_id: state.speechUtteranceId });
+    }
+
     function beginSpeechUtterance(utteranceId, seq) {
+        state.rejectAsides = false;
         state.speechUtteranceId = Number(utteranceId || 0);
         state.expectedSpeechSeq = Number(seq || 0);
         state.playedMs = 0;
@@ -936,7 +965,14 @@
             connecting: 'connecting', reconnecting: 'reconnecting',
             preparing: 'preparing voice', disconnected: 'disconnected', error: 'error',
         };
-        el.status.textContent = labels[s] || s;
+        el.status.textContent = state.muted ? 'Microphone off' : (labels[s] || s);
+        if (el.hint) el.hint.textContent = state.muted ? 'Your microphone is off.' : s === 'speaking' ? 'Speak to interrupt, or tap Stop.' : s === 'thinking' ? 'I’m with you.' : s === 'connecting' || s === 'preparing' ? 'Getting ready to listen.' : 'You can speak naturally.';
+        if (el.interrupt) el.interrupt.disabled = s !== 'speaking';
+        if (el.mute) {
+            el.mute.setAttribute('aria-pressed', String(state.muted));
+            el.mute.setAttribute('aria-label', state.muted ? 'Unmute microphone' : 'Mute microphone');
+            el.mute.querySelector('.vm-btn-label').textContent = state.muted ? 'Unmute' : 'Mute';
+        }
         if (root) {
             root.dataset.state = s;
         }
@@ -1094,8 +1130,16 @@
         const scale = 1 + eased * (speaking ? 0.26 : 0.17);
         const glow = 0.25 + eased * 0.75;
 
-        if (el.orb) el.orb.style.transform = `scale(${scale.toFixed(4)})`;
-        if (el.glow) el.glow.style.opacity = glow.toFixed(3);
+        const animate = !document.hidden && !state.ambient && root?.classList.contains('vm-open');
+        const motion = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        if (animate && motion && (state.lastVisualScale === null || Math.abs(scale - state.lastVisualScale) > .006)) {
+            if (el.orb) el.orb.style.transform = `scale(${scale.toFixed(3)})`;
+            state.lastVisualScale = scale;
+        }
+        if (animate && (state.lastVisualGlow === null || Math.abs(glow - state.lastVisualGlow) > .02)) {
+            if (el.glow) el.glow.style.opacity = glow.toFixed(2);
+            state.lastVisualGlow = glow;
+        }
 
         state.rafHandle = requestAnimationFrame(tick);
     }
@@ -1133,12 +1177,16 @@
         if (show) {
             // Animate in on the next frame so the transition never appears to
             // hang on the click that started it.
-            requestAnimationFrame(() => root.classList.add('vm-open'));
+            state.returnFocus = document.activeElement;
+            root.hidden = false;
+            requestAnimationFrame(() => { root.classList.add('vm-open'); el.mute.focus(); });
             document.body.classList.add('vm-active');
             state.ambient = false;
         } else {
             root.classList.remove('vm-open');
+            root.hidden = true;
             document.body.classList.remove('vm-active');
+            state.returnFocus?.focus?.();
         }
         // Opening the focused surface is the user saying "everything I say
         // now is for you". The server stands its addressivity gate down for
@@ -1217,7 +1265,9 @@
         exportTranscript();
 
         root.classList.remove('vm-open');
+        root.hidden = true;
         document.body.classList.remove('vm-active');
+        state.returnFocus?.focus?.();
         setTimeout(() => { if (!state.active && root) root.classList.remove('vm-show-transcript'); }, 400);
     }
 
@@ -1260,7 +1310,7 @@
         }
         el.mute.classList.toggle('vm-active', state.muted);
         el.muteIco.classList.toggle('vm-ico-muted', state.muted);
-        showMeta(state.muted ? 'microphone off' : 'microphone on');
+        setStatus(state.sessionState);
     }
 
     // ── ambient startup ──────────────────────────────────────────────────

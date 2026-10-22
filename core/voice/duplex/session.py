@@ -1906,9 +1906,12 @@ class DuplexVoiceSession:
                     "floor %s", "opened deliberately" if self._floor_explicitly_open else "released to ambient"
                 )
         elif command == protocol.CMD_LIST_VOICES:
+            voices = self._tts.available_voices()
+            current = self._voice_override or self._config.tts.voice
+            if voices and current not in voices:
+                current = "alba" if "alba" in voices else voices[0]
             await self._send_json(
-                {"type": protocol.EVT_VOICES, "voices": self._tts.available_voices(),
-                 "current": self._voice_override or self._config.tts.voice}
+                {"type": protocol.EVT_VOICES, "voices": voices, "current": current}
             )
         elif command == protocol.CMD_SET_VOICE:
             requested = str(message.get("voice") or "").strip()

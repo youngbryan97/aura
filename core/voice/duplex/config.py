@@ -269,11 +269,11 @@ class FillerConfig:
 
 @dataclass(slots=True)
 class TtsConfig:
-    """Kokoro-82M primary, Piper fallback, optional licensed XTTS clone.
+    """Prepared Pocket speech, Kokoro fallback, optional licensed XTTS clone."""
 
-    Measured on this host: Kokoro loads in 0.66 s and runs 6–8.6x realtime,
-    ~190 ms for a short clause. That is the time-to-first-audio floor.
-    """
+    engine: str = field(default_factory=lambda: os.environ.get("AURA_VOICE_TTS_ENGINE", "auto"))
+    pocket_directory: Path = field(default_factory=lambda: Path(os.environ.get(
+        "AURA_VOICE_POCKET_DIR", str(Path.home() / ".aura/live-source/data/voice_models/pocket"))))
 
     voice: str = field(
         default_factory=lambda: os.environ.get("AURA_VOICE_KOKORO_VOICE", "af_heart")

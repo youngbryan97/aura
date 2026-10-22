@@ -1,0 +1,35 @@
+{
+  "schema": "aura.presentation.browser_measurement.v1",
+  "ok": true,
+  "measured_at": "2026-10-22T013601Z",
+  "sources": {
+    "interface/static/aura.js": "8fcbb280e1f68ba91ce94cfbdf2fc7bb841d1b0f0a429aa2015670024dcf2375",
+    "interface/static/conversation_visuals.js": "7e5476bc0acf04d992198dc3ced85b19c4b8c6d4f7f9e3d01573c2620a03ed91",
+    "interface/static/conversation_visuals.css": "ebdb22e88a6fc51c586d794c0eb51cd7da52058ed67358b7c64dbfdb49c3a041",
+    "interface/static/neuron_glyph.svg": "cb5d32a354c2f1c0fd56c3f8e07ad89f66f4c5dfb97ac5da181a5450cd62143c",
+    "core/perception/browser_presence.py": "790eebd7baf925cdc8d436223fa2c7717b9f396213d9e63955877231b9aa5517",
+    "core/perception/browser_presence.js": "d602d5f04564b2531c8b3aa138c8cc7fe5b5cc8bdbe51657870ae40d096c986e",
+    "core/capabilities/phantom_browser.py": "aabbc619ef6bbe14a3555c945c505f483cbbaf108828d1665851190b01a79f86",
+    "core/capabilities/phantom_browser_interaction.py": "9dfae4399512358e3dea164913c1da1aab5a6c7068ffddd654393b654166a201",
+    "core/perception/a_picture_of_her_page.py": "1644359eb0d3e8fb9c971d2c6e1a7760e6341c3ccb29336eee30bea7bb8f635a",
+    "core/skills/watching_along.py": "58e26413fc28e6ee81b4ff65edf833fd5b1dadf24cc74d9371cca35434ee345c",
+    "core/skills/sovereign_browser_drawing.py": "94baba46151956c1f122bec4b2adfe5f2ed228e4534f93dfdf18a9ce778898c3"
+  },
+  "checks": [
+    "390px width",
+    "background-tab click",
+    "closed shadow isolation",
+    "code retained literally",
+    "diagram edges",
+    "idempotent rendering",
+    "metric cards",
+    "missing data fallback",
+    "nested screenshot suspension",
+    "no conversation activity notifications",
+    "numeric chart values",
+    "source table disclosure",
+    "stream completion",
+    "user text unchanged"
+  ],
+  "limits": "Repeated production-renderer Chromium fixture; no resident-model turn."
+}

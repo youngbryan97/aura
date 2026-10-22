@@ -27,6 +27,7 @@ include_rules = [
     "+core.runtime",
     "+core.senses",
     "+core.utils",
+    "+core.verify",
 
     # Everything else.
     "-core",

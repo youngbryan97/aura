@@ -1,0 +1,4 @@
+# CPU speech candidate measured on the desktop Mac. Assets are prepared
+# separately; a live call only opens local weights and speaker states.
+pocket-tts==4.0.1
+librosa>=0.11,<0.12

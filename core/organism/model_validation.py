@@ -852,6 +852,8 @@ def install_runtime_validation() -> dict[str, Any]:
     _install_repair_executor_claims(suite)
     from core.organism.model_validation_presentation import install_presentation_claims
     install_presentation_claims(suite)
+    from core.organism.model_validation_voice import install_voice_presentation_claims
+    install_voice_presentation_claims(suite)
     _install_suite_tail(suite)
     _install_phenomena_claims(suite)
 

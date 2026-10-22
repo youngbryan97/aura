@@ -5,15 +5,14 @@ Two properties matter more than anything else here.
 **Time to first audio.** Perceived latency is when she *starts* speaking,
 not when she finishes. So the first clause is cut short (clause_chunker),
 synthesised alone, and pushed out while the rest is still being generated.
-Measured on this host: Kokoro-82M runs 6–8.6x realtime, ~190 ms for a short
-clause, which is the floor this lane can hit.
+Ready audio leaves without waiting for the next clause from the model.
 
 **Cancellation.** Barge-in is worthless if it takes a second to take
 effect. Every synthesis job checks a cancellation token between chunks, and
 the session flushes the client's playback buffer independently — so audio
 stops even if a chunk is mid-flight through the ONNX graph.
 
-Kokoro is ONNX on CPU, which matters on this host: the resident 32B holds
+Kokoro is ONNX on CPU, which matters on this host: the resident 27B holds
 ~20 GB of GPU memory, and a TTS engine competing for Metal would show up as
 jitter in her actual thinking. This one does not touch the GPU at all.
 """
@@ -24,6 +23,7 @@ import contextlib
 import logging
 import threading
 import time
+import weakref
 from collections.abc import AsyncIterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -35,10 +35,13 @@ import numpy as np
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
 from core.utils.task_tracker import get_task_tracker
+from core.verify.invariants import Violation, invariant
 from core.voice.duplex.config import OUTPUT_RATE, TtsConfig
+from core.voice.duplex.pocket_speech import PocketSpeech
 from core.voice.duplex.prosody import ProsodySpec
 
 logger = logging.getLogger("Aura.Voice.Tts")
+_INSTANCES: weakref.WeakSet[StreamingTts] = weakref.WeakSet()
 
 
 class CancellationToken:
@@ -303,6 +306,7 @@ def _resample(samples: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
 
 @dataclass(slots=True)
 class _EngineState:
+    pocket: PocketSpeech | None = None
     clone: _ClonedVoiceEngine | None = None
     kokoro: _KokoroEngine | None = None
     piper: _PiperEngine | None = None
@@ -334,6 +338,7 @@ class StreamingTts:
             max_workers=max(1, self._config.workers),
             thread_name_prefix="aura-tts",
         )
+        _INSTANCES.add(self)
 
     def _acquire_model_lane(self) -> Any:
         with self._lifecycle_lock:
@@ -354,10 +359,10 @@ class StreamingTts:
             model_path=(
                 "voice-duplex/tts/xtts-kokoro-piper"
                 if clone_enabled
-                else "voice-duplex/tts/kokoro-piper"
+                else "voice-duplex/tts/pocket-kokoro-piper"
             ),
             purpose="serve",
-            request_gb=3.0 if clone_enabled else 0.75,
+            request_gb=3.0 if clone_enabled else (1.75 if self._config.engine != "kokoro" else 0.75),
             priority=30,
             preemptible=False,
             evict=self._evict_model_lane,
@@ -391,6 +396,7 @@ class StreamingTts:
     def _detach_model_lane_locked(self) -> tuple[Any, bool]:
         self._accepting_synthesis = False
         self._state.clone = None
+        self._state.pocket = None
         self._state.kokoro = None
         self._state.piper = None
         self._state.loaded = False
@@ -456,11 +462,17 @@ class StreamingTts:
                 if await loop.run_in_executor(self._pool, clone.load):
                     self._state.clone = clone
 
-            kokoro = _KokoroEngine(self._config)
-            if await loop.run_in_executor(self._pool, kokoro.load):
-                self._state.kokoro = kokoro
+            if self._config.engine in {"auto", "pocket"}:
+                pocket = PocketSpeech(self._config.pocket_directory)
+                if await loop.run_in_executor(self._pool, pocket.load):
+                    self._state.pocket = pocket
 
-            if self._state.kokoro is None:
+            if self._state.pocket is None:
+                kokoro = _KokoroEngine(self._config)
+                if await loop.run_in_executor(self._pool, kokoro.load):
+                    self._state.kokoro = kokoro
+
+            if self._state.pocket is None and self._state.kokoro is None:
                 piper = _PiperEngine(self._config)
                 if await loop.run_in_executor(self._pool, piper.load):
                     self._state.piper = piper
@@ -468,7 +480,7 @@ class StreamingTts:
             self._state.loaded = True
 
             neural_available = bool(
-                self._state.clone or self._state.kokoro or self._state.piper
+                self._state.clone or self._state.pocket or self._state.kokoro or self._state.piper
             )
             if neural_available:
                 if not lease.set_preemptible(True):
@@ -506,12 +518,15 @@ class StreamingTts:
     def available(self) -> bool:
         return bool(
             self._state.clone
+            or self._state.pocket
             or self._state.kokoro
             or self._state.piper
         )
 
     def available_voices(self) -> list[str]:
         """Voices the loaded engine can actually produce."""
+        if self._state.pocket is not None:
+            return sorted(self._state.pocket.voices)
         kokoro = self._state.kokoro
         if kokoro is not None:
             return sorted(kokoro.voices)
@@ -521,6 +536,8 @@ class StreamingTts:
     def engine_name(self) -> str:
         if self._state.clone:
             return "xtts_clone"
+        if self._state.pocket:
+            return "pocket"
         if self._state.kokoro:
             return "kokoro"
         if self._state.piper:
@@ -622,6 +639,7 @@ class StreamingTts:
             self._active_syntheses += 1
             engines = (
                 self._state.clone,
+                self._state.pocket,
                 self._state.kokoro,
                 self._state.piper,
             )
@@ -729,40 +747,37 @@ class StreamingTts:
         clause boundary, which is exactly the artefact that makes streaming
         TTS sound synthetic.
         """
-        pending: asyncio.Task[SynthesisResult | None] | None = None
+        pending: asyncio.Task[tuple[bool, SynthesisResult | None]] | None = None
         # A line is arrived at once. The bend belongs to the first chunk of the
         # utterance, and every chunk after it is spoken from where it arrived.
         first = [True]
 
-        async def _synth(text: str) -> SynthesisResult | None:
-            chunk_spec = spec if first[0] else spec.without_bend()
-            first[0] = False
-            return await self.synthesize(text, chunk_spec, token)
+        source = aiter(chunks)
 
-        try:
-            async for chunk in chunks:
-                if token.cancelled:
-                    break
+        async def _next_result() -> tuple[bool, SynthesisResult | None]:
+            while not token.cancelled:
+                try:
+                    chunk = await anext(source)
+                except StopAsyncIteration:
+                    return False, None
                 text = (chunk or "").strip()
                 if not text:
                     continue
-                task = get_task_tracker().create_task(
-                    _synth(text),
-                    name="VoiceTTSStream.synthesize_chunk",
-                )
-                if pending is not None:
-                    result = await pending
-                    if token.cancelled:
-                        task.cancel()
-                        break
-                    if result is not None:
-                        yield result
-                pending = task
+                chunk_spec = spec if first[0] else spec.without_bend()
+                first[0] = False
+                return True, await self.synthesize(text, chunk_spec, token)
+            return False, None
 
-            if pending is not None and not token.cancelled:
-                result = await pending
-                pending = None
-                if result is not None and not token.cancelled:
+        try:
+            pending = get_task_tracker().create_task(_next_result(), name="VoiceTTSStream.synthesize_chunk")
+            while not token.cancelled:
+                more, result = await pending
+                if not more or token.cancelled:
+                    break
+                # Fetch and synthesise the next clause while this one is sent.
+                # A ready first clause must never wait for another model token.
+                pending = get_task_tracker().create_task(_next_result(), name="VoiceTTSStream.synthesize_chunk")
+                if result is not None:
                     yield result
         finally:
             if pending is not None and not pending.done():
@@ -780,3 +795,14 @@ class StreamingTts:
         if detached is not None:
             detached.release(reason="voice_tts_shutdown")
         self._pool.shutdown(wait=False, cancel_futures=True)
+
+
+@invariant("voice.tts.loaded_models_have_owner", scope="voice",
+           owner="core/voice/duplex/tts_stream.py")
+def loaded_speech_models_have_an_owner():
+    """A loaded speech model keeps its model-lane lease until it is released."""
+    for tts in tuple(_INSTANCES):
+        with tts._lifecycle_lock:
+            unowned = tts._state.loaded and tts.available and tts._lane_lease is None
+        if unowned:
+            yield Violation(subject=f"voice-tts:{id(tts)}", message="Loaded speech model has no model-lane owner.")
