@@ -484,6 +484,10 @@ class ResourceObserver(Protocol):
 
     def power(self) -> PowerObservation: ...
 
+    #: A cumulative machine counter by its psutil name: disk and network
+    #: traffic, context switches, clock frequency. None where the host has none.
+    def host_counter(self, api: str) -> Any: ...
+
     def process_ids(self) -> ProcessIdsObservation: ...
 
     def process_table(self) -> ProcessTableObservation: ...
@@ -1314,6 +1318,20 @@ class HostResourceObserver:
                 error=f"{type(exc).__name__}:{exc}",
             )
 
+    def host_counter(self, api: str) -> Any:
+        """Read on every call. These counters went to psutil around the
+        observer, so a held or declared host could not hold them, and her
+        interoception felt the machine's disk traffic through a run that
+        declared its host: two untouched forks of one anchor parted at the
+        mesh's sensory input (22 October)."""
+        try:
+            return getattr(psutil, api)()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError, psutil.Error) as exc:
+            # None is read by callers as "this host counter does not exist",
+            # which is not the same as a counter that raised on this call.
+            logger.debug("host counter %s raised (%s: %s)", api, type(exc).__name__, exc)
+            return None
+
     def power(self) -> PowerObservation:
         provenance = self.provenance
         try:
@@ -1740,6 +1758,10 @@ class SimulatedResourceObserver:
     def power(self) -> PowerObservation:
         with self._lock:
             return replace(self._power, provenance=self.provenance)
+
+    def host_counter(self, api: str) -> Any:
+        """A simulated host keeps no traffic counters."""
+        return None
 
     def processes(self) -> tuple[ProcessObservation, ...]:
         with self._lock:

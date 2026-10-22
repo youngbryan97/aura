@@ -71,20 +71,9 @@ def _host_counter(api: str, fields: tuple[str, ...]) -> Any:
     observer = get_resource_observer()
     if not observer.provenance.host_observed:
         return _counter_namespace(None, fields)
-    try:
-        raw = getattr(_psutil, api)()
-    except (
-        AttributeError,
-        OSError,
-        RuntimeError,
-        TypeError,
-        ValueError,
-        _psutil.Error,
-    ) as exc:
-        # None here is read by callers as "this host counter does not exist",
-        # which is not the same as a counter that raised on this call.
-        logger.debug("host counter %s raised (%s: %s)", api, type(exc).__name__, exc)
-        return None
+    # Through the observer, so a host a run declares holds these as it holds
+    # the rest. See `HostResourceObserver.host_counter`.
+    raw = observer.host_counter(api)
     return None if raw is None else _counter_namespace(raw, fields)
 
 

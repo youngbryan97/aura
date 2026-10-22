@@ -165,3 +165,39 @@ def test_every_memory_gate_reads_the_machine_under_a_declared_host() -> None:
     finally:
         set_resource_observer_for_test(previous)
         get_memory_pressure_snapshot(force_refresh=True)
+
+
+class _BusyDisk(SimulatedResourceObserver):
+    """A host whose disk traffic counter moves on every read, as a real one does."""
+
+    def __init__(self) -> None:
+        super().__init__(cpu_percent=3.0, memory_percent=10.0, cpu_count=18)
+        self.reads = 0
+
+    @property
+    def provenance(self):
+        from dataclasses import replace
+
+        return replace(super().provenance, source=type(super().provenance.source).HOST)
+
+    def host_counter(self, api: str):
+        from types import SimpleNamespace
+
+        self.reads += 1
+        return SimpleNamespace(read_bytes=self.reads * 4096, write_bytes=self.reads * 8192)
+
+
+def test_the_machines_traffic_is_held_with_the_rest_of_the_host() -> None:
+    # 22 October: disk traffic went to psutil around the observer, her
+    # interoception felt it, and two untouched forks of one anchor parted at
+    # the mesh's sensory input.
+    machine = _BusyDisk()
+    assert machine.provenance.host_observed
+    previous = set_resource_observer_for_test(_DeclaredHost(machine, CALM))
+    try:
+        first = resource_psutil.disk_io_counters()
+        second = resource_psutil.disk_io_counters()
+    finally:
+        set_resource_observer_for_test(previous)
+    assert (first.read_bytes, first.write_bytes) == (second.read_bytes, second.write_bytes)
+    assert machine.reads == 1

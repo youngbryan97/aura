@@ -1736,8 +1736,12 @@ class _DeclaredHost(_HeldObserver):
     Installed once for the run and told each turn's prepared reading, this
     answers compute, memory and thermal from that reading to every reader, in
     any thread and between turns. Every other question, processes,
-    connections, open files, disk and power, goes to the real observer,
-    because those are the harness's bookkeeping and nothing she feels.
+    connections, open files, disk, power and the machine's traffic counters,
+    goes to the real observer once and is held from then on, as the held face
+    holds every answer. Her interoception feels disk traffic, process count and
+    power, so these cannot move between two arms either: the traffic counters
+    went around the observer until 22 October, and two untouched forks of one
+    anchor parted at the mesh's sensory input.
 
     Her own process's size is held at what it was when the run declared its
     host. It had passed straight through, and in an offline run the process is
