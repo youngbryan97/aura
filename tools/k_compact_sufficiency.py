@@ -143,6 +143,7 @@ async def main() -> int:
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
 
+    from core.subject.calibrated_axes import axes_for, sketched_sources
     from core.subject.driver import (
         CONDITIONS,
         build_runtime,
@@ -153,7 +154,6 @@ async def main() -> int:
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.provenance import environment, next_run_directory
     from core.subject.recording import build_recording
-    from core.subject.calibrated_axes import axes_for, sketched_sources
     from core.subject.sketch import sketch
 
     run_dir = next_run_directory(args.out)
