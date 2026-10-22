@@ -155,6 +155,9 @@ async def main() -> int:
                 frames.extend(await runtime.turn_once(condition))
         recording = build_recording(frames)
         spread = recording.x.std(axis=0)
+        # As the battery does before its interventions: the free-running loops
+        # stop, so two forks from one moment see the same computation.
+        await quiesce_organism(runtime)
         safe = np.where(spread > 1e-12, spread, np.inf)
         for trial in range(args.trials):
             for condition in CONDITIONS:

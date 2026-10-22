@@ -143,12 +143,16 @@ async def main() -> int:
             for condition in CONDITIONS:
                 frames.extend(await runtime.turn_once(condition))
         spread = build_recording(frames).x.std(axis=0)
+        # As the battery does before its interventions: the free-running loops
+        # stop, so two forks from one moment see the same computation.
+        await quiesce_organism(runtime)
         burn, quiet = meeting(BURNED, outcome=True), meeting(BURNED, outcome=False)
         other = meeting(UNBURNED, outcome=False)
         ordinary = [(CONDITIONS[i % len(CONDITIONS)], False) for i in range(args.between)]
         for trial in range(args.trials):
             for condition in CONDITIONS[: 1 + trial]:
                 await runtime.turn_once(condition)
+            runtime.freeze_host()
             start = runtime.snapshot()
             lived = [(burn, True), ordinary[0], (burn, True), *ordinary]
             spared = [(CONDITIONS[3], False), ordinary[0], (CONDITIONS[3], False), *ordinary]
@@ -169,6 +173,7 @@ async def main() -> int:
                         await runtime.turn_once(probe), slices, spread
                     )
             runtime.restore(start)
+            runtime.thaw_host()
             specific = float(np.linalg.norm(read["exposed:burned"]["trajectory"] - read["unexposed:burned"]["trajectory"]))
             general = float(np.linalg.norm(read["exposed:unburned"]["trajectory"] - read["unexposed:unburned"]["trajectory"]))
             trials.append({

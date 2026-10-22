@@ -181,6 +181,9 @@ async def main() -> int:
                         history[source].append(np.array(value, dtype=np.float64, copy=True))
         recording = build_recording(frames)
         spread = recording.x.std(axis=0)
+        # As the battery does before its interventions: the free-running loops
+        # stop, so two forks from one moment see the same computation.
+        evidence["stopped_loops"] = await quiesce_organism(runtime)
         for source in sources:
             seen = history[source]
             steps = [float(np.linalg.norm(b - a)) for a, b in zip(seen, seen[1:], strict=False) if a.shape == b.shape]
@@ -194,6 +197,7 @@ async def main() -> int:
             for pair in range(args.pairs):
                 condition = CONDITIONS[pair % len(CONDITIONS)]
                 await runtime.turn_once(condition)
+                runtime.freeze_host()
                 snapshot = runtime.snapshot()
                 holder, attr, value = _resolve(runtime.organs, source)
                 base = np.array(value, dtype=np.float64, copy=True)
@@ -201,6 +205,7 @@ async def main() -> int:
                 visible = visible_direction(base, axes_for(source))
                 size = min(turn_change, _room(base, hidden), _room(base, visible))
                 if size <= 0.0:
+                    runtime.thaw_host()
                     moments.append({"skipped": "no room inside the extremes"})
                     continue
                 plus, minus = base + size * hidden, base - size * hidden
@@ -221,6 +226,7 @@ async def main() -> int:
                     spread,
                 )
                 runtime.restore(snapshot)
+                runtime.thaw_host()
                 moments.append({
                     "condition": condition.name,
                     "step": round(size, 8),
