@@ -93,6 +93,11 @@ class WarmthLedger:
     _felt: deque[float] = field(default_factory=lambda: deque(maxlen=_WINDOW))
     _person: str = ""
     _warm_now: bool = False
+    _objected_now: bool = False
+    #: How warm this person had been before the message just heard.
+    _expected: float = 0.5
+    #: Messages heard, so a reader can tell a new one from the last.
+    heard_count: int = 0
 
     def heard(self, person: str, *, warm: bool, objected: bool) -> None:
         """A message from somebody: warm with no objection in it, or not."""
@@ -100,12 +105,29 @@ class WarmthLedger:
         if not name:
             return
         held = self._people.setdefault(name, _Person())
+        self._expected = held.rate()
+        self._objected_now = bool(objected)
+        self.heard_count += 1
         held.heard += 1
         self._warm_now = bool(warm) and not objected
         if self._warm_now:
             held.warm += 1
         self._person = name
         self._felt.append(held.rate())
+
+    def act(self) -> float:
+        """What the last message did, signed, by how unlike this person it was.
+
+        Warm, it counts by how far it rose above what they had been; an
+        objection, by how warm they had been, so one from somebody usually warm
+        lands harder. Neither is nothing. The appraisal reads it as the other's
+        doing (core/affect/appraisal.py).
+        """
+        if self._objected_now:
+            return -self._expected
+        if self._warm_now:
+            return 1.0 - self._expected
+        return 0.0
 
     def rate(self, person: str) -> float:
         held = self._people.get(str(person or "").strip())

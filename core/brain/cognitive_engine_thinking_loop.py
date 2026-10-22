@@ -208,6 +208,35 @@ class _RunsTheThinkingLoop:
             success = True
         return success, temp_state
 
+    async def _feel_the_quick_turn(self, state: Any, objective: str) -> Any:
+        """What a message meant to her, on a turn the quick lane answered.
+
+        The quick lane answers before any phase runs, so a typed message was
+        read for warmth or objection by nothing and felt by nothing: live on 22
+        October her feelings had not moved by a decimal four minutes after one,
+        while her own ticks between messages read her own objective as the
+        message. The pipeline's own two phases run here: the conversation's,
+        which reads the message for warmth and objection, and then affect, so
+        what she feels about this message is appraised from this message
+        rather than the one before. See core/affect/appraisal.py.
+        """
+        from .cognitive_engine import record_degradation
+
+        wanted = ("ConversationalDynamicsPhase", "AffectUpdatePhase")
+        by_name = {type(phase).__name__: phase for phase in self._phases}
+        for name in wanted:
+            phase = by_name.get(name)
+            if phase is None:
+                continue
+            try:
+                state = await phase.execute(state, objective=objective)
+            except Exception as exc:  # noqa: BLE001 - the reply is given; a feeling not read is reported, not raised
+                record_degradation(
+                    "cognitive_engine", exc, severity="warning",
+                    action=f"answered without {name} reading the turn; her feelings did not take it in",
+                )
+        return state
+
     def _run_thinking_loop__clock_keeper(
         self,
         _cycle_clock: Any,
@@ -936,6 +965,8 @@ class _RunsTheThinkingLoop:
                 timeout_s=cycle_timeout,
             )
         success, temp_state = self._run_thinking_loop_part_3(direct_quick_reply, origin, state, success, temp_state)
+        if direct_quick_reply is not None and self._is_user_facing_origin(origin) and not is_background:
+            temp_state = await self._feel_the_quick_turn(temp_state, objective)
 
         if not success:
             # Bound before the try, because the finally below reads it and the

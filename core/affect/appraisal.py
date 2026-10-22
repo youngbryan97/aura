@@ -29,7 +29,9 @@ Every check here is read off something she already measures:
                   (core/affect/what_it_was_worth.py)
     her doing     the accomplishment channel of that worth: goals she finished
                   or failed
-    their doing   its warmth channel: what being met by somebody returned
+    their doing   what the person's last message did, warm or objecting, by how
+                  unlike them it was (core/social/warmth.py); between messages,
+                  the worth's warmth channel: what being met returned
     standards     its integrity channel: whether her choice served what she
                   holds
     needs         its satisfaction channel: her needs met or going unmet

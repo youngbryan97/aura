@@ -2281,3 +2281,11 @@ lines can move. Nothing moves a threshold.
 The appraisal's company check now also counts somebody having spoken in her
 last eight turns (the window the safety reading uses), so her own ticks between
 the messages of a conversation are no longer appraised as time alone.
+
+**What the person did, read from their message (from the commit after `36f81b744`).**
+The appraisal's "their doing" check reads the last message a person sent, warm
+or objecting by the patterns the conversation phase already reads it with,
+signed and sized by how unlike that person it was (`WarmthLedger.act`); between
+messages it reads the worth's warmth channel as before. In the harness this
+changes A on the conditions that bring a correction or a complaint. It is not
+in the pair at `36f81b744`; it enters with the pair after it.

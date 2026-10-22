@@ -77,6 +77,8 @@ class TurnAppraisal:
         self._gain = gain
         self._bump = bump
         self._outcomes = OutcomeReader()
+        #: The warmth ledger's message count when it was last read.
+        self._acts_read = 0
 
     def read(self, state: AuraState, affect: AffectVector, *, company: bool) -> Appraisal:
         """This turn's checks, each None where its source cannot be read."""
@@ -92,6 +94,18 @@ class TurnAppraisal:
             checks.update(self._outcomes.read(get_worth_ledger().read()))
         except AFFECT_UPDATE_ERRORS as exc:
             logger.debug("the turn's outcome could not be appraised: %s", exc)
+        try:
+            from core.social.warmth import get_warmth_ledger
+
+            warmth = get_warmth_ledger()
+            # A message heard since the last appraisal: what the person did is
+            # that message, warm or objecting. Otherwise the worth channel of
+            # what being met returned stands for their doing.
+            if warmth.heard_count != self._acts_read:
+                self._acts_read = warmth.heard_count
+                checks["their_doing"] = warmth.act()
+        except AFFECT_UPDATE_ERRORS as exc:
+            logger.debug("what the person did could not be read: %s", exc)
         ledger = _her_agency()
         if ledger is not None:
             checks["coping"] = coping_of(int(ledger.acted), int(ledger.succeeded))
