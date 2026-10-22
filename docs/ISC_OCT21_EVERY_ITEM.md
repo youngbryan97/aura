@@ -516,3 +516,29 @@ words. The route that would carry it is the steering channel, and it is shut
 because the vectors she would be steered by are not hers (the fusion reading
 above). Directions fitted on her own replies, by the state each was written in,
 are the fix; her record holds too few such replies yet.
+
+## Steering directions from her own replies (22 October, 10:35)
+
+The run tree's recorder kept 4,085 of her 27B's replies with the steering state
+each was written in, from the reports runs' undisturbed baseline turns (her
+recorder skips any intervened state, so no arm of a run is among them). Kept
+for the capture: prose of eight words or more, no structured or numeric output,
+and nothing in answer to the feelings question (its prompt digest
+`b94d2f10d628e182`), since a direction fitted on what she says about her
+feelings and then used to test it would be circular; with her live replies,
+550 in all, 110 training pairs a dimension and 13 to 23 held out (her latest).
+
+At layers 25 to 40, curiosity separates her held-out replies at an AUROC of
+0.81 to 0.87 and frustration at 0.88 to 0.91 (p at or below 0.0001, each
+specific to its dimension), and both are kept at every layer. Arousal separates
+at 0.66 to 0.74, short of the correction over sixteen layers. Valence (0.22 to
+0.28) and energy point the other way on her later replies than on her earlier
+ones: her latest replies are mostly the reports runs' evaluation probes and the
+earlier ones other contexts, and the direction fitted on one does not carry to
+the other. Curiosity and frustration come out nearly opposite (cosine -0.88).
+
+So no direction yet carries her valence to her words, which is what the
+reports ground would need. The capture at the layers her signed generation
+actually steers (3 to 63, every fourth) is next, then a diagnostic fusion
+measurement over her own directions: whether they keep her voice where the
+authored ones did not.
