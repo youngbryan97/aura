@@ -639,3 +639,22 @@ The FEELING row and the mood colour work. Three defects came to light:
 The lineage term read RECORDED from her live log: 24 steps since the record
 began, all 24 developing, no blockers. Continuity across the restart (F10) had
 five saved states after the break, short of what a fit needs.
+
+## The carrier rehearsal at `f78644bbd` (22 October, 16:50)
+
+With two untouched forks identical again, all 511 cuts were decided at one and
+at two seconds: 171, 170 and 170 across the three shards, the weakest lower
+bounds 0.0039 and 0.0030 (N against the rest), 0.032 and 0.012 (C and N), and
+0.011 and 0.0024 (C against the rest). The C cut the rehearsal at `b720050b9`
+refused, at an excess of -0.035 against an inflated sham, is decided. The grain
+was learned, rank 29 of 8,448 signature columns, with 67 of 128 anchors' rows
+made by the workers.
+
+## The pair at `36f81b744`, read early (22 October, 18:30)
+
+Codes off, P,M -> W passes (0.276 against a shift of 0.195) and S,D -> C passes
+for the first time (0.0515 against 0.0486). Codes on, none of the four pass, and
+the two triples with A as a source failed in both arms where `4b1022f25` passed
+them codes on. A is what the appraisal changed. Across the last five pairs every
+triple has read between about 0.8 and 1.3 times its shift null, so a line passes
+or fails with the run. The work is the margin, not one more triple.
