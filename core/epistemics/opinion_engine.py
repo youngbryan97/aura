@@ -109,6 +109,14 @@ Respond in JSON only:
         try:
             # v30 Hardening: Use high-res thought or multi-agent debate if complex
             response = await brain.generate(prompt, temperature=0.7, max_tokens=300)
+            if not response:
+                # A background lane that gave no answer, queued behind
+                # admission, is backpressure, and the next tick asks again.
+                # Recorded as a fault it ran `json.loads(None)`, which this
+                # fail-closed subsystem raised to a critical incident on her
+                # desktop (23 October, 15:42).
+                logger.info("[Opinion] No answer on '%s' this tick; nothing formed.", topic)
+                return None
 
             # Try to parse directly or via self-healing
             try:
