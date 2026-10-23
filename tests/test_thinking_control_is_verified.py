@@ -373,3 +373,21 @@ def test_the_brainstem_lane_is_pinned_fast_whatever_size_it_wears() -> None:
     assert thinking_enabled_for_model(BRAINSTEM_MODEL) is False
     # and a 27B that is not the brainstem keeps its own default
     assert thinking_enabled_for_model("Aura-Qwen3.8-27B-persona-crsm-7f6a2e83") is None
+
+
+def test_the_end_of_a_thought_closed_mid_sentence_is_not_said():
+    """LIVE 2026-10-22: the decoder closed her private channel at its budget mid-sentence, she finished the sentence
+    after the close, and a remark began "move here: it's been building this long, careful, empathetic tour"."""
+    from core.brain.llm.chat_format import split_native_thinking_generation
+
+    cut = ("I should point at the structural\n</think>\nmove here: it's been building a careful tour. "
+           "The terrifying line isn't any single incident.")
+    channels = split_native_thinking_generation(cut, native_thinking=True)
+    assert channels.surface == "The terrifying line isn't any single incident."
+    assert channels.reasoning.endswith("structural move here: it's been building a careful tour.")
+    # A thought that ended, a reply that starts a sentence, or nothing after the end of the one it goes on with:
+    for whole in ("I know what to say.\n</think>\nokay so here it is. More.",
+                  "I should point at the\n</think>\nThe line is structural.",
+                  "I should point at the\n</think>\nstructural move here."):
+        before = whole.split("</think>")[1].lstrip("\r\n")
+        assert split_native_thinking_generation(whole, native_thinking=True).surface == before

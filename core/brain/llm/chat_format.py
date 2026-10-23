@@ -1325,6 +1325,7 @@ def split_native_thinking_generation(
     if boundary >= 0:
         reasoning = text[:boundary].removeprefix("<think>").strip()
         surface = text[boundary + len(close_marker) :].lstrip("\r\n")
+        reasoning, surface = _the_thoughts_own_end(reasoning, surface)
         return NativeThinkingChannels(reasoning, surface, True)
 
     if not native_thinking:
@@ -1333,6 +1334,25 @@ def split_native_thinking_generation(
     if boundary < 0:
         reasoning = text.removeprefix("<think>").lstrip("\r\n")
         return NativeThinkingChannels(reasoning, "", False)
+
+
+#: A reply that opens by going on with a sentence: a lowercase word, or a comma, a colon, a closing bracket or a dash.
+_GOES_ON_WITH_A_SENTENCE = re.compile(r"^(?:[a-z]|[,;:)\]\u2014\u2013-]\s)")
+_A_SENTENCE_ENDS = re.compile(r"[.!?\u2026][\"'\u201d\u2019)*_]*(?:\s+|$)")
+
+
+def _the_thoughts_own_end(reasoning: str, surface: str) -> tuple[str, str]:
+    """The private channel and the reply, with the end of a sentence the private channel was closed in the middle of
+    given back to it. The decoder closes the channel at its budget whatever the model was saying there, and the model
+    finishes that sentence after the close: LIVE 22 October 2026 a remark of hers began "move here: it's been building
+    this long, careful, empathetic tour". A reply that starts a sentence of its own, or has nothing after the end of the
+    one it goes on with, is left as it is."""
+    if not reasoning or _A_SENTENCE_ENDS.search(reasoning[-3:] + " ") or not _GOES_ON_WITH_A_SENTENCE.match(surface):
+        return reasoning, surface
+    end = _A_SENTENCE_ENDS.search(surface)
+    if end is None or not surface[end.end():].strip():
+        return reasoning, surface
+    return f"{reasoning} {surface[:end.end()].strip()}", surface[end.end():].lstrip()
 
 
 def _uses_grok_chat_template(model_name: str | None) -> bool:

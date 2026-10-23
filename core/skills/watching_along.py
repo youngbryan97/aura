@@ -537,8 +537,24 @@ def first_thought(words: str, about: str = "") -> str:
     thought = next((part for part in said if says_something(part)), "")
     if not thought:
         return ""
+    # A quotation it opens runs on to where it closes: LIVE 22 October 2026 a remark ended inside one, 'the on-screen
+    # text is saying: "While they secretly start working on goals that are harmful or straight up incomprehensible to
+    # us.', its close in the paragraph after.
+    following = paragraphs[paragraphs.index(thought) + 1:]
+    while _a_quotation_left_open(thought) and following:
+        thought = f"{thought}\n\n{following.pop(0)}"
+    if _a_quotation_left_open(thought):
+        opened = max(thought.rfind('"'), thought.rfind("“"))
+        before = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought[:opened])
+        thought = before.group(1).strip() if before else thought
     whole = re.match(r"(?s)^(.*[.!?…][\"'”’)*_]*)(?:\s|$)", thought)
     return whole.group(1).strip() if whole and not re.search(r"[.!?…][\"'”’)*_]*$", thought) else thought
+
+
+def _a_quotation_left_open(text: str) -> bool:
+    """Whether ``text`` opens a quotation it does not close: straight quotes odd in number, or more curly openings than
+    closings."""
+    return text.count('"') % 2 == 1 or text.count("“") > text.count("”")
 
 
 async def say_it(words: str) -> bool:

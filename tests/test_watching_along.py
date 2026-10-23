@@ -430,3 +430,18 @@ def test_what_she_made_of_the_whole_is_given_the_whole_from_start_to_end():
     assert whole.rstrip().endswith("narration line 259")
     # A remark as it plays still has the newest looks.
     assert "scene 0 " not in what_she_watched(looks)
+
+
+def test_a_remark_does_not_end_inside_a_quotation():
+    """LIVE 2026-10-22: a remark ended 'the on-screen text is saying: "While they secretly start working on goals that
+    are harmful or straight up incomprehensible to us.', the quotation's close in the paragraph after."""
+    from core.skills.watching_along import first_thought
+
+    opened = ('Wait, hold on, I think we just hit the part where the "terrifying line" actually gets named. Before this '
+              'it was all about what they did, but now the on-screen text is saying: "While they secretly start working '
+              'on goals that are harmful or straight up incomprehensible to us.')
+    closed = 'And we would not notice for a while." That is the line.'
+    assert first_thought(f"{opened}\n\n{closed}") == f"{opened}\n\n{closed}"
+    # Never closed, it ends at the sentence before the quotation.
+    assert first_thought(opened) == ('Wait, hold on, I think we just hit the part where the "terrifying line" actually '
+                                     'gets named.')
