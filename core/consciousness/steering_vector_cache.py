@@ -194,4 +194,18 @@ class _ReadsACachedVector:
             selection_reason="exact" if exact_match else f"nearest_layer:{selected_layer}",
             exact_layer_match=exact_match,
             extracted=extracted,
+            reference=_optional_float(meta.get("reference")),
+            spread=_optional_float(meta.get("spread")),
+            push=_optional_float(meta.get("push")),
         )
+
+
+def _optional_float(value: Any) -> float | None:
+    """A fitted basis's reference, spread or push, or None where the file carries none."""
+    if value is None:
+        return None
+    try:
+        number = float(np.asarray(value).reshape(-1)[0])
+    except (TypeError, ValueError, IndexError):
+        return None
+    return number if np.isfinite(number) else None

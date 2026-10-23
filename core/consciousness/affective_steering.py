@@ -402,6 +402,14 @@ class SteeringVector:
     selection_reason: str = "exact"
     exact_layer_match: bool = False
     extracted: bool = False
+    #: A basis fitted to her own replies carries the state it was fitted
+    #: around and how far she ordinarily moves from it, as hook weights, and the
+    #: size of the push, as a share of the stream's norm. Present on every
+    #: vector of a hook, they replace the unit-length composite: see
+    #: `AffectiveSteeringHook._fitted_composite`. Absent, nothing changes.
+    reference: float | None = None
+    spread: float | None = None
+    push: float | None = None
 
     # [OPTIMIZATION] MLX-native version for zero-copy/fast path
     _v_mx: Any = field(default=None, init=False, repr=False)
@@ -1056,6 +1064,29 @@ class AffectiveSteeringHook:
             alpha = min(alpha, self._STALE_SAFE_ALPHA)
         return alpha
 
+    def _fitted_composite(self, state: np.ndarray) -> np.ndarray | None:
+        """The push a basis fitted to her own replies sets for this state, or None for any other basis.
+
+        Each direction is weighed by how far her state is from the state the
+        basis was fitted around, in units of how far she ordinarily moves
+        there, through tanh, and keeps its fitted size: a state at her ordinary
+        one pushes nothing and one a spread away pushes about three quarters of
+        the fitted length. The unit-length composite gives the slightest
+        deviation the full push, which took her own words away from her on 22
+        October; and a reference of 0.5 on slots she holds near zero weighed
+        every state she was in alike.
+        """
+        vectors = list(self._vectors.values())
+        if not vectors or any(
+            sv.reference is None or not sv.spread or sv.push is None for sv in vectors
+        ):
+            return None
+        out = np.zeros(vectors[0].d_model, dtype=np.float32)
+        for sv in vectors:
+            distance = (sv.compute_weight_from_state(state) - float(sv.reference)) / float(sv.spread)
+            out += np.float32(math.tanh(distance) * float(sv.push)) * np.asarray(sv.v, dtype=np.float32)
+        return out
+
     @staticmethod
     def _neutral_reference_state() -> np.ndarray:
         """The substrate vector for "no particular affect".
@@ -1146,14 +1177,19 @@ class AffectiveSteeringHook:
             # It also fixes the boundary condition: neutral affect now stands
             # steering down instead of injecting a constant meaningless
             # direction.
-            neutral = self._neutral_reference_state()
-            for sv in self._vectors.values():
-                weight = sv.compute_weight_from_state(state) - sv.compute_weight_from_state(neutral)
-                if abs(weight) > 0.05:
-                    target_composite_np += weight * sv.v
-                    active = True
+            fitted = self._fitted_composite(state)
+            if fitted is not None:
+                target_composite_np = fitted
+                active = bool(np.linalg.norm(fitted) > 0.0)
+            else:
+                neutral = self._neutral_reference_state()
+                for sv in self._vectors.values():
+                    weight = sv.compute_weight_from_state(state) - sv.compute_weight_from_state(neutral)
+                    if abs(weight) > 0.05:
+                        target_composite_np += weight * sv.v
+                        active = True
 
-            if active:
+            if active and fitted is None:
                 # Normalization
                 norm = np.linalg.norm(target_composite_np)
                 if norm > 1e-8:
