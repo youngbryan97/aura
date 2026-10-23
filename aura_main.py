@@ -1380,7 +1380,9 @@ async def _boot_runtime_orchestrator(
     try:
         from core.brain.llm.endogenous_decode import boot_endogenous_language
 
-        endogenous_status = boot_endogenous_language()
+        # Off the event loop: the head's file read holds its load lock 60 ms,
+        # and lockdep flagged it on her desktop boot (23 October, 15:40).
+        endogenous_status = await asyncio.to_thread(boot_endogenous_language)
         if endogenous_status.get("head_present"):
             logger.info(
                 "🧬 Endogenous language pathway bound — head over %d tokens, "
