@@ -31,6 +31,7 @@ class _Runtime:
 
     def __init__(self) -> None:
         self.kernel = SimpleNamespace(level=0.0)
+        self.organs = None
         self.state = None
 
     async def turn_once(self, condition, *, on_frame=None):
@@ -46,7 +47,7 @@ class _Runtime:
 
 
 def test_each_frame_carries_the_outside_as_it_was_at_that_frame(monkeypatch):
-    monkeypatch.setattr(closure, "read_periphery", lambda kernel: {"level": kernel.level})
+    monkeypatch.setattr(closure, "read_periphery", lambda kernel, organs=None: {"level": kernel.level})
     frames, (matrix, names) = asyncio.run(_record(_Runtime(), ["one"], 1, strict=False))
     assert len(frames) == 4
     assert names == ("level",)

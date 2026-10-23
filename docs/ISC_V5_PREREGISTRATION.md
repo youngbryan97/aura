@@ -2312,3 +2312,37 @@ last periphery under every frame and are not compared with results from this
 commit on. The next pair and the next carrier rehearsal read closure this way.
 The history test reads K's own past and is not affected. Nothing moves a
 threshold.
+
+## Addendum, 22 October 2026, late night: K is left out of the periphery wherever the walk meets it, and the carrier reads closure per turn
+
+Two corrections to the closure measurement, both found by reading the audit of
+a probe baseline at `53e6b78c3`.
+
+**K's own arrays were read as periphery.** The walk skips what K's schema reads
+of an organ by attribute name, at the top level of the service or organ entry
+it starts from. It reaches the organ itself through that entry's `instance`, or
+first through a phase that holds it, and the skip did not go there. So the
+field's state, the mesh's weights and the phi core's visits entered the
+periphery under random projections other than K's own, and the audit reported
+them as state of an organ K reads that K does not take in. The written intent,
+in `_core_attributes` and `_ORGAN_ALIASES`, is that what K reads is excluded
+under every name the walk meets it by. From the commit that carries this
+addendum, both recorders hand the walk the organs K reads, and what K reads of
+each is excluded by the object's identity at every depth. Attributes of those
+organs that K does not read stay in the periphery, so the substrate's velocity
+and the mesh's cached field projection are still read as leaks if they leak.
+Whether K's four projections of an array are enough is the sufficiency probe's
+question (`tools/k_compact_sufficiency.py`), not closure's.
+
+**The carrier fitted closure on frames.** The campaign fits closure on the turn
+series, one row per turn, as `Recording.turn_rows` asks of every measure that
+fits K at t + 1 from K at t: a step from one phase to the next inside a turn is
+one line of the transition function. The carrier fitted it on all frames, where
+a buffer one phase fills and the next empties reads as a cause from outside. On
+the carrier rehearsal at `f78644bbd`, read again on its own saved baseline,
+closure on turn rows leaks 0.016 against a shuffled q95 of 0.006 (it failed on
+frames at 0.049 against 0.014). From this commit on the carrier reads closure on
+the turn series of its baseline, the same 24 rounds.
+
+Both enter the next pair and the next carrier rehearsal. Neither changes a
+threshold or the organism.

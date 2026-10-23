@@ -1295,7 +1295,7 @@ async def main() -> int:
                 # whole recording; and a reading taken after the turn returned
                 # gave every frame of it the turn's last periphery, which holds
                 # what the turn did after that frame.
-                periphery.note(read_periphery(runtime.kernel))
+                periphery.note(read_periphery(runtime.kernel, runtime.organs))
 
             for _ in range(args.rounds):
                 for condition in conditions:
@@ -1609,7 +1609,17 @@ async def main() -> int:
             periphery_read, names = periphery.matrix()
             closed, leak = False, float("nan")
             if periphery_read.size:
-                report = closure_gain(recording, periphery_read, names, seed=args.seed)
+                # On the turn series, as the campaign reads it: a step from one
+                # phase to the next inside a turn is one line of the transition
+                # function, and a buffer one phase fills and the next empties
+                # read as a cause from outside (Recording.turn_rows).
+                turn_rows = recording.turn_rows()
+                report = closure_gain(
+                    recording.by_turn(),
+                    periphery_read[turn_rows] if turn_rows.size else periphery_read,
+                    names,
+                    seed=args.seed,
+                )
                 closed, leak = bool(report.closed), float(report.leak)
                 evidence["closure"] = report.as_dict()
             else:

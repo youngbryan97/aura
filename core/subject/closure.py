@@ -121,6 +121,7 @@ def _numbers(
     skip: Any = frozenset(),
     ceiling: int | None = None,
     seen: set[int] | None = None,
+    own: Mapping[int, set[str]] | None = None,
 ) -> None:
     """Collect the numbers this object is carrying, up to `ceiling` entries.
 
@@ -144,6 +145,10 @@ def _numbers(
     if id(obj) in seen:
         return
     seen.add(id(obj))
+    # One of K's own organs, however the walk arrived at it: through a
+    # service's `instance`, or a phase's attribute holding it. The names it
+    # was skipped under at the top of a service did not reach it there.
+    skip = set(skip) | (own or {}).get(id(obj), set())
     for name in sorted(vars(obj)) if hasattr(obj, "__dict__") else ():
         if name.startswith("__") or len(out) >= stop:
             continue
@@ -169,7 +174,7 @@ def _numbers(
             # width, so a large array costs the same as a small one.
             _sketch(value, f"{prefix}.{name}", out)
         elif hasattr(value, "__dict__") and not callable(value) and depth < MAX_DEPTH:
-            _numbers(value, f"{prefix}.{name}", out, depth + 1, ceiling=stop, seen=seen)
+            _numbers(value, f"{prefix}.{name}", out, depth + 1, ceiling=stop, seen=seen, own=own)
 
 
 #: Name fragments that say a number is a stored instant rather than a quantity.
@@ -280,7 +285,26 @@ _ORGAN_ALIASES: dict[str, str] = {
 }
 
 
-def read_periphery(kernel: Any) -> dict[str, float]:
+def _own_attributes(organs: Any) -> dict[int, set[str]]:
+    """K's organs by identity, each with the attributes the core's schema reads of it.
+
+    The skip by name only held at the top of a service. The walk reaches an
+    organ through the service's `instance`, or first through a phase holding
+    it, and there it read K's own arrays as periphery: the field's state, the
+    mesh's weights, the phi core's visits, each under another projection than
+    K's, reported as state K did not take in (22 October).
+    """
+    if organs is None:
+        return {}
+    out: dict[int, set[str]] = {}
+    for key, attributes in _core_attributes().items():
+        organ = getattr(organs, key, None)
+        if organ is not None:
+            out.setdefault(id(organ), set()).update(attributes)
+    return out
+
+
+def read_periphery(kernel: Any, organs: Any = None) -> dict[str, float]:
     """Every number the machine is carrying that is not part of K.
 
     The phases, the kernel itself, and every organ already instantiated beside
@@ -290,13 +314,17 @@ def read_periphery(kernel: Any) -> dict[str, float]:
 
     Nothing here is a hand-written list of suspects. A list of suspects is a
     list of the ones already thought of, and the point is the one that was not.
+
+    ``organs`` are the live objects K reads (`core.subject.state.Organs`). Given
+    them, what K reads of each is left out wherever the walk meets it.
     """
     out: dict[str, float] = {}
     core = _core_attributes()
+    own = _own_attributes(organs)
     seen: set[int] = set()
-    _numbers(kernel, "kernel", out, depth=1, seen=seen)
+    _numbers(kernel, "kernel", out, depth=1, seen=seen, own=own)
     for phase in getattr(kernel, "_phases", []):
-        _numbers(phase, phase.__class__.__name__, out, seen=seen)
+        _numbers(phase, phase.__class__.__name__, out, seen=seen, own=own)
     organs = getattr(kernel, "organs", None)
     if isinstance(organs, dict):
         for name, organ in organs.items():
@@ -307,6 +335,7 @@ def read_periphery(kernel: Any) -> dict[str, float]:
                 depth=1,
                 skip=core.get(_ORGAN_ALIASES.get(name, name), frozenset()),
                 seen=seen,
+                own=own,
             )
     # And every service the container has already built. That is where the
     # hidden state would be if there were any: a phase mostly holds references,
@@ -325,6 +354,7 @@ def read_periphery(kernel: Any) -> dict[str, float]:
                 depth=1,
                 skip=core.get(_ORGAN_ALIASES.get(name, name), frozenset()),
                 seen=seen,
+                own=own,
             )
     except (AttributeError, ImportError, LookupError, RuntimeError, TypeError, ValueError) as exc:
         # An absent container is an absent periphery. Named rather than bare:

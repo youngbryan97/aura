@@ -181,7 +181,7 @@ async def _record(
         # Taken as each frame is read, inside the turn. Read after the turn
         # returned, every frame of it carried the turn's last periphery, so
         # the outside at frame t already held what the turn did after t.
-        periphery.note(read_periphery(runtime.kernel))
+        periphery.note(read_periphery(runtime.kernel, runtime.organs))
         # And the readings Bryan's answers name, beside the recording
         # rather than in it. See core/subject/named_readings.py.
         if named is not None:
