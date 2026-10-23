@@ -231,7 +231,7 @@ class TestPersistence:
         """It never had, on the live instance: the directory was empty for months."""
         import core.world_model.learned_world_model as module
 
-        monkeypatch.setattr(module, "_MODEL_PATH", tmp_path / "vrnn.npz")
+        monkeypatch.setattr(module, "_model_path", lambda: tmp_path / "vrnn.npz")
         model = LearnedWorldModel(
             WorldModelConfig(observation_dim=6, latent_dim=4, hidden_dim=8, action_dim=2, seed=4)
         )
@@ -252,7 +252,7 @@ class TestPersistence:
     def test_a_dimension_mismatch_is_refused(self, tmp_path, monkeypatch):
         import core.world_model.learned_world_model as module
 
-        monkeypatch.setattr(module, "_MODEL_PATH", tmp_path / "vrnn.npz")
+        monkeypatch.setattr(module, "_model_path", lambda: tmp_path / "vrnn.npz")
         LearnedWorldModel(
             WorldModelConfig(observation_dim=6, latent_dim=4, hidden_dim=8, action_dim=2, seed=4)
         ).save()

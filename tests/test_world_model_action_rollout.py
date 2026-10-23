@@ -12,8 +12,8 @@ from core.world_model.unified_world_model import UnifiedWorldModel
 
 @pytest.fixture
 def model(tmp_path, monkeypatch):
-    monkeypatch.setattr(dynamics, "_DATA_DIR", tmp_path)
-    monkeypatch.setattr(dynamics, "_MODEL_PATH", tmp_path / "vrnn.npz")
+    monkeypatch.setattr(dynamics, "_data_dir", lambda: tmp_path)
+    monkeypatch.setattr(dynamics, "_model_path", lambda: tmp_path / "vrnn.npz")
     return dynamics.LearnedWorldModel(dynamics.WorldModelConfig(
         observation_dim=3, latent_dim=2, hidden_dim=4, action_dim=2,
     ))

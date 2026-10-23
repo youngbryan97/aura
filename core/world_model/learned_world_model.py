@@ -47,8 +47,20 @@ from core.soma.effort import note_effort
 
 logger = logging.getLogger("Aura.LearnedWorldModel")
 
-_DATA_DIR = state_root() / "data" / "world_model"
-_MODEL_PATH = _DATA_DIR / "vrnn_state.npz"
+def _data_dir() -> Path:
+    """Where the model is kept, asked of the state root when it is needed.
+
+    A constant computed at import held whatever root was current when the
+    module was first imported. A run isolates its state root after its imports,
+    so the content run, the paired-synergy probe and the hot-stove test of
+    22 October each refused to start: the directory still pointed into the
+    shared root, and a run that wrote there would write into hers.
+    """
+    return state_root() / "data" / "world_model"
+
+
+def _model_path() -> Path:
+    return _data_dir() / "vrnn_state.npz"
 
 #: Every parameter the model actually learns. Naming them here makes the list
 #: checkable: a weight missing from it is a weight that never moves, which is
@@ -203,7 +215,7 @@ class LearnedWorldModel:
         self._surprise_history: Deque[float] = deque(maxlen=100)
 
         # Load persisted state
-        _DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _data_dir().mkdir(parents=True, exist_ok=True)
         self._load()
 
         logger.info(
@@ -736,8 +748,8 @@ class LearnedWorldModel:
             with local_internal_governed_scope(
                 "learned_world_model", domain="state_mutation", receipt_prefix="vrnn-state"
             ):
-                gateway.ensure_directory(_MODEL_PATH.parent, source="learned_world_model")
-                gateway.write_bytes(_MODEL_PATH, buffer.getvalue(), source="learned_world_model")
+                gateway.ensure_directory(_model_path().parent, source="learned_world_model")
+                gateway.write_bytes(_model_path(), buffer.getvalue(), source="learned_world_model")
             self._last_checkpoint = time.time()
             logger.debug("World model saved (step %d, train %d)", self._step_count, self._train_steps)
             return True
@@ -755,9 +767,9 @@ class LearnedWorldModel:
     def _load(self) -> None:
         """Load persisted model weights."""
         try:
-            if not _MODEL_PATH.exists():
+            if not _model_path().exists():
                 return
-            data = np.load(str(_MODEL_PATH))
+            data = np.load(str(_model_path()))
             # Only load if dimensions match
             if data['W_enc'].shape == self.W_enc.shape:
                 self.W_enc = data['W_enc']
