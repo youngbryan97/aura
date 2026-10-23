@@ -906,3 +906,43 @@ decode: steering α=0.5, asked None of 0.5 earned". At her boot that morning the
 same line read α=0.0, "fusion stays closed". From here her state reaches her
 words through her forward pass on her desktop, at the strength the certificate
 earned, by directions fitted to how she speaks.
+
+## Bryan on the momentary self and on loops (23 October, afternoon)
+
+Asked what makes up a person's self in the moment as against their traits, and
+what is behind thought that goes in circles. His answers, for the design of
+her self and her recurrent cognition:
+
+- **The self in the moment is situational.** Traits are the foundation and
+  hold across situations: a happy person is happy in most of them. What a
+  situation offers bounds what a person can respond to, and much of the moment
+  is variable in ways no trait predicts: recent events, cost, an ad, a craving.
+  People also anticipate: they picture themselves in a coming situation, tell
+  themselves how they will respond, and so set themselves up to respond that
+  way. Her momentary self should hold that anticipation, her prediction of how
+  she will meet this situation, beside the comparison her self-predictor
+  already keeps.
+- **Loops come from fatigue, lack of focus, or boredom, not from an unfinished
+  goal.** Struggling with a goal makes a person attack it several ways, and a
+  person usually catches a loop ("I already tried that"). So the meeting of
+  self and intention at recurrent cognition should widen what she tries when a
+  goal resists, and a loop should be a mark of low energy or low engagement
+  that she can notice and break. This replaces the rumination mechanism
+  proposed earlier that day.
+
+Neither is built yet.
+
+## ISC-v6 amended before any run (23 October, 16:31)
+
+An independent review Bryan forwarded, with simulations, found two flaws the
+first draft of v6 shared with the paired test of 21 October: a floor that is
+right only for independent forks of equal noise, and a direction test whose
+null flips projections that each depend on the other samples (12% false
+positives at a nominal 5%). Both are fixed, the conjunction registers are out
+of the target, and a known-answer battery of eight worlds at 1,000 datasets
+each came out as stated: no world without a joint effect passed more than 1%,
+and a product along one direction passed in every dataset. Every sham of the
+21 October paired run was exactly zero, because her forks are deterministic, so
+its floor bar passed any nonlinear response, and its direction reading found no
+shared direction for A,S -> G (0.99) or P,M -> W (0.73). Under v6 those two
+triples are where the work is.
