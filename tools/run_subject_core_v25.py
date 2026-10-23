@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import gc
 import inspect
 import json
 import logging
@@ -398,18 +399,30 @@ CALIBRATED_AXES = "calibrated_axes.npz"
 
 
 def _write_anchor_bank(path: Path, bank: dict[str, Any]) -> int:
-    """The coordinator's anchors, doses and scales, moved into place whole."""
-    from core.subject.anchor_travel import dumps
+    """The coordinator's anchors, doses and scales, moved into place whole.
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = dumps(bank)
-    partial = path.with_suffix(".partial")
-    partial.write_bytes(data)
-    partial.replace(path)
-    return len(data)
+    In the shared-section format (core/subject/anchor_bank.py), so a reader
+    decodes an anchor when it restores it rather than all of them at once.
+    """
+    from core.subject.anchor_bank import write_anchor_bank
+
+    fields = {key: value for key, value in bank.items() if key != "anchors"}
+    return write_anchor_bank(path, anchors=bank["anchors"], **fields)
 
 
-async def _read_anchor_bank(path: Path, runtime: Any, wait_seconds: float) -> dict[str, Any]:
+def _anchors_kept(design: Mapping[str, Any], rounds: int, available: int) -> int:
+    """How many decoded anchors a process keeps: as many as a cut's second look draws.
+
+    Most cuts are decided at the first or the second look, and every cut draws
+    from the first anchor, so keeping those means most cuts decode nothing.
+    """
+    from core.subject.v25_cut import anchor_schedule
+
+    looks, _ = anchor_schedule(tuple(design.get("looks") or ()), rounds, available)
+    return looks[1] if len(looks) > 1 else looks[0] if looks else 1
+
+
+async def _read_anchor_bank(path: Path, runtime: Any, wait_seconds: float, keep: int = 1) -> dict[str, Any]:
     """The coordinator's bank, each snapshot's functions filled from this organism's own.
 
     Two processes on one seed are two organisms (tools/same_organism.py), so a
@@ -425,8 +438,14 @@ async def _read_anchor_bank(path: Path, runtime: Any, wait_seconds: float) -> di
         if time.monotonic() >= deadline:
             raise SystemExit(f"refusing: no anchor bank at {path} when the wait ran out")
         await asyncio.sleep(30.0)
-    bank = loads(await asyncio.to_thread(path.read_bytes))
+    from core.subject.anchor_bank import AnchorBank
+
     own = runtime.snapshot()
+    if await asyncio.to_thread(AnchorBank.is_one, path):
+        banked = AnchorBank(path, own=own, keep=keep)
+        return {**banked.fields, "anchors": banked.anchors()}
+    # A bank written before the shared-section format is read whole, as it was.
+    bank = loads(await asyncio.to_thread(path.read_bytes))
     bank["anchors"] = [replace(anchor, snapshot=fill_snapshot(anchor.snapshot, own)) for anchor in bank["anchors"]]
     return bank
 
@@ -1279,7 +1298,10 @@ async def main() -> int:
         if shard is not None and args.share_anchors:
             bank_path = Path(args.shard_dir or (args.out / "shards")) / ANCHOR_BANK
             _log(f"waiting for the coordinator's anchors at {bank_path}")
-            shared_bank = await _read_anchor_bank(bank_path, runtime, float(args.shard_wait_seconds or 86400.0))
+            shared_bank = await _read_anchor_bank(
+                bank_path, runtime, float(args.shard_wait_seconds or 86400.0),
+                keep=_anchors_kept(sweep_design, args.cut_rounds, args.anchors),
+            )
             doses = dict(shared_bank["doses"])
             scale = np.asarray(shared_bank["scale"])
             live_mask = np.asarray(shared_bank["live_mask"])
@@ -1403,6 +1425,15 @@ async def main() -> int:
                      "baseline_mean": baseline_mean},
                 )
                 _log(f"  wrote the anchors for the shards, {written} bytes")
+                # And forks from them as the shards do, an anchor decoded when
+                # it is restored: held whole, the coordinator's own came to
+                # 17 GB at 370 rounds (23 October).
+                read_back = await _read_anchor_bank(
+                    Path(args.from_shards) / ANCHOR_BANK, runtime, 0.0,
+                    keep=_anchors_kept(sweep_design, args.cut_rounds, len(anchors)),
+                )
+                anchors = list(read_back["anchors"])
+                gc.collect()
 
         # ── a shard worker scores its share of the cuts and stops ──────
         if shard is not None:
