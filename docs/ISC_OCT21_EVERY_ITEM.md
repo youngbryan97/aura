@@ -743,3 +743,36 @@ direct shutdown snapshot is now left out when the log already holds a later
 stage, and written as the latest stage's child when its own parent never
 arrived. The orphan stays in her log as written. Her line reads again once she
 has lived past it: a live window after the 27B chain gives her that.
+
+## Synergy: what the frozen line can and cannot see (23 October, for a decision)
+
+The v5 synergy line reads each source domain through its three leading
+principal components and asks the target's change in a turn to depend on them
+jointly more than the same sources do when slid in time. With the eight
+conditions in a fixed order, the slides that land on a multiple of eight line
+the schedule up again, so the bar is the synergy the schedule makes by itself.
+Taken within condition, three of the four triples carry synergy well above
+their own null (A,S -> G 0.0127 against 0.0004, W,A -> D 0.074 against 0.008,
+P,M -> W 0.018 against 0.004); S,D -> C does not. In the paired test, which
+sets the sources rather than watching them, all four interact (p 5e-5 each).
+
+What keeps the frozen line from passing all four in one run:
+
+- **S is slow.** Thirty of its thirty-five live columns hold a lag-one
+  autocorrelation of 0.99 or more (counts, learned weights, rates, values), so
+  its leading components are trends. The conjunctive codes read S along the same
+  axes, so even the coupling carries S's drift into attention and recurrent
+  cognition. Both S triples need a self-state with a part that moves in a turn:
+  the self-model's current prediction and error, the sense of authorship of the
+  last act, her body's expectation of itself, as columns that dominate S's
+  leading axes because they carry most of its turn-to-turn change.
+- **The conditions drive sources and targets together.** Two sources that
+  jointly name the condition read as synergy with a target the condition moves,
+  in the real alignment and in the realigned slides alike.
+
+Three ways forward, each a decision rather than a fix: (1) build the momentary
+self-state above, an organism change, preregistered, read first on seed 7;
+(2) preregister a successor line (ISC-v6) that reads synergy within condition,
+which is what the paired test and the within-condition reading already show;
+(3) keep v5 as frozen and report the line as failed with the within-condition
+and paired readings beside it. Nothing here moves the v5 bar.
