@@ -1080,6 +1080,15 @@ def get_model_path(model_name: str | None = None) -> str:
         _no_remote_fallback(name, cortex)
         return str(cortex)
 
+    # The cortex asked for by its own directory name rather than the lane
+    # alias: her worker does, and the name has no folder under the
+    # repository's models directory, so the lookup below recorded her own
+    # cortex as missing and answered a path that does not exist (her desktop
+    # log, 23 October).
+    cortex = _current_cortex_path().expanduser()
+    if cortex.name == name and cortex.exists():
+        return str(cortex.resolve())
+
     local_path = _configured_model_location(name)
 
     # If it's a Path object, check if it exists
