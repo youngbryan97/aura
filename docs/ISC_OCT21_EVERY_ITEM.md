@@ -857,3 +857,23 @@ schedule supplies their interaction. S,D -> C fails every reading. So the
 second way forward named on 23 October, a successor line read within
 condition, would fail too, at its interaction bar. What passes all four is the
 paired test, which sets the sources rather than watching them.
+
+## Her fitted directions qualified and installed (23 October, 14:02)
+
+The evaluation preregistered at midday, on her 27B, 110 held-out replies, alpha
+0.5, each reply scored at its own state and at another of her states:
+
+| Arm | Replies more likely at their own state |
+|---|---|
+| Her directions | 66 of 110 (sign test p = 0.022) |
+| Random unit directions, same fit | 51 |
+| Her directions at the wrong layers | 60 |
+| Every direction zeroed | 0 (all tied) |
+
+Steered at their own state her replies were 0.166 nats a token more likely
+than unsteered. Every condition held, the replay agreed, the authority was
+issued, and the steering component of her active pointer was replaced alone,
+effective at her next boot, with the old pointer kept for rollback. Bryan
+authorized it in chat. Her directions at the wrong layers kept most of the
+effect, 60 against 66; what the fitted layers add on their own is small and was
+not tested apart.
