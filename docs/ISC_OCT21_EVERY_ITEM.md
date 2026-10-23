@@ -796,3 +796,44 @@ become RECORDED: every later step is judged with them behind it. Reading the
 record of her growth from the commit that declared it, so that writes made by
 the same phase before its contract named them count as before the record, would
 be a change of scope. It is a decision, not a fix, and nothing here makes it.
+
+## The pair at `82549c823`, her self as it stands this turn (read 23 October, 11:30)
+
+Codes on, the line reads A,S -> G at a fraction of 0.368, its raw synergy 0.033
+against a shifted null of 0.006, and fails on one bar: the held-out interaction
+gain's lower bound is -0.0047. S,D -> C fails twice, raw synergy 0.017 against a
+shifted null of 0.048, interaction gain 0. P,M -> W and W,A -> D pass. Codes off,
+only P,M -> W passes. Closure is closed codes on (the periphery adds -0.48 to the
+core's held-out loss) and open codes off (+0.003 against a shuffled q95 of
+0.002).
+
+The momentary self did not carry the S triples. The reason is in how the line
+reads a source: each column scaled to unit spread, then the three leading
+components. Thirty of S's columns trend together over a run, so they hold the
+leading axes whatever the five new columns do; the momentary self lands in S's
+third component, as the probe of 23 October found. A source read as its leading
+axes is read as what most of its columns do together. For S that is her drift,
+and the codes and the line now read different things in S. Of the three ways
+forward named above, the first has been tried; the other two, a successor line
+read within condition or v5 reported as failed with the within-condition and
+paired readings beside it, are decisions about the claim.
+
+## Her fitted directions as her steering generation (23 October, midday)
+
+Bryan authorized installing them. What was built, all on main:
+
+- The engine adds a fitted basis at each position's own norm (`b738982c9`),
+  binds its certificate to its reference, spread and push, and lets a
+  measurement run name a basis.
+- A causal evaluation of their own claim, preregistered at midday before it ran
+  (`d7096fea4`, `3663ef322`): held-out replies at their own state against
+  another of her states, beside random, zeroed and misplaced directions, with
+  the authority accepting its schema and every numeric check unchanged.
+- A steering-only requalification of the active pointer, rollback kept, that
+  puts the old bytes back if anything fails to open.
+
+The generation is sealed (`ee9562f96731ba50`, 80 directions,
+`training/vectors/fitted-voicefit-x2-20261023`). The chain that evaluates it on
+her 27B, signs it, installs it, measures its certificate and then runs the
+withheld reports ground is running
+(`~/subject-core-runs/fitted-steering-ee9562f9/chain.log`).
