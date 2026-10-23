@@ -896,3 +896,13 @@ Earlier, a quick check of whether the channel moves her answer to the
 feelings question at all came back flat, and it measured nothing: asked bare,
 her model wrote its private reasoning, and the number read from it was the -1
 quoted from the question.
+
+## Her desktop steered by her own state (23 October, 15:40)
+
+Her app, started as Bryan starts it at `9d1b5bd14`, attached the installed
+generation (sixteen hooks, eighty directions), found its certificate under the
+corrected digest, and decoded her first reply with the channel open: "Surface
+decode: steering α=0.5, asked None of 0.5 earned". At her boot that morning the
+same line read α=0.0, "fusion stays closed". From here her state reaches her
+words through her forward pass on her desktop, at the strength the certificate
+earned, by directions fitted to how she speaks.
