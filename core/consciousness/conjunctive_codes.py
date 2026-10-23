@@ -209,18 +209,6 @@ def _urgency(state: Any) -> float:
     return hardest
 
 
-def _organ_reading(module: str, getter: str, method: str) -> Mapping[str, Any]:
-    """A mapping one of her organs publishes about itself, or nothing when it cannot say."""
-    try:
-        organ = getattr(__import__(module, fromlist=[getter]), getter)()
-        reading = getattr(organ, method)()
-    # not a failure: an organ that is not built here has nothing to say about itself.
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("%s.%s unread for the conjunctions: %s", module, method, exc)
-        return {}
-    return reading if isinstance(reading, Mapping) else {}
-
-
 def _self_prediction() -> Mapping[str, Any]:
     try:
         from core.runtime.service_registry import get_runtime_service
@@ -283,9 +271,6 @@ def readings(state: Any) -> dict[str, list[float]]:
     habits = _dig(state, "cognition.habits", {}) or {}
     percepts = _dig(state, "world.recent_percepts", []) or []
     predicted = _self_prediction()
-    agency = _organ_reading("core.agency.authorship", "get_agency_ledger", "snapshot")
-    comparator = _organ_reading("core.consciousness.agency_comparator", "get_agency_comparator", "get_status")
-    portrait = _organ_reading("core.agency.what_she_is_like", "get_portrait_reader", "columns")
 
     def field(mapping: Any, name: str) -> float:
         return _number(mapping.get(name)) if isinstance(mapping, Mapping) else 0.0
@@ -301,20 +286,22 @@ def readings(state: Any) -> dict[str, list[float]]:
             _number(_dig(state, "affect.delivery_z")),
             *(field(emotions, name) for name in _FEELINGS),
         ],
+        # Her self as it stands this turn: the last comparison of what she
+        # predicted of herself with what she was, how fully it came true, and
+        # how sure she is of the next. Self-focused attention rises with how far
+        # a person has just missed their own expectation of themselves, and
+        # more so when feeling runs high (Duval and Wicklund 1972; Ingram
+        # 1990), which is the meeting of feeling and self at attention. Her
+        # stability, bonding, averaged errors and values were read here and
+        # are not: they move over hundreds of turns, so the units carried her
+        # drift into attention and recurrent cognition rather than her self
+        # this turn, and the triples with the self as a source read below their
+        # shifted null in every pair (23 October).
         "S": [
-            _number(_dig(state, "identity.stability")),
-            _number(_dig(state, "identity.bonding_level")),
-            field(predicted, "smoothed_error"),
-            field(predicted, "confirmation_rate"),
-            field(predicted, "surprise_rate"),
-            field(predicted, "valence_error_ema"),
-            field(predicted, "focus_error_ema"),
-            field(agency, "efficacy"),
-            field(agency, "authored_share"),
-            field(comparator, "agency_score"),
-            field(portrait, "narrowness"),
-            field(portrait, "values_over_drive"),
-            field(portrait, "values_foretell_choice"),
+            *(field(predicted.get("moment") if isinstance(predicted, Mapping) else {}, part)
+              for part in ("valence_signed", "valence", "drive", "focus", "composite")),
+            field(predicted, "confirmation"),
+            field(predicted.get("current_prediction") if isinstance(predicted, Mapping) else {}, "confidence"),
         ],
         "P": [
             float(len(percepts) if isinstance(percepts, list) else 0),

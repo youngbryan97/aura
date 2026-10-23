@@ -92,6 +92,11 @@ class SelfPredictionLoop:
         # and the accumulated normal equations that turn the two into a model.
         self._last_situation: dict[str, Any] = {}
         self._pending_row: Any = None
+        #: The last comparison of her prediction of herself with what she was,
+        #: as it stood that turn: which way and how far her feeling missed, and
+        #: whether her drive and her focus did. Her self as it stands now, where
+        #: every other reading here is an average over the turns before.
+        self._last_moment: dict[str, float] = {}
         self._gram: Any = None
         self._moment: Any = None
         self._weights: Any = None
@@ -135,6 +140,13 @@ class SelfPredictionLoop:
                     actual_focus_source,
                 )
                 self._record_error(error)
+                self._last_moment = {
+                    "valence_signed": round(float(actual_valence) - float(self._current_prediction.predicted_affect_valence), 4),
+                    "valence": float(error.valence_error),
+                    "drive": float(error.drive_error),
+                    "focus": float(error.focus_error),
+                    "composite": float(error.composite_error),
+                }
                 self._record_persistence_error(actual_valence, actual_drive, actual_focus_source)
                 # And the two halves of being right, which one confidence
                 # cannot hold: the direction and the size. Scored here rather
@@ -260,6 +272,7 @@ class SelfPredictionLoop:
             "expectation": (
                 self._expectation.as_dict() if self._expectation is not None else {}
             ),
+            "moment": dict(self._last_moment),
             "valence_error_ema": round(self._valence_error_ema, 3),
             "drive_error_ema": round(self._drive_error_ema, 3),
             "focus_error_ema": round(self._focus_error_ema, 3),

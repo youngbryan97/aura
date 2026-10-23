@@ -2407,3 +2407,34 @@ The positive control the closure audit plants (one noisy projection of K's next
 state) was detected in one of the seven runs that record it, at either length. It is
 a single column against some 365 targets and stays diagnostic, as written.
 Nothing moves a threshold or the organism.
+
+## Addendum, 23 October 2026, morning: her self as it stands this turn
+
+The two synergy triples with the self as a source, A,S -> G and S,D -> C, have
+read below their shifted null in every pair since 21 October, in both arms. The
+reason is in S. Thirty of its thirty-five live columns hold a lag-one
+autocorrelation of 0.99 or more (her identity's stability and bonding, her
+self-predictor's averaged errors and rates, her self-model's learned weights,
+her values), so S's three leading components, which the line reads, are trends.
+Read through its few fast columns alone S carries less synergy, not more,
+because the conjunctive codes read the self through thirteen of those slow
+fields too: the units that meet feeling at attention and intention at recurrent
+cognition carried her drift, not her self in a turn.
+
+Two changes, from the commit that carries this addendum:
+
+- **The self-predictor keeps its last comparison** of what she predicted of
+  herself with what she was (`moment`: which way and how far her feeling
+  missed, whether her drive and her focus did, all three together), and K's S
+  domain reads it as five columns, `self_now_*`.
+- **The conjunctive codes read the self as it stands this turn**: those five,
+  how fully her last prediction came true, and how sure she is of the next. The
+  slow fields go from the codes' reading of the self. They stay in K.
+
+Self-focused attention rises with how far a person has just missed their own
+expectation of themselves, and more when feeling runs high (Duval and Wicklund
+1972; Ingram 1990); the attention units are that meeting. The change touches
+the organism, so both arms of the next pair carry it, and the campaign on seed
+7 after it reads every line with it. A and D, the other sources of those two
+triples, and the other two triples' sources are read as before. Nothing moves
+a threshold.

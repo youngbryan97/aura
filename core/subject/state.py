@@ -454,6 +454,12 @@ _UNPREDICTABLE_DIMENSIONS: tuple[str, ...] = (
     "attentional_focus",
 )
 
+#: Her self as it stands this turn, from the self-predictor's last comparison
+#: (core/consciousness/self_prediction.py, `moment`): which way and how far her
+#: feeling missed what she predicted of it, whether her drive and her focus
+#: did, and all three together.
+SELF_NOW_PARTS: tuple[str, ...] = ("valence_signed", "valence", "drive", "focus", "composite")
+
 #: Who an event is attributed to. `core.agency.authorship.SELF` is "self";
 #: everything else the ledger records names the party that caused it.
 _ACTORS: tuple[str, ...] = ("self", "user", "world", "system")
@@ -927,6 +933,17 @@ _SCHEMAS: dict[str, Schema] = {
                 for name in (*_UNPREDICTABLE_DIMENSIONS, "other")
             ],
             ("prediction_confidence", "organ:self_prediction.current_prediction.confidence"),
+            # Her self as it stands this turn: the last comparison of what she
+            # predicted of herself with what she was, which way and how far her
+            # feeling missed and whether her drive and her focus did. Every
+            # other self-prediction column is an average over many turns, and
+            # thirty of S's thirty-five live columns hold a lag-one
+            # autocorrelation of 0.99 or more, so nothing here said how she
+            # stood as a self from one turn to the next (23 October).
+            *(
+                (f"self_now_{part}", "organ:self_prediction.moment")
+                for part in SELF_NOW_PARTS
+            ),
             # The efference-copy comparator: how much of what happened her own
             # action explains. It emits and compares — both of those are wired
             # — and every one of its readouts was called from nowhere, so the

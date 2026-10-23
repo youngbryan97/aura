@@ -19,6 +19,30 @@ from core.consciousness.conjunctive_codes import bind, standing_of, substrate_cu
 from core.state.aura_state import AuraState
 
 
+#: The self the units read: her self-predictor's last comparison of what she
+#: predicted of herself with what she was (23 October). Supplied here through
+#: the snapshot the units read, since no self-predictor runs in these tests.
+_SELF: dict = {}
+
+
+@pytest.fixture(autouse=True)
+def _her_self_as_it_stands(monkeypatch):
+    monkeypatch.setattr(codes, "_self_prediction", lambda: dict(_SELF))
+    _SELF.clear()
+    yield
+    _SELF.clear()
+
+
+def _set_moment(signed: float, drive: float, focus: float, confidence: float) -> None:
+    valence = abs(signed)
+    _SELF.update({
+        "moment": {"valence_signed": signed, "valence": valence, "drive": drive, "focus": focus,
+                   "composite": min(1.0, 0.3 * valence + 0.4 * drive + 0.3 * focus)},
+        "confirmation": 1.0 - min(1.0, 0.3 * valence + 0.4 * drive + 0.3 * focus),
+        "current_prediction": {"confidence": confidence},
+    })
+
+
 class _Held:
     """Somewhere for the current to keep its running power, as the substrate does."""
 
@@ -59,8 +83,8 @@ def _lived(seed: int = 0) -> AuraState:
     state = AuraState.default()
     rng = np.random.default_rng(seed)
     for _ in range(40):
-        state.identity.stability = float(rng.uniform())
-        state.identity.bonding_level = float(rng.uniform())
+        _set_moment(float(rng.normal(0.0, 0.3)), float(rng.integers(0, 2)), float(rng.integers(0, 2)),
+                    float(rng.uniform()))
         for name in ("social", "curiosity", "growth"):
             state.motivation.budgets[name]["level"] = float(rng.uniform(20, 90))
         state.affect.valence = float(rng.normal(0.0, 0.3))
@@ -70,14 +94,18 @@ def _lived(seed: int = 0) -> AuraState:
 
 def _moved(state: AuraState, *, self_moved: bool, drives_moved: bool) -> tuple[float, ...]:
     copy_of = copy.deepcopy(state)
+    held = copy.deepcopy(_SELF)
     if self_moved:
-        copy_of.identity.stability = 1.0 - copy_of.identity.stability
-        copy_of.identity.bonding_level = 1.0 - copy_of.identity.bonding_level
+        moment = _SELF["moment"]
+        _set_moment(-moment["valence_signed"], 1.0 - moment["drive"], 1.0 - moment["focus"],
+                    1.0 - _SELF["current_prediction"]["confidence"])
     if drives_moved:
         for name in ("social", "curiosity", "growth"):
             level = copy_of.motivation.budgets[name]["level"]
             copy_of.motivation.budgets[name]["level"] = 110.0 - level
     bind(copy_of)
+    _SELF.clear()
+    _SELF.update(held)
     return standing_of(copy_of.conjunctions, "recurrent")
 
 

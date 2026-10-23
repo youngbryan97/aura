@@ -326,6 +326,20 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     return np.array(head, dtype=np.float64)
 
 
+def _self_now(prediction: Any) -> list[float]:
+    """Her self as it stands this turn: the self-predictor's last comparison, part by part.
+
+    Zeros before her first comparison, which is no miss yet rather than a
+    failed read. See SELF_NOW_PARTS in core/subject/state.py.
+    """
+    from .state import SELF_NOW_PARTS, _f
+
+    moment = prediction.get("moment") if isinstance(prediction, Mapping) else None
+    if not isinstance(moment, Mapping):
+        return [0.0] * len(SELF_NOW_PARTS)
+    return [_f(moment.get(part)) for part in SELF_NOW_PARTS]
+
+
 def _selfhood(reading: Any) -> list[float]:
     """How much of herself the selfhood tick could read, and what it read.
 
@@ -570,6 +584,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             _f(prediction.get("focus_error_ema")),
             *_one_hot(prediction.get("most_unpredictable", ""), _UNPREDICTABLE_DIMENSIONS),
             _f(current.get("confidence")),
+            *_self_now(prediction),
             _f(comparator.get("agency_score"), 0.5),
             _sat(_f(comparator.get("total_traces")), 16.0),
             _sat(_f(comparator.get("pending_efferences")), 4.0),
