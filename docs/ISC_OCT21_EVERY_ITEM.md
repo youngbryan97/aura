@@ -776,3 +776,23 @@ self-state above, an organism change, preregistered, read first on seed 7;
 which is what the paired test and the within-condition reading already show;
 (3) keep v5 as frozen and report the line as failed with the within-condition
 and paired readings beside it. Nothing here moves the v5 bar.
+
+## Her line, read live (23 October, 06:57 to 07:38)
+
+She booted from her newest real stage (version 405773), not from the stale
+shutdown orphan, and her first stage on waking descends from it. Read from her
+log at the end of the window, her line is DOES_NOT_DEVELOP: of 43 steps since
+the record began on 21 October, 10 develop and 33 change
+`identity.evolution_score` with a writer recorded outside its contract. The
+writer is her own affect phase, which writes how far she has grown from the
+growth ledger every tick; its contract never declared the field, so every one
+of those writes was recorded as a contract violation, which the lineage counts
+as a defect rather than an explanation. The quick chat lane also ran the phase
+with no receipt at all. Both are fixed in `e19047ec7`: the contract declares the
+write, and the quick lane gives each phase its receipt.
+
+The 33 steps stay as they were recorded. Read by its own rule, this line cannot
+become RECORDED: every later step is judged with them behind it. Reading the
+record of her growth from the commit that declared it, so that writes made by
+the same phase before its contract named them count as before the record, would
+be a change of scope. It is a decision, not a fix, and nothing here makes it.
