@@ -877,3 +877,22 @@ effective at her next boot, with the old pointer kept for rollback. Bryan
 authorized it in chat. Her directions at the wrong layers kept most of the
 effect, 60 against 66; what the fitted layers add on their own is small and was
 not tested apart.
+
+## The first withheld run on her directions, stopped (23 October, 14:41 to 14:53)
+
+Her worker attached the installed generation, sixteen hooks and eighty
+directions, and then could not find its certificate. It measured the channel
+itself, with no voice reading, and kept it shut: "steering α=0.0, asked 0.25 of
+0.0 earned". The certificate is filed under a digest of the basis that named
+each steered block's class as it stood, and in her worker the latent readout
+subclasses the same sixteen blocks right after steering does, so the worker
+looked under a different class from the one the certificate tool had measured
+under. No certificate measured outside a worker could have been found inside
+one, the September generation's included. `15bd36607` names each block's own
+model class instead. The certificate is measured again under it, and the run
+starts again behind it.
+
+Earlier, a quick check of whether the channel moves her answer to the
+feelings question at all came back flat, and it measured nothing: asked bare,
+her model wrote its private reasoning, and the number read from it was the -1
+quoted from the question.
