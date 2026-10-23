@@ -658,3 +658,68 @@ the two triples with A as a source failed in both arms where `4b1022f25` passed
 them codes on. A is what the appraisal changed. Across the last five pairs every
 triple has read between about 0.8 and 1.3 times its shift null, so a line passes
 or fails with the run. The work is the margin, not one more triple.
+
+## Closure, history, synergy and the steering channel, read again (22 October, night)
+
+**Closure was measured wrong twice, and closes once it is not.** Both recorders
+read the periphery after a turn had returned, so every frame of a turn carried
+the periphery from its end (fixed in `53e6b78c3`). And the walk dropped its skip
+list when it went into a service's `instance` or a phase's attribute, so K's own
+arrays, the field's state and the mesh's weights among them, were read as
+periphery under random projections other than K's (fixed in `0eaef1d5e`, which
+also has the carrier fit closure per turn, as the campaign does). On a 24-round
+probe baseline at `0eaef1d5e`, closure on the turn series reads a leak of
+-0.017 against a shuffled q95 of 0.0046: closed. The carrier rehearsal at that
+commit started at 22:28.
+
+**History is not the schedule and not the run's age.** On the carrier at
+`f78644bbd` (128 consecutive anchors), K's turns older than the last four add
+0.139 to the held-out futures against a shuffled 0.022. The anchor's condition
+adds nothing (0.1395), and neither does its place in the run (0.000). Recurrent
+cognition's older turns carry most of it (0.092 against 0.040), then
+deliberation and memory, and no single array of C carries more than 0.005 on
+its own. Given the anchors' saved substrate, field, mesh, canonical self and
+wants (each array as eight numbers), older turns still add 0.102. What the
+history carries is spread through learned arrays that eight numbers cannot
+hold. The fix is K reading those arrays along more of their own axes, which
+changes K for every line and is a preregistered design change, not a patch.
+
+**Synergy: the null keeps the schedule.** With the conditions in a fixed order
+of eight, a circular shift by a multiple of eight lines every condition up
+again, so the shifted null's 99th percentile is the synergy the schedule makes
+by itself. The conditions drive sources and target together, and two sources
+that jointly name the condition read as synergy with a target the condition
+moves. Taken within condition (each condition's mean removed), the null
+collapses and three triples carry synergy well above it: A,S -> G 0.0127
+against 0.0004, W,A -> D 0.074 against 0.008, P,M -> W 0.018 against 0.004.
+S,D -> C does not (0.008 against 0.026). The frozen line reads the recording as
+recorded and is not changed. S is the hard source: 30 of its 35 live columns
+have a lag-one autocorrelation of 0.99 or more (counts, learned weights, rates,
+values), so its leading components are trends and carry almost nothing about a
+target's change in a turn. A self-state with a momentary part is the organism
+change both S triples need.
+
+**The steering channel had three defects before her directions were ever
+tested.** (1) The hooks weigh a state by its distance from 0.5 on every slot.
+Her frustration, curiosity and energy slots are substrate neurons that sit at
+0.047, 0.067 and 0.000 when she speaks (medians over her ordinary replies), so
+every reply was weighed about -0.4 on all three and steered one way whatever
+her state was. (2) The composite is normalised to unit length, so a deviation
+of a hundredth gets the same push as an extreme one. (3) Her captured
+directions put their largest weight on channel 3994, which with 3456 is one of
+her 27B's massive-activation channels at the steering layers (more than a
+hundred times the stream's median, Sun et al. 2024). Alone, her directions
+moved the distribution 8.6 nats a step at alpha 0.0005, flat across an
+eightfold dose. Measured from her own ordinary state, the authored vectors
+lose more of her voice, not less (-0.86 against -0.19 at alpha 0.05), which is
+defect (2) showing. Her repeated prompts in the bridge corpus are scoring calls
+that answer in number arrays, so her prose replies cannot be matched by prompt;
+the next capture takes the discriminant direction with the stream's own
+covariance shrunk (Ledoit and Wolf) and the massive channels out.
+
+**The hot stove fails for a reason, not by chance.** Her valence on meeting the
+burned percept equals her valence on the unburned one in every trial, and the
+exposed fork is the more pleasant. What a turn was about becomes a thing she
+can like or dislike only from what was said (`what_she_wants.read_turn`), a
+percept is never said, and the appraisal reads a liking only once a sign test
+says she knows it. Nothing ties what she perceived to what followed it.
