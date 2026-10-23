@@ -157,6 +157,10 @@ class Verdict:
     #: intervention on a sweep run to the preregistered design. Reported beside
     #: v1 to v3, changing none of them. See docs/ISC_V5_PREREGISTRATION.md.
     v5_criteria: list[Criterion] = field(default_factory=list)
+    #: ISC-v6's one line: synergy read by setting each triple's sources, alone
+    #: and together, rather than by watching. Reported beside v5, changing it
+    #: not at all. See docs/ISC_V6_PREREGISTRATION.md.
+    v6_criteria: list[Criterion] = field(default_factory=list)
 
     @property
     def isc(self) -> bool:
@@ -228,6 +232,17 @@ class Verdict:
         lines = self.v5_lines()
         return bool(self.v3_criteria) and bool(self.v5_criteria) and all(item.passed for item in lines)
 
+    def v6_lines(self) -> list[Criterion]:
+        """ISC-v5's conjunction with ISC-v6's synergy line standing in for v5's."""
+        replaced = {item.key for item in self.v6_criteria}
+        return [item for item in self.v5_lines() if item.key not in replaced] + list(self.v6_criteria)
+
+    @property
+    def isc_v6_on_this_seed(self) -> bool:
+        """Every line under ISC-v6: v5's, with synergy read by setting the sources."""
+        lines = self.v6_lines()
+        return bool(self.v5_criteria) and bool(self.v6_criteria) and all(item.passed for item in lines)
+
     def as_dict(self) -> dict[str, Any]:
         return {
             "isc": self.isc,
@@ -241,6 +256,9 @@ class Verdict:
             "isc_v5_on_this_seed": self.isc_v5_on_this_seed,
             "v5_passed": sum(1 for item in self.v5_lines() if item.passed) if self.v5_criteria else None,
             "v5_criteria": [item.as_dict() for item in self.v5_criteria],
+            "isc_v6_on_this_seed": self.isc_v6_on_this_seed,
+            "v6_passed": sum(1 for item in self.v6_lines() if item.passed) if self.v6_criteria else None,
+            "v6_criteria": [item.as_dict() for item in self.v6_criteria],
             "contested_criteria": sorted(_CONTESTED),
             "passed": self.passed,
             "total": len(self.criteria),
@@ -455,6 +473,28 @@ def _assemble_v5(out: Verdict, evidence: dict[str, Any]) -> None:
         f">= {THRESHOLDS['synergy_fraction']} on the change, above its shifted null, and above "
         "its bootstrap null's 99th percentile by that null's spread, with clocks out",
         triples=[item.get("sources", []) + [item.get("target")] for item in clocks_out],
+    ))
+
+
+def _assemble_v6(out: Verdict, evidence: dict[str, Any]) -> None:
+    """ISC-v6's synergy line, from the campaign's paired forks.
+
+    A run that did not set the sources fails the line rather than falling back
+    to v5's reading, which stays in `v5_criteria` beside it.
+    """
+    from core.subject.interventional_synergy import line
+
+    triples = evidence.get("synergy_interventional") or {}
+    out.v6_criteria.append(_c(
+        "synergy", "27",
+        "two domains, set alone and together from one moment, move a third by more than what each "
+        "does alone adds up to, in one direction, by a tenth of the larger effect (ISC-v6)",
+        line(triples),
+        {key: {name: row.get(name) for name in ("interaction", "sham", "fraction", "p_above_sham", "p_one_direction")}
+         for key, row in triples.items()},
+        "above a four-fork sham of the same form, one direction with whole vectors flipped in its "
+        "null, and a tenth of the larger main effect, each at 0.01, registers out of the target",
+        triples=sorted(triples),
     ))
 
 
@@ -710,6 +750,7 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
     _assemble_v2(out, evidence)
     _assemble_v3(out, evidence)
     _assemble_v5(out, evidence)
+    _assemble_v6(out, evidence)
     del directed
     _invalidate_on_missing_readings(out, evidence)
     return out
@@ -763,7 +804,7 @@ def _invalidate_on_missing_readings(verdict: Verdict, evidence: dict[str, Any]) 
 
     # The v2 and v3 lines rest on the same organs as the v1 lines they replace,
     # so an organ that went unread invalidates all of them.
-    for lines in (verdict.criteria, verdict.v2_criteria, verdict.v3_criteria, verdict.v5_criteria):
+    for lines in (verdict.criteria, verdict.v2_criteria, verdict.v3_criteria, verdict.v5_criteria, verdict.v6_criteria):
         for index, item in enumerate(lines):
             needed = CRITERION_ORGANS.get(item.key, ())
             gone = sorted(set(needed) & absent)

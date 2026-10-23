@@ -1,0 +1,58 @@
+{
+ "noise": {
+  "passed": 0,
+  "datasets": 1000,
+  "rate": 0.0,
+  "stated": "at most 0.03",
+  "as_stated": true
+ },
+ "additive": {
+  "passed": 0,
+  "datasets": 1000,
+  "rate": 0.0,
+  "stated": "at most 0.03",
+  "as_stated": true
+ },
+ "one_source_threshold": {
+  "passed": 1,
+  "datasets": 1000,
+  "rate": 0.001,
+  "stated": "at most 0.03",
+  "as_stated": true
+ },
+ "shared_fork_noise": {
+  "passed": 0,
+  "datasets": 1000,
+  "rate": 0.0,
+  "stated": "at most 0.03",
+  "as_stated": true
+ },
+ "deterministic_divergence": {
+  "passed": 10,
+  "datasets": 1000,
+  "rate": 0.01,
+  "stated": "at most 0.03",
+  "as_stated": true
+ },
+ "product": {
+  "passed": 1000,
+  "datasets": 1000,
+  "rate": 1.0,
+  "stated": "at least 0.95",
+  "as_stated": true
+ },
+ "deterministic_product": {
+  "passed": 1000,
+  "datasets": 1000,
+  "rate": 1.0,
+  "stated": "at least 0.95",
+  "as_stated": true
+ },
+ "product_turning_with_the_situation": {
+  "passed": 599,
+  "datasets": 1000,
+  "rate": 0.599,
+  "stated": "reported",
+  "as_stated": true
+ }
+}

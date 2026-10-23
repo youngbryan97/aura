@@ -48,7 +48,7 @@ from core.subject.clock import real_time  # noqa: E402
 #: The stages a run can be resumed from, in the order they happen. A campaign
 #: that dies in the lesion has already spent six hours on the two before it,
 #: and without this the only way back to them was to run them again.
-RESUMABLE: tuple[str, ...] = ("record", "interventions", "pci", "agency", "lesion")
+RESUMABLE: tuple[str, ...] = ("record", "interventions", "interventional_synergy", "pci", "agency", "lesion")
 
 
 def _checkpoint(args: Any, stage: str, evidence: dict[str, Any]) -> None:
@@ -889,6 +889,37 @@ async def main() -> int:
             f"recalled {len(kept)} kept edges of {len(tested)} tested; "
             f"components={graph.components}"
         )
+
+    if "interventional_synergy" not in done:
+        # ISC-v6's §27 (docs/ISC_V6_PREREGISTRATION.md): each declared triple's
+        # sources set, alone and together, from one moment, on the organism
+        # whose recording the v5 line read, with the loops stopped as for the
+        # paired arms above.
+        from core.subject.causal import DEFAULT_DELTA
+        from core.subject.interventional_synergy import collect, summarise, target_columns
+        from core.subject.paired_displacement import displacement_metric
+        from core.subject.state import domain_slices
+        from core.subject.synergy import TRIPLES
+
+        _log(
+            f"interventional synergy: 4 untouched forks and 3 per triple for {len(TRIPLES)} triples, "
+            f"{len(CONDITIONS)} conditions x {args.trials} trials"
+        )
+        slices = domain_slices()
+        targets = {y: target_columns(list(recording.columns), slices[y]) for _a, _b, y in TRIPLES}
+        metrics = {y: displacement_metric(recording.x[:, targets[y]]) for _a, _b, y in TRIPLES}
+        held = await collect(
+            runtime, CONDITIONS, metrics=metrics, targets=targets, trials=args.trials,
+            turns=args.turns, delta=DEFAULT_DELTA, seed=args.seed, on_progress=_log,
+        )
+        evidence["synergy_interventional"] = {key: summarise(s, seed=args.seed) for key, s in held.items()}
+        for key, row in evidence["synergy_interventional"].items():
+            _log(
+                f"  {key}: interaction {row['interaction']:.4f} sham {row['sham']:.4f} "
+                f"fraction {row['fraction']:.3f} p {row['p_above_sham']:.4f} "
+                f"direction p {row['p_one_direction']:.4f} -> {'passes' if row['passes'] else 'fails'}"
+            )
+        _checkpoint(args, "interventional_synergy", evidence)
 
     if "pci" not in done:
         _log("perturbational complexity")
