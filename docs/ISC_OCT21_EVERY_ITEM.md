@@ -838,7 +838,7 @@ her 27B, signs it, installs it, measures its certificate and then runs the
 withheld reports ground is running
 (`~/subject-core-runs/fitted-steering-ee9562f9/chain.log`).
 
-## Synergy within condition at `82549c823` (23 October, 12:50)
+## Synergy within condition at `82549c823` (23 October, 12:40)
 
 Read on the codes-on arm's recording with each condition's mean taken out of
 sources and target:
