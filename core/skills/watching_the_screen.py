@@ -25,7 +25,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from core.skills.their_player import press, read_their_player
+from core.skills.their_player import press, read_their_player, within_the_window
 
 logger = logging.getLogger("Aura.WatchingTheScreen")
 
@@ -299,6 +299,7 @@ class OnTheirScreen:
         self.pictures: list[str] = []
         #: Where in the window it plays, from what changes between pictures of it.
         self.where_it_plays = _WhereItPlays()
+        self.video_within: tuple[float, float, float, float] | None = None
         self.pictured: Any = None
         self.since_pictured = 0
         #: The last reading of their player, the video's own place in it, the place and length its player last
@@ -356,6 +357,11 @@ class OnTheirScreen:
                 logger.info("their player could not be read: %s", why)
                 self.reading = None
             reading = self.reading
+            # Where it plays in the window, as the page says to assistive technology: LIVE 22 October 2026 YouTube's
+            # ambient light changed the page around its player in most looks, and the part found changing took in the
+            # title, the channel and the description, which her eyes then described instead of the video.
+            self.video_within = within_the_window(reading.video if reading is not None else None,
+                                                  showing.get("kCGWindowBounds") or {})
             if reading is not None and reading.length:
                 self.window = showing
                 if reading.skip is not None or (self.duration_s and abs(reading.length - self.duration_s) > LENGTH_SLACK_S):
@@ -438,7 +444,7 @@ class OnTheirScreen:
                 taken_bytes = await asyncio.to_thread(shot.read_bytes)
                 await asyncio.to_thread(shot.unlink, missing_ok=True)
                 self.pictures.append(hashlib.sha1(taken_bytes).hexdigest())
-                within = await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
+                within = self.video_within or await asyncio.to_thread(self.where_it_plays.took, taken_bytes)
                 smaller = await asyncio.to_thread(_smaller, taken_bytes, within=within)
                 # Two instruments, so her eyes and her voice work at once (core/perception/words_on_screen.py): the
                 # words in what plays, read every look on the Neural Engine, and a picture of it from her vision

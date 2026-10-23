@@ -2655,10 +2655,13 @@ def _normalize_prose_format(text: str) -> str:
     # …and welded after an ordinary word, which is what the local model
     # actually produces: "### Case 1: Both are red- Probability that first
     # marble is red: 3/12- Probability that second…". A hyphen only counts
-    # when a word character precedes it, a space follows it, and the next
-    # character starts a phrase, so "3 - 5 items", "-0.04" and
-    # "state-of-the-art" are all untouched.
-    text = re.sub(r"(?<=[A-Za-z0-9)\]])\s*-\s+(?=[A-Z(\[*_\"'])", "\n- ", text)
+    # when a word character precedes it with no space between, a space
+    # follows it, and the next character starts a phrase, so "3 - 5 items",
+    # "-0.04" and "state-of-the-art" are all untouched; and so is a dash with
+    # a space on each side, which is punctuation: LIVE 2026-10-22 the title
+    # "AI Just Crossed the Terrifying Line - Now What?" reached the chat with
+    # "- Now What?" as a list item of its own.
+    text = re.sub(r"(?<=[A-Za-z0-9)\]])-\s+(?=[A-Z(\[*_\"'])", "\n- ", text)
     # Markdown headings welded to the previous sentence get their own line too.
     text = re.sub(r"(?<=[^\n])\s*(#{1,6}\s+)", r"\n\1", text)
     # A sentence welded to the previous one: "= 12 marbles.Probability of

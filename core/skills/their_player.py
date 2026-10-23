@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["PlayerReading", "ax_window_for", "press", "read_their_player", "seconds_of", "skip_on_screen"]
+__all__ = ["PlayerReading", "ax_window_for", "press", "read_their_player", "seconds_of", "skip_on_screen", "within_the_window"]
 
 _CLOCK = r"\d{1,2}(?::\d{2}){1,2}"
 _PLACE = re.compile(rf"({_CLOCK})\s*(?:of|/)\s*({_CLOCK})", re.IGNORECASE)
@@ -45,6 +45,8 @@ class PlayerReading:
     window_found: bool = False
     #: Its pause control, where it offers one on screen: what plays is playing.
     pause: Any = field(default=None, repr=False)
+    #: Where what plays is on screen, as the page tells assistive technology (position, size), where it does.
+    video: tuple[tuple[float, float], tuple[float, float]] | None = None
 
 
 def skip_on_screen(elements: list[tuple[str, str, tuple[float, float], tuple[float, float]]],
@@ -83,6 +85,8 @@ def _frame(element: Any) -> tuple[tuple[float, float], tuple[float, float]] | No
 #: slider", value 2 of 608, saying "Childhood classified ad 0 Minutes 2 Seconds of 10 Minutes 8 Seconds".
 _TIMELINE_NAME = re.compile(r"\b(seek|progress|position|playback|scrub|timeline)\b", re.IGNORECASE)
 _TIME_WORDS = re.compile(r"\b(seconds?|minutes?|hours?)\b", re.IGNORECASE)
+#: What a page's video element is called to assistive technology: LIVE 22 October 2026 in Safari, "video playback".
+_A_VIDEO = re.compile(r"\b(video|movie)\b", re.IGNORECASE)
 
 
 def _a_timeline(element: Any) -> tuple[float, float] | None:
@@ -138,6 +142,10 @@ def read_their_player(window: dict[str, Any]) -> PlayerReading:
             place = _a_timeline(element)
             if place is not None:
                 places.append(place)
+        elif role == "AXGroup" and _A_VIDEO.search(str(_read(element, "AXRoleDescription") or "")):
+            frame = _frame(element)
+            if frame and (reading.video is None or frame[1][0] * frame[1][1] > reading.video[1][0] * reading.video[1][1]):
+                reading.video = frame
         elif role in ("AXButton", "AXLink"):
             frame = _frame(element)
             words = " ".join(str(_read(element, name) or "") for name in ("AXTitle", "AXDescription")).strip()
@@ -154,6 +162,22 @@ def read_their_player(window: dict[str, Any]) -> PlayerReading:
     reading.pause = next((element for element, (role, words, *_where) in zip(elements, controls, strict=True)
                           if role == "AXButton" and re.match(r"\s*pause\b", words, re.IGNORECASE)), None)
     return reading
+
+
+def within_the_window(frame: tuple[tuple[float, float], tuple[float, float]] | None,
+                      bounds: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    """Where ``frame`` (position, size on screen) is in a window of ``bounds``, as fractions of it (left, top, right,
+    bottom), the part off the window left out; None where it is not in the window."""
+    if frame is None:
+        return None
+    (x, y), (width, height) = frame
+    left, top = float(bounds.get("X") or 0), float(bounds.get("Y") or 0)
+    across, down = float(bounds.get("Width") or 0), float(bounds.get("Height") or 0)
+    if across <= 0 or down <= 0:
+        return None
+    box = (max(0.0, (x - left) / across), max(0.0, (y - top) / down),
+           min(1.0, (x + width - left) / across), min(1.0, (y + height - top) / down))
+    return box if box[2] > box[0] and box[3] > box[1] else None
 
 
 def press(element: Any) -> bool:

@@ -35,7 +35,7 @@ def test_a_skip_control_off_screen_or_in_words_only_is_not():
 
 def _page(advert_s: float) -> str:
     stated = {"@context": "https://schema.org", "@type": "VideoObject",
-              "name": "I built a glove that Explodes whatever it Punches", "duration": "PT11M13S"}
+              "name": "I built a glove that Explodes whatever it Punches", "duration": "PT11M13S", "author": "Allen Pan"}
     return (f'<script type="application/ld+json">{json.dumps(stated)}</script>'
             f'<main><video width="640" height="360" data-advert="{advert_s}"></video><p>an advert plays first</p></main>')
 
@@ -59,6 +59,7 @@ def test_the_length_is_the_one_the_page_states_not_the_adverts():
     said = asyncio.run(look())
     assert said["length"] == 673
     assert said["name"] == "I built a glove that Explodes whatever it Punches"
+    assert said["by"] == "Allen Pan"  # who made it, as the page states it
     assert "an advert plays first" in said["words"]
 
 
@@ -207,3 +208,25 @@ def test_while_it_plays_the_clock_runs_from_the_place_its_player_last_stated(mon
         watched.at = watched._place(PlayerReading(at=2.0, length=553.0, pause=pause), 553.0)
         places.append(watched.at)
     assert places == [2.0, 12.0, 22.0, 22.0, 22.0]  # playing, then paused where it was
+
+
+def test_where_it_plays_is_where_the_page_says_its_video_is(monkeypatch):
+    """LIVE 2026-10-22: YouTube's ambient light changed the page around its player in most looks, and her eyes were
+    given the title, the channel and the description with the video. Safari names the video element "video playback",
+    at (864, 179), 864 by 486, in a window at (864, 33), 864 by 1022."""
+    from core.skills.their_player import within_the_window
+
+    bounds = {"X": 864.0, "Y": 33.0, "Width": 864.0, "Height": 1022.0}
+    assert within_the_window(((864.0, 179.0), (864.0, 486.0)), bounds) == pytest.approx((0.0, 146 / 1022, 1.0, 632 / 1022))
+    assert within_the_window(((864.0, -200.0), (864.0, 486.0)), bounds)[1] == 0.0  # the part off the window left out
+    assert within_the_window(((0.0, 0.0), (100.0, 100.0)), bounds) is None  # elsewhere on the screen
+    assert within_the_window(None, bounds) is None
+
+    watched = _on_their_screen(monkeypatch, [{"at": 120.0, "length": 554.0, "video": ((864.0, 179.0), (864.0, 486.0))}])
+    from core.skills import watching_the_screen as screen
+
+    monkeypatch.setattr(screen, "_window_showing", lambda _owner, _title: {"kCGWindowNumber": 7, "kCGWindowName": "Voids",
+                                                                            "kCGWindowOwnerPID": 1,
+                                                                            "kCGWindowBounds": bounds})
+    asyncio.run(watched.state())
+    assert watched.video_within == pytest.approx((0.0, 146 / 1022, 1.0, 632 / 1022))

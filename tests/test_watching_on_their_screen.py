@@ -375,3 +375,4 @@ def test_the_words_on_what_plays_are_read_without_her_models():
         pytest.skip("no font to draw words with")
     ImageDraw.Draw(image).text((20, 40), "trigger the gun when you punch", fill=(255, 255, 255), font=font)
     assert "trigger the gun when you punch" in " ".join(words_in(_png(np.asarray(image)))).lower()
+

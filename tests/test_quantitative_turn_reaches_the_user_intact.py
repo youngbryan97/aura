@@ -40,6 +40,14 @@ class TestDecimalSurvivesFormatRepair:
         ):
             assert normalize_user_facing_format(text) == text
 
+    def test_a_dash_between_spaces_is_punctuation_not_a_list(self):
+        """LIVE 2026-10-22: "- Now What?" of a video's title was served as a list item of its own."""
+        said = 'Oh, okay - "AI Just Crossed the Terrifying Line - Now What?" Twenty-one minutes.'
+        assert normalize_user_facing_format(said) == said
+        assert normalize_user_facing_format("Both are red- Probability that first is red: 3/12") == (
+            "Both are red\n- Probability that first is red: 3/12"
+        )
+
     def test_a_genuinely_jammed_list_marker_is_still_repaired(self):
         assert normalize_user_facing_format("Here are the steps.1. Do X.2. Do Y.") == (
             "Here are the steps.\n1. Do X.\n2. Do Y."
