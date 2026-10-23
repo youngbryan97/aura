@@ -1,7 +1,7 @@
 """The two organism probes of 21 October read what they say, on cases with known answers.
 
-`tools/run_paired_synergy.py` scores a joint effect by intervention against
-the floor of two identical forks; `tools/k_compact_sufficiency.py` moves an
+`tools/run_paired_synergy.py` scores a joint effect by intervention, by ISC-v6's
+design and bars; `tools/k_compact_sufficiency.py` moves an
 array where the eight-number sketch cannot see it. Both run on her organism;
 these pin the arithmetic they rest on.
 """
@@ -22,16 +22,16 @@ def _tool(name: str):
     return module
 
 
-def test_an_interaction_above_the_floor_is_found_and_noise_is_not():
+def test_the_paired_probe_scores_by_the_v6_bars_and_keeps_no_arithmetic_of_its_own():
+    """Its two-fork floor passed independent noise in every simulated dataset (review of 23 October).
+
+    The arithmetic now lives in core/subject/interventional_synergy.py, whose known
+    answers tests/test_synergy_is_read_by_setting_the_sources.py pins.
+    """
     paired = _tool("run_paired_synergy")
-    rng = np.random.default_rng(0)
-    direction = rng.standard_normal(6)
-    real = [direction + rng.normal(0, 0.1, 6) for _ in range(8)]
-    floor = [rng.normal(0, 0.1, 6) for _ in range(8)]
-    found = paired.summarise(real, floor, seed=1)
-    assert found["p_above_floor"] < 0.01 and found["p_consistent_direction"] < 0.01
-    noise = paired.summarise([rng.normal(0, 0.1, 6) for _ in range(8)], floor, seed=1)
-    assert noise["p_above_floor"] > 0.05
+    assert not hasattr(paired, "summarise") and not hasattr(paired, "sign_flip_p")
+    source = (REPO / "tools" / "run_paired_synergy.py").read_text()
+    assert "from core.subject.interventional_synergy import collect, line, summarise, target_columns" in source
 
 
 def test_a_hidden_direction_leaves_all_eight_numbers_where_they_were():
