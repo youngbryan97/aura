@@ -1201,6 +1201,9 @@ async def main() -> int:
     from core.subject.isolation import isolate_state, state_leaks
 
     isolate_state(run_dir)
+    from core.subject.memory_trace import start_memory_trace
+
+    start_memory_trace(_log)
     started = time.monotonic()
     fingerprint = campaign_v25(
         seed=args.seed,
