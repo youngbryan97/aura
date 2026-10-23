@@ -100,8 +100,10 @@ def test_setup_worker_env_not_called_at_import():
     try:
         # Force-reimport the module
         mod_name = "core.brain.llm.mlx_worker"
-        if mod_name in sys.modules:
-            del sys.modules[mod_name]
+        # Put back in `finally`: left out, the next import by full name builds a
+        # second worker module, and every test that patches the first one (its
+        # fusion identity, say) patches a module nothing reads any more.
+        original_module = sys.modules.pop(mod_name, None)
         # We can't fully reimport due to heavy deps, but we can verify the
         # module source doesn't call _setup_worker_env() at the top level
         import inspect
@@ -122,6 +124,8 @@ def test_setup_worker_env_not_called_at_import():
                     "It must only be called inside _mlx_worker_loop()."
                 )
     finally:
+        if original_module is not None:
+            sys.modules[mod_name] = original_module
         for key, val in saved.items():
             if val is not None:
                 os.environ[key] = val

@@ -89,8 +89,9 @@ async def test_client_invalid_message_fails_without_connecting():
     assert client.get_status()["connected"] is False
 
 
-def test_consciousness_package_does_not_eager_import_system():
-    sys.modules.pop("core.consciousness.system", None)
+def test_consciousness_package_does_not_eager_import_system(monkeypatch):
+    # Restored at teardown, so later tests keep patching the module they import.
+    monkeypatch.delitem(sys.modules, "core.consciousness.system", raising=False)
 
     import core.consciousness as consciousness
 
