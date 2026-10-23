@@ -1621,7 +1621,7 @@ class AffectUpdatePhase(Phase):
 register_contract(
     CognitiveTransformContract(
         name="AffectUpdatePhase",
-        version="1.1",
+        version="1.2",
         module=__name__,
         purpose=(
             "Advance the affect vector one tick from appraisal, decay and "
@@ -1651,6 +1651,11 @@ register_contract(
             # phases that read them, and the contract said nothing of it —
             # ten violations in thirty minutes of one live boot.
             "response_modifiers",
+            # How far she has grown, written from the growth ledger each tick.
+            # Undeclared, no receipt ever watched it, and her lineage read
+            # thirty-three of her forty-three steps since 21 October as changes
+            # nothing measured accounted for (23 October). See core/self/growth.py.
+            "identity.evolution_score",
         ),
         preconditions=("state carries an affect vector",),
         branches=(

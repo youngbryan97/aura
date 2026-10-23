@@ -220,7 +220,7 @@ class _RunsTheThinkingLoop:
         what she feels about this message is appraised from this message
         rather than the one before. See core/affect/appraisal.py.
         """
-        from .cognitive_engine import record_degradation
+        from .cognitive_engine import _begin_provenance, _complete_provenance, record_degradation
 
         wanted = ("ConversationalDynamicsPhase", "AffectUpdatePhase")
         by_name = {type(phase).__name__: phase for phase in self._phases}
@@ -228,13 +228,20 @@ class _RunsTheThinkingLoop:
             phase = by_name.get(name)
             if phase is None:
                 continue
+            # With a receipt, as the pipeline runs every phase: what this lane
+            # writes to her person is otherwise a change her lineage finds no
+            # measured writer for.
+            transformation = _begin_provenance(name, state)
             try:
                 state = await phase.execute(state, objective=objective)
             except Exception as exc:  # noqa: BLE001 - the reply is given; a feeling not read is reported, not raised
+                _complete_provenance(transformation, state, error=type(exc).__name__, objective=objective)
                 record_degradation(
                     "cognitive_engine", exc, severity="warning",
                     action=f"answered without {name} reading the turn; her feelings did not take it in",
                 )
+                continue
+            _complete_provenance(transformation, state, objective=objective)
         return state
 
     def _run_thinking_loop__clock_keeper(
