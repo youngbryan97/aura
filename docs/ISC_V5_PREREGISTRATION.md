@@ -2491,3 +2491,37 @@ these directions as her signed generation through the governed cortex upgrade.
 If that lands before the run starts, the run is steered by the same files
 through the signed generation, under the same digest and the same certificate,
 and names no directory. Nothing moves a threshold.
+
+## Addendum, 23 October 2026, midday: what qualifies the fitted directions as her generation
+
+Her signed steering generation is qualified by a causal evaluation, and the one
+the September generation passed asks whether the directions make her use more
+affect words than a prompt asking for them does. That is the wrong question for
+directions fitted to keep her voice, and they were not built to win it. Their
+claim is narrower: steered by the state a reply was said in, the reply is more
+likely than steered by another of her states. This is the evaluation that
+decides it, written before it runs.
+
+On the 110 held-out replies, each scored over its first 64 tokens after "Go
+on." as the certificate scores them, at alpha 0.5, with the directions attached
+through the engine as the desktop attaches them:
+
+- **Treatment.** Her directions at the reply's own state against her directions
+  at another of her states (a derangement of the 110, seed 20260908). A success
+  is a reply more likely at its own state.
+- **Matched control.** The same comparison with each direction replaced by a
+  random unit direction of the same width, keeping its reference, spread and
+  push (seed 20260908).
+- **Lesions.** The same comparison with every direction zeroed, and with her
+  directions moved to the wrong layers (a derangement of the sixteen).
+- **No regression.** Her replies are on average no less likely steered at
+  their own state than unsteered, the certificate's fifth criterion.
+
+The effect is causal when treatment successes exceed the matched control's,
+each lesion's successes fall below treatment's, there is no regression, and
+the treatment's successes are more than half of the untied replies by a
+one-sided sign test at 0.05. A separate replay reopens every vector file and
+the per-reply record and recomputes each count before the authority is issued.
+If the effect is not causal, nothing is installed and the reports run is
+steered through `AURA_STEERING_MEASUREMENT_BASIS` as the late-morning addendum
+says.
