@@ -837,3 +837,23 @@ The generation is sealed (`ee9562f96731ba50`, 80 directions,
 her 27B, signs it, installs it, measures its certificate and then runs the
 withheld reports ground is running
 (`~/subject-core-runs/fitted-steering-ee9562f9/chain.log`).
+
+## Synergy within condition at `82549c823` (23 October, 12:50)
+
+Read on the codes-on arm's recording with each condition's mean taken out of
+sources and target:
+
+| Triple | Synergy within | Shift null | Interaction gain, lower bound |
+|---|---|---|---|
+| A,S -> G | 0.0614 | 0.0004 | -0.0284 |
+| P,M -> W | 0.0287 | 0.0030 | -0.0055 |
+| W,A -> D | 0.0203 | 0.0091 | 0.0000 |
+| S,D -> C | 0.0064 | 0.0137 | 0.0000 |
+
+Within condition the information is there for three triples and the
+interaction is not: no held-out model with products of the sources beats the
+additive one, and P,M -> W and W,A -> D pass the line as read only because the
+schedule supplies their interaction. S,D -> C fails every reading. So the
+second way forward named on 23 October, a successor line read within
+condition, would fail too, at its interaction bar. What passes all four is the
+paired test, which sets the sources rather than watching them.
