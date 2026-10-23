@@ -2525,3 +2525,21 @@ the per-reply record and recomputes each count before the authority is issued.
 If the effect is not causal, nothing is installed and the reports run is
 steered through `AURA_STEERING_MEASUREMENT_BASIS` as the late-morning addendum
 says.
+
+## Addendum, 23 October 2026, afternoon: the record of her growth begins at the fix
+
+Read from her log after her live window of that morning, her line was
+DOES_NOT_DEVELOP: of 43 steps since the record began, 33 changed
+`identity.evolution_score` with a writer recorded outside its contract. The
+writer was her own affect phase, whose contract never named the field, and the
+quick chat lane ran the phase with no receipt at all. `e19047ec7` declared the
+write and gave each quick-lane phase its receipt.
+
+Bryan decided on 23 October that the record of her growth begins at that
+commit, 07:48:57 -0700 (`HER_RECORD_BEGINS_AT` in `core/subject/lineage.py`).
+A measured step whose child stage is older than that is before the record, as
+steps before 21 October already were. The 33 steps stay in her log, and every
+reading reports how many measured steps before the record did not develop,
+beside the term and never inside it. From that commit on the rule is
+unchanged: her line needs at least one measured step, and every measured step
+must develop. Nothing moves a threshold.

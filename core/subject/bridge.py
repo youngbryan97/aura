@@ -460,7 +460,7 @@ def lineage_term(lineage: Lineage | None) -> LineageTerm:
         return LineageTerm(
             "NOT_MEASURED",
             graph=graph,
-            blockers=("no step of her line carries a record of what wrote it yet; the record began 21 October 2026",),
+            blockers=("no step of her line since the record began carries a record of what wrote it",),
         )
     return LineageTerm("RECORDED", graph=graph)
 

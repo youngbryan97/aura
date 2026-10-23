@@ -11,6 +11,8 @@ from typing import Any
 
 import pytest
 
+from core.subject.lineage import HER_RECORD_BEGINS_AT
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -34,11 +36,12 @@ def _state_log(path: Path) -> Path:
     identity = {"name": "Aura Luna", "core_values": ["honesty"], "personality_growth": {"openness": 0.1}}
     for index, parent in enumerate([None, "s0", "s1"]):
         # Each row carries the record of what changed it, as every row has
-        # since 21 October; a line without it reads as not yet measured.
+        # since 21 October; a line without it reads as not yet measured. Each
+        # is stamped after her record begins, as her log since the fix is.
         state = {"identity": identity, "transition_evidence": {"since_state": parent or "", "last_change": {}}}
         connection.execute(
             "insert into state_log values (?, ?, ?, ?, ?, ?)",
-            (f"s{index}", index, parent, "tick", json.dumps(state), float(index)),
+            (f"s{index}", index, parent, "tick", json.dumps(state), HER_RECORD_BEGINS_AT + index),
         )
     connection.commit()
     connection.close()

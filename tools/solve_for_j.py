@@ -206,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from core.runtime.atomic_writer import atomic_write_text
     from core.subject.bridge import solve
-    from core.subject.lineage import lineage_from_state_log
+    from core.subject.lineage import HER_RECORD_BEGINS_AT, lineage_from_state_log
 
     carrier_path = args.carrier or latest(REPO / "artifacts" / "subject_core_v25", CARRIER_REPORT)
     content_path = args.content or latest(REPO / "artifacts" / "subject_core_content", CONTENT_REPORT)
@@ -221,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
         state_log_note = "no readable state log among " + ", ".join(entry["path"] for entry in surveyed)
     else:
         try:
-            lineage = lineage_from_state_log(state_rows(Path(chosen["path"])))
+            lineage = lineage_from_state_log(state_rows(Path(chosen["path"])), record_begins_at=HER_RECORD_BEGINS_AT)
         except sqlite3.Error as exc:
             state_log_note = f"the state log could not be read: {type(exc).__name__}: {exc}"
 

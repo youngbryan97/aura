@@ -69,6 +69,7 @@ from core.state.person_transitions import AURA_PERSON_PATHS, UnmeasurableError, 
 
 __all__ = [
     "AURA_PERSON_PATHS",
+    "HER_RECORD_BEGINS_AT",
     "KINDS",
     "Stage",
     "Edge",
@@ -252,8 +253,17 @@ def _writes_for_stage(evidence: Mapping[str, Any]) -> dict[str, list[dict[str, A
     return out
 
 
+#: Where the record of her growth begins: the commit that declared her affect
+#: phase's write of how far she has grown (e19047ec7, 2026-10-23 07:48:57
+#: -0700). Before it, 33 steps of her live window that morning changed that
+#: field under a contract that never named it, so each read as a defect. Bryan
+#: decided on 23 October that the record begins at the fix; those steps stay
+#: in her log and are reported beside the reading.
+HER_RECORD_BEGINS_AT = 1792766937.0
+
+
 def lineage_from_state_log(
-    rows: Iterable[Mapping[str, Any]], *, key: bytes | None = None
+    rows: Iterable[Mapping[str, Any]], *, key: bytes | None = None, record_begins_at: float = 0.0
 ) -> Lineage:
     """Her lineage, from the rows the state repository writes.
 
@@ -270,7 +280,9 @@ def lineage_from_state_log(
     that changed, so a step can be judged by what wrote it.
     """
     ordered = sorted(rows, key=lambda r: (int(r.get("version") or 0), str(r.get("state_id") or "")))
-    lineage = Lineage() if key is None else Lineage(key=key)
+    lineage = Lineage(record_begins_at=record_begins_at) if key is None else Lineage(
+        key=key, record_begins_at=record_begins_at
+    )
     evidence: dict[str, Mapping[str, Any]] = {}
     for row in ordered:
         name = str(row.get("state_id") or "")
@@ -407,6 +419,9 @@ class Lineage:
     key: bytes = field(default_factory=install_key)
     stages: dict[str, Stage] = field(default_factory=dict)
     edges: list[Edge] = field(default_factory=list)
+    #: When the record of her growth begins, as a time. A measured step whose
+    #: child is older is before the record. Zero: at the first measured step.
+    record_begins_at: float = 0.0
 
     # ── building ──────────────────────────────────────────────────────
 
@@ -621,7 +636,9 @@ class Lineage:
         a step that changed her with no record (a state committed by a process
         that does not take the evidence) is unmeasured, and a measured step
         that does not develop is a failure. The claim this supports is the
-        scope it says: since the record began.
+        scope it says: since the record began. Where the record begins later,
+        at `record_begins_at`, the measured steps before it are counted apart
+        too, and the ones among them that failed are reported beside it.
         """
         if name is None:
             # The newest stage nothing descends from; among equal times, the
@@ -635,7 +652,13 @@ class Lineage:
         # it, a step that changed nothing shows nothing either: on 21 October
         # her live log carried no record at all, and three unchanged steps
         # after its last change read as three steps of development.
-        first = next((i for i, e in enumerate(steps) if e is not None and e.measured), None)
+        first = next(
+            (
+                i for i, e in enumerate(steps)
+                if e is not None and e.measured and self.stages[e.child].at >= self.record_begins_at
+            ),
+            None,
+        )
         began = len(steps) if first is None else first
         before, since = steps[:began], steps[began:]
         unmeasured = [
@@ -651,6 +674,12 @@ class Lineage:
             "root": trail[0] if trail else "",
             "steps": len(steps),
             "before_the_record": sum(1 for e in before if e is not None and not e.preserved),
+            "record_begins_at": self.record_begins_at,
+            # Reported beside the reading, never part of it: measured steps
+            # before the record began that did not develop.
+            "failed_before_the_record": sum(
+                1 for e in before if e is not None and e.measured and not e.preserved and not e.develops
+            ),
             "steps_since_the_record": len(since),
             "developing": sum(1 for e in since if e is not None and e.develops and not self.branched(e.parent)),
             "unmeasured": len(unmeasured),
