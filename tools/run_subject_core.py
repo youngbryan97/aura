@@ -172,16 +172,17 @@ async def _record(
     thirty-five gigabytes resident and the machine into swap at three hundred
     seconds a turn. The array is the same numbers in 0.25 GB.
     """
-    from core.subject.closure import PeripheryAccumulator, read_periphery
+    from core.subject.closure import TURN_CLOSES, PeripheryAccumulator, read_periphery
 
     frames: list[Any] = []
     periphery = PeripheryAccumulator()
 
-    def beside(_reading: Any) -> None:
-        # Taken as each frame is read, inside the turn. Read after the turn
-        # returned, every frame of it carried the turn's last periphery, so
-        # the outside at frame t already held what the turn did after t.
-        periphery.note(read_periphery(runtime.kernel, runtime.organs))
+    def beside(reading: Any) -> None:
+        # The periphery at the frame that closes each turn, as that frame is
+        # read: closure compares the turn series (`periphery_by_turn`), and a
+        # walk at every frame kept thirty-two rows a turn that nothing used.
+        if getattr(reading, "tag", None) == TURN_CLOSES:
+            periphery.note(read_periphery(runtime.kernel, runtime.organs))
         # And the readings Bryan's answers name, beside the recording
         # rather than in it. See core/subject/named_readings.py.
         if named is not None:
@@ -711,11 +712,11 @@ async def main() -> int:
 
         evidence["phi_id"] = phi_r_by_domain(turns)
         matrix, names = periphery_read
-        turn_rows = recording.turn_rows()
         from core.subject.closure import coverage as periphery_coverage
+        from core.subject.closure import periphery_by_turn
 
         evidence["closure"] = closure_gain(
-            turns, matrix[turn_rows] if matrix.size else matrix, names, seed=args.seed
+            turns, periphery_by_turn(matrix, recording) if matrix.size else matrix, names, seed=args.seed
         ).as_dict()
         # What the walk could and could not see. A closure result is a claim about
         # everything outside the core, and a walk that stopped at four hundred

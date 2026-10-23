@@ -50,7 +50,13 @@ from core.subject.sketch import sketch as _sketch_array
 
 __all__ = [
     "PeripheryAccumulator",
+    "TURN_CLOSES",
+    "periphery_by_turn",
     "periphery_matrix","ClosureReport", "closure_gain", "coverage", "read_periphery"]
+
+#: The frame that closes a turn, whose row the turn series keeps
+#: (`Recording.turn_rows`). The periphery is read at it and nowhere else.
+TURN_CLOSES: str = "ontogeny"
 
 #: What the last periphery walk saw, and what it could not reach. Read through
 #: `coverage()`; a closure result without it is a claim about everything
@@ -465,6 +471,27 @@ class ClosureReport:
             ],
             "audit": self.audit,
         }
+
+
+def periphery_by_turn(matrix: np.ndarray, recording: Recording) -> np.ndarray:
+    """The periphery one row per turn, whether it was read once a turn or once a frame.
+
+    Closure fits K's next turn from its last (`Recording.turn_rows`), so the
+    periphery it is compared against is the one at each turn's closing frame.
+    Read at every frame, the walk of four thousand numbers was done thirty-three
+    times a turn for one row that was used: at 370 rounds, about two and a half
+    hours of the run. A matrix read at every frame, as runs before 23 October
+    saved it, is taken at the same rows.
+    """
+    rows = recording.turn_rows(TURN_CLOSES)
+    if matrix.shape[0] == len(rows):
+        return matrix
+    if matrix.shape[0] == recording.x.shape[0]:
+        return matrix[rows]
+    raise ValueError(
+        f"a periphery of {matrix.shape[0]} rows matches neither the {len(rows)} turns "
+        f"nor the {recording.x.shape[0]} frames of the recording it is compared with"
+    )
 
 
 class PeripheryAccumulator:

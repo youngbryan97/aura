@@ -22,8 +22,9 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 class _Frame:
-    def __init__(self) -> None:
+    def __init__(self, tag: str) -> None:
         self.misses: dict[str, str] = {}
+        self.tag = tag
 
 
 class _Runtime:
@@ -36,9 +37,9 @@ class _Runtime:
 
     async def turn_once(self, condition, *, on_frame=None):
         frames = []
-        for index in range(4):
+        for index, tag in enumerate(("open", "phase", "heartbeat", "ontogeny")):
             self.kernel.level = float(index)
-            frame = _Frame()
+            frame = _Frame(tag)
             frames.append(frame)
             if on_frame is not None:
                 on_frame(frame)
@@ -46,12 +47,25 @@ class _Runtime:
         return frames
 
 
-def test_each_frame_carries_the_outside_as_it_was_at_that_frame(monkeypatch):
+def test_each_turn_carries_the_outside_as_it_was_at_its_closing_frame(monkeypatch):
     monkeypatch.setattr(closure, "read_periphery", lambda kernel, organs=None: {"level": kernel.level})
-    frames, (matrix, names) = asyncio.run(_record(_Runtime(), ["one"], 1, strict=False))
-    assert len(frames) == 4
+    frames, (matrix, names) = asyncio.run(_record(_Runtime(), ["one", "two"], 1, strict=False))
+    assert len(frames) == 8
     assert names == ("level",)
-    assert matrix[:, 0].tolist() == [0.0, 1.0, 2.0, 3.0]
+    assert matrix[:, 0].tolist() == [3.0, 3.0]
+
+
+def test_a_periphery_read_at_every_frame_is_taken_at_the_turn_rows():
+    import numpy as np
+
+    recording = SimpleNamespace(
+        x=np.zeros((8, 2)),
+        turn_rows=lambda marker="ontogeny": np.array([3, 7]),
+    )
+    per_frame = np.arange(8, dtype=float)[:, None]
+    assert closure.periphery_by_turn(per_frame, recording)[:, 0].tolist() == [3.0, 7.0]
+    per_turn = np.array([[3.0], [7.0]])
+    assert closure.periphery_by_turn(per_turn, recording) is per_turn
 
 
 def _reads_after_the_turn(path: Path) -> list[int]:

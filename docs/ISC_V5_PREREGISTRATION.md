@@ -2377,3 +2377,33 @@ From the commit that carries this addendum both estimators split the anchors
 into contiguous blocks in the order they were lived. The rank-stability folds
 fit grains and predict nothing held out, and are unchanged. Nothing moves a
 threshold or the organism. The next carrier run reads history this way.
+
+## Addendum, 23 October 2026, early morning: the carrier's baseline is the campaign's length, and the periphery is read once a turn
+
+The carrier rehearsal at `83f926c83` is authoritative: all 511 cuts decided at
+both lags, the shards' anchors exchangeable, representation invariant,
+playback zero, and history resolved at one turn. Its status is
+INTRINSIC_CARRIER_NOT_FOUND for one reason, closure: a leak of 0.00075 against
+a shuffled q95 of 0.00014. That reading carries no information. Closure on the
+turn series of a 24-round baseline fits K's next turn from its last on 114 of
+192 rows, with about 365 live columns on each side, and judges it on the last
+39. She develops across those turns (her worth's integrity channel, her
+ambivalence and two of deliberation's columns switch on only in the last
+forty, and her self-predictor's leading projection rises from 30 to 117), so
+the core's own fit reads a held-out loss of 1.006 there, worse than the mean,
+and every domain above 1. The same fit on the campaign's 370 rounds (2,960
+turn rows) reads about 0.03.
+
+From the commit that carries this addendum the carrier records its baseline at
+370 rounds, the campaign's length, in the rehearsal and in the decisive run.
+The baseline also sets the scale and the doses; the anchors are lived after it,
+as before. And both recorders read the periphery once a turn, at the frame that
+closes it, which is the only row closure uses: read at every frame, the walk of
+about four thousand numbers was done thirty-three times a turn for one kept row,
+about two and a half hours of a 370-round run. A matrix saved at every frame by
+an earlier run is taken at the same rows.
+
+The positive control the closure audit plants (one noisy projection of K's next
+state) was detected in one of the seven runs that record it, at either length. It is
+a single column against some 365 targets and stays diagnostic, as written.
+Nothing moves a threshold or the organism.

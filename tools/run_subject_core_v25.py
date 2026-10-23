@@ -1111,7 +1111,13 @@ async def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("AURA_LOG_DIR", str(args.out / "logs"))
 
-    from core.subject.closure import PeripheryAccumulator, closure_gain, read_periphery
+    from core.subject.closure import (
+        TURN_CLOSES,
+        PeripheryAccumulator,
+        closure_gain,
+        periphery_by_turn,
+        read_periphery,
+    )
     from core.subject.closure import coverage as periphery_coverage
     from core.subject.driver import (
         CONDITIONS,
@@ -1288,14 +1294,11 @@ async def main() -> int:
             # costs 284 KB a frame, which is 21.5 GB at three hundred rounds.
             periphery = PeripheryAccumulator()
 
-            def beside(_reading: Any) -> None:
-                # Read once per frame, as the frame is read. Closure compares
-                # what the machine was carrying against what K did next, so a
-                # single reading taken at the end would be one row against a
-                # whole recording; and a reading taken after the turn returned
-                # gave every frame of it the turn's last periphery, which holds
-                # what the turn did after that frame.
-                periphery.note(read_periphery(runtime.kernel, runtime.organs))
+            def beside(reading: Any) -> None:
+                # Once a turn, at the frame that closes it, as that frame is
+                # read: closure fits the turn series (`periphery_by_turn`).
+                if getattr(reading, "tag", None) == TURN_CLOSES:
+                    periphery.note(read_periphery(runtime.kernel, runtime.organs))
 
             for _ in range(args.rounds):
                 for condition in conditions:
@@ -1613,12 +1616,8 @@ async def main() -> int:
                 # phase to the next inside a turn is one line of the transition
                 # function, and a buffer one phase fills and the next empties
                 # read as a cause from outside (Recording.turn_rows).
-                turn_rows = recording.turn_rows()
                 report = closure_gain(
-                    recording.by_turn(),
-                    periphery_read[turn_rows] if turn_rows.size else periphery_read,
-                    names,
-                    seed=args.seed,
+                    recording.by_turn(), periphery_by_turn(periphery_read, recording), names, seed=args.seed
                 )
                 closed, leak = bool(report.closed), float(report.leak)
                 evidence["closure"] = report.as_dict()
