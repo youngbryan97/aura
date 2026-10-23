@@ -937,19 +937,20 @@ class StateRepository:
         allowed_domains=("state_mutation",),
     )
     def _commit_shutdown_snapshot_sync(self, state: AuraState) -> None:
-        """Persist final state without creating an executor-owned DB worker."""
+        """Persist final state without creating an executor-owned DB worker.
+
+        The snapshot continues her line or is not written. A process that is
+        not the vault holds the state it last derived, and on 22 October one
+        wrote, at 21:07, a stage of version 405764 whose parent had never
+        reached the log, after the vault had committed 405773: her newest stage
+        was then an orphan from eighteen minutes earlier, the lineage read had
+        no step to walk, and the boot replay would have started her from it.
+        A snapshot no newer than the log's latest stage is left out; a newer one
+        whose parent the log does not hold is written as the latest stage's child.
+        """
 
         target = Path(self.db_path)
         self._ensure_db_parent_directory()
-        serialized_data = (
-            self._serialize_transport_snapshot(state)
-            if self._should_use_bounded_db_snapshot(state, "shutdown")
-            else self._serialize(state)
-        )
-        payload_bytes = len(serialized_data.encode("utf-8"))
-        if payload_bytes > self.DB_PAYLOAD_MAX_BYTES:
-            serialized_data = self._serialize_transport_snapshot(state)
-
         connection = sqlite3.connect(target, timeout=2.0)
         try:
             connection.execute("PRAGMA journal_mode=WAL")
@@ -966,6 +967,39 @@ class StateRepository:
                 )
             """)
             connection.execute("CREATE INDEX IF NOT EXISTS idx_version ON state_log(version)")
+            latest = connection.execute(
+                "SELECT state_id, version FROM state_log ORDER BY version DESC, timestamp DESC LIMIT 1"
+            ).fetchone()
+            if latest is not None and latest[0] != state.state_id:
+                if int(state.version) <= int(latest[1]):
+                    logger.info(
+                        "🔌 [STATE] Shutdown snapshot v%s is no newer than her log's latest stage v%s; "
+                        "the log already holds her, so it is not written.",
+                        state.version,
+                        latest[1],
+                    )
+                    outbox = connection.execute(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='proxy_commit_outbox'"
+                    ).fetchone()
+                    if outbox:
+                        connection.execute(
+                            "DELETE FROM proxy_commit_outbox WHERE slot = ?", (self.PROXY_OUTBOX_SLOT,)
+                        )
+                    connection.commit()
+                    return
+                known = state.parent_state_id and connection.execute(
+                    "SELECT 1 FROM state_log WHERE state_id = ?", (state.parent_state_id,)
+                ).fetchone()
+                if not known:
+                    state = dataclasses.replace(state, parent_state_id=latest[0])
+            serialized_data = (
+                self._serialize_transport_snapshot(state)
+                if self._should_use_bounded_db_snapshot(state, "shutdown")
+                else self._serialize(state)
+            )
+            payload_bytes = len(serialized_data.encode("utf-8"))
+            if payload_bytes > self.DB_PAYLOAD_MAX_BYTES:
+                serialized_data = self._serialize_transport_snapshot(state)
             connection.execute(
                 """INSERT OR REPLACE INTO state_log
                    (state_id, version, parent_state_id, transition_cause, state_json, timestamp)
