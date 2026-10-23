@@ -60,8 +60,15 @@ async def with_what_plays(browser: Any, observation: dict[str, Any]) -> dict[str
     length = f", {clock(plays['duration'])} long" if plays.get("duration") else ""
     name = f"what this page plays, a video{length}: choosing it watches it as it plays, start to end, with whoever asked"
     share = plays["w"] * plays["h"] / max(1.0, float(plays.get("vw") or 0) * float(plays.get("vh") or 0))
+    try:
+        # A page for one video says which (its name and length, as schema.org gives them); a list of videos playing
+        # a preview of one says nothing of its own.
+        its_own = bool((await page.evaluate(WHAT_THE_PAGE_SAYS) or {}).get("length"))
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError):
+        its_own = False
     return {**observation, "elements": [*(observation.get("elements") or []),
-                                        {"role": "watching", "name": name, "selector": WATCHING, "share_of_view": round(share, 3)}]}
+                                        {"role": "watching", "name": name, "selector": WATCHING, "share_of_view": round(share, 3),
+                                         "its_own": its_own}]}
 
 
 def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) -> dict[str, Any] | None:
@@ -82,7 +89,11 @@ def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) 
     # 20 October 2026, a 640-pixel film in her browser's window was under the share, and she described it instead.
     handed = _the_page_asked_about(observation, goal)
     plays = [e for e in observation.get("elements") or [] if isinstance(e, dict) and e.get("selector") == WATCHING]
-    if not any(handed or float(e.get("share_of_view") or 0) >= THE_PAGE_IS_ITS_VIDEO for e in plays):
+    # And a page that says the video is its own: LIVE 22 October 2026, asked to look through Allen Pan's videos and
+    # pick one, she searched his name, and the results page's preview of its first video, a third of the view, was
+    # watched before she had looked at any of the others.
+    if not any(handed or (float(e.get("share_of_view") or 0) >= THE_PAGE_IS_ITS_VIDEO and e.get("its_own", True))
+               for e in plays):
         if plays and take:
             logger.info("a video at %.3f of the view, not taken as what the page is for", float(plays[0].get("share_of_view") or 0))
         return None

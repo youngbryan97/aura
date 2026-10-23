@@ -122,6 +122,21 @@ def test_asked_to_watch_she_watches_first_once_a_request(monkeypatch):
     assert on_the_page.watched_first({**page, "url": "https://videos.example/watch?v=2"}, ASKED) is None  # the next one
 
 
+def test_a_list_playing_a_preview_is_not_a_page_for_its_video(monkeypatch):
+    """LIVE 2026-10-22: asked to look through Allen Pan's videos and pick one, she searched his name, and the results
+    page's preview of its first video, a third of the view, was watched before she had looked at any other."""
+    import core.skills.sovereign_browser_on_the_page as on_the_page
+
+    monkeypatch.setattr(on_the_page, "_WATCHED_FOR", {})
+    results = {"url": "https://videos.example/results?q=allen+pan",
+               "elements": [{"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.33, "its_own": False}]}
+    asked = "Go to his channel, look through his videos, and pick the one that interests you most. Think out loud while we watch."
+    assert on_the_page.watched_first(results, asked) is None
+    watch_page = {"url": "https://videos.example/watch?v=1",
+                  "elements": [{"role": "watching", "selector": on_the_page.WATCHING, "share_of_view": 0.29, "its_own": True}]}
+    assert on_the_page.watched_first(watch_page, asked)["resolved_actions"][0]["selector"] == on_the_page.WATCHING
+
+
 def test_a_page_handed_to_her_to_watch_is_watched_first_however_small_its_video(monkeypatch):
     """LIVE 20 October 2026: asked to watch a page whose 640-pixel film was under the share of her window, she
     described the page instead. A page the request names is what the page is for."""
