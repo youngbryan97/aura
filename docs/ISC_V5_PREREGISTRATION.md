@@ -2346,3 +2346,34 @@ the turn series of its baseline, the same 24 rounds.
 
 Both enter the next pair and the next carrier rehearsal. Neither changes a
 threshold or the organism.
+
+## Addendum, 22 October 2026, near midnight: the carrier's held-out futures are split in time
+
+The carrier at `f78644bbd` was not authoritative for one reason: its history
+walk found K's turns older than the last four still predicting the held-out
+futures (0.139 against a shuffled floor of 0.022), so the history the state
+needs was UNRESOLVED at the longest rung the ladder allows. The two estimators
+that read held-out futures (`heldout_sufficiency_gain`, and the out-of-fold fit
+inside `heldout_new_direction_gain`) shuffled their folds. The anchors are
+consecutive turns, and an anchor's older turns are exactly its neighbour's
+recent ones, so with shuffled folds older history placed a held-out anchor
+among training neighbours with nearly its own future; shuffled history cannot
+do that, so the floor never controlled for it. The rule every other fit in the
+battery already follows is in `core/subject/estimate.py`: rows next to each
+other in a trajectory are nearly the same row, and the split is contiguous in
+time.
+
+On that carrier's own saved rows, with contiguous folds, older turns add no more
+than shuffled older turns at any rung: 0.675 against 0.693 with one recent
+turn, 0.463 against 0.467 with two, 0.232 against 0.218 with four. The first
+rung already resolves. The grain stays sufficient under either split (-0.197
+against -0.035 contiguous, 0.031 against 0.039 shuffled). Before this, no
+single saved array of the anchors, read along its own leading components,
+took up the older turns' gain, nor did the anchor's condition or its place in
+the run, which is what a leak of neighbours predicts and a hidden state does
+not.
+
+From the commit that carries this addendum both estimators split the anchors
+into contiguous blocks in the order they were lived. The rank-stability folds
+fit grains and predict nothing held out, and are unchanged. Nothing moves a
+threshold or the organism. The next carrier run reads history this way.

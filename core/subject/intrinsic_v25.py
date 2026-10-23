@@ -450,6 +450,17 @@ def heldout_sufficiency_gain(
     Returns the fractional held-out MSE reduction from adding raw history to
     the grain.  The experiment compares this against a shuffled-history floor.
     A true sufficient grain should leave no reproducible gain.
+
+    The folds are contiguous blocks of rows, in the order given. A carrier's
+    anchors are consecutive turns, so with shuffled folds every held-out anchor
+    had its neighbours in training, and an anchor's older turns are exactly its
+    neighbour's recent ones: extra history placed a held-out anchor among
+    neighbours with nearly its own future, which shuffled history cannot do.
+    On the carrier at f78644bbd that read as history still needed at the
+    longest rung (0.139 against a shuffled 0.022); with blocked folds older
+    turns add no more than shuffled ones at any rung (22 October). Rows that
+    depend on their neighbours are cross-validated in blocks (Roberts et al.,
+    Ecography 40, 2017). ``seed`` no longer orders the rows.
     """
     from sklearn.linear_model import Ridge
     from sklearn.model_selection import KFold
@@ -461,7 +472,7 @@ def heldout_sufficiency_gain(
     y = np.asarray(heldout_future, dtype=np.float64)
     if not (len(h) == len(z) == len(y)):
         raise ValueError("history, grain and future must have the same rows")
-    splitter = KFold(n_splits=folds, shuffle=True, random_state=seed)
+    splitter = KFold(n_splits=folds)
     base_sse = 0.0
     wide_sse = 0.0
     for train, test in splitter.split(z):
@@ -754,8 +765,9 @@ def _out_of_fold(features: np.ndarray, target: np.ndarray, *, folds: int, seed: 
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
 
+    # Contiguous blocks, for the reason `heldout_sufficiency_gain` gives.
     prediction = np.zeros_like(target)
-    for train, test in KFold(n_splits=folds, shuffle=True, random_state=seed).split(features):
+    for train, test in KFold(n_splits=folds).split(features):
         model = make_pipeline(StandardScaler(), Ridge()).fit(features[train], target[train])
         prediction[test] = model.predict(features[test])
     return prediction
