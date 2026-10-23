@@ -49,6 +49,8 @@ RECENT_EXCHANGES = 8
 
 #: How many remarks asking her to think out loud counts for, as remarks of hers taken up: a welcome of 0.8 to begin.
 INVITED_REMARKS = 3
+#: Who has asked her to think out loud while something plays.
+_ASKED_TO_THINK_OUT_LOUD: set[str] = set()
 
 #: What she has of a video as it plays beside her, as the watching gives it (core/skills/watching_the_screen.py).
 AS_IT_PLAYS = ("As it plays on their screen beside her window, she sees it every few seconds, hears its sound, and "
@@ -221,7 +223,11 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     watching_began = time.time() - 5.0
     from core.intent.asks_for_remarks import asks_for_remarks
 
-    held.invited = max(held.invited, INVITED_REMARKS if asks_for_remarks(request) else 0)
+    # Asked once to think out loud as it plays, asked for the next one too: "Now Salad Fingers. Same again." What
+    # follows still counts, as remarks of hers taken up or let go by.
+    if asks_for_remarks(request):
+        _ASKED_TO_THINK_OUT_LOUD.add(who)
+    held.invited = max(held.invited, INVITED_REMARKS if who in _ASKED_TO_THINK_OUT_LOUD else 0)
     await _her_answer_settled(turn, at_most_s=ANSWER_WAITED_S)
     player = await open_player()
     if player is None:
@@ -270,12 +276,19 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
 
 def start_watching_in_a_with(open_player: Callable[[], Awaitable[Any]], request: str, *, title: str, url: str,
                              at_most_s: float | None = None) -> asyncio.Task:
-    """Begin the watching beside the turn that asked for it; the turn goes on to her answer and ends."""
+    """Begin the watching beside the turn that asked for it; the turn goes on to her answer and ends.
+
+    The watching is the conversation's, not the turn's, so it starts with nothing the turn bound: a task is given a
+    copy of the context it was started in. LIVE 21 October 2026 every remark ran inside the request's turn: its clock,
+    its delivery, the person's question to check each remark against, and its evidence, where a camera look the
+    request was misread as had failed, so each draft saying "I can see" was rejected as claiming a failed sight."""
+    import contextvars
+
     from core.runtime.turn_outcome import current_turn
 
     task = asyncio.get_running_loop().create_task(
         watch_in_a_with(open_player, request, title=title, url=url, at_most_s=at_most_s, turn=current_turn()),
-        name="watching_in_a_with")
+        name="watching_in_a_with", context=contextvars.Context())
     _WATCHINGS.add(task)
     task.add_done_callback(_WATCHINGS.discard)
     return task

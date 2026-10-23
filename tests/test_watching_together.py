@@ -45,6 +45,13 @@ class _Player:
         return None
 
 
+@pytest.fixture(autouse=True)
+def _nobody_has_asked_her_to_think_out_loud(monkeypatch):
+    import core.skills.watching_together as together
+
+    monkeypatch.setattr(together, "_ASKED_TO_THINK_OUT_LOUD", set())
+
+
 def _a_person(monkeypatch):
     import core.skills.watching_along as watching_along
     import core.together.taking_it_up as taking_it_up
@@ -294,3 +301,48 @@ def test_a_remark_reads_the_request_her_answer_and_the_newest_remarks_only(monke
     talk = the_talk_since(0.0, "Watch this with me and think out loud.", spoken)
     assert (talk[0]["user"], talk[0]["aura"]) == ("Watch this with me and think out loud.", "I expect agents.")
     assert [t["aura"] for t in talk[1:]] == [f"Remark {n}." for n in range(20 - RECENT_EXCHANGES, 20)]
+
+
+def test_the_watching_starts_with_nothing_the_turn_that_asked_for_it_bound(monkeypatch):
+    """LIVE 2026-10-21: every remark ran inside the request's turn, its question and its evidence among what it
+    carried, and each draft saying "I can see" was rejected against a camera look that had failed."""
+    import core.skills.watching_together as together
+    from core.conversation.session_scope import user_question_var
+    from core.conversation.turn_evidence_custody import current_turn_evidence_custody
+
+    seen = {}
+
+    async def probe(*_args, **_kwargs):
+        seen["question"] = user_question_var.get()
+        seen["custody"] = current_turn_evidence_custody()
+
+    monkeypatch.setattr(together, "watch_in_a_with", probe)
+
+    async def a_turn():
+        user_question_var.set("Let's watch this together: https://example.com/v")
+        await together.start_watching_in_a_with(lambda: None, "Let's watch this together", title="t", url="u")
+
+    asyncio.run(a_turn())
+    assert seen == {"question": "", "custody": None}
+
+
+def test_asked_once_to_think_out_loud_she_is_asked_for_the_next_one_too(monkeypatch):
+    """Bryan, 22 October 2026: after two videos, "Now Salad Fingers. Same again." asks what the first request asked."""
+    import core.skills.watching_together as together
+    from core.together.a_with import With
+
+    held, _taking, _watching_along = _a_person(monkeypatch)
+
+    async def nothing_opens():
+        return None
+
+    async def watch(request):
+        await together.watch_in_a_with(nothing_opens, request, title="t", url="u", turn=None)
+
+    asyncio.run(watch("Now Salad Fingers. Same again."))
+    assert held.invited == 0
+    asyncio.run(watch(ASKED))
+    held2 = With(who="person:bryan", what="watching the next one")
+    _taking.__dict__["_withs"] = lambda: SimpleNamespace(current=lambda _who: held2, begin=lambda *a, **k: held2)
+    asyncio.run(watch("Now Salad Fingers. Same again."))
+    assert held2.invited == together.INVITED_REMARKS

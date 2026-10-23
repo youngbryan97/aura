@@ -213,6 +213,43 @@ class MemoryGovernor:
                 pids.add(pid)
         return pids
 
+    @staticmethod
+    def _her_own_model_pids() -> set[int]:
+        """The workers serving her own model, the one she answers with: idle between turns, never idle to her.
+
+        LIVE 21 October 2026, watching a video with Bryan: memory went critical, the sweep for idle workers killed hers
+        (0% CPU between two remarks) along with the brainstem's, and the rest of the watching had no model to speak
+        with. A brainstem, a reflex lane or a helper is shed before the model she is in the middle of talking with."""
+        try:
+            from core.brain.llm.model_registry import get_runtime_model_path
+
+            hers = os.path.realpath(str(get_runtime_model_path()))
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+            return set()
+        pids: set[int] = set()
+        for key, client in _mlx_registry_snapshot(sys.modules.get("core.brain.llm.mlx_client")).items():
+            if os.path.realpath(str(key)) != hers:
+                continue
+            try:
+                pid = int(getattr(getattr(client, "_process", None), "pid", 0) or 0)
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if pid > 0:
+                pids.add(pid)
+        return pids
+
+    async def _still_critical(self) -> tuple[bool, float, float]:
+        """Whether memory is still past the critical line once what was shed has gone: sampled again, not assumed."""
+        await asyncio.sleep(2.0)  # a killed worker's pages take a moment to come back to the system
+        rss_mb, runtime_rss_mb = await asyncio.to_thread(self._sample_rss_sync)
+        try:
+            from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+            sys_percent = AppleSiliconMemoryMonitor()._get_pressure_sysctl()
+        except (ImportError, AttributeError, RuntimeError):
+            sys_percent = psutil.virtual_memory().percent
+        managed = rss_mb + runtime_rss_mb
+        return (sys_percent > 98.0 or managed > self.threshold_critical), float(sys_percent), managed
+
     def _iter_managed_runtime_processes(self):
         """Yield heavyweight MLX runtime processes owned by Aura.
 
@@ -511,10 +548,13 @@ class MemoryGovernor:
 
             # v8.0.1: Neural Purge of idle workers
             idle_purged = 0
+            hers = self._her_own_model_pids()
             for proc in self._iter_managed_runtime_processes():
                 try:
                     cmdline = proc.info.get('cmdline') or []
                     cmd_str = " ".join(cmdline)
+                    if int(proc.info.get("pid") or 0) in hers:
+                        continue
                     cpu = proc.cpu_percent(interval=0.1)
                     if cpu < 1.0:
                         logger.warning(
@@ -535,6 +575,12 @@ class MemoryGovernor:
 
             if idle_purged > 0:
                 logger.info("✅ NEURAL PURGE: Reclaimed RAM from %d idle workers.", idle_purged)
+                # The full cleanup said "memory remains critical" without looking again, and took her model with it.
+                critical, sys_percent, managed_rss_mb = await self._still_critical()
+                if not critical:
+                    logger.info("Memory is back under the critical line (system %.1f%%, managed %.0fMB) once idle "
+                                "workers were shed; her own model kept.", sys_percent, managed_rss_mb)
+                    return
 
             if (now - self._last_critical_action_time) >= self.critical_cooldown_s:
                 logger.critical(
@@ -789,13 +835,24 @@ class MemoryGovernor:
         
         unload_result = await self._unload_models()
 
-        # v7.2.3: Force kill heavy runtime processes if they are hanging/heavy
+        # v7.2.3: Force kill heavy runtime processes if they are hanging/heavy. Under pressure, hers last: the others
+        # first, and hers only if memory is still critical once they have gone.
         killed = 0
+        hers = set() if reason == "shutdown" else self._her_own_model_pids()
         try:
-            for proc in self._iter_managed_runtime_processes():
+            processes = sorted(self._iter_managed_runtime_processes(),
+                               key=lambda proc: int(proc.info.get("pid") or 0) in hers)
+            looked_again = False
+            for proc in processes:
                 try:
                     cmdline = proc.info.get('cmdline') or []
                     cmd_str = " ".join(cmdline)
+                    if int(proc.info.get("pid") or 0) in hers and not looked_again:
+                        looked_again = True
+                        if not (await self._still_critical())[0]:
+                            logger.info("Memory is back under the critical line once the other workers were shed; "
+                                        "her own model kept.")
+                            break
                     if "mlx_worker.py" in cmd_str or "MTLCompilerService" in cmd_str:
                         log = logger.info if reason == "shutdown" else logger.warning
                         log(

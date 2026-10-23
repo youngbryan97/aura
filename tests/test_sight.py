@@ -79,6 +79,28 @@ def test_ordinary_talk_does_not_open_the_camera(message: str) -> None:
     assert classify(message).kind == "none", classify(message).reason
 
 
+@pytest.mark.parametrize(
+    "message",
+    [
+        # LIVE 21 October 2026: read as a look through the camera, which gave no frame, and every draft of hers that
+        # said "I can see" was then rejected.
+        "Let's watch this together: https://www.youtube.com/watch?v=ujkD4SxPKOI — before it starts, tell me what you "
+        "think it'll be about, think out loud while we watch, and tell me what you thought after.",
+        "look at this https://example.com/page and tell me what it says",
+        "Now go to Allen Pan's YouTube channel, look through his videos, and pick the one that interests you most.",
+        "Let's watch a Salad Fingers episode together, whichever one you want. Think out loud while we watch.",
+        "can you watch this video with me",
+    ],
+)
+def test_what_a_message_hands_over_or_names_is_what_is_seen(message: str) -> None:
+    """A "this" beside a link, or a look at a video, points at the link or the video: on a screen, not in the room."""
+    assert classify(message).kind == "none", classify(message).reason
+
+
+def test_the_person_named_as_what_is_seen_is_still_a_look() -> None:
+    assert classify("look at me on this video call, what am I holding").kind == "look"
+
+
 def test_a_deictic_is_what_separates_looking_from_remembering() -> None:
     """"this" is doing the entire job, and that is the point.
 

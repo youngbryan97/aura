@@ -46,6 +46,9 @@ LOOK_TOKENS = 70
 #: The looks a remark as it plays is given: what is on now. Given every look since her last remark, she narrated the
 #: oldest of them in their own form, "**0:21–0:28:** The title card reads", at 1:00 (LIVE 20 October 2026).
 NOW_LOOKS = 3
+#: The characters of what played that what she made of the whole is given, taken across it from start to end: twice a
+#: remark's 3,000, some 1,500 tokens, beside the request, her answer and the latest exchanges.
+WHOLE_ROOM = 6000
 #: How long what she made of it waits for the floor at the end, when somebody has it: the two minutes a turn of theirs
 #: takes, at most, to be answered (the watching waits the same for her answer to the request).
 FLOOR_WAITED_S = 120.0
@@ -184,8 +187,10 @@ class Watching:
         return self.moments[looks:]
 
 
-def what_she_watched(moments: list[Moment], *, room: int = 3000) -> str:
-    """Moments as quoted data, newest kept when there is not room for all."""
+def what_she_watched(moments: list[Moment], *, room: int = 3000, across: bool = False) -> str:
+    """Moments as quoted data, newest kept when there is not room for all; or, ``across``, every so many of them from
+    the first to the last, so that what she made of the whole has the whole: a 21-minute film is some 250 looks, and
+    its last 3,000 characters were its last minute or so."""
     lines, last_read = [], ""
     for m in moments:
         read = m.read if m.read and m.read != last_read else ""
@@ -195,6 +200,10 @@ def what_she_watched(moments: list[Moment], *, room: int = 3000) -> str:
         if line:
             lines.append(f"{clock(m.at)} {line}")
     text = "\n".join(lines)
+    every = 1
+    while across and len(text) > room and every < len(lines):
+        every += 1
+        text = "\n".join(lines[index] for index in range(len(lines)) if index % every == 0 or index == len(lines) - 1)
     return text[-room:]
 
 
@@ -380,7 +389,8 @@ async def watch_along(page: Any, request: str, *, look: Callable[[str], Awaitabl
         watching.moments.append(Moment(at=watching.moments[-1].at if watching.moments else 0.0, read=last_words))
         perceive("", last_words)
     await speak(f"{'it has ended' if watching.ended else 'it is still playing; we stopped watching'}. What played, in "
-                f"order:\n{what_she_watched(watching.moments)}", watching.moments[-1].at if watching.moments else 0.0, "after")
+                f"order:\n{what_she_watched(watching.moments, room=WHOLE_ROOM, across=True)}",
+                watching.moments[-1].at if watching.moments else 0.0, "after")
     keep({"kind": "after", "ended": watching.ended, "wall": time.time()})
     await player.done()
     await remember(watching)

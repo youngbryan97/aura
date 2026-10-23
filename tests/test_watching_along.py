@@ -415,3 +415,18 @@ def test_what_she_says_ends_at_its_last_whole_sentence():
     assert whole_paragraphs(cut) == ("My gut prediction: some capability crossed a threshold.\n\nI'm also watching for "
                                      "tone.")
     assert whole_paragraphs("One paragraph only, and it stops in the") == "One paragraph only, and it stops in the"
+
+
+def test_what_she_made_of_the_whole_is_given_the_whole_from_start_to_end():
+    """A 21-minute film is some 250 looks; given its last 3,000 characters, her thought after it had its last minute."""
+    from core.skills.watching_along import Moment, what_she_watched
+
+    looks = [Moment(at=5.0 * n, seen=f"scene {n} of the film, drawn in flat colours", read=f"narration line {n}")
+             for n in range(260)]
+    whole = what_she_watched(looks, room=6000, across=True)
+    assert len(whole) <= 6000
+    assert whole.startswith("0:00 seen: scene 0 ")
+    assert any(f"scene {n} " in whole for n in range(120, 141))
+    assert whole.rstrip().endswith("narration line 259")
+    # A remark as it plays still has the newest looks.
+    assert "scene 0 " not in what_she_watched(looks)

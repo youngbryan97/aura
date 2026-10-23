@@ -135,3 +135,73 @@ async def test_absolute_critical_cleanup_remains_active_during_model_load(monkey
     assert calls
     assert governor._last_policy_sample["trend_provisional"] is True
     assert governor._last_policy_sample["runaway"]["state"] == "provisional"
+
+
+class _Worker:
+    """A managed MLX worker as the governor's sweep sees one: idle, and killed only if chosen."""
+
+    def __init__(self, pid: int, killed: list[int]):
+        self.info = {"pid": pid, "name": "python", "cmdline": ["python", "mlx_worker.py"]}
+        self._killed = killed
+
+    def cpu_percent(self, interval=None):
+        return 0.0
+
+    def kill(self):
+        self._killed.append(self.info["pid"])
+
+
+@pytest.mark.asyncio
+async def test_the_idle_sweep_sheds_the_others_and_keeps_her_own_model(monkeypatch):
+    """LIVE 2026-10-21: memory went critical while she watched a video with Bryan; the idle sweep killed her model
+    (0% CPU between two remarks) and the full cleanup ran without looking again, so the watching had nothing to speak
+    with. The brainstem goes; hers stays when that was enough."""
+    killed: list[int] = []
+    governor = MemoryGovernor(SimpleNamespace())
+    governor._sample_rss_sync = lambda: (1000.0, governor.threshold_critical + 1.0)
+    governor._iter_managed_runtime_processes = lambda: iter([_Worker(10, killed), _Worker(20, killed)])
+    governor._her_own_model_pids = lambda: {10}
+    cleanups: list[str] = []
+
+    async def _cleanup(reason="pressure"):
+        cleanups.append(reason)
+
+    async def _enough_shed():
+        return False, 80.0, 1000.0
+
+    governor._critical_cleanup = _cleanup
+    governor._still_critical = _enough_shed
+    monkeypatch.setattr("core.utils.memory_monitor.AppleSiliconMemoryMonitor._get_pressure_sysctl", lambda _s: 88.0)
+
+    await governor._enforce_policy()
+
+    assert killed == [20]
+    assert cleanups == []
+
+
+@pytest.mark.asyncio
+async def test_the_full_cleanup_takes_her_own_model_last_and_only_if_still_critical(monkeypatch):
+    killed: list[int] = []
+    governor = MemoryGovernor(SimpleNamespace())
+    governor._iter_managed_runtime_processes = lambda: iter([_Worker(10, killed), _Worker(20, killed)])
+    governor._her_own_model_pids = lambda: {10}
+
+    async def _nothing(*_a, **_k):
+        return {}
+
+    governor._unload_models = _nothing
+    governor._prune_memory = _nothing
+    looks = iter([(False, 80.0, 1000.0)])
+
+    async def _looked_again():
+        return next(looks)
+
+    governor._still_critical = _looked_again
+    await governor._critical_cleanup()
+    assert killed == [20]
+
+    killed.clear()
+    governor._iter_managed_runtime_processes = lambda: iter([_Worker(10, killed), _Worker(20, killed)])
+    looks = iter([(True, 97.0, 60000.0)])
+    await governor._critical_cleanup()
+    assert killed == [20, 10]

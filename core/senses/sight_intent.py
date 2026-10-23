@@ -65,6 +65,24 @@ _SHOWING = re.compile(
 
 _SEEING_RE = re.compile(_SEEING, re.IGNORECASE)
 
+# What a "this" points at when the message hands it over or names it: a link, or something that plays on a screen.
+# LIVE 21 October 2026 "Let's watch this together: https://www.youtube.com/watch?v=... think out loud while we watch"
+# was read as a request to look through the camera ("watch" and "this"). The camera gave no frame in 6 s, and every
+# draft of hers that said "I can see" was then rejected as claiming a sight that had failed.
+_HANDED_OR_PLAYED = re.compile(
+    r"\bhttps?://\S+|\bwww\.\S+"
+    r"|\b(?:videos?|episodes?|films?|movies?|clips?|trailers?|livestream|channel|playlist|cartoons?|documentary|"
+    r"youtube|vimeo|netflix|twitch)\b"
+    r"|\b(?:a|the|this|that|his|her|their|your|my|one)\s+(?:\w+\s+)?(?:show|series)\b",
+    re.IGNORECASE,
+)
+# The person, in the same message, as what is to be seen: "can you see me on video" is still a look at them.
+_AT_THE_PERSON = re.compile(
+    r"\b(?:see|look at|watch)\s+me\b|\bmy (?:face|hand|hands|room|desk)\b|\bi'?m (?:holding|wearing)\b|"
+    r"\bi am (?:holding|wearing)\b|\bin front of (?:you|me|the camera)\b|\b(?:the|your) (?:camera|webcam)\b",
+    re.IGNORECASE,
+)
+
 # Operating the camera control, rather than looking through it. These are
 # imperatives about the *device*, and answering them with a description of
 # what the camera sees would be answering a different question.
@@ -139,6 +157,10 @@ def classify(message: str) -> SightIntent:
     # the world in general.
     if _SHOWING.search(text):
         return SightIntent("look", question=text, reason="a question about what is in frame")
+
+    # Looking at, or watching, what the message hands over or names is looking at that, on a screen: not at the room.
+    if _SEEING_RE.search(text) and _HANDED_OR_PLAYED.search(text) and not _AT_THE_PERSON.search(text):
+        return SightIntent("none", reason="what is to be seen is the link or what plays, not the room")
 
     # A verb of seeing, anchored to the here and now. Both halves are
     # required: "can you see the difference" is a figure of speech, and "what

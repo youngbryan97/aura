@@ -89,10 +89,83 @@ _RETRIEVAL_RE = re.compile(
 
 
 def front_page_named(text: Any) -> str:
-    """The front page of a site the text names by name, "" when it names none (core/intent/asks_to_go_online.py)."""
+    """The front page of a site the text names by name, or of the one the conversation was at that it goes on with;
+    "" when it names none (core/intent/asks_to_go_online.py)."""
     from core.intent.asks_to_go_online import site_named
 
-    return site_named(text)
+    return site_named(text) or the_conversations_place(text)
+
+
+def _their_earlier_requests(text: str) -> list[str]:
+    """What the person said earlier in the conversation she keeps, oldest first, as far back as a turn of hers reads
+    it, without this message itself."""
+    from core.conversation.delivered_history import VISIBLE_CONVERSATION_EXCHANGES
+    from core.conversation.persistence import get_persistence
+
+    try:
+        turns = get_persistence().get_recent_history(limit=2 * VISIBLE_CONVERSATION_EXCHANGES)
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("page_interaction", exc, severity="info", action="read the request without the conversation")
+        return []
+    said = [str(turn.get("content") or "").strip() for turn in turns if str(turn.get("role") or "").lower() == "user"]
+    if said and " ".join(said[-1].split()) == " ".join(text.split()):
+        said.pop()
+    return said
+
+
+def the_conversations_place(text: Any) -> str:
+    """The page a request that names none means, from the conversation: where the latest request that named a place
+    was worked, when this one asks for the same kind of thing (core/intent/asks_to_go_online.py
+    ``the_place_it_continues``), and that one was work on a page."""
+    from core.intent.asks_to_go_online import acts_asked, place_named, the_place_it_continues
+
+    body = str(text or "")
+    if place_named(body) or not acts_asked(body):
+        return ""
+    place, said = the_place_it_continues(body, _their_earlier_requests(body))
+    if not place or not _the_page_it_names(said):
+        return ""
+    return place if _goes_on_with_it(body) or _she_is_asked_to_do_it(body) else ""
+
+
+#: Going on with what was asked, to something else, with no verb of its own: "Now Salad Fingers, whichever episode you
+#: want" asks for what the request before it asked for. "How about another one?" proposes it.
+_GOES_ON = re.compile(r"^\s*(?:(?:ok(?:ay)?|alright|so|and|right)[,\s]+)*(?:(now|next|then|after\s+that)|how\s+about)\b",
+                      re.IGNORECASE)
+
+
+def _goes_on_with_it(body: str) -> bool:
+    """Whether the request goes on with the one before it rather than asking about it ("Now, what did you think?")."""
+    opening = _GOES_ON.match(body)
+    if opening is None:
+        return False
+    if not opening.group(1):
+        return True  # "how about ..."
+    if "?" in body:
+        return False
+    from core.conversation.request_mood import RequestMood, assess_request_mood
+
+    return assess_request_mood(body).mood is not RequestMood.MENTION
+
+
+def _she_is_asked_to_do_it(body: str) -> bool:
+    """Whether the request tells her to do something, rather than asking about what was done: "did you like that
+    video?" names a video and asks her to go nowhere."""
+    if _told_to_do_it(body):
+        return True
+    try:
+        from core.conversation.request_mood import (
+            RequestMood,
+            assess_request_mood,
+            shaped_as_an_order,
+        )
+
+        verdict = assess_request_mood(body)
+        return verdict.mood is RequestMood.DIRECTIVE or any(map(shaped_as_an_order, verdict.ambiguous_clauses))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
 
 
 def page_interaction_target(text: Any) -> str:
@@ -101,9 +174,14 @@ def page_interaction_target(text: Any) -> str:
     Both halves are required. A URL with no action verb is a page to read; an
     action verb with no URL names no page to open and belongs to whatever other
     routing the turn would have had. A site named as a place counts as its
-    front page.
+    front page, and a request naming no place that goes on with what the
+    conversation was doing on a page means that page's site.
     """
+    return _the_page_it_names(text) or the_conversations_place(text)
 
+
+def _the_page_it_names(text: Any) -> str:
+    """The page this request, read by itself, wants acted on; ""."""
     body = str(text or "")
     match = _EXPLICIT_URL_RE.search(body)
     if match:

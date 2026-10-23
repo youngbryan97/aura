@@ -94,6 +94,9 @@ _ACTION_VERBS = (
     # and that predicate then answered yes.
     "minimize|minimise|maximize|maximise|organize|organise|arrange|resize|"
     "focus|select|hide|unhide|quit|"
+    # "select" was here and the words people use for it were not: "Pick whichever
+    # episode you want" was no instruction at all (Bryan, 22 October 2026).
+    "pick|choose|"
     # Goal-state verbs are ordinary imperatives too. They used to be absent,
     # so "use /path as my wallpaper" and "set volume to 30%" were classified
     # as ambiguous even though the same grammar recognized "open Notes". The

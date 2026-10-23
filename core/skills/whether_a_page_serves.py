@@ -180,12 +180,15 @@ class Serves:
 
 
 def what_the_task_needs(task: str) -> str:
-    """What a task asks a page to do: run something, show something to read, or nothing that can be checked ahead."""
+    """What a task asks a page to do: run something, show something to read, or nothing that can be checked ahead.
+    What it is done to says so too: "Now Salad Fingers, whichever episode you want" is an episode to watch."""
+    from core.intent.asks_to_go_online import acts_asked
+
     if _RUN.search(task or ""):
         return "run"
     if _READ.search(task or ""):
         return "read"
-    return ""
+    return "run" if acts_asked(task) & {"watch", "listen", "play"} else ""
 
 
 #: A control of the page's own that starts the thing it holds ("Play Game", "Click to play"), not a link away from it:
