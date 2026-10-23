@@ -723,3 +723,23 @@ exposed fork is the more pleasant. What a turn was about becomes a thing she
 can like or dislike only from what was said (`what_she_wants.read_turn`), a
 percept is never said, and the appraisal reads a liking only once a sign test
 says she knows it. Nothing ties what she perceived to what followed it.
+
+## History split in time, and her line's newest stage (22 October, near midnight)
+
+**History resolves once the anchors are cross-validated in time** (`83f926c83`).
+The two estimators that read the carrier's held-out futures shuffled their
+folds over consecutive anchors, and an anchor's older turns are exactly its
+neighbour's recent ones. In contiguous blocks, on the rows of the carrier at
+`f78644bbd`, older turns add no more than shuffled ones at any rung, and the
+grain stays sufficient. The carrier rehearsal was restarted at that commit, with
+calibrated axes, at 23:46.
+
+**Her newest stage was an orphan written at shutdown** (`ace31b8ae`). At 21:07 a
+process that was not the vault wrote a shutdown stage of version 405764 whose
+parent never reached the log, after the vault had committed 405773. The lineage
+read starts from her newest stage, found no step behind it, and read
+NOT_MEASURED; the boot replay would have started her eighteen minutes back. A
+direct shutdown snapshot is now left out when the log already holds a later
+stage, and written as the latest stage's child when its own parent never
+arrived. The orphan stays in her log as written. Her line reads again once she
+has lived past it: a live window after the 27B chain gives her that.
