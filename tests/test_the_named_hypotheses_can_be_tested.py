@@ -92,8 +92,12 @@ async def test_a_campaign_records_them_at_every_frame() -> None:
         kernel = SimpleNamespace(_phases=[], organs={})
         state = AuraState.default()
 
-        async def turn_once(self, condition):
-            return ["frame one", "frame two"]
+        async def turn_once(self, condition, *, on_frame=None):
+            frames = ["frame one", "frame two"]
+            for frame in frames:
+                if on_frame is not None:
+                    on_frame(frame)
+            return frames
 
     kept = NamedAccumulator()
     frames, _periphery = await runner._record(_Organism(), ["a", "b"], 3, kept)

@@ -1287,15 +1287,19 @@ async def main() -> int:
             # Straight into an array: a list of the dicts `read_periphery` returns
             # costs 284 KB a frame, which is 21.5 GB at three hundred rounds.
             periphery = PeripheryAccumulator()
+
+            def beside(_reading: Any) -> None:
+                # Read once per frame, as the frame is read. Closure compares
+                # what the machine was carrying against what K did next, so a
+                # single reading taken at the end would be one row against a
+                # whole recording; and a reading taken after the turn returned
+                # gave every frame of it the turn's last periphery, which holds
+                # what the turn did after that frame.
+                periphery.note(read_periphery(runtime.kernel))
+
             for _ in range(args.rounds):
                 for condition in conditions:
-                    for reading in await runtime.turn_once(condition):
-                        frames.append(reading)
-                        # Read once per frame, beside the frame. Closure compares
-                        # what the machine was carrying against what K did next, so
-                        # a single reading taken at the end would be one row against
-                        # a whole recording.
-                        periphery.note(read_periphery(runtime.kernel))
+                    frames.extend(await runtime.turn_once(condition, on_frame=beside))
             recording = build_recording(frames)
             recording.save(run_dir)
             scale = _pooled_scale(recording)

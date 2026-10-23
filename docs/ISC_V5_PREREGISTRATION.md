@@ -2289,3 +2289,26 @@ signed and sized by how unlike that person it was (`WarmthLedger.act`); between
 messages it reads the worth's warmth channel as before. In the harness this
 changes A on the conditions that bring a correction or a complaint. It is not
 in the pair at `36f81b744`; it enters with the pair after it.
+
+## Addendum, 22 October 2026, night: the periphery is read at the frame it is compared with
+
+Closure asks whether anything outside K at frame t predicts K at frame t + 1
+beyond K at t. Both recorders, the campaign's (`tools/run_subject_core.py`) and
+the carrier's (`tools/run_subject_core_v25.py`), read the periphery in a loop
+over the frames a finished turn had returned. Every frame of a turn was given
+the periphery as it stood at the end of that turn, 33 frames on this clock, so
+the outside at frame t already held what the turn did after t. Found on 22
+October while recording the full arrays K sketches beside a baseline; the
+carrier at `f78644bbd` failed closure with a leak of 0.049 against a shuffled
+q95 of 0.014.
+
+From the commit that carries this addendum, both recorders read the periphery,
+and the named readings beside it, through `turn_once`'s frame hook, as each
+frame is read. The number of readings and their cost are unchanged. The
+organism is untouched; only the alignment of the outside with the frame
+changes. Closure results from earlier commits, both the codes-on pass at
+`4b1022f25` and the carrier's leak at `f78644bbd`, were measured with the turn's
+last periphery under every frame and are not compared with results from this
+commit on. The next pair and the next carrier rehearsal read closure this way.
+The history test reads K's own past and is not affected. Nothing moves a
+threshold.

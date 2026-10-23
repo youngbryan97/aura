@@ -176,15 +176,20 @@ async def _record(
 
     frames: list[Any] = []
     periphery = PeripheryAccumulator()
+
+    def beside(_reading: Any) -> None:
+        # Taken as each frame is read, inside the turn. Read after the turn
+        # returned, every frame of it carried the turn's last periphery, so
+        # the outside at frame t already held what the turn did after t.
+        periphery.note(read_periphery(runtime.kernel))
+        # And the readings Bryan's answers name, beside the recording
+        # rather than in it. See core/subject/named_readings.py.
+        if named is not None:
+            named.note(runtime.state)
+
     for index in range(rounds):
         for condition in (orders[index] if orders is not None else conditions):
-            for reading in await runtime.turn_once(condition):
-                frames.append(reading)
-                periphery.note(read_periphery(runtime.kernel))
-                # And the readings Bryan's answers name, beside the recording
-                # rather than in it. See core/subject/named_readings.py.
-                if named is not None:
-                    named.note(runtime.state)
+            frames.extend(await runtime.turn_once(condition, on_frame=beside))
         if index == 0 and strict:
             dead = _never_read(frames)
             if dead:

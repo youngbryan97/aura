@@ -79,9 +79,13 @@ async def test_the_recording_stops_after_the_first_pass():
         kernel = None
         turns = 0
 
-        async def turn_once(self, condition):
+        async def turn_once(self, condition, *, on_frame=None):
             self.turns += 1
-            return [_Frame({"organ:gone.x": "organ absent"})]
+            frames = [_Frame({"organ:gone.x": "organ absent"})]
+            for frame in frames:
+                if on_frame is not None:
+                    on_frame(frame)
+            return frames
 
     class _Conditions(list):
         pass
@@ -102,9 +106,13 @@ async def test_allow_degraded_records_it_anyway():
         kernel = None
         turns = 0
 
-        async def turn_once(self, condition):
+        async def turn_once(self, condition, *, on_frame=None):
             self.turns += 1
-            return [_Frame({"organ:gone.x": "organ absent"})]
+            frames = [_Frame({"organ:gone.x": "organ absent"})]
+            for frame in frames:
+                if on_frame is not None:
+                    on_frame(frame)
+            return frames
 
     runtime = _Runtime()
     frames, _ = await _record(runtime, list(range(8)), rounds=2, strict=False)
