@@ -104,6 +104,7 @@ import logging
 import math
 import os
 import re
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -992,8 +993,9 @@ class AffectiveSteeringHook:
             vectors.append(entry)
         if not vectors:
             raise ValueError("fusion_basis_vectors_missing")
+        kind = _model_class(self._block)
         return {"layer": self._layer_idx, "vectors": vectors,
-                "block_kind": f"{type(self._block).__module__}.{type(self._block).__qualname__}"}
+                "block_kind": f"{kind.__module__}.{kind.__qualname__}"}
 
     def __init__(
         self,
@@ -1863,6 +1865,25 @@ class SteeringGovernor:
         if self.last_kl_shift > self.kl_budget:
             alpha *= 0.5
         return alpha
+
+
+def _model_class(block: Any) -> type:
+    """The block's own class, under any subclass a hook made of it while running.
+
+    Steering subclasses a block to patch it, and the latent readout installed
+    after it subclasses it again, so the class a certificate was looked up
+    under in her worker was the readout's, while the certificate tool, which
+    installs no readout, measured under steering's. The digests never met, and
+    her worker measured the channel again and shut it (23 October). The first
+    class in the order of bases that its module can name is the model's own.
+    """
+    for kind in type(block).__mro__:
+        found: Any = sys.modules.get(kind.__module__)
+        for part in kind.__qualname__.split("."):
+            found = getattr(found, part, None)
+        if found is kind:
+            return kind
+    return type(block)
 
 
 #: Names a directory of directions a measurement run steers her by in place of

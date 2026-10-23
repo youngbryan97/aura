@@ -119,3 +119,25 @@ def test_a_certificate_for_one_push_does_not_pass_to_another():
     digests = [steering_basis_sha256([hook]) for hook in (plain, at_one, at_two)]
     assert len(set(digests)) == 3
     assert "push" not in plain.fusion_basis()["vectors"][0], "a legacy basis keeps the digest it was certified under"
+
+
+class _ReadoutLike:
+    """Subclasses a block after steering has, as the latent readout hook does."""
+
+    @staticmethod
+    def install(block):
+        class ReadoutBlock(type(block)):
+            pass
+
+        block.__class__ = ReadoutBlock
+
+
+def test_a_certificate_is_found_under_a_hook_installed_after_steering():
+    from core.consciousness.fusion_certificate import steering_basis_sha256
+
+    _mx, block, hook, _v = _installed(reference=0.0, spread=0.03, push=0.1)
+    measured = steering_basis_sha256([hook])
+    _ReadoutLike.install(block)
+    assert type(block).__name__ == "ReadoutBlock"
+    assert steering_basis_sha256([hook]) == measured
+    assert hook.fusion_basis()["block_kind"].endswith("._Block")

@@ -724,6 +724,16 @@
     "mlx_lm"
    ],
    "ownership_mode": "standalone_process",
+   "path": "tools/qualify_fitted_steering.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
    "path": "tools/qualify_g10_reader.py",
    "purpose": "evaluation"
   },
