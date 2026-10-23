@@ -255,6 +255,18 @@ def _steering_attached(reading: dict[str, Any]) -> bool:
     return reading.get("active") is True
 
 
+def _steering_basis() -> dict[str, Any]:
+    """Which directions steered her: the signed generation, or the basis this run named."""
+    from core.consciousness.affective_steering import MEASUREMENT_BASIS_ENV
+
+    named = os.environ.get(MEASUREMENT_BASIS_ENV, "").strip()
+    if not named:
+        return {"kind": "signed_generation"}
+    statement = Path(named).expanduser() / "basis.json"
+    return {"kind": "measurement", "path": named,
+            "statement": json.loads(statement.read_text()) if statement.is_file() else None}
+
+
 def _log(message: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {message}", flush=True)
 
@@ -436,6 +448,7 @@ async def main(argv: list[str] | None = None) -> int:
             "readings_of_herself": "withheld" if readings_of_herself_withheld() else "printed",
             "steering": "off" if os.environ.get("AURA_DISABLE_AFFECTIVE_STEERING", "").strip().lower()
             in {"1", "true", "yes", "on"} else "on",
+            "steering_basis": _steering_basis(),
         }
         evidence["arms"] = [
             {

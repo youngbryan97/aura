@@ -119,6 +119,7 @@ from core.consciousness.mood_weight import (
 )
 from core.consciousness.mood_weight import signed_weight as _signed_weight
 from core.consciousness.phi_residual_sampler import PHI_SAMPLE_EVERY, PhiResidualSampler
+from core.consciousness.residual_injection_geometry import TRANSLATE as _TRANSLATE
 from core.consciousness.residual_injection_geometry import inject as _inject
 from core.consciousness.spoken_positions import every_position_is_spoken
 from core.consciousness.steering_channel import activation_state, governor_inputs
@@ -975,11 +976,20 @@ class AffectiveSteeringHook:
             values = np.asarray(vector.v, dtype="<f4")
             if values.shape != (vector.d_model,) or not np.isfinite(values).all():
                 raise ValueError("fusion_basis_vector_invalid")
-            vectors.append({
+            entry = {
                 "name": name, "width": vector.d_model,
                 "substrate_idx": vector.substrate_idx, "substrate_fn": vector.substrate_fn,
                 "sha256": hashlib.sha256(values.tobytes()).hexdigest(),
-            })
+            }
+            # A fitted basis steers by its reference, spread and push as much
+            # as by its directions, so a certificate earned at one push does
+            # not pass to the same directions at another. A basis without them
+            # keeps the digest its certificates were written under.
+            for name_of_fit in ("reference", "spread", "push"):
+                value = getattr(vector, name_of_fit, None)
+                if value is not None:
+                    entry[name_of_fit] = float(value)
+            vectors.append(entry)
         if not vectors:
             raise ValueError("fusion_basis_vectors_missing")
         return {"layer": self._layer_idx, "vectors": vectors,
@@ -1064,6 +1074,13 @@ class AffectiveSteeringHook:
             alpha = min(alpha, self._STALE_SAFE_ALPHA)
         return alpha
 
+    def _is_fitted_basis(self) -> bool:
+        """Whether every vector of this hook carries the reference, spread and push of a fitted basis."""
+        vectors = list(self._vectors.values())
+        return bool(vectors) and all(
+            sv.reference is not None and sv.spread and sv.push is not None for sv in vectors
+        )
+
     def _fitted_composite(self, state: np.ndarray) -> np.ndarray | None:
         """The push a basis fitted to her own replies sets for this state, or None for any other basis.
 
@@ -1076,11 +1093,9 @@ class AffectiveSteeringHook:
         October; and a reference of 0.5 on slots she holds near zero weighed
         every state she was in alike.
         """
-        vectors = list(self._vectors.values())
-        if not vectors or any(
-            sv.reference is None or not sv.spread or sv.push is None for sv in vectors
-        ):
+        if not self._is_fitted_basis():
             return None
+        vectors = list(self._vectors.values())
         out = np.zeros(vectors[0].d_model, dtype=np.float32)
         for sv in vectors:
             distance = (sv.compute_weight_from_state(state) - float(sv.reference)) / float(sv.spread)
@@ -1334,6 +1349,15 @@ class AffectiveSteeringHook:
                 return mx.astype(composite, dtype)
             return composite
 
+    def _position_norm_scale(self, h: Any) -> Any:
+        """Each position's own residual norm, the scale a fitted basis was fitted at.
+
+        Left on the GPU for the reason given under _residual_reference_scale.
+        """
+        import mlx.core as mx
+
+        return mx.linalg.norm(h.astype(mx.float32), axis=-1, keepdims=True)
+
     def _residual_reference_scale(self, h: Any) -> Any:
         """Mean per-token norm of the residual stream this block is emitting.
 
@@ -1463,10 +1487,23 @@ class AffectiveSteeringHook:
                         # Referenced to the stream, one setting means the same
                         # thing everywhere and the constant stops being a
                         # per-model guess.
-                        scale = hook._residual_reference_scale(h)
                         mask = hook._completion_position_mask(h)
+                        # A basis fitted to her replies is added at each
+                        # position's own norm, the geometry it was fitted
+                        # and certified in. The mean over the call's
+                        # positions takes in the first token's massive
+                        # activation on a prompt pass, and projection sets
+                        # the stream's component along the direction to the
+                        # push's length, wiping what was there. Measured 23
+                        # October: in this geometry the basis holds the
+                        # fusion certificate, her own replies 0.23 nats a
+                        # token more likely.
+                        fitted = hook._is_fitted_basis()
+                        scale = (hook._position_norm_scale(h) if fitted
+                                 else hook._residual_reference_scale(h))
                         nudge = ((effective_alpha * scale) * composite).astype(composite.dtype)
-                        h = _inject(h, nudge, mask=mask)
+                        h = (_inject(h, nudge, mask=mask, mode=_TRANSLATE) if fitted
+                             else _inject(h, nudge, mask=mask))
 
                     # Diagnostic
                     hook._inject_count += 1
@@ -1828,6 +1865,24 @@ class SteeringGovernor:
         return alpha
 
 
+#: Names a directory of directions a measurement run steers her by in place of
+#: the signed generation. The desktop never sets it. The basis must still be
+#: bound to the checkpoint in memory, and it steers only under a fusion
+#: certificate bound to its own digest, so naming it opens nothing by itself.
+MEASUREMENT_BASIS_ENV = "AURA_STEERING_MEASUREMENT_BASIS"
+
+
+def measurement_basis() -> Path | None:
+    """The directory a measurement run named for its steering basis, or None."""
+    named = os.environ.get(MEASUREMENT_BASIS_ENV, "").strip()
+    if not named:
+        return None
+    path = Path(named).expanduser()
+    if not path.is_dir():
+        raise ValueError(f"steering_measurement_basis_missing:{path}")
+    return path.resolve()
+
+
 class AffectiveSteeringEngine(_FindsTheModelsGeometry):
     """
     Orchestrates activation steering for Aura's affective states.
@@ -2071,6 +2126,23 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
             self._model_info["steering_capability_reason"] = steering_resolution.reason
             logger.error("Affective steering detached: active migration authority is invalid.")
             return False
+
+        try:
+            measured = measurement_basis()
+        except ValueError as exc:
+            # A run that named a basis and steered by another would measure
+            # the wrong thing under the right name.
+            self._model_info["attachment_error"] = "steering_measurement_basis_missing"
+            logger.error("Affective steering detached: %s", exc)
+            return False
+        if measured is not None:
+            qualified_cache_dir = measured
+            self._model_info["steering_basis"] = {"kind": "measurement", "path": str(measured)}
+            logger.info(
+                "Affective steering attaches the measurement basis at %s in place of the signed "
+                "generation; its own fusion certificate decides whether it steers.",
+                measured,
+            )
 
         self._library = SteeringVectorLibrary(
             cache_dir=qualified_cache_dir or default_cache_dir,

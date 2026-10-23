@@ -64,3 +64,58 @@ def test_a_basis_without_a_reference_keeps_the_unit_composite():
         hook.update_substrate_vector(_state(0.95))
     composite = np.asarray(hook.current_composite_vector())
     assert abs(float(np.linalg.norm(composite)) - 1.0) < 1e-3
+
+
+class _Block:
+    """Passes the stream through, as an identity block does."""
+
+    def __call__(self, h, *args, **kwargs):
+        return h
+
+
+def _installed(**fitted):
+    import mlx.core as mx
+
+    v = _unit(3)
+    vector = SteeringVector(key="frustration", layer_idx=1, d_model=64, v=v,
+                            substrate_idx=3, substrate_fn="tanh", **fitted)
+    block = _Block()
+    hook = AffectiveSteeringHook(block, 1, {"frustration": vector})
+    hook.install()
+    hook._active = True
+    hook._alpha = 0.5
+    hook.override_composite_vector(v * 0.1)
+    hook._last_substrate_sync_monotonic = __import__("time").monotonic()
+    return mx, block, hook, v
+
+
+def test_a_fitted_basis_is_added_at_each_positions_own_norm():
+    mx, block, hook, v = _installed(reference=0.0, spread=0.03, push=0.1)
+    stream = np.random.default_rng(5).normal(size=(1, 4, 64)).astype(np.float32)
+    stream[0, 0] *= 40.0  # a massive first position, as her model keeps
+    out = np.array(block(mx.array(stream)))
+    moved = out - stream
+    assert np.allclose(moved[0, :3], 0.0, atol=1e-5), "only the completion position is steered on a prompt pass"
+    expected = 0.5 * np.linalg.norm(stream[0, 3]) * (v * 0.1)
+    np.testing.assert_allclose(moved[0, 3], expected, rtol=1e-3, atol=1e-4)
+
+
+def test_a_legacy_basis_keeps_its_geometry():
+    mx, block, hook, v = _installed()
+    stream = np.random.default_rng(5).normal(size=(1, 4, 64)).astype(np.float32)
+    stream[0, 0] *= 40.0
+    out = np.array(block(mx.array(stream)))
+    moved = out[0, 3] - stream[0, 3]
+    added = 0.5 * np.linalg.norm(stream[0, 3]) * (v * 0.1)
+    assert not np.allclose(moved, added, atol=1e-4)
+
+
+def test_a_certificate_for_one_push_does_not_pass_to_another():
+    from core.consciousness.fusion_certificate import steering_basis_sha256
+
+    plain, _ = _hook()
+    at_one, _ = _hook(reference=0.0, spread=0.03, push=0.1)
+    at_two, _ = _hook(reference=0.0, spread=0.03, push=0.2)
+    digests = [steering_basis_sha256([hook]) for hook in (plain, at_one, at_two)]
+    assert len(set(digests)) == 3
+    assert "push" not in plain.fusion_basis()["vectors"][0], "a legacy basis keeps the digest it was certified under"

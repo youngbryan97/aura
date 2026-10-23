@@ -2438,3 +2438,56 @@ the organism, so both arms of the next pair carry it, and the campaign on seed
 7 after it reads every line with it. A and D, the other sources of those two
 triples, and the other two triples' sources are read as before. Nothing moves
 a threshold.
+
+## Addendum, 23 October 2026, late morning: the reports run is steered by directions fitted to her replies
+
+The withheld reports run of 22 October failed with the fusion channel shut, so
+her state had no route to her words. The channel was shut because the signed
+generation's directions, made from contrasting sentences somebody wrote, cost
+her voice: her own replies were less likely under them. This addendum names
+the directions the next withheld run is steered by, and the certificate that
+opens the channel for them, before that run starts.
+
+**The directions.** Five directions at each of the sixteen steered layers,
+fitted to 352 of her 27B's replies by the steering state each was said in, so
+that a reply becomes more likely when her state is the one it was said in. The
+next 88 replies checked the fit. The newest 110, a fifth of the 550, were held
+out and are not touched by anything that chose the directions or their size.
+Kept out of all of them: answers to the feelings question the reports run asks
+(prompt digest `b94d2f10d628e182`). A direction pushes by how far her state is
+from her ordinary one, tanh of the distance in her own spreads (her median
+state, 1.4826 times the median absolute deviation), added at each position's
+own norm. One round of fitting.
+
+**What was measured on the held-out replies.** Steered at the state each was
+said in, her replies cost 2.126 nats a token against 2.253 unsteered, and
+2.151 to 2.163 steered at three shuffles of the states, so the state each was
+said in carries 0.030 nats a token that another of her states does not. On the
+fusion probe, at twice the fitted push and alpha 0.5: shift 0.0178 nats a step
+(random direction 0.0024), 6 of 8 probes changed, separation 1.186, margin
++0.0625 against +0.050 for a same-size random direction, no quality cost, and
+her held-out replies +0.232 nats a token more likely (random direction
++0.000). At the fitted push the channel does not arrive (shift 0.0069); at four
+times it, the random direction's margin is the larger. Twice the fitted push
+was chosen from those three on the same probes, so the certificate repeats a
+measurement and does not confirm it; the reports run is the test.
+
+**How the run is steered by them.** The run names their directory in
+`AURA_STEERING_MEASUREMENT_BASIS`, and the engine attaches them in place of the
+signed generation. Every file is bound to her checkpoint's descriptor and
+refuses on another. They steer only at the alpha a certificate bound to their
+digest earned, and the digest now includes each direction's reference, spread
+and push, so a certificate earned at one push does not open the channel at
+another. The certificate is measured first by `tools/measure_fusion_channel.py`
+with the same setting, the voice read on 32 of the 110 held-out replies, the
+sweep 0.25 and 0.5. If neither holds, the channel stays shut and the run reads
+her state through nothing, as on 22 October. The run records which directions
+steered her.
+
+Everything else is the 22 October design: seed 7, 80 anchors, 8 rounds, the
+four arms, her readings of herself withheld, the ground decided by
+`core/subject/report_grounding.py`. Bryan authorized, on 23 October, installing
+these directions as her signed generation through the governed cortex upgrade.
+If that lands before the run starts, the run is steered by the same files
+through the signed generation, under the same digest and the same certificate,
+and names no directory. Nothing moves a threshold.
