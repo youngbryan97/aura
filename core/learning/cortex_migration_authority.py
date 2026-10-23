@@ -23,6 +23,12 @@ from core.runtime.state_ownership import state_root
 
 COMPONENT_AUTHORITY_SCHEMA: Final = "aura.cortex_upgrade.component_authority.v1"
 CAA_EVALUATION_SCHEMA: Final = "aura.caa.causal_evaluation.v1"
+#: Directions fitted to her replies make a different causal claim from contrast
+#: directions, and are qualified by their own evaluation
+#: (core/evaluation/fitted_steering_evaluation.py). Every numeric check below
+#: applies to both.
+FITTED_EVALUATION_SCHEMA: Final = "aura.fitted_basis.causal_evaluation.v1"
+STEERING_EVALUATION_SCHEMAS: Final = frozenset({CAA_EVALUATION_SCHEMA, FITTED_EVALUATION_SCHEMA})
 RECURRENT_MODEL_BINDING_SCHEMA: Final = "aura.recurrent.model_binding.v1"
 MAX_EVIDENCE_BYTES: Final = 16 * 1024 * 1024
 
@@ -276,7 +282,7 @@ def _validate_steering(
     if (
         set(evidence) != expected_roles
         or set(evaluation) != required_evaluation
-        or evaluation.get("schema") != CAA_EVALUATION_SCHEMA
+        or evaluation.get("schema") not in STEERING_EVALUATION_SCHEMAS
         or evaluation.get("model_descriptor_sha256") != descriptor_sha256
         or evaluation.get("generation_sha256") != claims["generation_sha256"]
         or evaluation.get("verdict") != "PASS"
@@ -568,6 +574,8 @@ def validate_component_authority(
 
 __all__ = [
     "CAA_EVALUATION_SCHEMA",
+    "FITTED_EVALUATION_SCHEMA",
+    "STEERING_EVALUATION_SCHEMAS",
     "COMPONENT_AUTHORITY_SCHEMA",
     "CortexMigrationAuthorityError",
     "RECURRENT_MODEL_BINDING_SCHEMA",

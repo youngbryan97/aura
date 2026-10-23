@@ -33,6 +33,8 @@ running mind is never hot-swapped.
         --migration-contract artifacts/current/cortex_upgrade/migration_contract.json
     .venv/bin/python tools/cortex_generation_upgrade.py activate \
         --authorized-by "bryan" --evaluation artifacts/current/cortex_upgrade/comparison.json
+    .venv/bin/python tools/cortex_generation_upgrade.py requalify-steering \
+        --authority steering_authority.json --authorized-by "bryan"
     .venv/bin/python tools/cortex_generation_upgrade.py rollback
 
 MEMORY SAFETY: `evaluate` loads models and is guarded — it refuses when the
@@ -796,6 +798,20 @@ def cmd_requalify_active(args) -> int:
     return 0
 
 
+def cmd_requalify_steering(args) -> int:
+    """Install a steering generation signed for the active artifact; no model changes."""
+    from core.learning.steering_requalification import apply_steering_requalification
+
+    receipt = apply_steering_requalification(
+        authority=json.loads(Path(args.authority).read_text()),
+        authorized_by=args.authorized_by,
+    )
+    _write(Path(args.out), "steering_requalification.json", receipt)
+    if receipt["changed"]:
+        print("⚠️  effective at NEXT BOOT — restart Aura to steer by the new generation")
+    return 0
+
+
 def cmd_rollback(args) -> int:
     from core.learning.cortex_generation_upgrade import rollback_upgrade
 
@@ -906,6 +922,12 @@ def build_parser() -> argparse.ArgumentParser:
     requalify_active.add_argument("--authorized-by", required=True)
     requalify_active.add_argument("--out", default="artifacts/current/cortex_upgrade")
     requalify_active.set_defaults(func=cmd_requalify_active)
+
+    requalify_steering = sub.add_parser("requalify-steering")
+    requalify_steering.add_argument("--authority", required=True)
+    requalify_steering.add_argument("--authorized-by", required=True)
+    requalify_steering.add_argument("--out", default="artifacts/current/cortex_upgrade")
+    requalify_steering.set_defaults(func=cmd_requalify_steering)
 
     rollback = sub.add_parser("rollback")
     rollback.add_argument("--out", default="artifacts/current/cortex_upgrade")
