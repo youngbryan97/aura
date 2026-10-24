@@ -57,18 +57,30 @@ class Samples:
     shams: list[np.ndarray] = field(default_factory=list)
     mains: list[float] = field(default_factory=list)
     #: Each source's own effect, F - N1 and S - N1, kept so a failed triple can
-    #: be read column by column rather than through its three numbers.
+    #: be read further than its three numbers.
     firsts: list[np.ndarray] = field(default_factory=list)
     seconds: list[np.ndarray] = field(default_factory=list)
+    #: The same three in the target's own columns, before whitening. The
+    #: whitened coordinates are the recording's principal directions, so a
+    #: position there is a mixture of columns and names none of them.
+    raw_interactions: list[np.ndarray] = field(default_factory=list)
+    raw_firsts: list[np.ndarray] = field(default_factory=list)
+    raw_seconds: list[np.ndarray] = field(default_factory=list)
 
     def add(self, *, untouched: Sequence[np.ndarray], first: np.ndarray, second: np.ndarray,
-            both: np.ndarray) -> None:
+            both: np.ndarray, raw: Mapping[str, np.ndarray] | None = None) -> None:
+        """One snapshot, whitened; ``raw`` holds the untouched, first, second and both forks unwhitened."""
         n1, n2, n3, n4 = (np.asarray(v, dtype=np.float64) for v in untouched)
         self.interactions.append(np.asarray(both - first - second, dtype=np.float64) + n1)
         self.shams.append(n2 - n3 - n4 + n1)
         self.mains.append(max(float(np.linalg.norm(first - n1)), float(np.linalg.norm(second - n1))))
         self.firsts.append(np.asarray(first, dtype=np.float64) - n1)
         self.seconds.append(np.asarray(second, dtype=np.float64) - n1)
+        if raw is not None:
+            r0, rf, rs, rb = (np.asarray(raw[k], dtype=np.float64) for k in ("untouched", "first", "second", "both"))
+            self.raw_interactions.append(rb - rf - rs + r0)
+            self.raw_firsts.append(rf - r0)
+            self.raw_seconds.append(rs - r0)
 
     def arrays(self) -> dict[str, np.ndarray]:
         """The samples as arrays, one row per snapshot."""
@@ -81,6 +93,9 @@ class Samples:
             "mains": np.asarray(self.mains, dtype=np.float64),
             "firsts": stacked(self.firsts),
             "seconds": stacked(self.seconds),
+            "raw_interactions": stacked(self.raw_interactions),
+            "raw_firsts": stacked(self.raw_firsts),
+            "raw_seconds": stacked(self.raw_seconds),
         }
 
 
@@ -153,7 +168,9 @@ def sample_arrays(held: Mapping[str, Samples], columns: Sequence[str],
     """Every triple's samples and its target's column names, keyed for one `.npz`.
 
     ``columns`` are the recording's, and ``targets`` each target domain's
-    indices into them. A key "A,S->G" is written under "AS_G".
+    indices into them. The names label the `raw_*` arrays; the whitened ones
+    are in the recording's principal directions. A key "A,S->G" is written
+    under "AS_G".
     """
     from core.subject.synergy import TRIPLES
 
@@ -264,7 +281,9 @@ async def collect(
                         ("first", displaced[(key, "first")]), ("second", displaced[(key, "second")]),
                         ("both", displaced[(key, "both")]))}
                     base = [metrics[y].whitened(untouched[f"untouched{k}"][targets[y]])[0] for k in range(4)]
-                    held[key].add(untouched=base, **read)
+                    raw = {"untouched": untouched["untouched0"][targets[y]],
+                           **{name: displaced[(key, name)][targets[y]] for name in ("first", "second", "both")}}
+                    held[key].add(untouched=base, **read, raw=raw)
             finally:
                 runtime.restore(snapshot)
                 runtime.thaw_host()

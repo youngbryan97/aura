@@ -98,11 +98,13 @@ def test_every_sample_is_kept_with_its_columns():
     rng = np.random.default_rng(14)
     for _ in range(3):
         n1, first, second, both = (rng.normal(size=2) for _ in range(4))
-        samples.add(untouched=[n1, n1, n1, n1], first=first, second=second, both=both)
+        raw = {"untouched": 10 * n1, "first": 10 * first, "second": 10 * second, "both": 10 * both}
+        samples.add(untouched=[n1, n1, n1, n1], first=first, second=second, both=both, raw=raw)
     columns = ["G.bid", "G.conj_attention_k0", "G.winner"]
     arrays = sample_arrays({"A,S->G": samples}, columns, {"G": np.array([0, 2])})
     assert arrays["AS_G.interactions"].shape == (3, 2)
     assert list(arrays["AS_G.columns"]) == ["G.bid", "G.winner"]
     assert np.allclose(arrays["AS_G.interactions"], np.stack(samples.interactions))
+    assert np.allclose(arrays["AS_G.raw_interactions"], 10 * arrays["AS_G.interactions"])
     assert np.allclose(arrays["AS_G.firsts"][0], samples.firsts[0])
     assert "PM_W.interactions" not in arrays
