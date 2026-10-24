@@ -57,3 +57,20 @@ def test_repair_claims_are_registered_as_offline_evidence():
     repairs.install_audit_repair_claims(suite)
     assert len(suite._claims) == len(repairs.CONTRACTS)
     assert all(claim.evidence is Evidence.MEASURED_SYNTHETIC for claim in suite._claims.values())
+
+
+def test_a_partial_test_selection_is_not_the_full_contract(tmp_path, monkeypatch):
+    _receipt(tmp_path, monkeypatch)
+    path = tmp_path / repairs.RECEIPT
+    record = json.loads(path.read_text())
+    record["execution"]["command"] = ["pytest", "tests/test_sqlite_memory_readiness.py::only_one"]
+    path.write_text(json.dumps(record))
+    with pytest.raises(NothingMeasured, match="full test file"):
+        repairs.repair_contract_holds("sqlite_readiness")
+
+
+def test_oversized_source_is_left_unmeasured_with_a_bounded_read(tmp_path, monkeypatch):
+    _receipt(tmp_path, monkeypatch)
+    (tmp_path / "core/memory/sqlite_storage.py").write_bytes(b"x" * (2 * 1024 * 1024 + 1))
+    with pytest.raises(NothingMeasured, match="read budget"):
+        repairs.repair_contract_holds("sqlite_readiness")

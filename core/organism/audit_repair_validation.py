@@ -37,7 +37,9 @@ CONTRACTS = {
         ("core/consciousness/causal_transition_response.py", "core/consciousness/phi_core.py")),
     "paired_controls": (
         "Paired steering checks distinguish raw-count wins from family-corrected control significance.",
-        "tests/test_fitted_controls_are_compared_as_pairs.py", ("core/evaluation/fitted_steering_evaluation.py",)),
+        "tests/test_fitted_controls_are_compared_as_pairs.py",
+        ("core/evaluation/fitted_steering_evaluation.py", "core/learning/cortex_migration_authority.py",
+         "tools/qualify_fitted_steering.py")),
 }
 
 
@@ -62,7 +64,7 @@ def repair_contract_holds(name: str) -> bool:
             raise ValueError(f"repair run did not select the full test file: {test}")
         for path in (*owners, test, "core/organism/audit_repair_validation.py"):
             expected = receipt["source_sha256"][path]
-            actual = hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
+            actual = hashlib.sha256(_bounded_bytes(ROOT / path)).hexdigest()
             if actual != expected:
                 raise ValueError(f"repair evidence source changed: {path}")
         xml = _bounded_bytes(ROOT / JUNIT)
@@ -79,7 +81,13 @@ def repair_contract_holds(name: str) -> bool:
 
 
 def install_audit_repair_claims(suite) -> None:
-    from core.organism.model_validation import Claim, Evidence, Observation, ValidationTest, boolean_score
+    from core.organism.model_validation import (
+        Claim,
+        Evidence,
+        Observation,
+        ValidationTest,
+        boolean_score,
+    )
 
     for key, (statement, test, owners) in CONTRACTS.items():
         name = f"audit_repair_{key}"

@@ -36,7 +36,7 @@ from core.evaluation.fitted_steering_evaluation import (
     replay,
     sign_test_p,
 )
-from core.learning.cortex_migration_authority import validate_component_authority
+from core.learning.cortex_migration_authority import CortexMigrationAuthorityError, validate_component_authority
 from core.learning.cortex_migration_authority_issuer import issue_steering_authority
 
 HERS = "a" * 64
@@ -157,6 +157,36 @@ def test_a_record_on_other_replies_or_an_edited_count_is_refused(tmp_path):
     with pytest.raises(FittedEvaluationError, match="verifier_invalid"):
         build_causal_evaluation(result=result, metadata=metadata, verifier_evidence=edited,
                                 verifier_evidence_sha256="e" * 64)
+
+
+def test_authority_rejects_matching_summaries_with_a_false_paired_tail(tmp_path):
+    root = tmp_path / "gen"
+    metadata = _generation(root)
+    result = _record(metadata, wins=WINS)
+    result["qualification_protocol"] = PAIRED_PROTOCOL
+    result["analysis_plan"] = paired_qualification_plan(result)
+    result["analysis_plan_sha256"] = canonical_sha256(result["analysis_plan"])
+    evidence = build_independent_verifier_evidence(
+        result=result, result_sha256="b" * 64, metadata=metadata, metadata_sha256="c" * 64, generation_dir=root)
+    evidence_path = tmp_path / "evidence.json"
+    evidence_path.write_text(json.dumps(evidence))
+    evaluation = build_causal_evaluation(
+        result=result, metadata=metadata, verifier_evidence=evidence,
+        verifier_evidence_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest())
+    # Keep all marginals and both summaries consistent, but leave the claimed
+    # small tail on discordances whose actual corrected tail does not pass.
+    for contrasts in (evaluation["paired_controls"], evidence["replay"]["paired_controls"]):
+        contrasts[MATCHED_CONTROL].update(treatment_only=16, control_only=7, both=14, neither=3)
+    evidence["verification_sha256"] = canonical_sha256({k: v for k, v in evidence.items() if k != "verification_sha256"})
+    evidence_path.write_text(json.dumps(evidence))
+    evaluation["independent_verifier"]["evidence_sha256"] = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+    evaluation["evaluation_sha256"] = canonical_sha256({k: v for k, v in evaluation.items() if k != "evaluation_sha256"})
+    evaluation_path = tmp_path / "evaluation.json"
+    evaluation_path.write_text(json.dumps(evaluation))
+    with pytest.raises(CortexMigrationAuthorityError, match="paired_control_evidence_invalid"):
+        issue_steering_authority(metadata_path=root / "metadata.json", causal_evaluation_path=evaluation_path,
+                                 independent_evidence_path=evidence_path, descriptor_sha256=HERS,
+                                 custody_base=tmp_path / "issued", issued_at=2.0)
 
 
 def test_a_new_steering_generation_replaces_only_the_steering_component(tmp_path, monkeypatch):

@@ -43,6 +43,7 @@ SIGN_TEST_LEVEL: Final = 0.05
 #: The authority refuses an evaluation on fewer samples than this.
 MIN_REPLIES: Final = 24
 PAIRED_PROTOCOL: Final = "aura.fitted_basis.paired_controls.v2"
+MAX_PAIRED_REPLIES: Final = 4096
 
 
 class FittedEvaluationError(ValueError):
@@ -172,6 +173,8 @@ def replay_control_contrasts(result: Mapping[str, Any]) -> dict[str, Any]:
     This is a post-hoc diagnostic until fixed in a new experiment's protocol;
     repeated replies and fitting custody still need independent review.
     """
+    if len(result.get("replies", ())) > MAX_PAIRED_REPLIES:
+        raise FittedEvaluationError("paired_controls_exceed_the_replay_budget")
     legacy = _replay_legacy(result)
     rows = result["replies"]
     indices = [row.get("index") for row in rows]
@@ -195,13 +198,7 @@ def replay_control_contrasts(result: Mapping[str, Any]) -> dict[str, Any]:
             "both": both, "neither": neither,
             "one_sided_exact_p": sign_test_p(treatment_only, treatment_only + control_only),
         }
-    prior = 0.0
-    ordered = sorted(contrasts, key=lambda arm: contrasts[arm]["one_sided_exact_p"])
-    for rank, arm in enumerate(ordered):
-        adjusted = min(1.0, max(prior, contrasts[arm]["one_sided_exact_p"] * (len(ordered) - rank)))
-        contrasts[arm]["holm_adjusted_p"] = adjusted
-        contrasts[arm]["rejects"] = adjusted < SIGN_TEST_LEVEL
-        prior = adjusted
+    _correct_control_family(contrasts)
     return {
         "schema": "aura.fitted_basis.paired_control_diagnostic.v1",
         "result_sha256": canonical_sha256(result),
@@ -215,6 +212,38 @@ def replay_control_contrasts(result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _correct_control_family(contrasts: dict[str, Any]) -> None:
+    prior = 0.0
+    ordered = sorted(contrasts, key=lambda arm: contrasts[arm]["one_sided_exact_p"])
+    for rank, arm in enumerate(ordered):
+        adjusted = min(1.0, max(prior, contrasts[arm]["one_sided_exact_p"] * (len(ordered) - rank)))
+        contrasts[arm]["holm_adjusted_p"] = adjusted
+        contrasts[arm]["rejects"] = adjusted < SIGN_TEST_LEVEL
+        prior = adjusted
+
+
+def paired_summary_qualifies(contrasts: Any, samples: int, treatment: int, controls: Mapping[str, int]) -> bool:
+    """Recompute the authority's paired tails, correction and marginal counts."""
+    if (type(samples) is not int or not MIN_REPLIES <= samples <= MAX_PAIRED_REPLIES
+            or not isinstance(contrasts, Mapping) or set(contrasts) != {MATCHED_CONTROL, *LESIONS}):
+        return False
+    expected = {}
+    for arm, row in contrasts.items():
+        if not isinstance(row, Mapping):
+            return False
+        keys = ("treatment_only", "control_only", "both", "neither")
+        counts = {key: row.get(key) for key in keys}
+        if any(type(value) is not int or value < 0 for value in counts.values()):
+            return False
+        if (sum(counts.values()) != samples or counts["treatment_only"] + counts["both"] != treatment
+                or counts["control_only"] + counts["both"] != controls.get(arm)):
+            return False
+        expected[arm] = {**counts, "one_sided_exact_p": sign_test_p(
+            counts["treatment_only"], counts["treatment_only"] + counts["control_only"])}
+    _correct_control_family(expected)
+    return contrasts == expected and all(row.get("rejects") is True for row in contrasts.values())
+
+
 def paired_qualification_plan(identity: Mapping[str, Any]) -> dict[str, Any]:
     """Freeze the analysis and input identity before a new producer scores replies.
 
@@ -226,6 +255,7 @@ def paired_qualification_plan(identity: Mapping[str, Any]) -> dict[str, Any]:
         "inputs": {key: identity[key] for key in (
             "model_descriptor_sha256", "generation_sha256", "held_out_replies_sha256", "alpha", "seed")},
         "min_replies": MIN_REPLIES,
+        "max_replies": MAX_PAIRED_REPLIES,
         "alpha": SIGN_TEST_LEVEL,
         "test": "one_sided_exact_binomial_on_discordant_paired_binary_wins",
         "family": [MATCHED_CONTROL, *LESIONS],
@@ -247,8 +277,8 @@ def replay(result: Mapping[str, Any]) -> dict[str, Any]:
             raise FittedEvaluationError("fitted_analysis_plan_mismatch")
     except (KeyError, TypeError) as exc:
         raise FittedEvaluationError("fitted_analysis_plan_invalid") from exc
-    legacy = _replay_legacy(result)
     paired = replay_control_contrasts(result)
+    legacy = _replay_legacy(result)
     unmet = list(legacy["unmet_requirements"])
     if not paired["all_control_contrasts_significant"]:
         unmet.append("paired_control_superiority_not_established")
@@ -284,6 +314,8 @@ def build_independent_verifier_evidence(
         "replay": replayed,
         "verified": bool(replayed["causal_effect_positive"] and replayed["no_regression"]),
     }
+    if result.get("qualification_protocol") == PAIRED_PROTOCOL:
+        body["analysis_plan_sha256"] = result["analysis_plan_sha256"]
     return {**body, "verification_sha256": canonical_sha256(body)}
 
 
@@ -351,5 +383,6 @@ __all__ = [
     "replay",
     "replay_control_contrasts",
     "paired_qualification_plan",
+    "paired_summary_qualifies",
     "sign_test_p",
 ]

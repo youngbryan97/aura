@@ -3,11 +3,20 @@ from __future__ import annotations
 
 import pytest
 
-from core.evaluation.fitted_steering_evaluation import (
-    ARMS, LESIONS, MATCHED_CONTROL, RESULT_SCHEMA, TREATMENT,
-    PAIRED_PROTOCOL, FittedEvaluationError, paired_qualification_plan, replay, replay_control_contrasts,
-)
 from core.evaluation.caa_causal_evaluation import canonical_sha256
+from core.evaluation.fitted_steering_evaluation import (
+    ARMS,
+    LESIONS,
+    MATCHED_CONTROL,
+    PAIRED_PROTOCOL,
+    RESULT_SCHEMA,
+    TREATMENT,
+    FittedEvaluationError,
+    paired_qualification_plan,
+    paired_summary_qualifies,
+    replay,
+    replay_control_contrasts,
+)
 
 
 def _record(treatment, random, shuffled, count):
@@ -94,3 +103,16 @@ def test_unknown_protocol_cannot_fall_back_to_legacy():
     record["qualification_protocol"] = "unknown"
     with pytest.raises(FittedEvaluationError, match="protocol_unknown"):
         replay(record)
+
+
+def test_authority_recomputes_paired_tails_and_checks_shared_marginals():
+    record = _record(set(range(36)), set(range(12)), set(range(10)), 40)
+    contrasts = replay_control_contrasts(record)["contrasts"]
+    controls = {MATCHED_CONTROL: 12, LESIONS[0]: 0, LESIONS[1]: 10}
+    assert paired_summary_qualifies(contrasts, 40, 36, controls)
+    contrasts[MATCHED_CONTROL]["one_sided_exact_p"] = 0.0
+    assert not paired_summary_qualifies(contrasts, 40, 36, controls)
+    assert not paired_summary_qualifies({}, 10**100, 1, controls)
+    contrasts = replay_control_contrasts(record)["contrasts"]
+    contrasts[MATCHED_CONTROL]["both"] += 1
+    assert not paired_summary_qualifies(contrasts, 40, 36, controls)

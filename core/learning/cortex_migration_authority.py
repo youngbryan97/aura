@@ -272,6 +272,13 @@ def _validate_steering(
         "independent_verifier",
         "evaluation_sha256",
     }
+    protocol = evaluation.get("qualification_protocol")
+    if protocol is not None:
+        from core.evaluation.fitted_steering_evaluation import PAIRED_PROTOCOL
+
+        if protocol != PAIRED_PROTOCOL or evaluation.get("schema") != FITTED_EVALUATION_SCHEMA:
+            _fail("steering_qualification_protocol_invalid")
+        required_evaluation |= {"qualification_protocol", "analysis_plan_sha256", "paired_controls"}
     material = dict(evaluation)
     claimed_evaluation = material.pop("evaluation_sha256", None)
     sample_count = evaluation.get("sample_count")
@@ -315,6 +322,21 @@ def _validate_steering(
         or claimed_evaluation != _sha(material)
     ):
         _fail("steering_causal_evaluation_invalid")
+    if protocol is not None:
+        from core.evaluation.fitted_steering_evaluation import paired_summary_qualifies
+
+        independent = _strict_json(evidence["independent_verifier"], role="independent_verifier")
+        replayed = independent.get("replay")
+        if (
+            not _is_sha(evaluation.get("analysis_plan_sha256"))
+            or independent.get("analysis_plan_sha256") != evaluation["analysis_plan_sha256"]
+            or not isinstance(replayed, Mapping)
+            or replayed.get("qualification_protocol") != protocol
+            or replayed.get("paired_controls") != evaluation["paired_controls"]
+            or not paired_summary_qualifies(evaluation["paired_controls"], sample_count, treatment_successes,
+                                           {"random_directions": matched_control_successes, **lesion_successes})
+        ):
+            _fail("steering_paired_control_evidence_invalid")
 
 
 def _validate_expert_retirement(

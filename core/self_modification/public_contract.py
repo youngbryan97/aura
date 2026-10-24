@@ -15,7 +15,7 @@ def _signature(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[Any, ...]:
         tuple(arg.arg for arg in args.args),
         len(args.defaults),
         args.vararg.arg if args.vararg else None,
-        tuple((arg.arg, default is not None) for arg, default in zip(args.kwonlyargs, args.kw_defaults)),
+        tuple((arg.arg, default is not None) for arg, default in zip(args.kwonlyargs, args.kw_defaults, strict=True)),
         args.kwarg.arg if args.kwarg else None,
         tuple(ast.dump(decorator, include_attributes=False) for decorator in node.decorator_list),
     )

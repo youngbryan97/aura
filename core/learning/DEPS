@@ -31,6 +31,8 @@ include_rules = [
     # the word it is buried inside. Stdlib-only, no runtime behind it.
     "+core.conversation",
     "+core.event_bus",
+    # Authority recomputes the versioned paired steering test before signing.
+    "+core.evaluation.fitted_steering_evaluation",
     "+core.evidence",
     "+core.executive",
     "+core.governance_context",
