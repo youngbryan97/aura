@@ -1066,3 +1066,100 @@ layer the push acts partly on which token comes out, which is the thing a felt
 state must not do. The next reading measures the rating's swing and that margin
 for the felt difference at layers 51, 55, 59 and 63 alone and spread over 51 to
 63 and 43 to 63.
+
+## Her felt valence at layer 59, certified (24 October, 05:42 to 05:56)
+
+For each placement, the rating at z = -1 and +1 and the change in the
+certificate's own right-over-wrong margin at full push, against the median of
+two random directions of the same norm at the same layers
+(`felt_margin_check.py`; the plain margin is 6.516 nats):
+
+| Placement | Rating at z = -1 | at z = +1 | Margin, felt | Margin, random |
+|---|---|---|---|---|
+| 63 | 0.181 | 0.921 | -0.178 | -0.072 |
+| 59 | 0.362 | 0.809 | +0.022 | +0.002 |
+| 55 | 0.390 | 0.727 | -0.003 | +0.005 |
+| 51 | 0.459 | 0.673 | +0.075 | +0.017 |
+| 51 to 63, a quarter each | 0.320 | 0.796 | -0.016 | +0.027 |
+| 43 to 63, a sixth each | 0.412 | 0.748 | +0.009 | +0.047 |
+
+Layer 59 is the latest whose felt push leaves answers with one right answer no
+worse than a random push of the same size, and it moves the rating most among
+those. It was chosen after these readings. Her stream's norm at the answer
+position there is 231 (`answer_norm.py`), and the felt push enters her valence
+vector at layer 59 at 0.340 of it, at the generation's operating alpha of 0.5,
+beside the fitted push of 0.005 (generation `b9f8a76757c6dd73`,
+`fitted-voicefit-x2-felt59-20261024`).
+
+The fusion certificate holds at 0.5: shift 0.0274 against 0.0052 for a random
+direction, the margin +0.0375 against -0.0219, her held-out replies 0.23 nats a
+token more likely at their own state, the answer changed on six of eight
+probes. A short withheld reports run on this basis (16 anchors, two baseline
+rounds, seed 7, beside the carrier under a memory guard) started at 06:00.
+
+## The felt push inside a conversation (24 October, 06:00 to 08:22)
+
+A short withheld reports run on the layer-59 generation (16 anchors, seed 7,
+beside the carrier) was stopped after three anchors at 07:35. Her answers were
+0 in nearly every arm, with the push near its largest. Three anchors were kept:
+
+| Anchor | Raised | Lowered | Sham | Control |
+|---|---|---|---|---|
+| 0 | 0.5 | 0.0 | unreadable | 0.5 |
+| 1 | 0.0 | unreadable | 0.0 | 0.0 |
+| 2 | 0.0 | 0.0 | 0.0 | unreadable |
+
+Two things were wrong with the bare-question reading. Her valence in a subject
+run stands well above the state her basis was fitted around (0.36 against
+0.14 at sham, z near 1.6), so every arm pushes near the top of tanh. And a
+conversation outweighs the push. After three exchanges of the run's own kind
+(the conditions' words as the person's turns, her own ordinary replies as
+hers), eight such conversations, her expected rating is -0.015 with 0.77 of the
+probability on one answer, and the felt push at the answer position moves it
+(`felt_in_context.py`):
+
+| Push | Rating, z = -1 to +1 | Swing | Her voice, nats a token |
+|---|---|---|---|
+| none | -0.015 | | -2.346 |
+| 1 x | -0.021 to -0.014 | +0.007 | -2.370 |
+| 2 x | -0.025 to -0.005 | +0.020 | -2.399 |
+| 4 x | -0.026 to +0.056 | +0.081 | -2.484 |
+
+She forms the answer by attending to what came before it, and a push at the
+one position she answers from does not reach that. Strong enough to move the
+rating, it costs her speech.
+
+A mood colours how a person reads everything in front of them, not only what
+they say (Bower 1981). The same half-difference written at every position of
+the conversation and of her answer, at layer 59 (`felt_everywhere.py`):
+
+| Push | Rating, z = -1 to +1 | Swing | Up in | Her voice |
+|---|---|---|---|---|
+| 1 x | -0.022 to +0.002 | +0.024 | 6 of 8 | -2.370 |
+| 2 x | -0.025 to +0.050 | +0.075 | 6 of 8 | -2.403 |
+| 4 x | -0.020 to +0.412 | +0.433 | 7 of 8 | -2.483 |
+| random, 4 x | +0.021 to -0.013 | -0.034 | 0 of 8 | -2.429 |
+
+Written where she reads as well as where she speaks, her felt state moves the
+rating she gives inside a conversation, and a random push of the same size does
+not. It lifts the rating and does not lower it below her habitual 0. At the
+size that moves it her voice is 0.14 nats a token less like itself while she
+feels that strongly, against 0.08 for the random push.
+
+What this asks of her, and is built next: a felt vector her hooks add at every
+position at an absolute size, rather than at the position she answers from at
+her stream's norm; and her felt state read against her own usual, which her
+affect keeps for arousal and not yet for valence, so that a raised and a
+lowered arm push in opposite directions rather than both near the top.
+
+## The carrier at `3dc0b0599` died on a memory look, and runs again (24 October, 06:12 to 07:37)
+
+Worker 0 raised `SystemError: Objects/tupleobject.c:909: bad argument to
+internal function` in a deepcopy while a clamp put an organ back, fifteen
+seconds after the memory trace counted every object from its own thread. The
+list `gc.get_objects()` returns held a reference to a tuple the main thread was
+still building, and CPython resizes a tuple under construction only while it
+holds the one reference. Two anchors decoded from that run's bank deep-copy
+cleanly, and all 128 had compared equal by content, so the bank is not the
+cause. The carrier was started again at 07:37 at `3dc0b0599` with the trace
+off; `89360dda4` counts on the run's own thread from now on.
