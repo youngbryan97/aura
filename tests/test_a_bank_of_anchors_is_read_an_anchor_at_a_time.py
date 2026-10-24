@@ -147,3 +147,24 @@ def test_a_process_keeps_as_many_anchors_as_a_cuts_second_look_draws():
     assert tool._anchors_kept({"looks": [8, 16, 32, 64, 96, 128]}, 6, 128) == 16
     assert tool._anchors_kept({"looks": [8, 16, 32]}, 3, 10) == 10
     assert tool._anchors_kept({"looks": [8]}, 1, 128) == 8
+
+
+def test_an_array_large_enough_to_travel_as_a_buffer_is_written_and_restored(tmp_path):
+    """Protocol 5 hands a large array to the writer as a PickleBuffer, which has no length.
+
+    The bank of 23 October failed on exactly that, its first real snapshot, on 24 October.
+    """
+    large = _Module(np.arange(1_000_000.0))
+    rng = np.random.default_rng(1)
+    anchors = [
+        _Anchor(
+            _Snapshot(module_state={"pkg.mod:_instance": (large, {"count": index})}, organs={"mesh": {"w": np.ones(200_000)}}),
+            rng.normal(size=4), rng.normal(size=8), "condition_0",
+        )
+        for index in range(2)
+    ]
+    path = tmp_path / "bank.bin"
+    assert write_anchor_bank(path, anchors=anchors, extra="x") > 0
+    restored = AnchorBank(path, keep=2).anchors()[1].snapshot
+    assert np.array_equal(restored.organs["mesh"]["w"], np.ones(200_000))
+    assert np.array_equal(restored.module_state["pkg.mod:_instance"][0].weights, np.arange(1_000_000.0))

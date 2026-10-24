@@ -43,7 +43,10 @@ _ATOMIC = (str, bytes, int, float, bool, complex, type(None))
 
 class _Discard:
     def write(self, data: Any) -> int:
-        return len(data)
+        # Protocol 5 hands a large buffer over as a PickleBuffer, which has no
+        # length; every bytes-like thing has a size in a memoryview. The bank
+        # of 23 October failed here on its first real snapshot (24 October).
+        return memoryview(data).nbytes
 
 
 class _Tracker(_Writer):
