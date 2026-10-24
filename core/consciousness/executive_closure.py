@@ -252,7 +252,16 @@ class ExecutiveClosureEngine:
         # Hysteresis override: keep committed objective stable.
         if commitment and not interrupt_reason:
             selected_objective = commitment.objective
-            state.cognition.current_objective = commitment.objective
+            # The commitment holds the task against her own noise, not against
+            # the person. When they have just said something that is not a
+            # task, the turn answers them and the task waits behind it. This
+            # wrote the task over their words: on 23 October, asked "How are you
+            # feeling right now?" after an earlier "Write today's plan into
+            # notes.txt.", twenty of her answers were a refusal of a file write.
+            if foreground_chat_active:
+                background_commitment = background_commitment or commitment.objective
+            else:
+                state.cognition.current_objective = commitment.objective
             state.cognition.modifiers["executive_hysteresis"] = {
                 "active": True,
                 "committed_objective": commitment.objective,

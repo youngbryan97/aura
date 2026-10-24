@@ -465,3 +465,30 @@ async def test_a_recollection_that_wins_attention_is_not_taken_as_her_objective(
         state, dominant_need="curiosity", need_pressure=0.9, workspace_snapshot=intended,
     )
     assert chosen == "Walk along the river with Bryan"
+
+
+@pytest.mark.asyncio
+async def test_a_held_task_does_not_answer_for_what_the_person_has_just_asked(service_container):
+    """Hysteresis holds the task against her noise; the person's new question is still the turn's."""
+    import time as _time
+
+    from core.consciousness.executive_closure import ObjectiveCommitment
+
+    task = "Write today's plan into notes.txt."
+    question = "How are you feeling right now, from -1 (very bad) to 1 (very good)?"
+    engine = ExecutiveClosureEngine()
+    now = _time.time()
+    engine._commitment = ObjectiveCommitment(
+        objective=task, origin="user", started_at=now, last_confirmed_at=now,
+        min_hold_s=600.0, max_hold_s=1200.0,
+    )
+    state = AuraState()
+    state.loop_cycle = 24
+    state.cognition.current_objective = question
+    state.cognition.current_origin = "user"
+
+    result = await engine.integrate(state)
+
+    assert result.cognition.current_objective == question
+    assert result.cognition.modifiers["executive_background_commitment"] == task
+    assert engine._commitment is not None and engine._commitment.objective == task
