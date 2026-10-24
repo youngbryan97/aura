@@ -323,7 +323,10 @@ def _validate_steering(
     ):
         _fail("steering_causal_evaluation_invalid")
     if protocol is not None:
-        from core.evaluation.fitted_steering_evaluation import VERIFIER_SCHEMA, paired_summary_qualifies
+        from core.evaluation.fitted_steering_evaluation import (
+            VERIFIER_SCHEMA,
+            paired_summary_qualifies,
+        )
 
         independent = _strict_json(evidence["independent_verifier"], role="independent_verifier")
         replayed = independent.get("replay")

@@ -9,8 +9,8 @@ from pathlib import Path
 from core.organism.nothing_measured import NothingMeasured
 
 ROOT = Path(__file__).resolve().parents[2]
-RECEIPT = "docs/evidence/audit-repairs-2026-10-23.json"
-JUNIT = "docs/evidence/audit-repairs-2026-10-23.xml"
+RECEIPT = "docs/evidence/audit-repairs-2026-10-23-r2.json"
+JUNIT = "docs/evidence/audit-repairs-2026-10-23-r2.xml"
 CONTRACTS = {
     "sqlite_readiness": (
         "SQLite regression checks retain concurrent first-use writes and reject synchronous entry on an event loop.",
