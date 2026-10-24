@@ -55,6 +55,7 @@ logger = logging.getLogger("Aura.SteeringChannel")
 
 __all__ = [
     "CHANNEL_LENGTH",
+    "FELT_SLOT",
     "activation_state",
     "create_channel",
     "governor_inputs",
@@ -71,6 +72,12 @@ CHANNEL_LENGTH = 16
 #: steering library's arousal dimension both say 1; a test holds the two together.
 AROUSAL_SLOT = 1
 
+#: Where her felt valence is published: how far her valence stands from her own
+#: usual, in its spread, through tanh, as an activation (1 + felt) / 2. A slot
+#: that carried a substrate neuron no hook read. A felt vector reads it
+#: (`SteeringVector.everywhere_slot`).
+FELT_SLOT = 14
+
 #: The service names the worker's sync thread looked her substrate up by when
 #: it ran in-process, in its order.
 _SUBSTRATE_SERVICES = ("liquid_substrate", "conscious_substrate", "liquid_state")
@@ -79,7 +86,7 @@ _SUBSTRATE_SERVICES = ("liquid_substrate", "conscious_substrate", "liquid_state"
 _FELT: dict[str, float] = {}
 
 
-def note_felt(valence: float, arousal: float) -> None:
+def note_felt(valence: float, arousal: float, *, felt: float | None = None) -> None:
     """Her affect phase says how she feels; the hooks steer by this.
 
     The substrate's valence neuron is one term of her felt state and not the
@@ -94,10 +101,14 @@ def note_felt(valence: float, arousal: float) -> None:
     spread of three tenths.
 
     Fused valence and arousal replace those two dimensions. Every other neuron
-    is published as it is; no hook reads them as anything else.
+    is published as it is; no hook reads them as anything else. `felt` is her
+    valence against her own usual (`affect_update.VALENCE_FELT`), published at
+    FELT_SLOT when given.
     """
     try:
         _FELT.update(valence=float(valence), arousal=float(arousal))
+        if felt is not None:
+            _FELT["felt"] = float(felt)
     except (TypeError, ValueError) as exc:
         logger.debug("A felt state that is not two numbers cannot steer: %s", exc)
 
@@ -169,6 +180,8 @@ def activation_state(substrate: Any) -> np.ndarray | None:
         index = getattr(substrate, name, None)
         if isinstance(index, int) and 0 <= index < x.size:
             state[index] = np.clip(x[index], 0.0, 1.0)
+    if felt is not None and "felt" in felt and FELT_SLOT < x.size:
+        state[FELT_SLOT] = np.clip((1.0 + felt["felt"]) / 2.0, 0.0, 1.0)
     return state
 
 

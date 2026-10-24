@@ -144,6 +144,8 @@ class _ReadsACachedVector:
                 value = data[key]
                 if getattr(value, "shape", ()) == ():
                     meta[key] = value.item()
+                elif key == "everywhere":
+                    meta[key] = np.asarray(value)
             return vector, meta
 
     def _load_cached_vector(
@@ -178,6 +180,11 @@ class _ReadsACachedVector:
             )
         source = str(meta.get("source", self._source))
         extracted = bool(meta.get("extracted", source.startswith("extracted")))
+        everywhere = meta.get("everywhere")
+        if everywhere is not None:
+            everywhere = np.asarray(everywhere, dtype=np.float32).reshape(-1)
+            if everywhere.shape[0] != d_model or not np.isfinite(everywhere).all():
+                raise ValueError(f"vector {path.name} carries an everywhere push that cannot steer")
         return SteeringVector(
             key=key,
             layer_idx=requested_layer,
@@ -197,7 +204,15 @@ class _ReadsACachedVector:
             reference=_optional_float(meta.get("reference")),
             spread=_optional_float(meta.get("spread")),
             push=_optional_float(meta.get("push")),
+            everywhere=everywhere,
+            everywhere_slot=None if everywhere is None else int(meta.get("everywhere_slot", _felt_slot())),
         )
+
+
+def _felt_slot() -> int:
+    from core.consciousness.steering_channel import FELT_SLOT
+
+    return FELT_SLOT
 
 
 def _optional_float(value: Any) -> float | None:

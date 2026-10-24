@@ -189,8 +189,26 @@ _MOOD_REST: dict[str, float] = dict(AffectVector().mood_baselines)
 
 #: Where her arousal's usual level and spread are kept, in `affect.markers`.
 AROUSAL_USUAL: str = "arousal_usual"
+#: And her valence's, and how far this turn's valence stands from it in its
+#: own spread, through tanh: what she feels, read against what she is used to.
+VALENCE_USUAL: str = "valence_usual"
+VALENCE_FELT: str = "valence_felt"
 #: The window her ledgers share: a rate of 1 / min(n, window).
 _USUAL_WINDOW: int = 256
+
+
+def _keep_usual(markers: dict, name: str, value: float) -> tuple[int, float, float]:
+    """Note a value into its running usual in `markers`; return the usual as it stood before."""
+    usual = markers.get(name)
+    usual = dict(usual) if isinstance(usual, dict) else {"n": 0, "level": 0.0, "spread": 0.0}
+    seen = int(usual.get("n", 0) or 0)
+    level = float(usual.get("level", 0.0) or 0.0)
+    spread = float(usual.get("spread", 0.0) or 0.0)
+    rate = 1.0 / min(seen + 1, _USUAL_WINDOW)
+    gap = float(value) - level
+    markers[name] = {"n": seen + 1, "level": level + rate * gap, "spread": spread + rate * (abs(gap) - spread)}
+    return seen, level, spread
+
 
 #: The momentum the last decay ran with; the settling certificate reads it.
 _momentum_seen = [AffectVector().momentum]
@@ -541,6 +559,7 @@ class AffectUpdatePhase(Phase):
             # felt.
             self._blend_substrate_into_affect(ls, affect, state)
         self._carry_arousal(affect, held)
+        self._feel_against_usual(affect)
 
         # 6e. And into her chemistry, which is where a feeling lasts. The
         # substrate push above decays within the turn: the consciousness
@@ -579,15 +598,27 @@ class AffectUpdatePhase(Phase):
         # (core/agency/marked.py `how_stirred`).
         markers = affect.markers if isinstance(affect.markers, dict) else None
         if markers is not None:
-            usual = markers.get(AROUSAL_USUAL)
-            usual = dict(usual) if isinstance(usual, dict) else {"n": 0, "level": 0.0, "spread": 0.0}
-            seen = int(usual.get("n", 0) or 0) + 1
-            rate = 1.0 / min(seen, _USUAL_WINDOW)
-            gap = affect.arousal - float(usual.get("level", 0.0) or 0.0)
-            usual["n"] = seen
-            usual["level"] = float(usual.get("level", 0.0) or 0.0) + rate * gap
-            usual["spread"] = float(usual.get("spread", 0.0) or 0.0) + rate * (abs(gap) - float(usual.get("spread", 0.0) or 0.0))
-            markers[AROUSAL_USUAL] = usual
+            _keep_usual(markers, AROUSAL_USUAL, affect.arousal)
+
+    @staticmethod
+    def _feel_against_usual(affect: AffectVector) -> None:
+        """How far her valence stands from where it usually sits, in its usual spread: what she feels.
+
+        A feeling is felt against what one is used to (Helson's adaptation
+        level; hedonic adaptation). Her cortex was steered by her valence
+        against a fixed state her basis was fitted around, and in a subject run
+        her valence sits well above it, so feeling better and feeling worse
+        both pushed near the top (24 October). Read against her own usual, a
+        raised and a lowered feeling push opposite ways. The usual is the one
+        before this turn, so a change is felt in full on the turn it comes.
+        """
+        markers = affect.markers if isinstance(affect.markers, dict) else None
+        if markers is None:
+            return
+        seen, level, spread = _keep_usual(markers, VALENCE_USUAL, affect.valence)
+        markers[VALENCE_FELT] = (
+            float(math.tanh((float(affect.valence) - level) / spread)) if seen and spread > 0.0 else 0.0
+        )
 
     def _mark_phase_degraded(self, state: AuraState, stage: str, exc: BaseException) -> None:
         modifiers = dict(getattr(state.cognition, "modifiers", {}) or {})
@@ -882,7 +913,8 @@ class AffectUpdatePhase(Phase):
             state.response_modifiers["emotion_releasing"] = str(engine.current_emotion)
             # And the hooks in her cortex steer by how she feels, which is this
             # fused reading and not the one neuron that is a term of it.
-            note_felt(float(affect.valence), float(affect.arousal))
+            markers = affect.markers if isinstance(affect.markers, dict) else {}
+            note_felt(float(affect.valence), float(affect.arousal), felt=markers.get(VALENCE_FELT))
             state.response_modifiers["felt_state_steering_valence"] = round(float(affect.valence), 6)
         except _AFFECT_UPDATE_ERRORS as exc:
             self._record_phase_degradation(

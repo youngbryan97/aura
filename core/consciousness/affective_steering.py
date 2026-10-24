@@ -412,6 +412,14 @@ class SteeringVector:
     reference: float | None = None
     spread: float | None = None
     push: float | None = None
+    #: Her felt state written where she reads as well as where she speaks: a
+    #: vector at its own length, added at every position of every pass, by the
+    #: signed weight of the channel slot it reads (`steering_channel.FELT_SLOT`)
+    #: times alpha. A mood colours how everything in front of her is read
+    #: (Bower 1981), and on 24 October only a push at every position moved the
+    #: rating she gives inside a conversation. Absent, nothing changes.
+    everywhere: np.ndarray | None = None
+    everywhere_slot: int | None = None
 
     # [OPTIMIZATION] MLX-native version for zero-copy/fast path
     _v_mx: Any = field(default=None, init=False, repr=False)
@@ -990,6 +998,13 @@ class AffectiveSteeringHook:
                 value = getattr(vector, name_of_fit, None)
                 if value is not None:
                     entry[name_of_fit] = float(value)
+            # And what it writes everywhere, which a certificate earned
+            # without it says nothing about.
+            if vector.everywhere is not None:
+                entry["everywhere_sha256"] = hashlib.sha256(
+                    np.asarray(vector.everywhere, dtype="<f4").tobytes()
+                ).hexdigest()
+                entry["everywhere_slot"] = int(vector.everywhere_slot or 0)
             vectors.append(entry)
         if not vectors:
             raise ValueError("fusion_basis_vectors_missing")
@@ -1033,6 +1048,11 @@ class AffectiveSteeringHook:
         # [OPTIMIZATION] Cached composite vector to avoid redundant MLX uploads
         self._cached_composite_mx: Any = None
         self._last_composite_np: np.ndarray | None = None
+        # Her felt state at every position (`SteeringVector.everywhere`), kept
+        # the way the composite is; stood down while an ablation pins it.
+        self._cached_felt_mx: Any = None
+        self._last_felt_np: np.ndarray | None = None
+        self._felt_suspended = False
         self._cached_substrate_hash: int = 0
 
     # Hard ceiling on runtime injection strength. The governor already clips
@@ -1128,6 +1148,11 @@ class AffectiveSteeringHook:
         x[3] = float(latest.get("stress", 0.0))
         x[4] = float(latest.get("motivation", 0.0))
         x[5] = float(latest.get("energy", 0.0))
+        # A mood given as levels has no usual to be read against, so its
+        # valence level is its felt state (steering_channel.FELT_SLOT).
+        from core.consciousness.steering_channel import FELT_SLOT
+
+        x[FELT_SLOT] = float(latest.get("felt", latest.get("valence", 0.5)))
         return x
 
     def update_substrate(self, moods: dict[str, float]):
@@ -1260,6 +1285,46 @@ class AffectiveSteeringHook:
                 self._last_composite_np = composite_np.copy()
                 self._cached_composite_mx = None
 
+            felt_target = None if self._felt_suspended else self._felt_everywhere(state)
+            if felt_target is None:
+                self._last_felt_np = None
+                self._cached_felt_mx = None
+            else:
+                felt_np = (
+                    felt_target if self._last_felt_np is None
+                    else momentum * self._last_felt_np + (1.0 - momentum) * felt_target
+                )
+                if np.isfinite(felt_np).all():
+                    self._last_felt_np = felt_np.astype(np.float32)
+                else:
+                    self._last_felt_np = None
+                self._cached_felt_mx = None
+
+    def _felt_everywhere(self, state: np.ndarray) -> np.ndarray | None:
+        """What her felt state writes at every position, before alpha, or None when no vector writes there."""
+        from core.consciousness.mood_weight import signed_weight
+
+        out = None
+        for sv in self._vectors.values():
+            if sv.everywhere is None or sv.everywhere_slot is None or not 0 <= sv.everywhere_slot < state.size:
+                continue
+            weight = signed_weight(float(state[sv.everywhere_slot]), "linear_half")
+            push = np.asarray(sv.everywhere, dtype=np.float32) * np.float32(weight)
+            out = push if out is None else out + push
+        return out
+
+    def felt_everywhere_mx(self, dtype=None) -> Any | None:
+        """The felt push as an MLX array, made on the generation thread from what the sync computed."""
+        import mlx.core as mx
+
+        with self._substrate_lock:
+            if self._cached_felt_mx is None and self._last_felt_np is not None:
+                self._cached_felt_mx = mx.array(self._last_felt_np)
+            felt = self._cached_felt_mx
+            if felt is not None and dtype is not None and felt.dtype != dtype:
+                return mx.astype(felt, dtype)
+            return felt
+
     def current_composite_vector(self) -> Any | None:
         """The real composite as numpy, or None when steering stood down.
 
@@ -1318,7 +1383,12 @@ class AffectiveSteeringHook:
             if vector is None:
                 self._last_composite_np = None
                 self._cached_composite_mx = None
+                self._felt_suspended = False
                 return
+            # A counterfactual vector is the whole of what is injected.
+            self._felt_suspended = True
+            self._last_felt_np = None
+            self._cached_felt_mx = None
             array = np.asarray(vector, dtype=np.float32)
             self._last_composite_np = array.copy()
             try:
@@ -1533,6 +1603,13 @@ class AffectiveSteeringHook:
                             # injection is not, so this swallows deliberately
                             # and leaves the previous reading in place.
                             hook._last_injection_norm = None
+
+                # Her felt state where she reads as well as where she speaks:
+                # every position of the pass, prompt included, at its own
+                # length times alpha (`SteeringVector.everywhere`).
+                felt = hook.felt_everywhere_mx(dtype=h.dtype) if effective_alpha > 0.0 else None
+                if felt is not None:
+                    h = h + (effective_alpha * felt).astype(h.dtype)
 
                 # φ's ACTIVATION GROUNDING USED TO DEPEND ON STEERING FIRING.
                 # This sample sat inside `if composite is not None`, so whenever
