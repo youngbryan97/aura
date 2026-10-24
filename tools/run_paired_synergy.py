@@ -23,6 +23,8 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
@@ -48,7 +50,7 @@ async def main() -> int:
         quiesce_organism,
         start_organism,
     )
-    from core.subject.interventional_synergy import collect, line, summarise, target_columns
+    from core.subject.interventional_synergy import collect, line, sample_arrays, summarise, target_columns
     from core.subject.isolation import isolate_state, state_leaks
     from core.subject.paired_displacement import displacement_metric
     from core.subject.provenance import environment, next_run_directory
@@ -97,6 +99,11 @@ async def main() -> int:
     evidence["line"] = line(evidence["triples"])
     out = run_dir / "paired_synergy.json"
     out.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+    # Every snapshot's vectors and the target columns they are in, so a triple
+    # that fails can be read column by column.
+    np.savez_compressed(
+        run_dir / "paired_synergy_samples.npz", **sample_arrays(held, list(recording.columns), targets)
+    )
     for key, row in evidence["triples"].items():
         print(f"  {key:10s} interaction {row['interaction']:.4f} sham {row['sham']:.4f} "
               f"fraction {row['fraction']:.3f} p {row['p_above_sham']:.4f} "

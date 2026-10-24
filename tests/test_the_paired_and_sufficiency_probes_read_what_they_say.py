@@ -31,7 +31,7 @@ def test_the_paired_probe_scores_by_the_v6_bars_and_keeps_no_arithmetic_of_its_o
     paired = _tool("run_paired_synergy")
     assert not hasattr(paired, "summarise") and not hasattr(paired, "sign_flip_p")
     source = (REPO / "tools" / "run_paired_synergy.py").read_text()
-    assert "from core.subject.interventional_synergy import collect, line, summarise, target_columns" in source
+    assert "from core.subject.interventional_synergy import collect, line, sample_arrays, summarise, target_columns" in source
 
 
 def test_a_hidden_direction_leaves_all_eight_numbers_where_they_were():

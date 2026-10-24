@@ -35,6 +35,7 @@ __all__ = [
     "collect",
     "direction_p",
     "line",
+    "sample_arrays",
     "sign_flip_p",
     "summarise",
     "target_columns",
@@ -55,6 +56,10 @@ class Samples:
     interactions: list[np.ndarray] = field(default_factory=list)
     shams: list[np.ndarray] = field(default_factory=list)
     mains: list[float] = field(default_factory=list)
+    #: Each source's own effect, F - N1 and S - N1, kept so a failed triple can
+    #: be read column by column rather than through its three numbers.
+    firsts: list[np.ndarray] = field(default_factory=list)
+    seconds: list[np.ndarray] = field(default_factory=list)
 
     def add(self, *, untouched: Sequence[np.ndarray], first: np.ndarray, second: np.ndarray,
             both: np.ndarray) -> None:
@@ -62,6 +67,21 @@ class Samples:
         self.interactions.append(np.asarray(both - first - second, dtype=np.float64) + n1)
         self.shams.append(n2 - n3 - n4 + n1)
         self.mains.append(max(float(np.linalg.norm(first - n1)), float(np.linalg.norm(second - n1))))
+        self.firsts.append(np.asarray(first, dtype=np.float64) - n1)
+        self.seconds.append(np.asarray(second, dtype=np.float64) - n1)
+
+    def arrays(self) -> dict[str, np.ndarray]:
+        """The samples as arrays, one row per snapshot."""
+        def stacked(rows: list[Any]) -> np.ndarray:
+            return np.stack(rows) if rows else np.zeros((0,))
+
+        return {
+            "interactions": stacked(self.interactions),
+            "shams": stacked(self.shams),
+            "mains": np.asarray(self.mains, dtype=np.float64),
+            "firsts": stacked(self.firsts),
+            "seconds": stacked(self.seconds),
+        }
 
 
 def sign_flip_p(values: Iterable[float], *, seed: int, draws: int = DRAWS) -> float:
@@ -126,6 +146,25 @@ def summarise(samples: Samples, *, seed: int, draws: int = DRAWS) -> dict[str, A
     }
     out["passes"] = bool(n >= 3 and all(out["bars"].values()))
     return out
+
+
+def sample_arrays(held: Mapping[str, Samples], columns: Sequence[str],
+                  targets: Mapping[str, np.ndarray]) -> dict[str, np.ndarray]:
+    """Every triple's samples and its target's column names, keyed for one `.npz`.
+
+    ``columns`` are the recording's, and ``targets`` each target domain's
+    indices into them. A key "A,S->G" is written under "AS_G".
+    """
+    from core.subject.synergy import TRIPLES
+
+    arrays: dict[str, np.ndarray] = {}
+    for a, b, y in TRIPLES:
+        key, tag = f"{a},{b}->{y}", f"{a}{b}_{y}"
+        if key not in held:
+            continue
+        arrays.update({f"{tag}.{name}": value for name, value in held[key].arrays().items()})
+        arrays[f"{tag}.columns"] = np.array([str(columns[i]) for i in targets[y]])
+    return arrays
 
 
 def line(triples: Mapping[str, Mapping[str, Any]] | None) -> bool:

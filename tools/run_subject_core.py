@@ -896,7 +896,7 @@ async def main() -> int:
         # whose recording the v5 line read, with the loops stopped as for the
         # paired arms above.
         from core.subject.causal import DEFAULT_DELTA
-        from core.subject.interventional_synergy import collect, summarise, target_columns
+        from core.subject.interventional_synergy import collect, sample_arrays, summarise, target_columns
         from core.subject.paired_displacement import displacement_metric
         from core.subject.state import domain_slices
         from core.subject.synergy import TRIPLES
@@ -913,6 +913,11 @@ async def main() -> int:
             turns=args.turns, delta=DEFAULT_DELTA, seed=args.seed, on_progress=_log,
         )
         evidence["synergy_interventional"] = {key: summarise(s, seed=args.seed) for key, s in held.items()}
+        # Every snapshot's vectors, so a triple that fails can be read column by column.
+        np.savez_compressed(
+            args.out / "interventional_synergy_samples.npz",
+            **sample_arrays(held, list(recording.columns), targets),
+        )
         for key, row in evidence["synergy_interventional"].items():
             _log(
                 f"  {key}: interaction {row['interaction']:.4f} sham {row['sham']:.4f} "

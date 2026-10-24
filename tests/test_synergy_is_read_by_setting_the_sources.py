@@ -21,6 +21,7 @@ from core.subject.interventional_synergy import (
     Samples,
     direction_p,
     line,
+    sample_arrays,
     summarise,
     target_columns,
 )
@@ -89,3 +90,19 @@ def test_too_few_samples_never_pass():
     zero = np.zeros(8)
     samples.add(untouched=[zero] * 4, first=zero + 1, second=zero + 1, both=zero + 5)
     assert not summarise(samples, seed=0)["passes"]
+
+
+def test_every_sample_is_kept_with_its_columns():
+    """A triple that fails is read column by column, so the probe keeps every vector."""
+    samples = Samples()
+    rng = np.random.default_rng(14)
+    for _ in range(3):
+        n1, first, second, both = (rng.normal(size=2) for _ in range(4))
+        samples.add(untouched=[n1, n1, n1, n1], first=first, second=second, both=both)
+    columns = ["G.bid", "G.conj_attention_k0", "G.winner"]
+    arrays = sample_arrays({"A,S->G": samples}, columns, {"G": np.array([0, 2])})
+    assert arrays["AS_G.interactions"].shape == (3, 2)
+    assert list(arrays["AS_G.columns"]) == ["G.bid", "G.winner"]
+    assert np.allclose(arrays["AS_G.interactions"], np.stack(samples.interactions))
+    assert np.allclose(arrays["AS_G.firsts"][0], samples.firsts[0])
+    assert "PM_W.interactions" not in arrays
