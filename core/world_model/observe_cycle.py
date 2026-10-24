@@ -299,6 +299,25 @@ def conditioning_of(state: Any) -> np.ndarray:
     return np.concatenate([action_of(state), memory_context_of(state)])
 
 
+def _set_precision(state: Any, learned: Any) -> None:
+    """How much this cycle's error counts: what arrived meeting what she recalled.
+
+    Set before the model sees the cycle, on the error it reports and on the
+    step it next learns by. See core/world_model/associative_novelty.py.
+    """
+    if learned is None:
+        return
+    from core.world_model.associative_novelty import Comparator
+
+    comparator = getattr(learned, "comparator", None)
+    if not isinstance(comparator, Comparator):
+        comparator = Comparator()
+        learned.comparator = comparator
+    weight = comparator.precision(state)
+    learned.prediction_precision = weight
+    learned.learning_precision = weight
+
+
 def observe_cycle(state: Any, world_model: Any = None) -> float | None:
     """Show the model this turn. Returns the surprise, or None if it could not.
 
@@ -312,6 +331,7 @@ def observe_cycle(state: Any, world_model: Any = None) -> float | None:
             world_model = ServiceContainer.get("unified_world_model", default=None)
         if world_model is None:
             return None
+        _set_precision(state, getattr(world_model, "learned", None))
         world_model.observe(observation_of(state), conditioning_of(state), learn=True)
         surprise = world_model.surprise()
         return None if surprise is None else float(surprise)

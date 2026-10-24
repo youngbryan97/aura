@@ -134,8 +134,12 @@ def _goal_priority(goal: Any) -> float:
     return _clamp(stated, 0.5)
 
 
-def build_candidates(state: Any) -> list[Any]:
-    """One bid per domain that has something to say, priced by the state."""
+def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
+    """One bid per domain that has something to say, priced by the state.
+
+    ``self_usual`` is how unsettled she usually is (`associative_novelty.Spread`),
+    kept by the workspace; without it, a self that has never wavered.
+    """
     from core.consciousness.workspace_candidate import CognitiveCandidate, ContentType
 
     bids: list[Any] = []
@@ -335,14 +339,23 @@ def build_candidates(state: Any) -> list[Any]:
                 )
             )
 
+    # A feeling about herself, felt as strongly as she is aroused, when her self
+    # is more in question than she is used to. This bid was priced on
+    # instability alone, and her stability read 1.0 on every turn of seed 7, so
+    # it never entered and nothing about her self ever won her attention. See
+    # core/consciousness/self_conscious.py.
     if identity is not None:
-        instability = 1.0 - _clamp(getattr(identity, "stability", 1.0), 1.0)
-        if instability > FLOOR:
+        from core.consciousness.self_conscious import claim, in_question
+
+        stability = _clamp(getattr(identity, "stability", 1.0), 1.0)
+        arousal = getattr(affect, "arousal", 0.0) if affect is not None else 0.0
+        felt = claim(arousal, in_question(stability, self_usual))
+        if felt > FLOOR:
             bids.append(
                 CognitiveCandidate(
-                    content=f"identity stability {1.0 - instability:.2f}",
+                    content=f"who she is is in question (stability {stability:.2f})",
                     source="self",
-                    priority=instability,
+                    priority=felt,
                     content_type=ContentType.META,
                 )
             )
@@ -602,8 +615,17 @@ async def feed_workspace(state: Any, workspace: Any) -> Any:
     """
     if workspace is None:
         return None
+    from core.world_model.associative_novelty import Spread
+
+    usual = getattr(workspace, "self_usual", None)
+    if not isinstance(usual, Spread):
+        usual = Spread()
+        workspace.self_usual = usual
     try:
-        bids = build_candidates(state)
+        bids = build_candidates(state, usual)
+        identity = getattr(state, "identity", None)
+        if identity is not None:
+            usual.note(1.0 - _clamp(getattr(identity, "stability", 1.0), 1.0))
     except (AttributeError, TypeError, ValueError, ImportError) as exc:
         record_degradation(
             "workspace_feed", exc, severity="warning",

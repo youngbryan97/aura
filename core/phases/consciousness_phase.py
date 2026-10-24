@@ -188,12 +188,13 @@ class ConsciousnessPhase(BasePhase):
 
         Last in the turn, after the relay, because every domain has written by
         then; each code is the context its domain runs the next cycle in. The
-        attention and world-model units are handed to the organs that use them,
-        and all sixteen go into their band of the substrate.
+        attention units are handed to the workspace, and all sixteen go into
+        their band of the substrate. The world model's step is set by what
+        arrived meeting what she recalled (core/world_model/associative_novelty.py).
         See core/consciousness/conjunctive_codes.py.
         """
         try:
-            from core.consciousness.conjunctive_codes import bind, gain_from_units, into_substrate, standing_of
+            from core.consciousness.conjunctive_codes import bind, into_substrate, standing_of
 
             codes = bind(state)
             if codes is None:
@@ -201,10 +202,6 @@ class ConsciousnessPhase(BasePhase):
             workspace = get_runtime_service("global_workspace", default=None)
             if workspace is not None:
                 workspace.attention_units = standing_of(codes, "attention")
-            world = get_runtime_service("unified_world_model", default=None)
-            learned = getattr(world, "learned", None) if world is not None else None
-            if learned is not None:
-                learned.learning_precision = gain_from_units(standing_of(codes, "world"), "world", "learning")
             substrate = get_runtime_service("liquid_substrate", default=None) or (
                 get_runtime_service("conscious_substrate", default=None)
             )

@@ -277,6 +277,10 @@ class LearnedWorldModel:
             post_mean, post_logvar, prior_mean, prior_logvar
         )
         surprise = reconstruction_error + self.config.kl_weight * kl_divergence
+        # The error as it counts this cycle: weighted by the precision what
+        # arrived and what she recalled set together
+        # (core/world_model/associative_novelty.py). One until something sets it.
+        surprise *= float(getattr(self, "prediction_precision", 1.0) or 1.0)
         surprise = max(0.0, min(10.0, surprise))
 
         # 7. Online learning
@@ -602,10 +606,10 @@ class LearnedWorldModel:
         total_norm = math.sqrt(sum(float(np.sum((g * scale) ** 2)) for g in grads.values()))
         clip = min(1.0, _GRAD_CLIP_NORM / (total_norm + 1e-8))
         # How far this experience moves the model is a precision set from
-        # outside it: what she perceived and what it called up together, bound
-        # as the last cycle closed (core/consciousness/conjunctive_codes.py).
-        # On the step and not the gradient, because Adam divides a gradient's
-        # scale back out. One until something has set it.
+        # outside it: what arrived meeting what she recalled, as the last
+        # cycle closed (core/world_model/associative_novelty.py). On the step
+        # and not the gradient, because Adam divides a gradient's scale back
+        # out. One until something has set it.
         precision = float(getattr(self, "learning_precision", 1.0) or 1.0)
         self._adam_step({name: g * scale * clip for name, g in grads.items()}, rate=precision)
         self._last_loss = loss / len(caches)
