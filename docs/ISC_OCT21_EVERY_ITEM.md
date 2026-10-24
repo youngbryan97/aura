@@ -946,3 +946,16 @@ and a product along one direction passed in every dataset. Every sham of the
 its floor bar passed any nonlinear response, and its direction reading found no
 shared direction for A,S -> G (0.99) or P,M -> W (0.73). Under v6 those two
 triples are where the work is.
+
+## The second withheld run, stopped at its baseline (23 October, 16:22 to 17:38)
+
+Her worker found the certificate this time and reported 0.5 earned, and 33 of
+her 34 replies were still decoded at 0.25: "asked 0.25 of 0.5 earned". The
+inference gate filled each turn's steering request with 0.25 when the turn
+brought none, 0.35 for an extended reply, and the worker takes the smaller of
+asked and earned. At 0.25 the certificate says the channel does not arrive. Her
+desktop chat takes another path and asked nothing ("asked None of 0.5
+earned"), so it was steered at 0.5. The gate now leaves the request unset, and
+the worker gives such a turn what the certificate earned, or nothing when the
+question has one right answer, as it was written to. The run starts again on
+the fix.

@@ -687,10 +687,6 @@ class _ServesTheTurn:
         _foreground_floor, _foreground_cap, foreground_loops = (
             self._foreground_compute_profile(initial_visible_user_prompt)
         )
-        foreground_profile = self._foreground_prompt_profile(
-            visible_user_prompt,
-            context,
-        )
         # Every _generate_with_client call site passes these EXPLICITLY and also
         # splats **morpho_kwargs, so any overlap is a guaranteed TypeError —
         # "got multiple values for keyword argument" — which fails the
@@ -713,10 +709,13 @@ class _ServesTheTurn:
             "clean_user_surface_recurrent_loops",
             foreground_loops,
         )
-        morpho_kwargs.setdefault(
-            "clean_user_surface_steering_alpha",
-            0.35 if foreground_profile == "extended" else 0.25,
-        )
+        # No steering strength is set here. A turn that asked for none gets what
+        # the checkpoint has earned, or none when what was asked has one right
+        # answer, and the worker decides that from the certificate it holds
+        # (mlx_worker_surface_quality._surface_control_alpha). A default of 0.25
+        # here, 0.35 for an extended reply, steered every such turn below the
+        # 0.5 her fitted directions earned, where the channel does not arrive:
+        # 33 of 34 decodes of the withheld reports run of 23 October.
 
     @staticmethod
     def _generate_with_metadata_sink_say_quality_check(

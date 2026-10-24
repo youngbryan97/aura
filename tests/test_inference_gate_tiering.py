@@ -1056,7 +1056,8 @@ async def test_user_facing_primary_uses_conversational_budget_and_chatml():
     actual_tokens = cortex.kwargs[0]["max_tokens"]
     assert 384 <= actual_tokens <= expected_tokens
     assert cortex.kwargs[0]["clean_user_surface_contract"] is True
-    assert cortex.kwargs[0]["clean_user_surface_steering_alpha"] == 0.25
+    # Left to the worker, which steers by what the certificate earned.
+    assert cortex.kwargs[0].get("clean_user_surface_steering_alpha") is None
     assert cortex.prompts[0].startswith("<|im_start|>")
     assert "<|im_start|>assistant" in cortex.prompts[0]
     assert "<|SYSTEM|>" not in cortex.prompts[0]
@@ -1381,7 +1382,7 @@ async def test_user_facing_primary_retry_uses_clean_cortex_repair_lane(monkeypat
     assert result == good_reply
     assert len(cortex.kwargs) == 2
     assert cortex.kwargs[0]["clean_user_surface_contract"] is True
-    assert cortex.kwargs[0]["clean_user_surface_steering_alpha"] <= 0.35
+    assert cortex.kwargs[0].get("clean_user_surface_steering_alpha") is None
     retry_kwargs = cortex.kwargs[1]
     assert retry_kwargs["clean_user_surface_contract"] is True
     assert retry_kwargs["disable_prompt_cache"] is True
