@@ -1230,3 +1230,30 @@ the felt push adds nothing to it. The felt push's evidence is its certificate
 (11:26) and the readings above. The reports ground is steered through the
 measurement basis with that certificate, and her installed generation stays the
 fitted one of 23 October.
+
+## Her recall follows her internal state when she feels better, and the decisive reading starts (24 October, 13:00 to 13:39)
+
+The structure ground's miss, grouped by the valence of the two kinds of percept
+(content run at `3dc0b0599`): when she felt better her internal state drew a
+good and a bad percept 0.936 closer, two good ones 0.165 and two bad ones 0.249,
+and what they brought back moved by under a thousandth in each group. Two
+mechanisms were missing, and `8f548ed79` adds both. A mood colours appraisal
+(Forgas, 1995): each emotion a percept moves cues recall by one plus its
+valence sign times her valence against her own usual. And a mood is a cue of
+its own (Bower, 1981): memories made in what she feels now come to mind beside
+what the words found.
+
+Checked small inside her forks, eight classes from six anchors, against the
+content run's per-pair internal change (28 pairs): her recall's per-pair change
+read rho -0.08 and -0.25 before, +0.42 with appraisal alone, and +0.61 and
++0.67 (p 0.001 and under 0.001) with both. The mood cue alone moved recall four
+times as much and in the opposite direction, which is why both are needed.
+
+The v6 probe at `8f548ed79`, 13:38, with every other subject run paused: all
+four triples at direction p 5e-05, fractions A,S -> G 0.86, P,M -> W 1.01,
+W,A -> D 0.81, S,D -> C 0.51. The decisive reading on seed 23 started at 13:39:
+the carrier with three workers and six grain helpers, and the content run. J*
+is read as soon as they finish; then her withheld reports run on the layer-43
+felt generation, alone; then the campaign on seed 23; then J* and the bridge
+from all of them. The seed-7 carrier rehearsal was stopped to give it the
+machine, and the seed-7 campaign at `3dc0b0599` continues for the 24/24 reading.
