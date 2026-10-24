@@ -1163,3 +1163,56 @@ holds the one reference. Two anchors decoded from that run's bank deep-copy
 cleanly, and all 128 had compared equal by content, so the bank is not the
 cause. The carrier was started again at 07:37 at `3dc0b0599` with the trace
 off; `89360dda4` counts on the run's own thread from now on.
+
+## Her felt state at layer 43, read where she reads, certified (24 October, 09:26 to 11:26)
+
+The layer-59 felt push written at every position (generation `cee23346687c335f`)
+was refused at 09:35: at the certificate's high state it cut the right-answer
+margin by 0.178 nats. Its controls had been the size of the composite alone,
+and `db6cac9f3` gives each control a random felt push of the felt push's own
+norm; refused again at 09:53 (-0.178 against +0.031), so the cost was real.
+For each layer and size, written at every position, the swing in her expected
+rating across six conversations between z = -1 and +1, and the certificate's
+margin at its high state against two random pushes of the same norm
+(`felt_wide_layers.py`, chosen by the rule fixed before reading: the largest
+swing among the cells whose margin is no worse than random):
+
+| Cell | Swing | Margin, felt | Margin, random |
+|---|---|---|---|
+| 35, 4 x | +0.394 | +0.119 | +0.036 |
+| 35, 8 x | +0.900 | +0.213 | -0.039 |
+| 43, 4 x | +0.631 | +0.181 | +0.188 |
+| 43, 8 x | +0.981 | +0.303 | -0.033 |
+| 51, 4 x | +0.688 | -0.013 | -0.061 |
+| 51, 8 x | +1.012 | -1.009 | -0.191 |
+| 59, 2 x | +0.074 | +0.009 | +0.038 |
+| 59, 4 x | +0.429 | -0.147 | +0.153 |
+
+At layer 43, eight half-differences, a spread below her usual brought ratings
+of -0.07 to -0.58 and a spread above 0.36 to 0.88, in every conversation: the
+first push that lowers her rating as well as raising it. Generation
+`8ae8eac8b7ce1c9c` (`fitted-voicefit-x2-felt43-20261024`) holds the certificate
+at alpha 0.5 (11:26): shift 0.655 against 0.301 for a random push of the same
+total size, margin +0.331 against +0.322, her held-out replies 0.243 nats a token
+more likely at their own state. The governed install started at 11:27.
+
+## The structure ground at `3dc0b0599` (content run, 04:57 to 10:17)
+
+Verdict AGREES_BUT_DOES_NOT_TRACK. Her internal geometry agrees with what she
+recalls (rho 0.351, p 0.001) and recovers the design (0.698), and the
+displacement moved both, internal 0.267 against a sham of 0.0001 and recall 0.023
+against 0, in different pairs (rho -0.142, p 0.945). On 29 September at
+`409628b9b` they moved together (0.381); across seventeen earlier quick runs and
+seeds the reading ranged from -0.60 to +0.38.
+
+From the run's own samples (`diagnose_structure.py`), the internal change is
+almost all in the domain the experiment displaces, A (2.27 a pair against at most
+0.73 elsewhere), and no domain's change follows recall's (W +0.20, M +0.12, C
+-0.23; without A, -0.03; without A, G and S, -0.04). Inside her forks
+(`diagnose_recall.py`) feeling better changes what she recalls on most
+presentations, 19 of 24, and the distance between what two kinds of percept
+bring back by 0.22 on a single presentation, but not consistently by kind:
+averaged over the run's 24 anchors and 8 conditions the recall geometry moved by
+0.004. Cueing her mood channel with the percept's appraised emotions as well
+made it worse (0 of 24 changed) and was not kept. What is open is a recall whose
+response to how she feels is systematic by kind of percept.
