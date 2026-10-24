@@ -1,0 +1,36 @@
+🔍 Compiling all Python files...
+✅ All files compile
+🧹 Running ruff — three passes, widest first...
+   1. syntax errors, everywhere
+All checks passed!
+   2. undefined and unreachable names, all production code
+All checks passed!
+   3. the whole configured rule set, on the files that pass it
+All checks passed!
+✅ Ruff passed
+🏛  Checking architectural layering (DEPS include rules)...
+✅ layering clean (36 grandfathered)
+✍️  Checking prose against docs/WRITING_RULES.md...
+
+INSTALL.md
+     90  hedged-range           30–60 seconds
+                                -> A range means it was never measured. Give the number.
+     90  hedged-range           5–10 minutes
+                                -> A range means it was never measured. Give the number.
+
+README.md
+    117  hedged-range           20–40 minutes
+                                -> A range means it was never measured. Give the number.
+    644  hedged-range           30–60 seconds
+                                -> A range means it was never measured. Give the number.
+   1016  hedged-range           10–50 ms
+                                -> A range means it was never measured. Give the number.
+
+5 findings across 17 documents
+OK: 5 < baseline 9. Re-run with --baseline to tighten.
+✍️  Checking docstrings and comments...
+
+58 findings across 5757 documents
+OK: at baseline 58.
+🏛  Checking every generated DEPS still matches the import graph...
+✅ every generated DEPS matches the graph (168 packages)

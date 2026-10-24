@@ -1,0 +1,40 @@
+{
+  "all_control_contrasts_significant": false,
+  "alpha": 0.05,
+  "contrasts": {
+    "random_directions": {
+      "both": 28,
+      "control_only": 23,
+      "holm_adjusted_p": 0.07217743850092258,
+      "neither": 21,
+      "one_sided_exact_p": 0.03608871925046129,
+      "rejects": false,
+      "treatment_only": 38
+    },
+    "shuffled_layers": {
+      "both": 55,
+      "control_only": 5,
+      "holm_adjusted_p": 0.1050567626953125,
+      "neither": 39,
+      "one_sided_exact_p": 0.1050567626953125,
+      "rejects": false,
+      "treatment_only": 11
+    },
+    "zero_vector": {
+      "both": 0,
+      "control_only": 0,
+      "holm_adjusted_p": 4.0657581468206416e-20,
+      "neither": 44,
+      "one_sided_exact_p": 1.3552527156068805e-20,
+      "rejects": true,
+      "treatment_only": 66
+    }
+  },
+  "general_task_quality_measured": false,
+  "legacy_protocol_passes": true,
+  "result_sha256": "fb2eb97d852f709481e23e8ad7544c4f642df5f8465499bf9281ae1936528140",
+  "sample_count": 110,
+  "schema": "aura.fitted_basis.paired_control_diagnostic.v1",
+  "scope": "post_hoc_paired_binary_win_diagnostic",
+  "serving_authority": false
+}

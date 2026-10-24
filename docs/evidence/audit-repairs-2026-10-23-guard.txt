@@ -1,0 +1,47 @@
+"""Run one audit check without competing for the resident model's resources."""
+import argparse,json,os,signal,subprocess,sys,time
+from pathlib import Path
+import psutil
+
+parser=argparse.ArgumentParser()
+parser.add_argument('name');parser.add_argument('--timeout',type=float,default=120)
+parser.add_argument('--rss-mib',type=float,default=768)
+parser.add_argument('command',nargs=argparse.REMAINDER)
+a=parser.parse_args();cmd=a.command[1:] if a.command[:1]==['--'] else a.command
+out=Path(__file__).parent;stamp=str(time.time_ns());run=out/(a.name+'-'+stamp);run.mkdir()
+env=os.environ.copy();env.update({k:'1' for k in ['OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','VECLIB_MAXIMUM_THREADS','NUMEXPR_NUM_THREADS','RAYON_NUM_THREADS']})
+env.update(AURA_LOG_DIR=str(run/'logs'),AURA_STATE_ROOT=str(run/'state'),AURA_PATHS__HOME_DIR=str(run/'home'),PYTHONUNBUFFERED='1',PYTEST_DISABLE_PLUGIN_AUTOLOAD='1')
+def pressure():
+ p=subprocess.run(['sysctl','-n','kern.memorystatus_vm_pressure_level'],capture_output=True,text=True,timeout=2)
+ return int(p.stdout.strip()) if p.returncode==0 else None
+before={'available_bytes':psutil.virtual_memory().available,'pressure':pressure(),'swap_out':psutil.swap_memory().sout}
+record={'name':a.name,'command':cmd,'cwd':os.getcwd(),'before':before,'timeout_s':a.timeout,'rss_mib_limit':a.rss_mib}
+if before['available_bytes']<12*1024**3 or before['pressure']!=1:
+ record['refused']='host admission';(run/'result.json').write_text(json.dumps(record,indent=2));print(json.dumps(record));sys.exit(75)
+start=time.monotonic();peak=0;reason=None;next_host=start
+with (run/'output.log').open('w') as log:
+ proc=subprocess.Popen(['/usr/bin/nice','-n','15',*cmd],env=env,stdout=log,stderr=subprocess.STDOUT,start_new_session=True)
+ owned=psutil.Process(proc.pid)
+ while proc.poll() is None:
+  try:
+   members=[owned]+owned.children(recursive=True)
+   rss=sum(p.memory_info().rss for p in members if p.is_running());peak=max(peak,rss)
+  except psutil.NoSuchProcess:continue
+  now=time.monotonic()
+  if rss>a.rss_mib*1024**2:reason='owned process tree RSS limit'
+  elif now-start>a.timeout:reason='wall-clock limit'
+  if now>=next_host:
+   free=psutil.virtual_memory().available
+   if free<10*1024**3 or pressure()!=1:reason='host memory pressure'
+   if psutil.swap_memory().sout-before['swap_out']>128*1024**2:reason='host swap growth'
+   next_host=now+2
+  if reason:
+   if os.getpgid(proc.pid)!=proc.pid:raise RuntimeError('owned process group changed; refusing group signal')
+   os.killpg(proc.pid,signal.SIGTERM)
+   try:proc.wait(timeout=2)
+   except subprocess.TimeoutExpired:os.killpg(proc.pid,signal.SIGKILL);proc.wait(timeout=2)
+   break
+  time.sleep(.1)
+ code=proc.wait()
+record.update(returncode=code,stopped_for=reason,duration_s=time.monotonic()-start,peak_tree_rss_mib=peak/1024**2)
+(run/'result.json').write_text(json.dumps(record,indent=2));print(json.dumps(record));print((run/'output.log').read_text()[-7000:]);sys.exit(code or (75 if reason else 0))

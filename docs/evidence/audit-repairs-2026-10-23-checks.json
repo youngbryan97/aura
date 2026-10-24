@@ -1,0 +1,173 @@
+{
+  "effect_ownership_delta": {
+    "before": {
+      "available_bytes": 23825514496,
+      "pressure": 1,
+      "swap_out": 319799296
+    },
+    "command": [
+      "/Users/bryan/.aura/live-source/.venv/bin/python",
+      "/Users/bryan/Desktop/Aura-Repairs-2026-10-23/compare_effect_ownership.py"
+    ],
+    "cwd": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-audit-gap-repairs",
+    "duration_s": 0.5655824579953332,
+    "name": "effect_ownership_delta",
+    "peak_tree_rss_mib": 33.125,
+    "returncode": 0,
+    "rss_mib_limit": 768,
+    "stopped_for": null,
+    "timeout_s": 120
+  },
+  "known_failing_gate": {
+    "baseline_changed": false,
+    "changed_core_file_effect_bucket_deltas": [],
+    "name": "governance-lint",
+    "regressions": 171,
+    "stale_buckets": 1
+  },
+  "new_file_lint": {
+    "before": {
+      "available_bytes": 23825514496,
+      "pressure": 1,
+      "swap_out": 319799296
+    },
+    "command": [
+      "/Users/bryan/.aura/live-source/.venv/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "core/consciousness/causal_transition_response.py",
+      "core/organism/audit_repair_validation.py",
+      "core/self_modification/public_contract.py",
+      "tests/test_claim_liveness_failure_is_unmeasured.py",
+      "tests/test_covariance_dependency_keeps_its_evidence_boundary.py",
+      "tests/test_fitted_controls_are_compared_as_pairs.py",
+      "tests/test_interventions_do_not_condition_on_the_assignment.py",
+      "tests/test_patch_checks_preserve_the_public_interface.py",
+      "tests/test_repair_claims_require_matching_regression_evidence.py",
+      "tests/test_report_ratings_are_public_measurements.py",
+      "tests/test_sqlite_memory_readiness.py",
+      "tests/test_state_registry_owned_snapshots.py",
+      "tests/test_world_model_stop_keeps_the_running_trainer_owned.py",
+      "--output-format",
+      "concise"
+    ],
+    "cwd": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-audit-gap-repairs",
+    "duration_s": 0.11781183400307782,
+    "name": "new_file_lint",
+    "peak_tree_rss_mib": 0.25,
+    "returncode": 0,
+    "rss_mib_limit": 768,
+    "stopped_for": null,
+    "timeout_s": 120
+  },
+  "real_evidence_binding": {
+    "before": {
+      "available_bytes": 23825514496,
+      "pressure": 1,
+      "swap_out": 319799296
+    },
+    "command": [
+      "/Users/bryan/.aura/live-source/.venv/bin/python",
+      "-c",
+      "from core.organism.audit_repair_validation import CONTRACTS,repair_contract_holds; results={name:repair_contract_holds(name) for name in CONTRACTS}; print(results); assert all(results.values())"
+    ],
+    "cwd": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-audit-gap-repairs",
+    "duration_s": 0.11605562500335509,
+    "name": "real_evidence_binding",
+    "peak_tree_rss_mib": 0.25,
+    "returncode": 0,
+    "rss_mib_limit": 768,
+    "stopped_for": null,
+    "timeout_s": 120
+  },
+  "recorded_regressions": {
+    "before": {
+      "available_bytes": 28550561792,
+      "pressure": 1,
+      "swap_out": 319799296
+    },
+    "command": [
+      "/Users/bryan/.aura/live-source/.venv/bin/python",
+      "-m",
+      "pytest",
+      "-p",
+      "pytest_asyncio.plugin",
+      "-q",
+      "tests/test_sqlite_memory_readiness.py",
+      "tests/test_state_registry_owned_snapshots.py",
+      "tests/test_state_registry_shutdown.py",
+      "tests/state_registry_concurrency.py",
+      "tests/test_report_ratings_are_public_measurements.py",
+      "tests/test_claim_liveness_failure_is_unmeasured.py",
+      "tests/test_claim_liveness.py",
+      "tests/test_patch_checks_preserve_the_public_interface.py",
+      "tests/test_safe_pipeline_monitor.py",
+      "tests/test_world_model_stop_keeps_the_running_trainer_owned.py",
+      "tests/test_world_model_learns_from_what_it_is_shown.py",
+      "tests/test_learned_world_model.py",
+      "tests/test_interventions_do_not_condition_on_the_assignment.py",
+      "tests/test_covariance_dependency_keeps_its_evidence_boundary.py",
+      "tests/test_fitted_controls_are_compared_as_pairs.py",
+      "tests/test_fitted_directions_are_qualified_by_their_own_claim.py",
+      "tests/test_repair_claims_require_matching_regression_evidence.py",
+      "tests/test_what_she_says_moves_with_what_she_is.py",
+      "tests/test_a_number_on_the_asked_scale_is_an_answer.py",
+      "tests/test_her_rating_reaches_the_reports_ground.py",
+      "--junitxml=/Users/bryan/Desktop/Aura-Repairs-2026-10-23/final-regressions.xml"
+    ],
+    "cwd": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-audit-gap-repairs",
+    "duration_s": 34.01638500000263,
+    "name": "recorded_regressions",
+    "peak_tree_rss_mib": 571.234375,
+    "returncode": 0,
+    "rss_mib_limit": 768,
+    "stopped_for": null,
+    "timeout_s": 120
+  },
+  "smoke_complete": {
+    "before": {
+      "available_bytes": 23375937536,
+      "pressure": 1,
+      "swap_out": 319799296
+    },
+    "command": [
+      "make",
+      "PYTHON=/Users/bryan/.aura/live-source/.venv/bin/python",
+      "smoke"
+    ],
+    "cwd": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-audit-gap-repairs",
+    "duration_s": 48.923825249999936,
+    "name": "smoke_complete",
+    "peak_tree_rss_mib": 409.296875,
+    "returncode": 0,
+    "rss_mib_limit": 768,
+    "stopped_for": null,
+    "timeout_s": 120
+  },
+  "source_gates_complete": {
+    "before": {
+      "available_bytes": 27892826112,
+      "pressure": 1,
+      "swap_out": 318930944
+    },
+    "command": [
+      "make",
+      "-k",
+      "PYTHON=/Users/bryan/.aura/live-source/.venv/bin/python",
+      "compile",
+      "lint",
+      "layering",
+      "writing",
+      "deps-check"
+    ],
+    "cwd": "/Users/bryan/.aura/live-source/.claude/worktrees/codex-audit-gap-repairs",
+    "duration_s": 42.37400733299728,
+    "name": "source_gates_complete",
+    "peak_tree_rss_mib": 94.8125,
+    "returncode": 0,
+    "rss_mib_limit": 768,
+    "stopped_for": null,
+    "timeout_s": 150.0
+  }
+}
