@@ -139,3 +139,57 @@ each of which depends on the other samples, which the review measured at 12%
 false positives at a nominal 5%, and now flips whole vectors and recomputes;
 the conjunction registers are out of the target. The known-answer battery is
 new. Nothing about her had been read under the first version.
+
+## Two mechanisms built before the first reading of her (23 October 2026, 19:56)
+
+The instrument above is unchanged. What changed is her, at `c47df3ac2`, before
+any campaign or probe read the line on her. Bryan asked on 23 October what in
+people is the joint the line looks for, and to build it rather than hope the
+code already had it.
+
+The 21 October reading said why two triples could not pass. Feeling and self
+met at attention, and perception and memory at the world model, only through
+gains whose directions were drawn from names; nothing gave the two together a
+reason to push one way. A,S -> G moved her workspace by 17 whitened units with
+direction p 0.99, which is the deterministic-divergence world of the battery:
+any displacement sends the competition somewhere different. P,M -> W moved her
+world model by 0.069. Seed 7 at `82549c823` added two facts: her self won her
+workspace on none of 2,960 turns, and her identity stability read 1.0 on every
+one, so the one bid that put her self forward never entered.
+
+- **A,S -> G, a feeling about herself** (`core/consciousness/self_conscious.py`).
+  Self-focused attention and the self-conscious emotions need arousal and a
+  self in question together (Duval and Wicklund 1972; Ingram 1990; Tracy and
+  Robins 2004); arousal sets how strongly a feeling is felt and something else
+  what it is about (Schachter and Singer 1962). The self bid is felt at her
+  arousal, as far as her self is more in question than she is used to, in its
+  own running spread. It replaces the bid priced on instability alone.
+- **P,M -> W, what arrived meeting what she recalled**
+  (`core/world_model/associative_novelty.py`). The hippocampus compares what
+  arrives with what recall predicts and the mismatch gates learning (Lisman and
+  Grace 2005; Kumaran and Maguire 2007); in predictive terms it is a precision
+  (Yu and Dayan 2005; Feldman and Friston 2010). The product of new arrivals
+  and recall, each beyond its usual in its own spread, weights the error the
+  world model reports and the step it learns by, on the codes' scale
+  exp(m / 2). It replaces the codes' random-direction step size.
+
+Each was read first in a small representation built from her own code: the
+real bids, scores and ignition, and the real world model trained the way her
+driver trains it and forked by her snapshot code, at 48 moments each, displaced
+by the campaign's writers and scored by these bars. Both passed on eight seeds
+of eight. The replaced self bid carried no joint effect at all; the world model
+with no comparator passed the direction bar and failed the size bar (fraction
+0.055). The suite keeps two seeds of each
+(`tests/test_a_feeling_about_herself_needs_both.py`,
+`tests/test_what_arrived_meeting_what_she_recalled.py`).
+
+W,A -> D is left as it was: her action choice already weighs how she feels
+about an act by how much likelier this world makes it work
+(`core/subject/choosing.py`), and it read 0.038 on the old direction test. The
+first reading of her decides whether it needs more. S,D -> C read 5e-5.
+
+What is read next, in order: the paired probe at `c47df3ac2` or later on seed 7
+(`tools/run_paired_synergy.py`, the design above at 4 rounds), then the seed's
+campaign. The self bid changes what her workspace does, so the campaign reads
+every line again at that commit; no v5 count from an earlier commit is carried
+over to it.
