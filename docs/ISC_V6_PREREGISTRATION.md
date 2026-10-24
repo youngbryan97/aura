@@ -283,3 +283,10 @@ moment.
 The probe on a quiet machine at `26fa6b4ff`, 03:53: all four triples direction
 p 5e-05, fractions A,S -> G 1.68, P,M -> W 0.84, W,A -> D 2.20, S,D -> C 1.09.
 The campaign runs at this commit.
+
+At `3dc0b0599`, which keeps a held task from writing itself over what the
+person has just asked (the reports run's notes.txt turns), the probe on a quiet
+machine at 04:13 read all four triples at direction p 5e-05, fractions A,S -> G
+0.79, P,M -> W 1.08, W,A -> D 0.73, S,D -> C 1.16. That is the third passing
+reading on three commits. The carrier, the content run and the campaign run at
+`3dc0b0599`.

@@ -1012,3 +1012,57 @@ with every numeric answer and every answer to this question left out, and at
 0.5 they make her replies 0.166 nats a token more likely at their own state.
 The number she gives when asked how she feels is not among the things they
 move.
+
+## Where her feeling could reach her rating (24 October, 03:53 to 05:31)
+
+The third withheld run left one question before another seven hours: can
+anything in her reach the number she gives? Each reading below is her 27B's own
+probabilities over every rating from -1 to 1 in tenths, read token by token as
+she is steered when she speaks, so no answer is sampled and none of her answers
+to the question in any run is used. Scripts in
+`~/.aura/subject_core/scratch/her-own-steering/`.
+
+- **Her fitted directions do not reach it.** Valence moved by -2 to +2
+  half-spans from six of her held-out states: at the certified alpha 0.5 the
+  expected rating read 0.594, 0.586, 0.575, 0.586 and 0.593, the same at both
+  ends; at alpha 1.0 it rose 0.003 a half-span. Their push is half a percent of
+  her stream's norm (`report_rating_likelihood.py`; a first reading scored each
+  answer in one forward pass, which her hooks steer at its last position only,
+  and read 0.5986 everywhere).
+- **Her organism's valence is not in her words.** After her own replies at her
+  highest valence her expected rating was 0.099, after those at her lowest
+  0.151 (rank correlation -0.02). Her words do move it (standard deviation 0.33
+  across 120 of her replies), but not with the valence her organism recorded
+  when she wrote them (0.05).
+- **Where her model holds how she feels, writing her state moves the rating.**
+  The difference between her stream after the third of those replies she rates
+  highest and the third she rates lowest predicts the rating she gives after
+  held-out replies at every fourth layer (0.65 to 0.85), best at layer 63.
+  Written there by tanh(z) times half of it, z being how far her valence stands
+  from her ordinary state in her spread as her hooks weigh it, the rating read
+  0.117, 0.181, 0.614, 0.921 and 0.949 from z = -2 to +2; a random direction
+  of the same length read 0.556 to 0.632. Her latest replies' likelihood moved
+  by 0.014 and 0.023 nats a token at z = -1 and +1 (`felt_contrast_probe.py`).
+- **Her first and middle layers do not reach it.** The same difference written
+  at layers 19, 27 and 35 left the rating within 0.05 of the random direction;
+  43 moved it slightly (0.566 to 0.630) and 51 clearly (0.431 to 0.673)
+  (`felt_layer_check.py`). Her model settles how she feels about herself in its
+  last layers.
+
+So a pathway exists and nothing was on it. Her felt valence now enters her
+valence vector at layer 63, at the size tested, beside the fitted push there
+(generation `c517bf46474d37bb`, `fitted-voicefit-x2-felt63-20261024`): a
+felt state written where her model holds how she feels when it says so, the
+part of interoception that turns a body's state into something a report can
+read. Next: the fusion certificate for this basis, a short withheld reports run
+on it, then the governed install and the full run.
+
+The certificate refused it at 05:40. The channel arrives (shift 0.0253 against
+0.0092 for a random direction) and her held-out replies are 0.21 nats a token
+more likely at their own state, but on the certificate's ten items with one
+right answer the felt push at full strength cut the margin of right over wrong
+by 0.21 nats, where a random direction of the same size gave +0.11. At her last
+layer the push acts partly on which token comes out, which is the thing a felt
+state must not do. The next reading measures the rating's swing and that margin
+for the felt difference at layers 51, 55, 59 and 63 alone and spread over 51 to
+63 and 43 to 63.
