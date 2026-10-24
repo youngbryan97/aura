@@ -125,6 +125,17 @@ def commands(args: argparse.Namespace, base: Path) -> list[tuple[str, list[str]]
         )
         for index in range(args.workers)
     ]
+    # Helpers take grain rows only, beside the workers scoring cuts: the grain
+    # is one row per anchor, claimed by whoever is free, and on 24 October each
+    # row cost twelve minutes while the coordinator made them alone.
+    plan += [
+        (
+            f"helper_{index}",
+            [*runner, *shared, "--grain-helper", "--shard", f"0/{args.workers}", "--shard-dir", str(shard_dir),
+             "--out", str(base / f"helper_{index}")],
+        )
+        for index in range(int(getattr(args, "grain_helpers", 0) or 0))
+    ]
     plan.append(
         (
             "coordinator",
@@ -139,6 +150,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workers", type=int, default=max(1, _cores_this_run_has() - 2),
                         help="shard workers; one core each, less one for the coordinator and one for the host")
+    parser.add_argument("--grain-helpers", type=int, default=0,
+                        help="processes beside the workers that only claim grain rows (they need --grain-claims)")
     parser.add_argument("--rounds", type=int, default=24)
     parser.add_argument("--anchors", type=int, default=16)
     parser.add_argument("--history-turns", type=int, default=8)
