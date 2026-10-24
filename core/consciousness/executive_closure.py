@@ -693,9 +693,16 @@ class ExecutiveClosureEngine:
                     record_degradation('executive_closure', exc)
                     logger.debug("ExecutiveClosure: volition seed failed: %s", exc)
 
+        # What won her attention is an objective only when it was an intention.
+        # A recollection that wins is something she remembered, not something
+        # she set herself to do, and this took its text, score mark and all,
+        # as her objective: on 24 October her forks held five goals reading
+        # "[memory score=0.845] I ...", a new one most turns at the need's
+        # pressure, and those were most of what she anticipated.
         workspace_focus = str(workspace_snapshot.get("last_content") or "").strip()
         if (
             workspace_focus
+            and workspace_snapshot.get("last_content_type") == "INTENTIONAL"
             and not is_evaluation_contamination(workspace_focus)
             and float(workspace_snapshot.get("last_priority") or 0.0) >= 0.55
             and is_actionable_goal_text(workspace_focus)

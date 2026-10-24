@@ -76,8 +76,9 @@ async def test_executive_closure_engine_integrates_runtime_signals(service_conta
         "global_workspace",
         SimpleNamespace(
             get_snapshot=lambda: {
-                "last_winner": "self_prediction",
-                "last_content": "Prediction surprise in thermal load",
+                "last_winner": "deliberation",
+                "last_content": "Check the thermal load after the prediction surprise",
+                "last_content_type": "INTENTIONAL",
                 "last_priority": 0.72,
             }
         ),
@@ -130,12 +131,14 @@ async def test_executive_closure_engine_integrates_runtime_signals(service_conta
     assert result.free_energy == pytest.approx(0.28, abs=1e-6)
     assert result.phi_estimate == pytest.approx(0.17, abs=1e-6)
     assert result.loop_cycle == 42
-    assert result.cognition.attention_focus == "Prediction surprise in thermal load"
+    assert result.cognition.attention_focus == "Check the thermal load after the prediction surprise"
     assert result.cognition.current_objective is None
-    assert result.cognition.pending_initiatives[0]["goal"] == "Prediction surprise in thermal load"
+    assert result.cognition.pending_initiatives[0]["goal"] == "Check the thermal load after the prediction surprise"
     assert result.response_modifiers["executive_closure"]["dominant_need"] in {"stability", "integrity"}
-    assert result.response_modifiers["executive_closure"]["workspace_source"] == "self_prediction"
-    assert result.response_modifiers["executive_closure"]["selected_objective"] == "Prediction surprise in thermal load"
+    assert result.response_modifiers["executive_closure"]["workspace_source"] == "deliberation"
+    assert result.response_modifiers["executive_closure"]["selected_objective"] == (
+        "Check the thermal load after the prediction surprise"
+    )
     assert result.cognition.active_goals
     assert engine.get_status()["closure_score"] > 0.0
     self_model.update_belief.assert_awaited_once()
@@ -164,6 +167,7 @@ async def test_executive_closure_demotes_intrinsic_maintenance_objective(service
             get_snapshot=lambda: {
                 "last_winner": "runtime_watchdog",
                 "last_content": "Investigate hierarchical phi event loop lag",
+                "last_content_type": "INTENTIONAL",
                 "last_priority": 0.88,
             }
         ),
@@ -430,3 +434,34 @@ async def test_closed_loop_coalesces_hierarchical_phi_refresh_tasks():
     release.set()
     await asyncio.wait_for(first_task, timeout=1.0)
     assert calls == ["compute"]
+
+
+@pytest.mark.asyncio
+async def test_a_recollection_that_wins_attention_is_not_taken_as_her_objective(service_container):
+    """Executive closure takes the workspace focus as an objective only when it was an intention."""
+
+    def engine_with(content_type: str):
+        service_container.register_instance(
+            "global_workspace",
+            SimpleNamespace(
+                get_snapshot=lambda: {
+                    "last_winner": "memory" if content_type == "MEMORIAL" else "deliberation",
+                    "last_content": "[memory score=0.845] I walked along the river with Bryan",
+                    "last_content_type": content_type,
+                    "last_priority": 0.9,
+                }
+            ),
+        )
+        return ExecutiveClosureEngine()
+
+    state = AuraState()
+    snapshot = engine_with("MEMORIAL")._get_workspace_snapshot()
+    chosen = engine_with("MEMORIAL")._select_objective(
+        state, dominant_need="curiosity", need_pressure=0.9, workspace_snapshot=snapshot,
+    )
+    assert chosen == ""
+    intended = {**snapshot, "last_content": "Walk along the river with Bryan", "last_content_type": "INTENTIONAL"}
+    chosen = engine_with("INTENTIONAL")._select_objective(
+        state, dominant_need="curiosity", need_pressure=0.9, workspace_snapshot=intended,
+    )
+    assert chosen == "Walk along the river with Bryan"

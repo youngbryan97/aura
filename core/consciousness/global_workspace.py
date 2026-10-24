@@ -1709,6 +1709,7 @@ class GlobalWorkspace:
             "tick": self._tick,
             "last_winner": last.source if last else None,
             "last_content": last.content[:80] if last else None,
+            "last_content_type": getattr(getattr(last, "content_type", None), "name", None) if last else None,
             "last_priority": round(self.last_winner_priority, 3) if last else 0.0,
             "pending_candidates": len(self._candidates),
             "inhibited_sources": list(self._inhibited.keys()),
