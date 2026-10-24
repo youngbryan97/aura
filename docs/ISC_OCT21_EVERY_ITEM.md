@@ -1216,3 +1216,17 @@ averaged over the run's 24 anchors and 8 conditions the recall geometry moved by
 0.004. Cueing her mood channel with the percept's appraised emotions as well
 made it worse (0 of 24 changed) and was not kept. What is open is a recall whose
 response to how she feels is systematic by kind of percept.
+
+## The governed install refused the layer-43 generation (24 October, 11:27 to 13:08)
+
+Verify scored her 110 held-out replies as it scored the fitted generation on 23
+October: 66 more likely at their own state, against 51 for random directions,
+60 for her directions at the wrong layers and none with every direction zeroed
+(sign test p 0.022). The paired rule added on 23 October (`23f80834c`) asks for
+superiority over every control, and 66 against 60 does not establish it, so
+nothing was installed. That reading sees the fitted directions only: a held-out
+record made before FELT_SLOT carried her felt valence reads neutral there, so
+the felt push adds nothing to it. The felt push's evidence is its certificate
+(11:26) and the readings above. The reports ground is steered through the
+measurement basis with that certificate, and her installed generation stays the
+fitted one of 23 October.
