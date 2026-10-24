@@ -323,14 +323,22 @@ def _validate_steering(
     ):
         _fail("steering_causal_evaluation_invalid")
     if protocol is not None:
-        from core.evaluation.fitted_steering_evaluation import paired_summary_qualifies
+        from core.evaluation.fitted_steering_evaluation import VERIFIER_SCHEMA, paired_summary_qualifies
 
         independent = _strict_json(evidence["independent_verifier"], role="independent_verifier")
         replayed = independent.get("replay")
         if (
-            not _is_sha(evaluation.get("analysis_plan_sha256"))
+            independent.get("schema") != VERIFIER_SCHEMA
+            or independent.get("verified") is not True
+            or independent.get("verification_sha256") != _sha({
+                key: value for key, value in independent.items() if key != "verification_sha256"})
+            or independent.get("model_descriptor_sha256") != descriptor_sha256
+            or independent.get("generation_sha256") != claims["generation_sha256"]
+            or not _is_sha(evaluation.get("analysis_plan_sha256"))
             or independent.get("analysis_plan_sha256") != evaluation["analysis_plan_sha256"]
             or not isinstance(replayed, Mapping)
+            or replayed.get("causal_effect_positive") is not True
+            or replayed.get("no_regression") is not True
             or replayed.get("qualification_protocol") != protocol
             or replayed.get("paired_controls") != evaluation["paired_controls"]
             or not paired_summary_qualifies(evaluation["paired_controls"], sample_count, treatment_successes,

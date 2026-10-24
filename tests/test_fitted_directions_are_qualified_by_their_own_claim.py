@@ -159,7 +159,8 @@ def test_a_record_on_other_replies_or_an_edited_count_is_refused(tmp_path):
                                 verifier_evidence_sha256="e" * 64)
 
 
-def test_authority_rejects_matching_summaries_with_a_false_paired_tail(tmp_path):
+@pytest.mark.parametrize("tamper", ["paired_tail", "verification_status", "verification_digest"])
+def test_authority_rejects_invalid_paired_verification_evidence(tmp_path, tamper):
     root = tmp_path / "gen"
     metadata = _generation(root)
     result = _record(metadata, wins=WINS)
@@ -175,9 +176,14 @@ def test_authority_rejects_matching_summaries_with_a_false_paired_tail(tmp_path)
         verifier_evidence_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest())
     # Keep all marginals and both summaries consistent, but leave the claimed
     # small tail on discordances whose actual corrected tail does not pass.
-    for contrasts in (evaluation["paired_controls"], evidence["replay"]["paired_controls"]):
-        contrasts[MATCHED_CONTROL].update(treatment_only=16, control_only=7, both=14, neither=3)
+    if tamper == "paired_tail":
+        for contrasts in (evaluation["paired_controls"], evidence["replay"]["paired_controls"]):
+            contrasts[MATCHED_CONTROL].update(treatment_only=16, control_only=7, both=14, neither=3)
+    elif tamper == "verification_status":
+        evidence["verified"] = False
     evidence["verification_sha256"] = canonical_sha256({k: v for k, v in evidence.items() if k != "verification_sha256"})
+    if tamper == "verification_digest":
+        evidence["verification_sha256"] = "f" * 64
     evidence_path.write_text(json.dumps(evidence))
     evaluation["independent_verifier"]["evidence_sha256"] = hashlib.sha256(evidence_path.read_bytes()).hexdigest()
     evaluation["evaluation_sha256"] = canonical_sha256({k: v for k, v in evaluation.items() if k != "evaluation_sha256"})
