@@ -275,8 +275,15 @@ class ConversationalDynamicsPhase(Phase):
             known = memory.best_known()
             if not known:
                 return
+            # Rebuilt from memory every turn, keeping what the rest of her had
+            # noted on each entity it still lists. A plain rebuild dropped
+            # those notes, so the mark that says she has already weighed
+            # someone new was gone the next turn and they were new again on
+            # every one (core/agency/marked.py).
+            before = state.world.known_entities if isinstance(state.world.known_entities, dict) else {}
             state.world.known_entities = {
                 entity.canonical_name: {
+                    **(before.get(entity.canonical_name) if isinstance(before.get(entity.canonical_name), dict) else {}),
                     "kind": str(entity.kind.value),
                     "description": memory.stance(entity).sentence(entity.canonical_name),
                     "met": entity.mention_count,

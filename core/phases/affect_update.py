@@ -187,6 +187,11 @@ _BASELINE_RATE = 0.001
 #: new affect vector declares.
 _MOOD_REST: dict[str, float] = dict(AffectVector().mood_baselines)
 
+#: Where her arousal's usual level and spread are kept, in `affect.markers`.
+AROUSAL_USUAL: str = "arousal_usual"
+#: The window her ledgers share: a rate of 1 / min(n, window).
+_USUAL_WINDOW: int = 256
+
 #: The momentum the last decay ran with; the settling certificate reads it.
 _momentum_seen = [AffectVector().momentum]
 
@@ -569,6 +574,20 @@ class AffectUpdatePhase(Phase):
         momentum = max(0.0, min(1.0, float(getattr(affect, "momentum", 0.85) or 0.0)))
         called_for = float(affect.arousal)
         affect.arousal = float(max(0.0, min(1.0, momentum * float(held) + (1.0 - momentum) * called_for)))
+        # And where it usually sits and how far it usually strays, at the
+        # ledgers' window, so being stirred is read against her own arousal
+        # (core/agency/marked.py `how_stirred`).
+        markers = affect.markers if isinstance(affect.markers, dict) else None
+        if markers is not None:
+            usual = markers.get(AROUSAL_USUAL)
+            usual = dict(usual) if isinstance(usual, dict) else {"n": 0, "level": 0.0, "spread": 0.0}
+            seen = int(usual.get("n", 0) or 0) + 1
+            rate = 1.0 / min(seen, _USUAL_WINDOW)
+            gap = affect.arousal - float(usual.get("level", 0.0) or 0.0)
+            usual["n"] = seen
+            usual["level"] = float(usual.get("level", 0.0) or 0.0) + rate * gap
+            usual["spread"] = float(usual.get("spread", 0.0) or 0.0) + rate * (abs(gap) - float(usual.get("spread", 0.0) or 0.0))
+            markers[AROUSAL_USUAL] = usual
 
     def _mark_phase_degraded(self, state: AuraState, stage: str, exc: BaseException) -> None:
         modifiers = dict(getattr(state.cognition, "modifiers", {}) or {})

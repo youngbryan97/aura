@@ -197,13 +197,19 @@ class ConsciousnessPhase(BasePhase):
         """
         try:
             from core.consciousness.conjunctive_codes import bind, into_substrate, standing_of
+            from core.consciousness.rehearsal import rehearsing
 
-            codes = bind(state)
-            if codes is None:
-                return
             substrate = get_runtime_service("liquid_substrate", default=None) or (
                 get_runtime_service("conscious_substrate", default=None)
             )
+            # What she has newly set herself to do, rehearsed as far as her
+            # self is in question. See core/consciousness/rehearsal.py.
+            if substrate is not None:
+                workspace = get_runtime_service("global_workspace", default=None)
+                substrate.rehearsal = rehearsing(state, getattr(workspace, "self_usual", None))
+            codes = bind(state)
+            if codes is None:
+                return
             if substrate is not None:
                 state.response_modifiers["conjunction_band"] = round(into_substrate(substrate, codes), 8)
                 substrate.conjunction_drive = standing_of(codes, "recurrent")

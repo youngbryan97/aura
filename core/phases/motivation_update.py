@@ -192,6 +192,15 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
                 new_level = self._spend_energy(level, capacity, dt)
             budget["level"] = float(new_level)
 
+        # What is new in her world, marked by how stirred she is, opens a gap
+        # in what she knows: that share of her curiosity is now wanting. Taken
+        # once here, so the intention proposed below reads the same marks.
+        # See core/agency/marked.py.
+        from core.agency.marked import marked
+
+        marks = marked(state)
+        self._curiosity_gap(mot, marks)
+
         # A drive that won the workspace was attended to, and attention
         # satisfies — the same rule the conversation branch below applies,
         # measured at the competition rather than at the dialogue. The
@@ -299,9 +308,9 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # And the force of a pressure she is under goes into what she is doing,
         # when nothing is actually damaged. See `_channelled`.
         self._channelled(next_state)
-        # And what is new in her world, marked by how strongly she feels it,
-        # becomes something she means to look into. See core/agency/marked.py.
-        next_state = await self._marked(next_state)
+        # And what is new in her world, marked by how stirred she is, becomes
+        # something she means to look into. See core/agency/marked.py.
+        next_state = await self._look_into(next_state, marks)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
@@ -444,11 +453,22 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         return closed
 
     @staticmethod
-    async def _marked(state: AuraState) -> AuraState:
-        """Propose looking into each thing new to her world, at the urgency her feeling marks it with."""
-        from core.agency.marked import marked
+    def _curiosity_gap(mot: Any, marks: list[tuple[str, float]]) -> float:
+        """Take each mark's share of what her curiosity holds. Returns how much went."""
+        budget = (getattr(mot, "budgets", None) or {}).get("curiosity")
+        if not isinstance(budget, dict):
+            return 0.0
+        level = float(budget.get("level", 0.0) or 0.0)
+        before = level
+        for _name, mark in marks:
+            level -= max(0.0, min(1.0, float(mark))) * level
+        budget["level"] = float(max(0.0, level))
+        return before - budget["level"]
 
-        for name, urgency in marked(state):
+    @staticmethod
+    async def _look_into(state: AuraState, marks: list[tuple[str, float]]) -> AuraState:
+        """Propose looking into each thing new to her world, at the urgency its mark gives it."""
+        for name, urgency in marks:
             if urgency <= 0.0:
                 continue
             state, decision = await propose_governed_initiative_to_state(

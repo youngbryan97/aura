@@ -350,11 +350,13 @@ def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
     # whatever either was worth. Whichever presses harder speaks for her self.
     selves: list[Any] = []
     if identity is not None:
+        from core.agency.marked import how_stirred
         from core.consciousness.self_conscious import claim, in_question
 
         stability = _clamp(getattr(identity, "stability", 1.0), 1.0)
         arousal = getattr(affect, "arousal", 0.0) if affect is not None else 0.0
-        felt = claim(arousal, in_question(stability, self_usual))
+        question = in_question(stability, self_usual)
+        felt = claim(arousal, question)
         if felt > FLOOR:
             selves.append(
                 CognitiveCandidate(
@@ -362,6 +364,10 @@ def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
                     source="self",
                     priority=felt,
                     content_type=ContentType.META,
+                    # A thought about herself charged with feeling, as far as
+                    # she is stirred above her usual: what affect lends to
+                    # content it is about (global_workspace_supply.bid_parts).
+                    affect_weight=question * how_stirred(state),
                 )
             )
 

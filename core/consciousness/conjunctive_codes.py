@@ -622,10 +622,18 @@ def substrate_current(substrate: Any, recurrent: np.ndarray) -> np.ndarray | Non
 
 
 def with_conjunction_current(substrate: Any, recurrent: Any) -> Any:
-    """The recurrent drive, a torch tensor, with the current added when one is bound."""
-    current = substrate_current(substrate, recurrent.detach().cpu().numpy())
-    if current is None:
+    """The recurrent drive, a torch tensor, with the currents added that are bound.
+
+    The codes' current, and the rehearsal of a new intention by a self in
+    question (core/consciousness/rehearsal.py).
+    """
+    from core.consciousness.rehearsal import rehearsal_current
+
+    drive = recurrent.detach().cpu().numpy()
+    currents = [current for current in (substrate_current(substrate, drive), rehearsal_current(substrate, drive))
+                if current is not None]
+    if not currents:
         return recurrent
     import torch
 
-    return recurrent + torch.from_numpy(current.astype(np.float32)).to(recurrent.device)
+    return recurrent + torch.from_numpy(np.sum(currents, axis=0).astype(np.float32)).to(recurrent.device)

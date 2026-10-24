@@ -16,12 +16,30 @@ calls up is just new, and a recalled context with nothing new in it is a
 match. Under predictive coding the same signal is a precision: it sets how much
 a prediction error counts, both in what is passed on and in how far it moves
 the model (Yu and Dayan, Neuron 46, 2005; Feldman and Friston, Frontiers in
-Human Neuroscience 4, 2010).
+Human Neuroscience 4, 2010). And novelty opens a window rather than an instant:
+what is learned for a while after it is encoded more strongly (behavioural
+tagging, Moncada and Viola, Journal of Neuroscience 27, 2007; synaptic tagging,
+Frey and Morris, Nature 385, 1997).
 
-So the precision here is a product: how far more arrived this cycle than
-usually does, times how far more is recalled than usually is, each in its own
-spread. It weights the surprise the model reports and the step it learns by,
-on the codes' scale, exp(m / 2) with m in [0, 1).
+The first version read totals: everything that arrived and the sum of recall's
+scores, each against its usual. Inside her organism both read nothing of a
+single new thing (23 October). Some two and a half salience units arrive in an
+ordinary turn, so one new percept was a twentieth of them; and recall rebuilds
+what is in mind every turn, so a recollection put there was gone before the
+world model looked.
+
+So the two sides are now:
+
+- new to her senses: what arrived of a kind she has not met within the
+  ledgers' window, by salience, held as a trace that fades at her affect's
+  momentum, the clock her feelings settle on, so the window novelty opens
+  stays open for a while;
+- in mind: memory replayed this turn, by salience, and whatever is in working
+  memory that is not the conversation itself.
+
+The precision is the product of the two on the codes' scale, exp(m / 2) with m
+in [0, 1). It weights the error the world model reports and the step it learns
+by.
 """
 
 from __future__ import annotations
@@ -31,13 +49,19 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["SEEN", "WINDOW", "Comparator", "Spread", "arrived", "recalled"]
+__all__ = ["DIALOGUE", "REPLAY", "SEEN", "WINDOW", "Comparator", "Spread", "in_mind", "new_to_her"]
 
 #: The window her ledgers share: a rate of 1 / min(n, WINDOW).
 WINDOW: int = 256
 
-#: The mark a percept carries once the comparator has counted it.
+#: The mark a percept or a working-memory entry carries once the comparator has counted it.
 SEEN: str = "compared"
+
+#: The percept recall raises when it replays a memory (core/phases/memory_retrieval.py).
+REPLAY: str = "memory_replay"
+
+#: Working-memory entries that are the conversation itself rather than something brought to mind.
+DIALOGUE: frozenset[str] = frozenset({"user", "assistant"})
 
 
 @dataclass
@@ -68,53 +92,78 @@ class Spread:
         self.spread += rate * (abs(gap) - self.spread)
 
 
-def arrived(state: Any) -> float:
-    """The salience of what arrived since the comparator last looked. Marks it seen."""
+def new_to_her(state: Any, familiar: dict[str, int], look: int) -> tuple[float, float]:
+    """What arrived since the comparator last looked: of a kind she has not met lately, and replayed memory.
+
+    Both by salience. ``familiar`` is when each kind was last met, in looks,
+    and ``look`` is this one; a kind met within the window is familiar. Marks
+    everything it read, so nothing is counted twice.
+    """
     from core.state.percepts import read_percept
 
     world = getattr(state, "world", None)
     percepts = getattr(world, "recent_percepts", None) if world is not None else None
     if not isinstance(percepts, list):
-        return 0.0
-    total = 0.0
+        return 0.0, 0.0
+    novel = replayed = 0.0
     for item in percepts:
         if not isinstance(item, dict) or item.get(SEEN):
             continue
-        total += read_percept(item).salience
         item[SEEN] = True
-    return total
-
-
-def recalled(state: Any) -> float:
-    """How much is recalled: the match scores of what recall has in mind."""
-    cognition = getattr(state, "cognition", None)
-    scores = getattr(cognition, "memory_scores", None) if cognition is not None else None
-    total = 0.0
-    for score in scores or ():
-        try:
-            value = float(score)
-        # not a failure: a score that is not a number recalled nothing.
-        except (TypeError, ValueError):
+        percept = read_percept(item)
+        if percept.kind == REPLAY:
+            replayed += percept.salience
             continue
-        if math.isfinite(value):
-            total += max(0.0, min(1.0, value))
-    return total
+        last = familiar.get(percept.kind)
+        if last is None or look - last > WINDOW:
+            novel += percept.salience
+        familiar[percept.kind] = look
+    return novel, replayed
+
+
+def in_mind(state: Any) -> float:
+    """How many entries in working memory are not the conversation itself."""
+    cognition = getattr(state, "cognition", None)
+    working = getattr(cognition, "working_memory", None) if cognition is not None else None
+    if not isinstance(working, list):
+        return 0.0
+    return float(sum(1 for entry in working if isinstance(entry, dict) and str(entry.get("role", "")) not in DIALOGUE))
+
+
+def _momentum(state: Any) -> float:
+    affect = getattr(state, "affect", None)
+    try:
+        value = float(getattr(affect, "momentum", 0.85))
+    # not a failure: a momentum that is not a number is her default.
+    except (TypeError, ValueError):
+        value = 0.85
+    return max(0.0, min(1.0, value))
 
 
 @dataclass
 class Comparator:
-    """The two running levels and the last precision they set."""
+    """The two traces and the last precision they set."""
 
-    arrivals: Spread = field(default_factory=Spread)
-    recall: Spread = field(default_factory=Spread)
+    novelty: float = 0.0
+    looks: int = 0
+    familiar: dict[str, int] = field(default_factory=dict)
     last: Mapping[str, float] = field(default_factory=dict)
 
     def precision(self, state: Any) -> float:
         """This cycle's precision, from the state that just closed a turn."""
-        new, held = arrived(state), recalled(state)
-        mismatch = self.arrivals.beyond(new) * self.recall.beyond(held)
-        self.arrivals.note(new)
-        self.recall.note(held)
+        self.looks += 1
+        novel, replayed = new_to_her(state, self.familiar, self.looks)
+        held = in_mind(state)
+        self.novelty = _momentum(state) * self.novelty + novel
+        recall = replayed + held
+        mismatch = math.tanh(self.novelty * recall)
         weight = math.exp(0.5 * mismatch)
-        self.last = {"arrived": new, "recalled": held, "mismatch": mismatch, "precision": weight}
+        self.last = {
+            "novel": novel,
+            "novelty": self.novelty,
+            "replayed": replayed,
+            "in_mind": held,
+            "mismatch": mismatch,
+            "precision": weight,
+        }
         return weight

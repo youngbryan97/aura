@@ -22,59 +22,85 @@ from core.state.percepts import emit_percept
 from core.subject.interventional_synergy import Samples, summarise
 from core.subject.perturbation import perturb
 from core.subject.snapshot import _organ_state, _restore_organ
-from core.world_model.associative_novelty import SEEN, Comparator, Spread, arrived, recalled
+from core.world_model.associative_novelty import REPLAY, SEEN, Comparator, Spread, in_mind, new_to_her
 from core.world_model.learned_world_model import LearnedWorldModel
 from core.world_model.observe_cycle import observe_cycle
 
 DELTA = 0.15
 
 
-def test_only_what_arrived_since_the_last_look_is_counted():
+def _percept(state: AuraState, kind: str, salience: float) -> None:
+    emit_percept(state.world, kind, content=f"{kind} {salience}", intensity=salience)
+
+
+def test_a_kind_met_lately_is_familiar_and_a_replay_is_recall():
     state = AuraState.default()
-    emit_percept(state.world, "conversation", content="first", intensity=0.4)
-    assert arrived(state) == pytest.approx(0.4)
+    familiar: dict[str, int] = {}
+    _percept(state, "conversation", 0.4)
+    _percept(state, REPLAY, 0.9)
+    assert new_to_her(state, familiar, 1) == (pytest.approx(0.4), pytest.approx(0.9))
     assert state.world.recent_percepts[-1][SEEN]
-    emit_percept(state.world, "novel_stimulus", content="second", intensity=0.15)
-    assert arrived(state) == pytest.approx(0.15)
-    assert arrived(state) == 0.0
+    _percept(state, "conversation", 0.5)
+    _percept(state, "novel_stimulus", 0.15)
+    assert new_to_her(state, familiar, 2) == (pytest.approx(0.15), 0.0)
+    assert new_to_her(state, familiar, 3) == (0.0, 0.0)
 
 
-def test_recall_is_what_recall_holds():
+def test_what_is_in_mind_is_what_is_not_the_conversation():
     state = AuraState.default()
-    state.cognition.memory_scores = [0.9, 0.5, "not a score", float("nan")]
-    assert recalled(state) == pytest.approx(1.4)
+    state.cognition.working_memory = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "hi"},
+        {"role": "system", "content": "[SKILL RESULT: read] done"},
+        {"role": "probe", "content": "subject-core memory probe +0.15"},
+    ]
+    assert in_mind(state) == 2.0
 
 
-def _comparator_used_to(arrivals: float, recall: float) -> Comparator:
-    comparator = Comparator()
-    rng = np.random.default_rng(0)
-    for _ in range(64):
-        comparator.arrivals.note(arrivals + 0.05 * rng.standard_normal())
-        comparator.recall.note(recall + 0.5 * rng.standard_normal())
-    return comparator
-
-
-def _precision(comparator: Comparator, arriving: float, recall: float) -> float:
+def _precision(comparator: Comparator, *, new: bool, held: bool) -> float:
     state = AuraState.default()
-    emit_percept(state.world, "conversation", content="now", intensity=arriving)
-    state.cognition.memory_scores = [recall / 5.0] * 5
+    _percept(state, "conversation", 0.4)
+    if new:
+        _percept(state, "novel_stimulus", 0.15)
+    if held:
+        state.cognition.working_memory.append({"role": "probe", "content": "probe"})
     return copy.deepcopy(comparator).precision(state)
 
 
-def test_a_new_thing_with_nothing_recalled_is_only_new():
-    comparator = _comparator_used_to(0.4, 4.5)
-    assert _precision(comparator, 0.6, 4.0) == 1.0
-    assert _precision(comparator, 0.3, 5.0) == 1.0
+def _comparator_used_to_conversation() -> Comparator:
+    """Long enough used to conversation that the window its first look opened has closed."""
+    comparator = Comparator()
+    for _ in range(60):
+        state = AuraState.default()
+        _percept(state, "conversation", 0.4)
+        comparator.precision(state)
+    return comparator
 
 
-def test_a_new_thing_in_a_recalled_context_counts_for_more_than_the_two_add():
-    comparator = _comparator_used_to(0.4, 4.5)
-    base = _precision(comparator, 0.4, 4.5)
-    new = _precision(comparator, 0.55, 4.5)
-    recall = _precision(comparator, 0.4, 5.15)
-    both = _precision(comparator, 0.55, 5.15)
+def test_a_new_thing_with_nothing_in_mind_is_only_new():
+    comparator = _comparator_used_to_conversation()
+    assert _precision(comparator, new=True, held=False) == 1.0
+    assert _precision(comparator, new=False, held=True) == pytest.approx(1.0, abs=1e-3)
+
+
+def test_a_new_thing_while_something_is_in_mind_counts_for_more_than_the_two_add():
+    comparator = _comparator_used_to_conversation()
+    base = _precision(comparator, new=False, held=False)
+    new = _precision(comparator, new=True, held=False)
+    held = _precision(comparator, new=False, held=True)
+    both = _precision(comparator, new=True, held=True)
     assert both > 1.0
-    assert both - new - recall + base > 0.0
+    assert both - new - held + base > 0.0
+
+
+def test_the_window_novelty_opens_stays_open_at_her_momentum():
+    comparator = _comparator_used_to_conversation()
+    state = AuraState.default()
+    _percept(state, "novel_stimulus", 0.15)
+    comparator.precision(state)
+    opened = comparator.novelty
+    comparator.precision(AuraState.default())
+    assert comparator.novelty == pytest.approx(opened * AuraState.default().affect.momentum)
 
 
 def test_the_precision_weights_the_error_she_reports():
