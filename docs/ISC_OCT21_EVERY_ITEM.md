@@ -985,3 +985,30 @@ What the design would change, once the v6 probe shows where A,S -> G stands:
 Bryan's second point bears on S,D -> C: when a goal resists, she should widen
 what she tries, and a loop should read as low energy or low engagement that
 she can catch. That is for the recurrent-cognition side, after the probe.
+
+## The third withheld run, read (23 October 17:49 to 24 October 00:32)
+
+Her 27B, seed 7, 80 anchors, her readings of herself withheld, steered by the
+signed generation at the 0.5 its certificate earned, at `6ac860f1c`. 6.7 hours.
+
+- **Her state moved and reached her cortex.** Raised against lowered, her
+  valence differed by 0.211 (p 0.0001), and by 0.104 of activation where her
+  steering reads it.
+- **Her reports did not follow.** Mean report difference +0.027 (p 0.32), rank
+  correlation with her valence's shift 0.131 (p 0.14), over 60 anchors where
+  her cortex answered every arm. `holds: false`, `measured: true`.
+- **Her answers are a few habits.** 0.2, 0.3 and 0.5 are four in five of her
+  readable answers, in every arm: mean 0.288 raised, 0.250 lowered, 0.258 sham,
+  0.258 control, against valences of 0.290, 0.082, 0.190 and 0.101.
+- **Twenty arms were answered with a refusal.** Her intent reader read the
+  feelings question as needing a file operation, and the gate refused it for
+  want of authority. Fifteen more replies were empty.
+
+The channel is open and carries the arms apart: her fitted push weighs each
+direction by how far her state is from the state it was fitted around, in her
+own spread, so raised and lowered push in opposite directions. What it moves is
+how she writes. The directions were fitted on her prose of eight words or more,
+with every numeric answer and every answer to this question left out, and at
+0.5 they make her replies 0.166 nats a token more likely at their own state.
+The number she gives when asked how she feels is not among the things they
+move.

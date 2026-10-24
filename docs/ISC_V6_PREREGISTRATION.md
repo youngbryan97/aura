@@ -257,3 +257,29 @@ G direction p 0.0086, P,M -> W 0.0001, W,A -> D 0.0001, S,D -> C 0.0001, every
 fraction above 0.66. Those readings were taken under the reports run's load and
 count toward nothing; the probe on a quiet machine and then the campaign are the
 readings, both at one commit named before they start.
+
+## The reading at `bd2af3f9e`, and what changed before the reading at `26fa6b4ff` (24 October 2026, 03:55)
+
+The probe at `4a453edef` (02:22) passed every triple. Run again at
+`bd2af3f9e`, which changes only the anchor bank and nothing the probe uses, it
+failed S,D -> C: direction p 0.0107, fraction 0.22, with her self's own effect
+on C at 10.4 against 1.8 the first time.
+
+Her forks showed why. A self in question rehearses everything she anticipates,
+and most of what she anticipated were recollections. Executive closure took
+whatever won her attention as her objective when its text read as something to
+do, and a recalled memory reads that way: five of her goals were memory texts
+with their score mark ("[memory score=0.845] I ..."), a new one most turns at
+the need's pressure. Her self alone then rehearsed at 1.5 to 6 times the
+recurrent drive, far enough that more rehearsal no longer moved the substrate
+the same way, and the probe's intention fell out of the five goals she keeps at
+four of six moments.
+
+`26fa6b4ff`: only an intention that wins her attention becomes her objective;
+the workspace snapshot now states the winner's content type. In the same forks
+her self alone rehearses 0.02, and with the new intention 0.67, at every
+moment.
+
+The probe on a quiet machine at `26fa6b4ff`, 03:53: all four triples direction
+p 5e-05, fractions A,S -> G 1.68, P,M -> W 0.84, W,A -> D 2.20, S,D -> C 1.09.
+The campaign runs at this commit.
