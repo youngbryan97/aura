@@ -223,12 +223,42 @@ def _rescored(text: str, bounded: float, updated: float) -> str:
     return text
 
 
+def _appraised_in_her_mood(appraisal: tuple[str, ...], affect: Any) -> dict[str, float] | None:
+    """How strongly each emotion a percept moves is felt by her in the mood she is in.
+
+    A mood colours how an event is appraised: in a good one a bad event is
+    judged less bad and a good one better (Forgas, "Mood and judgment: the
+    affect infusion model", Psychological Bulletin 117, 1995), in proportion to
+    how strong the mood is. Her mood is her valence against her own usual
+    (`affect_update.VALENCE_USUAL`), tanh of the distance in its spread, so
+    each emotion weighs one plus its valence sign times that. On 24 October,
+    when she felt better, her internal state drew a good and a bad percept 0.94
+    closer and what they brought back did not move; the percept still cued
+    every memory of its feelings at full strength. None when she has no usual.
+    """
+    markers = getattr(affect, "markers", None)
+    usual = markers.get("valence_usual") if isinstance(markers, dict) else None
+    if not appraisal or not isinstance(usual, dict) or not float(usual.get("spread", 0.0) or 0.0) > 0.0:
+        return None
+    import math
+
+    from core.phases.affect_update import _NEGATIVE_AFFECT_WEIGHTS, _POSITIVE_AFFECT_WEIGHTS
+
+    def _valence_sign(name: str) -> float:
+        return 1.0 if name in _POSITIVE_AFFECT_WEIGHTS else -1.0 if name in _NEGATIVE_AFFECT_WEIGHTS else 0.0
+
+    mood = math.tanh((float(getattr(affect, "valence", 0.0) or 0.0) - float(usual.get("level", 0.0) or 0.0))
+                     / float(usual["spread"]))
+    return {name: max(0.0, 1.0 + _valence_sign(name) * mood) for name in appraisal}
+
+
 def _cued_by_the_percept(
     memory_candidates: list[tuple[float, str]],
     felt_by_text: dict[str, Any],
     percept_cue: str,
     percept_salience: float,
     percept_kind: str,
+    affect: Any = None,
 ) -> list[tuple[float, str]]:
     """What she perceives changes what a recollection is worth now.
 
@@ -248,10 +278,11 @@ def _cued_by_the_percept(
 
     appraisal = tuple(PERCEPT_EMOTIONS.get(percept_kind, ()) or ())
     set_apart = distinctive(felt_by_text) if appraisal else {}
+    weights = _appraised_in_her_mood(appraisal, affect)
     reread: list[tuple[float, str]] = []
     for score, text in memory_candidates:
         bounded = max(0.0, min(1.0, float(score)))
-        carried = percept_carried(word_overlap(percept_cue, text), appraisal, set_apart.get(text))
+        carried = percept_carried(word_overlap(percept_cue, text), appraisal, set_apart.get(text), weights=weights)
         updated = bounded + (1.0 - bounded) * carried * percept_salience
         reread.append((updated, _rescored(text, bounded, updated)))
     return reread
@@ -887,6 +918,26 @@ class MemoryRetrievalPhase(BasePhase):
         def _get_intentional():
             return _intentional_hits(self.container, query, retrieval_limit)
 
+        async def _get_felt():
+            # What she feels is a cue as well as the words: memories made in it
+            # come to mind (MemoryFacade.search_by_feeling).
+            try:
+                memory = self.container.get("memory_facade", default=None)
+                if memory is None or not hasattr(memory, "search_by_feeling"):
+                    return None
+                from core.memory.felt_at_encoding import felt_now
+
+                now = felt_now(getattr(state, "affect", None))
+                if not now:
+                    return None
+                async with asyncio.timeout(15.0):
+                    return await asyncio.to_thread(memory.search_by_feeling, now, _candidate_pool(retrieval_limit))
+            except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                _record_memory_degradation(
+                    exc, action="recalled by words alone this turn", stage="recall_by_feeling",
+                )
+                return None
+
         # Each source timed, so a slow phase says which part of it was slow.
         # The kernel measured this phase at five to nine seconds a background
         # tick (live, 2026-09-18) and could only name the phase.
@@ -900,12 +951,13 @@ class MemoryRetrievalPhase(BasePhase):
                 took[name] = time.monotonic() - began
 
         gathered_from = time.monotonic()
-        dual_res, kg_res, facade_res, episodic_res, intentional_res = await asyncio.gather(
+        dual_res, kg_res, facade_res, episodic_res, intentional_res, felt_res = await asyncio.gather(
             _timed("dual memory", _get_dual()),
             _timed("knowledge graph", _get_kg()),
             _timed("memory facade", _get_facade()),
             _timed("episodic", _get_episodic()),
             _timed("intentional", _get_intentional()),
+            _timed("feeling", _get_felt()),
         )
         if time.monotonic() - gathered_from > _SLOW_ENOUGH_TO_SAY_S and took:
             slowest = max(took, key=took.get)
@@ -980,6 +1032,15 @@ class MemoryRetrievalPhase(BasePhase):
                         (0.35, f"[memory] {_safe_text(item, max_chars=2_000)}")
                     )
 
+        if felt_res:
+            found = {text.split("] ", 1)[-1] for _, text in memory_candidates}
+            for item in _iter_retrieval_items(felt_res):
+                if isinstance(item, dict):
+                    content = _safe_text(item.get("content") or item.get("text"), max_chars=2_000)
+                    if content and content not in found:
+                        found.add(content)
+                        self._execute_metadata(affect_sources, content, effective_memory_salience, item,
+                                               memory_candidates, partner_id, shared_texts, state, felt_by_text)
         if episodic_res:
             for ep in _iter_retrieval_items(episodic_res):
                 desc = _safe_text(
@@ -1064,7 +1125,8 @@ class MemoryRetrievalPhase(BasePhase):
 
         # The percept and what she feels now each cue what comes back.
         memory_candidates = _cued_by_the_percept(
-            memory_candidates, felt_by_text, percept_cue, percept_salience, percept_kind
+            memory_candidates, felt_by_text, percept_cue, percept_salience, percept_kind,
+            getattr(state, "affect", None),
         )
         memory_candidates = _cued_by_what_she_feels(
             memory_candidates, felt_by_text, getattr(state, "affect", None), effective_memory_salience

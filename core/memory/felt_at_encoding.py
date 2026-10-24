@@ -191,7 +191,7 @@ def distinctive(felts: Mapping[str, Any]) -> dict[str, dict[str, float]]:
     return out
 
 
-def percept_carried(in_words: float, appraisal: Iterable[str], felt: Any) -> float:
+def percept_carried(in_words: float, appraisal: Iterable[str], felt: Any, *, weights: Mapping[str, float] | None = None) -> float:
     """How much of a percept a recollection carries, in its words or in its feeling.
 
     Taken together the way two independent chances are, so a recollection that
@@ -202,7 +202,14 @@ def percept_carried(in_words: float, appraisal: Iterable[str], felt: Any) -> flo
     """
     words = max(0.0, min(1.0, float(in_words)))
     named = tuple(appraisal or ())
-    feeling = carries(named, felt) if named else 0.0
+    if named and weights is not None:
+        # Each named emotion as strongly as she feels it now.
+        feeling_then = decode(felt)
+        total = sum(feeling_then.values())
+        feeling = (max(0.0, min(1.0, sum(value * float(weights.get(name, 0.0)) for name, value in feeling_then.items()
+                                         if name in named) / total)) if total > 0.0 else 0.0)
+    else:
+        feeling = carries(named, felt) if named else 0.0
     return 1.0 - (1.0 - words) * (1.0 - feeling)
 
 
