@@ -180,3 +180,50 @@ def test_the_bid_it_replaced_carried_no_joint_effect(monkeypatch):
     read, won = _read_the_triple(7)
     assert sum(won.values()) == 0
     assert read["interaction"] == 0.0 and not read["passes"]
+
+
+# ── self-focus under arousal, on how the next thought may run ────────────
+
+
+def test_monitoring_moves_each_modifier_its_share_of_the_way_within_homeostasis_s_range():
+    from core.consciousness.homeostatic_coupling import MODIFIER_BOUNDS
+    from core.consciousness.self_conscious import monitoring
+
+    modifiers = {"focus_mod": 1.0, "depth_mod": 1.0, "creativity_mod": 1.0, "temperature_mod": 1.0, "other": 5.0}
+    assert monitoring(modifiers, 0.5) == 0.5
+    assert modifiers["focus_mod"] == pytest.approx(1.0 + 0.5 * (MODIFIER_BOUNDS["focus_mod"][1] - 1.0))
+    assert modifiers["depth_mod"] == pytest.approx(1.0 + 0.5 * (MODIFIER_BOUNDS["depth_mod"][1] - 1.0))
+    assert modifiers["creativity_mod"] == pytest.approx(1.0 - 0.5 * (1.0 - MODIFIER_BOUNDS["creativity_mod"][0]))
+    assert modifiers["temperature_mod"] == pytest.approx(1.0 - 0.5 * (1.0 - MODIFIER_BOUNDS["temperature_mod"][0]))
+    assert modifiers["other"] == 5.0
+    assert monitoring(modifiers, 0.0) == 0.0
+
+
+def test_only_a_self_in_question_while_stirred_is_monitored():
+    import asyncio
+
+    from core.consciousness.workspace_feed import feed_workspace
+
+    class _Workspace:
+        _tick = 0
+        last_winner = None
+        ignited = False
+
+        async def submit(self, bid):
+            pass
+
+        async def run_competition(self):
+            return None
+
+    def focus(stability: float, stirred_above: bool) -> float:
+        state = AuraState.default()
+        state.identity.stability = stability
+        state.cognition.modifiers = {"focus_mod": 1.0}
+        state.affect.markers["arousal_usual"] = {"n": 50, "level": 0.6, "spread": 0.05}
+        state.affect.arousal = 0.8 if stirred_above else 0.6
+        asyncio.run(feed_workspace(state, _Workspace()))
+        return state.cognition.modifiers["focus_mod"]
+
+    assert focus(1.0, True) == 1.0
+    assert focus(0.85, False) == 1.0
+    assert focus(0.85, True) > 1.0

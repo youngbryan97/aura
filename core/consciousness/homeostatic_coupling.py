@@ -68,6 +68,22 @@ SUBSTRATE_SHARE: float = 0.3
 _UNRESOLVED: Any = object()
 
 
+#: The range each cognitive modifier is held to. One table, so whatever else
+#: moves a modifier (core/consciousness/self_conscious.py `monitoring`) moves it
+#: within the range homeostasis holds it to.
+MODIFIER_BOUNDS: dict[str, tuple[float, float]] = {
+    "temperature_mod": (0.3, 1.5),
+    "depth_mod": (0.4, 1.5),
+    "creativity_mod": (0.4, 1.5),
+    "focus_mod": (0.3, 1.3),
+}
+
+
+def _held(name: str, value: float) -> float:
+    low, high = MODIFIER_BOUNDS[name]
+    return max(low, min(high, value))
+
+
 @dataclass
 class CognitiveModifiers:
     """The output of homeostatic coupling — a set of multipliers and flags
@@ -613,10 +629,10 @@ class HomeostaticCoupling:
         if self._prospective_dread > 0.5:
             temp_mod = min(1.1, temp_mod * 1.05)
 
-        m.temperature_mod = max(0.3, min(1.5, temp_mod))
-        m.depth_mod = max(0.4, min(1.5, depth_mod))
-        m.creativity_mod = max(0.4, min(1.5, creativity_mod))
-        m.focus_mod = max(0.3, min(1.3, attention_mod))
+        m.temperature_mod = _held("temperature_mod", temp_mod)
+        m.depth_mod = _held("depth_mod", depth_mod)
+        m.creativity_mod = _held("creativity_mod", creativity_mod)
+        m.focus_mod = _held("focus_mod", attention_mod)
         m.urgency_flag = urgency
         m.dominant_drive_alert = worst_drive or ""
 

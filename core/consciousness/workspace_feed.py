@@ -638,7 +638,19 @@ async def feed_workspace(state: Any, workspace: Any) -> Any:
         bids = build_candidates(state, usual)
         identity = getattr(state, "identity", None)
         if identity is not None:
-            usual.note(1.0 - _clamp(getattr(identity, "stability", 1.0), 1.0))
+            from core.agency.marked import how_stirred
+            from core.consciousness.self_conscious import in_question, monitoring
+
+            stability = _clamp(getattr(identity, "stability", 1.0), 1.0)
+            # Self-focus under arousal, on how the next thought is allowed to
+            # run, whether or not the feeling about herself wins. See
+            # core/consciousness/self_conscious.py `monitoring`.
+            cognition = getattr(state, "cognition", None)
+            monitoring(
+                getattr(cognition, "modifiers", None),
+                in_question(stability, usual) * how_stirred(state),
+            )
+            usual.note(1.0 - stability)
     except (AttributeError, TypeError, ValueError, ImportError) as exc:
         record_degradation(
             "workspace_feed", exc, severity="warning",
