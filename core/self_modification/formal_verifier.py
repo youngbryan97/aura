@@ -40,6 +40,7 @@ from core.runtime.errors import record_degradation
 
 
 import ast
+from core.self_modification.public_contract import public_contract_violations
 import logging
 import re
 from dataclasses import dataclass, field
@@ -315,7 +316,8 @@ def verify_mutation(
             res.invariants_violated.append(
                 f"async:{name}:flag_changed:{before_sig.is_async}->{after_sig.is_async}"
             )
-    if not any(v.startswith("public:") or v.startswith("async:") for v in res.invariants_violated):
+    res.invariants_violated.extend(public_contract_violations(before_source, after_source))
+    if not any(v.startswith(("public:", "async:", "interface_")) for v in res.invariants_violated):
         res.invariants_satisfied.append("public_surface_preserved")
         res.invariants_satisfied.append("async_preservation")
 

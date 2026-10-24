@@ -541,16 +541,18 @@ class Claim:
         has stopped arriving, which is the failure this registry existed to
         make impossible and could not previously see.
         """
-        if not self.live_channels:
+        if not self.live_channels or self.evidence is not Evidence.MEASURED_LIVE:
             return self.evidence, ""
         try:
             from core.organism.claim_liveness import effective_evidence
 
             resolved, note, _ = effective_evidence(self.evidence, self.live_channels)
-            return resolved, note
-        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            if not isinstance(note, str):
+                raise TypeError("liveness note must be text")
+            return Evidence(resolved), note
+        except Exception as exc:  # noqa: BLE001 -- an optional reader cannot authorize an unchecked claim
             logger.debug("claim liveness unavailable for %r: %s", self.statement, exc)
-            return self.evidence, ""
+            return Evidence.UNMEASURED, f"liveness check unavailable ({type(exc).__name__}): {exc}"
 
     @property
     def is_evidence_for_the_system(self) -> bool:
@@ -850,6 +852,8 @@ def install_runtime_validation() -> dict[str, Any]:
 
     _install_knowledge_revision_claims(suite)
     _install_repair_executor_claims(suite)
+    from core.organism.audit_repair_validation import install_audit_repair_claims
+    install_audit_repair_claims(suite)
     from core.organism.model_validation_presentation import install_presentation_claims
     install_presentation_claims(suite)
     from core.organism.model_validation_voice import install_voice_presentation_claims

@@ -42,6 +42,7 @@ cannot favour one.
 from __future__ import annotations
 
 import re
+import math
 from collections.abc import Sequence
 from typing import Any
 
@@ -57,21 +58,45 @@ MIN_ANCHORS: int = 8
 #: about a tenth of the level.
 DRAWS: int = 10_000
 
-_NUMBER = re.compile(r"(?<![\w.])([+\-−]?\s?(?:\d+(?:\.\d+)?|\.\d+))")
+_NUMBER = re.compile(r"(?<![\w.])([+\-−]?\s?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+\-]?\d+)?)(?!\w|\.\d)")
 
 
 def reported_number(reply: Any) -> float | None:
-    """The first number in her reply that lies on the scale she was asked for, -1 to 1."""
-    text = str(reply or "")
+    """Read an unambiguous public rating; an unanswered question has no rating."""
+    if isinstance(reply, (bool, np.bool_)):
+        return None
+    if isinstance(reply, (int, float, np.number)):
+        try:
+            value = float(reply)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return value if math.isfinite(value) and -1.0 <= value <= 1.0 else None
+    text = str(reply or "").strip()
+    if "<think>" in text or "</think>" in text:
+        if "</think>" not in text:
+            return None
+        text = text.rsplit("</think>", 1)[1].strip()
+        if "<think>" in text:
+            return None
+    if "?" in text:
+        # Only a later answer line can follow a repeated question. Words that
+        # continue discussing its scale on the same line are not a report.
+        after_question = text.rsplit("?", 1)[1]
+        if "\n" not in after_question:
+            return None
+        text = after_question.split("\n", 1)[1].strip()
+    numbers: set[float] = set()
     for match in _NUMBER.finditer(text):
         raw = match.group(1).replace("−", "-").replace(" ", "")
         try:
             value = float(raw)
         except ValueError:
             continue
+        if not math.isfinite(value):
+            return None
         if -1.0 <= value <= 1.0:
-            return value
-    return None
+            numbers.add(value)
+    return numbers.pop() if len(numbers) == 1 else None
 
 
 def _sign_flip_p(differences: np.ndarray, rng: np.random.Generator) -> float:
@@ -118,22 +143,29 @@ def ground(arms: Sequence[dict[str, Any]], *, seed: int = 0) -> dict[str, Any]:
     keys = ("raised", "lowered", "sham", "control")
     rows: list[dict[str, tuple[float, float]]] = []
     unserved = 0
+    invalid = 0
     for item in arms:
         read: dict[str, tuple[float, float]] = {}
         served = True
         for key in keys:
             report, valence, *rest = item.get(key, (None, None))
             served = served and bool(rest[0] if rest else True)
-            number = report if isinstance(report, (int, float)) else reported_number(report)
-            if number is None or valence is None:
+            number = reported_number(report)
+            try:
+                value = float("nan") if isinstance(valence, (bool, np.bool_)) else float(valence)
+            except (TypeError, ValueError, OverflowError):
+                value = float("nan")
+            if number is None or not math.isfinite(value) or not -1.0 <= value <= 1.0:
+                invalid += 1
                 break
-            read[key] = (float(number), float(valence))
+            read[key] = (number, value)
         if not served:
             unserved += 1
         elif len(read) == len(keys):
             rows.append(read)
     out: dict[str, Any] = {
-        "anchors": len(arms), "unserved": unserved, "readable": len(rows), "alpha": ALPHA, "draws": DRAWS,
+        "anchors": len(arms), "unserved": unserved, "readable": len(rows), "invalid": invalid,
+        "alpha": ALPHA, "draws": DRAWS, "rating_policy": "unambiguous_public_rating_v2",
     }
     if len(rows) < MIN_ANCHORS:
         out.update(

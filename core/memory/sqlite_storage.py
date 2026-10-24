@@ -14,7 +14,6 @@ import sqlite3
 import json
 import logging
 import time
-import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
@@ -25,6 +24,7 @@ from core.container import ServiceContainer
 from core.health.degraded_events import record_degraded_event
 from core.memory import db_config
 from core.memory.base import MemoryEvent
+from core.runtime.lockdep import checked_async_lock, checked_lock
 
 logger = logging.getLogger("Kernel.Memory.SQLite")
 
@@ -42,14 +42,13 @@ class SQLiteMemory:
         self.storage_file = Path(storage_file)
         self.storage_file.parent.mkdir(parents=True, exist_ok=True)
         self._initialized = False
-        self._init_lock_obj: Optional[asyncio.Lock] = None
+        self._init_lock_obj = checked_async_lock("sqlite_memory.lifecycle")
         self._conn: Optional[aiosqlite.Connection] = None
-        self._sync_lock = threading.Lock()  # H-04 FIX: Thread-safe sync wrappers
+        self.loop: asyncio.AbstractEventLoop | None = None
+        self._sync_lock = checked_lock("sqlite_memory.sync")
 
     @property
-    def _init_lock(self) -> asyncio.Lock:
-        if self._init_lock_obj is None:
-            self._init_lock_obj = asyncio.Lock()
+    def _init_lock(self):
         return self._init_lock_obj
         
     async def _get_conn(self) -> aiosqlite.Connection:
@@ -62,27 +61,31 @@ class SQLiteMemory:
                 return self._conn
             
             # C-10 FIX: Open persistent connection
-            self._conn = await db_config.configure_connection_async(str(self.storage_file))
-            await self._conn.execute("PRAGMA journal_mode=WAL;")
-            await self._conn.execute("PRAGMA synchronous=NORMAL;")
-            await self._conn.execute("PRAGMA cache_size=-64000;")
-            # Block (up to 15s) instead of raising on a busy lock — the MindTick loop
-            # has many concurrent async writers (DriveEngine, GoalEngine, UnifiedWill
-            # receipts) contending on this connection; without this an execution
-            # receipt write blocked by a homeostatic tick raises database-is-locked.
-            await self._conn.execute("PRAGMA busy_timeout=15000;")
-            await self._ensure_schema()
+            conn = await db_config.configure_connection_async(str(self.storage_file))
+            try:
+                await conn.execute("PRAGMA journal_mode=WAL;")
+                await conn.execute("PRAGMA synchronous=NORMAL;")
+                await conn.execute("PRAGMA cache_size=-8000;")
+                await conn.execute("PRAGMA busy_timeout=15000;")
+                await self._ensure_schema(conn)
+            except BaseException:
+                # Cancellation also owns the unready connection's cleanup.
+                await conn.close()
+                raise
+            self.loop = asyncio.get_running_loop()
+            self._conn = conn
             self._initialized = True
             logger.info("aiosqlite Memory initialized at %s", self.storage_file)
             return self._conn
 
-    async def _ensure_schema(self):
+    async def _ensure_schema(self, conn: aiosqlite.Connection | None = None):
         """Initialize the database schema."""
-        if self._conn is None:
+        conn = conn if conn is not None else self._conn
+        if conn is None:
             return
             
         # episodic: Stores chronological events
-        await self._conn.execute('''
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS episodic (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp REAL,
@@ -95,7 +98,7 @@ class SQLiteMemory:
         ''')
     
         # semantic: Key-value store for facts
-        await self._conn.execute('''
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS semantic (
                 key TEXT PRIMARY KEY,
                 value TEXT,
@@ -104,7 +107,7 @@ class SQLiteMemory:
         ''')
         
         # goals: Active goals
-        await self._conn.execute('''
+        await conn.execute('''
             CREATE TABLE IF NOT EXISTS goals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 goal TEXT,
@@ -114,10 +117,10 @@ class SQLiteMemory:
         ''')
         
         # Indices for speed
-        await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON episodic(timestamp)')
-        await self._conn.execute('CREATE INDEX IF NOT EXISTS idx_event_type ON episodic(event_type)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON episodic(timestamp)')
+        await conn.execute('CREATE INDEX IF NOT EXISTS idx_event_type ON episodic(event_type)')
         
-        await self._conn.commit()
+        await conn.commit()
 
     async def on_stop_async(self):
         """Close the persistent connection."""
@@ -191,13 +194,8 @@ class SQLiteMemory:
             return True
 
     def close(self):
-        """Synchronous connection close."""
-        with self._sync_lock:
-            try:
-                loop = asyncio.get_running_loop()
-                asyncio.run_coroutine_threadsafe(self.on_stop_async(), loop).result()
-            except RuntimeError:
-                asyncio.run(self.on_stop_async())
+        """Close from synchronous code; async callers await on_stop_async()."""
+        return self._run_sync(self.on_stop_async())
 
     # --- Async Native Methods ---
 
@@ -463,22 +461,25 @@ class SQLiteMemory:
 
     # --- Legacy Synchronous Wrappers ---
     def _run_sync(self, coro):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            running_here = False
+        else:
+            running_here = True
+        if running_here:
+            coro.close()
+            raise RuntimeError("SQLiteMemory synchronous calls cannot block an event loop; await the async method")
         with self._sync_lock: # H-04 FIX: Thread safety for sync wrappers
             try:
-                try:
-                    loop = getattr(self, "loop", None) or asyncio.get_running_loop()
-                # not a failure: the question was whether a loop is running here, and it is not.
-                except RuntimeError:
-                    loop = None
+                loop = self.loop
                 if loop and loop.is_running():
-                    import threading
-                    # If we are in the same thread as the event loop, we CANNOT call .result()
-                    # as it will deadlock immediately.
-                    if threading.current_thread() is threading.main_thread() or (hasattr(loop, '_thread_id') and threading.get_ident() == loop._thread_id):
-                        logger.warning("⚠️ RECURSIVE SYNC CALL: Memory operation attempted sync from within event loop. This WILL deadlock. Returning None.")
-                        return None
-                    
-                    return asyncio.run_coroutine_threadsafe(coro, loop).result()
+                    pending = asyncio.run_coroutine_threadsafe(coro, loop)
+                    try:
+                        return pending.result(timeout=30.0)
+                    except TimeoutError:
+                        pending.cancel()
+                        raise
                 else:
                     return asyncio.run(coro)
             except (ImportError, AttributeError, RuntimeError) as e:

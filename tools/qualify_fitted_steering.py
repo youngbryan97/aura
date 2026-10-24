@@ -5,6 +5,7 @@
     evaluate    score the held-out replies on her checkpoint (loads the 27B)
     verify      reopen every vector and recompute every count from the record
     adjudicate  issue the causal evaluation the authority reads
+    compare-controls  replay paired diagnostics without loading a model
 
 The claim and its test are in core/evaluation/fitted_steering_evaluation.py and
 the prereg addendum of 23 October, midday. Then:
@@ -14,6 +15,9 @@ the prereg addendum of 23 October, midday. Then:
     tools/cortex_generation_upgrade.py requalify-steering --authority ... --authorized-by ...
 
 `evaluate` loads her cortex, about 20 GB: run it with no other model loaded.
+New evaluations write their v2 analysis plan before model admission and require
+Holm-corrected paired superiority over every control. Historical v1 records
+retain their original replay. The plan hash is not independent custody proof.
 """
 
 from __future__ import annotations
@@ -102,10 +106,12 @@ def evaluate(arguments) -> int:
     from core.evaluation.fitted_steering_evaluation import (
         LESIONS,
         MATCHED_CONTROL,
+        PAIRED_PROTOCOL,
         REPLIES_FILE,
         RESULT_SCHEMA,
         TREATMENT,
         derangement,
+        paired_qualification_plan,
     )
     from core.runtime.model_lane_control import standalone_model_lane
 
@@ -117,6 +123,18 @@ def evaluate(arguments) -> int:
         return 1
     rows = [json.loads(line) for line in replies_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     checkpoint = arguments.model_path.expanduser().resolve(strict=True)
+    identity = {
+        "model_descriptor_sha256": metadata["model_identity"]["model_descriptor_sha256"],
+        "generation_sha256": metadata["generation_sha256"],
+        "held_out_replies_sha256": metadata["extraction_contract"]["held_out_replies_sha256"],
+        "alpha": arguments.alpha, "seed": arguments.seed,
+    }
+    analysis_plan = paired_qualification_plan(identity)
+    # Write before acquiring a model lane or collecting likelihoods. Independent
+    # custody of this plan remains an experimental requirement, not a hash claim.
+    from core.evaluation.caa_causal_evaluation import canonical_sha256
+
+    _write_json(arguments.out.with_suffix(".analysis-plan.json"), analysis_plan)
     os.environ[MEASUREMENT_BASIS_ENV] = str(root)
 
     with standalone_model_lane(owner_id="fitted-steering-evaluation", model_path=str(checkpoint),
@@ -196,6 +214,9 @@ def evaluate(arguments) -> int:
 
     result = {
         "schema": RESULT_SCHEMA,
+        "qualification_protocol": PAIRED_PROTOCOL,
+        "analysis_plan": analysis_plan,
+        "analysis_plan_sha256": canonical_sha256(analysis_plan),
         "model_descriptor_sha256": descriptor["descriptor_sha256"],
         "generation_sha256": metadata["generation_sha256"],
         "held_out_replies_sha256": metadata["extraction_contract"]["held_out_replies_sha256"],
@@ -270,8 +291,21 @@ def main(argv: list[str] | None = None) -> int:
     deciding.add_argument("--independent-evidence", type=Path, required=True)
     deciding.add_argument("--out", type=Path, required=True)
     deciding.set_defaults(func=adjudicate)
+    contrasts = sub.add_parser("compare-controls", help="replay paired control diagnostics without loading a model")
+    contrasts.add_argument("--result", type=Path, required=True)
+    contrasts.add_argument("--out", type=Path, required=True)
+    contrasts.set_defaults(func=compare_controls)
     arguments = parser.parse_args(argv)
     return arguments.func(arguments)
+
+
+def compare_controls(arguments) -> int:
+    from core.evaluation.fitted_steering_evaluation import replay_control_contrasts
+
+    report = replay_control_contrasts(json.loads(arguments.result.read_text(encoding="utf-8")))
+    _write_json(arguments.out, report)
+    print(json.dumps(report, indent=2))
+    return 0
 
 
 if __name__ == "__main__":

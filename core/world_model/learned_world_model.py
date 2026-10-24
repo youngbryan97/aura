@@ -32,6 +32,7 @@ import logging
 import math
 import os
 import threading
+from core.runtime.lockdep import checked_lock
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -206,6 +207,7 @@ class LearnedWorldModel:
         self._pending_since_train = 0
         self._trainer_thread: threading.Thread | None = None
         self._trainer_stop = threading.Event()
+        self._trainer_lifecycle_lock = checked_lock("world_model.trainer_lifecycle")
         self._train_interval = TRAIN_INTERVAL_S
 
         # Metrics
@@ -630,13 +632,17 @@ class LearnedWorldModel:
 
     def start_training(self, *, interval_s: float = TRAIN_INTERVAL_S) -> None:
         """Run the training lane in the background. Idempotent."""
-        if self._trainer_thread is not None:
-            return
-        self._train_interval = float(interval_s)
-        self._trainer_thread = threading.Thread(
-            target=self._train_loop, name="vrnn-trainer", daemon=True
-        )
-        self._trainer_thread.start()
+        if not math.isfinite(interval_s) or interval_s <= 0:
+            raise ValueError("training interval must be positive and finite")
+        with self._trainer_lifecycle_lock:
+            if self._trainer_thread is not None and self._trainer_thread.is_alive():
+                return
+            self._trainer_stop.clear()
+            self._train_interval = float(interval_s)
+            self._trainer_thread = threading.Thread(
+                target=self._train_loop, name="vrnn-trainer", daemon=True
+            )
+            self._trainer_thread.start()
         logger.info("World model training lane started (every %.1fs)", self._train_interval)
 
     def stop_training(self, *, timeout_s: float = 5.0) -> None:
@@ -647,12 +653,19 @@ class LearnedWorldModel:
         later `start_training` needs the handle cleared or it returns having
         started nothing.
         """
-        self._trainer_stop.set()
-        thread = self._trainer_thread
+        if not math.isfinite(timeout_s) or timeout_s < 0:
+            raise ValueError("training stop timeout must be nonnegative and finite")
+        with self._trainer_lifecycle_lock:
+            self._trainer_stop.set()
+            thread = self._trainer_thread
         if thread is not None and thread.is_alive():
             thread.join(timeout=timeout_s)
-        self._trainer_thread = None
-        self._trainer_stop.clear()
+            if thread.is_alive():
+                raise TimeoutError("world model trainer is still running; weights are not quiescent")
+        with self._trainer_lifecycle_lock:
+            if self._trainer_thread is thread:
+                self._trainer_thread = None
+                self._trainer_stop.clear()
 
     def _train_loop(self) -> None:
         while not self._trainer_stop.wait(self._train_interval):

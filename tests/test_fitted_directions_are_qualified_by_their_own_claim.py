@@ -26,11 +26,13 @@ from core.evaluation.fitted_steering_evaluation import (
     MATCHED_CONTROL,
     RESULT_SCHEMA,
     TREATMENT,
+    PAIRED_PROTOCOL,
     FittedEvaluationError,
     build_causal_evaluation,
     build_independent_verifier_evidence,
     derangement,
     fitted_generation_metadata,
+    paired_qualification_plan,
     replay,
     sign_test_p,
 )
@@ -109,10 +111,15 @@ def test_the_claim_holds_only_when_every_condition_does(tmp_path):
     assert costly["no_regression"] is False and costly["causal_effect_positive"] is False
 
 
-def test_a_qualified_record_is_signed_into_a_steering_authority(tmp_path):
+@pytest.mark.parametrize("paired", [False, True])
+def test_a_qualified_record_is_signed_into_a_steering_authority(tmp_path, paired):
     root = tmp_path / "gen"
     metadata = _generation(root)
     result = _record(metadata, wins=WINS)
+    if paired:
+        result["qualification_protocol"] = PAIRED_PROTOCOL
+        result["analysis_plan"] = paired_qualification_plan(result)
+        result["analysis_plan_sha256"] = canonical_sha256(result["analysis_plan"])
     result_path = tmp_path / "result.json"
     result_path.write_text(json.dumps(result))
     evidence = build_independent_verifier_evidence(
@@ -121,6 +128,10 @@ def test_a_qualified_record_is_signed_into_a_steering_authority(tmp_path):
     evidence_path.write_text(json.dumps(evidence))
     evaluation = build_causal_evaluation(result=result, metadata=metadata, verifier_evidence=evidence,
                                          verifier_evidence_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest())
+    if paired:
+        assert evaluation["qualification_protocol"] == PAIRED_PROTOCOL
+        assert evaluation["analysis_plan_sha256"] == result["analysis_plan_sha256"]
+        assert all(row["rejects"] for row in evaluation["paired_controls"].values())
     evaluation_path = tmp_path / "evaluation.json"
     evaluation_path.write_text(json.dumps(evaluation))
     authority = issue_steering_authority(metadata_path=root / "metadata.json", causal_evaluation_path=evaluation_path,

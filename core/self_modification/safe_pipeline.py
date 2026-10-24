@@ -9,13 +9,11 @@ any stage blocks the mutation and records a forensic envelope.
 
   1. PROPOSAL          — drive, intent, and target file recorded.
   2. SANDBOX_PATCH     — patch applied inside a tmpfs copy of the file.
-  3. GENERATED_TESTS   — unit + AST-shape tests are generated for the
-                         change set.
+  3. GENERATED_TESTS   — parsing and public-interface checks are generated.
   4. FORMAL_VERIFY     — `formal_verifier.verify_mutation` is run; a
                          failure short-circuits.
-  5. SHADOW_RUNTIME    — the patched module is loaded into a sub-process
-                         under a memory + cpu cap; smoke calls are
-                         exercised.
+  5. SHADOW_RUNTIME    — generated checks and the patched module run in
+                         separate subprocesses with wall-clock limits.
   6. DIFF_EXPLANATION  — a human-readable diff explanation is produced
                          and added to the proposal.
   7. ROLLBACK_PLAN     — the inverse-patch and the stem-cell snapshot
@@ -95,6 +93,10 @@ class PipelineProposal:
     stages_completed: list[str] = field(default_factory=list)
     blocked_at: str | None = None
     blocked_reason: str | None = None
+    validation_scope: dict[str, str] = field(default_factory=lambda: {
+        "syntax": "pending", "public_interface": "pending", "module_execution": "pending",
+        "behavior": "unmeasured",
+    })
 
 
 def _production_source_scope(target: Path, reason: str):
@@ -245,12 +247,14 @@ class SafePipeline:
                 record_degradation('safe_pipeline', exc)
                 return self._block(proposal, Stage.FORMAL_VERIFY, f"verify_exception:{exc}")
 
-            # 5. SHADOW_RUNTIME — load the patched module in a subprocess
-            # under tight resource caps and run a smoke call.
+            # 5. SHADOW_RUNTIME — check syntax/interface, then execute the module.
+            # This is neither behavioral qualification nor an OS sandbox.
             shadow_ok, shadow_detail = await self._run_shadow(sandbox_file)
             _record(proposal, "shadow_runtime", {"ok": shadow_ok, "detail": shadow_detail})
             if not shadow_ok:
                 return self._block(proposal, Stage.SHADOW_RUNTIME, shadow_detail)
+            proposal.validation_scope.update(syntax="passed", public_interface="passed", module_execution="passed")
+            _record(proposal, "validation_scope", dict(proposal.validation_scope))
             proposal.stages_completed.append(Stage.SHADOW_RUNTIME.value)
 
             # 6. DIFF_EXPLANATION
@@ -387,24 +391,23 @@ class SafePipeline:
 
     @staticmethod
     def _generate_tests(file_path: str, before: str, after: str) -> str:
-        # Minimal but real: import the patched module from the sandbox
-        # and assert it parses + the public surface of `before` is
-        # preserved in `after`. The tests run inside the SHADOW_RUNTIME
-        # phase below.
+        # The checker parses source without importing the candidate. A separate
+        # shadow step executes the module. Neither establishes its behavior.
         return (
             "import ast, sys\n"
+            f"sys.path.insert(0, {str(Path(__file__).resolve().parents[2])!r})\n"
+            "from core.self_modification.public_contract import public_contract_violations\n"
+            f"src_before = {before!r}\n"
             f"src_after = {after!r}\n"
-            "tree = ast.parse(src_after)\n"
-            "# the patched module must parse\n"
-            "names = sorted(n.name for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)))\n"
-            "print('AST_OK', len(names))\n"
+            "ast.parse(src_after)\n"
+            "violations = public_contract_violations(src_before, src_after)\n"
+            "assert not violations, violations\n"
+            "print('PUBLIC_INTERFACE_OK')\n"
         )
 
     async def _run_shadow(self, sandbox_file: Path) -> tuple[bool, str]:
-        # Run a tiny Python subprocess with -B (no bytecode cache) and
-        # ulimit-style caps where available. macOS lacks setrlimit for
-        # mem in some cases, so we use a wall-clock timeout as the
-        # primary backstop.
+        # The existing runner enforces wall time only. Its memory constant is
+        # not an enforced limit; resource confinement needs separate evidence.
         test_file = sandbox_file.parent / "test_self_mod_patch.py"
         commands = (
             [sys.executable, "-B", str(test_file)],

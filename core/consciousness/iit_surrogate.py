@@ -2,9 +2,9 @@
 
 Reflexive Integrated Information Unit (RIIU) — Φ Surrogate Estimator.
 
-Implements a differentiable surrogate for IIT's Integrated Information (Φ).
-Uses a sliding window of substrate state snapshots to compute a covariance-based
-integration measure.
+Uses a sliding window of state snapshots to compute a covariance dependence
+signal. Common input can produce a large value without interaction between
+channels. The compatibility name does not identify causal integration.
 
 Key properties:
 - NumPy-only (no PyTorch dependency)
@@ -15,7 +15,7 @@ Key properties:
 Theory:
     Φ ≈ log|Σ_whole| − max(log|Σ_partition|)
     where Σ is the covariance of the state trajectory over the buffer window.
-    Higher Φ → more integrated system → partitions lose more information.
+    This log-determinant contrast measures observational dependence only.
 """
 
 import logging
@@ -183,6 +183,10 @@ class RIIU:
             "buffer_full": self._samples_collected >= self.buffer_size,
             "neuron_count": self.neuron_count,
             "warmup": self._warmup,
+            "measurement_kind": "observational_covariance_dependence",
+            "measured_dependency": None if self._warmup else float(self._last_phi),
+            "causal_integration": None,
+            "citable_as_causal_evidence": False,
         }
 
     # ------------------------------------------------------------------

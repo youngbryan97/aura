@@ -2459,109 +2459,34 @@ class PhiCore:
 
     # ── Causal Interventions (do-calculus) ─────────────────────────────
 
-    def compute_interventional_phi(self) -> PhiResult | None:
-        """Compute φ using causal interventions (do-calculus), not just observations.
+    def compute_interventional_phi(self, *, causal_kernel=None) -> PhiResult | None:
+        """Read a bounded intervention-response diagnostic from an identified kernel.
 
-        Standard IIT uses observational distributions: P(s'|s).
-        Interventional IIT uses: P(s'|do(s_A = a)) — what happens when
-        we FORCE partition A into state a and let B evolve naturally.
-
-        This is more theoretically correct because it captures genuine
-        causal power, not just statistical correlation.
-
-        Method:
-          1. For each bipartition (A, B):
-             a. For each possible state of A, compute the interventional
-                distribution over B's next state by marginalizing over
-                the TPM with A held fixed.
-             b. Compare to the unconstrained distribution.
-             c. φ_intervention(A,B) = expected divergence under intervention.
-          2. φ_s = min over all bipartitions.
+        The compatibility name does not denote IIT 4.0. Observational history
+        cannot stand in for a causal kernel. Identification and its evidence
+        reference come from the caller; no intervention is inferred from a
+        correlation. Wider complexes need a separately qualified estimator.
         """
-        tpm = self.build_tpm()
-        if tpm is None:
+        if causal_kernel is None:
             return None
-
-        p_stationary = self._get_stationary_distribution()
-        min_phi = float("inf")
-        mip_partition = None
-        all_phis = []
-
-        for _partition_mask, (part_a, part_b) in self._bipartitions:
-            bit_table = self._bit_tables[frozenset(part_a)]
-            n_a = len(part_a)
-            n_b = len(part_b)
-            n_states_a = 1 << n_a
-            n_states_b = 1 << n_b
-
-            phi_intervention = 0.0
-
-            for s_a_do in range(n_states_a):
-                # P(do(A = s_a_do)): uniform over A states for intervention
-                p_do = 1.0 / n_states_a
-
-                # Interventional distribution: P(s'_B | do(s_A = s_a_do))
-                # = Σ_{s_B} P(s_B) * P(s'_B | s_A=s_a_do, s_B)
-                p_next_b_intervened = np.zeros(n_states_b, dtype=np.float64)
-                p_next_b_natural = np.zeros(n_states_b, dtype=np.float64)
-
-                total_weight = 0.0
-                for s in range(N_STATES):
-                    if bit_table["extract_a"][s] != s_a_do:
-                        continue
-                    p_s = float(p_stationary[s])
-                    if p_s < 1e-10:
-                        continue
-                    total_weight += p_s
-
-                    for s_prime in range(N_STATES):
-                        s_prime_b = bit_table["extract_b"][s_prime]
-                        p_next_b_intervened[s_prime_b] += p_s * tpm[s, s_prime]
-
-                if total_weight > 1e-10:
-                    p_next_b_intervened /= total_weight
-
-                # Natural (unconstrained) distribution over B
-                for s in range(N_STATES):
-                    p_s = float(p_stationary[s])
-                    for s_prime in range(N_STATES):
-                        s_prime_b = bit_table["extract_b"][s_prime]
-                        p_next_b_natural[s_prime_b] += p_s * tpm[s, s_prime]
-
-                nat_sum = p_next_b_natural.sum()
-                if nat_sum > 1e-10:
-                    p_next_b_natural /= nat_sum
-
-                # KL(interventional || natural)
-                mask = p_next_b_intervened > 1e-10
-                if mask.any() and np.any(p_next_b_natural[mask] > 1e-10):
-                    kl = float(np.sum(
-                        p_next_b_intervened[mask] *
-                        np.log(p_next_b_intervened[mask] / (p_next_b_natural[mask] + 1e-10))
-                    ))
-                    phi_intervention += p_do * max(0.0, kl)
-
-            all_phis.append(phi_intervention)
-            if phi_intervention < min_phi:
-                min_phi = phi_intervention
-                mip_partition = (part_a, part_b)
-
-        phi_s = float(max(0.0, min_phi)) if min_phi != float("inf") else 0.0
-
-        result = PhiResult(
-            phi_s=phi_s,
-            mip_partition_a=list(mip_partition[0]) if mip_partition else [],
-            mip_partition_b=list(mip_partition[1]) if mip_partition else [],
-            mip_phi_value=phi_s,
-            all_partition_phis=all_phis,
-            tpm_n_samples=self._tpm_n_samples,
+        from core.consciousness.causal_transition_response import (
+            CausalTransitionKernel, weakest_response,
         )
 
-        logger.debug(
-            "PhiCore (interventional): φs=%.5f, MIP=%s (n=%d)",
-            phi_s, result.mip_description, self._tpm_n_samples
+        if not isinstance(causal_kernel, CausalTransitionKernel):
+            raise TypeError("an identified CausalTransitionKernel is required")
+        value, left, right, cuts = weakest_response(causal_kernel)
+        return PhiResult(
+            phi_s=value,
+            mip_partition_a=list(left),
+            mip_partition_b=list(right),
+            mip_phi_value=value,
+            all_partition_phis=cuts,
+            tpm_n_samples=causal_kernel.sample_count,
+            grounding=f"{causal_kernel.identification}:{causal_kernel.evidence_id}",
+            node_count=causal_kernel.node_count,
+            sampling="intervention_response_proxy",
         )
-        return result
 
     # ── Surrogate Logic ──────────────────────────────────────────────────
 

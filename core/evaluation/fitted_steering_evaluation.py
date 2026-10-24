@@ -42,6 +42,7 @@ ARMS: Final = (TREATMENT, MATCHED_CONTROL, *LESIONS)
 SIGN_TEST_LEVEL: Final = 0.05
 #: The authority refuses an evaluation on fewer samples than this.
 MIN_REPLIES: Final = 24
+PAIRED_PROTOCOL: Final = "aura.fitted_basis.paired_controls.v2"
 
 
 class FittedEvaluationError(ValueError):
@@ -109,7 +110,7 @@ def sign_test_p(successes: int, trials: int) -> float:
     return tail / 2**trials
 
 
-def replay(result: Mapping[str, Any]) -> dict[str, Any]:
+def _replay_legacy(result: Mapping[str, Any]) -> dict[str, Any]:
     """Every count the claim rests on, recomputed from the per-reply record."""
     rows = result.get("replies")
     if result.get("schema") != RESULT_SCHEMA or not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)):
@@ -161,6 +162,98 @@ def replay(result: Mapping[str, Any]) -> dict[str, Any]:
         "causal_effect_positive": not unmet,
         "unmet_requirements": unmet,
     }
+
+
+def replay_control_contrasts(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Paired control diagnostics; this does not issue a steering authority.
+
+    The older protocol compares total win counts. Here each reply supplies
+    one matched pair, and Holm correction covers the three control contrasts.
+    This is a post-hoc diagnostic until fixed in a new experiment's protocol;
+    repeated replies and fitting custody still need independent review.
+    """
+    legacy = _replay_legacy(result)
+    rows = result["replies"]
+    indices = [row.get("index") for row in rows]
+    if any(type(index) is not int or index < 0 for index in indices) or len(set(indices)) != len(rows):
+        raise FittedEvaluationError("paired_controls_need_unique_reply_indices")
+    if any(type(value) not in (int, float) for row in rows for value in row["loglik"].values()):
+        raise FittedEvaluationError("paired_controls_need_numeric_likelihoods")
+    contrasts = {}
+    for control in (MATCHED_CONTROL, *LESIONS):
+        treatment_only = control_only = both = neither = 0
+        for row in rows:
+            values = row["loglik"]
+            treatment_wins = values[f"{TREATMENT}:own"] > values[f"{TREATMENT}:other"]
+            control_wins = values[f"{control}:own"] > values[f"{control}:other"]
+            treatment_only += treatment_wins and not control_wins
+            control_only += control_wins and not treatment_wins
+            both += treatment_wins and control_wins
+            neither += not treatment_wins and not control_wins
+        contrasts[control] = {
+            "treatment_only": treatment_only, "control_only": control_only,
+            "both": both, "neither": neither,
+            "one_sided_exact_p": sign_test_p(treatment_only, treatment_only + control_only),
+        }
+    prior = 0.0
+    ordered = sorted(contrasts, key=lambda arm: contrasts[arm]["one_sided_exact_p"])
+    for rank, arm in enumerate(ordered):
+        adjusted = min(1.0, max(prior, contrasts[arm]["one_sided_exact_p"] * (len(ordered) - rank)))
+        contrasts[arm]["holm_adjusted_p"] = adjusted
+        contrasts[arm]["rejects"] = adjusted < SIGN_TEST_LEVEL
+        prior = adjusted
+    return {
+        "schema": "aura.fitted_basis.paired_control_diagnostic.v1",
+        "result_sha256": canonical_sha256(result),
+        "scope": "post_hoc_paired_binary_win_diagnostic",
+        "sample_count": len(rows), "alpha": SIGN_TEST_LEVEL,
+        "contrasts": contrasts,
+        "all_control_contrasts_significant": all(row["rejects"] for row in contrasts.values()),
+        "legacy_protocol_passes": legacy["causal_effect_positive"],
+        "serving_authority": False,
+        "general_task_quality_measured": False,
+    }
+
+
+def paired_qualification_plan(identity: Mapping[str, Any]) -> dict[str, Any]:
+    """Freeze the analysis and input identity before a new producer scores replies.
+
+    A matching hash proves consistency of a record, not independent custody or
+    when it was authored. Those require an external experiment review.
+    """
+    return {
+        "protocol": PAIRED_PROTOCOL,
+        "inputs": {key: identity[key] for key in (
+            "model_descriptor_sha256", "generation_sha256", "held_out_replies_sha256", "alpha", "seed")},
+        "min_replies": MIN_REPLIES,
+        "alpha": SIGN_TEST_LEVEL,
+        "test": "one_sided_exact_binomial_on_discordant_paired_binary_wins",
+        "family": [MATCHED_CONTROL, *LESIONS],
+        "correction": "Holm",
+        "acceptance": "all_corrected_p_strictly_below_alpha_and_legacy_requirements",
+    }
+
+
+def replay(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Replay historical records faithfully and require paired tests for v2."""
+    protocol = result.get("qualification_protocol")
+    if protocol is None:
+        return _replay_legacy(result)
+    if protocol != PAIRED_PROTOCOL:
+        raise FittedEvaluationError("fitted_qualification_protocol_unknown")
+    try:
+        expected = paired_qualification_plan(result)
+        if result.get("analysis_plan") != expected or result.get("analysis_plan_sha256") != canonical_sha256(expected):
+            raise FittedEvaluationError("fitted_analysis_plan_mismatch")
+    except (KeyError, TypeError) as exc:
+        raise FittedEvaluationError("fitted_analysis_plan_invalid") from exc
+    legacy = _replay_legacy(result)
+    paired = replay_control_contrasts(result)
+    unmet = list(legacy["unmet_requirements"])
+    if not paired["all_control_contrasts_significant"]:
+        unmet.append("paired_control_superiority_not_established")
+    return {**legacy, "qualification_protocol": protocol, "paired_controls": paired["contrasts"],
+            "causal_effect_positive": not unmet, "unmet_requirements": unmet}
 
 
 def build_independent_verifier_evidence(
@@ -234,6 +327,10 @@ def build_causal_evaluation(
             "evidence_sha256": verifier_evidence_sha256,
         },
     }
+    if result.get("qualification_protocol") == PAIRED_PROTOCOL:
+        body.update(qualification_protocol=PAIRED_PROTOCOL,
+                    analysis_plan_sha256=result["analysis_plan_sha256"],
+                    paired_controls=replayed["paired_controls"])
     return {**body, "evaluation_sha256": canonical_sha256(body)}
 
 
@@ -242,6 +339,7 @@ __all__ = [
     "GENERATION_SCHEMA",
     "LESIONS",
     "MATCHED_CONTROL",
+    "PAIRED_PROTOCOL",
     "RESULT_SCHEMA",
     "TREATMENT",
     "VERIFIER_SCHEMA",
@@ -251,5 +349,7 @@ __all__ = [
     "derangement",
     "fitted_generation_metadata",
     "replay",
+    "replay_control_contrasts",
+    "paired_qualification_plan",
     "sign_test_p",
 ]

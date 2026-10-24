@@ -29,6 +29,7 @@ include_rules = [
     "+core.unity",
     "+core.utils",
     "+core.values",
+    "+core.verify",
 
     # Everything else.
     "-core",
