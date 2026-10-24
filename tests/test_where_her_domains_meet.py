@@ -102,19 +102,25 @@ def test_two_sources_take_different_gains_from_one_code():
     assert len({round(value, 9) for value in gains.values()}) == len(gains)
 
 
-def test_the_workspace_scales_each_bid_by_its_source():
-    from core.consciousness.global_workspace import CognitiveCandidate, _bids
+def test_no_hashed_gain_decides_what_wins_attention():
+    """Two bids at one priority score alike: no source is multiplied by a direction drawn from its name."""
+    import inspect
 
+    from core.affect import containment, feelings_about, what_winning_earned
+    from core.consciousness.global_workspace import CognitiveCandidate, _bids
+    from core.soma import held_in
+
+    for module in (containment, feelings_about, what_winning_earned, held_in):
+        module.reset_for_test()
     candidates = [
         CognitiveCandidate(content="a", source="memory", priority=0.5),
-        CognitiveCandidate(content="b", source="affect", priority=0.5),
+        CognitiveCandidate(content="b", source="world_model", priority=0.5),
     ]
-    units = (0.6, -0.4, 0.3, 0.5)
-    plain = _bids(candidates, {}, 0.0)
-    scaled = _bids(candidates, {}, 0.0, units)
     for candidate in candidates:
-        expected = plain[id(candidate)] * gain_from_units(units, "attention", candidate.source)
-        assert scaled[id(candidate)] == pytest.approx(expected, rel=1e-6)
+        candidate.submitted_at = 0.0
+    scores = _bids(candidates, {}, 0.0)
+    assert scores[id(candidates[0])] == pytest.approx(scores[id(candidates[1])], rel=1e-9)
+    assert "gain_from_units" not in inspect.getsource(_bids)
 
 
 def test_the_world_model_steps_further_at_a_higher_precision():

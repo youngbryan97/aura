@@ -370,6 +370,8 @@ class AffectUpdatePhase(Phase):
         affect = state.affect
         
         self._ensure_affect_schema(affect)
+        # Where arousal stood as the turn reached her feelings. See `_carry_arousal`.
+        held = float(affect.arousal)
 
         # 2. Emotional Decay (Entropy & Momentum)
         # Ported from DamasioV2.pulse()
@@ -533,6 +535,7 @@ class AffectUpdatePhase(Phase):
             # percent of how hard she was allowed to think and none of how she
             # felt.
             self._blend_substrate_into_affect(ls, affect, state)
+        self._carry_arousal(affect, held)
 
         # 6e. And into her chemistry, which is where a feeling lasts. The
         # substrate push above decays within the turn: the consciousness
@@ -546,6 +549,26 @@ class AffectUpdatePhase(Phase):
         
         logger.debug("Affect Phase complete: mood=%s, valence=%.2f", affect.dominant_emotion, affect.valence)
         return state
+
+    @staticmethod
+    def _carry_arousal(affect: AffectVector, held: float) -> None:
+        """Arousal moves from where it stood toward what this turn calls for, at her affect's momentum.
+
+        The steps above each set it: derived from the strongest feeling, drawn
+        toward the winning broadcast by how fully it ignited, and toward the
+        substrate. None read where arousal stood when the turn began, so it had
+        no state of its own. The broadcast is drawn in at its ignition, about
+        nine tenths on her turns, which left arousal a copy of how strongly the
+        last thing won: a displacement of +0.15 at the top of a turn read
+        +0.005 at its end (23 October), and nothing that multiplies her arousal
+        by anything else could see feeling move. A body's arousal outlasts the
+        moment that raised it; her feelings and her adrenaline already settle at
+        this momentum (`_apply_decay`), and now arousal does too. Where it
+        settles is unchanged; how fast it gets there is hers.
+        """
+        momentum = max(0.0, min(1.0, float(getattr(affect, "momentum", 0.85) or 0.0)))
+        called_for = float(affect.arousal)
+        affect.arousal = float(max(0.0, min(1.0, momentum * float(held) + (1.0 - momentum) * called_for)))
 
     def _mark_phase_degraded(self, state: AuraState, stage: str, exc: BaseException) -> None:
         modifiers = dict(getattr(state.cognition, "modifiers", {}) or {})

@@ -299,6 +299,9 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # And the force of a pressure she is under goes into what she is doing,
         # when nothing is actually damaged. See `_channelled`.
         self._channelled(next_state)
+        # And what is new in her world, marked by how strongly she feels it,
+        # becomes something she means to look into. See core/agency/marked.py.
+        next_state = await self._marked(next_state)
         if not self._own_intention_is_open(next_state):
             intention = self._assess_needs(next_state)
             if intention:
@@ -439,6 +442,27 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             cognition.pending_initiatives = kept
             logger.debug("MotivationUpdate: %d intention(s) retired because their need was met", closed)
         return closed
+
+    @staticmethod
+    async def _marked(state: AuraState) -> AuraState:
+        """Propose looking into each thing new to her world, at the urgency her feeling marks it with."""
+        from core.agency.marked import marked
+
+        for name, urgency in marked(state):
+            if urgency <= 0.0:
+                continue
+            state, decision = await propose_governed_initiative_to_state(
+                state,
+                f"look into {name}, which is new here",
+                orchestrator=None,
+                source="motivation_update",
+                kind="marked",
+                urgency=urgency,
+                triggered_by="world",
+                metadata={"entity": name, "phase": "motivation_update"},
+            )
+            logger.debug("MotivationUpdate: marked %s at %.3f, decision=%s", name, urgency, decision.get("reason"))
+        return state
 
     @staticmethod
     def _channelled(state: AuraState) -> int:

@@ -480,11 +480,11 @@ class PerfectEmotionPhase(Phase):
             state.affect.markers = {}
         state.affect.markers["hardware_somatic_stress"] = hardware_stress
 
-        # Generate micro-emotions based on pulse
-        pulse = state.soma.expressive.get("pulse_rate", 1.0)
-        if pulse > 1.5:
-            state.affect.arousal = min(1.0, state.affect.arousal + 0.1)
-
+        # A racing pulse added a tenth to arousal here, and the affect phase
+        # that runs next replaced arousal outright, so the tenth never reached
+        # anything. Arousal now carries over from where it stood
+        # (`AffectUpdatePhase._carry_arousal`), and a tenth added on every turn
+        # with a racing pulse would climb to the ceiling and stay there.
         return state
 
 

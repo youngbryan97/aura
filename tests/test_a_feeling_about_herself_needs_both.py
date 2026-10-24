@@ -30,6 +30,22 @@ DELTA = 0.15
 AT = 1_800_000_000.0
 
 
+def _fresh_ledgers() -> None:
+    from core.affect import containment, feelings_about, what_winning_earned
+    from core.soma import held_in
+
+    for module in (containment, feelings_about, what_winning_earned, held_in):
+        module.reset_for_test()
+
+
+@pytest.fixture(autouse=True)
+def _a_life_with_no_history():
+    """The competition reads what she has come to feel about and earned from each source; start from none."""
+    _fresh_ledgers()
+    yield
+    _fresh_ledgers()
+
+
 def _feelings_about_herself(state: AuraState) -> list[CognitiveCandidate]:
     return [bid for bid in build_candidates(state) if bid.source == "self" and "in question" in bid.content]
 
@@ -117,7 +133,7 @@ def _attention(state: AuraState, others: list[tuple[str, float]]) -> tuple[np.nd
     ]
     for bid in bids:
         bid.submitted_at = AT
-    scores = _bids(bids, {}, AT + 0.5, None)
+    scores = _bids(bids, {}, AT + 0.5)
     winner = max(bids, key=lambda bid: scores[id(bid)])
     priority = winner.priority_at(AT + 0.5)
     reading = [

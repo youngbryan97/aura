@@ -187,10 +187,12 @@ class ConsciousnessPhase(BasePhase):
         """The four conjunctive codes, bound from where each domain ended this cycle.
 
         Last in the turn, after the relay, because every domain has written by
-        then; each code is the context its domain runs the next cycle in. The
-        attention units are handed to the workspace, and all sixteen go into
-        their band of the substrate. The world model's step is set by what
-        arrived meeting what she recalled (core/world_model/associative_novelty.py).
+        then; each code is the context its domain runs the next cycle in, and
+        all sixteen go into their band of the substrate. Attention and the
+        world model no longer take a gain from them: feeling and self meet in a
+        bid of their own (core/consciousness/self_conscious.py), and the world
+        model's step is set by what arrived meeting what she recalled
+        (core/world_model/associative_novelty.py).
         See core/consciousness/conjunctive_codes.py.
         """
         try:
@@ -199,9 +201,6 @@ class ConsciousnessPhase(BasePhase):
             codes = bind(state)
             if codes is None:
                 return
-            workspace = get_runtime_service("global_workspace", default=None)
-            if workspace is not None:
-                workspace.attention_units = standing_of(codes, "attention")
             substrate = get_runtime_service("liquid_substrate", default=None) or (
                 get_runtime_service("conscious_substrate", default=None)
             )

@@ -40,17 +40,18 @@ The units are bound as a cycle closes, from where each domain ended it, and they
 are the context the next cycle runs in. Each meeting's units live in the domain
 they meet at and act there:
 
-- attention: each source's bid is scaled by a gain the units set;
-- deliberation: each initiative's score is;
+- deliberation: each initiative's score is scaled by a gain the units set;
 - recurrent cognition: all sixteen units drive their own band of the
   substrate, so every binding reaches the recurrent core.
 
-The world model's units are recorded and drive their band, and no longer set
-its learning step. A direction drawn from a name has no reason to make
-perception and memory together count for more than either alone, and on 21
-October it did not; what arrived meeting what she recalled sets that step now
-(core/world_model/associative_novelty.py). Feeling and self also meet in a bid
-of their own, a feeling about herself (core/consciousness/self_conscious.py).
+The attention and world-model units are recorded and drive their band, and no
+longer scale anything. A direction drawn from a name has no reason to make two
+domains together push one way: on 21 October perception and memory together
+moved the world model by 0.069 in no direction, and on 23 October the attention
+gain multiplied memory's bid two to four times over its priority on a hash.
+Feeling and self meet in a feeling about herself
+(core/consciousness/self_conscious.py), and what arrived meeting what she
+recalled sets the world model's step (core/world_model/associative_novelty.py).
 
 A gain is exp(w . m / 2), m the units each in its own spread and w a fixed unit
 direction per source, initiative kind, tier or learner, seeded from its name, so

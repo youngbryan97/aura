@@ -344,6 +344,11 @@ def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
     # instability alone, and her stability read 1.0 on every turn of seed 7, so
     # it never entered and nothing about her self ever won her attention. See
     # core/consciousness/self_conscious.py.
+    # Her self bids once. The workspace keeps one bid per source, so the second
+    # of two self bids replaced the first: the feeling about herself below was
+    # overwritten on every turn by the surprise about herself built after it,
+    # whatever either was worth. Whichever presses harder speaks for her self.
+    selves: list[Any] = []
     if identity is not None:
         from core.consciousness.self_conscious import claim, in_question
 
@@ -351,7 +356,7 @@ def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
         arousal = getattr(affect, "arousal", 0.0) if affect is not None else 0.0
         felt = claim(arousal, in_question(stability, self_usual))
         if felt > FLOOR:
-            bids.append(
+            selves.append(
                 CognitiveCandidate(
                     content=f"who she is is in question (stability {stability:.2f})",
                     source="self",
@@ -396,7 +401,7 @@ def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
             level = gained(level, arousal, usual=0.5)
             if level > FLOOR:
                 missed = str(snapshot.get("most_unpredictable") or "herself")
-                bids.append(
+                selves.append(
                     CognitiveCandidate(
                         content=f"she did not do what she predicted ({missed}, {level:.2f})",
                         source="self",
@@ -406,6 +411,8 @@ def build_candidates(state: Any, self_usual: Any = None) -> list[Any]:
                 )
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("the self model had nothing to offer the workspace: %s", exc)
+    if selves:
+        bids.append(max(selves, key=lambda bid: float(bid.priority)))
 
     # An unprecedented moment deserves attention. The lifetime state computes
     # exactly that number every cycle and nothing competed on it, so a life

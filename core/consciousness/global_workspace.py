@@ -422,7 +422,6 @@ def _bids(
     candidates: list[CognitiveCandidate],
     fatigue: dict[str, float],
     decided_at: float,
-    attention_units: Sequence[float] | None = None,
 ) -> dict[int, float]:
     """Each candidate's bid as the sort reads it, by the candidate's id.
 
@@ -430,13 +429,16 @@ def _bids(
     has come to feel about its source (core/affect/feelings_about.py) and
     weighed by what winning has earned it (core/affect/what_winning_earned.py),
     less the fatigue of whoever bid, plus what she is holding back pressing to
-    get out, as far as her body runs hot with it (core/soma/held_in.py). And at
-    the gain the conjunction of her feeling and her self sets for its source,
-    so what wins depends on the two together and not on either alone
-    (core/consciousness/conjunctive_codes.py).
-    """
-    from core.consciousness.conjunctive_codes import gain_from_units
+    get out, as far as her body runs hot with it (core/soma/held_in.py).
 
+    Each bid was also scaled by a gain the conjunctive codes set for its source,
+    in a direction drawn from the source's name. On her organism at
+    `8ab37ad68` that multiplied memory's bid two to four times over its
+    priority while the rest moved by whatever their hash gave them, so what
+    won turned on the hash and setting feeling and self together sent the
+    competition somewhere different every time. Feeling and self now meet in a
+    bid of their own (core/consciousness/self_conscious.py).
+    """
     try:
         from core.affect.containment import get_containment_ledger
         from core.soma.held_in import get_held_in_ledger
@@ -482,7 +484,6 @@ def _bids(
         id(candidate): candidate.priority_at(decided_at)
         * drawn(candidate.source)
         * earned(candidate.source)
-        * gain_from_units(attention_units, "attention", str(candidate.source))
         - fatigue.get(candidate.bidder, 0.0)
         + pressing(candidate.source)
         for candidate in candidates
@@ -1354,9 +1355,7 @@ class GlobalWorkspace:
 
             # Frozen before sorting, and the sort reads the frozen value. A
             # key function that calls the clock is not a key function.
-            scores = _bids(
-                self._candidates, self._fatigue, decided_at, getattr(self, "attention_units", None)
-            )
+            scores = _bids(self._candidates, self._fatigue, decided_at)
             self._candidates.sort(key=lambda c: scores[id(c)], reverse=True)
             winner = self._candidates[0]
             losers = self._candidates[1:]

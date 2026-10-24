@@ -132,12 +132,23 @@ def test_the_broadcast_arousal_is_left_where_affect_reads_it():
     from core.state.aura_state import AuraState
 
     register_runtime_service("global_workspace", workspace, required=False)
-    state = AuraState.default()
-    state.cognition.working_memory.append({"role": "user", "content": "hello"})
-    state.affect.arousal = 0.0
-    _asyncio.run(AffectUpdatePhase(None).execute(state))
-    assert state.affect.arousal > 0.5
-    assert state.response_modifiers.get("broadcast_ignition") == pytest.approx(0.8)
+
+    def after_a_turn(momentum: float) -> AuraState:
+        state = AuraState.default()
+        state.cognition.working_memory.append({"role": "user", "content": "hello"})
+        state.affect.arousal = 0.0
+        state.affect.momentum = momentum
+        _asyncio.run(AffectUpdatePhase(None).execute(state))
+        return state
+
+    # Where the broadcast calls arousal to, with nothing carried over.
+    called = after_a_turn(0.0)
+    assert called.affect.arousal > 0.5
+    assert called.response_modifiers.get("broadcast_ignition") == pytest.approx(0.8)
+    # And at her momentum arousal moves that way from where it stood, by the
+    # share the momentum leaves (`AffectUpdatePhase._carry_arousal`).
+    carried = after_a_turn(0.85)
+    assert 0.0 < carried.affect.arousal < called.affect.arousal
 
 
 def test_the_winning_drive_is_credited_where_the_motivation_phase_reads_it():
