@@ -959,3 +959,29 @@ earned"), so it was steered at 0.5. The gate now leaves the request unset, and
 the worker gives such a turn what the certificate earned, or nothing when the
 question has one right answer, as it was written to. The run starts again on
 the fix.
+
+## Design, not built: her self as she expects to meet this situation (23 October, evening)
+
+From Bryan's account above. Her self-predictor already forecasts how she will
+be next from the situation she is in: valence by a model fitted on the
+situation's features (recent and current valence, arousal, engagement, body
+pressure, drive urgency, novelty, world surprise, ignition), drive by the one
+pressing hardest, focus by recent winners. That forecast is her anticipation,
+and nothing in her self reads it: S holds the after-the-fact miss
+(`self_now_*`), how fully the last forecast came true, and how sure she is of
+the next one, but not what the next one says.
+
+What the design would change, once the v6 probe shows where A,S -> G stands:
+
+- S gains the forecast itself as columns: the valence she expects in this
+  situation, the drive and the focus she expects to act from.
+- The conjunctive codes read the self as the forecast and the miss together,
+  so the units that meet feeling at attention combine how she feels with how
+  she expects to meet what is in front of her.
+- Attention's gain from those units goes to the bids that bear on what she
+  expects to do, which gives the joint effect of feeling and self a direction
+  in attention: towards what she has set herself up to meet.
+
+Bryan's second point bears on S,D -> C: when a goal resists, she should widen
+what she tries, and a loop should read as low energy or low engagement that
+she can catch. That is for the recurrent-cognition side, after the probe.
