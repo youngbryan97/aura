@@ -160,6 +160,11 @@ def _record_payload(
         # what scales a steering vector: on 18 October directions fitted on
         # "z" came out one axis for valence, arousal, energy and frustration.
         payload["s"] = [round(float(v), STEERING_DECIMALS) for v in steering]
+        # Which slot carries her felt valence against her usual, so a reader
+        # can tell these states from ones recorded before it did.
+        from core.consciousness.steering_channel import FELT_SLOT
+
+        payload["felt_at"] = FELT_SLOT
     if felt:
         # Her feelings above where each rests when the reply was asked for
         # (core/affect/appraisal.py). Beside "s", not in it: the steering state

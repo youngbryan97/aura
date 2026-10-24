@@ -389,9 +389,12 @@ def _measure_fusion(
             for hook in hooks:
                 hook.update_substrate(moods)
 
-    def override(vectors: dict[str, Any]) -> None:
+    def override(vectors: dict[str, Any], felts: dict[int, Any] | None = None) -> None:
         for hook in hooks:
-            hook.override_composite_vector(None if vectors is None else vectors[hook._layer_idx])
+            hook.override_composite_vector(
+                None if vectors is None else vectors[hook._layer_idx],
+                felt=None if vectors is None or felts is None else felts.get(hook._layer_idx),
+            )
 
     def walk_all(paths: list[Any]) -> list:
         return [_walk(model, ids, path) for ids, path in zip(prompt_ids, paths, strict=True)]
@@ -410,6 +413,11 @@ def _measure_fusion(
         set_alpha(alpha)
         her_high = walk_all(paths)
         composites = {hook._layer_idx: hook.current_composite_vector() for hook in hooks}
+        # And what her felt state writes at every position, which an arbitrary
+        # displacement of the same size has to carry too: compared against a
+        # control the size of the composite alone, a felt push lost the margin
+        # to a displacement a hundredth its size (24 October, 09:35).
+        felts = {hook._layer_idx: hook.current_felt_vector() for hook in hooks}
         composite = hooks[0].current_composite_vector()
         if composite is None:
             logger.info("fusion probe: steering stood down at alpha %s", alpha)
@@ -441,7 +449,12 @@ def _measure_fusion(
                 noise = rng.normal(size=value.shape).astype(np.float32)
                 noise *= float(np.linalg.norm(value)) / float(np.linalg.norm(noise))
                 controls[layer] = noise
-            override(controls)
+            felt_controls = {}
+            for layer, value in felts.items():
+                if value is not None:
+                    noise = rng.normal(size=value.shape).astype(np.float32)
+                    felt_controls[layer] = noise * (float(np.linalg.norm(value)) / float(np.linalg.norm(noise)))
+            override(controls, felt_controls)
             control = walk_all(paths)
             accuracy, margin = _forced_choice(model, tokenizer)
             control_shifts.append(

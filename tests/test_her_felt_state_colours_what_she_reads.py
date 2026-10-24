@@ -164,3 +164,30 @@ def test_the_channel_publishes_her_felt_valence_at_its_slot(_clear_felt):
     assert steering_channel.activation_state(substrate)[FELT_SLOT] == 0.0
     steering_channel.note_felt(0.2, 0.5, felt=0.5)
     assert steering_channel.activation_state(substrate)[FELT_SLOT] == pytest.approx(0.75)
+
+
+def test_a_certificate_s_control_carries_an_arbitrary_felt_push_of_the_same_size():
+    """Compared against a control the size of the composite alone, a felt push lost the margin
+    to a displacement a hundredth its size (24 October, 09:35)."""
+    push = 3.0 * _unit(2)
+    hook = AffectiveSteeringHook(object(), 1, {"valence_positive": _vector(push)})
+    for _ in range(40):
+        hook.update_substrate_vector(_state(0.8))
+    arbitrary = np.random.default_rng(9).normal(size=64).astype(np.float32)
+    arbitrary *= float(np.linalg.norm(hook.current_felt_vector())) / float(np.linalg.norm(arbitrary))
+    hook.override_composite_vector(_unit(3), felt=arbitrary)
+    np.testing.assert_allclose(hook.current_felt_vector(), arbitrary)
+    hook.update_substrate_vector(_state(0.8))
+    np.testing.assert_allclose(hook.current_felt_vector(), arbitrary, err_msg="pinned until released")
+    hook.override_composite_vector(None)
+    for _ in range(80):
+        hook.update_substrate_vector(_state(0.8))
+    np.testing.assert_allclose(hook.current_felt_vector(), 0.8 * push, rtol=1e-3, atol=1e-4)
+
+
+def test_a_reply_recorded_before_the_felt_slot_reads_neutral_there():
+    old = {"s": [0.6] * 15}
+    new = {"s": [0.6] * 15, "felt_at": FELT_SLOT}
+    assert steering_channel.as_published(old)[FELT_SLOT] == 0.5
+    assert steering_channel.as_published(new)[FELT_SLOT] == pytest.approx(0.6)
+    assert steering_channel.as_published({"s": []}) is None

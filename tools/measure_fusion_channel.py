@@ -213,6 +213,8 @@ def her_replies(path: Path, model_name: str, count: int, seed: int) -> list[tupl
     import json
     import random
 
+    from core.consciousness.steering_channel import as_published
+
     if count <= 0 or not path.exists():
         return []
     found: list[tuple[str, list[float]]] = []
@@ -222,7 +224,7 @@ def her_replies(path: Path, model_name: str, count: int, seed: int) -> list[tupl
                 row = json.loads(line)
             except ValueError:
                 continue
-            text, state = str(row.get("text") or ""), row.get("s")
+            text, state = str(row.get("text") or ""), as_published(row)
             if (
                 str(row.get("model") or "") == model_name
                 and str(row.get("lane") or "").startswith("foreground")

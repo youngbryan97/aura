@@ -113,6 +113,7 @@ def evaluate(arguments) -> int:
         derangement,
         paired_qualification_plan,
     )
+    from core.consciousness.steering_channel import as_published
     from core.runtime.model_lane_control import standalone_model_lane
 
     root = arguments.generation.expanduser().resolve(strict=True)
@@ -200,7 +201,7 @@ def evaluate(arguments) -> int:
                 for arm, assignment in assignments.items():
                     for hook, vectors in zip(hooks, assignment, strict=True):
                         hook._vectors = dict(vectors)
-                    for at, state in (("own", row["s"]), ("other", rows[other[index]]["s"])):
+                    for at, state in (("own", as_published(row)), ("other", as_published(rows[other[index]]))):
                         settle(state)
                         engine.set_alpha(arguments.alpha)
                         loglik[f"{arm}:{at}"] = _log_likelihood(model, prompt_ids, tokens)

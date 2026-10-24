@@ -56,6 +56,7 @@ logger = logging.getLogger("Aura.SteeringChannel")
 __all__ = [
     "CHANNEL_LENGTH",
     "FELT_SLOT",
+    "as_published",
     "activation_state",
     "create_channel",
     "governor_inputs",
@@ -84,6 +85,23 @@ _SUBSTRATE_SERVICES = ("liquid_substrate", "conscious_substrate", "liquid_state"
 
 #: How she feels, as her affect phase last fused it, and when. See `note_felt`.
 _FELT: dict[str, float] = {}
+
+
+def as_published(row: Any) -> list[float] | None:
+    """A recorded reply's steering state as the channel publishes it now.
+
+    A record made before FELT_SLOT carried her felt valence holds a substrate
+    neuron there, which a felt push would read as feeling at one extreme; such a
+    record says nothing about how she felt against her usual, so the slot reads
+    neutral. A record made since says so (`felt_at`).
+    """
+    state = row.get("s") if hasattr(row, "get") else None
+    if not isinstance(state, list) or not state:
+        return None
+    values = [float(v) for v in state]
+    if row.get("felt_at") != FELT_SLOT and len(values) > FELT_SLOT:
+        values[FELT_SLOT] = 0.5
+    return values
 
 
 def note_felt(valence: float, arousal: float, *, felt: float | None = None) -> None:

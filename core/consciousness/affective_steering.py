@@ -1286,7 +1286,9 @@ class AffectiveSteeringHook:
                 self._cached_composite_mx = None
 
             felt_target = None if self._felt_suspended else self._felt_everywhere(state)
-            if felt_target is None:
+            if self._felt_suspended:
+                pass  # an ablation has pinned it, or stood it down
+            elif felt_target is None:
                 self._last_felt_np = None
                 self._cached_felt_mx = None
             else:
@@ -1359,7 +1361,12 @@ class AffectiveSteeringHook:
                 for name, value in state.items():
                     setattr(self, name, value)
 
-    def override_composite_vector(self, vector: Any | None) -> None:
+    def current_felt_vector(self) -> Any | None:
+        """The felt push this hook adds at every position, before alpha, or None."""
+        with self._substrate_lock:
+            return None if self._last_felt_np is None else self._last_felt_np.copy()
+
+    def override_composite_vector(self, vector: Any | None, *, felt: Any | None = None) -> None:
         """Force the injected vector. FOR ABLATION ONLY.
 
         A steering ablation has to answer a counterfactual — what would this
@@ -1385,9 +1392,10 @@ class AffectiveSteeringHook:
                 self._cached_composite_mx = None
                 self._felt_suspended = False
                 return
-            # A counterfactual vector is the whole of what is injected.
+            # A counterfactual vector is the whole of what is injected, with a
+            # counterfactual felt push beside it when one is given.
             self._felt_suspended = True
-            self._last_felt_np = None
+            self._last_felt_np = None if felt is None else np.asarray(felt, dtype=np.float32).copy()
             self._cached_felt_mx = None
             array = np.asarray(vector, dtype=np.float32)
             self._last_composite_np = array.copy()
