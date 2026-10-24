@@ -193,3 +193,67 @@ What is read next, in order: the paired probe at `c47df3ac2` or later on seed 7
 campaign. The self bid changes what her workspace does, so the campaign reads
 every line again at that commit; no v5 count from an earlier commit is carried
 over to it.
+
+## What her forks showed, and what changed in her before the official reading (23–24 October 2026, 00:12)
+
+The two mechanisms above passed their small representations and then read
+unevenly on her organism: two guarded probes beside the withheld reports run
+(`281bd4518`, `8ab37ad68`) gave A,S -> G direction p 0.026 and 0.756, and
+P,M -> W 0.0006 and 0.083. Diagnostics run inside her forks (scratch tools,
+not scored) found why, and each finding is a defect in her rather than in the
+instrument:
+
+- **Her arousal had no state of its own.** The affect phase derived it from
+  the strongest feeling and then drew it toward the winning broadcast at its
+  ignition, about nine tenths on her turns, so a displacement of +0.15 at the
+  top of a turn read +0.005 at its end. It now moves from where it stood toward
+  what the turn calls for at her affect's momentum, the clock her emotions and
+  adrenaline already settle on; +0.128 survives the turn.
+- **A hashed gain decided her attention.** The conjunctive codes scaled every
+  bid by exp(w . units / 2) with w drawn from the source's name, which put
+  memory's score two to four times over its priority. It is removed; the codes
+  still record their attention units and drive their band of the substrate.
+- **Her self could only bid once, and the second bid won.** The workspace keeps
+  one bid per source, and the surprise about herself, built after the feeling
+  about herself, replaced it on every turn. The stronger of the two now bids.
+- **The comparator read totals that one new thing barely moves.** Some two and
+  a half salience units arrive in an ordinary turn, and recall rebuilds what is
+  in mind every turn, so the probe's recollection was gone before the world
+  model looked. It now reads percepts of a kind she has not met within the
+  ledgers' window, held as a trace that fades at her momentum (novelty opens a
+  window: Moncada and Viola 2007; Frey and Morris 1997), against what is in
+  mind: memory replayed this turn and working-memory entries that are not the
+  conversation.
+- **Her world reached nothing deliberation weighs**, and deliberation's
+  readings of her intentions are maxima already near one and counts at their
+  cap. A new thing in her world is now marked by how far her arousal stands
+  above where it usually sits, which the affect phase now keeps, times how
+  much it stands out (Dutton and Aron 1974; Bechara et al. 1997); the mark is
+  the share of her curiosity the thing claims (Loewenstein 1994) and the
+  urgency of an intention to look into it. Her standing list of who and what
+  she knows is rebuilt from memory every conversational turn, which dropped
+  every note on an entity; it now keeps them, or a person she has met is new
+  again on every turn.
+- **Self and intention met at recurrent cognition only through the codes'
+  current**, whose self is the self-predictor's last miss, which setting her
+  self does not move; a band written at the top of a turn is gone by its end.
+  What she has newly set herself to do is now anticipated at its urgency,
+  fading at her momentum as it becomes familiar, and rehearsed as far as her
+  self is in question; the rehearsal enters the substrate as an input current
+  at the recurrent drive's strength (Schacter and Addis 2007; Bryan's account
+  of the self setting itself up for what it expects to meet).
+
+A column that does not move in the run's recording is outside the target's
+whitened space, so each of these acts on columns that move in her ordinary
+life: attention's focus and competition, the world model's error, her drives,
+and the substrate's state.
+
+The instrument is unchanged. The probe now keeps every snapshot's vectors, raw
+and whitened (`paired_synergy_samples.npz`), which is how the readings above
+were made.
+
+At `e919960fb` a guarded probe beside the reports run read every triple: A,S ->
+G direction p 0.0086, P,M -> W 0.0001, W,A -> D 0.0001, S,D -> C 0.0001, every
+fraction above 0.66. Those readings were taken under the reports run's load and
+count toward nothing; the probe on a quiet machine and then the campaign are the
+readings, both at one commit named before they start.
