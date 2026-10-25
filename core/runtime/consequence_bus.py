@@ -23,6 +23,26 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ConsequenceBus")
 
+#: The singleton bus's history, kept at module scope so a paired experiment can
+#: fork it with her (see `__forks_with_her__`).
+#:
+#: Her integration reading is computed from this stream: `SystemIntegration`
+#: reads the last two hundred consequences and asks how much her organs cause
+#: one another. The bus lives in `core.runtime`, which a snapshot treats as the
+#: process's own machinery and never carries, so every arm of a paired trial
+#: published into one stream that every later arm read. MEASURED 25 October on
+#: the seed-23 anchors: an untouched fork's integration fell from 0.3225 to
+#: 0.3001, 0.2869, 0.2776, 0.2706, 0.2500 and 0.2359 as other forks ran beside
+#: it, and to 0 — "federated" — at the seventh cut, where the ghost flagged her
+#: integrity, a self-integrity content entered her workspace, and her
+#: fragmentation rose by 0.0014. That was the late-fork control's separation,
+#: and K itself was identical throughout.
+_HISTORY: list["ConsequenceEvent"] = []
+
+#: What of this module a fork carries with her: the consequence history, which is
+#: her causal record. The subscribers are wiring and stay with the process.
+__forks_with_her__ = ("_HISTORY",)
+
 _SUBSCRIBER_DELIVERY_ERRORS = (
     RuntimeError,
     AttributeError,
@@ -81,11 +101,13 @@ class ConsequenceBus:
     _instance: ConsequenceBus | None = None
     _lock_cls = threading.Lock()
 
-    def __init__(self) -> None:
+    def __init__(self, *, history: list[ConsequenceEvent] | None = None) -> None:
         self._subscribers: dict[str, list[ConsequenceSubscriber]] = defaultdict(list)
         self._lock = threading.Lock()
         self._event_count = 0
-        self._history: list[ConsequenceEvent] = []
+        # The singleton binds the module's list, which a fork can rewind in
+        # place; a bus constructed on its own keeps a list of its own.
+        self._history: list[ConsequenceEvent] = history if history is not None else []
         self._max_history = 500
 
     @classmethod
@@ -94,7 +116,8 @@ class ConsequenceBus:
         if cls._instance is None:
             with cls._lock_cls:
                 if cls._instance is None:
-                    cls._instance = cls()
+                    _HISTORY.clear()
+                    cls._instance = cls(history=_HISTORY)
         return cls._instance
 
     @classmethod
@@ -113,7 +136,9 @@ class ConsequenceBus:
             self._event_count += 1
             self._history.append(event)
             if len(self._history) > self._max_history:
-                self._history = self._history[-self._max_history:]
+                # Trimmed in place: rebinding would leave the module's list, and
+                # with it whatever a fork restores into, behind.
+                del self._history[: len(self._history) - self._max_history]
 
             # Collect matching subscribers
             targets = list(self._subscribers.get("*", []))

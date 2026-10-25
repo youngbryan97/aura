@@ -1407,6 +1407,22 @@ def _module_holdings(skip: frozenset[int] = frozenset()) -> dict[str, Any]:
         if module is None or not _in_packages(module_name, _ORGANISM_PACKAGES):
             continue
         if _in_packages(module_name, _MACHINERY_PACKAGES):
+            # Machinery is the process's own bookkeeping and is not carried,
+            # except what a machinery module itself names as forking with her:
+            # state her organs read into her own. `__process_state__` is the
+            # same declaration in the other direction.
+            #
+            # The consequence bus is the case that needed it. It lives in
+            # `core.runtime`, her integration reading is computed from its
+            # history, and an arm that cannot rewind it reads every other arm's
+            # consequences — on the seed-23 anchors that took an untouched
+            # fork's integration from 0.32 to 0 over seven cuts.
+            for name in tuple(getattr(module, "__forks_with_her__", ()) or ()):
+                value = vars(module).get(name, _ABSENT)
+                if value is _ABSENT or id(value) in seen:
+                    continue
+                seen.add(id(value))
+                out[f"{module_name}:{name}"] = value
             continue
         # What a module says is the process's own bookkeeping, not hers: which
         # generations hold the gate, which model a lease points at. Restoring
