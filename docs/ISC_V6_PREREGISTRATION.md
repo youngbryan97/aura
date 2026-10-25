@@ -335,3 +335,39 @@ every periphery number of an organ the core already reads moved inside K (181 of
 mesh, self-prediction, workspace, homeostasis, wants, self-model), the leak given E is 0.009, 0.0009 and 0.020,
 pooled 0.0055 against 0.036 before. The mycelial network, the coherence report and the STDP engine are not among
 the core's organs and stay outside under that rule.
+
+## Addendum, 25 October 2026, afternoon: the margin is the least part of her
+
+Written and committed before the rule was computed on any recording of her.
+
+The margin is drawn by a rule rather than named as a number. Every number proposed for it (0.025, 0.03, 0.045,
+0.059) was proposed after seed 23's leak of 0.0243 had been read, and any of them would have been chosen with that
+leak in view.
+
+**The rule.** Each live domain of K in turn is left out of the core and read as its periphery by the closure
+estimator itself, on the same three forward folds and with the same environment: the rest of K predicting its own
+next turn from itself and E, against the rest of K, E and that domain. The margin is the smallest of those pooled
+leaks (`least_domain_margin` in `core/subject/closure.py`).
+
+**Why it is the margin.** The partition sweep decides that every domain is needed by the others, so each one is a
+broker known to matter to K's future, measured at her run length, at her grain and by the same estimator.
+CLOSED_WITHIN_MARGIN then says that everything outside K together tells K's future less than the least part of K
+does. The claim is about her parts, and no fraction or constant enters it.
+
+**What it costs.** If any domain tells the rest nothing once E is given, the margin is zero or less and closure
+cannot be claimed. That is intended: a part of K that idle is a question about K, and the gate should not close
+around it.
+
+**Unchanged.** OPEN is decided first. CLOSED_WITHIN_MARGIN still needs the leak's one-sided 95% upper bound below
+the margin, the planted-cause resolution at or below it, and no fold open. `CLOSURE_MARGIN`, a named number,
+would override the rule and stays None.
+
+**Known answers**, in `tests/test_the_closure_margin_is_the_least_part_of_her.py` and a 40-world run behind it.
+Four domains of two columns in a ring, 1,500 rows, against a periphery of pure noise: CLOSED_WITHIN_MARGIN in 33
+worlds, UNRESOLVED in 5, OPEN in 2. With one domain cut off, which also leaves the domain it read with no reader:
+UNRESOLVED in 39, OPEN in 1, closed in none. A slow broker outside K reads OPEN. The margin is the same whatever
+periphery the gate is given. Every null architecture with state outside its ten domains still reads OPEN: star,
+hub, hidden broker, prompt-only and common driver.
+
+The fresh seed's closure is read under this rule. Seed 23 is computed under it afterwards, as discovery, and does
+not decide it.
