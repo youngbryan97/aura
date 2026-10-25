@@ -225,14 +225,37 @@ def main(argv: list[str] | None = None) -> int:
         except sqlite3.Error as exc:
             state_log_note = f"the state log could not be read: {type(exc).__name__}: {exc}"
 
+    # A run that was named and could not be read is not the same thing as a run
+    # nobody gave, and both used to read "no campaign was read".
+    #
+    # The decisive chain of 24 October resolved its paths with a glob that ran
+    # before the campaign had written its report, so `--campaign` arrived as an
+    # empty string. The ground read NOT_MEASURED, the bridge reported one ground
+    # fewer than it had evidence for, and nothing said which of the two had
+    # happened. Re-solved with the file passed by hand, the markers ground
+    # holds: perturbational_complexity, reentry and global_access all pass.
+    unread: dict[str, str] = {}
+    campaign = load(args.campaign)
+    reports = load(args.reports)
+    for name, given, got in (("campaign", args.campaign, campaign), ("reports", args.reports, reports)):
+        if given is None:
+            continue
+        if not str(given).strip():
+            unread[name] = "the path given was empty"
+        elif got is None:
+            unread[name] = f"nothing readable at {given}"
+    for name, why in unread.items():
+        print(f"  !! {name}: {why}", flush=True)
+
     j = solve(
         load(carrier_path),
         load(content_path),
         lineage,
-        battery=battery_lines(load(args.campaign)),
-        reports=load(args.reports),
+        battery=battery_lines(campaign),
+        reports=reports,
     )
     report = j.as_dict()
+    report["unread_sources"] = unread
     report["sources"] = {
         "carrier": None if carrier_path is None else str(carrier_path),
         "content": None if content_path is None else str(content_path),
