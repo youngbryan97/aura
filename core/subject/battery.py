@@ -628,10 +628,11 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
     ))
     add(_c(
         "causal_closure_of_the_core", "3",
-        "no variable outside K predicts K's future better than K does",
+        "no variable outside K predicts K's future better than K and its environment do",
         bool(closure.get("closed")),
         round(float(closure.get("leak", 1.0)), 4),
-        "no improvement on K beyond what a shuffled periphery gives",
+        "closed within the preregistered margin: the leak's upper bound below it, a planted leak "
+        "no larger found, no fold open (an unresolved gate does not pass)",
         largest_leaks=closure.get("largest_leaks", []),
     ))
     add(_c(

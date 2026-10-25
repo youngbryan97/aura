@@ -1697,7 +1697,7 @@ async def main() -> int:
             # ── closure, which is a gate ───────────────────────────────────
             _log("closure against the measured periphery")
             periphery_read, names = periphery.matrix()
-            closed, leak = False, float("nan")
+            closed, leak, verdict = False, float("nan"), "NOT_MEASURED"
             if periphery_read.size:
                 # On the turn series, as the campaign reads it: a step from one
                 # phase to the next inside a turn is one line of the transition
@@ -1706,7 +1706,7 @@ async def main() -> int:
                 report = closure_gain(
                     recording.by_turn(), periphery_by_turn(periphery_read, recording), names, seed=args.seed
                 )
-                closed, leak = bool(report.closed), float(report.leak)
+                closed, leak, verdict = bool(report.closed), float(report.leak), report.verdict
                 evidence["closure"] = report.as_dict()
             else:
                 evidence["closure"] = {"note": "no periphery could be read"}
@@ -1718,6 +1718,7 @@ async def main() -> int:
             best_lag = min(lags, key=lambda lag: abs(lag - best_lag))
             closed = bool((evidence.get("closure") or {}).get("closed"))
             leak = float((evidence.get("closure") or {}).get("leak") or 0.0)
+            verdict = str((evidence.get("closure") or {}).get("verdict") or "")
             _log(f"recalled closure: closed {closed}, leak {leak:.5f}")
 
         # ── the graph, and which process the carrier is ────────────────
@@ -1731,7 +1732,7 @@ async def main() -> int:
         exclusion = select_carriers(
             list(support), kept,
             {frozenset(support): spectrum},
-            {frozenset(support): (closed, leak if leak == leak else 0.0)},
+            {frozenset(support): (closed, leak if leak == leak else 0.0, verdict)},
         )
         evidence["graph"] = {
             "edges": ["->".join(e) for e in kept],

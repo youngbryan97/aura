@@ -39,7 +39,7 @@ from typing import Any
 
 import numpy as np
 
-from core.subject.estimate import fit_predict, split_rows
+from core.subject.estimate import fit_predict
 from core.subject.recording import Recording
 
 # How an array is summarised, shared with the core's own readers so the two
@@ -57,6 +57,19 @@ __all__ = [
 #: The frame that closes a turn, whose row the turn series keeps
 #: (`Recording.turn_rows`). The periphery is read at it and nowhere else.
 TURN_CLOSES: str = "ontogeny"
+
+#: The four readings of the gate (`ClosureReport.verdict`).
+OPEN, CLOSED, UNRESOLVED, NOT_MEASURED = "OPEN", "CLOSED_WITHIN_MARGIN", "UNRESOLVED", "NOT_MEASURED"
+
+#: The margin within which a closed reading is a claim, as a leak (a share of
+#: what K and its environment cannot predict about K's next turn). None until a
+#: preregistration names it, and it is named before a fresh seed is scored, not
+#: chosen on a recording already read.
+CLOSURE_MARGIN: float | None = None
+
+#: Draws behind each bootstrap bound, as the partition sweep's design uses
+#: (core/subject/isc_v5.py).
+BOOTSTRAP_DRAWS: int = 1000
 
 #: What the last periphery walk saw, and what it could not reach. Read through
 #: `coverage()`; a closure result without it is a claim about everything
@@ -171,6 +184,7 @@ def _numbers(
                 out[f"{prefix}.{name}"] = number
         elif isinstance(value, (list, tuple, dict, set)):
             out[f"{prefix}.{name}#"] = float(len(value))
+            _contents(value, f"{prefix}.{name}", out)
         elif _is_array(value):
             # An array fell through every branch above and through the one
             # below, because a numpy array is not a sequence this walk
@@ -181,6 +195,42 @@ def _numbers(
             _sketch(value, f"{prefix}.{name}", out)
         elif hasattr(value, "__dict__") and not callable(value) and depth < MAX_DEPTH:
             _numbers(value, f"{prefix}.{name}", out, depth + 1, ceiling=stop, seen=seen, own=own)
+
+
+def _contents(value: Any, name: str, out: dict[str, float]) -> None:
+    """The numbers a container holds, not only how many things it holds.
+
+    Until 25 October a dict or list entered the periphery as its length, so a
+    broker that kept its state as a value in a dict of fixed size was invisible
+    to the gate: a review planted one changing from 0.5 to -3.7 and the reader
+    returned the same number both times. A container of a few numbers enters
+    one column per entry, in key order; a wider one enters as the same
+    fixed-width sketch an array does, over its values in key order. A set has no
+    order, so its numbers are sorted first.
+    """
+    if isinstance(value, dict):
+        items = sorted(((str(key), item) for key, item in value.items()), key=lambda pair: pair[0])
+    elif isinstance(value, set):
+        try:
+            items = [(str(index), item) for index, item in enumerate(sorted(value))]
+        # not a failure: a set of things that do not order holds no series to read.
+        except TypeError:
+            return
+    else:
+        items = [(str(index), item) for index, item in enumerate(value)]
+    numbers = [
+        (key, float(item))
+        for key, item in items
+        if isinstance(item, (int, float)) and not isinstance(item, bool)
+        and math.isfinite(float(item)) and not _is_clock(float(item))
+    ]
+    if not numbers:
+        return
+    if len(numbers) <= SKETCH_WIDTH:
+        for key, number in numbers:
+            out[f"{name}[{key}]"] = number
+        return
+    _sketch(np.array([number for _key, number in numbers]), f"{name}[]", out)
 
 
 #: Name fragments that say a number is a stored instant rather than a quantity.
@@ -412,14 +462,25 @@ class ClosureReport:
     #: columns dropped because their name says they hold a moment.
     differenced: tuple[str, ...] = ()
     dropped_as_clocks: tuple[str, ...] = ()
-    #: What each leak is, and whether the test finds a cause planted outside K.
-    #: Diagnostic: neither changes `closed`.
+    #: What each leak is. Diagnostic: it does not change the verdict.
     audit: dict[str, Any] = field(default_factory=dict)
     #: One entry per forward fold, in time order: what each scored and what it
-    #: read. `leak` and `floor_high` above are the medians of these.
-    folds: tuple[dict[str, float], ...] = ()
-    #: How many folds read a leak clearing their own floor.
+    #: read, with its own bounds and verdict.
+    folds: tuple[dict[str, Any], ...] = ()
+    #: How many folds read open on their own.
     leaking_folds: int = 0
+    #: The bounds of the pooled leak from a block bootstrap over the scored
+    #: rows, one-sided at 95% each. None when they were not computed.
+    leak_lower: float | None = None
+    leak_upper: float | None = None
+    #: The smallest planted leak the same estimator called open on this
+    #: recording, read on the same folds and against the same periphery.
+    smallest_leak_resolved: float | None = None
+    #: The margin a closed reading is claimed within. None until a
+    #: preregistration names it, and then the gate can never say closed.
+    margin: float | None = None
+    #: How many declared environment columns both models were given.
+    environment_width: int = 0
 
     @property
     def measured(self) -> bool:
@@ -435,60 +496,57 @@ class ClosureReport:
 
     @property
     def resolution(self) -> float | None:
-        """The smallest leak the gate could still find on this recording.
-
-        Read from the planted control in `audit`. None when the control was not
-        run or found nothing at all, and a gate that found nothing cannot report
-        a resolution.
-        """
-        planted = (self.audit or {}).get("planted_cause") or {}
-        found = planted.get("smallest_leak_resolved")
-        return float(found) if isinstance(found, (int, float)) else None
+        """The smallest leak the gate could still find on this recording."""
+        return self.smallest_leak_resolved
 
     @property
-    def decisive(self) -> bool:
-        """Whether a `closed` reading here is evidence of closure.
+    def verdict(self) -> str:
+        """OPEN, CLOSED_WITHIN_MARGIN, UNRESOLVED or NOT_MEASURED.
 
-        A gate that cannot resolve a leak the size of the one in front of it has
-        not found the core closed; it has failed to find anything. On the carrier
-        at `8f548ed79` the leak is 0.02429 and the smallest leak the gate could
-        resolve is 0.04515, so its pass says nothing about the carrier. An open
-        reading needs no such qualification: a leak that was found was found.
+        Until 25 October closure was the null hypothesis: the core was called
+        closed whenever the periphery failed to beat it, so a gate with no power
+        reached "closed" by default, and the rule meant to qualify that,
+        `leak >= resolution`, called a leak of exactly zero not decisive. Six
+        independent reviews of the briefing found it and it was confirmed in
+        this file.
+
+        Open is a finding: the pooled leak clears the surrogate floor's upper
+        tail and its lower bound clears the floor's centre, or one fold does so
+        at a level divided over the folds, because a leak confined to one
+        stretch of a run is still a leak. Closed is a claim of equivalence: a
+        margin named in advance, the leak's upper bound below it, the gate shown
+        to find a planted leak no larger than it, and no fold open. Everything
+        else is unresolved, which is a result in its own right and not a
+        failure to be rounded either way.
         """
         if not self.measured:
+            return NOT_MEASURED
+        if self.leaking_folds > 0 or self._pooled_open():
+            return OPEN
+        if (
+            self.margin is not None
+            and self.leak_upper is not None
+            and self.leak_upper < self.margin
+            and self.smallest_leak_resolved is not None
+            and self.smallest_leak_resolved <= self.margin
+        ):
+            return CLOSED
+        return UNRESOLVED
+
+    def _pooled_open(self) -> bool:
+        if self.leak_lower is None:
             return False
-        if not self.closed:
-            return True
-        found = self.resolution
-        return found is not None and self.leak >= found
+        return self.leak > self.floor_high and self.leak_lower > self.shuffled_leak
 
     @property
     def closed(self) -> bool:
-        """Closed when the periphery does not improve on K.
+        """Closed within the preregistered margin, and nothing less."""
+        return self.verdict == CLOSED
 
-        Two ways to be closed and both are here, because the first version used
-        only the second and called a core open when the outside variables had
-        made prediction strictly worse. A periphery that does not beat K has
-        told us K is enough. A periphery that beats K by no more than its own
-        shuffled copy has told us the gain was the extra columns, not what was
-        in them.
-
-        Neither of them is available when nothing was compared. An unmeasured
-        closure is not a closed core.
-        """
-        if not self.measured:
-            return False
-        # A leak has to show in most of the folds, not in one of them.
-        #
-        # The single slice this used to read could disagree with the rest of the
-        # run: the carrier at 8f548ed79 cleared its floor on one forward fold of
-        # three and failed on the other two, and which answer came back was
-        # decided by where the fit was scored. A majority is the smallest rule
-        # that cannot be carried by one fold, and the per-fold readings stay in
-        # `folds` so the margin is never hidden behind the verdict.
-        if self.folds:
-            return self.leaking_folds * 2 <= len(self.folds)
-        return self.leak <= 0.0 or self.leak <= max(self.shuffled_leak, self.floor_high)
+    @property
+    def decisive(self) -> bool:
+        """Whether the gate reached an answer, open or closed."""
+        return self.verdict in (OPEN, CLOSED)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -511,16 +569,21 @@ class ClosureReport:
             "shuffled_leak_q95": round(self.floor_high, 6),
             "differenced": list(self.differenced),
             "dropped_as_clocks": list(self.dropped_as_clocks),
+            "verdict": self.verdict,
             "closed": self.closed,
             "measured": self.measured,
             "decisive": self.decisive,
+            "leak_lower": None if self.leak_lower is None else round(self.leak_lower, 6),
+            "leak_upper": None if self.leak_upper is None else round(self.leak_upper, 6),
+            "margin": self.margin,
+            "environment_width": self.environment_width,
             "smallest_leak_resolved": self.resolution,
-            "why_not_decisive": (
+            "why_unresolved": (
                 ""
-                if self.decisive
-                else "the leak is smaller than the smallest leak this gate could "
-                "resolve on this recording, so a closed reading is a failure to "
-                "find rather than a finding"
+                if self.verdict != UNRESOLVED
+                else "no preregistered margin, so closure cannot be claimed"
+                if self.margin is None
+                else "the leak's upper bound or the gate's resolution is not below the margin"
             ),
             "why_not_measured": (
                 ""
@@ -699,6 +762,208 @@ def forward_folds(rows: int, folds: int = 3) -> list[tuple[slice, slice, slice]]
     return out
 
 
+def environment_of_transitions(recording: Recording) -> tuple[np.ndarray, tuple[str, ...]]:
+    """What arrived from outside during each step from turn t to t + 1.
+
+    The closure the gate tests is conditional on the environment,
+    P(K_next | K, E, X) = P(K_next | K, E), and until 25 October neither model
+    was given E: an organ that only echoed the condition schedule read as a
+    leak. The input that drives a step is the one recorded on the row it ends
+    on, so this is row t + 1's condition, one column per condition, and its
+    declared readings. A column that only counts time, or that is the
+    condition again under a number, is left out.
+    """
+    rows = recording.x.shape[0]
+    if rows < 2:
+        return np.zeros((0, 0)), ()
+    labels = tuple(recording.conditions[1:])
+    kinds = sorted(set(recording.conditions))
+    onehot = np.array([[1.0 if label == kind else 0.0 for kind in kinds] for label in labels])
+    env = np.asarray(recording.env, dtype=np.float64)[1:]
+    names: list[str] = [f"condition={kind}" for kind in kinds]
+    blocks = [onehot]
+    if env.size:
+        counting = _one_way(env)
+        for index, name in enumerate(recording.env_names):
+            column = env[:, index]
+            if counting[index] or _named_clock(name) or column.std() <= 1e-12:
+                continue
+            # The condition under another name: constant within each condition.
+            if all(np.ptp(column[[i for i, label in enumerate(labels) if label == kind]]) <= 1e-12
+                   for kind in kinds if kind in labels):
+                continue
+            blocks.append(column[:, None])
+            names.append(name)
+    return np.hstack(blocks), tuple(names)
+
+
+def _block_length(series: np.ndarray) -> int:
+    """How many consecutive rows a bootstrap block keeps.
+
+    The scored rows are a time series, so resampling them one at a time treats
+    two thousand dependent turns as two thousand independent replications and
+    makes the bounds too narrow. A block is at least n^(1/3) rows, the order
+    that minimises the error of a block-bootstrap variance (Hall, Horowitz and
+    Jing 1995), and at least as long as the series stays correlated with
+    itself beyond the band an uncorrelated series of this length would show.
+    """
+    n = int(series.shape[0])
+    if n < 4:
+        return 1
+    centred = series - series.mean()
+    total = float(centred @ centred)
+    band = 2.0 / math.sqrt(n)
+    lag = 1
+    while lag < n // 4 and total > 0.0:
+        if abs(float(centred[:-lag] @ centred[lag:]) / total) < band:
+            break
+        lag += 1
+    return max(lag, int(round(n ** (1.0 / 3.0))))
+
+
+def _pooled_bounds(
+    gains: Sequence[np.ndarray], bases: Sequence[np.ndarray], *, seed: int, draws: int = BOOTSTRAP_DRAWS,
+    alpha: float = 0.05,
+) -> tuple[float, float]:
+    """One-sided bounds on sum(gain) / sum(base), from circular blocks within each fold."""
+    rng = np.random.default_rng(seed)
+    lengths = [_block_length(g) for g in gains]
+    values = np.empty(draws)
+    for draw in range(draws):
+        top = bottom = 0.0
+        for gain, base, length in zip(gains, bases, lengths, strict=True):
+            n = gain.shape[0]
+            if n == 0:
+                continue
+            starts = rng.integers(0, n, size=int(math.ceil(n / length)))
+            index = (starts[:, None] + np.arange(length)[None, :]).reshape(-1)[:n] % n
+            top += float(gain[index].sum())
+            bottom += float(base[index].sum())
+        values[draw] = top / bottom if bottom > 1e-12 else 0.0
+    return float(np.quantile(values, alpha)), float(np.quantile(values, 1.0 - alpha))
+
+
+def _scored(
+    now: np.ndarray,
+    env: np.ndarray,
+    nxt: np.ndarray,
+    outside: np.ndarray,
+    *,
+    seed: int,
+    draws: int,
+) -> dict[str, Any]:
+    """K + E against K + E + P on the forward folds: pooled leak, bounds, floor, and each fold's reading."""
+    own = np.hstack([now, env]) if env.size else now
+    folds = forward_folds(now.shape[0])
+    per_fold: list[dict[str, Any]] = []
+    gains: list[np.ndarray] = []
+    bases: list[np.ndarray] = []
+    sse_own = sse_both = 0.0
+    floor_sse = np.zeros(max(1, draws))
+    for index, (train, validate, test) in enumerate(folds):
+        rng = np.random.default_rng(seed + index)
+        narrow = fit_predict(own, nxt, train=train, validate=validate, test=test)
+        wide = fit_predict(
+            np.hstack([own, outside]), nxt, train=train, validate=validate, test=test, own_width=own.shape[1],
+        )
+        surrogates = [
+            fit_predict(
+                np.hstack([own, _surrogate(outside, rng)]), nxt,
+                train=train, validate=validate, test=test, own_width=own.shape[1],
+            )
+            for _ in range(max(1, draws))
+        ]
+        base = narrow.sse if narrow.sse > 1e-12 else 1.0
+        gain = np.asarray(narrow.row_sse) - np.asarray(wide.row_sse)
+        fold_floor = [(narrow.sse - fit.sse) / base for fit in surrogates]
+        lower, upper = _pooled_bounds(
+            [gain], [np.asarray(narrow.row_sse)], seed=seed + 100 + index, alpha=0.05 / len(folds),
+        )
+        leak = (narrow.sse - wide.sse) / base
+        floor_median = float(np.median(fold_floor))
+        floor_high = float(np.quantile(fold_floor, 1.0 - 0.05 / len(folds))) if len(fold_floor) > 1 else fold_floor[0]
+        per_fold.append({
+            "scored_rows": f"{test.start}-{test.stop}",
+            "loss_core": float(narrow.loss),
+            "loss_core_and_periphery": float(wide.loss),
+            "loss_shuffled_periphery": float(np.median([fit.loss for fit in surrogates])),
+            "leak": float(leak),
+            "leak_lower": lower,
+            "leak_upper": upper,
+            "shuffled_leak": floor_median,
+            "floor_high": floor_high,
+            "open": bool(leak > floor_high and lower > floor_median),
+        })
+        gains.append(gain)
+        bases.append(np.asarray(narrow.row_sse))
+        sse_own += narrow.sse
+        sse_both += wide.sse
+        floor_sse += np.array([fit.sse for fit in surrogates])
+    pooled = (sse_own - sse_both) / sse_own if sse_own > 1e-12 else 0.0
+    floor = (sse_own - floor_sse) / sse_own if sse_own > 1e-12 else np.zeros_like(floor_sse)
+    lower, upper = _pooled_bounds(gains, bases, seed=seed)
+    return {
+        "folds": per_fold,
+        "leak": float(pooled),
+        "leak_lower": lower,
+        "leak_upper": upper,
+        "shuffled_leak": float(np.median(floor)),
+        "floor_high": float(np.quantile(floor, 0.95)) if floor.size > 1 else float(floor[0]),
+        "loss_core": float(np.median([fold["loss_core"] for fold in per_fold])),
+        "loss_core_and_periphery": float(np.median([fold["loss_core_and_periphery"] for fold in per_fold])),
+        "loss_shuffled_periphery": float(np.median([fold["loss_shuffled_periphery"] for fold in per_fold])),
+    }
+
+
+def _opens(scored: Mapping[str, Any]) -> bool:
+    if any(fold["open"] for fold in scored["folds"]):
+        return True
+    return scored["leak"] > scored["floor_high"] and scored["leak_lower"] > scored["shuffled_leak"]
+
+
+def _resolution(
+    now: np.ndarray, env: np.ndarray, nxt: np.ndarray, outside: np.ndarray, *, seed: int, draws: int,
+) -> dict[str, Any]:
+    """The smallest planted leak the same estimator calls open, among the same periphery.
+
+    A planted cause is the NEXT value of the column K predicts worst (at row t
+    the value at t + 1, a leak by construction), spoilt by more and more noise
+    and appended to the real periphery, so it has to be found among the same
+    four hundred columns and on the same folds the verdict reads. Planted
+    alone beside K, as the control did until 25 October, it was found more
+    easily than any real leak could be.
+    """
+    hardest = int(np.argmax(np.abs(np.diff(nxt, axis=0)).std(axis=0)))
+    carried = nxt[:, hardest : hardest + 1]
+    spread = float(carried.std())
+    spread = spread if spread > 1e-12 else 1.0
+    ladder: list[dict[str, Any]] = []
+    resolved: float | None = None
+    for noise in (0.0, 0.125, 0.25, 0.375, 0.5, 0.75, 1.0):
+        rng = np.random.default_rng(seed + 1)
+        planted = carried + rng.standard_normal(carried.shape) * spread * noise
+        scored = _scored(now, env, nxt, np.hstack([outside, planted]), seed=seed + 7, draws=draws)
+        found = _opens(scored)
+        ladder.append({
+            "noise_in_spreads": noise,
+            "leak": round(scored["leak"], 6),
+            "leak_lower": round(scored["leak_lower"], 6),
+            "shuffled_q95": round(scored["floor_high"], 6),
+            "detected": found,
+        })
+        if not found:
+            # Spoiling it further only makes the plant fainter.
+            break
+        resolved = scored["leak"]
+    return {
+        "carried_next_value_of": "the one column K predicts worst, spoilt by noise, among the real periphery",
+        "ladder": ladder,
+        "detected": resolved is not None,
+        "smallest_leak_resolved": resolved,
+        "draws": draws,
+    }
+
+
 def closure_gain(
     recording: Recording,
     periphery: np.ndarray,
@@ -707,21 +972,32 @@ def closure_gain(
     seed: int = 0,
     rank: int = 6,
     draws: int = SURROGATE_DRAWS,
+    margin: float | None = None,
+    environment: bool = True,
 ) -> ClosureReport:
-    """How much of K's future the rest of the machine explains that K does not.
+    """How much of K's future the rest of the machine explains that K and its environment do not.
 
     The floor is the same comparison against surrogate peripheries that keep
     every column's course in time and lose its alignment with K (`_surrogate`),
     so a gain that clears it is information rather than the extra degrees of
     freedom a wider model always brings, or a slow column drifting beside a
-    core that develops.
+    core that develops. The leak is pooled over three forward folds as the sum
+    of what the periphery saves over the sum of what K and E leave, so a
+    stretch of the run where K predicts itself almost perfectly cannot inflate
+    a tiny absolute gain into a large ratio. `margin` defaults to the
+    preregistered `CLOSURE_MARGIN`.
     """
+    margin = CLOSURE_MARGIN if margin is None else margin
     live = recording.live_columns()
     now = recording.x[:-1][:, live]
     nxt = recording.x[1:][:, live]
     outside = periphery[:-1]
     if outside.size == 0 or now.shape[0] < 60:
-        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, int(outside.shape[1] if outside.size else 0))
+        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, int(outside.shape[1] if outside.size else 0),
+                             margin=margin)
+    env, _env_names = environment_of_transitions(recording) if environment else (np.zeros((now.shape[0], 0)), ())
+    if env.shape[0] != now.shape[0]:
+        env = np.zeros((now.shape[0], 0))
 
     spread = outside.std(axis=0)
     clocks = np.array([_named_clock(name) for name in names], dtype=bool)
@@ -737,115 +1013,65 @@ def closure_gain(
     )
     outside = _as_increments(outside, rising)
     if outside.shape[1] == 0:
-        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0)
+        return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0, margin=margin)
 
-    # Forward folds, not one slice. See `forward_folds` for what one slice read.
+    scored = _scored(now, env, nxt, outside, seed=seed, draws=draws)
     folds = forward_folds(now.shape[0])
-    per_fold: list[dict[str, float]] = []
-    for index, (train, validate, test) in enumerate(folds):
-        rng = np.random.default_rng(seed + index)
-        core_fold = fit_predict(now, nxt, train=train, validate=validate, test=test)
-        both_fold = fit_predict(
-            np.hstack([now, outside]),
-            nxt,
-            train=train,
-            validate=validate,
-            test=test,
-            own_width=now.shape[1],
-        )
-        base_fold = core_fold.loss if core_fold.loss > 1e-12 else 1.0
-        # Several surrogate draws, not one: the floor the leak has to clear is a
-        # distribution, and one draw is one sample of it.
-        losses = [
-            fit_predict(
-                np.hstack([now, _surrogate(outside, rng)]),
-                nxt,
-                train=train,
-                validate=validate,
-                test=test,
-                own_width=now.shape[1],
-            ).loss
-            for _ in range(max(1, draws))
-        ]
-        fold_leaks = [(core_fold.loss - loss) / base_fold for loss in losses]
-        per_fold.append(
-            {
-                "scored_rows": f"{test.start}-{test.stop}",
-                "loss_core": float(core_fold.loss),
-                "loss_core_and_periphery": float(both_fold.loss),
-                # The median, because a turned periphery can put a column's start
-                # beside the test rows' end, and the fit that extrapolates from it
-                # fails by orders of magnitude; one such draw is a sample of the
-                # floor and not its centre.
-                "loss_shuffled_periphery": float(np.median(losses)),
-                "leak": float((core_fold.loss - both_fold.loss) / base_fold),
-                "shuffled_leak": float(np.median(fold_leaks)),
-                "floor_high": float(
-                    np.quantile(fold_leaks, 0.95) if len(fold_leaks) > 1 else fold_leaks[0]
-                ),
-            }
-        )
-
-    # The median across folds, for the same reason the floor takes one within a
-    # fold: a fold whose fit extrapolated is a sample of the estimator's failure
-    # rather than of the leak, and the mean carries it into the answer.
-    def across(key: str) -> float:
-        return float(np.median([fold[key] for fold in per_fold]))
-
-    leak = across("leak")
-    shuffled_leak = across("shuffled_leak")
-    floor_high = across("floor_high")
-    shuffled_loss = across("loss_shuffled_periphery")
-    # The last fold is the one the single-column ranking below is scored on: it
-    # has the most history, and ranking on every fold would cost one fit per
-    # periphery column per fold.
-    core = fit_predict(now, nxt, **dict(zip(("train", "validate", "test"), folds[-1], strict=True)))
-    both_loss = across("loss_core_and_periphery")
-    core_loss = across("loss_core")
-    over = (shuffled_loss - both_loss) / (shuffled_loss if shuffled_loss > 1e-12 else 1.0)
-    base = core.loss if core.loss > 1e-12 else 1.0
-    leaking_folds = sum(1 for fold in per_fold if fold["leak"] > max(fold["shuffled_leak"], fold["floor_high"]))
+    own = np.hstack([now, env]) if env.size else now
     train, validate, test = folds[-1]
+    core = fit_predict(own, nxt, train=train, validate=validate, test=test)
+    base = core.loss if core.loss > 1e-12 else 1.0
 
     # Which outside variables carry it, one at a time, so the answer names a
     # thing rather than reporting an amount.
     ranked: list[tuple[str, float]] = []
-    if leak > 0.0:
+    if scored["leak"] > 0.0:
         for index, name in enumerate(kept_names):
             single = fit_predict(
-                np.hstack([now, outside[:, index : index + 1]]),
+                np.hstack([own, outside[:, index : index + 1]]),
                 nxt,
                 train=train,
                 validate=validate,
                 test=test,
-                own_width=now.shape[1],
+                own_width=own.shape[1],
             )
             gain = (core.loss - single.loss) / base
             if gain > 0.0:
                 ranked.append((name, float(gain)))
         ranked.sort(key=lambda pair: -pair[1])
 
-    audit = audit_leaks(
-        now, nxt, outside, kept_names, ranked[:rank], differenced, seed=seed, draws=draws
-    )
+    audit = audit_leaks(own, nxt, outside, kept_names, ranked[:rank], differenced, seed=seed, draws=draws)
+    resolution: dict[str, Any] = {"skipped": "the gate read open, so its resolution decides nothing"}
+    if not _opens(scored):
+        resolution = _resolution(now, env, nxt, outside, seed=seed, draws=max(8, draws // 4))
+    audit["planted_cause"] = resolution
+    shuffled = scored["shuffled_leak"]
+    shuffled_loss = scored["loss_shuffled_periphery"]
     return ClosureReport(
         audit=audit,
-        loss_core=core_loss,
-        loss_core_and_periphery=both_loss,
+        loss_core=scored["loss_core"],
+        loss_core_and_periphery=scored["loss_core_and_periphery"],
         loss_shuffled_periphery=shuffled_loss,
-        leak=float(leak),
-        shuffled_leak=float(shuffled_leak),
-        leak_over_shuffle=float(over),
+        leak=float(scored["leak"]),
+        shuffled_leak=float(shuffled),
+        leak_over_shuffle=float(
+            (shuffled_loss - scored["loss_core_and_periphery"]) / (shuffled_loss if shuffled_loss > 1e-12 else 1.0)
+        ),
         periphery_width=int(outside.shape[1]),
         top_leaks=tuple(ranked[:rank]),
         shuffled_draws=int(draws),
-        floor_high=float(floor_high),
-        folds=tuple(per_fold),
-        leaking_folds=int(leaking_folds),
+        floor_high=float(scored["floor_high"]),
+        folds=tuple(scored["folds"]),
+        leaking_folds=int(sum(1 for fold in scored["folds"] if fold["open"])),
         differenced=differenced,
         dropped_as_clocks=tuple(
             name for name, flag in zip(names, clocks, strict=True) if flag
         ),
+        leak_lower=scored["leak_lower"],
+        leak_upper=scored["leak_upper"],
+        smallest_leak_resolved=resolution.get("smallest_leak_resolved"),
+        margin=margin,
+        environment_width=int(env.shape[1]),
     )
 
 
@@ -876,8 +1102,8 @@ def audit_leaks(
     not a cause from outside. One whose organ K already reads is that organ's
     state K does not take in. What is left is an outside cause or unread state.
 
-    The positive control says what size of leak this gate can resolve on this
-    recording, because a verdict means nothing without it.
+    The positive control is `_resolution`, run on the verdict's own estimator.
+    Its history, kept from when it lived here:
 
     It plants the periphery with the NEXT value of the column K predicts worst —
     at row t the value at t + 1, which is a leak by construction — and then
@@ -936,56 +1162,4 @@ def audit_leaks(
             "kind": kind,
         })
 
-    # Scored on the fold with the most history, which is the split the gate read
-    # before forward folds, so the resolution is stated where the ranking is.
-    train, validate, test = forward_folds(rows)[-1]
-    core = fit_predict(now, nxt, train=train, validate=validate, test=test)
-    scale = core.loss if core.loss > 1e-12 else 1.0
-    # The columns K's own next turn is hardest about: a column the core already
-    # predicts carries nothing when its next value is handed over, and the
-    # widest-moving columns are the most autocorrelated ones. Measured on the
-    # carrier, planting the four widest read -0.00034 and the four hardest read
-    # +0.0033.
-    hardest = int(np.argmax(np.abs(np.diff(nxt, axis=0)).std(axis=0)))
-    carried = nxt[:, hardest : hardest + 1]
-    spread = float(carried.std())
-    spread = spread if spread > 1e-12 else 1.0
-    control_draws = max(8, draws // 4)
-    ladder: list[dict[str, Any]] = []
-    resolved: dict[str, Any] | None = None
-    for noise in (0.0, 0.125, 0.25, 0.375, 0.5, 0.75, 1.0):
-        rng = np.random.default_rng(seed + 1)
-        planted = carried + rng.standard_normal(carried.shape) * spread * noise
-        found = fit_predict(
-            np.hstack([now, planted]), nxt,
-            train=train, validate=validate, test=test, own_width=now.shape[1],
-        )
-        floor = [
-            (core.loss - fit_predict(
-                np.hstack([now, _surrogate(planted, rng)]), nxt,
-                train=train, validate=validate, test=test, own_width=now.shape[1],
-            ).loss) / scale
-            for _ in range(control_draws)
-        ]
-        leak = (core.loss - found.loss) / scale
-        high = float(np.quantile(floor, 0.95)) if len(floor) > 1 else floor[0]
-        rung = {
-            "noise_in_spreads": noise,
-            "leak": round(float(leak), 6),
-            "shuffled_q95": round(high, 6),
-            "detected": bool(leak > max(0.0, high)),
-        }
-        ladder.append(rung)
-        if rung["detected"]:
-            resolved = rung
-        else:
-            # Spoiling it further only makes the plant fainter.
-            break
-    out["planted_cause"] = {
-        "carried_next_value_of": "the one column K predicts worst, spoilt by noise",
-        "ladder": ladder,
-        "detected": resolved is not None,
-        "smallest_leak_resolved": resolved["leak"] if resolved else None,
-        "draws": control_draws,
-    }
     return out

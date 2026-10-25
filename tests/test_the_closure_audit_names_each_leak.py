@@ -42,10 +42,13 @@ def test_a_leak_from_an_organ_k_reads_is_named_as_k_not_taking_it_in():
     assert audit["leaks"][0]["kind"] == "state of an organ K reads, which K does not take in"
 
 
-def test_the_planted_cause_is_found():
+def test_the_planted_cause_is_found_among_the_real_periphery():
+    from core.subject.closure import _resolution
+
     now, nxt, outside = _world(seed=2)
-    audit = audit_leaks(now, nxt, outside, ("a", "b"), [], ())
-    assert audit["planted_cause"]["detected"] is True
+    found = _resolution(now, np.zeros((now.shape[0], 0)), nxt, outside[:, :1], seed=2, draws=8)
+    assert found["detected"] is True
+    assert found["smallest_leak_resolved"] is not None
 
 
 def test_a_counter_is_named_as_a_clock():

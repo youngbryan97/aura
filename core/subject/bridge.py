@@ -225,6 +225,13 @@ def carrier_term(report: Mapping[str, Any] | None) -> CarrierTerm:
         return CarrierTerm("SYMMETRY_CLASS", symmetry_class=symmetry, level=level)
     if status == "NOT_FOUND":
         return CarrierTerm("NOT_FOUND", level=level)
+    undecided = tuple(str(s) for s in exclusion.get("undecided_by_closure") or ())
+    if status == "UNRESOLVED" and undecided:
+        return CarrierTerm(
+            "UNRESOLVED",
+            level=level,
+            blockers=tuple(f"closure of {support} is unresolved" for support in undecided),
+        )
     return CarrierTerm(
         "UNRESOLVED",
         level=level,

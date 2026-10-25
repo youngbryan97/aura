@@ -290,3 +290,48 @@ machine at 04:13 read all four triples at direction p 5e-05, fractions A,S -> G
 0.79, P,M -> W 1.08, W,A -> D 0.73, S,D -> C 1.16. That is the third passing
 reading on three commits. The carrier, the content run and the campaign run at
 `3dc0b0599`.
+
+## Addendum, 25 October 2026: the closure gate decides three ways, and the margin is still to be named
+
+Six independent reviews of the 25 October briefing found three defects in the closure gate, and each was
+confirmed in `core/subject/closure.py` at `5d6a20bd8`. A closed reading counted as decisive only when the leak was
+at least the gate's resolution, so a leak of exactly zero was called not decisive. Neither model was given the
+environment, although closure is defined conditional on it. The periphery reader entered a dict, list or set as
+its length, so a broker kept as a value in a container of fixed size was invisible.
+
+From this addendum the gate is:
+
+- **Conditioned on the environment.** Both models get the input that drives each step t → t + 1, recorded on row
+  t + 1: the condition as one column per condition, and the declared readings, without columns that count time or
+  restate the condition.
+- **Pooled over three forward folds.** The leak is the sum of what the periphery saves over the sum of what K and
+  E leave, so a stretch where K predicts itself almost perfectly cannot turn a tiny gain into a large ratio.
+- **Bounded.** One-sided 95% bounds come from a circular block bootstrap over the scored rows within each fold.
+  The block length is at least n^(1/3) and at least the lag at which the gain series stops being correlated
+  beyond the 2/√n band.
+- **Resolved in place.** The planted cause (the next value of the column K predicts worst, spoilt by noise) is
+  appended to the real periphery and scored by the same estimator on the same folds. The resolution is the
+  smallest planted leak that reads open.
+- **Three-way.** OPEN: the pooled leak clears the surrogate floor's 95th percentile and its lower bound clears
+  the floor's median, or one fold does so at 0.05 divided over the folds. CLOSED_WITHIN_MARGIN: a margin named in
+  advance, the upper bound below it, the resolution no larger than it, and no fold open. UNRESOLVED otherwise.
+  NOT_MEASURED when nothing outside varied.
+- **Read whole.** A container of up to four numbers enters one column per entry; a wider one enters as the
+  fixed-width sketch an array does.
+
+The carrier follows. A whole recurrent core held back only because its closure is unresolved makes the exclusion
+UNRESOLVED, not NOT_FOUND, so J\* and the bridge read UNRESOLVED and not NO_CARRIER. The battery line
+`causal_closure_of_the_core` passes only on CLOSED_WITHIN_MARGIN.
+
+**The margin is not named here.** `CLOSURE_MARGIN` is None, and until an addendum names it the gate can say open
+or unresolved and never closed. It will be named before a fresh seed is scored, by a rule that does not read a
+recording's leak. Seed 23 has now shaped this instrument and is discovery data for it.
+
+Discovery on seed 23, 25 October, carrier recording at `8f548ed79` (scripts
+`leak_given_the_environment.py` and `leak_with_her_organs_inside.py`). Conditioning on E changes little: E saves
+0.2% of the loss, and the leak given E is −0.007, +0.061 and +0.027 on the three folds, against fold floors of
+0.028, 0.011 and 0.037. The middle fold is a clear leak that the earlier majority-of-folds rule outvoted. With
+every periphery number of an organ the core already reads moved inside K (181 of 402 columns: substrate, field,
+mesh, self-prediction, workspace, homeostasis, wants, self-model), the leak given E is 0.009, 0.0009 and 0.020,
+pooled 0.0055 against 0.036 before. The mycelial network, the coherence report and the STDP engine are not among
+the core's organs and stay outside under that rule.

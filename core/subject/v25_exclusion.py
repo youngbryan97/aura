@@ -146,6 +146,10 @@ class Candidate:
     note: str = ""
     #: Horizon -> (lower, upper) bound on the rate, where the run measured one.
     bounds: dict[float, tuple[float, float]] = field(default_factory=dict)
+    #: The closure gate's own verdict (core/subject/closure.py): OPEN,
+    #: CLOSED_WITHIN_MARGIN, UNRESOLVED or NOT_MEASURED. Empty from callers
+    #: that only had a yes or no.
+    closure: str = ""
 
     @property
     def admissible(self) -> bool:
@@ -176,6 +180,7 @@ class Candidate:
         return {
             "support": "".join(sorted(self.support)),
             "closed": self.closed,
+            "closure": self.closure,
             "recurrent": self.recurrent,
             "admissible": self.admissible,
             "leak": round(self.leak, 6),
@@ -335,9 +340,23 @@ class ExclusionReport:
         return tuple("".join(sorted(c.support)) for c in self.frontier)
 
     @property
+    def undecided_by_closure(self) -> tuple[Candidate, ...]:
+        """Supports that would carry if their closure were settled, and it is not.
+
+        Recurrent, irreducible somewhere, and held back only because the closure
+        gate could not answer. Until 25 October these read as NOT_FOUND, which
+        the bridge turns into NO_CARRIER: a decisive absence reported from a
+        test that had not decided.
+        """
+        return tuple(
+            c for c in self.candidates
+            if c.recurrent and c.nonzero and not c.closed and c.closure in ("UNRESOLVED", "NOT_MEASURED")
+        )
+
+    @property
     def status(self) -> str:
         if not self.frontier:
-            return "NOT_FOUND"
+            return "UNRESOLVED" if self.undecided_by_closure else "NOT_FOUND"
         if self.unresolved:
             return "UNRESOLVED"
         if len(self.frontier) == 1:
@@ -366,6 +385,7 @@ class ExclusionReport:
             "unresolved_pairs": ["|".join(pair) for pair in self.unresolved],
             "missing_horizons": {name: list(taus) for name, taus in self.missing.items()},
             "decided_with_uncertainty": self.with_uncertainty,
+            "undecided_by_closure": ["".join(sorted(c.support)) for c in self.undecided_by_closure],
             "selected_carrier": None if carrier is None else "".join(sorted(carrier.support)),
             "selected_tau_star_seconds": None if carrier is None else carrier.tau_star,
             "selected_peak_rate": None if carrier is None else round(carrier.peak, 6),
@@ -398,12 +418,15 @@ def select_carriers(
         # A single node with no self-loop is not a recurrent process; Tarjan
         # returns it as a component of one all the same.
         recurrent = len(block) > 1 or any(a == b == block[0] for a, b in edges)
-        closed, leak = closure.get(support, (False, float("nan")))
+        reading = tuple(closure.get(support, (False, float("nan"))))
+        closed, leak = reading[0], reading[1]
+        verdict = str(reading[2]) if len(reading) > 2 else ""
         spectrum = dict(spectra.get(support, {}))
         candidates.append(
             Candidate(
                 support=support,
                 closed=bool(closed),
+                closure=verdict,
                 recurrent=bool(recurrent),
                 spectrum=spectrum,
                 leak=float(leak) if leak == leak else 0.0,

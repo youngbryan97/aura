@@ -79,9 +79,12 @@ def test_the_floor_is_read_from_several_permutations() -> None:
     assert not report.closed
 
 
-def test_a_core_is_closed_against_the_upper_tail_of_its_own_floor() -> None:
-    """Not against the mean of it. A leak inside the floor's own spread has
-    not established anything."""
+def test_a_leak_under_the_upper_tail_of_its_floor_is_not_open_and_not_yet_closed() -> None:
+    """Inside the floor's own spread a leak has established nothing, either way.
+
+    Until 25 October this read `closed`: a gate that could not tell was taken to
+    have found the core closed. Without a margin named in advance it is unresolved.
+    """
     report = ClosureReport(
         loss_core=1.0,
         loss_core_and_periphery=0.99,
@@ -92,8 +95,12 @@ def test_a_core_is_closed_against_the_upper_tail_of_its_own_floor() -> None:
         periphery_width=4,
         shuffled_draws=16,
         floor_high=0.02,
+        leak_lower=-0.01,
+        leak_upper=0.03,
+        smallest_leak_resolved=0.02,
     )
-    assert report.closed, "a leak under the floor's own upper tail read as open"
+    assert report.verdict == "UNRESOLVED"
+    assert not report.closed and not report.decisive
 
 
 def test_the_walk_says_what_it_could_not_reach() -> None:

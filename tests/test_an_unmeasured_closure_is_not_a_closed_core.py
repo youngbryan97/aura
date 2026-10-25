@@ -38,22 +38,50 @@ def test_a_periphery_of_width_zero_is_not_a_closed_core() -> None:
     assert "never compared" in report.as_dict()["why_not_measured"]
 
 
-def test_a_core_the_periphery_cannot_improve_on_is_closed() -> None:
-    report = _report(periphery_width=12, leak=0.0)
+def test_a_core_the_periphery_cannot_improve_on_is_closed_within_a_named_margin() -> None:
+    # A leak of exactly zero, an upper bound under the margin, and a gate shown to
+    # find a planted leak no larger: closed, and decisively so. The rule of 25
+    # October morning called this not decisive because the leak was below the
+    # resolution, which was backwards.
+    report = _report(periphery_width=12, leak=0.0, leak_lower=-0.002, leak_upper=0.004,
+                     smallest_leak_resolved=0.008, margin=0.01)
     assert report.measured
-    assert report.closed
+    assert report.verdict == "CLOSED_WITHIN_MARGIN"
+    assert report.closed and report.decisive
     assert report.as_dict()["why_not_measured"] == ""
 
 
-def test_a_leak_inside_its_own_shuffled_floor_is_closed() -> None:
-    report = _report(periphery_width=12, leak=0.01, shuffled_leak=0.02)
-    assert report.closed
+def test_without_a_margin_closure_cannot_be_claimed() -> None:
+    report = _report(periphery_width=12, leak=0.0, leak_lower=-0.002, leak_upper=0.004,
+                     smallest_leak_resolved=0.008)
+    assert report.verdict == "UNRESOLVED"
+    assert "margin" in report.as_dict()["why_unresolved"]
+
+
+def test_a_gate_that_cannot_resolve_the_margin_cannot_close() -> None:
+    report = _report(periphery_width=12, leak=0.0, leak_lower=-0.002, leak_upper=0.004,
+                     smallest_leak_resolved=0.05, margin=0.01)
+    assert report.verdict == "UNRESOLVED"
+
+
+def test_a_leak_inside_its_own_shuffled_floor_is_not_open() -> None:
+    report = _report(periphery_width=12, leak=0.01, shuffled_leak=0.02, floor_high=0.04,
+                     leak_lower=-0.01, leak_upper=0.03)
+    assert report.verdict == "UNRESOLVED"
 
 
 def test_a_real_leak_is_open() -> None:
-    report = _report(periphery_width=12, leak=0.20, shuffled_leak=0.02, floor_high=0.05)
+    report = _report(periphery_width=12, leak=0.20, shuffled_leak=0.02, floor_high=0.05,
+                     leak_lower=0.12, leak_upper=0.28, margin=0.5, smallest_leak_resolved=0.01)
     assert report.measured
-    assert not report.closed
+    assert report.verdict == "OPEN"
+    assert not report.closed and report.decisive
+
+
+def test_one_open_fold_keeps_the_core_from_closing() -> None:
+    report = _report(periphery_width=12, leak=0.003, leak_lower=-0.001, leak_upper=0.006,
+                     smallest_leak_resolved=0.008, margin=0.01, leaking_folds=1)
+    assert report.verdict == "OPEN"
 
 
 class _Deep:

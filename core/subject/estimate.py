@@ -82,6 +82,9 @@ class Fit:
     #: the same as a forty-column one.
     sse: float = 0.0
     base: float = 0.0
+    #: The squared error of each test row, summed over the target columns, in
+    #: row order: what a block bootstrap over the scored rows resamples.
+    row_sse: tuple[float, ...] = ()
 
     def as_dict(self) -> dict[str, float | int | bool]:
         return {
@@ -311,6 +314,7 @@ def fit_predict(
         width_out=int(y_all.shape[1]),
         sse=residual,
         base=baseline,
+        row_sse=tuple(float(v) for v in ((predicted - y_test) ** 2).sum(axis=1)) if x_test.size else (),
     )
 
 
