@@ -1,0 +1,95 @@
+{
+  "schema": "aura.documentation.final_checks.v1",
+  "checked_at_utc": "2026-10-25T20:07:00+00:00",
+  "source_commit": "3aa96e1e66b2ffcc1d0c279325158704504fb77c",
+  "scope": "Documentation follow-up in a worktree; latest incorporated scientific code change cf0ace7e3. No model, runtime or experiment launch.",
+  "markdown_pages": 979,
+  "document_categories": {
+    "Standard, policy or contributor reference": 42,
+    "Guide or reference": 171,
+    "Historical or frozen record": 757,
+    "Generated reference": 9
+  },
+  "current_reading_cards": 163,
+  "local_missing_or_outside_targets": [],
+  "additional_public_urls_since_full_audit": [
+    {
+      "url": "https://hero.epa.gov/reference/51155/",
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://hero.epa.gov/reference/51155/"
+    },
+    {
+      "url": "https://www.jstor.org/stable/1907187",
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.jstor.org/stable/1907187"
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/abs/pii/S002216949700125X",
+      "status": "unverified",
+      "http": 403,
+      "reason": "Forbidden"
+    },
+    {
+      "url": "https://www.tandfonline.com/doi/abs/10.1080/01621459.1968.10480934",
+      "status": "unverified",
+      "http": 403,
+      "reason": "Forbidden"
+    }
+  ],
+  "full_http_audit": "DOCUMENTATION_LINK_AUDIT_2026-10-25.json",
+  "bibtex_unique_keys": 19,
+  "bibtex_check": "Unique keys and balanced braces; not a full bibliography compilation",
+  "checks": [
+    {
+      "command": "Focused reader-navigation, link-audit, doc-drift and fork-consequence regression tests",
+      "passed": 80,
+      "seconds": 105.44,
+      "peak_owned_rss_mib": 400.0
+    },
+    {
+      "command": "make smoke (latest incorporated source)",
+      "passed": 164,
+      "skipped": 1,
+      "seconds": 44.48,
+      "runner_wall_seconds": 46.56,
+      "peak_owned_rss_mib": 445.0
+    },
+    {
+      "command": "make doc-drift",
+      "findings": 0,
+      "seconds": 99.37,
+      "peak_owned_rss_mib": 244.7,
+      "evidence_table_matches_artifacts": true
+    },
+    {
+      "command": "Proof-kernel pytest -c pyproject.toml -q tests",
+      "passed": 6,
+      "seconds": 0.08
+    },
+    {
+      "command": "External link audit, 2 workers, 3-second request timeout",
+      "seconds": 59.39,
+      "peak_owned_rss_mib": 87.0
+    },
+    {
+      "command": "Source-artifact hash verification",
+      "matched": [
+        "joined_battery",
+        "content",
+        "reports",
+        "carrier",
+        "j_star",
+        "prior_closure_source",
+        "three_isolation_source_files"
+      ]
+    }
+  ],
+  "resource_limits": {
+    "own_check_process_tree_cap_mib": 768,
+    "host_free_plus_inactive_floor_gb": 12,
+    "threads_per_numeric_library": 1
+  },
+  "experiment_evidence_limit": "No new ISC, carrier, content or report result was produced. Later isolation and closure-rule corrections qualify the recorded seed-23 results."
+}

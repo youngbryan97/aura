@@ -1,6 +1,6 @@
 # ISC: what the latest results show
 
-Status: Guide · Evidence checked 25 October 2026, 12:40 PDT
+Status: Guide · Evidence and source checked 25 October 2026, 13:01 PDT
 
 **The completed run recorded 22 of 24 checks passing under ISC-v6.** Its
 separate content and self-report outputs were positive. A later isolation
@@ -65,10 +65,10 @@ positive results.
 | Do self-reports follow changed internal valence? | `measured: true`, `holds: true`, tracking rho 0.612475 | 29 of 80 anchors were fully readable under the stored policy; experimental basis and sample scope must be retained |
 | Is the proposed carrier established? | Completed carrier report: `NOT_FOUND`; completed J*/bridge output: `NO_CARRIER` | Later closure-rule changes require a new reading and fresh confirmation |
 | Do all five bridge grounds hold? | Carrier fails; markers, reports, structure and lineage hold in the completed join | No `AT_PARITY` result |
-| What does the latest source code allow? | At `12bade935`, closure can be open, closed within a named margin, unresolved, or unmeasured | `CLOSURE_MARGIN` is still `None`; a positive closure decision needs a predeclared margin |
+| What does the latest source code allow? | At `cf0ace7e3`, closure uses the preregistered `least_domain` margin rule, with open, closed-within-margin, unresolved and unmeasured readings | Fresh confirmation under the rule and repaired isolation; no new carrier verdict is published here |
 
 The completed 22/24 result belongs to the experiment at `8f548ed79`. It is not
-an evaluated result for source at `12bade935`. Seed 23 informed the later
+an evaluated result for source at `cf0ace7e3`. Seed 23 informed the later
 method and is discovery data for that revision. The old `NO_CARRIER` output
 remains part of the record; no new carrier verdict was produced for this
 publication update.
@@ -117,22 +117,37 @@ core already reads but does not fully contain. Enlarging the recorded core by
 an anatomy-based rule reduced the pooled diagnostic leak, but that is a new
 choice to test, rather than a confirmation of the original boundary.
 
-At `12bade935`, the rule now conditions both predictions on the environment,
+At `12bade935`, the rule was changed to condition both predictions on the environment,
 uses three forward folds, reports uncertainty and resolution, and reads values
 inside containers rather than only their lengths. It can return:
 
 | Decision | Plain meaning |
 |---|---|
 | `OPEN` | Outside internal information makes a detected contribution |
-| `CLOSED_WITHIN_MARGIN` | The evidence bounds any remaining contribution below a margin chosen in advance |
+| `CLOSED_WITHIN_MARGIN` | The evidence bounds the remaining contribution below a margin set by the predeclared rule or numeric override |
 | `UNRESOLVED` | The measurement does not justify either conclusion |
 | `NOT_MEASURED` | The required outside variation was not measured |
 
-The margin has not yet been named. The revised rule can therefore report open
-or unresolved, but cannot report closed. Carrier selection now preserves an
-unresolved closure question as `UNRESOLVED`, rather than treating it as a
-measured absence of a carrier. The complete amendment is in the
-[25 October v6 addendum](ISC_V6_PREREGISTRATION.md).
+At `cf0ace7e3`, the afternoon addendum defines the margin by a rule. Leave each
+live domain out in turn, ask how much it helps predict the rest on the same
+folds with the same environment, and take the smallest contribution. The
+outside information must have an upper bound below that margin; the method
+must also resolve planted leaks at or below it, with no fold reading open.
+If an internal domain adds nothing, a zero or negative margin cannot support
+a closed reading. The numeric override `CLOSURE_MARGIN` stays `None`, while
+`CLOSURE_MARGIN_RULE` is `least_domain`.
+
+In ordinary terms, the claim becomes: everything measured outside the proposed
+core contributes less predictive information than its least informative
+internal domain, under this estimator. The rule avoids choosing a convenient
+number after seeing the outside leak. It remains a project-defined bounded
+criterion requiring fresh confirmation. See the
+[source-hashed rule update](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json)
+and [the afternoon v6 addendum](ISC_V6_PREREGISTRATION.md).
+
+Carrier selection preserves an unresolved closure question as `UNRESOLVED`,
+rather than treating it as a measured absence of a carrier. Neither this rule
+nor the isolation repair supplies a replacement for the completed verdict.
 
 ## The joint-effect result within the full campaign
 
@@ -187,8 +202,8 @@ live desktop. The earlier certificate and refusal are retained in the
 
 1. Recheck paired comparisons under the consequence-history isolation repair,
    including the previously positive synergy, content and report readings.
-2. Specify the closure margin before a fresh confirmation, using a rule that
-   does not choose the margin from the observed leak.
+2. Apply the preregistered least-domain closure-margin rule to fresh
+   confirmation, retaining the domain contributions and estimator resolution.
 3. Establish that unchanged forks stay within their control floor after the
    host and background-state repairs.
 4. Resolve the proposed core boundary under the amended closure rule, retaining

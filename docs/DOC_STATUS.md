@@ -299,6 +299,12 @@ practical consequences. [Demos and related work](DEMOS_AND_RELATED_WORK.md)
 connects claims with evidence and primary sources, while distinguishing plans,
 fixture tests, recorded interactions and controlled experiments.
 
+The [scientific source map](SCIENCE_AND_SOURCES.md) distinguishes biological
+theory, human studies, methods and Aura adaptations, with a
+[BibTeX bibliography](../research/references.bib) for paper preparation.
+The research entry guide and whole-system integration guide were reconciled
+against current source, including the limits on exact partition search.
+
 Current guides have generated reading notes linked to those explanations.
 The [complete Markdown map](DOCUMENTATION_INDEX.md) indexes the full document
 set. Historical records, frozen protocols, generated reports and compliance
@@ -310,6 +316,24 @@ The ISC front pages were reconciled again after the seed-23 runs finished.
 The [25 October snapshot](evidence/ISC_STATUS_2026-10-25.json) preserves selected
 completed outputs, while the 24 October snapshot remains the earlier record.
 The new closure method is described separately from the old run's verdict.
+The [later isolation update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json)
+qualifies the earlier paired positive results as needing recheck.
+The [afternoon closure-rule update](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json)
+records the subsequent least-domain margin rule without replacing the older
+snapshots or claiming a fresh carrier result.
+
+The [dated link audit](evidence/DOCUMENTATION_LINK_AUDIT_2026-10-25.json)
+checked 979 Markdown pages: ordinary relative file and heading targets
+resolved; 306 public URLs answered, and 10 remained unverified because of
+timeouts, access restrictions or certificate validation. Seven example or
+private endpoints were not requested. Machine-local references and examples
+were counted separately. HTTP reachability does not establish the scientific
+content of a reference; the source map records the checked support and access
+limits. A final local-target pass covers the later guide edits.
+The [final checks](evidence/DOCUMENTATION_FINAL_CHECKS_2026-10-25.json) record
+that pass, test results, resource bounds and the four later methods references
+(two reachable, two access-restricted). The allostasis guide now distinguishes
+its short noise regression from a measured general false-alarm interval.
 
 ## Maintaining this
 

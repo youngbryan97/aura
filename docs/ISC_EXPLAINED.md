@@ -11,6 +11,12 @@ whether those parts work together as one continuing process. The experiments
 change the system and measure what happens next. A convincing description of
 an inner life is not enough to pass.
 
+The broader approach relates to
+[Butlin et al.'s theory-derived indicators](https://arxiv.org/html/2308.08708v3).
+ISC's particular tests and thresholds are the project's choices. The
+[scientific source map](SCIENCE_AND_SOURCES.md#consciousness-research-and-the-isc-argument)
+explains the external foundations and which claims require Aura's own evidence.
+
 ## The explanation you can say aloud
 
 > Aura has parts for memory, attention, planning and tracking its own state.
@@ -109,8 +115,9 @@ There is a second issue: some internal information outside the selected core
 helps predict its next state. Researchers must establish whether the selected
 core is too small, whether there is a real outside driver, or whether the
 measurement cannot yet decide. The revised rule keeps “we cannot tell”
-separate from “we found a failure.” It still needs a predeclared acceptable
-margin and fresh confirmation.
+separate from “we found a failure.” The latest predeclared rule compares the
+outside contribution with the smallest contribution from an internal domain.
+It still needs fresh confirmation under that rule and repaired isolation.
 
 The [current status page](ISC_STATUS.md) gives the exact results and separates
 the old recorded verdict from the newer method. **22/24 is a count of checks,

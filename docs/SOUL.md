@@ -714,6 +714,15 @@ onto a gate that was already deciding.
 
 ## Sources
 
+Read these references by their role. Artist and publisher records identify
+the works; song interpretations illustrate design targets. Human studies
+motivate hypotheses, and local audio measurements describe the analysed
+files. None supplies an Aura capability result by itself. The
+[scientific source map](SCIENCE_AND_SOURCES.md#human-situations-music-and-social-examples)
+explains the distinction and the evidence needed to reuse a measurement in
+a paper. Interpretations of a song are not presented as findings about its
+artist's private mental state.
+
 Transcripts and measurements are local and reproducible from the files in
 `/Users/bryan/Downloads` with `whisper-large-v3-turbo` and librosa.
 

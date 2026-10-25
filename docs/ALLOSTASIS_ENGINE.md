@@ -48,7 +48,8 @@ the trajectories of her vitals and requests changes before the crisis:
    Theil–Sen fit, so a steady legitimate ramp is ONE regime while a slope
    break (a leak starting; pressure suddenly relieved) re-anchors the trend
    window within a few samples. Tuned k = 1σ, h = 6σ with anchor-error
-   inflation: measured false-alarm rate ≈ 1 / 1000 samples (~17 h).
+   inflation. The stationary-noise regression checks one seeded 120-sample
+   trace; it does not establish a general false-alarm interval for live use.
 3. **Time-to-crisis forecasts** — when a trend is significant (α = 0.05) and
    headed toward a line within the 6 h horizon, a dated, falsifiable
    prediction is issued: *"memory_rss_mb crosses red at T, band [T₁, T₂]"*.
@@ -68,10 +69,17 @@ the trajectories of her vitals and requests changes before the crisis:
 The [NIST CUSUM reference](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm)
 explains the accumulated-deviation method. The residual model, parameters,
 forecast horizon and software thresholds above belong to Aura's adaptation.
-The stated calibration is a local claim, whose test route is listed below;
-it is not a rate supplied by Sterling or NIST. See the
+Any numerical calibration needs its own recorded traces and conditions;
+it is not a rate supplied by Sterling or NIST. The current regression is
+`test_stationary_noise_false_alarm_rate_bounded` in
+[the engine tests](../tests/test_allostasis_engine.py). See the
 [source map](SCIENCE_AND_SOURCES.md#regulation-and-internal-condition) for the
 biological inspiration and its limits.
+
+The [methods references](SCIENCE_AND_SOURCES.md#trend-and-slope-methods)
+identify Mann's trend test, Sen's slope, the Gilbert interval reference and
+the Hamed–Rao autocorrelation correction named by the implementation. Those
+citations identify the borrowed methods; they do not certify this adaptation.
 
 ## Causal seams (what it actually changes)
 
