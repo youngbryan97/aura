@@ -1449,3 +1449,33 @@ wrong one:
   criteria were blocked on.
 - The CARRIER'S LEAK is 0.0243 against a gate that resolves 0.045 on this
   recording. The host has nothing to do with it, and neither will the rerun.
+
+## What the carrier's leak is made of, column by column (25 October, 08:50)
+
+The audit the carrier already wrote names its six largest leaks and what each one
+is. Gains are shares of what K cannot predict about its own next turn; the second
+figure is the same gain with K's own previous frame in the model.
+
+| column | gain | given K's past | kind |
+|---|---:|---:|---|
+| `mycelial_network._topology_revision` | 0.00899 | 0.02971 | a clock, entered as its increment |
+| `homeostasis.metabolism` | 0.00738 | 0.00554 | organ state K reads and does not take in |
+| `unified_field._bind_input.sd` | 0.00724 | 0.00557 | organ state K reads and does not take in |
+| `self_model.snapshots#` | 0.00384 | 0.00581 | a clock, entered as its increment |
+| `phenomenal_coherence` | 0.00311 | 0.00245 | an outside cause or unread state |
+| `_locked_count` | 0.00275 | 0.00129 | an outside cause or unread state |
+
+Three things follow. The leak is diffuse: no column carries a third of it, and
+the six together are about the whole of 0.0243, which is why the gate's
+resolution of 0.045 decides nothing here. None of them is a summary of K's own
+past — `_topology_revision` predicts K's next turn BETTER with K's previous frame
+already in the model, so the "K is not Markov at this grain" explanation does not
+cover it. And two of the four largest are organ state K reads and does not
+contain.
+
+That last fact is a question about K rather than about the gate. If an organ's
+state belongs to the carrier, the carrier is drawn too small and the honest move
+is to widen K and test closure again, which is what looking for a closed core
+means. If it does not belong, the carrier is open at this grain and that is the
+finding. Either way it is decided by the preregistration rather than here, and
+neither reading is reached by a longer run on the same K.
