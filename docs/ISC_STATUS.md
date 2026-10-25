@@ -1,22 +1,29 @@
 # Intrinsic Subject Core: current status
 
-Status: Guide · Evidence checked 24 October 2026, 18:21 PDT
+Status: Guide · Evidence checked 25 October 2026, 02:40 PDT
 
 Aura has passed the four-triple ISC-v6 synergy probe on her offline organism.
-The current seed-23 battery, carrier sweep and content run are unfinished.
-There is no completed 24/24 result from that campaign, no settled J* from its
-inputs, and no `AT_PARITY` result from all five of its grounds.
+The seed-23 confirmation has now finished every stage. It reads 21 of 24
+criteria under ISC-v5 and 22 of 24 under ISC-v6, J* `NO_CARRIER`, and a bridge
+with four of its five grounds holding. There is no 24/24 result and no
+`AT_PARITY` result.
 
-The latest completed content run failed intervention tracking. The latest
-completed full withheld-report run also failed tracking, despite a measured
-state change reaching the 27B cortex. Later mechanisms and steering candidates
-address those failures; their confirmation remains open.
+The seed-23 content run passes the structure ground, and the seed-23 withheld
+report run passes the reports ground: her report moved with her valence and
+followed it across all three displacements, tracking rho 0.612475 at
+p 0.000100 with her own readings withheld. The two grounds that had been
+substantive failures are no longer failing. What fails is the carrier.
 
 The [evidence snapshot](evidence/ISC_STATUS_2026-10-24.json) contains the
 selected measurements, source hashes and output-presence checks behind this
 page. It records existing evidence; no experiment was launched to write it.
 The documentation was reconciled against source at `ce62a90529`, including the
-organism change at `8f548ed79`.
+organism change at `8f548ed79`, and against the finished seed-23 runs at
+`ceb6da91b`. The snapshot itself was not regenerated, so its figures are the
+ones checked on 24 October; the seed-23 readings above are from the run outputs
+named in each row. J* was re-solved from all four of its inputs
+(`~/subject-core-runs/jstar-recheck/run_003/j_star_report.json`) because the
+decisive chain's own solve had been handed an empty campaign path.
 
 ## Four separate questions
 
@@ -41,7 +48,11 @@ reports. A fusion certificate does not grant installation authority.
 | Withheld reports, third fitted-basis run | `6ac860f1c`, seed 7, resident-model 27B used offline, 80 anchors | `measured: true`, `holds: false`; 60 readable anchors | The report does not reliably follow the valence intervention |
 | Layer-43 felt-state fusion measurement | Generation `8ae8eac8b7ce1c9c`, alpha 0.5 | Certificate `holds: true` | Small channel and competence probes; separate from report grounding and installation |
 | Layer-43 governed installation | Same candidate, 110 held-out replies | Refused: `paired_control_superiority_not_established` | The candidate did not replace the installed generation |
-| Seed-23 confirmation | `8f548ed79`, launched 24 October at 13:39 PDT | In progress at the snapshot | Completed campaign, carrier, content, reports and joined verdict files were absent |
+| Seed-23 campaign | `8f548ed79`, seed 23, finished 24 October 23:05 PDT | 21/24 under v5, 22/24 under v6; all four v6 triples pass | Fails `partition_irreducibility`, `partition_beats_nulls` and v5 `synergy` |
+| Seed-23 content run | `8f548ed79`, seed 23, 24 anchors, 20 classes over 8 conditions | `ONE_STRUCTURE`; recall and internal geometry move together at rho 0.379, p 0.001 | Replaces the `AGREES_BUT_DOES_NOT_TRACK` reading below |
+| Seed-23 withheld report run | `8f548ed79`, seed 23, 80 anchors, readings withheld, layer-43 fitted basis | `measured: true`, `holds: true`; tracking rho 0.612475 at p 0.000100 | Runs on the fitted basis, not the installed generation |
+| Seed-23 J* and bridge | the three reports above plus the signed lineage | `NO_CARRIER`; carrier FAILS, markers HOLDS, structure HOLDS, lineage HOLDS, reports HOLDS | The carrier is the only ground that fails |
+| Closure gate's own resolution | `ceb6da91b`, on the seed-23 carrier recording | Resolves a planted leak of 0.0452, loses one of 0.0316 | The carrier's leak is 0.0243, below what the gate can resolve |
 
 The probe report does not embed its commit or seed. Its revision and seed are
 bound here by the launch record and the contemporaneous
@@ -69,18 +80,54 @@ little discrimination; the direction and size bars remain necessary. The
 known-answer worlds. Passing those controls validates this measurement's
 stated behavior, without certifying the whole battery's specificity.
 
-### Content and reports remain substantive failures
+### Content and reports now hold; the carrier does not
 
-The completed content run's static agreement is rho 0.350913, p 0.001, above
-the 0.3 bar. Design recovery is 0.698378. Under displacement, internal and
-recall geometry both change, but their changes correlate at rho -0.142355,
-p 0.945. Its verdict remains `AGREES_BUT_DOES_NOT_TRACK`.
+The seed-23 content run returns `ONE_STRUCTURE`. Its internal geometry and what
+she recalls agree at rho 0.484, p 0.001, the internal geometry recovers the
+design at 0.670, and under displacement the two move in the same pairs at
+rho 0.379, p 0.001 against a sham floor of 0.0. The run before it, at
+`3dc0b0599`, read `AGREES_BUT_DOES_NOT_TRACK` with its displaced changes
+correlating at rho -0.142355, p 0.945.
 
-The completed third withheld-report run changes valence by 0.211395
-(p 0.000100) and reaches the cortex by 0.104154 against a 0.05 bar. The mean
-report difference is 0.026667 (p 0.317468); report/valence tracking is
-rho 0.130928 (p 0.144986). This is a measured failure of tracking, rather than
-an inference that the intervention never arrived.
+The seed-23 withheld report run changes valence by 0.216366 (p 0.000100),
+reaches the cortex by 0.113288 against a 0.05 bar, moves her report by 0.431034
+(p 0.000100) and tracks it at rho 0.612475 (p 0.000100), with her own readings
+withheld throughout. The third run before it moved her report by 0.026667
+(p 0.317468) and tracked at rho 0.130928 (p 0.144986).
+
+Its anchors were re-read at `b0b9e0ae8`, which repaired a reader that discarded
+a rating whenever she closed with a courtesy question or mentioned the time: 46
+of 80 anchors are readable rather than 30, raised less lowered is +0.5348 at
+t 9.46, and the contrast against the sham is +0.4543 at t 7.19. The ground holds
+under both readers.
+
+### What the carrier's failure is
+
+The two partition criteria fail on one control, not on the cuts. All 511 cuts
+were decided, and a late untouched fork rolled from the same anchors after the
+sweep separated from the cached one with a lower bound of 0.011444 against a
+weakest cut of 0.00126. `partition_beats_nulls` reduces to irreducibility when
+the playback control is clean and no null passes the rest, which is this
+campaign, so one control costs both lines.
+
+That separation was the machine rather than her. A restore left twenty-six
+module attributes behind, twenty-four of them written by the defensive host
+watch, which samples CPU, memory and disk every fifteen seconds and sweeps the
+local network every sixty; the strain it had recorded was "resource strain: cpu
+at 95%", which the sweep's own load had caused. Both that thread and the gateway
+record index's opportunistic refresh now stop in `quiesce_organism` at
+`1163e7dc3` and `80ef779ff`. K itself was identical: forking one anchor early
+and late and comparing K read a maximum difference of 0 over 370 rounds and
+every cut of two probes. Whether the control is clean under the repair is being
+measured; no campaign is rerun until it reads undecided.
+
+Separately, the closure gate was reading one contiguous fifth of the run, where
+K explains 99.1% of itself, against 71.5% to 93.8% on the other four, and its
+positive control had never fired in any tree. At `ceb6da91b` it scores forward
+over three growing windows and reports the smallest leak it could have found.
+On this recording that is 0.0452, and the carrier's leak is 0.0243, so the
+carrier's pass is a failure to find rather than a finding. The report says so in
+`decisive`.
 
 At `8f548ed79`, mood changes how a percept cues recall and also cues memories
 formed in a matching affective state. Small fork diagnostics improved recall
