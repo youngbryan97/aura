@@ -860,7 +860,7 @@
           "name": "Closure",
           "meaning": "Whether the proposed boundary omits an important internal driver after declared input is accounted for",
           "practical": "Can remain unresolved rather than pass by default",
-          "example": "The current method needs a preregistered acceptable margin"
+          "example": "The current rule derives its margin from the least informative internal domain"
         },
         {
           "name": "Parity",

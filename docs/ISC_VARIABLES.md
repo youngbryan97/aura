@@ -9,6 +9,13 @@ results, use [current status](ISC_STATUS.md).
 The numbers in the worked examples below are invented to explain the
 arithmetic. They are not additional Aura experiment results.
 
+The [scientific source map](SCIENCE_AND_SOURCES.md#measurement-and-statistical-interpretation)
+links methods references and explains their role. For example,
+[Phipson and Smyth](https://gksmyth.github.io/pubs/PermPValuesPreprint.pdf)
+address finite, randomly drawn permutation calculations. The actual ISC
+statistics and decision rules remain those in its versioned protocol; a
+methods citation does not validate a comparison with failed controls.
+
 ## State: the information available at one moment
 
 **State** means the values and records the software carries now: what is in
@@ -129,7 +136,7 @@ car do not share every property.
 | Leak | The share of the remaining prediction error saved by outside internal information | A detectable improvement suggests the chosen core may omit a useful cause |
 | Surrogate floor | A comparison after relevant relationships are disrupted | Helps detect apparent improvement caused by trends or the estimator |
 | Resolution | The smallest planted contribution this method can detect on these data | A result below that size may remain unanswered |
-| Closure margin | The largest remaining contribution the claim would permit, chosen before confirmation | Lets “closed enough for this stated claim” have a testable meaning |
+| Closure margin | The largest remaining contribution the claim permits, set by a predeclared rule or number | Lets “closed enough for this stated claim” have a testable meaning |
 | Lower / upper bound | Limits estimated around the quantity | The upper bound must be below the declared margin for a positive bounded-closure claim |
 
 For an invented example, a test might be able to detect contributions as small
@@ -138,9 +145,21 @@ as 0.02, while a predeclared acceptable margin is 0.03. If the upper bound is
 that margin. If the method can only detect 0.05, it cannot establish the
 0.03 claim by failing to see a contribution.
 
-In current source, `CLOSURE_MARGIN` is `None`: no acceptable margin has been
-declared. This is a missing decision, rather than a numeric value of zero.
-The latest method cannot yet produce a positive bounded-closure result.
+At `cf0ace7e3`, `CLOSURE_MARGIN` is `None` because no fixed numeric override
+was chosen. `CLOSURE_MARGIN_RULE` is `least_domain`: the rule leaves each live
+internal domain out in turn and uses its predictive contribution to the rest;
+the smallest contribution supplies the margin. Both sides use the same
+estimator, forward folds and environment. A zero or negative contribution
+cannot support a closed reading.
+
+For an invented example, three internal domains contribute 0.12, 0.08 and
+0.05. The derived margin is 0.05. An outside-contribution upper bound of 0.03
+could fit within it if the other controls pass and the method can resolve
+planted leaks that small. An upper bound of 0.07 does not establish closure
+within that margin. These values illustrate the rule; no such new Aura result
+was measured for this documentation update. Read the
+[afternoon addendum](ISC_V6_PREREGISTRATION.md) and
+[rule snapshot](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json).
 
 The experiment's clock is also distinct from wall-clock waiting. A two-turn
 comparison can be defined as 66 simulated processing frames even when the

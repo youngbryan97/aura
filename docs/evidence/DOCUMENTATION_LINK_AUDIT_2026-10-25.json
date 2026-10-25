@@ -1,0 +1,2908 @@
+{
+  "schema": "aura.documentation.link_audit.v1",
+  "checked_at_utc": "2026-10-25T19:56:43+00:00",
+  "source_commit": "3990c7007534aea86a320a9f6ef5a57c89437c46",
+  "markdown_pages": 979,
+  "unique_page_targets": 8893,
+  "unique_external_urls": 323,
+  "scope_note": "Existing files and heading anchors were checked locally. Optional public HTTP reachability does not validate page contents. Historical and frozen source text is retained; missing historical targets are reported rather than silently rewritten. Local examples, credentials and private endpoints are not requested.",
+  "external": [
+    {
+      "url": "https://aclanthology.org/2021.acl-long.74/",
+      "documents": [
+        "docs/evidence/G03_EXISTING_CHANNEL_RECOGNITION_2026-09-21.md",
+        "docs/evidence/G03_OPERATION_FIELD_REPAIR_2026-10-01.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2021.acl-long.74/"
+    },
+    {
+      "url": "https://aclanthology.org/2021.naacl-main.225/",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2021.naacl-main.225/"
+    },
+    {
+      "url": "https://aclanthology.org/2022.emnlp-main.269/",
+      "documents": [
+        "docs/evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2022.emnlp-main.269/"
+    },
+    {
+      "url": "https://aclanthology.org/2022.naacl-main.323/",
+      "documents": [
+        "docs/evidence/G03_EXISTING_CHANNEL_RECOGNITION_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2022.naacl-main.323/"
+    },
+    {
+      "url": "https://aclanthology.org/2023.emnlp-main.425/",
+      "documents": [
+        "docs/evidence/G03_OPERATION_FIELD_REPAIR_2026-10-01.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2023.emnlp-main.425/"
+    },
+    {
+      "url": "https://aclanthology.org/2023.emnlp-main.69/",
+      "documents": [
+        "docs/G_NATIVE_REGISTER_BINDING_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2023.emnlp-main.69/"
+    },
+    {
+      "url": "https://aclanthology.org/2023.tacl-1.96/",
+      "documents": [
+        "docs/G_NATIVE_REGISTER_BINDING_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2023.tacl-1.96/"
+    },
+    {
+      "url": "https://aclanthology.org/2024.findings-acl.205/",
+      "documents": [
+        "docs/evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2024.findings-acl.205/"
+    },
+    {
+      "url": "https://aclanthology.org/2024.naacl-industry.9/",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2024.naacl-industry.9/"
+    },
+    {
+      "url": "https://aclanthology.org/anthology-files/pdf/cl/2021.cl-3.16.pdf",
+      "documents": [
+        "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://aclanthology.org/2021.cl-3.16.pdf"
+    },
+    {
+      "url": "https://act-r.psy.cmu.edu/actr7.x/reference-manual.pdf",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "unverified",
+      "reason": "URLError: <urlopen error timed out>"
+    },
+    {
+      "url": "https://americansongwriter.com/the-meaning-behind-smash-mouths-anthemic-all-star/",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://americansongwriter.com/the-meaning-behind-smash-mouths-anthemic-all-star/"
+    },
+    {
+      "url": "https://arxiv.org/abs/1607.02565",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-cursor-captures-stay-with-their-physical-sample.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/1607.02565"
+    },
+    {
+      "url": "https://arxiv.org/abs/1703.07402",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-identity-without-points.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/1703.07402"
+    },
+    {
+      "url": "https://arxiv.org/abs/2003.05562",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2003.05562"
+    },
+    {
+      "url": "https://arxiv.org/abs/2005.11401",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2005.11401"
+    },
+    {
+      "url": "https://arxiv.org/abs/2006.08381",
+      "documents": [
+        "docs/G_LEDGER_REVIEW_DISPOSITION_2026-09-21.md",
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2006.08381"
+    },
+    {
+      "url": "https://arxiv.org/abs/2007.08970",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2007.08970"
+    },
+    {
+      "url": "https://arxiv.org/abs/2009.06040",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2009.06040"
+    },
+    {
+      "url": "https://arxiv.org/abs/2101.02703",
+      "documents": [
+        "docs/G_LEDGER_REVIEW_DISPOSITION_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2101.02703"
+    },
+    {
+      "url": "https://arxiv.org/abs/2102.12981",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-short-reflexes-before-planning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2102.12981"
+    },
+    {
+      "url": "https://arxiv.org/abs/2105.15069",
+      "documents": [
+        "docs/G_LEDGER_REVIEW_DISPOSITION_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2105.15069"
+    },
+    {
+      "url": "https://arxiv.org/abs/2106.09685",
+      "documents": [
+        "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2106.09685"
+    },
+    {
+      "url": "https://arxiv.org/abs/2106.11053",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2106.11053"
+    },
+    {
+      "url": "https://arxiv.org/abs/2109.15101",
+      "documents": [
+        "docs/evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2109.15101"
+    },
+    {
+      "url": "https://arxiv.org/abs/2110.06864",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2110.06864"
+    },
+    {
+      "url": "https://arxiv.org/abs/2203.11528",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2203.11528"
+    },
+    {
+      "url": "https://arxiv.org/abs/2204.03758",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2204.03758"
+    },
+    {
+      "url": "https://arxiv.org/abs/2206.14651",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2206.14651"
+    },
+    {
+      "url": "https://arxiv.org/abs/2210.03629",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2210.03629"
+    },
+    {
+      "url": "https://arxiv.org/abs/2301.04104",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2301.04104"
+    },
+    {
+      "url": "https://arxiv.org/abs/2304.05366",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2304.05366"
+    },
+    {
+      "url": "https://arxiv.org/abs/2305.16291",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2305.16291"
+    },
+    {
+      "url": "https://arxiv.org/abs/2306.08637",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-point-paths.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2306.08637"
+    },
+    {
+      "url": "https://arxiv.org/abs/2310.08560",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2310.08560"
+    },
+    {
+      "url": "https://arxiv.org/abs/2310.16828",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2310.16828"
+    },
+    {
+      "url": "https://arxiv.org/abs/2312.03732",
+      "documents": [
+        "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2312.03732"
+    },
+    {
+      "url": "https://arxiv.org/abs/2312.06681",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2312.06681"
+    },
+    {
+      "url": "https://arxiv.org/abs/2312.13771",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2312.13771"
+    },
+    {
+      "url": "https://arxiv.org/abs/2402.09353",
+      "documents": [
+        "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2402.09353"
+    },
+    {
+      "url": "https://arxiv.org/abs/2402.12354",
+      "documents": [
+        "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2402.12354"
+    },
+    {
+      "url": "https://arxiv.org/abs/2404.02948",
+      "documents": [
+        "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2404.02948"
+    },
+    {
+      "url": "https://arxiv.org/abs/2405.12130",
+      "documents": [
+        "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2405.12130"
+    },
+    {
+      "url": "https://arxiv.org/abs/2405.15793",
+      "documents": [
+        "docs/design-docs/repair-executors-and-general-reasoning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2405.15793"
+    },
+    {
+      "url": "https://arxiv.org/abs/2408.00203",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2408.00203"
+    },
+    {
+      "url": "https://arxiv.org/abs/2410.11831",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-identity-without-points.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2410.11831"
+    },
+    {
+      "url": "https://arxiv.org/abs/2502.05171",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2502.05171"
+    },
+    {
+      "url": "https://arxiv.org/abs/2505.20278",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2505.20278"
+    },
+    {
+      "url": "https://arxiv.org/abs/2506.07339",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md",
+        "docs/evidence/OBSERVED_PROCEDURE_EFFECTS_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2506.07339"
+    },
+    {
+      "url": "https://arxiv.org/abs/2506.13131",
+      "documents": [
+        "docs/design-docs/repair-executors-and-general-reasoning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/abs/2506.13131"
+    },
+    {
+      "url": "https://arxiv.org/html/2308.08708v3",
+      "documents": [
+        "docs/BRIDGE_PARITY.md",
+        "docs/DEMOS_AND_RELATED_WORK.md",
+        "docs/ISC_STATUS.md",
+        "docs/ORGANISMAL_WORKSPACE_THEORY.md",
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2308.08708v3"
+    },
+    {
+      "url": "https://arxiv.org/html/2401.16467v2",
+      "documents": [
+        "docs/design-docs/BUILDING_ANY_PROGRAM.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2401.16467v2"
+    },
+    {
+      "url": "https://arxiv.org/html/2409.12889v2",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2409.12889v2"
+    },
+    {
+      "url": "https://arxiv.org/html/2412.01769v1",
+      "documents": [
+        "docs/design-docs/BUILDING_ANY_PROGRAM.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2412.01769v1"
+    },
+    {
+      "url": "https://arxiv.org/html/2504.01294v1",
+      "documents": [
+        "docs/design-docs/BUILDING_ANY_PROGRAM.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2504.01294v1"
+    },
+    {
+      "url": "https://arxiv.org/html/2507.04952v2",
+      "documents": [
+        "docs/design-docs/BUILDING_ANY_PROGRAM.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2507.04952v2"
+    },
+    {
+      "url": "https://arxiv.org/html/2510.14980",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2510.14980"
+    },
+    {
+      "url": "https://arxiv.org/html/2510.23691v1",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2510.23691v1"
+    },
+    {
+      "url": "https://arxiv.org/html/2511.08892v1",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2511.08892v1"
+    },
+    {
+      "url": "https://arxiv.org/html/2605.25931v1",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/html/2605.25931v1"
+    },
+    {
+      "url": "https://arxiv.org/pdf/1911.01547",
+      "documents": [
+        "docs/GENERALITY_ANALYSIS.md",
+        "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/1911.01547"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2002.11002",
+      "documents": [
+        "docs/GENERALITY_ANALYSIS.md",
+        "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2002.11002"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2006.08381",
+      "documents": [
+        "docs/GENERALITY_ANALYSIS.md",
+        "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2006.08381"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2101.02692",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2101.02692"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2204.01691",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2204.01691"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2207.05608",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2207.05608"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2211.16605",
+      "documents": [
+        "docs/GENERALITY_ANALYSIS.md",
+        "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2211.16605"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2306.15724",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2306.15724"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2307.05973",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2307.05973"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2311.05772",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2311.05772"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2312.13771",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2312.13771"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2409.01652",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2409.01652"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2410.06438",
+      "documents": [
+        "docs/design-docs/BUILDING_ANY_PROGRAM.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2410.06438"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2501.06047",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2501.06047"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2502.19187",
+      "documents": [
+        "docs/evidence/G12_FRONTIER_EVALUATION_2026-10-07.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2502.19187"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2605.05138",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2605.05138"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2608.09902",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2608.09902"
+    },
+    {
+      "url": "https://arxiv.org/pdf/2609.18996",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://arxiv.org/pdf/2609.18996"
+    },
+    {
+      "url": "https://audibletreats.com/caleborate_pr10/",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://audibletreats.com/caleborate_pr10/"
+    },
+    {
+      "url": "https://blog.wolfram.com/2017/01/31/analyzing-and-translating-an-alien-language-arrival-logograms-and-the-wolfram-language/",
+      "documents": [
+        "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://blog.wolfram.com/2017/01/31/analyzing-and-translating-an-alien-language-arrival-logograms-and-the-wolfram-language/"
+    },
+    {
+      "url": "https://blogs.loc.gov/now-see-hear/2021/02/on-the-recording-registry-a-change-is-gonna-come-1964/",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://blogs.loc.gov/now-see-hear/2021/02/on-the-recording-registry-a-change-is-gonna-come-1964/"
+    },
+    {
+      "url": "https://boristhebrave.com/page/7",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.boristhebrave.com/page/7/"
+    },
+    {
+      "url": "https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-a-requested-software-renderer-stays-software.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://chromium.googlesource.com/chromium/src/+/main/docs/gpu/swiftshader.md"
+    },
+    {
+      "url": "https://chromium.googlesource.com/chromium/src/+/refs/heads/main/content/browser/devtools/protocol/page_handler.cc",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-sample-the-drawing-by-its-pace.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://chromium.googlesource.com/chromium/src/+/refs/heads/main/content/browser/devtools/protocol/page_handler.cc"
+    },
+    {
+      "url": "https://cloud.google.com/blog/products/ai-machine-learning/claude-mythos-preview-on-vertex-ai",
+      "documents": [
+        "scoping/claude-mythos-research.md"
+      ],
+      "status": "unverified",
+      "reason": "TimeoutError: The read operation timed out"
+    },
+    {
+      "url": "https://cocosci.princeton.edu/papers/correa2023decompose.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://cocosci.princeton.edu/papers/correa2023decompose.pdf"
+    },
+    {
+      "url": "https://cocosci.princeton.edu/papers/ho2022people.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://cocosci.princeton.edu/papers/ho2022people.pdf"
+    },
+    {
+      "url": "https://control.ros.org/lyrical/doc/ros2_control/controller_manager/doc/running_controllers_asynchronously.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-finished-reading-timing.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://control.ros.org/lyrical/doc/ros2_control/controller_manager/doc/running_controllers_asynchronously.html"
+    },
+    {
+      "url": "https://courses.cs.washington.edu/courses/cse571/22sp/slides/15-tamp.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://courses.cs.washington.edu/courses/cse571/22sp/slides/15-tamp.pdf"
+    },
+    {
+      "url": "https://ddrkirby.com/rhythm-quest/devlog/10.html",
+      "documents": [
+        "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://rhythmquestgame.com/devlog/10.html"
+    },
+    {
+      "url": "https://devdocs.psychopy.org/general/timing/nonSlipTiming.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-finished-reading-timing.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://devdocs.psychopy.org/general/timing/nonSlipTiming.html"
+    },
+    {
+      "url": "https://developer.android.com/codelabs/m3-design-theming",
+      "documents": [
+        "docs/FLAGSHIP_PLATFORM_POLISH_RESEARCH.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://developer.android.com/codelabs/m3-design-theming"
+    },
+    {
+      "url": "https://developer.apple.com/design/human-interface-guidelines/layout",
+      "documents": [
+        "docs/FLAGSHIP_PLATFORM_POLISH_RESEARCH.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://developer.apple.com/design/human-interface-guidelines/layout"
+    },
+    {
+      "url": "https://developer.apple.com/documentation/vision/vnrequest/usescpuonly",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-cpu-ocr-and-short-play-budgets.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://developer.apple.com/documentation/vision/vnrequest/usescpuonly"
+    },
+    {
+      "url": "https://doc.rust-lang.org/clippy/",
+      "documents": [
+        "docs/design-docs/repair-executors-and-general-reasoning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://doc.rust-lang.org/clippy/"
+    },
+    {
+      "url": "https://docs.acados.org/features/",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-preparation-room-and-reusable-controls.md",
+        "docs/evidence/steering/2026-10-12-prepared-path-feedback.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.acados.org/features/"
+    },
+    {
+      "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-mythos-preview.html",
+      "documents": [
+        "scoping/claude-mythos-research.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.aws.amazon.com/bedrock/latest/userguide/"
+    },
+    {
+      "url": "https://docs.duckietown.com/ente/duckietown-manual/40-demonstrations/lane-following-lf.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-control-prefixes-before-observation-gaps.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.duckietown.com/ente/duckietown-manual/40-demonstrations/lane-following-lf.html"
+    },
+    {
+      "url": "https://docs.opencv.org/4.13.0/d2/d28/calib3d_8hpp.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-points-that-turn.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.opencv.org/4.13.0/d2/d28/calib3d_8hpp.html"
+    },
+    {
+      "url": "https://docs.opencv.org/4.13.0/d4/dc6/tutorial_py_template_matching.html",
+      "documents": [
+        "docs/evidence/CURRENT_VISUAL_CONTROLS_AND_REOPENED_SELECTORS_2026-10-10.md",
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.opencv.org/4.13.0/d4/dc6/tutorial_py_template_matching.html"
+    },
+    {
+      "url": "https://docs.opencv.org/4.13.0/d4/dee/tutorial_optical_flow.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-measured-landmark-handoffs.md",
+        "docs/evidence/steering/2026-10-12-persistent-points.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.opencv.org/4.13.0/d4/dee/tutorial_optical_flow.html"
+    },
+    {
+      "url": "https://docs.opencv.org/4.13.0/dc/d6b/group__video__track.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-control-prefixes-before-observation-gaps.md",
+        "docs/evidence/steering/2026-10-18-information-in-observed-intervals.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.opencv.org/4.13.0/dc/d6b/group__video__track.html"
+    },
+    {
+      "url": "https://docs.opencv.org/4.13.0/de/da9/tutorial_template_matching.html",
+      "documents": [
+        "docs/evidence/FOREGROUND_TRANSFER_IDENTITY_2026-10-11.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.opencv.org/4.13.0/de/da9/tutorial_template_matching.html"
+    },
+    {
+      "url": "https://docs.opencv.org/5.0/extra_modules/classcv_1_1TrackerCSRT.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-control-prefixes-before-observation-gaps.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.opencv.org/5.0/extra_modules/classcv_1_1TrackerCSRT.html"
+    },
+    {
+      "url": "https://docs.python.org/3.12/library/asyncio-task.html",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.python.org/3.12/library/asyncio-task.html"
+    },
+    {
+      "url": "https://docs.pytorch.org/docs/2.14/mps.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-original-points-and-host-capacity.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.pytorch.org/docs/2.14/mps.html"
+    },
+    {
+      "url": "https://docs.ros.org/en/kilted/p/bicycle_steering_controller/",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-controls-that-turn-during-travel.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.ros.org/en/kilted/p/bicycle_steering_controller/"
+    },
+    {
+      "url": "https://docs.ros.org/en/ros2_packages/kilted/api/steering_controllers_library/generated/program_listing_file_include_steering_controllers_library_steering_kinematics.hpp.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-controls-that-turn-during-travel.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.ros.org/en/ros2_packages/kilted/api/steering_controllers_library/generated/program_listing_file_include_steering_controllers_library_steering_kinematics.hpp.html"
+    },
+    {
+      "url": "https://docs.sympy.org/latest/modules/polys/domainsintro.html",
+      "documents": [
+        "docs/G_SYMBOLIC_ABSTRACTION_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://docs.sympy.org/latest/modules/polys/domainsintro.html"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Abductive_reasoning",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Abductive_reasoning"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Asheru",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Asheru"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/California_Dreamin%27",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/California_Dreamin%27"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Come_On_Eileen",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Come_On_Eileen"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Dog_Days_Are_Over",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Dog_Days_Are_Over"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Exit_Through_the_Gift_Shop",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Exit_Through_the_Gift_Shop"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Happy_(Pharrell_Williams_song)",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Happy_(Pharrell_Williams_song)"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Hooked_on_a_Feeling_(song)",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Hooked_on_a_Feeling_(song)"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Hopelessly_Devoted_to_You",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Hopelessly_Devoted_to_You"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Lady_Lady_(album)",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Lady_Lady_(album)"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Maimouna_Youssef",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Maimouna_Youssef"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Mr._Rager",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Mr._Rager"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Principle_of_compositionality",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Principle_of_compositionality"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Program_synthesis",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Program_synthesis"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Romeo_and_Juliet_(Dire_Straits_song)",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Romeo_and_Juliet_(Dire_Straits_song)"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Runaway_(Kanye_West_song)",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Runaway_(Kanye_West_song)"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Special_(Lizzo_song)",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Special_(Lizzo_song)"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Symbol_grounding_problem",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Symbol_grounding_problem"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Synecdoche,_New_York",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Synecdoche,_New_York"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/Tardigrade",
+      "documents": [
+        "docs/AURA_EXECUTION_TRACKER.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/Tardigrade"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/The_Boondocks_(TV_series)",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/The_Boondocks_(TV_series)"
+    },
+    {
+      "url": "https://en.wikipedia.org/wiki/The_Great_Pretender",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://en.wikipedia.org/wiki/The_Great_Pretender"
+    },
+    {
+      "url": "https://experts.umn.edu/en/publications/guiding-contact-by-coupling-the-taus-of-gaps/",
+      "documents": [
+        "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://experts.umn.edu/en/publications/guiding-contact-by-coupling-the-taus-of-gaps/"
+    },
+    {
+      "url": "https://fortune.com/2026/03/26/anthropic-says-testing-mythos-powerful-new-ai-model-after-data-leak-reveals-its-existence-step-change-in-capabilities/",
+      "documents": [
+        "scoping/claude-mythos-research.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://fortune.com/2026/03/26/anthropic-says-testing-mythos-powerful-new-ai-model-after-data-leak-reveals-its-existence-step-change-in-capabilities/"
+    },
+    {
+      "url": "https://fprime.jpl.nasa.gov/devel/docs/reference/system-functional/rate-group-scheduling/",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://fprime.jpl.nasa.gov/devel/docs/reference/system-functional/rate-group-scheduling/"
+    },
+    {
+      "url": "https://fprime.jpl.nasa.gov/latest/Svc/Health/docs/sdd/",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://fprime.jpl.nasa.gov/latest/Svc/Health/docs/sdd/"
+    },
+    {
+      "url": "https://github.com/BabylonJS/Spector.js/blob/master/documentation/apis.md",
+      "documents": [
+        "docs/evidence/steering/2026-10-14-measured-rotation-reaches-texture-proposals.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/BabylonJS/Spector.js/blob/master/documentation/apis.md"
+    },
+    {
+      "url": "https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/browser_protocol.json",
+      "documents": [
+        "docs/evidence/steering/2026-10-14-local-capture-keeps-colour-samples.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/ChromeDevTools/devtools-protocol/blob/master/json/browser_protocol.json"
+    },
+    {
+      "url": "https://github.com/Farama-Foundation/Gymnasium/blob/main/gymnasium/envs/box2d/lunar_lander.py",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-preparation-room-and-reusable-controls.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/Farama-Foundation/Gymnasium/blob/main/gymnasium/envs/box2d/lunar_lander.py"
+    },
+    {
+      "url": "https://github.com/amidos2006/Mario-AI-Framework/blob/master/src/agents/robinBaumgarten/AStarTree.java",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-preparation-room-and-reusable-controls.md",
+        "docs/evidence/steering/2026-10-12-prepared-path-feedback.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/amidos2006/Mario-AI-Framework/blob/master/src/agents/robinBaumgarten/AStarTree.java"
+    },
+    {
+      "url": "https://github.com/caelan/pddlstream",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/caelan/pddlstream"
+    },
+    {
+      "url": "https://github.com/dperyel/run-dino-run",
+      "documents": [
+        "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/dperyel/run-dino-run"
+    },
+    {
+      "url": "https://github.com/facebookresearch/co-tracker",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-point-paths.md",
+        "docs/evidence/steering/2026-10-13-three-numerical-vision-backends.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/facebookresearch/co-tracker"
+    },
+    {
+      "url": "https://github.com/facebookresearch/co-tracker/blob/main/LICENSE.md",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-original-points-and-host-capacity.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/facebookresearch/co-tracker/blob/main/LICENSE.md"
+    },
+    {
+      "url": "https://github.com/facebookresearch/sam2",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-three-numerical-vision-backends.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/facebookresearch/sam2"
+    },
+    {
+      "url": "https://github.com/google-deepmind/bbeh/blob/main/README.md",
+      "documents": [
+        "docs/evidence/BENCHMARK_SOURCE_CASE_IDENTITY_2026-10-08.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/google-deepmind/bbeh/blob/main/README.md"
+    },
+    {
+      "url": "https://github.com/google-deepmind/bbeh/blob/main/leaderboard.md",
+      "documents": [
+        "docs/evidence/G12_FRONTIER_EVALUATION_2026-10-07.md",
+        "docs/evidence/G12_NAMED_BASELINES_READ_2026-10-14.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/google-deepmind/bbeh/blob/main/leaderboard.md"
+    },
+    {
+      "url": "https://github.com/google-deepmind/tapnet",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-three-numerical-vision-backends.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/google-deepmind/tapnet"
+    },
+    {
+      "url": "https://github.com/jindrapetrik/jpexs-decompiler/blob/version26.3.0/libsrc/ffdec_lib/src/com/jpexs/decompiler/flash/exporters/FrameExporter.java",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-reference-images-retain-source-coordinates.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/jindrapetrik/jpexs-decompiler/blob/version26.3.0/libsrc/ffdec_lib/src/com/jpexs/decompiler/flash/exporters/FrameExporter.java"
+    },
+    {
+      "url": "https://github.com/jindrapetrik/jpexs-decompiler/wiki/Commandline-arguments",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-static-material-can-be-recognized-without-a-model.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/jindrapetrik/jpexs-decompiler/wiki/Commandline-arguments"
+    },
+    {
+      "url": "https://github.com/microsoft/pyright/blob/main/docs/type-concepts.md",
+      "documents": [
+        "docs/design-docs/repair-executors-and-general-reasoning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/microsoft/pyright/blob/main/docs/type-concepts.md"
+    },
+    {
+      "url": "https://github.com/ml-explore/mlx/blob/main/mlx/backend/metal/allocator.cpp",
+      "documents": [
+        "docs/evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/ml-explore/mlx/blob/main/mlx/backend/metal/allocator.cpp"
+    },
+    {
+      "url": "https://github.com/ppy/osu-framework/blob/master/osu.Framework/Timing/InterpolatingFramedClock.cs",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-finished-reading-timing.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/ppy/osu-framework/blob/master/osu.Framework/Timing/InterpolatingFramedClock.cs"
+    },
+    {
+      "url": "https://github.com/rlabbe/filterpy/blob/master/filterpy/common/kinematic.py",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-motion-between-measured-pictures.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/rlabbe/filterpy/blob/master/filterpy/common/kinematic.py"
+    },
+    {
+      "url": "https://github.com/rlabbe/filterpy/blob/master/filterpy/kalman/kalman_filter.py",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-motion-between-measured-pictures.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/rlabbe/filterpy/blob/master/filterpy/kalman/kalman_filter.py"
+    },
+    {
+      "url": "https://github.com/ruffle-rs/ruffle/blob/master/core/src/avm1/activation.rs",
+      "documents": [
+        "docs/evidence/steering/2026-10-16-guarded-source-effects.md",
+        "docs/evidence/steering/2026-10-16-visible-source-frames-and-sampling.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/ruffle-rs/ruffle/blob/master/core/src/avm1/activation.rs"
+    },
+    {
+      "url": "https://github.com/ruffle-rs/ruffle/blob/master/web/packages/selfhosted/test/integration_tests/programmatic_events/test.ts",
+      "documents": [
+        "docs/evidence/steering/2026-10-17-current-words-cannot-inherit-old-coordinates.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/ruffle-rs/ruffle/blob/master/web/packages/selfhosted/test/integration_tests/programmatic_events/test.ts"
+    },
+    {
+      "url": "https://github.com/youngbryan97/aura-consciousness-proof-kernel",
+      "documents": [
+        "docs/ISC_EXPLAINED.md",
+        "docs/ISC_READERS_GUIDE.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/youngbryan97/aura-consciousness-proof-kernel"
+    },
+    {
+      "url": "https://github.com/youngbryan97/aura/security/advisories/new",
+      "documents": [
+        "SECURITY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://github.com/login?return_to=https%3A%2F%2Fgithub.com%2Fyoungbryan97%2Faura%2Fsecurity%2Fadvisories%2Fnew"
+    },
+    {
+      "url": "https://gksmyth.github.io/pubs/PermPValuesPreprint.pdf",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://gksmyth.github.io/pubs/PermPValuesPreprint.pdf"
+    },
+    {
+      "url": "https://gpbib.cs.ucl.ac.uk/gp-html/Togelius_2010_cec.html",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "unverified",
+      "reason": "URLError: <urlopen error timed out>"
+    },
+    {
+      "url": "https://gymnasium.farama.org/environments/box2d/lunar_lander/",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-arrival-planning.md",
+        "docs/evidence/steering/2026-10-12-point-paths.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://gymnasium.farama.org/environments/box2d/lunar_lander/"
+    },
+    {
+      "url": "https://huggingface.co/Qwen/Qwen3.8-27B",
+      "documents": [
+        "docs/evidence/G12_FRONTIER_EVALUATION_2026-10-07.md",
+        "docs/evidence/G12_NAMED_BASELINES_READ_2026-10-14.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://huggingface.co/Qwen/Qwen3.8-27B"
+    },
+    {
+      "url": "https://ice.ci.ritsumei.ac.jp/~ftgaic/index-2a.html",
+      "documents": [
+        "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+      ],
+      "status": "unverified",
+      "reason": "URLError: <urlopen error timed out>"
+    },
+    {
+      "url": "https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only",
+      "documents": [
+        "README.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only"
+    },
+    {
+      "url": "https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only)-red.svg)](LICENSE",
+      "documents": [
+        "README.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only)-red.svg)](LICENSE"
+    },
+    {
+      "url": "https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg",
+      "documents": [
+        "README.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg"
+    },
+    {
+      "url": "https://img.shields.io/badge/python-3.12+-blue.svg",
+      "documents": [
+        "README.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://img.shields.io/badge/python-3.12+-blue.svg"
+    },
+    {
+      "url": "https://infantlab.fiu.edu/publications/publications-by-date/publications-1975-1989/1985_bahrickwatson_dp_detection-of-intermodal-proprioceptive-visual-contingency.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://infantlab.fiu.edu/publications/publications-by-date/publications-1975-1989/1985_bahrickwatson_dp_detection-of-intermodal-proprioceptive-visual-contingency.pdf"
+    },
+    {
+      "url": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1001052",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md",
+        "docs/WHOLE_SYSTEM_PHI.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1001052"
+    },
+    {
+      "url": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1011465",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md",
+        "docs/WHOLE_SYSTEM_PHI.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1011465"
+    },
+    {
+      "url": "https://journals.sagepub.com/doi/10.1177/0022022113505357",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "unverified",
+      "http": 403,
+      "reason": "Forbidden"
+    },
+    {
+      "url": "https://ki.infil.net/reaction.html",
+      "documents": [
+        "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://ki.infil.net/reaction.html"
+    },
+    {
+      "url": "https://kubernetes.io/docs/concepts/workloads/pods/probes/",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://kubernetes.io/docs/concepts/workloads/pods/probes/"
+    },
+    {
+      "url": "https://learn.microsoft.com/en-us/compliance/assurance/assurance-microsoft-security-development-lifecycle",
+      "documents": [
+        "docs/FLAGSHIP_PLATFORM_POLISH_RESEARCH.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://learn.microsoft.com/en-us/compliance/assurance/assurance-microsoft-security-development-lifecycle"
+    },
+    {
+      "url": "https://link.springer.com/article/10.1007/BF01585863",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md",
+        "docs/WHOLE_SYSTEM_PHI.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://link.springer.com/article/10.1007/BF01585863?error=cookies_not_supported&code=fc6984ca-ff7c-4ae6-98df-c5ba115c26ba"
+    },
+    {
+      "url": "https://math.ucr.edu/home/baez/lie/node8.html",
+      "documents": [
+        "docs/evidence/G_LEDGER_SCREENSHOT_REVIEW_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://math.ucr.edu/home/baez/lie/node8.html"
+    },
+    {
+      "url": "https://math.ucr.edu/home/baez/octonions/node14.html",
+      "documents": [
+        "docs/evidence/G_LEDGER_SCREENSHOT_REVIEW_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://math.ucr.edu/home/baez/octonions/node14.html"
+    },
+    {
+      "url": "https://math.ucr.edu/home/baez/week195.html",
+      "documents": [
+        "docs/evidence/G_LEDGER_SCREENSHOT_REVIEW_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://math.ucr.edu/home/baez/week195.html"
+    },
+    {
+      "url": "https://microsoft.github.io/autogen/stable/_modules/autogen_core/_cancellation_token.html",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md",
+        "docs/evidence/OBSERVED_CHOICES_AND_SCOPED_STOP_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://microsoft.github.io/autogen/stable/_modules/autogen_core/_cancellation_token.html"
+    },
+    {
+      "url": "https://microsoft.github.io/z3guide/docs/logic/Uninterpreted-functions-and-constants/",
+      "documents": [
+        "docs/G_SYMBOLIC_ABSTRACTION_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://microsoft.github.io/z3guide/docs/logic/Uninterpreted-functions-and-constants/"
+    },
+    {
+      "url": "https://microsoft.github.io/z3guide/docs/theories/Arithmetic/",
+      "documents": [
+        "docs/G_SYMBOLIC_ABSTRACTION_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://microsoft.github.io/z3guide/docs/theories/Arithmetic/"
+    },
+    {
+      "url": "https://miguelhernan.org/whatifbook",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://miguelhernan.org/whatifbook"
+    },
+    {
+      "url": "https://ml-explore.github.io/mlx/build/html/usage/precision.html",
+      "documents": [
+        "docs/evidence/G_NATIVE_BRANCH_PRECISION_PLAN_2026-09-26.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://ml-explore.github.io/mlx/build/html/usage/precision.html"
+    },
+    {
+      "url": "https://musicfeeds.com.au/features/the-temper-traps-dougy-mandagi-on-the-legacy-of-their-breakthrough-hit-whats-next-for-the-band/",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://musicfeeds.com.au/features/the-temper-traps-dougy-mandagi-on-the-legacy-of-their-breakthrough-hit-whats-next-for-the-band/"
+    },
+    {
+      "url": "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.shortest_paths.dense.floyd_warshall_predecessor_and_distance.html",
+      "documents": [
+        "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.shortest_paths.dense.floyd_warshall_predecessor_and_distance.html"
+    },
+    {
+      "url": "https://neurips.cc/virtual/2025/poster/121451",
+      "documents": [
+        "docs/design-docs/BUILDING_ANY_PROGRAM.md"
+      ],
+      "status": "unverified",
+      "reason": "TimeoutError: The read operation timed out"
+    },
+    {
+      "url": "https://ocw.mit.edu/courses/6-435-system-identification-spring-2005/resources/lec4_6_435/",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-isolated-input-intervals.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://ocw.mit.edu/courses/6-435-system-identification-spring-2005/resources/lec4_6_435/"
+    },
+    {
+      "url": "https://oddisee.bandcamp.com/track/people-watching",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://oddisee.bandcamp.com/track/people-watching"
+    },
+    {
+      "url": "https://oddiseemmg.bandcamp.com/album/the-good-fight",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://oddiseemmg.bandcamp.com/album/the-good-fight"
+    },
+    {
+      "url": "https://onlinelibrary.wiley.com/doi/10.1111/j.1551-6708.1987.tb00863.x",
+      "documents": [
+        "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+      ],
+      "status": "unverified",
+      "http": 403,
+      "reason": "Forbidden"
+    },
+    {
+      "url": "https://open-flash.github.io/mirrors/swf-spec-19.pdf",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-current-corners-propose-cursor-queries.md",
+        "docs/evidence/steering/2026-10-15-static-material-can-be-recognized-without-a-model.md",
+        "docs/evidence/steering/2026-10-20-play-chain-proposal-disposition.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://open-flash.github.io/mirrors/swf-spec-19.pdf"
+    },
+    {
+      "url": "https://openai.com/index/harness-engineering/",
+      "documents": [
+        "docs/design-docs/repair-executors-and-general-reasoning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://openai.com/index/harness-engineering/"
+    },
+    {
+      "url": "https://openssf.org/projects/scorecard/",
+      "documents": [
+        "docs/FLAGSHIP_PLATFORM_POLISH_RESEARCH.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://openssf.org/projects/scorecard/"
+    },
+    {
+      "url": "https://openstax.org/books/chemistry-2e",
+      "documents": [
+        "docs/SCOPED_COMPUTATIONAL_KNOWLEDGE.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://openstax.org/details/books/chemistry-2e"
+    },
+    {
+      "url": "https://openstax.org/books/university-physics-volume-1",
+      "documents": [
+        "docs/SCOPED_COMPUTATIONAL_KNOWLEDGE.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://openstax.org/details/books/university-physics-volume-1"
+    },
+    {
+      "url": "https://openstax.org/books/university-physics-volume-1/pages/14-5-fluid-dynamics",
+      "documents": [
+        "docs/SCOPED_COMPUTATIONAL_KNOWLEDGE.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://openstax.org/books/university-physics-volume-1/pages/14-5-fluid-dynamics"
+    },
+    {
+      "url": "https://openstax.org/books/university-physics-volume-2/pages/9-4-ohms-law",
+      "documents": [
+        "docs/SCOPED_COMPUTATIONAL_KNOWLEDGE.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://openstax.org/books/university-physics-volume-2/pages/9-4-ohms-law"
+    },
+    {
+      "url": "https://osu.ppy.sh/wiki/fi/Client/Options/Offset_Wizard",
+      "documents": [
+        "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://osu.ppy.sh/wiki/fi/Client/Options/Offset_Wizard"
+    },
+    {
+      "url": "https://pages.cs.wisc.edu/~dyer/cs540/handouts/gdc2006_orkin_jeff_fear.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pages.cs.wisc.edu/~dyer/cs540/handouts/gdc2006_orkin_jeff_fear.pdf"
+    },
+    {
+      "url": "https://papers.nips.cc/paper_files/paper/2023/file/6b8dfb8c0c12e6fafc6c256cb08a5ca7-Paper-Conference.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://papers.nips.cc/paper_files/paper/2023/file/6b8dfb8c0c12e6fafc6c256cb08a5ca7-Paper-Conference.pdf"
+    },
+    {
+      "url": "https://people.csail.mit.edu/asolar/SynthesisCourse/Lecture17.htm",
+      "documents": [
+        "docs/G_SEMANTIC_CONSTRAINT_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://people.csail.mit.edu/asolar/SynthesisCourse/Lecture17.htm"
+    },
+    {
+      "url": "https://people.csail.mit.edu/brooks/papers/AIM-864.pdf",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-short-reflexes-before-planning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://people.csail.mit.edu/brooks/papers/AIM-864.pdf"
+    },
+    {
+      "url": "https://people.idsia.ch/~juergen/oopsweb/oopsweb.html",
+      "documents": [
+        "docs/evidence/G09_BOUNDED_REACH_CRITERION_2026-09-21.md",
+        "docs/evidence/G_LEDGER_SCREENSHOT_REVIEW_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://people.idsia.ch/~juergen/oopsweb/oopsweb.html"
+    },
+    {
+      "url": "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "documents": [
+        "scoping/claude-mythos-research.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://platform.claude.com/docs/en/models/overview"
+    },
+    {
+      "url": "https://plato.stanford.edu/archives/win2025/entries/compositionality/",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://plato.stanford.edu/archives/win2025/entries/compositionality/"
+    },
+    {
+      "url": "https://plato.stanford.edu/entries/pragmatics/",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://plato.stanford.edu/entries/pragmatics/"
+    },
+    {
+      "url": "https://plato.stanford.edu/entries/scientific-discovery/",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://plato.stanford.edu/entries/scientific-discovery/"
+    },
+    {
+      "url": "https://playwright.dev/docs/actionability",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-point-paths.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://playwright.dev/docs/actionability"
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC24407/",
+      "documents": [
+        "docs/ORGANISMAL_WORKSPACE_THEORY.md",
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC24407/"
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3381512/",
+      "documents": [
+        "docs/SCOPED_COMPUTATIONAL_KNOWLEDGE.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3381512/"
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3856819/",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md",
+        "docs/WHOLE_SYSTEM_PHI.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3856819/"
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4607070/",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-surviving-marks-locate-the-reference.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4607070/"
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4731102/",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4731102/"
+    },
+    {
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7703630",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7703630/"
+    },
+    {
+      "url": "https://proceedings.iclr.cc/paper_files/paper/2024/hash/819cebb05f993840e8a52d7564c5c282-Abstract-Conference.html",
+      "documents": [
+        "docs/design-docs/BUILDING_ANY_PROGRAM.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://proceedings.iclr.cc/paper_files/paper/2024/hash/819cebb05f993840e8a52d7564c5c282-Abstract-Conference.html"
+    },
+    {
+      "url": "https://proceedings.mlr.press/v37/changb15.html",
+      "documents": [
+        "docs/G_LEDGER_REVIEW_DISPOSITION_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://proceedings.mlr.press/v37/changb15.html"
+    },
+    {
+      "url": "https://proceedings.nips.cc/paper_files/paper/2004/file/eb06b9db06012a7a4179b8f3cb5384d3-Paper.pdf",
+      "documents": [
+        "docs/evidence/G03_SECOND_REVIEW_DISPOSITION_2026-09-21.md",
+        "docs/evidence/G03_SPAN_SET_OBJECTIVE_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://proceedings.nips.cc/paper_files/paper/2004/file/eb06b9db06012a7a4179b8f3cb5384d3-Paper.pdf"
+    },
+    {
+      "url": "https://psychopy.org/api/hardware/keyboard.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-finished-reading-timing.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://psychopy.org/api/hardware/keyboard.html"
+    },
+    {
+      "url": "https://psychopy.org/general/timing/detectingFrameDrops.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-finished-reading-timing.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://psychopy.org/general/timing/detectingFrameDrops.html"
+    },
+    {
+      "url": "https://psychtoolbox.org/docs/KbQueueCreate",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-finished-reading-timing.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://psychtoolbox.org/docs/KbQueueCreate"
+    },
+    {
+      "url": "https://psychtoolbox.org/docs/Screen-Flip",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-finished-reading-timing.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://psychtoolbox.org/docs/Screen-Flip"
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/11280937/",
+      "documents": [
+        "docs/GENERALITY_ANALYSIS.md",
+        "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+      ],
+      "status": "reachable",
+      "http": 203,
+      "final_url": "https://pubmed.ncbi.nlm.nih.gov/11280937/"
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/21684297/",
+      "documents": [
+        "docs/ALLOSTASIS_ENGINE.md",
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 203,
+      "final_url": "https://pubmed.ncbi.nlm.nih.gov/21684297/"
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/23946194/",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md",
+        "docs/WHOLE_SYSTEM_PHI.md"
+      ],
+      "status": "reachable",
+      "http": 203,
+      "final_url": "https://pubmed.ncbi.nlm.nih.gov/23946194/"
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/29620401/",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md",
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 203,
+      "final_url": "https://pubmed.ncbi.nlm.nih.gov/29620401/"
+    },
+    {
+      "url": "https://pubmed.ncbi.nlm.nih.gov/7224324/",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md",
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 203,
+      "final_url": "https://pubmed.ncbi.nlm.nih.gov/7224324/"
+    },
+    {
+      "url": "https://pypi.org/project/snowballstemmer/3.0.1/",
+      "documents": [
+        "docs/evidence/R09_ACCEPTANCE_MATRIX_2026-09-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pypi.org/project/snowballstemmer/3.0.1/"
+    },
+    {
+      "url": "https://pypi.org/project/soulsgym",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://pypi.org/project/soulsgym"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Page.pdl",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-physical-input-and-drawing-windows.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://raw.githubusercontent.com/ChromeDevTools/devtools-protocol/master/pdl/domains/Page.pdl"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/chromium/chromium/main/third_party/blink/renderer/core/inspector/inspector_performance_agent.cc",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-physical-input-and-drawing-windows.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://raw.githubusercontent.com/chromium/chromium/main/third_party/blink/renderer/core/inspector/inspector_performance_agent.cc"
+    },
+    {
+      "url": "https://red.anthropic.com/2026/mythos-preview/",
+      "documents": [
+        "scoping/claude-mythos-research.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.anthropic.com/research/mythos-preview"
+    },
+    {
+      "url": "https://registry.khronos.org/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf",
+      "documents": [
+        "docs/evidence/steering/2026-10-14-declared-shader-position-arithmetic.md",
+        "docs/evidence/steering/2026-10-14-reflected-uniform-buffer-positions.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://registry.khronos.org/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf"
+    },
+    {
+      "url": "https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf",
+      "documents": [
+        "docs/evidence/steering/2026-10-14-public-framebuffer-presentation.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf"
+    },
+    {
+      "url": "https://registry.khronos.org/webgl/specs/2.0.0/",
+      "documents": [
+        "docs/evidence/steering/2026-10-14-effective-public-texture-copy-state.md",
+        "docs/evidence/steering/2026-10-14-public-framebuffer-presentation.md",
+        "docs/evidence/steering/2026-10-14-reflected-uniform-buffer-positions.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://registry.khronos.org/webgl/specs/2.0.0/"
+    },
+    {
+      "url": "https://registry.khronos.org/webgl/specs/latest/1.0/",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-sample-the-drawing-by-its-pace.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://registry.khronos.org/webgl/specs/latest/1.0/"
+    },
+    {
+      "url": "https://registry.khronos.org/webgl/specs/latest/2.0/",
+      "documents": [
+        "docs/evidence/steering/2026-10-14-measured-rotation-reaches-texture-proposals.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://registry.khronos.org/webgl/specs/latest/2.0/"
+    },
+    {
+      "url": "https://robotsatemyhomework.substack.com/p/ai-writing-patterns",
+      "documents": [
+        "docs/WRITING_RULES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://robotsatemyhomework.substack.com/p/ai-writing-patterns"
+    },
+    {
+      "url": "https://scienceandfilm.org/articles/2802/alien-speak-linguist-dr-jessica-coon-on-villeneuves-arrival",
+      "documents": [
+        "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://scienceandfilm.org/articles/alien-speak-linguist-dr-jessica-coon-on-villeneuves-arrival/"
+    },
+    {
+      "url": "https://siliconangle.com/2026/03/27/anthropic-launch-new-claude-mythos-model-advanced-reasoning-features/",
+      "documents": [
+        "scoping/claude-mythos-research.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://siliconangle.com/2026/03/27/anthropic-launch-new-claude-mythos-model-advanced-reasoning-features/"
+    },
+    {
+      "url": "https://sites.google.com/site/georgeevangelidis/publications",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-cursor-captures-stay-with-their-physical-sample.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://sites.google.com/site/georgeevangelidis/publications"
+    },
+    {
+      "url": "https://soar.eecs.umich.edu/soar_manual/02_TheSoarArchitecture/",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://soar.eecs.umich.edu/soar_manual/02_TheSoarArchitecture/"
+    },
+    {
+      "url": "https://soar.eecs.umich.edu/soar_manual/04_ProceduralKnowledgeLearning/",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://soar.eecs.umich.edu/soar_manual/04_ProceduralKnowledgeLearning/"
+    },
+    {
+      "url": "https://songtell.com/am-lie-farren/unsweetened-lemonade",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://songtell.com/am-lie-farren/unsweetened-lemonade"
+    },
+    {
+      "url": "https://sparq.stanford.edu/sites/g/files/sbiybj19021/files/media/file/crum_et_al._2013_-_rethinking_stress.pdf",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://sparq.stanford.edu/sites/g/files/sbiybj19021/files/media/file/crum_et_al._2013_-_rethinking_stress.pdf"
+    },
+    {
+      "url": "https://tree-sitter.github.io/tree-sitter/index.html",
+      "documents": [
+        "docs/design-docs/repair-executors-and-general-reasoning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://tree-sitter.github.io/tree-sitter/index.html"
+    },
+    {
+      "url": "https://ui.perfetto.dev/",
+      "documents": [
+        "docs/OPERATOR_GUIDE.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://ui.perfetto.dev/"
+    },
+    {
+      "url": "https://underactuated.mit.edu/feedback_motion_planning.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-arrival-planning.md",
+        "docs/evidence/steering/2026-10-12-point-paths.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://underactuated.mit.edu/feedback_motion_planning.html"
+    },
+    {
+      "url": "https://underactuated.mit.edu/sysid.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-isolated-input-intervals.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://underactuated.mit.edu/sysid.html"
+    },
+    {
+      "url": "https://underactuated.mit.edu/trajopt.html",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-arrival-planning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://underactuated.mit.edu/trajopt.html"
+    },
+    {
+      "url": "https://users.cs.northwestern.edu/%7Ehunicke/MDA.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://users.cs.northwestern.edu/%7Ehunicke/MDA.pdf"
+    },
+    {
+      "url": "https://web.dev/inp/",
+      "documents": [
+        "docs/FLAGSHIP_PLATFORM_POLISH_RESEARCH.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://web.dev/articles/inp"
+    },
+    {
+      "url": "https://web.eecs.umich.edu/~soar/sitemaker/docs/pubs/Kennedy-ICCM2006.pdf",
+      "documents": [
+        "docs/GENERALITY_ANALYSIS.md",
+        "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+      ],
+      "status": "unverified",
+      "reason": "URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1010)>"
+    },
+    {
+      "url": "https://web.stanford.edu/~boyd/cvxbook/",
+      "documents": [
+        "docs/G_GENERALIZATION_REPAIR_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://web.stanford.edu/~boyd/cvxbook/"
+    },
+    {
+      "url": "https://web.stanford.edu/~boyd/cvxbook/bv_cvxslides.pdf",
+      "documents": [
+        "docs/evidence/G03_EXACT_SCALE_CONFLICT_2026-09-18.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://web.stanford.edu/~boyd/cvxbook/bv_cvxslides.pdf"
+    },
+    {
+      "url": "https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents",
+      "documents": [
+        "docs/design-docs/repair-executors-and-general-reasoning.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.anthropic.com/research/demystifying-evals-for-ai-agents"
+    },
+    {
+      "url": "https://www.behaviortree.dev/docs/guides/asynchronous_nodes/",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md",
+        "docs/evidence/OBSERVED_CHOICES_AND_SCOPED_STOP_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.behaviortree.dev/docs/guides/asynchronous_nodes/"
+    },
+    {
+      "url": "https://www.behaviortree.dev/docs/nodes-library/SequenceNode/",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md",
+        "docs/evidence/OBSERVED_PROCEDURE_EFFECTS_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.behaviortree.dev/docs/nodes-library/SequenceNode/"
+    },
+    {
+      "url": "https://www.benchlm.ai/benchmarks/math500",
+      "documents": [
+        "docs/evidence/G12_FRONTIER_EVALUATION_2026-10-07.md",
+        "docs/evidence/G12_NAMED_BASELINES_READ_2026-10-14.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://benchlm.ai/benchmarks/math-500"
+    },
+    {
+      "url": "https://www.billboard.com/music/pop/alicia-keys-interview-empire-state-of-mind-chorus-jay-z-7775048/",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.billboard.com/music/pop/alicia-keys-interview-empire-state-of-mind-chorus-jay-z-7775048/"
+    },
+    {
+      "url": "https://www.cs.cmu.edu/~./motionplanning/papers/sbp_papers/k/Kalman1960.pdf",
+      "documents": [
+        "docs/evidence/steering/2026-10-13-motion-between-measured-pictures.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.cs.cmu.edu/~motionplanning/papers/sbp_papers/k/Kalman1960.pdf"
+    },
+    {
+      "url": "https://www.cs.cornell.edu/People/tj/publications/joachims_etal_09a.pdf",
+      "documents": [
+        "docs/evidence/G03_SECOND_REVIEW_DISPOSITION_2026-09-21.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.cs.cornell.edu/people/tj/publications/joachims_etal_09a.pdf"
+    },
+    {
+      "url": "https://www.cs.cornell.edu/~tomf/publications/linearstruct07.pdf",
+      "documents": [
+        "docs/G_SEMANTIC_CONSTRAINT_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.cs.cornell.edu/~tomf/publications/linearstruct07.pdf"
+    },
+    {
+      "url": "https://www.cs.huji.ac.il/~shais/UnderstandingMachineLearning/understanding-machine-learning-theory-algorithms.pdf",
+      "documents": [
+        "docs/G_GENERALIZATION_REPAIR_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.cs.huji.ac.il/~shais/UnderstandingMachineLearning/understanding-machine-learning-theory-algorithms.pdf"
+    },
+    {
+      "url": "https://www.cs.ubc.ca/~murphyk/Bayes/rabiner.pdf",
+      "documents": [
+        "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.cs.ubc.ca/~murphyk/Bayes/rabiner.pdf"
+    },
+    {
+      "url": "https://www.ice.ci.ritsumei.ac.jp/~ruck/PAP/ieeeCIG2014.pdf",
+      "documents": [
+        "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+      ],
+      "status": "unverified",
+      "reason": "URLError: <urlopen error timed out>"
+    },
+    {
+      "url": "https://www.ics.uci.edu/~csp/r10.pdf",
+      "documents": [
+        "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://ics.uci.edu/~csp/r10.pdf"
+    },
+    {
+      "url": "https://www.ijcai.org/proceedings/2025/980",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://ijcai.org/proceedings/2025/980"
+    },
+    {
+      "url": "https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm",
+      "documents": [
+        "docs/ALLOSTASIS_ENGINE.md",
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm"
+    },
+    {
+      "url": "https://www.kernel.org/doc/html/latest/locking/lockdep-design.html",
+      "documents": [
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.kernel.org/doc/html/latest/locking/lockdep-design.html"
+    },
+    {
+      "url": "https://www.mcvuk.com/development/video-nintendos-level-design-secrets-in-four-steps",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://mcvuk.com/business-news/publishing/video-nintendos-level-design-secrets-in-four-steps/"
+    },
+    {
+      "url": "https://www.microsoft.com/en-us/research/publication/execution-guided-neural-program-decoding/",
+      "documents": [
+        "docs/G_NATIVE_REGISTER_BINDING_DESIGN.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.microsoft.com/en-us/research/publication/execution-guided-neural-program-decoding/"
+    },
+    {
+      "url": "https://www.mit.edu/~k2smith/pdf/Smith_et_al-2019-Modeling_Expectation_Violation.pdf",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.mit.edu/~k2smith/pdf/Smith_et_al-2019-Modeling_Expectation_Violation.pdf"
+    },
+    {
+      "url": "https://www.mit.edu/~k2smith/publication/adept/",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.mit.edu/~k2smith/publication/adept/"
+    },
+    {
+      "url": "https://www.nature.com/articles/35037588",
+      "documents": [
+        "docs/GENERALITY_ANALYSIS.md",
+        "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.nature.com/articles/35037588?error=cookies_not_supported&code=919e910b-f882-472b-8d24-de43f7be162d"
+    },
+    {
+      "url": "https://www.nature.com/articles/nn0199_79",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.nature.com/articles/nn0199_79?error=cookies_not_supported&code=ff57e00f-d543-4cd0-a935-10910c050afc"
+    },
+    {
+      "url": "https://www.nature.com/articles/s41586-025-08888-1",
+      "documents": [
+        "docs/SCIENCE_AND_SOURCES.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.nature.com/articles/s41586-025-08888-1?error=cookies_not_supported&code=01dbf451-8f42-4202-a138-56a41106878e"
+    },
+    {
+      "url": "https://www.nature.com/articles/s41598-024-58408-w",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.nature.com/articles/s41598-024-58408-w?error=cookies_not_supported&code=72d75a10-bc13-40e2-a851-1c0f26580185"
+    },
+    {
+      "url": "https://www.npr.org/2018/10/11/654753735/first-listen-phony-ppl-mozaik",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.npr.org/2018/10/11/654753735/first-listen-phony-ppl-mozaik"
+    },
+    {
+      "url": "https://www.reddit.com/r/MachineLearning/comments/17ghrbz",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.reddit.com/r/MachineLearning/comments/17ghrbz/"
+    },
+    {
+      "url": "https://www.reddit.com/r/MachineLearning/comments/1adnq4u/d_whats_the_proper_way_of_doing_direct_preference/",
+      "documents": [
+        "docs/evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.reddit.com/r/MachineLearning/comments/1adnq4u/d_whats_the_proper_way_of_doing_direct_preference/"
+    },
+    {
+      "url": "https://www.reddit.com/r/MachineLearning/comments/1b1he3r",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.reddit.com/r/MachineLearning/comments/1b1he3r/"
+    },
+    {
+      "url": "https://www.reddit.com/r/MachineLearning/comments/hv4299/",
+      "documents": [
+        "docs/evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.reddit.com/r/MachineLearning/comments/hv4299/"
+    },
+    {
+      "url": "https://www.reddit.com/r/askphilosophy/comments/1c5ok1m",
+      "documents": [
+        "docs/evidence/G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.reddit.com/r/askphilosophy/comments/1c5ok1m/"
+    },
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc8259.html#section-7",
+      "documents": [
+        "docs/evidence/G05_TYPED_DECODER_STATE_2026-09-14.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.rfc-editor.org/rfc/rfc8259.html#section-7"
+    },
+    {
+      "url": "https://www.ri.cmu.edu/pub_files/pub3/baker_simon_2002_3/baker_simon_2002_3.pdf",
+      "documents": [
+        "docs/evidence/steering/2026-10-15-observed-deformation-keeps-material.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://publications.ri.cmu.edu/storage/publications/pub_files/pub3/baker_simon_2002_3/baker_simon_2002_3.pdf"
+    },
+    {
+      "url": "https://www.roboticsproceedings.org/rss17/p060.html",
+      "documents": [
+        "docs/evidence/GENERAL_ENVIRONMENT_RESEARCH_APPLICATION_2026-10-10.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.roboticsproceedings.org/rss17/p060.html"
+    },
+    {
+      "url": "https://www.sciencedirect.com/science/article/pii/000437029090007M",
+      "documents": [
+        "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+      ],
+      "status": "unverified",
+      "http": 403,
+      "reason": "Forbidden"
+    },
+    {
+      "url": "https://www.songfacts.com/facts/fleetwood-mac/landslide",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.songfacts.com/facts/fleetwood-mac/landslide"
+    },
+    {
+      "url": "https://www.songfacts.com/facts/lizzo/special",
+      "documents": [
+        "docs/SOUL.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.songfacts.com/facts/lizzo/special"
+    },
+    {
+      "url": "https://www.superjumpmagazine.com/the-art-and-science-of-sekiros-combat/",
+      "documents": [
+        "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.superjumpmagazine.com/the-art-and-science-of-sekiros-combat/"
+    },
+    {
+      "url": "https://www.w3.org/TR/webdriver2/#actions",
+      "documents": [
+        "docs/evidence/steering/2026-10-12-point-paths.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.w3.org/TR/webdriver2/#actions"
+    },
+    {
+      "url": "https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html",
+      "documents": [
+        "docs/FLAGSHIP_PLATFORM_POLISH_RESEARCH.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html"
+    },
+    {
+      "url": "https://www.webdesignmuseum.org/flash-game-exhibitions/cartoon-network-flash-games",
+      "documents": [
+        "docs/runbooks/demos.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.webdesignmuseum.org/flash-game-exhibitions/cartoon-network-flash-games"
+    },
+    {
+      "url": "https://www.youtube.com/@AuraDemos",
+      "documents": [
+        "README.md",
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@AuraDemos"
+    },
+    {
+      "url": "https://www.youtube.com/@Insider",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@Insider"
+    },
+    {
+      "url": "https://www.youtube.com/@MinuteEarth",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@MinuteEarth"
+    },
+    {
+      "url": "https://www.youtube.com/@MinutePhysics",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@MinutePhysics"
+    },
+    {
+      "url": "https://www.youtube.com/@NetNinja",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@NetNinja"
+    },
+    {
+      "url": "https://www.youtube.com/@PolyMatter",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@PolyMatter"
+    },
+    {
+      "url": "https://www.youtube.com/@RealLifeLore",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@RealLifeLore"
+    },
+    {
+      "url": "https://www.youtube.com/@SciShow",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@SciShow"
+    },
+    {
+      "url": "https://www.youtube.com/@SoftWhiteUnderbelly",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@SoftWhiteUnderbelly"
+    },
+    {
+      "url": "https://www.youtube.com/@TED",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@TED"
+    },
+    {
+      "url": "https://www.youtube.com/@TheEnemiesProject/videos",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@TheEnemiesProject/videos"
+    },
+    {
+      "url": "https://www.youtube.com/@WIRED",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@WIRED"
+    },
+    {
+      "url": "https://www.youtube.com/@Wendoverproductions",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@Wendoverproductions"
+    },
+    {
+      "url": "https://www.youtube.com/@aiwarehouse",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@aiwarehouse"
+    },
+    {
+      "url": "https://www.youtube.com/@coreyms",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@coreyms"
+    },
+    {
+      "url": "https://www.youtube.com/@crashcourse",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@crashcourse"
+    },
+    {
+      "url": "https://www.youtube.com/@fern-tv",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@fern-tv"
+    },
+    {
+      "url": "https://www.youtube.com/@freecodecamp",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@freecodecamp"
+    },
+    {
+      "url": "https://www.youtube.com/@jubilee",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@jubilee"
+    },
+    {
+      "url": "https://www.youtube.com/@khanacademy",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@khanacademy"
+    },
+    {
+      "url": "https://www.youtube.com/@kurzgesagt",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@kurzgesagt"
+    },
+    {
+      "url": "https://www.youtube.com/@ladbiblestories",
+      "documents": [
+        "aura/knowledge/bryan-curated-media.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/@ladbiblestories"
+    },
+    {
+      "url": "https://www.youtube.com/watch?v=iTyxeugcZtI",
+      "documents": [
+        "README.md",
+        "docs/DEMOS_AND_RELATED_WORK.md"
+      ],
+      "status": "reachable",
+      "http": 200,
+      "final_url": "https://www.youtube.com/watch?v=iTyxeugcZtI"
+    }
+  ],
+  "external_counts": {
+    "illustrative_or_sensitive_target_not_requested": 7,
+    "reachable": 306,
+    "unverified": 10
+  },
+  "local_finding_counts": {
+    "illustrative_target": 1,
+    "non_web_or_local_only": 5418
+  },
+  "local_missing_targets_or_headings": [],
+  "publication_note": "Compact dated audit. Private/example endpoints were not requested and are omitted here. Link reachability is not scientific source validation. A later research-guide edit receives a separate local-target check before the follow-up commit."
+}

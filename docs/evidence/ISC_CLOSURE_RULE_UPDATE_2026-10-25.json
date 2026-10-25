@@ -1,0 +1,24 @@
+{
+  "schema": "aura.isc.closure_rule_update.v1",
+  "checked_at_utc": "2026-10-25T20:01:45+00:00",
+  "source_commit": "3aa96e1e66b2ffcc1d0c279325158704504fb77c",
+  "rule_change_commit": "cf0ace7e3729486da90fa380173bb65b7c1e879a",
+  "source_files_sha256": {
+    "core/subject/closure.py": "5bb3e6b294a98d57c8dad548a16dcb3c844375a803636180ffea9c1cc3c74f87",
+    "docs/ISC_V6_PREREGISTRATION.md": "902ca5700bca37844d6ae8103948363c6919dd50d83067091af650fffa222631",
+    "tests/test_the_closure_margin_is_the_least_part_of_her.py": "efd740b2c2b5ddf45e5d385bdd62e954b50373c77202842d895aa3ece15efbc7"
+  },
+  "numeric_override": null,
+  "default_rule": "least_domain",
+  "rule": "Leave each live internal domain out in turn, score its predictive contribution to the remaining core on the same estimator, forward folds and declared environment, then take the smallest pooled contribution as the margin.",
+  "closed_requirements": [
+    "No open fold",
+    "Outside-contribution one-sided 95% upper bound below margin",
+    "Planted-cause resolution at or below margin"
+  ],
+  "nonpositive_or_unavailable_margin": "Cannot support a closed reading",
+  "source_diagnostic_scope": "Upstream addendum records synthetic known-answer checks. No new Aura campaign or synthetic campaign was run for this documentation update.",
+  "experiment_interpretation": "Seed 23 informed the method and is discovery for it. Preserve its original recorded outputs; fresh confirmation must use the predeclared rule and repaired arm isolation.",
+  "new_carrier_verdict": null,
+  "plain_english": "The measured outside information must add less predictive information than the least informative internal domain, under this estimator. This is a bounded operational criterion, not an independent validation of subjecthood."
+}

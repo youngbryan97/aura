@@ -30,10 +30,11 @@ car an equivalent model of Aura.
 
 The seed-23 carrier run at `8f548ed79` finished with `NOT_FOUND`. Later work
 found an unchanged-fork drift and weaknesses in the closure measurement.
-Current source at `12bade935` distinguishes an outside contribution from an
-unanswered boundary question. A positive closure reading still needs a margin
-chosen before fresh confirmation. No revised carrier result is established
-by this documentation update.
+Current source at `cf0ace7e3` distinguishes an outside contribution from an
+unanswered boundary question and derives the closure margin by the
+preregistered least-domain rule. The contribution from outside must be bounded
+below the least informative internal domain, with resolution controls passed.
+No revised carrier result is established by this documentation update.
 
 Read [the plain-English explanation](ISC_EXPLAINED.md),
 [variables and examples](ISC_VARIABLES.md) or
@@ -70,7 +71,12 @@ initial text as the current estimator without those amendments.
 The [25 October amendment](ISC_V6_PREREGISTRATION.md) separately changes the
 closure decision: both predictions include declared environment input, the
 measurement uses forward folds and uncertainty bounds, and a closed result
-requires a preregistered margin. `CLOSURE_MARGIN` is currently `None`.
+requires a preregistered margin. The afternoon addendum at `cf0ace7e3` defines
+the `least_domain` rule: leave each internal domain out in turn and take the
+smallest predictive contribution to the rest on the same folds and environment.
+`CLOSURE_MARGIN` is `None` as a numeric override, while `CLOSURE_MARGIN_RULE`
+selects that derived margin. See the
+[source-hashed rule update](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json).
 `UNRESOLVED` is preserved through carrier selection and J* when closure alone
 cannot be decided. This is a changed method, requiring a new confirmed result.
 

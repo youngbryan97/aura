@@ -17,7 +17,7 @@ presenting them as clean causal confirmation. See
 [the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
 
 
-Status: Runbook · Reconciled 25 October 2026 against `12bade935`
+Status: Runbook · Reconciled 25 October 2026 through `cf0ace7e3`
 
 This is the guide for repeating a measurement and checking where its result
 came from. New readers can start with [ISC explained](ISC_EXPLAINED.md) and
@@ -56,6 +56,13 @@ preregistered design. Those durations serve different measurements.
 The code changes frequently. A result at `3dc0b0599` and one at `8f548ed79`
 measure different organisms. Combining them can guide discovery; it cannot
 produce a same-revision confirmatory result.
+
+The afternoon v6 addendum derives closure's margin from the smallest
+leave-one-domain-out predictive contribution under the same estimator, folds
+and environment. Retain `audit.margin.by_domain`, the selected domain and
+margin, the planted-cause resolution and fold results. A fixed numeric margin
+would be an override that must be declared and justified separately. See
+[the rule snapshot](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json).
 
 ## Read the measurement routes
 

@@ -81,7 +81,7 @@ if they are to support a quantitative claim in a paper.
 Eyal, Steffel and Epley (2018),
 [Perspective mistaking](https://pubmed.ncbi.nlm.nih.gov/29620401/), is an
 empirical human study relevant to learning another person's perspective by
-asking them. It motivates a design question about checking an interpretation
+asking them (`eyal2018perspective`). It motivates a design question about checking an interpretation
 with the user. It supplies no measured accuracy for Aura's social inference.
 The study abstract and bibliographic record were checked. Cite the particular
 experiment and task before transferring a more specific conclusion.
@@ -114,6 +114,26 @@ confidence bounds and declared thresholds in ordinary language. The
 [frozen v6 protocol](ISC_V6_PREREGISTRATION.md) supplies this experiment's
 decision rules. The methods literature explains tools; the protocol records
 which tools and assumptions this experiment actually used.
+
+## Trend and slope methods
+
+These references identify the statistical methods named by the
+[resource-forecasting implementation](../core/autonomic/allostasis.py).
+The original method, this implementation and calibration on live resource
+traces are separate evidence steps.
+
+| Reference | Connection and checked support |
+|---|---|
+| Mann (1945), [Nonparametric tests against trend](https://www.jstor.org/stable/1907187) · `mann1945trend` | Original trend-test reference. Publisher bibliographic record checked; this pass does not claim a full derivation review. |
+| Sen (1968), [Estimates of the regression coefficient based on Kendall's tau](https://www.tandfonline.com/doi/abs/10.1080/01621459.1968.10480934) · `sen1968slope` | Reference for the named slope method. The publisher endpoint denied access; the citation is supplied for traceability, without claiming full-text verification. |
+| Gilbert (1987), [Statistical methods for environmental pollution monitoring](https://hero.epa.gov/reference/51155/) · `gilbert1987monitoring` | The implementation names this book for its interval method. The linked EPA bibliographic record identifies the book; the relevant pages still need checking for a paper's derivation claim. |
+| Hamed and Rao (1998), [A modified Mann–Kendall trend test for autocorrelated data](https://www.sciencedirect.com/science/article/abs/pii/S002216949700125X) · `hamed1998modified` | The source names the variance correction for serially related samples. Publisher abstract checked. Local bounds and tuning remain implementation choices requiring their own validation. |
+
+In everyday terms, a slope estimates whether resource use is climbing and how
+fast. An interval expresses uncertainty around that estimate. Samples a minute
+apart can resemble one another, so treating them as unrelated can exaggerate
+confidence. These references explain the method choices; the test on a short
+seeded noise trace does not establish a live false-alarm rate.
 
 ## Turning this map into a paper
 

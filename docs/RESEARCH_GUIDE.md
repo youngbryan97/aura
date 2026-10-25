@@ -10,86 +10,99 @@
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
 <!-- reader-navigation:end -->
 
-*Reviewed against the tree: 2026-08-01. See [documentation status map](DOC_STATUS.md) for how to read this file.*
+Status: Guide · Research entry points reconciled 25 October 2026
 
-For researchers reproducing Aura's claims, and reviewers running their own
-evaluation and hoping to break something.
+Aura is a local AI research system. It combines a language model with memory,
+attention, internal condition and action control. Research asks which of those
+mechanisms actually affect outcomes, under what conditions, and whether their
+organisation supports a scientific argument about subjecthood.
 
-## What Aura is — and isn't
+A newcomer can say: “We add mechanisms that should make earlier events matter
+to later decisions, then test whether removing or changing them makes the
+predicted difference.” The [plain-English tour](PLAIN_ENGLISH_GUIDE.md) and
+[variable definitions](VARIABLES_EXPLAINED.md) explain the parts before the
+technical details.
 
-A **functional cognitive-architecture research system**. The shipped code
-does not claim phenomenal consciousness, metaphysical qualia, legal
-personhood, or moral patiency.
+## Follow a claim to its evidence
 
-A warning about the vocabulary before you read any further. There are files
-in this repo named `qualia_synthesizer.py`, `consciousness/`, `will.py`,
-`soma.py`. Those are labels on mechanisms. They are not evidence, and if you
-credit the system for its naming you will overrate it — which is a real risk
-here, not a hypothetical one. `docs/TERMINOLOGY.md` maps every internal
-poetic name to its sober technical label. Read it first and the rest of the
-repo gets easier to judge.
+| Question | Start here | What to keep with an answer |
+|---|---|---|
+| What is the project claiming? | [Claim boundaries](CLAIM_BOUNDARIES.md), [unsupported claims](../CLAIMS_NOT_SUPPORTED.md) | Exact capability and evidence scope |
+| What scientific work motivates the design? | [Scientific source map](SCIENCE_AND_SOURCES.md), [related work](DEMOS_AND_RELATED_WORK.md) | Original source, relevant mechanism and limits of the adaptation |
+| What does the current ISC result say? | [ISC status](ISC_STATUS.md), [source-hashed results](evidence/ISC_STATUS_2026-10-25.json) | Source revision, seed, run identity, controls and later isolation correction |
+| What is the experiment meant to test? | [ISC explained](ISC_EXPLAINED.md), [worked variables](ISC_VARIABLES.md), [readers' guide](ISC_READERS_GUIDE.md) | Definition, comparison, decision rule and open questions |
+| How was it measured? | [ISC reproduction](ISC_REPRODUCTION.md) and the linked frozen protocols | Commands from the actual manifest, measurement readers, artifacts and refusal reasons |
+| Does the reasoning machinery help? | [RLC programme](RECURSIVE_LATENT_CORTEX.md), [reasoning engines](REASONING_ENGINES.md) | Task family, held-out results, public answers and qualification status |
+| What did a demonstration show? | [Demos and evidence](DEMOS_AND_RELATED_WORK.md) | Footage, fixture, script or controlled experiment, with that scope retained |
+| Where is a particular document? | [Complete document map](DOCUMENTATION_INDEX.md) | Whether it is a current guide, historical record, frozen standard or generated report |
 
-## Architecture overview
-- ``core/agency/agency_orchestrator.py`` — canonical drive→outcome loop.
-- ``core/will.py`` + ``core/executive/authority_gateway.py`` — gate.
-- ``core/ethics/conscience.py`` — irrevocable rule floor.
-- ``core/identity/self_object.py`` — explicit "I" object.
-- ``core/organism/viability.py`` — metabolic state machine.
-- ``core/brain/latent_bridge.py`` — substrate→sampling modulation.
-- ``core/consciousness/phi_core.py`` and ``hierarchical_phi.py`` — IIT
-  4.0 spectral approximation across a 16-node and 32-node graph.
-- ``core/agency/projects.py`` — long-horizon project ledger.
-- ``core/social/relationship_model.py`` — durable relationship dossiers.
-- ``core/sovereignty/`` — abstract wallet + migration runbook.
-- ``core/embodiment/`` — permissioned world bridge + IoT bridge.
-- ``core/self_modification/safe_pipeline.py`` — staged self-modification.
+## The current ISC qualification matters
 
-## Tests, baselines, ablations
-- ``aura_bench/runner.py`` — pre-registered bench harness. Each test
-  declares its hypothesis, metric, threshold, baseline, and ablation
-  *before* running.
-- ``aura_bench/courtroom/`` — 5-system, 10-task adversarial bench.
-- ``aura_bench/baselines/runner.py`` — baseline-defeat matrix.
-- ``aura_bench/tests/phi_uncurated.py`` (G1).
-- ``aura_bench/tests/gwt_ablation.py`` (G2).
-- ``aura_bench/tests/hot_calibration.py`` (G3 + H1).
-- ``aura_bench/tests/qualia_behavioral.py`` (G4).
-- ``aura_bench/tests/refusal_stability.py`` (I3).
-- ``aura_bench/tests/continuity_30day.py`` (I1).
+The completed seed-23 run recorded 22/24 under ISC-v6 and positive content and
+withheld-report outputs. Later source repair found that comparison arms shared
+consequence history. Those results remain in the record and need rechecking
+under repaired isolation before being called clean causal confirmation. The
+[isolation update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json) records that
+finding. No full ISC pass or settled five-ground bridge result is reported.
 
-## Reproducibility
-```bash
-git clone https://github.com/youngbryan97/aura
-cd aura
-make setup
-make test
-make bench
-make courtroom
-make baselines
-```
-Outputs land at:
-- ``~/.aura/data/bench/results.jsonl`` and ``report.md``
-- ``aura_bench/courtroom/report.md``
-- ``aura_bench/baselines/results.jsonl``
+The later closure method also keeps an open boundary distinct from an
+unresolved question. The afternoon addendum at `cf0ace7e3` derives its margin
+from the least informative internal domain under a predeclared rule. A change
+to the method is not a new result. Use [current status](ISC_STATUS.md) for the exact
+versioned reading and the distinction between discovery and confirmation.
 
-## Longevity / chaos
-- ``make longevity`` (24h) — see `tools/longevity/run_gauntlet.py` for
-  72h, 7d, 30d profiles.
-- ``make chaos``      — single random fault.
-- Each run produces an artifact bundle under
-  ``~/.aura/data/longevity/<run_id>/`` with events.jsonl, resource.csv,
-  identity_continuity.jsonl, and summary.md.
+## Source names and measured mechanisms
 
-## Pre-registration discipline
-Every benchmark refuses to record a verdict that wasn't pre-registered
-through ``BenchTest.declare()``. Post-hoc "this counts because it
-passed" is structurally impossible.
+Names such as “qualia,” “will” and “consciousness” occur in the code. Read the
+implementation and its consumers before assigning a scientific meaning to
+the name. [Terminology](TERMINOLOGY.md) translates the project vocabulary.
 
-## Honest open items
-- 30-day actual longevity run with public continuity-hash time series.
-- Independent reviewers (≥3) reproducing benchmark results.
-- Philosopher-of-mind consensus on the formal ontology.
-- A 100,000-test suite with mutation-test scores >95%.
+| Source route | What a reviewer can inspect |
+|---|---|
+| [Agency orchestrator](../core/agency/agency_orchestrator.py) | Drive-to-outcome control route |
+| [Authority gateway](../core/executive/authority_gateway.py) | Action-authority boundary |
+| [Viability state machine](../core/organism/viability.py) | Operating-condition states and transitions |
+| [Latent bridge](../core/brain/latent_bridge.py) | Internal state reaching generation controls |
+| [Integrated-information estimator](../core/consciousness/integrated_information.py) | Named Gaussian/discrete estimators and search limits |
+| [Subject snapshot](../core/subject/snapshot.py) | What an experimental fork saves and restores |
 
-These are tracked as open items in the project ledger and in
-``ROADMAP.md``.
+The [whole-system integration guide](WHOLE_SYSTEM_PHI.md) describes estimated
+macro-dynamics. Small exhaustive partition searches can certify a minimum;
+larger candidate searches do not inherit an exactness guarantee. Neither
+this estimator nor the older graph approximation computes full IIT 4.0 over
+Aura. Cite [the theory itself](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1011465)
+for the formal target and the source for the implemented approximation.
+
+## Reproduction without disturbing the live system
+
+Read [TESTING](../TESTING.md), [the operational guide](../CLAUDE.md) and
+[ISC reproduction](ISC_REPRODUCTION.md) before choosing commands. Do not run a
+full suite, longevity campaign, chaos injection or another model process as
+an incidental documentation check. On the shared host, preserve the live
+instance and existing experiment owners. Set a separate `AURA_LOG_DIR` for
+anything test-like, and declare worker, memory and time budgets.
+
+A unit test checks its stated invariant. An experiment checks a hypothesis
+under a protocol. A longevity run checks survival over its measured duration.
+An independent replication checks whether someone else obtains the result.
+None supplies the others merely by passing.
+
+Preregistration records a hypothesis, metric, threshold, baseline and analysis
+before confirmatory data. An exploratory change must be labeled and followed
+by fresh confirmation when the claim requires it. Keep exclusions, failed
+controls and unavailable measurements visible. Registration cannot make
+post-hoc reinterpretation impossible; review the record and execution together.
+
+## Preparing a paper
+
+Use the [source map](SCIENCE_AND_SOURCES.md#turning-this-map-into-a-paper) to
+connect each scientific claim to an external source and each Aura result to
+its own evidence. The [BibTeX file](../research/references.bib) supplies an
+initial bibliography. Check the cited passage and version again at submission.
+
+Keep theoretical support, a source implementation and measured benefit
+separate. A matched comparison is needed to claim improvement over an earlier
+system. A human study can motivate the mechanism without establishing its
+accuracy, biological equivalence or experience in Aura. The
+[evidence standard](BEHAVIORAL_PROOF_STANDARD.md) and
+[reviewer packet](REVIEWER_PACKET.md) provide the project's own review routes.
