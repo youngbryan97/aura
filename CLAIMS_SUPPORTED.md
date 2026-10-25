@@ -1,5 +1,15 @@
 # Aura: Supported Claims Ledger
 
+<!-- reader-navigation:start -->
+> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+>
+> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+>
+> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 This document lists the proven engineering capabilities of the Aura agent runtime. Every claim listed here is backed by real code, automated tests, and execution logs.
 
 ---

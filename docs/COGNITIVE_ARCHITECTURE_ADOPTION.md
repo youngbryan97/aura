@@ -1,5 +1,15 @@
 # Cognitive architecture adoption: Soar, ACT-R, and a real competition
 
+<!-- reader-navigation:start -->
+> **In plain English:** Several concerns can propose work, but attention selects what has influence now and makes selected information available elsewhere.
+>
+> **Why it matters:** A new question, a recalled event and an old task must not silently become interchangeable sources of authority.
+>
+> **In everyday use:** Your new question should not be overwritten by a background task that happened to win a previous competition.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#attention) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#attention) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#cognitive-architectures) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Status: Guide · Reviewed against the tree 2026-08-13
 
 The companion to [ENGINEERING_ADOPTION.md](ENGINEERING_ADOPTION.md). That page

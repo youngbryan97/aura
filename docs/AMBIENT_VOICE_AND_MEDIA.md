@@ -1,5 +1,15 @@
 # Ambient voice, streamed speech, and media in the chat
 
+<!-- reader-navigation:start -->
+> **In plain English:** Conversation support turns a request into a reply and, when enabled, into speech. Streaming lets delivery begin before every later stage finishes.
+>
+> **Why it matters:** The person should receive a timely, coherent answer to the current request without hearing a stale or unapproved fragment.
+>
+> **In everyday use:** When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#conversation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#conversation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#interaction) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 What changed, why, and — at the end — what is not measured.
 
 The goal was ordinary: launch Aura, start talking, and have her answer in the

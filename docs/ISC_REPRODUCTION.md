@@ -1,10 +1,30 @@
 # Reproducing and reviewing ISC
 
-Status: Runbook · Reconciled 24 October 2026 against `ce62a90529`
+<!-- reader-navigation:start -->
+> **In plain English:** ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+>
+> **Why it matters:** The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.
+>
+> **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
 
-Start with [the current evidence](ISC_STATUS.md). These instructions describe
+**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
+which repairs consequence history shared between experimental arms. Retain
+the recorded scores, but recheck paired results under repaired isolation before
+presenting them as clean causal confirmation. See
+[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
+
+
+Status: Runbook · Reconciled 25 October 2026 against `12bade935`
+
+This is the guide for repeating a measurement and checking where its result
+came from. New readers can start with [ISC explained](ISC_EXPLAINED.md) and
+[the variables guide](ISC_VARIABLES.md). Read [current evidence](ISC_STATUS.md)
+for completed results and open questions. These instructions describe
 the measurement routes; they do not schedule another experiment on the Mac
-that is already running the decisive campaign.
+that may already be running a live instance or an experiment.
 
 ## Protect the running system
 
@@ -123,7 +143,7 @@ withheld-report and steering-certificate trees. Add those inputs and their
 manifests to the published record without implying that a battery-only package
 already contains them.
 
-The small [24 October snapshot](evidence/ISC_STATUS_2026-10-24.json) is a
+The [25 October snapshot](evidence/ISC_STATUS_2026-10-25.json) is a
 checkable summary of selected existing files. Their hashes bind the extracts
 to the originals; the extracts do not replace raw trajectories, model inputs
 or an independent replication package.

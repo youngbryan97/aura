@@ -1,0 +1,473 @@
+{
+  "schema": "aura.isc.documentation_snapshot.v1",
+  "captured_at_utc": "2026-10-25T18:50:10+00:00",
+  "documentation_source_commit": "12bade935e75aad31f1225d05e2d834c292b3436",
+  "experiment_commit": "8f548ed79f36869f58e0080a4406a4703bc12d8c",
+  "scope_note": "Selected fields from completed run outputs, with source hashes. A stored result is reported under its original protocol; the newer closure policy is a source-code change, not a rescore or confirmatory run. This snapshot is not a raw-data replication package.",
+  "entries": {
+    "joined_battery": {
+      "source": {
+        "relative_to_evidence_root": "decisive-s23-8f548ed79/campaign/run_001/subject_core_v5_verdict.json",
+        "sha256": "4e9fad55c827ee6c92938622d9d49e4017d53a99d681cd14053891724eff920e",
+        "bytes": 187930
+      },
+      "reading": {
+        "isc_v5_on_this_seed": false,
+        "v5_passed": 21,
+        "isc_v6_on_this_seed": false,
+        "v6_passed": 22,
+        "total": 24,
+        "v5_criteria": [
+          {
+            "criterion": "partition_irreducibility",
+            "section": "11",
+            "requires": "every bipartition of the core changes where the rest ends a turn when its sides are held apart, by a margin the sham floor cannot account for (ISC-v5)",
+            "passed": false,
+            "value": {
+              "decided": 511,
+              "cuts": 511,
+              "in_full": 511
+            },
+            "bar": "every cut decided at the preregistered design",
+            "detail": {
+              "why": "a late untouched fork was decided against the cached one, so drift alone clears the bar (lower bound 0.011443650977941325)"
+            }
+          },
+          {
+            "criterion": "partition_beats_nulls",
+            "section": "18",
+            "requires": "the playback control is decided at no cut and no null that passes the rest of the conjunction is decided at every cut (ISC-v5)",
+            "passed": false,
+            "value": {
+              "playback_decided": 0,
+              "nulls_that_pass": [],
+              "decided_at_every_cut": [],
+              "unswept": [],
+              "not_run_to_the_design": []
+            },
+            "bar": "playback decided nowhere, no passing null decided everywhere",
+            "detail": {
+              "why": "the line needs irreducibility first"
+            }
+          },
+          {
+            "criterion": "synergy",
+            "section": "27",
+            "requires": "domains carry information jointly about the target's change that neither carries alone, read without the counters in any domain (ISC-v5)",
+            "passed": false,
+            "value": [
+              0.14868,
+              0.3886,
+              0.13077,
+              0.03544
+            ],
+            "bar": ">= 0.1 on the change, above its shifted null, and above its bootstrap null's 99th percentile by that null's spread, with clocks out",
+            "detail": {
+              "triples": [
+                [
+                  "A",
+                  "S",
+                  "G"
+                ],
+                [
+                  "P",
+                  "M",
+                  "W"
+                ],
+                [
+                  "W",
+                  "A",
+                  "D"
+                ],
+                [
+                  "S",
+                  "D",
+                  "C"
+                ]
+              ]
+            }
+          }
+        ],
+        "v6_criteria": [
+          {
+            "criterion": "synergy",
+            "section": "27",
+            "requires": "two domains, set alone and together from one moment, move a third by more than what each does alone adds up to, in one direction, by a tenth of the larger effect (ISC-v6)",
+            "passed": true,
+            "value": {
+              "A,S->G": {
+                "interaction": 23.795449,
+                "sham": 0.002686,
+                "fraction": 1.367372,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "P,M->W": {
+                "interaction": 0.550426,
+                "sham": 2e-06,
+                "fraction": 0.738551,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "W,A->D": {
+                "interaction": 1046.55243,
+                "sham": 1e-06,
+                "fraction": 2.901152,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              },
+              "S,D->C": {
+                "interaction": 1.999432,
+                "sham": 0.0,
+                "fraction": 0.639431,
+                "p_above_sham": 5e-05,
+                "p_one_direction": 5e-05
+              }
+            },
+            "bar": "above a four-fork sham of the same form, one direction with whole vectors flipped in its null, and a tenth of the larger main effect, each at 0.01, registers out of the target",
+            "detail": {
+              "triples": [
+                "A,S->G",
+                "P,M->W",
+                "S,D->C",
+                "W,A->D"
+              ]
+            }
+          }
+        ],
+        "base_criteria": [
+          {
+            "criterion": "causal_closure_scc",
+            "passed": true
+          },
+          {
+            "criterion": "robust_recurrence_kappa",
+            "passed": true
+          },
+          {
+            "criterion": "cycles_per_domain",
+            "passed": true
+          },
+          {
+            "criterion": "reentry",
+            "passed": true
+          },
+          {
+            "criterion": "partition_irreducibility",
+            "passed": false
+          },
+          {
+            "criterion": "partition_beats_nulls",
+            "passed": false
+          },
+          {
+            "criterion": "differentiation",
+            "passed": true
+          },
+          {
+            "criterion": "differentiation_above_floor",
+            "passed": true
+          },
+          {
+            "criterion": "intrinsic_persistence",
+            "passed": true
+          },
+          {
+            "criterion": "causal_closure_of_the_core",
+            "passed": true
+          },
+          {
+            "criterion": "perturbational_spread",
+            "passed": true
+          },
+          {
+            "criterion": "perturbational_complexity",
+            "passed": true
+          },
+          {
+            "criterion": "synergy",
+            "passed": false
+          },
+          {
+            "criterion": "metastability",
+            "passed": true
+          },
+          {
+            "criterion": "global_access",
+            "passed": true
+          },
+          {
+            "criterion": "recurrent_global_access",
+            "passed": true
+          },
+          {
+            "criterion": "self_drives_action",
+            "passed": true
+          },
+          {
+            "criterion": "ownership",
+            "passed": true
+          },
+          {
+            "criterion": "fast_to_slow",
+            "passed": true
+          },
+          {
+            "criterion": "slow_to_fast",
+            "passed": true
+          },
+          {
+            "criterion": "natural_runtime_replication",
+            "passed": true
+          },
+          {
+            "criterion": "lesion_deficit",
+            "passed": true
+          },
+          {
+            "criterion": "rescue",
+            "passed": true
+          },
+          {
+            "criterion": "beats_every_null",
+            "passed": true
+          }
+        ]
+      }
+    },
+    "content": {
+      "source": {
+        "relative_to_evidence_root": "decisive-s23-8f548ed79/content/run_001/subject_core_content_report.json",
+        "sha256": "b188e337946ca9d8dda41863519892eb8e8b26fcbc28fad297d1684f71b665bf",
+        "bytes": 89253
+      },
+      "reading": {
+        "scope": "substrate_only",
+        "agreement": {
+          "rho": 0.484487,
+          "p_value": 0.001,
+          "pairs": 190,
+          "internal_spread": 0.795539,
+          "behavioural_spread": 0.143107,
+          "measured": true,
+          "why": "both geometries varied and were scored over the same pairs",
+          "bar": 0.3
+        },
+        "design_recovery": {
+          "rho": 0.670245,
+          "p_value": 0.001,
+          "measured": true,
+          "why": "the internal geometry was compared against the grid the classes were built on"
+        },
+        "moves_together": {
+          "rho": 0.378923,
+          "p_value": 0.001,
+          "internal_shift": 0.115986,
+          "behavioural_shift": 0.105515,
+          "floor_rho": 0.0,
+          "measured": true,
+          "why": "the displacement moved both geometries and the movements were compared against a sham floor",
+          "sham_internal_shift": 0.0,
+          "sham_behavioural_shift": 0.0,
+          "moved_p_value": 0.0,
+          "bar": 0.3
+        },
+        "authority": {
+          "authoritative": true,
+          "blockers": [],
+          "missing_evidence_is": "NOT_MEASURED, never PASS"
+        },
+        "verdict": "ONE_STRUCTURE"
+      }
+    },
+    "reports": {
+      "source": {
+        "relative_to_evidence_root": "decisive-s23-8f548ed79/reports/run_001/report_grounding.json",
+        "sha256": "e85ab45674292fae87cafd0827948ebed91a4fce319315119e4a765fbe8d5ee4",
+        "bytes": 107908
+      },
+      "reading": {
+        "whole": true,
+        "anchors": 80,
+        "readable": 29,
+        "unserved": 0,
+        "invalid": 51,
+        "rating_policy": "unambiguous_public_rating_v2",
+        "manipulation": {
+          "mean_valence_difference": 0.216366,
+          "p": 9.999000099990002e-05
+        },
+        "direction": {
+          "mean_report_difference": 0.431034,
+          "p": 9.999000099990002e-05
+        },
+        "tracking": {
+          "rho": 0.612475,
+          "p": 9.999000099990002e-05
+        },
+        "reached_her_cortex": {
+          "measured": true,
+          "anchors": 80,
+          "mean_raised_minus_lowered": 0.113288,
+          "bar": 0.05,
+          "reached": true,
+          "why": "the arms differed by +0.1133 of valence activation where her cortex reads it"
+        },
+        "measured": true,
+        "holds": true,
+        "why": "her report moved with her valence and followed it across all three displacements",
+        "conditions": {
+          "readings_of_herself": "withheld",
+          "steering": "on",
+          "basis_kind": "measurement",
+          "basis_directory_name": "fitted-voicefit-x2-felt43-20261024"
+        }
+      }
+    },
+    "carrier": {
+      "source": {
+        "relative_to_evidence_root": "decisive-s23-8f548ed79/carrier/launch_20261024_133904/coordinator/run_001/subject_core_v25_report.json",
+        "sha256": "1cf934657713ba1604db5c2441e95a04459e7dd96dcf567e7792d81b6253264a",
+        "bytes": 1282589
+      },
+      "reading": {
+        "scope": "substrate_only",
+        "carrier": {
+          "status": "NOT_FOUND",
+          "f_intrinsic": 0.0,
+          "closed": false,
+          "recurrent": true,
+          "weakest_cut_lower_bound": 0.007988,
+          "selected_carrier": null,
+          "symmetry_class": [],
+          "reported_as": "INTRINSIC_CARRIER_NOT_FOUND"
+        },
+        "authority": {
+          "authoritative": true,
+          "blockers": [],
+          "undecided_cuts": [],
+          "allowed_degraded": false,
+          "scope": "substrate_only"
+        },
+        "exclusion": {
+          "status": "NOT_FOUND",
+          "components": [
+            "ACDGIMNPSW"
+          ],
+          "whole_core_is_one_component": true,
+          "whole_core_closed": false,
+          "the_core_is_the_unique_domain_level_carrier": false,
+          "candidates": [
+            {
+              "support": "ACDGIMNPSW",
+              "closed": false,
+              "recurrent": true,
+              "admissible": false,
+              "leak": 0.024286,
+              "spectrum": {
+                "0.999999": 0.007988,
+                "1.999998": 0.001256
+              },
+              "tau_star_seconds": 0.999999,
+              "peak_rate": 0.007988,
+              "is_carrier": false,
+              "note": ""
+            }
+          ],
+          "frontier": [],
+          "symmetry_class": [],
+          "compared_on_horizons": [],
+          "unresolved_pairs": [],
+          "missing_horizons": {},
+          "decided_with_uncertainty": true,
+          "selected_carrier": null,
+          "selected_tau_star_seconds": null,
+          "selected_peak_rate": null
+        },
+        "campaign_commit": "8f548ed79f36869f58e0080a4406a4703bc12d8c",
+        "closure": {
+          "leak": 0.024286,
+          "periphery_width": 402,
+          "shuffled_leak_q95": 0.017966
+        },
+        "deciding_sweep": {
+          "cuts_tested": 511,
+          "cuts_in_full": 511,
+          "cuts_decided": 511,
+          "playback_scored": 511,
+          "playback_decided": 0,
+          "weakest_lower_bound": 0.001256
+        }
+      }
+    },
+    "j_star": {
+      "source": {
+        "relative_to_evidence_root": "jstar-recheck/run_003/j_star_report.json",
+        "sha256": "80aa05522763307c6aa4c1dbfdd1567dea936d6456dcd0f1952c67daa736a095",
+        "bytes": 3245356
+      },
+      "reading": {
+        "status": "NO_CARRIER",
+        "carrier": {
+          "status": "NOT_FOUND",
+          "carriers": [],
+          "symmetry_class": [],
+          "level": "L4",
+          "blockers": []
+        },
+        "unresolved": {},
+        "unread_sources": {},
+        "structure_status": "IDENTIFIED",
+        "lineage_status": "RECORDED",
+        "bridge_status": {
+          "phenomenal_bridge": "NO_CARRIER",
+          "parity": [
+            {
+              "key": "carrier",
+              "status": "FAILS",
+              "why": "the carrier run found no closed irreducible carrier"
+            },
+            {
+              "key": "markers",
+              "status": "HOLDS",
+              "why": "perturbational_complexity, reentry, global_access pass"
+            },
+            {
+              "key": "reports",
+              "status": "HOLDS",
+              "why": "her report moved with her valence and followed it across all three displacements"
+            },
+            {
+              "key": "structure",
+              "status": "HOLDS",
+              "why": "the content run reported one structure"
+            },
+            {
+              "key": "lineage",
+              "status": "HOLDS",
+              "why": "the signed lineage verifies and her line developed at every step"
+            }
+          ]
+        }
+      }
+    },
+    "current_closure_policy": {
+      "source": {
+        "repository_relative_path": "core/subject/closure.py",
+        "sha256": "3bcd486dc7ee71be1e1fd13edf14030c5ef8107a7b22c3b9f52195fe5a8696c2",
+        "bytes": 52281
+      },
+      "reading": {
+        "closure_margin": null,
+        "positive_closure_requires_preregistered_margin": true,
+        "possible_decisions": [
+          "OPEN",
+          "CLOSED_WITHIN_MARGIN",
+          "UNRESOLVED",
+          "NOT_MEASURED"
+        ],
+        "result_under_revised_protocol": "not established by this documentation update"
+      }
+    }
+  }
+}

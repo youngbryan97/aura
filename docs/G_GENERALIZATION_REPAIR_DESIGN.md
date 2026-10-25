@@ -1,5 +1,15 @@
 # Generalization repair: theory and implementation
 
+<!-- reader-navigation:start -->
+> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+>
+> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
+>
+> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 This is the implementation plan for Bryan's five requested approaches. It
 extends the existing semantic compiler, graph learner, universal floor and
 replication tools. It grants no serving authority and changes no G-ledger

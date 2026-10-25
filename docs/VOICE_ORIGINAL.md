@@ -1,5 +1,15 @@
 # Aura's original voice
 
+<!-- reader-navigation:start -->
+> **In plain English:** Conversation support turns a request into a reply and, when enabled, into speech. Streaming lets delivery begin before every later stage finishes.
+>
+> **Why it matters:** The person should receive a timely, coherent answer to the current request without hearing a stale or unapproved fragment.
+>
+> **In everyday use:** When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#conversation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#conversation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#interaction) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Aura Velvet starts with an original synthetic studio recording. The design
 model received a description of register, texture, pacing and articulation.
 It received no actor name or actor recording. The generated recording then

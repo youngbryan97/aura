@@ -1,7 +1,19 @@
 # How Aura works
 
-This is the ideas-only tour. No equations, no module paths, just what each
-piece does and why it's there. If you want the technical spec with math and
+<!-- reader-navigation:start -->
+> **In plain English:** Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.
+>
+> **Why it matters:** A useful component needs a real reader and a real route into behavior; a box on a diagram can otherwise be disconnected from what users see.
+>
+> **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
+For a first visit, start with [the plain-English tour](docs/PLAIN_ENGLISH_GUIDE.md)
+and [the variable guide](docs/VARIABLES_EXPLAINED.md). They explain why the
+mechanisms matter in everyday use, with examples and metaphors. This page is
+the longer conceptual tour. If you want the technical spec with math and
 file references, read [ARCHITECTURE.md](ARCHITECTURE.md). If you already
 know what's inside and want to run it, the [README](README.md) has the
 quick start.
@@ -10,14 +22,16 @@ quick start.
 
 ## The one-line summary
 
-Most AI companion projects store a mood number, paste it into the system
-prompt, and let the model act it out. The model says it feels energetic
-because it read the words "feeling energetic."
+One way to represent an agent's state is to put its description into the
+language model's input. Aura also investigates a different route: internal
+state changes selected calculations inside the model while words are generated.
+A measured steering direction and strength define that intervention.
 
-Aura is built the other way around. Her internal emotional state becomes
-a steering vector added directly to the neural network's inner calculations
-while it generates words. The underlying computation changes, not just the text
-the model reads.
+Think of changing a sound mix during a performance. The control changes what
+comes out without changing the written score. The comparison explains the
+mechanism; it does not establish a feeling or certify a particular live
+configuration. [Current channel and report evidence](docs/ISC_STATUS.md)
+separates experimental bases from installed authority.
 
 Around that sits an organism: one decision gate that signs off on every
 consequential action, memory that persists across restarts, an energy-budget

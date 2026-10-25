@@ -1,248 +1,247 @@
-# Intrinsic Subject Core: current status
+# ISC: what the latest results show
 
-Status: Guide · Evidence checked 25 October 2026, 02:40 PDT
+Status: Guide · Evidence checked 25 October 2026, 12:40 PDT
 
-Aura has passed the four-triple ISC-v6 synergy probe on her offline organism.
-The seed-23 confirmation has now finished every stage. It reads 21 of 24
-criteria under ISC-v5 and 22 of 24 under ISC-v6, J* `NO_CARRIER`, and a bridge
-with four of its five grounds holding. There is no 24/24 result and no
-`AT_PARITY` result.
+**The completed run recorded 22 of 24 checks passing under ISC-v6.** Its
+separate content and self-report outputs were positive. A later isolation
+repair at `dcdcd637c` found that comparison copies shared consequence history,
+so these paired results need rechecking before being presented as clean causal
+confirmation. There is no full ISC pass or settled five-ground bridge result.
 
-The seed-23 content run passes the structure ground, and the seed-23 withheld
-report run passes the reports ground: her report moved with her valence and
-followed it across all three displacements, tracking rho 0.612475 at
-p 0.000100 with her own readings withheld. The two grounds that had been
-substantive failures are no longer failing. What fails is the carrier.
+If you are new to Aura, start with [ISC explained](ISC_EXPLAINED.md). It
+introduces the project, translates the test names and includes a short
+explanation you can use aloud. The numbers and source records follow below.
 
-The [evidence snapshot](evidence/ISC_STATUS_2026-10-24.json) contains the
-selected measurements, source hashes and output-presence checks behind this
-page. It records existing evidence; no experiment was launched to write it.
-The documentation was reconciled against source at `ce62a90529`, including the
-organism change at `8f548ed79`, and against the finished seed-23 runs at
-`ceb6da91b`. The snapshot itself was not regenerated, so its figures are the
-ones checked on 24 October; the seed-23 readings above are from the run outputs
-named in each row. J* was re-solved from all four of its inputs
-(`~/subject-core-runs/jstar-recheck/run_003/j_star_report.json`) because the
-decisive chain's own solve had been handed an empty campaign path.
+## A new isolation finding changes how to read the results
 
-## Four separate questions
+The [25 October isolation update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json)
+records a defect found after the seed-23 outputs were read. Each experimental
+arm restored Aura's recorded state but kept a shared history of what previous
+arms had done. The system's integration reader consumed that history. One
+comparison could therefore influence the next.
 
-| Layer | What it asks | What establishes its result |
+Think of two saved-game copies that reset the player but still share a single
+scoreboard: the second copy can encounter a result left by the first. The
+metaphor illustrates the missing isolation; it does not identify a subject or
+supply a new experimental result.
+
+The repair now restores that consequence history with the fork. The upstream
+regression account reports zero separation through twelve diagnostic churn
+cuts after the fix. That is evidence about the repair, not a replacement
+campaign. The scores below remain the outputs of the original experiment.
+The effect of clean isolation on each paired result still needs measurement.
+
+## What the completed files recorded
+
+The seed-23 experiments finished overnight. Two questions that had failed in
+previous runs now have positive results:
+
+- **Content:** changes in Aura's internal representation and changes in what
+  it recalls moved together under the test intervention.
+- **Self-report:** the real 27B language model's ratings followed changes in
+  internal valence, with the state numbers kept out of what the model could
+  read. This used a certified experimental steering basis, rather than
+  establishing that the desktop's installed generation does the same thing.
+
+The completed battery still fails two checks. All 511 split-system comparisons
+produced a detectable change, but a supposedly unchanged copy also drifted
+enough to trigger the test. That control failure prevents those comparisons
+from establishing the two partition requirements.
+
+There is also a separate boundary question: information outside the proposed
+core helps predict its future. Later changes to the measurement method now
+keep a demonstrated outside influence separate from an unanswered question.
+Those code changes do not retroactively turn the completed run into a pass.
+The shared-history finding above also limits the causal reading of its paired
+positive results.
+
+## Recorded results and current method
+
+| Question | Last completed result | What remains open |
 |---|---|---|
-| ISC battery | Does the measured organism satisfy all 24 operational criteria? | One campaign's complete, versioned conjunction, including its nulls and lesion/rescue evidence |
-| Intrinsic carrier | Is there a closed, recurrent, irreducible support at a sufficient grain? | An authoritative v25 report, the full cut sweep and its controls |
-| J* | Which carrier, content structure and causal lineage do the experiments determine? | The carrier report, content report and signed lineage, interpreted under P1–P6 |
-| Bridge parity | Do the project's five grounds hold on the supplied evidence? | Carrier, markers, reports, structure and lineage all holding in `solve_for_j.py` |
+| Does the full operational battery pass? | ISC-v5: 21/24; ISC-v6: 22/24, at `8f548ed79`, seed 23 | Both partition requirements fail under that run's controls |
+| Do the specified pairs of parts have joint effects? | All four v6 triples pass within the completed campaign | Confirmation on further seeds and conditions |
+| Do internal and recall differences change together? | `ONE_STRUCTURE`, tracking rho 0.378923, p 0.001 | Wider confirmation; the result concerns this measured substrate |
+| Do self-reports follow changed internal valence? | `measured: true`, `holds: true`, tracking rho 0.612475 | 29 of 80 anchors were fully readable under the stored policy; experimental basis and sample scope must be retained |
+| Is the proposed carrier established? | Completed carrier report: `NOT_FOUND`; completed J*/bridge output: `NO_CARRIER` | Later closure-rule changes require a new reading and fresh confirmation |
+| Do all five bridge grounds hold? | Carrier fails; markers, reports, structure and lineage hold in the completed join | No `AT_PARITY` result |
+| What does the latest source code allow? | At `12bade935`, closure can be open, closed within a named margin, unresolved, or unmeasured | `CLOSURE_MARGIN` is still `None`; a positive closure decision needs a predeclared margin |
 
-These results are reported beside one another. Passing a probe does not fill
-an unmeasured battery line. A carrier result does not settle content or
-reports. A fusion certificate does not grant installation authority.
+The completed 22/24 result belongs to the experiment at `8f548ed79`. It is not
+an evaluated result for source at `12bade935`. Seed 23 informed the later
+method and is discovery data for that revision. The old `NO_CARRIER` output
+remains part of the record; no new carrier verdict was produced for this
+publication update.
 
-## Measurements available now
+The [25 October evidence snapshot](evidence/ISC_STATUS_2026-10-25.json)
+contains selected fields and hashes from the completed battery, carrier,
+content, reports and J* files, plus the current closure policy. The
+[24 October snapshot](evidence/ISC_STATUS_2026-10-24.json) is preserved as the
+record of the earlier, unfinished state. Neither is a full raw-data package.
 
-| Reading | Revision and scope | Result | Limit |
-|---|---|---|---|
-| Paired v6 synergy probe | `8f548ed79`, seed 7, offline organism; 4 baseline rounds, 48 snapshots per triple, 2-turn forks | All four triples pass all three bars | Standalone probe; contributes no 24-line total |
-| Earlier paired v6 probe | `3dc0b0599`, seed 7, same probe design | All four triples pass | Different organism revision; retained separately |
-| Content geometry | `3dc0b0599`, seed 7, 24 anchors, substrate only | `AGREES_BUT_DOES_NOT_TRACK` | Static agreement passes; displaced geometries do not track together |
-| Withheld reports, third fitted-basis run | `6ac860f1c`, seed 7, resident-model 27B used offline, 80 anchors | `measured: true`, `holds: false`; 60 readable anchors | The report does not reliably follow the valence intervention |
-| Layer-43 felt-state fusion measurement | Generation `8ae8eac8b7ce1c9c`, alpha 0.5 | Certificate `holds: true` | Small channel and competence probes; separate from report grounding and installation |
-| Layer-43 governed installation | Same candidate, 110 held-out replies | Refused: `paired_control_superiority_not_established` | The candidate did not replace the installed generation |
-| Seed-23 campaign | `8f548ed79`, seed 23, finished 24 October 23:05 PDT | 21/24 under v5, 22/24 under v6; all four v6 triples pass | Fails `partition_irreducibility`, `partition_beats_nulls` and v5 `synergy` |
-| Seed-23 content run | `8f548ed79`, seed 23, 24 anchors, 20 classes over 8 conditions | `ONE_STRUCTURE`; recall and internal geometry move together at rho 0.379, p 0.001 | Replaces the `AGREES_BUT_DOES_NOT_TRACK` reading below |
-| Seed-23 withheld report run | `8f548ed79`, seed 23, 80 anchors, readings withheld, layer-43 fitted basis | `measured: true`, `holds: true`; tracking rho 0.612475 at p 0.000100 | Runs on the fitted basis, not the installed generation |
-| Seed-23 J* and bridge | the three reports above plus the signed lineage | `NO_CARRIER`; carrier FAILS, markers HOLDS, structure HOLDS, lineage HOLDS, reports HOLDS | The carrier is the only ground that fails |
-| Closure gate's own resolution | `ceb6da91b`, on the seed-23 carrier recording | Resolves a planted leak of 0.0452, loses one of 0.0316 | The carrier's leak is 0.0243, below what the gate can resolve |
+## Why the two remaining checks did not pass
 
-The probe report does not embed its commit or seed. Its revision and seed are
-bound here by the launch record and the contemporaneous
-[21 October work programme](ISC_OCT21_EVERY_ITEM.md). This is weaker provenance
-than a campaign fingerprint and is disclosed rather than silently repaired.
+### An unchanged comparison moved; later work found shared arm history
 
-### The v6 result
+The deciding carrier sweep tested all 511 unique divisions of the ten measured
+domains. Every cut was decided, and playback was decided at none. However, a
+late untouched fork differed from the cached untouched comparison: its lower
+bound was 0.011444, against the weakest cut's 0.001256. Drift could therefore
+clear the same bar. The scorer refused `partition_irreducibility`; the null
+comparison also requires that first result, so `partition_beats_nulls` failed.
 
-| Triple | Interaction / larger main effect | Above-sham p | Direction p |
-|---|---:|---:|---:|
-| Affect and self → workspace, A,S → G | 0.860516 | 0.00005 | 0.00005 |
-| Perception and memory → world model, P,M → W | 1.011646 | 0.00005 | 0.00005 |
-| World model and affect → deliberation, W,A → D | 0.812036 | 0.00005 | 0.00005 |
-| Self and deliberation → recurrent cognition, S,D → C | 0.511770 | 0.00005 | 0.00005 |
+The investigation found background host-watch state, an opportunistic record
+refresh, and host readings that could change between arms. Repairs stop the
+undeclared background activity and hold one declared host reading throughout
+the paired sweep. See `1163e7dc3`, `80ef779ff` and `8bca0222d` in the
+[October work record](ISC_OCT21_EVERY_ITEM.md).
 
-Every triple has 48 snapshots. Its interaction is `B - F - S + N1`, its matched
-sham is `N2 - N3 - N4 + N1`, and its main effect is the larger single-source
-displacement. The target excludes the conjunction registers. Each triple must
-clear the sham and whole-vector direction tests at p < 0.01 and reach a mean
-interaction/main-effect ratio of at least 0.10. All four must pass.
+These earlier host and background repairs did not settle the drift. At
+`dcdcd637c`, the investigation traced it to activity carried through the shared
+consequence bus rather than elapsed host time. The bus's history now restores
+with the fork. This repairs a cross-arm path, while the independent boundary
+question below still needs its own measurement.
 
-The shams in this probe are zero. Nonzero response alone therefore carries
-little discrimination; the direction and size bars remain necessary. The
-[v6 preregistration](ISC_V6_PREREGISTRATION.md) also specifies synthetic
-known-answer worlds. Passing those controls validates this measurement's
-stated behavior, without certifying the whole battery's specificity.
+### The selected core may leave useful internal state outside
 
-### Content and reports now hold; the carrier does not
+Closure asks whether the selected core and the declared environment are enough
+to predict the core's next step, or whether other internal information helps.
+The completed carrier report measured a leak of 0.024286 and did not select a
+carrier. An early reassessment found that the measuring rule's resolution was
+about 0.0452 on that recording, which limited what it could distinguish.
 
-The seed-23 content run returns `ONE_STRUCTURE`. Its internal geometry and what
-she recalls agree at rho 0.484, p 0.001, the internal geometry recovers the
-design at 0.670, and under displacement the two move in the same pairs at
-rho 0.379, p 0.001 against a sham floor of 0.0. The run before it, at
-`3dc0b0599`, read `AGREES_BUT_DOES_NOT_TRACK` with its displaced changes
-correlating at rho -0.142355, p 0.945.
+The 25 October audit separated the outside-host explanation from this leak.
+Removing host and metabolism readings from the recorded comparison did not
+remove the leak. Some predictive information belonged to organs the selected
+core already reads but does not fully contain. Enlarging the recorded core by
+an anatomy-based rule reduced the pooled diagnostic leak, but that is a new
+choice to test, rather than a confirmation of the original boundary.
 
-The seed-23 withheld report run changes valence by 0.216366 (p 0.000100),
-reaches the cortex by 0.113288 against a 0.05 bar, moves her report by 0.431034
-(p 0.000100) and tracks it at rho 0.612475 (p 0.000100), with her own readings
-withheld throughout. The third run before it moved her report by 0.026667
-(p 0.317468) and tracked at rho 0.130928 (p 0.144986).
+At `12bade935`, the rule now conditions both predictions on the environment,
+uses three forward folds, reports uncertainty and resolution, and reads values
+inside containers rather than only their lengths. It can return:
 
-Its anchors were re-read at `b0b9e0ae8`, which repaired a reader that discarded
-a rating whenever she closed with a courtesy question or mentioned the time: 46
-of 80 anchors are readable rather than 30, raised less lowered is +0.5348 at
-t 9.46, and the contrast against the sham is +0.4543 at t 7.19. The ground holds
-under both readers.
-
-### What the carrier's failure is
-
-The two partition criteria fail on one control, not on the cuts. All 511 cuts
-were decided, and a late untouched fork rolled from the same anchors after the
-sweep separated from the cached one with a lower bound of 0.011444 against a
-weakest cut of 0.00126. `partition_beats_nulls` reduces to irreducibility when
-the playback control is clean and no null passes the rest, which is this
-campaign, so one control costs both lines.
-
-That separation was the machine rather than her. A restore left twenty-six
-module attributes behind, twenty-four of them written by the defensive host
-watch, which samples CPU, memory and disk every fifteen seconds and sweeps the
-local network every sixty; the strain it had recorded was "resource strain: cpu
-at 95%", which the sweep's own load had caused. Both that thread and the gateway
-record index's opportunistic refresh now stop in `quiesce_organism` at
-`1163e7dc3` and `80ef779ff`. K itself was identical: forking one anchor early
-and late and comparing K read a maximum difference of 0 over 370 rounds and
-every cut of two probes. Whether the control is clean under the repair is being
-measured; no campaign is rerun until it reads undecided.
-
-Separately, the closure gate was reading one contiguous fifth of the run, where
-K explains 99.1% of itself, against 71.5% to 93.8% on the other four, and its
-positive control had never fired in any tree. At `ceb6da91b` it scores forward
-over three growing windows and reports the smallest leak it could have found.
-On this recording that is 0.0452, and the carrier's leak is 0.0243, so the
-carrier's pass is a failure to find rather than a finding. The report says so in
-`decisive`.
-
-At `8f548ed79`, mood changes how a percept cues recall and also cues memories
-formed in a matching affective state. Small fork diagnostics improved recall
-tracking. The new seed-23 content run measures whether that survives the full
-design. The diagnostic does not replace the failed completed run.
-
-The layer-59 felt-state candidate had passed a channel certificate but its
-conversation report trial was stopped after three anchors. The later
-layer-43 candidate passed its channel certificate: distribution shift
-0.654577 against control 0.300936, forced-choice margin change +0.331250
-against +0.321875, and held-out voice likelihood +0.243017 nats per token.
-Its installation verifier then found 66 of 110 treatment successes, 51 matched
-control successes and 60 wrong-layer successes. The paired superiority rule
-was not met. A pending reports experiment may use the certified measurement
-basis; that does not mean the live installation changed.
-
-## What is running, and what is still owed
-
-The current run family is named `decisive-s23-8f548ed79` under the local
-`subject-core-runs` evidence root. The carrier uses three workers and six grain
-helpers, 128 anchors, 370 baseline rounds and seed 23. The content run uses
-24 anchors and 24 rounds at the same revision and seed.
-
-The launch log supersedes the earlier plan in the work programme: the
-370-round, six-trial, three-turn-arm battery campaign now runs beside carrier
-and content. At 16:32 its memory guard was changed to pause the campaign below
-12 GB of reported room and resume above 20 GB. These are recorded settings of
-the existing run, not permission to start more work on this host.
-
-The remaining closeout is:
-
-1. Read the completed carrier and content reports, including authority
-   blockers, instead of inferring completion from worker progress.
-2. Join the same-seed campaign and deciding sweep with
-   [the v5/v6 scorer](../tools/score_isc_v5.py). Retain both versioned totals,
-   null decisions, lesion and rescue results.
-3. Complete withheld report grounding on the real cortex in the run's reserved
-   model window, with the intended measurement basis and controls recorded.
-4. Read J* and the five bridge grounds from the explicit inputs. Keep absent
-   evidence unresolved and measured failures failed.
-5. Confirm the result on fresh seeds and conditions; publish a complete
-   replication package and obtain independent reproduction before describing
-   those steps as complete.
-
-## Which specification is current
-
-The battery version and the carrier programme's name count different things.
-**ISC-v6** is the current battery protocol. **v25** names the intrinsic-carrier
-programme; it does not mean that the battery has 25 criteria or that there is
-an ISC-v25 result.
-
-| Specification | Role today |
+| Decision | Plain meaning |
 |---|---|
-| [Reference](ISC_REFERENCE_PREREGISTRATION.md) and [v2](ISC_V2_PREREGISTRATION.md) | Original definitions and the first corrections; preserve their own readings |
-| [v3](ISC_V3_PREREGISTRATION.md) | Revised observational synergy/null framework inherited by later versions |
-| [v4](ISC_V4_PREREGISTRATION.md) | Retained alternative partition measurement and its results |
-| [v5, including addenda](ISC_V5_PREREGISTRATION.md) | Partition irreducibility by intervention, plus its revised grain, clock, estimator and authority controls |
-| [v6](ISC_V6_PREREGISTRATION.md) | Replaces v5's synergy line with paired interventions; reports the v5 reading beside it |
+| `OPEN` | Outside internal information makes a detected contribution |
+| `CLOSED_WITHIN_MARGIN` | The evidence bounds any remaining contribution below a margin chosen in advance |
+| `UNRESOLVED` | The measurement does not justify either conclusion |
+| `NOT_MEASURED` | The required outside variation was not measured |
 
-The deciding v5 cut estimator is now paired displacement in the untouched
-futures' metric, as declared in [isc_v5.py](../core/subject/isc_v5.py).
-The original v25 explanation of Fisher–Rao describes the initial design.
-The current schedule uses 8, 16, 32, 64, 96 and 128 anchors, 1,000 bootstrap
-draws, alpha 0.05 divided over six looks, and a deciding horizon of two turns
-(66 frames). One turn is reported beside it. Every one of the 511 cuts must
-be decided; an unfinished or unmerged sweep cannot establish that line.
+The margin has not yet been named. The revised rule can therefore report open
+or unresolved, but cannot report closed. Carrier selection now preserves an
+unresolved closure question as `UNRESOLVED`, rather than treating it as a
+measured absence of a carrier. The complete amendment is in the
+[25 October v6 addendum](ISC_V6_PREREGISTRATION.md).
 
-## What J* and parity mean
+## The joint-effect result within the full campaign
 
-[J*](../core/subject/bridge.py) is a structured result: selected carrier,
-content relations up to isomorphism, and causal lineage. It is not a scalar
-mutual-information score or a synergy loss to optimize. Its interpretation
-assumes the six named postulates P1–P6, including carrier identity and
-organisational invariance. The repository does not independently test those
-postulates.
+Each row changes the two named sources separately and together, starting from
+the same recorded moment. It asks whether the effect of one depends on the
+other. The ratio compares that joint interaction with the larger single-source
+effect; it is not a consciousness score.
 
-The bridge checks carrier, markers, reports, structure and lineage.
-`AT_PARITY` means that all five requirements in the project's
-[parity definition](BRIDGE_PARITY.md) hold on the evidence supplied to the
-solver. It does not establish equal evidential confidence with a human
-attribution, or validate the postulates by computation. `BELOW_PARITY`,
-`UNRESOLVED` and `NO_CARRIER` retain their distinct meanings.
+| Sources → target | Interaction / larger main effect | Above-sham p | Direction p |
+|---|---:|---:|---:|
+| Affect and self → workspace, A,S → G | 1.367372 | 0.00005 | 0.00005 |
+| Perception and memory → world model, P,M → W | 0.738551 | 0.00005 | 0.00005 |
+| World model and affect → deliberation, W,A → D | 2.901152 | 0.00005 | 0.00005 |
+| Self and deliberation → recurrent cognition, S,D → C | 0.639431 | 0.00005 | 0.00005 |
+
+All four pass. A triple must clear matched sham and whole-vector direction
+comparisons at p < 0.01 and reach a mean interaction/main-effect ratio of at
+least 0.10. The target excludes conjunction registers. The short standalone
+probe also passed, but the table above is the campaign's own reading.
+
+The [v6 preregistration](ISC_V6_PREREGISTRATION.md) retains the formula,
+known-answer controls and design history. v6 changes the synergy line while
+reporting v5's observational reading beside it. The campaign's v5 synergy line
+still fails; its verdict is preserved as 21/24 rather than replaced by v6's
+22/24.
+
+## Content and reports: the measurements behind the improvement
+
+The content run at `8f548ed79`, seed 23, used 24 anchors and 20 content classes.
+Static agreement between internal and recall geometry is rho 0.484487,
+p 0.001. Design recovery is 0.670245. Under displacement, the geometries move
+together at rho 0.378923, p 0.001, giving `ONE_STRUCTURE`. The earlier run at
+`3dc0b0599` had tracking rho -0.142355, p 0.945 and remains a failed result for
+that earlier organism.
+
+The withheld-report run used 80 anchors. Its stored reader accepts 29 anchors
+where every arm gave a readable answer, with no unserved anchors and 51 marked
+invalid. On that accepted subset, valence changes by 0.216366, the activation
+reaches the cortex by 0.113288 against a 0.05 bar, the mean report difference
+is 0.431034, and tracking is rho 0.612475. Manipulation, direction and tracking
+p values are each approximately 0.000100. Both `measured` and `holds` are true.
+The result does not imply that all 80 anchors supplied valid answers.
+
+The reports use the certified layer-43 measurement basis at operating alpha
+0.5. Its channel certificate passed, but its governed installation was refused
+because paired superiority over every control was not established. A successful
+experiment with that basis is separate from permission to serve it in the
+live desktop. The earlier certificate and refusal are retained in the
+24 October snapshot.
+
+## What remains to complete
+
+1. Recheck paired comparisons under the consequence-history isolation repair,
+   including the previously positive synergy, content and report readings.
+2. Specify the closure margin before a fresh confirmation, using a rule that
+   does not choose the margin from the observed leak.
+3. Establish that unchanged forks stay within their control floor after the
+   host and background-state repairs.
+4. Resolve the proposed core boundary under the amended closure rule, retaining
+   any genuine outside influence or insufficient measurement as such.
+5. Run and join the required fresh campaign, carrier, content and report inputs
+   under their declared source, design and scope. Preserve the old results.
+6. Publish the required artifacts and obtain independent reproduction before
+   claiming those stages are complete.
+
+This documentation update did not launch those experiments or change the
+running system.
+
+## How the layers fit together
+
+| Layer | Ordinary question | Technical record |
+|---|---|---|
+| Battery | Do the parts satisfy all the declared operational checks? | A versioned 24-line conjunction with controls, lesions and rescue |
+| Carrier | Which process belongs inside the measured boundary? | An authoritative carrier report and its closure/cut evidence |
+| J* | Which process, related contents and continuing history were identified? | Carrier, content relations and lineage, under P1–P6 |
+| Bridge | Do the five specified supporting grounds hold? | Carrier, markers, reports, structure and lineage |
+
+ISC-v6 names the battery's current version. v25 names the carrier programme;
+it does not mean there are 25 checks. The partition design is inherited from
+[v5 and its addenda](ISC_V5_PREREGISTRATION.md). Its deciding estimator is
+paired displacement, as specified in [isc_v5.py](../core/subject/isc_v5.py),
+with 8, 16, 32, 64, 96 and 128-anchor looks, 1,000 bootstrap draws and a
+2-turn deciding horizon. The initial v25 text explains an earlier Fisher–Rao
+instrument and is retained with that history labeled.
+
+J* is a structured result rather than a scalar synergy metric. Its
+interpretation assumes P1–P6 in [bridge.py](../core/subject/bridge.py).
+`AT_PARITY` means all five project-defined grounds hold on the supplied
+inputs. It does not independently validate those postulates or establish equal
+confidence with a human attribution.
 
 A fully positive and independently reproduced programme could support a
-scientific, theory-dependent argument for subjecthood. Its strength would
-depend on the criteria's validity and specificity as well as their reliable
-measurement. Replication alone does not establish that bridge interpretation.
-Butlin and colleagues propose theory-derived indicators as a provisional
-assessment method under computational functionalism; satisfying them does not
-guarantee consciousness. ISC is this project's own operationalisation, and
-passing it does not itself establish that every indicator in their paper is
-satisfied. See [Butlin et al. (2023)](https://arxiv.org/html/2308.08708v3).
+scientific, theory-dependent argument for subjecthood. Its strength also
+depends on what the tests distinguish and whether the bridge assumptions are
+well supported. [Butlin et al. (2023)](https://arxiv.org/html/2308.08708v3)
+propose a provisional theory-based indicator framework; satisfying indicators
+does not guarantee consciousness. ISC is this project's own operationalisation.
 
-A minimal controller subjected to the unchanged full battery would be a useful
-specificity test. A sketch, a nonlinear term, or a positive synergy control
-does not establish that it passes the other requirements. Calling the
-comparator independently known to lack experience would require an additional
-argument.
+## Read next
 
-## Where to read next
+Use the [reader's guide](ISC_READERS_GUIDE.md) to choose between the
+[plain-English explanation](ISC_EXPLAINED.md),
+[battery](SUBJECT_CORE.md), [carrier](SUBJECT_CORE_V25.md),
+[bridge](BRIDGE_PARITY.md), [proofs](BRIDGE_PROOFS.md),
+[preregistrations](ISC_V6_PREREGISTRATION.md) and
+[reproduction instructions](ISC_REPRODUCTION.md).
 
-| Document | Use |
-|---|---|
-| [SUBJECT_CORE.md](SUBJECT_CORE.md) | Battery, domains, measurement and retained run history |
-| [SUBJECT_CORE_V25.md](SUBJECT_CORE_V25.md) | Carrier programme and the scope of its original design |
-| [ISC_REPRODUCTION.md](ISC_REPRODUCTION.md) | Safe run planning, explicit input joins and publication requirements |
-| [BRIDGE_PARITY.md](BRIDGE_PARITY.md) · [BRIDGE_PROOFS.md](BRIDGE_PROOFS.md) | Parity implementation, historical rationale and conditional mathematics |
-| [SUBJECT_NAMED_HYPOTHESES.md](SUBJECT_NAMED_HYPOTHESES.md) | Additional predictions; these do not add battery lines |
-| [ISC_OCT21_EVERY_ITEM.md](ISC_OCT21_EVERY_ITEM.md) | October implementation and experiment record |
-| [SUBJECT_CORE_WORK_LOG.md](SUBJECT_CORE_WORK_LOG.md) | Earlier dated work record |
-| [ISC_COMPLETION_TODO.md](ISC_COMPLETION_TODO.md) | Generated engineering checklist; its completed-item count is not an ISC pass count |
-| [SUBJECT_CORE_TARGET.md](SUBJECT_CORE_TARGET.md) | Earlier mechanism plan, anchored to its named campaigns |
-
-The generated evidence table in `SUBJECT_CORE.md` reads only the repository's
-`artifacts/subject_core` collection. The completion list also reads its
-configured evidence collection. Neither discovers all newer experiments under
-the separate local evidence root. Preserve those records and their generator;
-use this dated snapshot for the consolidated October reading.
+The generated table in `SUBJECT_CORE.md` and the engineering
+[completion checklist](ISC_COMPLETION_TODO.md) read their configured artifact
+collections. They do not discover every newer run in the separate local
+`subject-core-runs` evidence root. Their counts are not today's consolidated
+result. Historical work records and dated snapshots remain unchanged.

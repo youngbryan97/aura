@@ -1,0 +1,29 @@
+{
+  "schema": "aura.isc.documentation_isolation_update.v1",
+  "captured_at_utc": "2026-10-25T19:40:20+00:00",
+  "source_commit": "dcdcd637cbbb02b8804f392ad8ac74898a3891f5",
+  "affected_recorded_campaign": "8f548ed79 seed 23",
+  "finding": "Paired experiment arms shared the runtime consequence-bus history. Restoring the recorded organism state did not rewind this history, so an arm could read consequences published by earlier arms.",
+  "repair": "Consequence history is now declared as machinery state that forks with the organism; process-local subscribers remain wiring.",
+  "evidence_scope": "Source implementation and the upstream regression test/diagnostic account. This documentation pass did not rerun the full experiment.",
+  "reported_diagnostic": "The upstream regression account reports zero K displacement through twelve churn cuts after the repair. This is a diagnostic, not a new campaign result.",
+  "interpretation": "Retain the recorded 22/24 and positive report/content outputs, but require rechecking under repaired isolation before treating paired results as clean causal confirmation.",
+  "fresh_campaign_result_included": false,
+  "source_files": [
+    {
+      "path": "core/runtime/consequence_bus.py",
+      "sha256": "bf1a806154fc02d7e2a3de0b83e18dac2c22ba82e716f7a95f67bac7e691399a",
+      "bytes": 9864
+    },
+    {
+      "path": "core/subject/snapshot.py",
+      "sha256": "74f307e7a44daf409db8825f3b8104b88f7da38e21762951bfa0b79daab5cd98",
+      "bytes": 85826
+    },
+    {
+      "path": "tests/test_a_fork_rewinds_the_consequences_she_reads.py",
+      "sha256": "bff8f208830f5c1e46e48122bb82a7292ee2f73067fb1621efd52db8f73dadc9",
+      "bytes": 4077
+    }
+  ]
+}

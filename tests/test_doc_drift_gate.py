@@ -33,6 +33,18 @@ def test_preregistered_protocol_is_not_rewritten_for_moved_modules():
     assert "docs/ISC_V5_PREREGISTRATION.md" not in gate.tracked_docs()
 
 
+def test_an_evidence_filename_is_not_an_environment_variable(scan):
+    assert "env_var_has_no_reader" not in scan(
+        "Recorded in `~/.aura/audit-exports/AURA_EVALUATION_2026-10-17.md`."
+    )
+    assert "env_var_has_no_reader" in scan("Set `AURA_NO_SUCH_READER=true`.")
+
+
+def test_a_keychain_service_label_is_not_a_python_class(scan):
+    assert "symbol_not_defined" not in scan("Keychain service `AuraAutonomyEngine`.")
+    assert "symbol_not_defined" in scan("Call `AuraFabricatedEngine`.")
+
+
 @pytest.fixture
 def scan(tmp_path, monkeypatch):
     """Scan one document written into a scratch copy of the repo root.

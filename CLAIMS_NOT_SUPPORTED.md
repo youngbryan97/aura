@@ -1,5 +1,15 @@
 # Aura: Unsupported Claims Ledger
 
+<!-- reader-navigation:start -->
+> **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
+>
+> **Why it matters:** A user needs to distinguish a built mechanism, a passing local test and a demonstrated useful capability.
+>
+> **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 This is the list of things Aura does not do.
 
 Every project has things it cannot do. Most projects never write them down. That is how a quick demo turns into an exaggerated claim that no one can walk back. Each entry below is marked either:

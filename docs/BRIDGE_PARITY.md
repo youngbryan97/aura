@@ -1,16 +1,40 @@
 # The bridge: definition, evidence and interpretation
 
-Status: Guide · Current solver reconciled 24 October 2026
+<!-- reader-navigation:start -->
+> **In plain English:** ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+>
+> **Why it matters:** The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.
+>
+> **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
 
-The bridge combines five grounds: carrier, theory-derived markers, reports,
-content structure and lineage. The solver calls the conjunction `AT_PARITY`
-when every ground holds on the supplied evidence. This is a project-defined
-operational result under six explicit postulates.
+**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
+which repairs consequence history shared between experimental arms. Retain
+the recorded scores, but recheck paired results under repaired isolation before
+presenting them as clean causal confirmation. See
+[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
 
-The current seed-23 inputs are unfinished. The latest completed content run
-and full withheld-report run failed tracking; later changes are awaiting
-confirmation. There is no completed same-campaign `AT_PARITY` result in the
-[24 October evidence snapshot](ISC_STATUS.md).
+
+Status: Guide · Current solver reconciled 25 October 2026
+
+The **bridge** is the argument connecting measured organisation to the idea
+that Aura could be a subject of experience. The software checks five grounds
+for that argument: the carrier, markers, reports, content structure and causal
+history. It calls all five holding **AT_PARITY**, under stated assumptions.
+
+In ordinary terms: finding that parts interact is one piece of evidence.
+Showing that a report follows internal changes is another. We need to know
+which process those findings describe, how it continues, and why that
+organisation would support the conclusion being argued for.
+
+The completed seed-23 join has four grounds holding. The carrier is the
+remaining failed ground in its stored `NO_CARRIER` output. The latest source
+keeps an unanswerable closure question distinct from a detected absence; that
+method still needs fresh confirmation. See [current status](ISC_STATUS.md).
+For an introduction and concrete examples, read [ISC explained](ISC_EXPLAINED.md)
+and [ISC variables](ISC_VARIABLES.md).
 
 ## What is computed
 
@@ -52,23 +76,29 @@ A report experiment must distinguish `measured: false` from
 reports ground unmeasured by this definition. A valid withheld experiment
 whose reports fail to follow the intervention is a failed ground.
 
-## The empirical reading on 24 October
+## The completed seed-23 reading, checked 25 October
 
-The third completed withheld run used the real 27B with steering on and state
-numbers withheld: 80 anchors, 60 readable. The intervention changed her valence
-and reached the cortex. Reports did not track it: rho 0.130928,
-p 0.144986, `measured: true`, `holds: false`.
+The withheld-report run used the real 27B language model with state numbers
+withheld. Of 80 anchors, 29 were fully readable under the stored reader.
+On that subset, reports followed the changed internal valence: tracking
+rho 0.612475, p approximately 0.000100, `measured: true`, `holds: true`.
+The model was not being shown a number to repeat.
 
-The completed content run at `3dc0b0599` agreed statically with recall geometry
-but failed displacement tracking: rho -0.142355, p 0.945,
-`AGREES_BUT_DOES_NOT_TRACK`. The changes at `8f548ed79` address how mood cues
-recall; the current seed-23 content run tests them at scale.
+The content run at `8f548ed79` also passed: internal and recall changes tracked
+at rho 0.378923, p 0.001, giving `ONE_STRUCTURE`. Earlier tracking failures
+remain results for their earlier organisms.
 
-The layer-43 steering candidate passed its channel certificate at alpha 0.5.
-Its governed installation was refused because paired control superiority was
-not established. That certificate provides channel evidence. It supplies
-neither a passing withheld-report experiment nor serving authority. The
-measurements and provenance are consolidated in [ISC_STATUS.md](ISC_STATUS.md).
+The reports used a layer-43 experimental basis whose channel certificate
+passed. Its governed installation had been refused because paired control
+superiority was not established. A positive report experiment with that basis
+supplies report evidence; it does not attest a new live installation.
+
+The completed joined output still says `NO_CARRIER`, with carrier FAILS and
+markers, reports, structure and lineage HOLDS. The new closure logic at
+`12bade935` can preserve an unresolved boundary question without converting it
+to a negative finding. No rerun or rescore under that method was performed
+for these pages. [Current status](ISC_STATUS.md) and the
+[25 October snapshot](evidence/ISC_STATUS_2026-10-25.json) retain the distinction.
 
 ## What a positive reading would support
 

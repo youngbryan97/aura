@@ -1,18 +1,39 @@
 # The Intrinsic Subject Core battery
 
-Status: Guide · Current reading reconciled 24 October 2026
+<!-- reader-navigation:start -->
+> **In plain English:** ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+>
+> **Why it matters:** The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.
+>
+> **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
 
-ISC tests whether Aura's measured state forms one persistent, differentiated,
-reentrant causal process with a self/world/action loop. It is a conjunction of
-24 operational criteria. One failure or unmeasured requirement prevents a full
-pass.
+**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
+which repairs consequence history shared between experimental arms. Retain
+the recorded scores, but recheck paired results under repaired isolation before
+presenting them as clean causal confirmation. See
+[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
 
-**Current result:** the standalone four-triple ISC-v6 synergy probe passes at
-`8f548ed79`. The same-revision seed-23 campaign and carrier sweep are running;
-a completed 24/24 result is not available. The latest completed content and
-whole-cortex withheld-report runs failed intervention tracking. Read
-[ISC_STATUS.md](ISC_STATUS.md) for their measurements, the new mechanisms and
-the exact evidence boundary.
+
+Status: Guide · Current reading reconciled 25 October 2026
+
+ISC is a 24-check experiment asking whether Aura's memory, attention,
+self-state, planning and other measured parts work together as one continuing
+process. Every required check must pass; a missing measurement stays open.
+
+New to the project? Start with [ISC explained](ISC_EXPLAINED.md). For symbols,
+worked examples and the practical meaning of numbers, use
+[ISC variables](ISC_VARIABLES.md).
+
+**Latest completed result:** 22/24 under ISC-v6 at `8f548ed79`, seed 23.
+The separate content and withheld self-report tests also passed. The two
+partition checks did not pass because an unchanged comparison drifted enough
+to trigger the test. The proposed carrier also needs a reliable boundary
+measurement. The revised closure method at `12bade935` needs a predeclared
+margin and fresh confirmation; it does not change the old result. See
+[current status](ISC_STATUS.md) for the evidence.
 
 ## Current document map
 

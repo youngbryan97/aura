@@ -1,5 +1,15 @@
 # Installation
 
+<!-- reader-navigation:start -->
+> **In plain English:** Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
+>
+> **Why it matters:** A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.
+>
+> **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Requirements
 
 - macOS on Apple Silicon (M-series chip).

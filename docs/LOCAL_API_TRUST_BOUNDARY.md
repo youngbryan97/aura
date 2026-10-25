@@ -1,5 +1,15 @@
 # Aura Local API Browser Trust Boundary
 
+<!-- reader-navigation:start -->
+> **In plain English:** Security describes what information may cross a boundary and what untrusted input is allowed to influence.
+>
+> **Why it matters:** An assistant sees documents, websites and tool results that can contain instructions it should not treat as permission from the user.
+>
+> **In everyday use:** A web page telling the assistant to reveal a private file must remain page content rather than becoming an instruction to send the file.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#security) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#security) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Status: Checkpoint 88 is pushed on `main` at `5a56bea5`. The reported
 tokenless DNS-rebinding bypass is covered by deterministic regressions. This
 document defines one bounded interface control; it is not a claim that the

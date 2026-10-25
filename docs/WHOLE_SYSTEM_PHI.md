@@ -1,5 +1,15 @@
 # Whole-system Φ — answering "φ is a telemetry signal, not a consciousness meter"
 
+<!-- reader-navigation:start -->
+> **In plain English:** ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+>
+> **Why it matters:** The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.
+>
+> **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 **Modules:** `core/consciousness/integrated_information.py` (math),
 `core/consciousness/perturbational_probe.py` (internal PCI),
 `core/consciousness/whole_system_phi_service.py` (live host)
@@ -19,9 +29,9 @@ the full counterfactual state space; a 16-node binary model is already at
 the hand-built ceiling). That intractability is intrinsic, not an
 engineering gap.
 
-So this does not pretend to compute exact Φ. It implements the **strongest
-honest position that is actually computable**, and ships every number with
-the evidence that lets a reader judge it.
+The current implementation estimates integration in the measured
+macro-dynamics. It reports the estimator, search limits and uncertainty so
+the reader can judge the calculation. It does not compute exact IIT 4.0.
 
 ## What changed, concretely
 
@@ -29,8 +39,8 @@ the evidence that lets a reader judge it.
 |---|---|
 | 16 hand-picked nodes | **all live channels** the runtime exposes (affect, will, unity, survival, covenant integrity, body, state) |
 | binarize → 2^16 toy TPM | **continuous** Gaussian dynamics — no binarization at the primary rail |
-| spectral MIP *approximation* | **exact** MIP by Queyranne's algorithm (O(n³), verified against brute force) |
-| complex *assumed* to be the 16 nodes | complex **discovered** by grain search (causal emergence) |
+| spectral MIP *approximation* | **exhaustive** minimum search for ≤12 elements; labelled candidate search and local refinement above that limit |
+| complex *assumed* to be the 16 nodes | measurement grain **selected** by a held-out search; this is not proof of an IIT conscious complex |
 | a single φ scalar | Φ̂ **+ surrogate null + bootstrap CI + diagnostics + named estimator + bounded claim** |
 | passive correlation | optional **causal** grounding via governed self-perturbation (internal PCI) |
 
@@ -38,21 +48,29 @@ the evidence that lets a reader judge it.
 
 **A — whole-system continuous Φ.** Fit a lagged Gaussian over the full
 channel matrix; integrated information is the *stochastic interaction*
-SI = Σₖ h(Mₖ,ₜ|Mₖ,ₜ₋₁) − h(Xₜ|Xₜ₋₁) (Ay 2003; Barrett & Seth 2011). The
-minimum-information bipartition is found **exactly** by Queyranne's
-symmetric-submodular minimization — a real MIP in O(n³) oracle calls, not a
-heuristic. (`test_queyranne_matches_brute_force_on_random_systems` pins it
-to brute force across seeds.)
+SI = Σₖ h(Mₖ,ₜ|Mₖ,ₜ₋₁) − h(Xₜ|Xₜ₋₁). For the related time-series methods,
+see [Barrett and Seth (2011)](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1001052).
+The
+minimum-information bipartition is certified by exhaustive search for at most
+12 elements. Above that limit the code uses a Queyranne candidate with
+deterministic local refinement and reports that the minimum is not certified.
+[Queyranne's theorem](https://link.springer.com/article/10.1007/BF01585863)
+requires a symmetric **submodular** objective; stochastic interaction is not
+generally submodular. Agreement on random test cases cannot remove that
+assumption. See `test_mip_exactness_is_certified_only_after_exhaustive_search`
+in [the estimator tests](../tests/test_integrated_information.py).
 
 **B — grain discovery (causal emergence; Hoel/Albantakis/Tononi).** The
-complex is *derived*, not assumed: agglomerative coarse-grainings of the
-channels are searched, each scored against **its own** surrogate null (raw Φ
-is not comparable across dimensionalities; z is). The emergent grain is the
-one whose integration is most surely non-chance — macro may legitimately
-beat micro. (`test_grain_search_recovers_designed_macro_structure` builds 16
-noisy replicas of 4 coupled latents and recovers k=4.)
+measurement grain is selected from hierarchical coarse-grainings, each scored
+against its own surrogate null. The source selects on held-out integration per
+element and applies a family-wise surrogate test over the search. This is an
+adaptation motivated by [Hoel et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC3856819/),
+whose effective-information analysis is distinct from this score. A selected
+grain identifies a useful description under the stated method; it does not
+by itself identify a subject. The synthetic grain-recovery test is in
+[the estimator suite](../tests/test_integrated_information.py).
 
-**C — exact discrete Φ at the derived grain.** For ≤12 macro elements,
+**C — exhaustive discrete score at the selected grain.** For ≤12 macro elements,
 system integrated information is computed by **exhaustive** bipartition
 search over the empirical (and optionally interventional) transition
 distribution — exact where exactness is meaningful, state-averaged over
@@ -70,7 +88,24 @@ Will, domain STATE_MUTATION), reversible self-nudge, with the multichannel
 response scored by an internal PCI (Lempel-Ziv complexity of the significant
 sources — Casali et al. 2013, adapted to runtime telemetry).
 
-## The live evidence (checked in)
+[Casali et al. (2013)](https://pubmed.ncbi.nlm.nih.gov/23946194/) measured
+perturbational complexity in human brain recordings. Aura's software probe
+does not inherit that study's validation or clinical cutoffs. The
+[scientific source map](SCIENCE_AND_SOURCES.md) distinguishes this adaptation
+from the original human study and from
+[IIT 4.0's formal calculation](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1011465).
+
+For a practical picture, imagine several instruments recording an orchestra.
+The question is whether their time series contain dependencies lost when the
+instruments are treated separately. The picture explains integration of
+measurements; it does not make an integration score a measure of experience.
+
+## Recorded organ-host evidence (14 July 2026)
+
+The following numbers are the stored July record, not a new measurement of
+October source. Preserve that date and the `organ_host` scope when citing
+them. The current estimator/search description above supersedes the earlier
+unqualified claim of an exact Queyranne minimum.
 
 The July follow-up critique was correct: the unit suite validates the
 instrument, not the measurement. `tools/measure_whole_system_phi.py` closes
@@ -99,9 +134,10 @@ full Will gate stack incl. §9d, covenant seeds, AuraNow sampling) run
 headless with a declared realistic workload — NOT the full live mind (no
 27B cortex; the live instance is never touched by tooling). When the
 desktop instance is up, the same tool auto-selects `live_api` mode and
-samples the actual running mind read-only. That is the strongest
-measurement, one command away after a restart:
-`.venv/bin/python tools/measure_whole_system_phi.py --minutes 30`
+samples the running system read-only. Plan any later measurement under the
+[operational resource rules](../CLAUDE.md) and retain its actual mode.
+Documentation work does not authorise a restart, a model load or another
+organ-host process beside the live instance.
 
 ## What it actually says (run it yourself)
 

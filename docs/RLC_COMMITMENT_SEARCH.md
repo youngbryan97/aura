@@ -1,5 +1,15 @@
 # Commitment search: what to do when depth stopped working
 
+<!-- reader-navigation:start -->
+> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+>
+> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
+>
+> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Status: **measured. +11.3 points on 160 paired tasks (p=0.044), by REJECTION SAMPLING. Prompt-conditioned exclusion was measured and REFUTED.**
 Owner: `core/brain/llm/latent_cortex/commitment_*.py`, `sequential_exclusion.py`
 

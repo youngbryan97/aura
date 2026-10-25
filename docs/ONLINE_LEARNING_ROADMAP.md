@@ -1,5 +1,15 @@
 # Online Continuous Learning — Honest Roadmap
 
+<!-- reader-navigation:start -->
+> **In plain English:** Learning changes later behavior using earlier outcomes. A kept procedure is executable work retained for reuse under a defined checking rule.
+>
+> **Why it matters:** Experience should improve later work without accumulating unreliable shortcuts or expensive rules that no longer help.
+>
+> **In everyday use:** After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#learning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#learning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#learning) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 **Status:** engineering roadmap + claim boundaries. This document exists so we
 never *casually* claim "Aura learns continuously / online" in the strong sense.
 It states precisely what learning Aura does today, what is a bounded next step,

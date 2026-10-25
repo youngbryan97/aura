@@ -1,5 +1,51 @@
 # Terminology
 
+<!-- reader-navigation:start -->
+> **In plain English:** The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
+>
+> **Why it matters:** A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.
+>
+> **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
+## Start with the ordinary meaning
+
+Project names often describe the intended role of a mechanism. To understand
+what it does, look for the state it reads, the action it changes and the test
+that checks the effect. The original engineering alias table is retained below.
+
+| Project term | Ordinary meaning | Why someone would care |
+|---|---|---|
+| Cortex | The main language-model route | Which model produces an answer affects capability, delay and memory use |
+| Brainstem | Another configured model route for designated work | A fallback answer may come from a different model and needs to be identified |
+| Workspace | The competition for what gets attention now | Your new question must not be silently replaced by an old concern |
+| Self-model | Records and predictions about the system itself | It can help track capability, uncertainty and the results of its own actions |
+| Affect or mood | Internal variables that can influence processing | The practical question is whether changing them changes a relevant choice, recall or report |
+| Qualia descriptor | A software description of an internal condition | The descriptor's name alone does not establish a felt experience |
+| Phi | One of several integration-related measurements | Its formula and controls matter; different implementations are not interchangeable |
+| Soul | The project's name for parts of drive and value continuity | A reader can inspect how preferences persist and influence later behavior |
+| Scar | A retained record that influences avoidance or caution | An earlier bad outcome can change a later choice under a stated decay rule |
+| Dream | Background consolidation or replay | Earlier records may be reorganised while the system is idle |
+| Mycelium | A graph of connections between components | It describes which parts can reach and influence other parts |
+| Governance | Permission and constraint checks for proposed actions | Access to a tool should not silently become permission for every consequence |
+| Receipt | A structured action or decision record | You can inspect what was allowed, attempted and observed |
+| Taint | A retained flag that an assumption broke | A later green status should not conceal a known earlier violation |
+| Mortal memory | Crash and continuation records from the recorder | Work may be recoverable after a process stops; the label does not establish biological life |
+| Proof or certificate | Evidence for a stated property under named assumptions and tests | Read its scope rather than extending it to every capability |
+
+Think of the names as labels on a workshop's tools. A label tells you what a
+tool is for; watching it work and measuring the result establishes what it can
+do. The comparison concerns naming and evidence, rather than the full
+organisation of Aura.
+
+For values and units, read [the variable guide](VARIABLES_EXPLAINED.md).
+For examples of mechanisms, read [the tour](PLAIN_ENGLISH_GUIDE.md).
+For the scientific argument and its limits, read [ISC explained](ISC_EXPLAINED.md).
+
+## Internal and engineering aliases
+
 Two names for every mechanism. The internal one and the one that doesn't
 sound like it's trying to convince you.
 

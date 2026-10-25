@@ -1,5 +1,15 @@
 # Aura: The Language Substrate & Generality Programme
 
+<!-- reader-navigation:start -->
+> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+>
+> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
+>
+> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 **Status**: Living document · Verified against the tree 2026-08-29  
 **Scope**: Everything Aura does to learn, represent, and compose new abstractions  
 **Honest boundary**: What is measured, what is aspirational, where the walls are
@@ -403,6 +413,6 @@ on is a decision about the machine and a reference run, not more code.
 
 - [DreamCoder](https://arxiv.org/pdf/2006.08381) · [Stitch / top-down library learning](https://arxiv.org/pdf/2211.16605)
 - [Turning 30: New Ideas in ILP](https://arxiv.org/pdf/2002.11002) · [On the Measure of Intelligence](https://arxiv.org/pdf/1911.01547)
-- [Spelke, Core Knowledge](https://www.harvardlds.org/wp-content/uploads/2017/01/spelke2000-1.pdf)
-- [Thoroughman & Shadmehr, motor primitives](https://www.researchgate.net/publication/12277176)
-- [Long-term symbolic learning in Soar and ACT-R](https://www.academia.edu/18277101)
+- [Spelke, Core Knowledge](https://pubmed.ncbi.nlm.nih.gov/11280937/)
+- [Thoroughman & Shadmehr, motor primitives](https://www.nature.com/articles/35037588)
+- [Long-term symbolic learning in Soar and ACT-R](https://web.eecs.umich.edu/~soar/sitemaker/docs/pubs/Kennedy-ICCM2006.pdf)

@@ -1,5 +1,15 @@
 # Aura artifact index
 
+<!-- reader-navigation:start -->
+> **In plain English:** Observability records what the system did, how long each stage took, and where an assumption failed.
+>
+> **Why it matters:** A visible error or delay needs a traceable cause; otherwise a repair can change the wrong thing while hiding the real failure.
+>
+> **In everyday use:** When a reply arrives late, separate time spent waiting for input, reasoning, synthesis and playback before deciding which stage to optimise.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#observability) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#observability) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 The `artifacts/current/` directory holds generated build and test outputs. Because it is listed in `.gitignore`, files created there during verification runs are not pushed to GitHub. They exist only locally on the computer where they were generated, which means clicking a link to one from a web browser will result in a 404 error. This page maps each test artifact to the command used to generate it.
 
 Running `make final-proof` generates the complete set of artifacts in one pass. When developing, you can run individual checks separately; they will write their output to `/tmp`, which is much faster.
