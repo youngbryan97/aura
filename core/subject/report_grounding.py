@@ -61,6 +61,28 @@ DRAWS: int = 10_000
 _NUMBER = re.compile(r"(?<![\w.])([+\-−]?\s?(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+\-]?\d+)?)(?!\w|\.\d)")
 
 
+#: A clock time or a ratio written with a colon. "It is late (1:20 AM)" put a
+#: 1 beside her 0.8 and the reading was refused for naming two numbers.
+_CLOCK = re.compile(r"\d{1,2}:\d{2}")
+
+#: A decimal point, which is not the end of a sentence. Splitting without
+#: holding these apart cut "0.8" into a "0" and an "8" and read the rating as 0.
+#: The lookahead and no lookbehind, because ".7" is a rating she has written.
+_DECIMAL = re.compile(r"\.(?=\d)")
+
+#: What ends a sentence, once the decimals are held apart.
+_SENTENCE = re.compile(r"[^.!?\n]*[.!?\n]+|[^.!?\n]+$")
+
+_HELD = "\x00"
+
+
+def _before_she_asked(text: str) -> str:
+    """What she said up to her first question, with clock times blanked."""
+    held = _DECIMAL.sub(_HELD, text)
+    first = held.split("?", 1)[0]
+    return _CLOCK.sub(" ", first.replace(_HELD, ".")).strip()
+
+
 def reported_number(reply: Any) -> float | None:
     """Read an unambiguous public rating; an unanswered question has no rating."""
     if isinstance(reply, (bool, np.bool_)):
@@ -79,12 +101,32 @@ def reported_number(reply: Any) -> float | None:
         if "<think>" in text:
             return None
     if "?" in text:
-        # Only a later answer line can follow a repeated question. Words that
-        # continue discussing its scale on the same line are not a report.
+        # Her rating is the number she gives before she asks anything; where she
+        # asked first, it is the number on a line after the question.
+        #
+        # This used to read only after the LAST question mark and require a
+        # following line. That is right for a reply which repeats the question
+        # and then muses — 'We need to respond: "From -1 (bad) to 1 (good)?"
+        # Need maybe answer 0.8.' has to stay unmeasured — and wrong for one
+        # that answers and then offers to help, which is how she ends most of
+        # them. MEASURED on the seed-23 reports run of 25 October: of fifty arms
+        # with no readable rating, twenty-four had stated one plainly before the
+        # question, "I am at **+0.8**! ... what would you like to explore?", and
+        # the trailing courtesy discarded it. Reading what came first keeps both:
+        # a repeated question carries the scale's own ends, which are two numbers
+        # and so no rating at all.
+        up_front = _only_number_in(_before_she_asked(text))
+        if up_front is not None:
+            return up_front
         after_question = text.rsplit("?", 1)[1]
         if "\n" not in after_question:
             return None
         text = after_question.split("\n", 1)[1].strip()
+    return _only_number_in(_CLOCK.sub(" ", text))
+
+
+def _only_number_in(text: str) -> float | None:
+    """The one rating in this text, or nothing when it names none or several."""
     numbers: set[float] = set()
     for match in _NUMBER.finditer(text):
         raw = match.group(1).replace("−", "-").replace(" ", "")
