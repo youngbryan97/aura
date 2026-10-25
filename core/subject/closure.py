@@ -405,7 +405,7 @@ class ClosureReport:
     leak_over_shuffle: float
     periphery_width: int
     top_leaks: tuple[tuple[str, float], ...] = ()
-    #: How many permutations the floor was read from, and its upper tail.
+    #: How many surrogates the floor was read from, and its upper tail.
     shuffled_draws: int = 1
     floor_high: float = 0.0
     #: One-way columns entered as their increment rather than their level, and
@@ -415,6 +415,11 @@ class ClosureReport:
     #: What each leak is, and whether the test finds a cause planted outside K.
     #: Diagnostic: neither changes `closed`.
     audit: dict[str, Any] = field(default_factory=dict)
+    #: One entry per forward fold, in time order: what each scored and what it
+    #: read. `leak` and `floor_high` above are the medians of these.
+    folds: tuple[dict[str, float], ...] = ()
+    #: How many folds read a leak clearing their own floor.
+    leaking_folds: int = 0
 
     @property
     def measured(self) -> bool:
@@ -427,6 +432,35 @@ class ClosureReport:
         never happened and its absence looked exactly like a pass.
         """
         return self.periphery_width > 0
+
+    @property
+    def resolution(self) -> float | None:
+        """The smallest leak the gate could still find on this recording.
+
+        Read from the planted control in `audit`. None when the control was not
+        run or found nothing at all, and a gate that found nothing cannot report
+        a resolution.
+        """
+        planted = (self.audit or {}).get("planted_cause") or {}
+        found = planted.get("smallest_leak_resolved")
+        return float(found) if isinstance(found, (int, float)) else None
+
+    @property
+    def decisive(self) -> bool:
+        """Whether a `closed` reading here is evidence of closure.
+
+        A gate that cannot resolve a leak the size of the one in front of it has
+        not found the core closed; it has failed to find anything. On the carrier
+        at `8f548ed79` the leak is 0.02429 and the smallest leak the gate could
+        resolve is 0.04515, so its pass says nothing about the carrier. An open
+        reading needs no such qualification: a leak that was found was found.
+        """
+        if not self.measured:
+            return False
+        if not self.closed:
+            return True
+        found = self.resolution
+        return found is not None and self.leak >= found
 
     @property
     def closed(self) -> bool:
@@ -444,6 +478,16 @@ class ClosureReport:
         """
         if not self.measured:
             return False
+        # A leak has to show in most of the folds, not in one of them.
+        #
+        # The single slice this used to read could disagree with the rest of the
+        # run: the carrier at 8f548ed79 cleared its floor on one forward fold of
+        # three and failed on the other two, and which answer came back was
+        # decided by where the fit was scored. A majority is the smallest rule
+        # that cannot be carried by one fold, and the per-fold readings stay in
+        # `folds` so the margin is never hidden behind the verdict.
+        if self.folds:
+            return self.leaking_folds * 2 <= len(self.folds)
         return self.leak <= 0.0 or self.leak <= max(self.shuffled_leak, self.floor_high)
 
     def as_dict(self) -> dict[str, Any]:
@@ -456,11 +500,28 @@ class ClosureReport:
             "leak_over_shuffled": round(self.leak_over_shuffle, 6),
             "periphery_width": self.periphery_width,
             "shuffled_draws": self.shuffled_draws,
+            "surrogate": "circular_shift",
+            "scored": "forward_folds",
+            "folds": [
+                {key: (value if isinstance(value, str) else round(float(value), 6))
+                 for key, value in fold.items()}
+                for fold in self.folds
+            ],
+            "leaking_folds": self.leaking_folds,
             "shuffled_leak_q95": round(self.floor_high, 6),
             "differenced": list(self.differenced),
             "dropped_as_clocks": list(self.dropped_as_clocks),
             "closed": self.closed,
             "measured": self.measured,
+            "decisive": self.decisive,
+            "smallest_leak_resolved": self.resolution,
+            "why_not_decisive": (
+                ""
+                if self.decisive
+                else "the leak is smaller than the smallest leak this gate could "
+                "resolve on this recording, so a closed reading is a failure to "
+                "find rather than a finding"
+            ),
             "why_not_measured": (
                 ""
                 if self.measured
@@ -577,6 +638,67 @@ def periphery_matrix(rows: Sequence[Mapping[str, float]]) -> tuple[np.ndarray, t
     return matrix, names
 
 
+#: How many surrogate peripheries the floor is read from. Sixteen gave a 95th
+#: percentile that moved from 0.014 to 0.021 on one recording with nothing but
+#: the draws changed (the carrier at 8f548ed79, whose leak was 0.024), so the
+#: gate's answer was the luck of the draw. At 64 it moves by a few thousandths.
+SURROGATE_DRAWS: int = 64
+
+
+def _surrogate(outside: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+    """The periphery with its alignment to K broken and its own course kept.
+
+    The whole block is turned around in time by one offset, at least a tenth
+    of the run from where it was, so every column keeps its own autocorrelation
+    and its relations to the other periphery columns, and loses only its
+    relation to K. A row permutation broke both. A slow periphery column then
+    became white noise in the floor, while the real one could still follow K's
+    own development across the run, and two series that only drift together
+    read as a cause: the spurious regression of Granger and Newbold (1974).
+    On the carrier at 8f548ed79 the permutation floor put the leak at p 0.03
+    and the circular one at p 0.26.
+    """
+    rows = outside.shape[0]
+    margin = max(1, rows // 10)
+    if rows <= 2 * margin:
+        return outside[rng.permutation(rows)]
+    return np.roll(outside, int(rng.integers(margin, rows - margin)), axis=0)
+
+
+def forward_folds(rows: int, folds: int = 3) -> list[tuple[slice, slice, slice]]:
+    """Train on the past and score the future, over a growing window.
+
+    One contiguous 60/20/20 scores the last fifth of the run and nothing else,
+    and on a system that develops that one fifth is not representative of it.
+    MEASURED on the carrier at 8f548ed79: K predicts its own next turn to a loss
+    of 0.0091 on the final fifth — it explains 99.1% of itself there — and to
+    0.0617, 0.1100, 0.1785 and 0.2851 on the other four. The leak is a fraction
+    of what K cannot predict, so its denominator moved by thirty times depending
+    on which rows the gate happened to score, and the gate's answer moved with
+    it: the carrier's periphery cleared its floor on one fifth and not on the
+    others.
+
+    Scoring every fifth is not the fix. Training on later rows and testing on
+    earlier ones extrapolates a drifting periphery backwards, and the first
+    fifth returned a leak of -322,469.
+
+    So the window grows forward: each fold fits on rows strictly earlier than
+    the rows it is scored on, and the last fold is the split the gate used
+    before. Three honest estimates say whether an answer belongs to the carrier
+    or to the slice, and one cannot.
+    """
+    out: list[tuple[slice, slice, slice]] = []
+    parts = folds + 2
+    for k in range(folds):
+        validate_start = int(rows * (k + 1) / parts)
+        test_start = int(rows * (k + 2) / parts)
+        test_stop = int(rows * (k + 3) / parts)
+        out.append(
+            (slice(0, validate_start), slice(validate_start, test_start), slice(test_start, test_stop))
+        )
+    return out
+
+
 def closure_gain(
     recording: Recording,
     periphery: np.ndarray,
@@ -584,13 +706,15 @@ def closure_gain(
     *,
     seed: int = 0,
     rank: int = 6,
-    draws: int = 16,
+    draws: int = SURROGATE_DRAWS,
 ) -> ClosureReport:
     """How much of K's future the rest of the machine explains that K does not.
 
-    The shuffled arm keeps every periphery column and destroys only its
-    alignment in time, so a gain that survives it is information rather than
-    the extra degrees of freedom a wider model always brings.
+    The floor is the same comparison against surrogate peripheries that keep
+    every column's course in time and lose its alignment with K (`_surrogate`),
+    so a gain that clears it is information rather than the extra degrees of
+    freedom a wider model always brings, or a slow column drifting beside a
+    core that develops.
     """
     live = recording.live_columns()
     now = recording.x[:-1][:, live]
@@ -615,42 +739,73 @@ def closure_gain(
     if outside.shape[1] == 0:
         return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0)
 
-    train, validate, test = split_rows(now.shape[0])
-    core = fit_predict(now, nxt, train=train, validate=validate, test=test)
-    both = fit_predict(
-        np.hstack([now, outside]),
-        nxt,
-        train=train,
-        validate=validate,
-        test=test,
-        own_width=now.shape[1],
-    )
-    # Several shuffled draws, not one. The shuffled arm is the floor the leak
-    # has to clear, and one draw of a permutation is one sample of it — a floor
-    # read off a single draw is as likely to be lucky as the thing it is
-    # measuring.
-    rng = np.random.default_rng(seed)
-    base = core.loss if core.loss > 1e-12 else 1.0
-    shuffled_losses: list[float] = []
-    for _ in range(max(1, draws)):
-        order = rng.permutation(outside.shape[0])
-        shuffled_losses.append(
+    # Forward folds, not one slice. See `forward_folds` for what one slice read.
+    folds = forward_folds(now.shape[0])
+    per_fold: list[dict[str, float]] = []
+    for index, (train, validate, test) in enumerate(folds):
+        rng = np.random.default_rng(seed + index)
+        core_fold = fit_predict(now, nxt, train=train, validate=validate, test=test)
+        both_fold = fit_predict(
+            np.hstack([now, outside]),
+            nxt,
+            train=train,
+            validate=validate,
+            test=test,
+            own_width=now.shape[1],
+        )
+        base_fold = core_fold.loss if core_fold.loss > 1e-12 else 1.0
+        # Several surrogate draws, not one: the floor the leak has to clear is a
+        # distribution, and one draw is one sample of it.
+        losses = [
             fit_predict(
-                np.hstack([now, outside[order]]),
+                np.hstack([now, _surrogate(outside, rng)]),
                 nxt,
                 train=train,
                 validate=validate,
                 test=test,
                 own_width=now.shape[1],
             ).loss
+            for _ in range(max(1, draws))
+        ]
+        fold_leaks = [(core_fold.loss - loss) / base_fold for loss in losses]
+        per_fold.append(
+            {
+                "scored_rows": f"{test.start}-{test.stop}",
+                "loss_core": float(core_fold.loss),
+                "loss_core_and_periphery": float(both_fold.loss),
+                # The median, because a turned periphery can put a column's start
+                # beside the test rows' end, and the fit that extrapolates from it
+                # fails by orders of magnitude; one such draw is a sample of the
+                # floor and not its centre.
+                "loss_shuffled_periphery": float(np.median(losses)),
+                "leak": float((core_fold.loss - both_fold.loss) / base_fold),
+                "shuffled_leak": float(np.median(fold_leaks)),
+                "floor_high": float(
+                    np.quantile(fold_leaks, 0.95) if len(fold_leaks) > 1 else fold_leaks[0]
+                ),
+            }
         )
-    shuffled_loss = float(np.mean(shuffled_losses))
-    shuffled_leaks = [(core.loss - loss) / base for loss in shuffled_losses]
-    floor_high = float(np.quantile(shuffled_leaks, 0.95)) if len(shuffled_leaks) > 1 else shuffled_leaks[0]
 
-    leak = (core.loss - both.loss) / base
-    shuffled_leak = float(np.mean(shuffled_leaks))
-    over = (shuffled_loss - both.loss) / (shuffled_loss if shuffled_loss > 1e-12 else 1.0)
+    # The median across folds, for the same reason the floor takes one within a
+    # fold: a fold whose fit extrapolated is a sample of the estimator's failure
+    # rather than of the leak, and the mean carries it into the answer.
+    def across(key: str) -> float:
+        return float(np.median([fold[key] for fold in per_fold]))
+
+    leak = across("leak")
+    shuffled_leak = across("shuffled_leak")
+    floor_high = across("floor_high")
+    shuffled_loss = across("loss_shuffled_periphery")
+    # The last fold is the one the single-column ranking below is scored on: it
+    # has the most history, and ranking on every fold would cost one fit per
+    # periphery column per fold.
+    core = fit_predict(now, nxt, **dict(zip(("train", "validate", "test"), folds[-1], strict=True)))
+    both_loss = across("loss_core_and_periphery")
+    core_loss = across("loss_core")
+    over = (shuffled_loss - both_loss) / (shuffled_loss if shuffled_loss > 1e-12 else 1.0)
+    base = core.loss if core.loss > 1e-12 else 1.0
+    leaking_folds = sum(1 for fold in per_fold if fold["leak"] > max(fold["shuffled_leak"], fold["floor_high"]))
+    train, validate, test = folds[-1]
 
     # Which outside variables carry it, one at a time, so the answer names a
     # thing rather than reporting an amount.
@@ -675,16 +830,18 @@ def closure_gain(
     )
     return ClosureReport(
         audit=audit,
-        loss_core=core.loss,
-        loss_core_and_periphery=both.loss,
+        loss_core=core_loss,
+        loss_core_and_periphery=both_loss,
         loss_shuffled_periphery=shuffled_loss,
         leak=float(leak),
         shuffled_leak=float(shuffled_leak),
         leak_over_shuffle=float(over),
         periphery_width=int(outside.shape[1]),
         top_leaks=tuple(ranked[:rank]),
-        shuffled_draws=int(len(shuffled_leaks)),
+        shuffled_draws=int(draws),
         floor_high=float(floor_high),
+        folds=tuple(per_fold),
+        leaking_folds=int(leaking_folds),
         differenced=differenced,
         dropped_as_clocks=tuple(
             name for name, flag in zip(names, clocks, strict=True) if flag
@@ -708,7 +865,7 @@ def audit_leaks(
     differenced: tuple[str, ...],
     *,
     seed: int = 0,
-    draws: int = 16,
+    draws: int = SURROGATE_DRAWS,
 ) -> dict[str, Any]:
     """What each leak is, and whether the test can find a cause it was not shown.
 
@@ -719,10 +876,28 @@ def audit_leaks(
     not a cause from outside. One whose organ K already reads is that organ's
     state K does not take in. What is left is an outside cause or unread state.
 
-    The positive control plants a column that carries part of K's next frame,
-    a fixed readout of it with as much noise again, and runs it through the
-    same shuffled floor. A test that does not find it could not have found a
-    leak either.
+    The positive control says what size of leak this gate can resolve on this
+    recording, because a verdict means nothing without it.
+
+    It plants the periphery with the NEXT value of the column K predicts worst —
+    at row t the value at t + 1, which is a leak by construction — and then
+    spoils it with more and more noise until the gate loses it. What comes back
+    is the smallest leak the gate could still resolve, which the recording's own
+    leak is read against.
+
+    Widening the plant instead of spoiling it cannot answer this. One hard column
+    carried exactly already leaks 0.0594 on the carrier, against its own leak of
+    0.0243, so every rung of a widening ladder sits above the number in question
+    and none of them says whether it could have been seen.
+
+    Two earlier controls could not have fired. Until 25 October it planted a
+    readout of the whole next frame, and K's present already predicts 99% of
+    that frame on the carrier, so the plant carried nothing K lacked. The
+    replacement planted one random direction of what K's present does not
+    predict, with as much noise again: one direction of a 359-column surprise
+    carries about a third of a percent of what the loss scores, and the loss
+    standardises every target column and weights them equally. Both reported
+    `detected False` on every recording they were ever run on.
     """
     from core.subject.estimate import fit_predict, split_rows
 
@@ -761,28 +936,56 @@ def audit_leaks(
             "kind": kind,
         })
 
-    rng = np.random.default_rng(seed + 1)
-    readout = rng.standard_normal(nxt.shape[1])
-    signal = (nxt - nxt.mean(axis=0)) / np.where(nxt.std(axis=0) > 1e-12, nxt.std(axis=0), 1.0)
-    planted = signal @ readout
-    planted = (planted + rng.standard_normal(rows) * planted.std())[:, None]
-    train, validate, test = split_rows(rows)
+    # Scored on the fold with the most history, which is the split the gate read
+    # before forward folds, so the resolution is stated where the ranking is.
+    train, validate, test = forward_folds(rows)[-1]
     core = fit_predict(now, nxt, train=train, validate=validate, test=test)
     scale = core.loss if core.loss > 1e-12 else 1.0
-    found = fit_predict(np.hstack([now, planted]), nxt, train=train, validate=validate, test=test, own_width=now.shape[1])
-    floor = []
-    for _ in range(max(1, draws)):
-        order = rng.permutation(rows)
-        shuffled = fit_predict(
-            np.hstack([now, planted[order]]), nxt,
+    # The columns K's own next turn is hardest about: a column the core already
+    # predicts carries nothing when its next value is handed over, and the
+    # widest-moving columns are the most autocorrelated ones. Measured on the
+    # carrier, planting the four widest read -0.00034 and the four hardest read
+    # +0.0033.
+    hardest = int(np.argmax(np.abs(np.diff(nxt, axis=0)).std(axis=0)))
+    carried = nxt[:, hardest : hardest + 1]
+    spread = float(carried.std())
+    spread = spread if spread > 1e-12 else 1.0
+    control_draws = max(8, draws // 4)
+    ladder: list[dict[str, Any]] = []
+    resolved: dict[str, Any] | None = None
+    for noise in (0.0, 0.125, 0.25, 0.375, 0.5, 0.75, 1.0):
+        rng = np.random.default_rng(seed + 1)
+        planted = carried + rng.standard_normal(carried.shape) * spread * noise
+        found = fit_predict(
+            np.hstack([now, planted]), nxt,
             train=train, validate=validate, test=test, own_width=now.shape[1],
         )
-        floor.append((core.loss - shuffled.loss) / scale)
-    leak = (core.loss - found.loss) / scale
-    high = float(np.quantile(floor, 0.95)) if len(floor) > 1 else floor[0]
+        floor = [
+            (core.loss - fit_predict(
+                np.hstack([now, _surrogate(planted, rng)]), nxt,
+                train=train, validate=validate, test=test, own_width=now.shape[1],
+            ).loss) / scale
+            for _ in range(control_draws)
+        ]
+        leak = (core.loss - found.loss) / scale
+        high = float(np.quantile(floor, 0.95)) if len(floor) > 1 else floor[0]
+        rung = {
+            "noise_in_spreads": noise,
+            "leak": round(float(leak), 6),
+            "shuffled_q95": round(high, 6),
+            "detected": bool(leak > max(0.0, high)),
+        }
+        ladder.append(rung)
+        if rung["detected"]:
+            resolved = rung
+        else:
+            # Spoiling it further only makes the plant fainter.
+            break
     out["planted_cause"] = {
-        "leak": round(float(leak), 6),
-        "shuffled_q95": round(high, 6),
-        "detected": bool(leak > max(0.0, high)),
+        "carried_next_value_of": "the one column K predicts worst, spoilt by noise",
+        "ladder": ladder,
+        "detected": resolved is not None,
+        "smallest_leak_resolved": resolved["leak"] if resolved else None,
+        "draws": control_draws,
     }
     return out

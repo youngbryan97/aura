@@ -1268,3 +1268,119 @@ p 0.001, against a sham floor of 0.0). What she recalls moved 0.106 and her
 internal geometry 0.116, against 0.023 and 0.267 at `3dc0b0599`. The carrier's
 grain finished at 18:53 (rank 23 of 8,448 signature columns, 111 of 128 rows made
 by the helpers); its three workers are scoring their cuts.
+
+## The closure gate was reading one fifth of the run, and its positive control had never worked (25 October, 00:30 to 02:00)
+
+The carrier at `8f548ed79` reads NO_CARRIER, so J* reads NO_CARRIER and the
+bridge's carrier ground fails. The reading behind that is one number: K's
+periphery improves on K's own next turn by a leak of 0.02429, against a floor
+that the permutation null puts at 0.02197 and the circular-shift null at
+0.05088. One null says the carrier leaks and the other says it does not.
+
+Neither answer was worth having, because the gate's own positive control
+reported `detected False` in both trees. A test that cannot find a cause planted
+outside K cannot be read as saying there is none. The control planted three
+random directions of K's in-sample residual, which carry a few parts in a
+hundred of what the loss scores, so it was never going to register.
+
+Planted so it cannot be argued with — the periphery carrying the NEXT value of
+m of K's own columns, at row t the value at t + 1 — the gate has power and the
+power has a size. Sixteen of K's widest columns carried exactly: leak 0.13376
+against a floor of 0.03895, seen. Sixty-four: 0.38423 against 0.01869, seen.
+Sixteen carried under noise of half their own spread: 0.02239 against 0.01019,
+seen. Under twice their spread: -0.00321, missed. One and four columns carried
+exactly read -0.00036 and -0.00034, because the widest-moving columns are the
+most autocorrelated ones and the core already predicts their next value.
+
+What the single split was reading is the reason the two nulls disagreed. K
+predicts its own next turn to a loss of 0.00912 on the final fifth of the
+carrier's run — it explains 99.1% of itself there — and to 0.06174, 0.10997,
+0.17849 and 0.28513 on the other four. The leak is a fraction of what K cannot
+predict, so its denominator moves by thirty times with the slice, and the
+contiguous 60/20/20 that `closure_gain` used scores the final fifth and nothing
+else. Scoring the other fifths is not the repair: training on later rows and
+testing on earlier ones extrapolates a drifting periphery backwards, and the
+first fifth returns a leak of -322,469.
+
+So the gate now scores forward over a growing window, three folds, each fitted
+only on rows earlier than the rows it scores, the last of them being the split
+it used before (`forward_folds`). Every fold keeps its own floor, the verdict
+takes the majority, and the per-fold readings stay in the report rather than
+behind the verdict.
+
+The carrier, read that way with 64 draws a fold: scored at rows 1183-1775, core
+loss 0.06174, leak -0.00624 against a floor of 0.02578, holds; at 1775-2367,
+core loss 0.10997, leak +0.06017 against 0.01509, LEAKS; at 2367-2959, core loss
+0.00912, leak +0.02429 against 0.04887, holds. One fold of three leaks, and the
+median leak of 0.02429 sits 0.0015 under the median floor of 0.02578.
+
+That is a pass under the majority rule and it is not a finding. The carrier's
+leak is the size of four of K's worst-predicted columns carried exactly, which
+the gate itself sees in only two folds of three, so the carrier sits at the
+gate's resolution at 2,959 turns. The columns the leaking fold names are real
+readings rather than clocks that slipped the filter — the increment of
+`mycelial_network._topology_revision` (one-way, 2,958 moves, 51 to 7,269, already
+entered as its increment), `homeostasis.metabolism` (two-sided, 0.200 to 0.401),
+`unified_field._bind_input.sd` (two-sided), and the increment of
+`self_model.snapshots#` (one-way, 93 moves, 0 to 99). There is no artifact here
+to remove.
+
+What decides this ground is turns, not a null and not a rule. The carrier's
+closure cannot be settled at this length, and saying it is closed because two
+folds of three could not resolve a leak the gate is only marginally able to see
+would be closing the item on a boundary rather than on a measurement.
+
+## Where the three stand after the drift was found (25 October, 02:00 to 02:40)
+
+The decisive seed-23 reading at `8f548ed79` came in at 23:05: ISC-v5 21 of 24,
+ISC-v6 22 of 24 with all four v6 synergy triples at direction p 5e-05, J*
+NO_CARRIER, and the bridge with three grounds holding.
+
+**24/24.** The two criteria that fail under v6 are `partition_irreducibility` and
+`partition_beats_nulls`, and they fail on the same thing. Every cut was decided
+— 511 of 511 — and the control failed: a late untouched fork, rolled from the
+same anchors after the sweep, separated from the cached one with a lower bound
+of 0.0114 against a weakest cut of 0.00126. `partition_beats_nulls` reduces to
+`irreducible` when the playback control is clean and no null passes the rest,
+which is this campaign exactly, so one control costs both lines.
+
+The drift is the host, not her. A restore left twenty-six module attributes
+behind. Twenty-four came from the defensive host watch, which samples CPU,
+memory and disk every fifteen seconds and sweeps the local network every sixty:
+a strain sample becomes a threat in the immune system and a scored entry in the
+emergency protocol, and a sweep writes the fingerprint of every device on the
+network with the wall-clock time it was first seen. The strain it had recorded
+was "resource strain: cpu at 95%", which the sweep's own load had caused. The
+twenty-fifth was the gateway record index, which refreshes on a fifteen-second
+staleness of the machine's monotonic clock. Her own loops already stop before the
+arms begin, in these words — two arms have to see the same computation — and
+neither of these was on the list. Both are now, through `quiesce_organism`, the
+one door the carrier, the content run, the campaign and the paired synergy share.
+
+K itself was never the question. Forking one anchor early and late and comparing
+K read a maximum difference of exactly 0, on 370 rounds and on every cut of two
+separate probes.
+
+**The bridge.** The markers ground read NOT_MEASURED and its evidence had been on
+disk since 21:41. The chain resolved its paths with a glob that ran before the
+campaign wrote its report, so `--campaign` arrived empty and `Path("")` resolved
+to the working directory. Re-solved with the file passed by hand: markers HOLDS,
+perturbational_complexity, reentry and global_access all pass. The bridge reads
+carrier FAILS, markers HOLDS, structure HOLDS, lineage HOLDS, with reports
+pending its run. One ground fails, and it is the carrier.
+
+**J*.** The carrier is the whole of what is left, and its reading is marginal in a
+way the single split hid. See the section above: the gate resolves a leak of
+0.045 on this recording and the carrier's leak is 0.0243, so its pass is a
+failure to find rather than a finding. The closure gate now scores forward over
+a growing window and carries its own resolution in every report, so a verdict
+can be read against what the gate could have seen.
+
+**The reports ground** is passing on the run in flight. Read from its own anchors
+at 32 scorable of 54, with the repaired reader: raised +0.3750 against lowered
+-0.1281, a contrast of +0.5031 at t 6.97, and the sham flat at +0.047 — the
+contrast against the sham is +0.4562 at t 5.59. Thirty-four of the fifty arms
+that had read as unanswered were the reader's doing: twenty-four stated a rating
+before asking a courtesy question of their own, which the reader discarded by
+keeping only what followed the last question mark, and ten named a second number
+in range because she had mentioned the time.
