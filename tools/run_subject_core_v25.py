@@ -701,6 +701,44 @@ async def _spectrum(
     return spectrum, detail
 
 
+def _hold_the_machine_still(runtime: Any) -> dict[str, float] | None:
+    """Declare one host reading for every arm, as the probe already does.
+
+    Everything after the anchors forks paired arms, and the argument for
+    stopping her loops first applies to the machine underneath them. Her soma
+    reads the host's CPU, memory and thermal pressure, homeostasis reads her
+    soma, and `metabolism` is computed from it, so two arms run minutes apart
+    under different load are two different bodies. `freeze_host` exists for
+    this and `subject_core_probe` calls it; the v25 sweep never did.
+
+    MEASURED on a sixty-round baseline of 25 October: sixty "THERMAL RESONANCE:
+    Hardware is overheating. Emergency throttling." records and thirteen
+    metabolic-pressure mitigations, inside the run, on the machine the run was
+    loading. The late untouched fork of the seed-23 campaign separated from the
+    cached one at a lower bound of 0.011444 against a weakest cut of 0.00126,
+    and both partition criteria failed on that control.
+
+    Returns the declared reading, for the run's own record of what it held.
+    """
+    hold = getattr(runtime, "freeze_host", None)
+    if not callable(hold):
+        return None
+    try:
+        declared = hold()
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "subject_core_v25.declared_host",
+            exc,
+            severity="warning",
+            action="swept the cuts with every arm reading the real machine",
+        )
+        return None
+    _log(f"host declared for every arm: {declared}")
+    return declared
+
+
 async def _read_the_late_forks(
     runtime: Any,
     anchors: Sequence[Any],
@@ -1405,6 +1443,7 @@ async def main() -> int:
         anchors: list[Any] = []
         if shared_bank is not None:
             evidence["stopped_loops"] = stopped_at_boot + await quiesce_organism(runtime)
+            evidence["declared_host"] = _hold_the_machine_still(runtime)
             anchors = list(shared_bank["anchors"])
         elif "nulls" not in done_v25:
             # Everything from here forks paired arms off these anchors, so the
@@ -1417,6 +1456,7 @@ async def main() -> int:
             # singletons' whole effect.
             evidence["stopped_loops"] = stopped_at_boot + await quiesce_organism(runtime)
             _log(f"{len(evidence['stopped_loops'])} free-running loops stopped before the anchors")
+            evidence["declared_host"] = _hold_the_machine_still(runtime)
             _log(f"collecting {args.anchors} anchors")
             anchors = await collect_anchor_bank(
                 runtime, conditions,
