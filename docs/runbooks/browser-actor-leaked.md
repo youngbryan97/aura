@@ -1,5 +1,15 @@
 # Runbook: Browser Actor Leaked
 
+<!-- reader-navigation:start -->
+> **In plain English:** Computer-use work observes an interface, chooses an action, and checks whether that action moved the task toward its goal.
+>
+> **Why it matters:** A click is useful only if it reaches the intended control and produces the intended outcome, including on unfamiliar pages.
+>
+> **In everyday use:** Opening the right page, selecting the correct field and confirming the changed state are separate steps in filling a form.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#browser) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#browser) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#agents) · [Document map](../DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Symptoms
 - `metrics.json[system].threads` and open file count climb monotonically without traffic.
 - `models.json[phantom_browser].status` (or equivalent) shows `running` long after the last computer-use turn.

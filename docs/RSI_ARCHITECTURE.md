@@ -1,5 +1,15 @@
 # Recursive Self-Improvement (RSI) Architecture
 
+<!-- reader-navigation:start -->
+> **In plain English:** Learning changes later behavior using earlier outcomes. A kept procedure is executable work retained for reuse under a defined checking rule.
+>
+> **Why it matters:** Experience should improve later work without accumulating unreliable shortcuts or expensive rules that no longer help.
+>
+> **In everyday use:** After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#learning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#learning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#learning) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 *Verified against code as of 2026-09-15. Claim ONLY what is implemented.*
 
 This document describes Aura's Recursive Self-Improvement (RSI) pipeline, which allows Aura to diagnose, draft, validate, and propose improvements to its own source code and architecture.
@@ -50,7 +60,7 @@ The self-improvement lab (`core/self_improvement/`) is a clean-room reimplementa
 
 ### Program DNA & Interface Contracts
 
-The `program_dna.py` module builds a lawful behavioral "DNA" profile from authorized sources (e.g., open source, user-owned, public observation). It reconstructs a program's blueprint without decompiling proprietary code. Any changes must adhere strictly to predefined `interface_contract.py`, ensuring that public surfaces are preserved and modifications behave predictably.
+The `program_dna.py` module builds a lawful behavioral "DNA" profile from authorized sources (e.g., open source, user-owned, public observation). It reconstructs a program's blueprint without decompiling proprietary code. The predefined `interface_contract.py` states the public interfaces a change must preserve. Those contract checks supply a specific acceptance test for a candidate modification.
 
 ## Evidence, Consent, and Authorization
 

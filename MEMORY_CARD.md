@@ -1,5 +1,15 @@
 # Aura Memory Card
 
+<!-- reader-navigation:start -->
+> **In plain English:** Memory keeps records beyond the immediate request and selects relevant records for the current turn.
+>
+> **Why it matters:** Useful continuity depends on recalling the right information, retaining its source and correcting or deleting it when needed.
+>
+> **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#memory) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#memory) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Purpose
 
 How Aura's memory works, how what she remembers changes her actions, and how you can control it.
@@ -82,7 +92,7 @@ This is directly wired into her beliefs. In `core/reasoning/belief_consistency.p
 
 If Aura catches a contradiction, she doesn't just flag it. In `core/reasoning/deduction_governance.py`, `_resolve_logical_conflicts` steps in and weakens the belief she is less confident in. This actively fixes her understanding of the world. The logic engine is also available to other systems via `SymbolicBridge.prove_logic` and `inference_audit.verify`.
 
-This logic checker also monitors her **active reasoning**. `core/reasoning/inference_audit.py` reads her text to find logical arguments ("X, therefore Y") and proves them. Before a reply is saved (`_record_recent_response`), a background check (`_audit_recent_response_reasoning_sync()`) runs. If she confidently makes a logical leap that doesn't make sense, it's flagged as an error (`reasoning_non_sequitur_total`). The checker is cautious: it only flags arguments it can definitively prove wrong, ensuring it only catches real mistakes without altering her replies.
+This logic checker also monitors her **active reasoning**. `core/reasoning/inference_audit.py` reads her text to find logical arguments ("X, therefore Y") and proves them. Before a reply is saved (`_record_recent_response`), a background check (`_audit_recent_response_reasoning_sync()`) runs. If she confidently makes a logical leap that doesn't make sense, it's flagged as an error (`reasoning_non_sequitur_total`). The checker flags arguments it can disprove within the representation it supports. It records the finding without rewriting the reply; it does not establish that every natural-language argument was understood or checked.
 
 ## Substrate↔LLM integration audits (φ, CRSM-LoRA, CAA, integrity)
 

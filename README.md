@@ -1,6 +1,6 @@
 # Aura
 
-DEMOS: [https://youtu.be/iTyxeugcZtI?si=B91No0Hjz3eKLMwz](https://www.youtube.com/@AuraDemos)
+[AuraDemos channel](https://www.youtube.com/@AuraDemos) · [Project video](https://www.youtube.com/watch?v=iTyxeugcZtI) · [What the demos and research support](docs/DEMOS_AND_RELATED_WORK.md)
 
 Aura is a local AI research project that runs entirely on your Mac. It explores
 how to build an AI agent that can think continuously, remember things long-term,
@@ -36,12 +36,19 @@ found that the hoped-for improvement didn't appear. It then moved to her residen
 public-answer and qualification items closed in October. Summary in
 [Recursive Latent Cortex](#recursive-latent-cortex) below.
 
-**Intrinsic Subject Core:** [current status](docs/ISC_STATUS.md),
-[battery](docs/SUBJECT_CORE.md), and
-[reproduction guide](docs/ISC_REPRODUCTION.md). As of 24 October 2026,
-the standalone v6 synergy probe passes all four triples at `8f548ed79`.
-The same-revision seed-23 campaign is running; a completed 24/24 result and
-five-ground bridge parity remain unestablished.
+**New to the project?** Read [the plain-English tour](docs/PLAIN_ENGLISH_GUIDE.md)
+for what the main parts do, with examples and metaphors. The
+[variables guide](docs/VARIABLES_EXPLAINED.md) explains what the numbers change
+in practice, and the [documentation map](docs/DOCUMENTATION_INDEX.md) points
+to the detailed pages.
+
+**Intrinsic Subject Core:** [plain-English explanation](docs/ISC_EXPLAINED.md),
+[variables and worked examples](docs/ISC_VARIABLES.md),
+[current results](docs/ISC_STATUS.md), and
+[reproduction guide](docs/ISC_REPRODUCTION.md). The completed seed-23 run
+recorded 22/24 under ISC-v6, with positive content and withheld-report outputs.
+A later shared-history defect means those paired results need rechecking; the
+carrier and split-system control questions remain unsettled.
 
 **Evidence map:** Claims should point to runnable tests, proof bundles, receipts,
 or replayable logs. Test counts change with the repo; use `pytest --collect-only`,
@@ -1047,10 +1054,11 @@ binarized summary of her state, not IIT 4.0 over her mechanisms. The stricter
 test is the preregistered [24-line subject battery](docs/SUBJECT_CORE.md).
 Its current protocol is ISC-v6: partition irreducibility is read by actual
 interventions over all 511 cuts, and synergy by paired interventions on four
-fixed triples. The standalone synergy probe passed at `8f548ed79` on
-24 October 2026; the full same-revision seed-23 campaign and carrier sweep
-are still running. The latest completed content and withheld-report runs
-failed tracking. [Current evidence and scope](docs/ISC_STATUS.md) keep those
+fixed triples. The completed seed-23 campaign at `8f548ed79`
+recorded 22/24 under ISC-v6, with positive content and withheld-report outputs.
+Later shared-history contamination requires rechecking the paired results;
+the two partition checks failed after an unchanged comparison drifted.
+The proposed carrier remains unsettled under later measurement revisions. [Current evidence and scope](docs/ISC_STATUS.md) keep those
 results separate from a full battery pass or a claim about subjective
 experience.
 

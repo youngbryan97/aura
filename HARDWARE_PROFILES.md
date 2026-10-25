@@ -1,5 +1,15 @@
 # Aura Hardware & Model Profiles
 
+<!-- reader-navigation:start -->
+> **In plain English:** Resource management keeps model inference, background work and the operating system within the machine’s real capacity.
+>
+> **Why it matters:** A useful assistant must avoid exhausting the host or making the conversation unusable while doing background work.
+>
+> **In everyday use:** A second large model load can disrupt a working session even if each model fits alone. Scheduling and a measured memory budget matter.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#resources) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#resources) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 This guide explains what hardware Aura runs on and—most importantly—what claims you can validly make about a test run on each machine.
 
 Hardware specs and test results belong together. Running a benchmark on an 8 GB laptop with simulated (mocked) models is completely different from running it on a 64 GB machine with a real 27-billion-parameter model in memory. A test score from the laptop proves almost nothing about real-world performance on the workstation. Each hardware profile below spells out which claims you are allowed to make and which are forbidden, so every test result stays tied to the hardware that produced it.

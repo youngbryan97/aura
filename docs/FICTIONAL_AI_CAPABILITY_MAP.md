@@ -1,5 +1,15 @@
 # Fictional-AI Capability Map for Aura
 
+<!-- reader-navigation:start -->
+> **In plain English:** Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.
+>
+> **Why it matters:** A useful component needs a real reader and a real route into behavior; a box on a diagram can otherwise be disconnected from what users see.
+>
+> **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 **Honest question: what can we actually take from fictional AI and build into Aura
 — at the level of mind, agency, maneuverability, external capability, and the real
 science around the character — and where in the live system does each piece belong?**

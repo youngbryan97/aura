@@ -1,5 +1,15 @@
 # The Allostasis Engine — predictive interoception
 
+<!-- reader-navigation:start -->
+> **In plain English:** Aura uses internal variables for positive or negative condition, activation, needs and operating strain. Their role is established by what they change.
+>
+> **Why it matters:** A named mood or drive is useful only if its consumers produce an appropriate effect, rather than merely displaying a label.
+>
+> **In everyday use:** Under resource strain, the system may need to reduce expensive background work while preserving the conversation.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#affect) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#affect) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#affect) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 **Organ:** `core/autonomic/allostasis.py` · **Service:** `allostasis_engine` ·
 **Surface:** `GET /api/allostasis`, `GET /api/allostasis/forecasts` ·
 **Pulse:** metabolic coordinator, every ~60 s · **Since:** 2026-07-15
@@ -13,9 +23,12 @@ the 110 GB incident, the 35 GB endurance OOM, the duplicate-runtime memory
 doubling, the ~242 MB/h soak leak — was a **trajectory visible for tens of
 minutes** before any reactive layer could speak.
 
-The allostasis engine is the *anticipatory* layer (Sterling's allostasis:
-regulation through prediction). It watches the trajectories of her vitals and
-regulates before the crisis:
+The allostasis engine is the *anticipatory* layer, inspired by
+[Sterling's predictive-regulation account](https://pubmed.ncbi.nlm.nih.gov/21684297/).
+In ordinary terms, it is meant to notice the tank getting emptier before the
+low-fuel alarm sounds. Here the readings concern software resources; the
+comparison does not establish biological equivalence or a feeling. It watches
+the trajectories of her vitals and requests changes before the crisis:
 
 | Vital | Amber | Red | Source |
 |---|---|---|---|
@@ -51,6 +64,14 @@ regulates before the crisis:
    protecting`; escalation immediate, release hysteretic (300 s per step,
    one step at a time). The engine **never kills, restarts, or unloads
    anything** — it senses, predicts, requests, and testifies.
+
+The [NIST CUSUM reference](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc323.htm)
+explains the accumulated-deviation method. The residual model, parameters,
+forecast horizon and software thresholds above belong to Aura's adaptation.
+The stated calibration is a local claim, whose test route is listed below;
+it is not a rate supplied by Sterling or NIST. See the
+[source map](SCIENCE_AND_SOURCES.md#regulation-and-internal-condition) for the
+biological inspiration and its limits.
 
 ## Causal seams (what it actually changes)
 

@@ -1,5 +1,15 @@
 # Runbook: Camera Unavailable
 
+<!-- reader-navigation:start -->
+> **In plain English:** Visual control connects what is seen with an identified object, its motion and actions that change what happens next.
+>
+> **Why it matters:** A system needs to keep tracking the same object and account for delay, rather than react to whichever pixels look convenient in one frame.
+>
+> **In everyday use:** In a moving game, a key can arrive after the picture it was chosen from. The controller must learn how its actions affect the identified body.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#vision) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#vision) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#agents) · [Document map](../DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Symptoms
 - `models.json[sensors][camera].status` is `unavailable` or `permission_denied`.
 - `health.json[services]` shows the vision pipeline degraded.

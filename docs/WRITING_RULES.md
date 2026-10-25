@@ -1,5 +1,15 @@
 # Writing rules
 
+<!-- reader-navigation:start -->
+> **In plain English:** The documentation contains current guides, dated experiment records, frozen rules, generated reports and open plans. They answer different questions.
+>
+> **Why it matters:** A reader should not treat an old proposed run as today’s result or a completed engineering task as a passed scientific check.
+>
+> **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Status: Guide · Standing conventions for prose in this repository
 
 Everyone learned the em-dash trick, so the tells moved. These are the patterns
@@ -174,6 +184,56 @@ manuals, where an ambiguous sentence can kill somebody — delivers the first
 three and drops the fourth. Ask for it by name when writing procedures, gates,
 runbooks, and API documentation. Do not ask for it when the writing has a
 voice: it flattens anything with a heart into a parts catalogue.
+
+## Give a newcomer a way in
+
+Research and engineering pages need an explanation a person can use before
+learning the project vocabulary. After the opening, a reader should be able to
+say “so essentially…” and explain the mechanism and its purpose to someone
+else. If that paraphrase still needs the unexplained technical terms, rewrite
+the introduction. State what the mechanism does, why someone
+would care, and what it changes in an ordinary interaction. Define a variable
+by its meaning, unit or scale, consumer and practical consequence.
+
+Use a worked example when arithmetic helps. Use a metaphor when it makes an
+unfamiliar mechanism easier to picture, and state where the comparison stops.
+An illustration is labeled as an illustration; it is not an extra experiment.
+
+Keep the technical detail available after that introduction. A reader should
+be able to explain the idea aloud without first translating a dense paragraph.
+The shared [tour](PLAIN_ENGLISH_GUIDE.md) and
+[variable definitions](VARIABLES_EXPLAINED.md) support the page-specific reading
+notes; their source is `config/documentation_reading_topics.json`.
+
+Connect a claim to a witnessed demo, controlled result or source check where
+one exists. Label a planned demonstration as a plan. Cite primary research for
+related ideas. An extension in implementation scope does not establish a
+performance advantage without a comparable test. The
+[demos and related-work guide](DEMOS_AND_RELATED_WORK.md) records those limits.
+
+Cite the source beside the statement it supports, including scientific design
+inspirations, empirical findings, borrowed formulas and real-world incidents.
+Prefer the original study, authors' paper or official technical reference.
+Name the population or system studied. A result about people does not supply
+an Aura result. Identify a theoretical proposal as a proposal, an adaptation
+as an adaptation, and an invented example as an illustration. If only a
+bibliographic record or abstract was checked, say so before drawing a more
+detailed conclusion. Do not add references merely to make a paragraph look
+scientific.
+
+For a quantitative Aura claim, retain the run, source revision, measurement,
+controls and uncertainty beside the reference. Preserve failed results and
+later method corrections. Use the [scientific source map](SCIENCE_AND_SOURCES.md)
+and [reusable bibliography](../research/references.bib) when preparing a paper;
+check the supporting passage, version and correction status again before
+submission. This extends the source-attribution convention above; it adds no
+automatic claim of scientific validity.
+
+`python tools/render_reader_navigation.py --check` verifies the generated
+reading notes and document map. It checks coverage and consistency; judging
+whether the explanation is clear and the comparison is warranted remains
+editorial work. Frozen protocols, historical evidence and compliance text
+retain their original wording and are indexed separately.
 
 ## What this does not apply to
 

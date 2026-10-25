@@ -1,5 +1,15 @@
 # Engineering design: how a drawing gets its numbers
 
+<!-- reader-navigation:start -->
+> **In plain English:** Engineering work turns declared inputs, formulas and assumptions into a design or drawing with traceable numerical findings.
+>
+> **Why it matters:** A plausible-looking diagram is insufficient when somebody needs to know where its dimensions came from and when they apply.
+>
+> **In everyday use:** A beam calculation should retain the load, units, material assumptions and equation beside the proposed dimension.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#engineering) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#engineering) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#engineering) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Aura can take a design brief and produce checked engineering drawings from
 it — an assembly with labelled callouts, an exploded view keyed to a parts
 list, a wiring or piping schematic, a section, dimensioned views — plus the

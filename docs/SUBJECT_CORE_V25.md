@@ -1,20 +1,48 @@
 # Subject Core v25: the intrinsic carrier
 
-Status: Guide · Current implementation reconciled 24 October 2026
+<!-- reader-navigation:start -->
+> **In plain English:** ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+>
+> **Why it matters:** The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.
+>
+> **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
 
-The carrier programme asks whether the measured system contains a closed,
-recurrent support whose future changes under every partition, at a sufficient
-state grain. Its result is distinct from the battery's 24-line conjunction.
-**v25 names the carrier programme; ISC-v6 names the current battery protocol.**
+**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
+which repairs consequence history shared between experimental arms. Retain
+the recorded scores, but recheck paired results under repaired isolation before
+presenting them as clean causal confirmation. See
+[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
 
-At the [24 October evidence snapshot](ISC_STATUS.md), the carrier confirmation
-at `8f548ed79`, seed 23, is still running. There is no completed authoritative
-carrier report from it. A progressing shard, a passing synergy probe or an
-older plumbing sweep cannot establish its carrier result.
 
-## The implementation used by the current run
+Status: Guide · Current implementation reconciled 25 October 2026
 
-The current `--v5` sweep uses the design declared in
+A **carrier** is the process proposed to carry the state we are studying.
+This programme asks where to draw its boundary: which parts belong together,
+and whether an important internal driver has been left outside.
+
+Think of trying to explain a car's movement while omitting its brake input.
+The recorded description is incomplete even if all the included parts affect
+one another. The comparison illustrates missing causes; it does not make a
+car an equivalent model of Aura.
+
+The seed-23 carrier run at `8f548ed79` finished with `NOT_FOUND`. Later work
+found an unchanged-fork drift and weaknesses in the closure measurement.
+Current source at `12bade935` distinguishes an outside contribution from an
+unanswered boundary question. A positive closure reading still needs a margin
+chosen before fresh confirmation. No revised carrier result is established
+by this documentation update.
+
+Read [the plain-English explanation](ISC_EXPLAINED.md),
+[variables and examples](ISC_VARIABLES.md) or
+[current results](ISC_STATUS.md) before the instrument details below.
+**v25 names this programme; ISC-v6 names the battery's current rules.**
+
+## The split-system design and its later closure amendment
+
+The `--v5` split-system sweep uses the design declared in
 [isc_v5.py](../core/subject/isc_v5.py) and the
 [v5 preregistration with its addenda](ISC_V5_PREREGISTRATION.md):
 
@@ -38,6 +66,13 @@ choice and the initial rank-stability rule. The September addenda and current
 code supersede those portions: the cut estimator is now paired displacement,
 and grain sufficiency is tested under the declared refits. Do not cite the
 initial text as the current estimator without those amendments.
+
+The [25 October amendment](ISC_V6_PREREGISTRATION.md) separately changes the
+closure decision: both predictions include declared environment input, the
+measurement uses forward folds and uncertainty bounds, and a closed result
+requires a preregistered margin. `CLOSURE_MARGIN` is currently `None`.
+`UNRESOLVED` is preserved through carrier selection and J* when closure alone
+cannot be decided. This is a changed method, requiring a new confirmed result.
 
 ## How the layers join
 

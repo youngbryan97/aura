@@ -1,5 +1,15 @@
 # Aura Architecture
 
+<!-- reader-navigation:start -->
+> **In plain English:** Architecture describes which parts exist, how information reaches them and which component is responsible for a decision or effect.
+>
+> **Why it matters:** A useful component needs a real reader and a real route into behavior; a box on a diagram can otherwise be disconnected from what users see.
+>
+> **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 This is the technical spec. It explains the math, files, and algorithms. For a simple overview, see [HOW_IT_WORKS.md](HOW_IT_WORKS.md). For a quick start, see the [README](README.md).
 
 **Evidence boundary.** This document describes functional systems, not philosophical claims about consciousness or legal personhood. We only credit claims after strict testing.

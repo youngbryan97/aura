@@ -1,5 +1,15 @@
 # Dialogue Corpora Layout
 
+<!-- reader-navigation:start -->
+> **In plain English:** Memory keeps records beyond the immediate request and selects relevant records for the current turn.
+>
+> **Why it matters:** Useful continuity depends on recalling the right information, retaining its source and correcting or deleting it when needed.
+>
+> **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
+>
+> [Example and metaphor](../../docs/PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](../../docs/VARIABLES_EXPLAINED.md#memory) · [Demos and related work](../../docs/DEMOS_AND_RELATED_WORK.md#memory) · [Document map](../../docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Put optional local transcript files here if you want to deepen Aura's dialogue-source attractors.
 
 Canonical folders:

@@ -1,5 +1,15 @@
 # Known Failure Modes — Aura Cognitive Runtime
 
+<!-- reader-navigation:start -->
+> **In plain English:** Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
+>
+> **Why it matters:** A user should not lose work because a slow component was mistaken for a dead one, or because a restart created another large process.
+>
+> **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
+>
+> [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Purpose
 
 This document explains the nineteen core failure modes in the Aura runtime: what causes each issue, what it looks like, and how to fix it. Every failure mode has a dedicated troubleshooting runbook (part of 41 incident runbooks maintained in `docs/runbooks/`).

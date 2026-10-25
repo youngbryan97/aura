@@ -1,5 +1,15 @@
 # What would have to be true, who would say so, and what is already known
 
+<!-- reader-navigation:start -->
+> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
+>
+> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
+>
+> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Written 2026-08-28, after building the induction and transfer work and being
 told — correctly — that the decomposition and the research had been skipped.
 
@@ -217,7 +227,7 @@ with.
 
 ### 3.4 Core knowledge says which primitives are principled, and which are missing
 
-[Spelke's core knowledge](https://www.harvardlds.org/wp-content/uploads/2017/01/spelke2000-1.pdf)
+[Spelke's core knowledge](https://pubmed.ncbi.nlm.nih.gov/11280937/)
 systems are objects, agents, number, geometry/topology, and living kinds.
 Mapping `_index_forms` onto them:
 
@@ -239,7 +249,7 @@ grouping should lift precisely those two shapes and nothing else.
 ### 3.5 Motor control says composition is the right shape
 
 Human movement is built from a small number of
-[motor primitives combined](https://www.researchgate.net/publication/12277176_Thoroughman_KA_Shadmehr_R_Learning_of_action_through_adaptive_combination_of_motor_primitives),
+[motor primitives combined](https://www.nature.com/articles/35037588),
 and learning a new skill is largely exploring *combinations of previously
 acquired synergies* rather than growing new ones. Adaptation generalises to
 untrained contexts through those modules. That is the same architecture as
@@ -257,7 +267,7 @@ open A7, and it now has a name.
 Chunking and production compilation are the same move: compress multi-step
 reasoning into a single step, reusable later. The finding worth carrying is a
 negative one — in
-[long-term studies of both](https://www.academia.edu/18277101/Long_term_symbolic_learning_in_soar_and_act_r),
+[long-term studies of both](https://web.eecs.umich.edu/~soar/sitemaker/docs/pubs/Kennedy-ICCM2006.pdf),
 symbolic learning **eventually stopped**. Accumulating rules is not unbounded
 growth. A library that only grows will saturate, and the thing that keeps
 DreamCoder growing is refactoring, not accumulation. Another argument for 3.1.
@@ -316,6 +326,6 @@ Sources: [DreamCoder](https://arxiv.org/pdf/2006.08381) ·
 [Stitch / top-down library learning](https://arxiv.org/pdf/2211.16605) ·
 [Turning 30: New Ideas in ILP](https://arxiv.org/pdf/2002.11002) ·
 [On the Measure of Intelligence](https://arxiv.org/pdf/1911.01547) ·
-[Spelke, Core Knowledge](https://www.harvardlds.org/wp-content/uploads/2017/01/spelke2000-1.pdf) ·
-[Thoroughman & Shadmehr, motor primitives](https://www.researchgate.net/publication/12277176_Thoroughman_KA_Shadmehr_R_Learning_of_action_through_adaptive_combination_of_motor_primitives) ·
-[Long-term symbolic learning in Soar and ACT-R](https://www.academia.edu/18277101/Long_term_symbolic_learning_in_soar_and_act_r)
+[Spelke, Core Knowledge](https://pubmed.ncbi.nlm.nih.gov/11280937/) ·
+[Thoroughman & Shadmehr, motor primitives](https://www.nature.com/articles/35037588) ·
+[Long-term symbolic learning in Soar and ACT-R](https://web.eecs.umich.edu/~soar/sitemaker/docs/pubs/Kennedy-ICCM2006.pdf)

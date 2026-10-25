@@ -1,5 +1,15 @@
 # Runbook: Tool Timeout Storm
 
+<!-- reader-navigation:start -->
+> **In plain English:** Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
+>
+> **Why it matters:** A user should not lose work because a slow component was mistaken for a dead one, or because a restart created another large process.
+>
+> **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Symptoms
 - `receipts.json[recent.tool_execution]` shows a spike in `status=timeout` within a short window.
 - `metrics.json[system].cpu_percent` and `event_loop_lag_ms` rising together.

@@ -1,5 +1,15 @@
 # Runbook: Self Repair Failed
 
+<!-- reader-navigation:start -->
+> **In plain English:** Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
+>
+> **Why it matters:** A user should not lose work because a slow component was mistaken for a dead one, or because a restart created another large process.
+>
+> **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Symptoms
 - `receipts.json[recent.self_repair]` shows entries whose `rungs_passed` list is shorter than expected (e.g. compile_fail or assertion_fail in the typed mutation evaluator).
 - `~/.aura/data/mutation_quarantine/` has new entries: each contains `source.py`, `result.json` with `outcome != passed`, plus `stdout.log` and `stderr.log`.

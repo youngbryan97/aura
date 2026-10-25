@@ -141,6 +141,8 @@ FOREIGN_SYMBOLS = frozenset(dir(builtins)) | frozenset({
     "PortAudio", "PyAudio", "OpenSSL", "PyTorch", "NumPy", "SwigPyObject",
     # launchd.plist(5) keys, not Aura classes.
     "RunAtLoad", "KeepAlive",
+    # The macOS Keychain service label used by the credential adapter.
+    "AuraAutonomyEngine",
 })
 
 #: An HTTP route a document tells a reader to call. Routes carry two prefixes
@@ -485,6 +487,10 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
         if not ENV_NEGATED.search(line) and not names_an_absence(i):
             literal, built = env_names
             for scope in ([line] if in_fence else []) + spans:
+                # A filename can contain AURA_ without naming an environment
+                # variable. Keep dated evidence paths intact.
+                if re.fullmatch(r"[~\w./-]+\.(?:md|json|py|toml|yaml|yml|txt|csv|log)(?::\d+)?", scope.strip()):
+                    continue
                 for m in ENV_VAR.finditer(scope):
                     name = m.group(0)
                     if name in literal or name.startswith(built):

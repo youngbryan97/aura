@@ -4,6 +4,17 @@ This folder contains the project guides and research records, with dated evidenc
 
 If you need to check *whether a document is up to date*, see [DOC_STATUS.md](DOC_STATUS.md). It categorizes files into current docs, historical records, auto-generated files, and standards. Check there first if something looks unexpected.
 
+## Start without the jargon
+
+Read [the plain-English tour](PLAIN_ENGLISH_GUIDE.md) for the project's moving
+parts, [variables and practical examples](VARIABLES_EXPLAINED.md) for the
+numbers, and [the complete document map](DOCUMENTATION_INDEX.md) to choose a
+page. For the subjecthood research, use [ISC explained](ISC_EXPLAINED.md).
+Technical specifications and original evidence remain available alongside them.
+The [scientific source map](SCIENCE_AND_SOURCES.md) explains the research
+connections and their limits; the [BibTeX bibliography](../research/references.bib)
+provides citation keys for a future paper.
+
 ## Running it
 
 | | |
@@ -75,7 +86,8 @@ Long-running research initiatives and their progress records.
   [ENDOGENOUS_LANGUAGE_PATHWAY.md](ENDOGENOUS_LANGUAGE_PATHWAY.md) (turning internal states into language),
   [FRONTIER_GENERAL_ARC.md](FRONTIER_GENERAL_ARC.md) (generalization goals), and
   [METALANGUAGE_MY_OWN_ATTEMPT.md](METALANGUAGE_MY_OWN_ATTEMPT.md).
-- **Intrinsic Subject Core** — start with [ISC_STATUS.md](ISC_STATUS.md)
+- **Intrinsic Subject Core** — start with [ISC_EXPLAINED.md](ISC_EXPLAINED.md),
+  [ISC_VARIABLES.md](ISC_VARIABLES.md), and [ISC_STATUS.md](ISC_STATUS.md)
   for the current evidence, [SUBJECT_CORE.md](SUBJECT_CORE.md) for the battery,
   and [ISC_REPRODUCTION.md](ISC_REPRODUCTION.md) for run planning and review.
   [ISC_V6_PREREGISTRATION.md](ISC_V6_PREREGISTRATION.md) replaces the synergy

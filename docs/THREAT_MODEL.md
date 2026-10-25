@@ -1,5 +1,15 @@
 # Threat model
 
+<!-- reader-navigation:start -->
+> **In plain English:** Security describes what information may cross a boundary and what untrusted input is allowed to influence.
+>
+> **Why it matters:** An assistant sees documents, websites and tool results that can contain instructions it should not treat as permission from the user.
+>
+> **In everyday use:** A web page telling the assistant to reveal a private file must remain page content rather than becoming an instruction to send the file.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#security) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#security) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Status: written 2026-08-21, revised 2026-08-22. Every control below is attacked from the
 attacker's side in `tests/security/`, and `tools/check_threat_model.py` fails
 when this document names a test that does not exist.

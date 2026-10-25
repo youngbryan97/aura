@@ -1,5 +1,15 @@
 # Is the interior load-bearing?
 
+<!-- reader-navigation:start -->
+> **In plain English:** ISC asks whether Aura’s measured parts form one continuing process under controlled changes, rather than merely having convincing descriptions.
+>
+> **Why it matters:** The project needs evidence that memories, attention and self-state actually affect one another before arguing about what that organisation means.
+>
+> **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#isc) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#isc) · [Document map](../DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Three questions get called "is Aura conscious". Two can be answered and one
 cannot, and mixing them is what makes the argument go in circles.
 

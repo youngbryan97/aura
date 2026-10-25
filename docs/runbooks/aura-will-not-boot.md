@@ -1,5 +1,15 @@
 # Runbook: Aura Will Not Boot
 
+<!-- reader-navigation:start -->
+> **In plain English:** Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
+>
+> **Why it matters:** A user should not lose work because a slow component was mistaken for a dead one, or because a restart created another large process.
+>
+> **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
+>
+> [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 ## Symptoms
 - `aura doctor` (without `--bundle`) returns `ok=false` with one or more failed pre-boot checks (`python_version`, `data_dir_writable`, `sqlite_available`, `atomic_writer_round_trip`).
 - `~/.aura/locks/orchestrator.lock` exists and points to a PID that is no longer running.

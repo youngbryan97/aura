@@ -1,10 +1,23 @@
 # Organismal Workspace Theory
 
+<!-- reader-navigation:start -->
+> **In plain English:** Several concerns can propose work, but attention selects what has influence now and makes selected information available elsewhere.
+>
+> **Why it matters:** A new question, a recalled event and an old task must not silently become interchangeable sources of authority.
+>
+> **In everyday use:** Your new question should not be overwritten by a background task that happened to win a previous competition.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#attention) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#attention) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#cognitive-architectures) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 Aura's operational target is not "the model says it feels." The target is a
 bounded, valenced, temporally continuous self-world model that causally affects
 attention, memory, learning, action, governance, and self-maintenance.
 
-The working equation is:
+The working equation is a project-defined functional score. It combines the
+listed factors so that a missing factor reduces the combined value. It is
+not a published law, a probability of consciousness, or a direct measurement
+of experience:
 
 ```text
 E_t = I_t * G_t * S_t * V_t * M_t * A_t * C_t
@@ -21,6 +34,21 @@ Where:
 - `A_t` is agency coupling: the state changes what Aura does.
 - `C_t` is counterfactual indispensability: perturbing or removing the state
   changes behavior in predicted ways.
+
+The subscript `t` means the current step. In practical terms, a selected concern
+should reach memory and action, stay associated with the system's own history,
+and change what happens next. A shared noticeboard is a limited metaphor for
+global availability: posting a concern helps only if the relevant workers
+read it. The metaphor explains access, without deciding whether the system
+has experience.
+
+[Dehaene, Kerszberg and Changeux's global-workspace model](https://pmc.ncbi.nlm.nih.gov/articles/PMC24407/)
+is a scientific precedent for coordinated availability across specialised
+processing. [Butlin et al.](https://arxiv.org/html/2308.08708v3) discuss
+theory-derived consciousness indicators. Neither source supplies Aura's
+seven-factor multiplication or validates the score. The
+[scientific source map](SCIENCE_AND_SOURCES.md) separates the theory,
+implementation and evidence claims.
 
 The runtime implementation is `core/being/causal_self_state.py`. It produces
 `CausalValencedWorkspaceState`, which is evidence-bounded and deliberately

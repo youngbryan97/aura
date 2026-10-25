@@ -1,5 +1,15 @@
 # Autonomous developmental agency
 
+<!-- reader-navigation:start -->
+> **In plain English:** Agency concerns proposing work, choosing goals and pursuing them over time while remaining responsive to the person and the environment.
+>
+> **Why it matters:** An assistant must distinguish what it is able to attempt, what it has permission to do, and what it has actually completed.
+>
+> **In everyday use:** A reminder to inspect a document should not become permission to send it to somebody else. A new request can change the priority of existing work.
+>
+> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#agency) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#agency) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#agents) · [Document map](DOCUMENTATION_INDEX.md)
+<!-- reader-navigation:end -->
+
 The last question was whether the language of her future learning could be a
 product of experience.
 [RECURSIVE_ENDOGENOUS_EXPANSION.md](RECURSIVE_ENDOGENOUS_EXPANSION.md) answers
