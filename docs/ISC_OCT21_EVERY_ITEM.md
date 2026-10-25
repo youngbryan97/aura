@@ -1434,7 +1434,18 @@ carrier's second-largest single leak is `homeostasis.metabolism`, which is
 computed from the thermal load her soma reads.
 
 Under a declared host these columns do not vary, so the periphery filter drops
-them before the comparison: `closure_gain` keeps only columns whose spread
-exceeds 1e-9. That is a specific prediction for the carrier's rerun rather than
-a hope, and it is the reason to expect its leak to fall rather than to hope it
-does.
+them before the comparison. That predicted the carrier's leak would fall, and it
+was wrong. Measured by removing them from the recording already on disk, which
+is what a declared host would do to them: the leak reads +0.02429 as recorded,
++0.02735 without the five machine readings, and +0.02404 without those and the
+twelve metabolism columns as well. One fold of three leaks in every case.
+
+So the host readings are in her periphery and they are not her leak. The two
+failures are separate, and conflating them would have sent a campaign after the
+wrong one:
+
+- The LATE-FORK CONTROL failed because two rollouts hours apart saw different
+  machines. That is what the declared host fixes, and it is what the partition
+  criteria were blocked on.
+- The CARRIER'S LEAK is 0.0243 against a gate that resolves 0.045 on this
+  recording. The host has nothing to do with it, and neither will the rerun.
