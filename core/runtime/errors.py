@@ -114,6 +114,24 @@ class InvariantViolation(Exception):
 # In-memory degradation tracking
 # ---------------------------------------------------------------------------
 
+#: The singleton tracker's records, kept at module scope so a paired experiment
+#: can fork them with her (see `__forks_with_her__`).
+#:
+#: Her existential stakes read these records as threat: a sixty-second window
+#: weighted by severity and age, discounted for a signature that keeps coming
+#: back (core/consciousness/existential_stakes.py). The tracker lives in
+#: `core.runtime`, which a snapshot never carries, and a restore rewinds the
+#: experiment's clock, so every arm of a paired trial read the degradations of
+#: the arms before it as if they had just happened. MEASURED 25 October on the
+#: seed-23 anchors: an untouched fork rolled after sixty cuts read a
+#: degradation weight of 0 where the same fork rolled before them read 0.0387.
+_RECORDS: list[DegradationRecord] = []
+
+#: What of this module a fork carries with her: the degradation records her
+#: organs read. The counters, the listeners and the escalation state are the
+#: process's own and stay with it.
+__forks_with_her__ = ("_RECORDS",)
+
 @dataclass
 class DegradationRecord:
     subsystem: str
@@ -128,9 +146,9 @@ class DegradationRecord:
 class DegradationTracker:
     """Tracks all degradation events in-memory for dashboard/health queries."""
 
-    def __init__(self, max_records: int = 500):
+    def __init__(self, max_records: int = 500, *, records: list[DegradationRecord] | None = None):
         self._lock = threading.Lock()
-        self._records: list[DegradationRecord] = []
+        self._records: list[DegradationRecord] = records if records is not None else []
         self._max = max_records
         self._counts: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         # Listeners fire OUTSIDE the lock, guarded, and must be O(1).
@@ -156,7 +174,8 @@ class DegradationTracker:
         with self._lock:
             self._records.append(rec)
             if len(self._records) > self._max:
-                self._records = self._records[-self._max:]
+                # In place: the list is `_RECORDS`, which a fork holds by identity.
+                del self._records[: len(self._records) - self._max]
             self._counts[rec.subsystem][rec.severity] += 1
             listeners = list(self._listeners)
         for listener in listeners:
@@ -224,7 +243,7 @@ class DegradationTracker:
 
 
 # Module-level singleton
-_tracker = DegradationTracker()
+_tracker = DegradationTracker(records=_RECORDS)
 
 
 def get_degradation_tracker() -> DegradationTracker:

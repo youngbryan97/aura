@@ -68,10 +68,12 @@ def test_a_registry_of_callbacks_is_wiring_and_is_left_alone(monkeypatch: pytest
 def test_the_machinery_and_the_instrument_are_not_rewound() -> None:
     """Machinery is not rewound, except what a machinery module names as hers.
 
-    The one name today is the consequence bus's history, which her integration
-    reading is computed from (tests/test_a_fork_rewinds_the_consequences_she_reads.py).
-    Anything else held from a machinery package is the instrument rewinding
-    itself, and a new declaration has to be a decision someone can see here.
+    The names today are the consequence bus's history, which her integration
+    reading is computed from (tests/test_a_fork_rewinds_the_consequences_she_reads.py),
+    and the degradation tracker's records, which her existential stakes read as
+    threat (tests/test_a_fork_rewinds_the_degradations_she_reads.py). Anything else
+    held from a machinery package is the instrument rewinding itself, and a new
+    declaration has to be a decision someone can see here.
     """
     import sys
 
@@ -85,7 +87,7 @@ def test_the_machinery_and_the_instrument_are_not_rewound() -> None:
         not in tuple(getattr(sys.modules[key.partition(":")[0]], "__forks_with_her__", ()) or ())
     ]
     assert not undeclared, undeclared[:5]
-    assert set(held) <= {"core.runtime.consequence_bus:_HISTORY"}, held
+    assert set(held) <= {"core.runtime.consequence_bus:_HISTORY", "core.runtime.errors:_RECORDS"}, held
 
 
 def test_a_restore_rewinds_the_engine_and_puts_back_a_cleared_global(

@@ -1479,3 +1479,127 @@ is to widen K and test closure again, which is what looking for a closed core
 means. If it does not belong, the carrier is open at this grain and that is the
 finding. Either way it is decided by the preregistration rather than here, and
 neither reading is reached by a longer run on the same K.
+
+## Every arm was reading the consequences of the arms before it (25 October, 11:28 to 12:28)
+
+With the host declared, the host watch stopped and the gateway index held, the
+late-fork control still moved. A pre-flight at 11:28 rolled one anchor, ran
+twenty cut forks from the other anchors, moved every real clock forward ten
+hours, and rolled the same anchor again. Twins rolled back to back were
+identical. The late roll was not: K apart by 0.0014, first at frame 55, in
+`G.coherence`.
+
+The residue was found by elimination, each candidate restored between cuts and
+K compared again. K still parted with the degraded-events buffer restored, with
+both SQLite stores copied back through SQLite, with the global random streams
+put back, with no cuts at all and only wall time passing (it did not part
+then), and with every module global in the machinery packages and every
+service the snapshot leaves out compared and found unmoved. Watching the organs
+that compute K's G columns found where it entered: the unity computations
+matched until the ghost's reading did, and the ghost's integration fell with
+each arm.
+
+| arm off the same anchor | φ_system at the second reading | regime |
+|---|---:|---|
+| base | 0.3225 | loosely coupled |
+| cut 1 | 0.3001 | loosely coupled |
+| cut 2 | 0.2869 | loosely coupled |
+| cut 3 | 0.2776 | loosely coupled |
+| cut 4 | 0.2706 | loosely coupled |
+| cut 5 | 0.2500 | loosely coupled |
+| cut 6 | 0.2359 | loosely coupled |
+| cut 7 | 0.0 | federated |
+
+At cut 7 the ghost raised `federated_integration`, the unity runtime bound a
+self-integrity content, and K parted by 0.0011 in `G.coherence`,
+`G.fragmentation`, `G.selfhood_level`, `W.model_surprise` and
+`W.model_last_surprise`.
+
+`SystemIntegration` computes φ_system from the recent history of the
+consequence bus. The bus is a singleton held on its class in `core.runtime`,
+which is machinery, and a snapshot never carries machinery. So its history grew
+with every arm and was never rewound, and each arm computed her integration
+from the consequences of every arm run before it. Walking module globals could
+not find it, because the instance hangs on `ConsequenceBus._instance` and not
+at module scope.
+
+At `dcdcd637c` the history is a module list, `_HISTORY`, which the singleton
+binds and trims in place, and the module names it in `__forks_with_her__`. A
+snapshot carries exactly what a machinery module names there, and the guard in
+`tests/test_an_arm_leaves_no_module_state_behind.py` allows this one name and
+no other. With it in, twelve cuts off one anchor read φ 0.349848113 at every
+reading and K apart 0 at every cut. A thirty-cut repeat that also read every
+object held on a class in the machinery packages read K apart 0 at all thirty;
+the only such object that moved was the bus's event counter, which nothing
+outside the bus reads.
+
+What it changes:
+
+- The seed-23 readings were all taken with this in place. Every measurement
+  that runs arms one after another off one snapshot read an integration that
+  fell with the number of arms already run, so arm order and φ were confounded.
+  How far that moved each criterion is not measured. The fresh-seed run is the
+  first that will run without it.
+- The organ interchange of this morning found about 25 units that shifted K by
+  0.0023 from frame 55, in G and W, whichever organ was swapped. That is this
+  signature. The interchange is rerun before the widened core is drawn from it.
+- The 02:30 entry put the late-fork separation on the machine. The host watch
+  and the index refresh were real residues and their repairs stand, but the
+  separation in K that survived them was the bus.
+
+
+## The late-fork pre-flight on the fixed tree (25 October, 12:30 to 13:20)
+
+The same pre-flight, with sixty cuts and the real clocks moved forward ten
+hours, read K identical early and late: maximum difference 0. Its positive
+control had never fired. It planted a leftover into `drive_engine`, which K
+does not read within two turns, and so read identical too, which proves
+nothing either way. Planted instead into a unit the interchange finds K
+reading (`affect_grounding`), it moved K by 0.75 across 182 columns. So the
+control can now tell a leftover from none, and the clean arm has none that
+reaches K.
+
+One unit still differed in the clean arm: her existential stakes, degradation
+weight 0.0387 early and 0 late. The degradation tracker is a second singleton
+in `core.runtime` that a fork never carried, and her stakes read its records
+through a sixty-second window, discounting a signature that keeps coming back.
+A restore rewinds the experiment's clock, so a record written by one arm read
+as recent in every later one. Its records now fork with her as the bus history
+does, in `core.runtime.errors`, tested in
+`tests/test_a_fork_rewinds_the_degradations_she_reads.py`.
+
+The interchange, rerun on the fixed tree with six anchors, finds 13 units
+outside K that change K within two turns when their state alone is swapped:
+the affect update phase, bonding, the affect engine, affect grounding, the
+closed causal loop, the coherence report, embodied interoception, existential
+stakes, homeostasis, the neurochemical system, oscillatory binding, the STDP
+engine (by 9e-14, which is rounding) and the unity runtime. The morning's run
+had found 33; the twenty that are gone all moved K by the same 0.0023 from frame
+55, which was the bus. Iterating to a fixed point admitted 52 more in a second
+round, every one through the closed causal loop's state and at one anchor of
+six, and the script compared bare names against prefixed ones in its first
+round. Neither is a boundary yet: which field of the closed causal loop those
+swaps moved decides whether they reach K at all.
+
+### The margin rule meets her data
+
+The least-domain margin, committed before it read her (`cf0ace7e3`), is
+negative on seed 23. Leaving her affect domain out reads a leak of -0.797 and
+her self-state -0.877, and both come from the first forward fold, whose model
+is trained on her first fifth: there `A.arousal` stands 17 training spreads out
+in the test rows, `S.belief_count` 15.8, and the wider model scores twice the
+narrower one's error. No single self-state column does it; the worst alone
+costs 0.02. It is a linear model carried past the stretch of development it
+was fitted on.
+
+Holding the added columns inside the range they were fitted on repairs the
+affect domain (-0.797 to -0.007) and not the self-state (-0.789). Scoring with
+the validated weights instead of a refit makes it worse. Each variant also
+moves seed 23's own closure reading, between OPEN and UNRESOLVED, so none is
+chosen on seed 23. The estimator is chosen on known answers from a world that
+develops the way she does, and the first such world was built wrong: its
+development was an outside clock, so a drifting periphery really did carry
+information K lacked. Hers runs through her own ontogeny, inside K.
+
+The rule stands as preregistered. What fails is the estimator it calls, and
+the gate's own closure reading shares that estimator.

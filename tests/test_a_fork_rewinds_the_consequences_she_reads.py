@@ -69,7 +69,7 @@ def test_the_snapshot_carries_what_a_machinery_module_names(bus):
     assert "core.runtime.consequence_bus:_HISTORY" in held
     # And nothing else from machinery: the subscribers are wiring.
     machinery = [k for k in held if sn._in_packages(k.partition(":")[0], sn._MACHINERY_PACKAGES)]
-    assert machinery == ["core.runtime.consequence_bus:_HISTORY"], machinery
+    assert sorted(machinery) == ["core.runtime.consequence_bus:_HISTORY", "core.runtime.errors:_RECORDS"], machinery
 
 
 def test_a_restore_rewinds_the_consequences_an_arm_published(bus):

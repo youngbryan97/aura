@@ -1,6 +1,6 @@
 # ISC: what the latest results show
 
-Status: Guide · Evidence checked 25 October 2026, 12:40 PDT
+Status: Guide · Evidence checked 25 October 2026, 13:20 PDT
 
 **The completed run recorded 22 of 24 checks passing under ISC-v6.** Its
 separate content and self-report outputs were positive. A later isolation
@@ -65,7 +65,7 @@ positive results.
 | Do self-reports follow changed internal valence? | `measured: true`, `holds: true`, tracking rho 0.612475 | 29 of 80 anchors were fully readable under the stored policy; experimental basis and sample scope must be retained |
 | Is the proposed carrier established? | Completed carrier report: `NOT_FOUND`; completed J*/bridge output: `NO_CARRIER` | Later closure-rule changes require a new reading and fresh confirmation |
 | Do all five bridge grounds hold? | Carrier fails; markers, reports, structure and lineage hold in the completed join | No `AT_PARITY` result |
-| What does the latest source code allow? | At `12bade935`, closure can be open, closed within a named margin, unresolved, or unmeasured | `CLOSURE_MARGIN` is still `None`; a positive closure decision needs a predeclared margin |
+| What does the latest source code allow? | At `cf0ace7e3`, closure can be open, closed within a margin, unresolved, or unmeasured; the margin is drawn by a rule fixed before it was computed on Aura: the smallest contribution any one of the core's own ten parts makes when left outside | On seed 23 that rule reads below zero, because the shared prediction method fails on the earliest stretch of a developing run; the method must be chosen on known answers before it reads her again |
 
 The completed 22/24 result belongs to the experiment at `8f548ed79`. It is not
 an evaluated result for source at `12bade935`. Seed 23 informed the later
@@ -101,6 +101,15 @@ These earlier host and background repairs did not settle the drift. At
 consequence bus rather than elapsed host time. The bus's history now restores
 with the fork. This repairs a cross-arm path, while the independent boundary
 question below still needs its own measurement.
+
+A second shared record did the same through Aura's sense of threat: the
+degradation tracker, whose recent fault reports one of her organs reads. Its
+records now restore with the fork too. On the repaired source, a stress test
+that ran sixty split-system comparisons and moved the real clocks ten hours
+forward found the unchanged copy identical before and after (largest
+difference 0). Its positive control, a leftover deliberately planted in a part
+the core reads, moved the core by 0.75, so the test can see a leftover when one
+is there. This is a pre-flight check, not a rerun of the campaign.
 
 ### The selected core may leave useful internal state outside
 
@@ -187,10 +196,12 @@ live desktop. The earlier certificate and refusal are retained in the
 
 1. Recheck paired comparisons under the consequence-history isolation repair,
    including the previously positive synergy, content and report readings.
-2. Specify the closure margin before a fresh confirmation, using a rule that
-   does not choose the margin from the observed leak.
-3. Establish that unchanged forks stay within their control floor after the
-   host and background-state repairs.
+2. Repair the shared prediction method for a system that develops, choosing
+   it on known-answer worlds whose development runs inside the core. The
+   margin rule is named (`cf0ace7e3`) and calls that method.
+3. Confirm in a campaign that unchanged forks stay within their control floor.
+   The pre-flight on the repaired source reads them identical, with a positive
+   control that fires.
 4. Resolve the proposed core boundary under the amended closure rule, retaining
    any genuine outside influence or insufficient measurement as such.
 5. Run and join the required fresh campaign, carrier, content and report inputs
