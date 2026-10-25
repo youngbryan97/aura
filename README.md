@@ -36,6 +36,13 @@ found that the hoped-for improvement didn't appear. It then moved to her residen
 public-answer and qualification items closed in October. Summary in
 [Recursive Latent Cortex](#recursive-latent-cortex) below.
 
+**Intrinsic Subject Core:** [current status](docs/ISC_STATUS.md),
+[battery](docs/SUBJECT_CORE.md), and
+[reproduction guide](docs/ISC_REPRODUCTION.md). As of 24 October 2026,
+the standalone v6 synergy probe passes all four triples at `8f548ed79`.
+The same-revision seed-23 campaign is running; a completed 24/24 result and
+five-ground bridge parity remain unestablished.
+
 **Evidence map:** Claims should point to runnable tests, proof bundles, receipts,
 or replayable logs. Test counts change with the repo; use `pytest --collect-only`,
 `make proof-bundle`, and [TESTING.md](TESTING.md) for current numbers rather
@@ -1037,18 +1044,22 @@ pool; MLX Metal is used where available.
 
 **What these numbers do not show.** They are integration measured on a
 binarized summary of her state, not IIT 4.0 over her mechanisms. The stricter
-test is the preregistered 24-line subject battery, whose partition
-irreducibility line asks whether cutting her state into parts loses
-information that nulls cannot explain. That line, and the two synergy lines,
-have failed in every run so far; the latest validation (13 October 2026)
-passed 17 of 24 lines.
+test is the preregistered [24-line subject battery](docs/SUBJECT_CORE.md).
+Its current protocol is ISC-v6: partition irreducibility is read by actual
+interventions over all 511 cuts, and synergy by paired interventions on four
+fixed triples. The standalone synergy probe passed at `8f548ed79` on
+24 October 2026; the full same-revision seed-23 campaign and carrier sweep
+are still running. The latest completed content and withheld-report runs
+failed tracking. [Current evidence and scope](docs/ISC_STATUS.md) keep those
+results separate from a full battery pass or a claim about subjective
+experience.
 
 ---
 
 ## Consciousness modules
 
-There are 164 modules in `core/consciousness/` (183 total including subpackages
-`caa/`, `inner_light/`, and `mhaf/`). The ones that do the most important work:
+The `core/consciousness/` package includes `caa/`, `inner_light/`, and `mhaf/`
+subpackages. Some of its central mechanisms are:
 
 | Module | What it does | File |
 |--------|-------------|------|

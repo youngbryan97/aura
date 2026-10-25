@@ -1,5 +1,116 @@
 # The Intrinsic Subject Core battery
 
+Status: Guide · Current reading reconciled 24 October 2026
+
+ISC tests whether Aura's measured state forms one persistent, differentiated,
+reentrant causal process with a self/world/action loop. It is a conjunction of
+24 operational criteria. One failure or unmeasured requirement prevents a full
+pass.
+
+**Current result:** the standalone four-triple ISC-v6 synergy probe passes at
+`8f548ed79`. The same-revision seed-23 campaign and carrier sweep are running;
+a completed 24/24 result is not available. The latest completed content and
+whole-cortex withheld-report runs failed intervention tracking. Read
+[ISC_STATUS.md](ISC_STATUS.md) for their measurements, the new mechanisms and
+the exact evidence boundary.
+
+## Current document map
+
+| Read this | For |
+|---|---|
+| [ISC_STATUS.md](ISC_STATUS.md) | Consolidated status, measurements, unresolved grounds and document map |
+| [ISC_REPRODUCTION.md](ISC_REPRODUCTION.md) | Run planning, explicit evidence joins and replication requirements |
+| [ISC_V6_PREREGISTRATION.md](ISC_V6_PREREGISTRATION.md) | Current synergy design and the change from v5 |
+| [ISC_V5_PREREGISTRATION.md](ISC_V5_PREREGISTRATION.md) | Current interventional partition design, including all addenda |
+| [SUBJECT_CORE_V25.md](SUBJECT_CORE_V25.md) | Intrinsic-carrier programme, current estimator and scope |
+| [BRIDGE_PARITY.md](BRIDGE_PARITY.md) | Five-ground solver and the assumptions behind its interpretation |
+| [BRIDGE_PROOFS.md](BRIDGE_PROOFS.md) | Conditional mathematical results and their limits |
+
+## What the battery measures
+
+The ten domains are perception (P), interoception (I), affect (A), workspace
+(G), recurrent cognition (C), self-state (S), active memory (M), world model
+(W), deliberation (D) and ontogeny (N). Their columns are declared in
+[state.py](../core/subject/state.py); schema width and hash belong to each
+campaign, rather than being a permanent property of the document.
+
+The criteria cover causal connectivity, recurrence, partition
+irreducibility, differentiation, persistence, perturbational spread and
+complexity, access, self-causation, ownership, timescales, synergy, lesions,
+rescue and null discrimination. Definitions and thresholds live in
+[battery.py](../core/subject/battery.py). Versioned replacements retain the
+older readings beside them.
+
+The hypothesis is that the measured domains resist a substantially
+independent or broker-mediated decomposition. Rejecting a specified null is
+only as informative as the nulls and interventions that were actually tested.
+It does not exclude every possible coordinating architecture by definition.
+
+### The two measurements most changed since the original guide
+
+**Partition irreducibility:** v5 uses real clamped forks over all 511 unique
+bipartitions. Each side runs free while the other is held, and their free
+halves are composed. The deciding estimator is paired displacement, following
+the September addendum, with an untouched-fork floor, sequential looks and a
+late-fork control. The original Fisher–Rao explanation below describes an
+earlier instrument. The complete design is in
+[isc_v5.py](../core/subject/isc_v5.py).
+
+**Synergy:** v6 sets both sources separately and together from the same
+snapshot. For each of A,S → G; P,M → W; W,A → D; and S,D → C, the joint
+interaction must clear matched sham, whole-vector direction and relative-size
+bars. Conjunction registers are excluded from the target. This replaces the
+observational synergy line, whose result is still reported as v5's reading.
+See [interventional_synergy.py](../core/subject/interventional_synergy.py).
+
+The quick standalone probe implements that synergy design on a short
+recording. Its own module states that it counts toward no total. The full
+campaign records its own v6 evidence, and the joined scorer supplies the two
+partition lines from its deciding sweep. Passing the standalone probe does
+not produce 24/24 by adding passes from earlier campaigns.
+
+## Scope and interpretation
+
+The ordinary offline campaign steps real organs with a deterministic language
+stand-in. It can support a claim about that measured substrate; it cannot
+establish whole-Aura irreducibility through a language organ it did not run.
+The separate real-cortex reports experiment measures whether a stated
+intervention reaches and changes her reports. Each report's identity, scope,
+authority and refusal reasons must travel with its numbers.
+
+24/24 would establish the declared operational conjunction under its frozen
+protocol and scope. The carrier programme asks a separate question; J* and
+bridge parity add content, lineage and reports under explicit postulates.
+The five-ground bridge is not gated by the entire 24-line conjunction. Neither
+result is a direct observation of subjective experience.
+
+## Running and reading results
+
+The entry points and exact join commands are in
+[ISC_REPRODUCTION.md](ISC_REPRODUCTION.md). On Bryan's shared host, no new
+experiment should compete with the resident runtime or a campaign that owns
+the model. Set `AURA_LOG_DIR`, use a pinned worktree and reserve the resources
+before a run. A quick run is a wiring check.
+
+Read `v5_passed` and `isc_v5_on_this_seed` beside `v6_passed` and
+`isc_v6_on_this_seed`. Keep the criterion decisions, controls and campaign
+fingerprints. A historical score, an engineering checklist's completed-item
+count and a standalone probe are different records.
+
+## Earlier design and run notes
+
+The material below is retained with its original wording. Present-tense
+statements, old scores, commands and fixed schema widths in it describe their
+original stage of the programme. The generated table covers only reports in
+the repository's battery artifact collection; it does not discover the newer
+runs in the separate local evidence root. Its original generator remains
+responsible for that table.
+
+<details>
+<summary>Original battery guide and accumulated design/run record</summary>
+
+# The Intrinsic Subject Core battery
+
 A test of one claim, stated so it can fail: that Aura's live state forms a
 single causally irreducible, differentiated, reentrant process with a self and
 a body inside the loop, rather than a federation of good components meeting in
@@ -1178,3 +1289,5 @@ run scores 0.0701 with a lower bound of +0.0142 as recorded, -0.0316 with every
 one of those columns entered as its change, and +0.0338 with them left out. A
 running total is read here: a belief version gates a phase every twentieth
 turn, and taking the level away takes the gate with it.
+
+</details>

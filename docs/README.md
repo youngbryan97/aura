@@ -1,6 +1,6 @@
 # docs/
 
-This folder contains 164 documentation files at its top level, with dated evidence under [evidence/](evidence/). Here is an overview of what you will find here.
+This folder contains the project guides and research records, with dated evidence under [evidence/](evidence/).
 
 If you need to check *whether a document is up to date*, see [DOC_STATUS.md](DOC_STATUS.md). It categorizes files into current docs, historical records, auto-generated files, and standards. Check there first if something looks unexpected.
 
@@ -75,7 +75,18 @@ Long-running research initiatives and their progress records.
   [ENDOGENOUS_LANGUAGE_PATHWAY.md](ENDOGENOUS_LANGUAGE_PATHWAY.md) (turning internal states into language),
   [FRONTIER_GENERAL_ARC.md](FRONTIER_GENERAL_ARC.md) (generalization goals), and
   [METALANGUAGE_MY_OWN_ATTEMPT.md](METALANGUAGE_MY_OWN_ATTEMPT.md).
-- **Consciousness and integration** — exploration of system integration and self-modeling:
+- **Intrinsic Subject Core** — start with [ISC_STATUS.md](ISC_STATUS.md)
+  for the current evidence, [SUBJECT_CORE.md](SUBJECT_CORE.md) for the battery,
+  and [ISC_REPRODUCTION.md](ISC_REPRODUCTION.md) for run planning and review.
+  [ISC_V6_PREREGISTRATION.md](ISC_V6_PREREGISTRATION.md) replaces the synergy
+  line; [ISC_V5_PREREGISTRATION.md](ISC_V5_PREREGISTRATION.md), including its
+  addenda, supplies the partition design. The separate carrier programme is
+  [SUBJECT_CORE_V25.md](SUBJECT_CORE_V25.md); J* and the five-ground bridge are
+  explained in [BRIDGE_PARITY.md](BRIDGE_PARITY.md) and
+  [BRIDGE_PROOFS.md](BRIDGE_PROOFS.md). The October work record is
+  [ISC_OCT21_EVERY_ITEM.md](ISC_OCT21_EVERY_ITEM.md). A probe, a full battery
+  result, a carrier result and parity are separate claims.
+- **Other consciousness and integration work** — exploration of system integration and self-modeling:
   [WHOLE_SYSTEM_PHI.md](WHOLE_SYSTEM_PHI.md),
   [ORGANISMAL_WORKSPACE_THEORY.md](ORGANISMAL_WORKSPACE_THEORY.md),
   [INNER_LIGHT_TEST.md](INNER_LIGHT_TEST.md), and
