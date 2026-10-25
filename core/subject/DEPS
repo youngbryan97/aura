@@ -21,6 +21,8 @@ include_rules = [
     "+core.social.relational_memory",
     "+core.kernel",
     "+core.memory",
+    # The host watch stops before the paired arms begin; see `quiesce_organism`.
+    "+core.security.defensive_runtime",
     "+core.ontogeny",
     "+core.state",
 

@@ -1858,6 +1858,33 @@ async def quiesce_organism(runtime: SubjectRuntime, *, stepped_only: bool = Fals
     from core.subject.organism import _live_tasks, quiesce, stepped_loops
 
     stopped = await quiesce(only=stepped_loops() if stepped_only else None)
+    # And the thread that reads the machine she is running on.
+    #
+    # A free-running loop stops here because two arms have to see the same
+    # computation, and the host watch is one: it samples CPU, memory and disk
+    # every fifteen seconds and sweeps the local network every sixty, and both
+    # readings land in her state as immune threats and device fingerprints.
+    # Snapshots do not carry them, so forking the same anchor twice hours apart
+    # found the two forks in different states for reasons belonging to the room.
+    # MEASURED on the decisive seed-23 campaign of 24 October: the late
+    # untouched fork separated from the cached one at a lower bound of 0.0114,
+    # against a weakest cut of 0.00126, and both partition criteria failed on
+    # that control. Twenty-four of the twenty-six attributes a restore did not
+    # carry came from this one thread, "resource strain: cpu at 95%" among them,
+    # which the sweep's own load had caused.
+    try:
+        from core.security.defensive_runtime import stop_watching_the_host
+
+        stopped = stopped + stop_watching_the_host()
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "subject.quiesce",
+            exc,
+            severity="warning",
+            action="ran the arms with the host watch still reading the machine",
+        )
     if runtime.organism is not None:
         runtime.organism.stopped_loops = stopped
         # And re-read what is left. The summary taken at bring-up listed

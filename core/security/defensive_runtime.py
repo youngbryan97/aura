@@ -406,6 +406,47 @@ def ensure_defensive_runtime_active() -> dict[str, Any]:
         return {"background": "started", "thread": _MONITOR_THREAD.name}
 
 
+def stop_watching_the_host() -> list[str]:
+    """Stop the thread that reads the machine, and say what it stopped.
+
+    This loop samples CPU, memory and disk every fifteen seconds and sweeps the
+    local network every sixty. Both are the right thing for a runtime defending
+    itself and both put the HOST into her state: a strain report becomes a threat
+    in the immune system and a scored entry in the emergency protocol, and a
+    sweep writes the fingerprint of every device on the network with the
+    wall-clock time it was first seen.
+
+    None of that is carried by a snapshot, so a paired experiment that forks the
+    same anchor twice, hours apart, finds the two forks in different states for
+    reasons that belong to the room the machine is in. MEASURED on the decisive
+    seed-23 campaign of 24 October: the late untouched fork separated from the
+    cached one with a lower bound of 0.0114, against a weakest cut of 0.00126,
+    and `partition_irreducibility` and `partition_beats_nulls` both failed on it.
+    Of the twenty-six module attributes a restore did not carry, twenty-four came
+    from this thread — fourteen from the network sweep and ten from the strain
+    reports, including "resource strain: cpu at 95%", which the sweep's own load
+    had caused.
+
+    Returns the names of what stopped, for the caller's own record of it.
+    """
+    global _MONITOR_THREAD
+
+    thread = _MONITOR_THREAD
+    if thread is None or not thread.is_alive():
+        return []
+    _MONITOR_STOP.set()
+    thread.join(timeout=2.0)
+    stopped = ["defensive_runtime.resource_monitor", "defensive_runtime.network_sweep"]
+    if thread.is_alive():
+        # A thread still in its sample will end at the next wait. Reported as
+        # alive rather than as stopped, because the caller is deciding whether
+        # two arms see the same machine.
+        logger.info("Defensive host watch asked to stop and still finishing a sample.")
+        return stopped
+    _MONITOR_THREAD = None
+    return stopped
+
+
 def _defensive_monitor_loop() -> None:
     try:
         from core.security.enforcement import ResourceMonitor
