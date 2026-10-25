@@ -1416,3 +1416,25 @@ a paired comparison; what the arms share is now one declared host.
 
 A small sweep is measuring whether the late-fork control is undecided under the
 three repairs. No campaign is rerun until it is.
+
+## The machine's heat is a moving column of her periphery (25 October, 07:15)
+
+The carrier's periphery at `8f548ed79` holds 2,672 columns over 2,960 turns, and
+among the ones that MOVE are the machine's own readings:
+`homeostatic_coupling._thermal_stress`, `thermal_pressure`,
+`soma._cpu_threat`, `_rolling_cpu_load`, `ProprioceptiveLoop._cpu_reflex_holding`
+and `homeostasis.metabolism`. Twelve metabolism columns are carried and one
+moves; six cpu columns are carried and five move.
+
+Closure asks whether K's future needs anything outside K, and these columns are
+outside K and move. A column that drifts with the host beside a core that
+develops is the spurious regression the circular-shift surrogate was introduced
+for — and it is also, straightforwardly, the machine rather than her. The
+carrier's second-largest single leak is `homeostasis.metabolism`, which is
+computed from the thermal load her soma reads.
+
+Under a declared host these columns do not vary, so the periphery filter drops
+them before the comparison: `closure_gain` keeps only columns whose spread
+exceeds 1e-9. That is a specific prediction for the carrier's rerun rather than
+a hope, and it is the reason to expect its leak to fall rather than to hope it
+does.
