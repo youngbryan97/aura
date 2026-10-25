@@ -38,6 +38,27 @@ logger = logging.getLogger("Aura.Memory.GatewayIndex")
 _STOP_TERMS = {"what", "that", "this", "with", "from", "about", "memory", "remember"}
 
 
+#: Set while a paired experiment is running. The view refreshes on a fifteen
+#: second staleness of the machine's monotonic clock and whenever a store's mtime
+#: moves, neither of which a snapshot rewinds, so two arms forked from one anchor
+#: hours apart read different records through no act of hers. Held, they read the
+#: same ones. See `core.subject.driver.quiesce_organism`.
+_HELD = threading.Event()
+
+
+def hold_the_view() -> list[str]:
+    """Stop the index refreshing, and say so. Idempotent."""
+    if _HELD.is_set():
+        return []
+    _HELD.set()
+    return ["gateway_record_index.refresh"]
+
+
+def release_the_view() -> None:
+    """Let it refresh again, once the arms are done."""
+    _HELD.clear()
+
+
 @dataclass(frozen=True)
 class GatewayRecordEntry:
     path: str
@@ -242,6 +263,8 @@ class GatewayRecordIndex:
 
     def _kick_refresh(self) -> None:
         """Start a background refresh if one is not already running."""
+        if _HELD.is_set():
+            return
         if not self._refresh_running.acquire(blocking=False):
             return
         thread = threading.Thread(
@@ -252,6 +275,8 @@ class GatewayRecordIndex:
         thread.start()
 
     def _stale(self) -> bool:
+        if _HELD.is_set():
+            return False
         return (time.monotonic() - self._last_refresh) > self.REFRESH_INTERVAL_S
 
     def _write_hint_due(self) -> bool:

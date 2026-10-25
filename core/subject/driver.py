@@ -1885,6 +1885,22 @@ async def quiesce_organism(runtime: SubjectRuntime, *, stepped_only: bool = Fals
             severity="warning",
             action="ran the arms with the host watch still reading the machine",
         )
+    # And the record index, for the same reason in a different organ: it
+    # refreshes on a fifteen-second staleness of the machine's clock and on a
+    # store's mtime, so the later arm reads records the earlier one did not.
+    try:
+        from core.memory.gateway_record_index import hold_the_view
+
+        stopped = stopped + hold_the_view()
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "subject.quiesce",
+            exc,
+            severity="warning",
+            action="ran the arms with the record index still refreshing under them",
+        )
     if runtime.organism is not None:
         runtime.organism.stopped_loops = stopped
         # And re-read what is left. The summary taken at bring-up listed

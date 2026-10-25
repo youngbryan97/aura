@@ -93,3 +93,17 @@ def test_quiescing_the_arms_reaches_the_host_watch(monkeypatch):
     assert called == ["host watch"]
     assert "defensive_runtime.resource_monitor" in stopped
     assert "NeuralMesh.spike_clock" in stopped, "the loops it already stopped are still stopped"
+
+
+def test_the_record_index_is_held_too(monkeypatch):
+    """Its refresh is the other clock a snapshot does not rewind."""
+    from core.memory import gateway_record_index as index
+
+    monkeypatch.setattr(index, "_HELD", __import__("threading").Event())
+    assert index.hold_the_view() == ["gateway_record_index.refresh"]
+    assert index.hold_the_view() == [], "holding it twice stops nothing new"
+    view = index.GatewayRecordIndex.__new__(index.GatewayRecordIndex)
+    view._last_refresh = 0.0
+    assert not view._stale(), "held, it never reports itself stale"
+    index.release_the_view()
+    assert view._stale(), "released, the staleness clock is back"
