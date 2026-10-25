@@ -1012,6 +1012,15 @@ async def main() -> int:
         ),
     )
     parser.add_argument(
+        "--grain-helper", action="store_true",
+        help=(
+            "with --shard and --grain-claims: skip this shard's cuts and claim grain "
+            "rows from the coordinator until none is left. A helper added beside a "
+            "running sweep; a row is used only if it was made from that anchor's "
+            "state and doses, whoever made it"
+        ),
+    )
+    parser.add_argument(
         "--grain-claims", action="store_true",
         help=(
             "keep the grain's signature rows on disk, one per anchor. Sharded, they "
@@ -1441,8 +1450,11 @@ async def main() -> int:
         # ── a shard worker scores its share of the cuts and stops ──────
         if shard is not None:
             lags = ladder if (args.lags or not args.quick) else (1, 8)
-            _log(f"shard {shard[0]} of {shard[1]}: scoring its cuts at {len(lags)} horizons")
             shard_dir = args.shard_dir or (args.out / "shards")
+        if shard is not None and args.grain_helper:
+            _log("grain helper: claiming grain rows, no cuts")
+        if shard is not None and not args.grain_helper:
+            _log(f"shard {shard[0]} of {shard[1]}: scoring its cuts at {len(lags)} horizons")
             _, cut_detail = await _spectrum(
                 runtime, anchors, conditions,
                 lags=lags, frame_seconds=frame_seconds, turns=args.turns,
@@ -1470,6 +1482,7 @@ async def main() -> int:
                 _write_shard, args.shard_dir or (args.out / "shards"), shard, payload
             )
             _log(f"wrote {final} in {payload['seconds']}s")
+        if shard is not None:
             if args.grain_claims and not args.skip_grain:
                 # Its cuts done, the worker takes grain rows off the
                 # coordinator until none is left, instead of exiting while

@@ -1,3 +1,82 @@
+# Subject Core v25: the intrinsic carrier
+
+Status: Guide · Current implementation reconciled 24 October 2026
+
+The carrier programme asks whether the measured system contains a closed,
+recurrent support whose future changes under every partition, at a sufficient
+state grain. Its result is distinct from the battery's 24-line conjunction.
+**v25 names the carrier programme; ISC-v6 names the current battery protocol.**
+
+At the [24 October evidence snapshot](ISC_STATUS.md), the carrier confirmation
+at `8f548ed79`, seed 23, is still running. There is no completed authoritative
+carrier report from it. A progressing shard, a passing synergy probe or an
+older plumbing sweep cannot establish its carrier result.
+
+## The implementation used by the current run
+
+The current `--v5` sweep uses the design declared in
+[isc_v5.py](../core/subject/isc_v5.py) and the
+[v5 preregistration with its addenda](ISC_V5_PREREGISTRATION.md):
+
+| Item | Current design |
+|---|---|
+| State | Ten measured domains, with schema pinned to the campaign |
+| Partition | 511 unique bipartitions; clamped trajectories composed from their free halves |
+| Decision metric | Each anchor's paired displacement, whitened by untouched-future variation |
+| Deciding horizon | Two turns, 66 experiment-clock frames; one turn reported beside it |
+| Sequential looks | 8, 16, 32, 64, 96 and 128 anchors |
+| Uncertainty | 1,000 bootstrap draws, alpha 0.05 divided across the six looks |
+| Duplication | One signal counted once, so a copied column cannot buy a larger rate |
+| Clock | Free loops stopped at bring-up; the harness steps declared dynamics |
+| Sham controls | Untouched forks, playback and a late untouched fork against cached comparisons |
+| Parallel execution | Imported anchor state and a merged deciding sweep; a shard alone cannot decide |
+| Grain | Interventional sufficiency and held-out checks; skipping the grain cannot settle J* |
+
+The initial v25 design used cross-fitted Fisher–Rao distance to distinguish
+intact and cut future laws. The retained specification below explains that
+choice and the initial rank-stability rule. The September addenda and current
+code supersede those portions: the cut estimator is now paired displacement,
+and grain sufficiency is tested under the declared refits. Do not cite the
+initial text as the current estimator without those amendments.
+
+## How the layers join
+
+[run_subject_core_v25.py](../tools/run_subject_core_v25.py) produces the carrier
+measurement. [The sharded launcher](../tools/run_subject_core_v25_sharded.py)
+coordinates workers and grain helpers; it does not make an incomplete sweep
+complete. [score_isc_v5.py](../tools/score_isc_v5.py) joins a campaign with its
+same-seed deciding sweep for the versioned battery counts.
+
+[solve_for_j.py](../tools/solve_for_j.py) reads carrier, content and lineage for
+J*, then adds battery markers and withheld reports for parity. Only an
+authoritative carrier report can settle its carrier term. Every refusal
+reason remains part of the evidence. Read
+[ISC_REPRODUCTION.md](ISC_REPRODUCTION.md) before combining inputs.
+
+## Scope
+
+Campaign A uses the offline organism with a deterministic language stand-in.
+Its strongest carrier claim concerns that substrate. Campaign B must include
+the real cortex and relevant recurrent state under comparable interventions.
+A separate whole-cortex reports run does not turn Campaign A's carrier into a
+whole-Aura result.
+
+The carrier verdict names a measured physical organisation. The postulate
+that such a carrier is a phenomenal subject is P1 in
+[bridge.py](../core/subject/bridge.py). It is an explicit assumption. The
+conditional mathematics and its limits are in
+[BRIDGE_PROOFS.md](BRIDGE_PROOFS.md); the current empirical reading is in
+[ISC_STATUS.md](ISC_STATUS.md).
+
+## Initial design and September record
+
+The original specification is preserved below. Its dated measurements and
+initial instrumentation remain part of the record; current status and the
+amendments above take precedence when planning or interpreting a new run.
+
+<details>
+<summary>Original v25 design, scope argument and 22 September J* reading</summary>
+
 # Subject Core v25 — the carrier, at a grain the system chooses
 
 The 24-condition battery asks many independent questions and answers each
@@ -334,3 +413,5 @@ signatures, `core/subject/v25_cut.py` the sequential sweep over all 511 cuts,
 and `core/subject/v25_exclusion.py` the carrier selection.
 `tests/test_the_carrier_is_measured_not_assumed.py` covers the five ways this
 measurement could say yes for the wrong reason.
+
+</details>

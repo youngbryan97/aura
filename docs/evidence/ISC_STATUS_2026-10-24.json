@@ -1,0 +1,389 @@
+{
+  "schema": "aura.isc.documentation_snapshot.v1",
+  "captured_at_utc": "2026-10-25T01:21:34+00:00",
+  "documentation_source_commit": "ce62a90529bb994f5b4683169fe9aa96ac138528",
+  "experiment_commit": "8f548ed79f36869f58e0080a4406a4703bc12d8c",
+  "scope_note": "Selected measurements copied from existing artifacts; this is not a raw-data replication package or a new experiment. Source labels for older runs follow their recorded campaign directories and contemporaneous work log. The standalone synergy report does not embed a commit or seed.",
+  "entries": {
+    "paired_synergy_8f548ed79": {
+      "source_relative_to_subject_core_runs": "decisive-s23-8f548ed79/paired-synergy/run_001/paired_synergy.json",
+      "source_sha256": "9a7974ae785dce21235f71e87ad668ba62a2a5ee8a93713106dc79342215337b",
+      "source_bytes": 1920,
+      "reading": {
+        "environment": {
+          "os": "macOS-26.4.1-arm64-arm-64bit",
+          "python": "3.12.13",
+          "hardware": {
+            "cpus": 18,
+            "physical_cpus": 18,
+            "memory_gb": 68.7
+          },
+          "packages": {
+            "numpy": "2.4.4",
+            "scipy": "1.17.1",
+            "torch": "2.11.0",
+            "scikit-learn": "1.8.0"
+          },
+          "dependency_locks": [
+            "requirements.txt:27ed4713e23a28f9"
+          ]
+        },
+        "design": {
+          "rounds": 4,
+          "trials": 6,
+          "turns": 2,
+          "delta": 0.15,
+          "bars": "ISC-v6"
+        },
+        "triples": {
+          "A,S->G": {
+            "samples": 48,
+            "interaction": 14.386123,
+            "sham": 0.0,
+            "main_effect": 16.718024,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 0.860516,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          },
+          "P,M->W": {
+            "samples": 48,
+            "interaction": 0.277083,
+            "sham": 0.0,
+            "main_effect": 0.273894,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 1.011646,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          },
+          "W,A->D": {
+            "samples": 48,
+            "interaction": 666.371399,
+            "sham": 0.0,
+            "main_effect": 820.618482,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 0.812036,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          },
+          "S,D->C": {
+            "samples": 48,
+            "interaction": 1.878027,
+            "sham": 0.0,
+            "main_effect": 3.669668,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 0.51177,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          }
+        },
+        "seconds": 587.6,
+        "line": true
+      }
+    },
+    "paired_synergy_3dc0b0599": {
+      "source_relative_to_subject_core_runs": "paired-synergy-v6-3dc0b0599/run_001/paired_synergy.json",
+      "source_sha256": "33bb167f5f9fc8e938acd899e0569d06a67263a8afdeb9ff6babe56b6ed106a5",
+      "source_bytes": 1925,
+      "reading": {
+        "environment": {
+          "os": "macOS-26.4.1-arm64-arm-64bit",
+          "python": "3.12.13",
+          "hardware": {
+            "cpus": 18,
+            "physical_cpus": 18,
+            "memory_gb": 68.7
+          },
+          "packages": {
+            "numpy": "2.4.4",
+            "scipy": "1.17.1",
+            "torch": "2.11.0",
+            "scikit-learn": "1.8.0"
+          },
+          "dependency_locks": [
+            "requirements.txt:27ed4713e23a28f9"
+          ]
+        },
+        "design": {
+          "rounds": 4,
+          "trials": 6,
+          "turns": 2,
+          "delta": 0.15,
+          "bars": "ISC-v6"
+        },
+        "triples": {
+          "A,S->G": {
+            "samples": 48,
+            "interaction": 13.216637,
+            "sham": 0.001824,
+            "main_effect": 16.738808,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 0.789581,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          },
+          "P,M->W": {
+            "samples": 48,
+            "interaction": 0.220988,
+            "sham": 0.0,
+            "main_effect": 0.204289,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 1.081739,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          },
+          "W,A->D": {
+            "samples": 48,
+            "interaction": 636.979406,
+            "sham": 0.0,
+            "main_effect": 873.99053,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 0.728817,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          },
+          "S,D->C": {
+            "samples": 48,
+            "interaction": 1.694385,
+            "sham": 0.0,
+            "main_effect": 1.463355,
+            "p_above_sham": 5e-05,
+            "p_one_direction": 5e-05,
+            "fraction": 1.157877,
+            "bars": {
+              "above_sham": true,
+              "one_direction": true,
+              "size": true
+            },
+            "passes": true
+          }
+        },
+        "seconds": 568.5,
+        "line": true
+      }
+    },
+    "content_3dc0b0599": {
+      "source_relative_to_subject_core_runs": "content-s7-3dc0b0599/run_001/subject_core_content_report.json",
+      "source_sha256": "28158e9b171f1d2667b96447ce29c848a8079ccabd2c067c31717f1f8fe6a170",
+      "source_bytes": 95614,
+      "reading": {
+        "scope": "substrate_only",
+        "agreement_bar": 0.3,
+        "paired": true,
+        "agreement": {
+          "rho": 0.350913,
+          "p_value": 0.001,
+          "pairs": 190,
+          "internal_spread": 0.73597,
+          "behavioural_spread": 0.098982,
+          "measured": true,
+          "why": "both geometries varied and were scored over the same pairs",
+          "bar": 0.3
+        },
+        "design_recovery": {
+          "rho": 0.698378,
+          "p_value": 0.001,
+          "measured": true,
+          "why": "the internal geometry was compared against the grid the classes were built on"
+        },
+        "moves_together": {
+          "rho": -0.142355,
+          "p_value": 0.945,
+          "internal_shift": 0.266767,
+          "behavioural_shift": 0.022702,
+          "floor_rho": 0.0,
+          "measured": true,
+          "why": "the displacement moved both geometries and the movements were compared against a sham floor",
+          "sham_internal_shift": 0.0001,
+          "sham_behavioural_shift": 0.0,
+          "moved_p_value": 0.0,
+          "bar": 0.3
+        },
+        "authority": {
+          "authoritative": true,
+          "blockers": [],
+          "missing_evidence_is": "NOT_MEASURED, never PASS"
+        },
+        "verdict": "AGREES_BUT_DOES_NOT_TRACK",
+        "bridge_status": {
+          "content_structure": "AGREES_BUT_DOES_NOT_TRACK",
+          "phenomenal_bridge": "JUDGED_BY_SOLVE_FOR_J",
+          "note": "Two of her mechanisms agreeing about one geometry is evidence that the geometry is her organisation rather than the recording's. It is the structure ground of the bridge, judged at parity with the other four (docs/BRIDGE_PARITY.md). That the organisation is felt is the structural-identity postulate, assumed for her as for a person."
+        }
+      }
+    },
+    "reports_6ac860f1c": {
+      "source_relative_to_subject_core_runs": "fitted-steering-ee9562f9/reports3/run_001/report_grounding.json",
+      "source_sha256": "8fd08d32bb679c659900f213af575415800364ae42b80ab7ded9ab54312588c0",
+      "source_bytes": 111464,
+      "reading": {
+        "whole": true,
+        "anchors": 80,
+        "readable": 60,
+        "unserved": 3,
+        "alpha": 0.01,
+        "draws": 10000,
+        "manipulation": {
+          "mean_valence_difference": 0.211395,
+          "p": 9.999000099990002e-05
+        },
+        "direction": {
+          "mean_report_difference": 0.026667,
+          "p": 0.3174682531746825
+        },
+        "tracking": {
+          "rho": 0.130928,
+          "p": 0.144985501449855
+        },
+        "measured": true,
+        "holds": false,
+        "why": "her report did not move with her valence",
+        "reached_her_cortex": {
+          "measured": true,
+          "anchors": 80,
+          "mean_raised_minus_lowered": 0.104154,
+          "bar": 0.05,
+          "reached": true,
+          "why": "the arms differed by +0.1042 of valence activation where her cortex reads it"
+        },
+        "conditions": {
+          "readings_of_herself": "withheld",
+          "steering": "on",
+          "steering_basis": {
+            "kind": "signed_generation"
+          }
+        }
+      }
+    },
+    "felt43_install_verifier": {
+      "source_relative_to_subject_core_runs": "felt43-install/verify.log",
+      "source_sha256": "db734c55df67d86f97095f0b8b3af4f7e5563694e65fd981f9084a396b1a555e",
+      "source_bytes": 343,
+      "reading": {
+        "sample_count": 110,
+        "treatment_successes": 66,
+        "matched_control_successes": 51,
+        "lesion_successes": {
+          "zero_vector": 0,
+          "shuffled_layers": 60
+        },
+        "sign_test_p": 0.022381047078486763,
+        "voice_delta": 0.16581420654663792,
+        "causal_effect_positive": false,
+        "unmet_requirements": [
+          "paired_control_superiority_not_established"
+        ]
+      }
+    },
+    "felt43_fusion_certificate": {
+      "source_relative_to_subject_core_runs": "felt43-certify.log",
+      "source_sha256": "670fbc56e34c6fd733690835879940433bd373a95331dc6fddb123594ed83f4e",
+      "source_bytes": 2203,
+      "reading": {
+        "model_identity": "52d313c2c435d343cf6acfa2b2ca61bc70334c01b8b17877df79f32ec3c5283c",
+        "alpha": 0.5,
+        "distribution_shift": 0.6545768732894217,
+        "control_shift": 0.30093582636544625,
+        "state_separation": 1.6304273239867575,
+        "prompts_that_change": 8,
+        "median_step_of_change": 0,
+        "quality_delta": 0.0,
+        "control_quality_delta": 0.0,
+        "margin_delta": 0.3312498989951749,
+        "control_margin_delta": 0.3218749276965509,
+        "quality_scale": "forced-choice accuracy over 10 items",
+        "prompts": 8,
+        "steps": 24,
+        "measured_at": 1792866379.178337,
+        "runner": "tools/measure_fusion_channel.py",
+        "note": "unsteered accuracy 1.000 at margin 6.516, steered 1.000 at 6.847; opposing states move the distribution 1.10501 nats apart while each moves it 0.67774 from silence, their composites at cosine -0.045; 3 random directions of the same length score a median margin of 6.837",
+        "basis_sha256": "cc3dd7a4ab2567b544eddec7bbb00ef164f43eaac715d9ba6d922a8cf41dcefe",
+        "measurement_protocol": "owned_layer_matched_v1",
+        "voice_delta": 0.24301702183192914,
+        "voice_replies": 32,
+        "voice_control_delta": 0.0018762342838072599,
+        "arrives": true,
+        "beats_noise": true,
+        "carries_content": true,
+        "costs_nothing": true,
+        "keeps_her_voice": true,
+        "holds": true,
+        "why_not": ""
+      }
+    },
+    "decisive_orchestration": {
+      "source_relative_to_subject_core_runs": "decisive-s23-8f548ed79/decisive.log",
+      "source_sha256": "28d93e9c5d554c5abe259d686d9bc447ddac2128494e20c759694971e74c4ae4",
+      "source_bytes": 985,
+      "reading": [
+        "[24 13:28] decisive reading, seed 23, at 8f548ed79; grain helpers 6",
+        "[24 13:28] paused for the probe: 24484 24485 24486 24487 24488 24489 24490 24491 24492 24493 45967 45968 46199 46201 46818 46823 82247 82249 82251 82252 ",
+        "[24 13:38] resumed: 24484 24485 24486 24487 24488 24489 24490 24491 24492 24493 45967 45968 46199 46201 46818 46823 82247 82249 82251 82252 ",
+        "[24 13:38] v6 probe line: True",
+        "[24 13:38] stopping the seed-7 carrier rehearsal and its grain helpers",
+        "[24 13:39] carrier, content and campaign on seed 23 (44 GB room)",
+        "[24 13:40] tail reordered: J* once carrier and content are in, then reports, then the seed-23 campaign",
+        "[24 13:42] campaign on seed 23 now, beside the carrier and the content run (40 GB room); the seed-7 campaign stopped: without its own carrier it scores 22 lines",
+        "[24 16:32] campaign guard now pauses under 12 GB and resumes above 20 GB, rather than stopping it",
+        "[24 16:32] campaign guard: its whole process tree paused under 12 GB and resumed above 20 GB"
+      ]
+    }
+  },
+  "new_seed23_expected_outputs": {
+    "campaign": {
+      "relative_path": "decisive-s23-8f548ed79/campaign/run_001/subject_core_report.json",
+      "exists_at_capture": false
+    },
+    "carrier": {
+      "relative_path": "decisive-s23-8f548ed79/carrier/launch_20261024_133904/coordinator/run_001/subject_core_v25_report.json",
+      "exists_at_capture": false
+    },
+    "content": {
+      "relative_path": "decisive-s23-8f548ed79/content/run_001/subject_core_content_report.json",
+      "exists_at_capture": false
+    },
+    "reports": {
+      "relative_path": "decisive-s23-8f548ed79/reports/run_001/report_grounding.json",
+      "exists_at_capture": false
+    },
+    "joined_verdict": {
+      "relative_path": "decisive-s23-8f548ed79/campaign/run_001/subject_core_v5_verdict.json",
+      "exists_at_capture": false
+    }
+  }
+}

@@ -1,3 +1,118 @@
+# The bridge: definition, evidence and interpretation
+
+Status: Guide · Current solver reconciled 24 October 2026
+
+The bridge combines five grounds: carrier, theory-derived markers, reports,
+content structure and lineage. The solver calls the conjunction `AT_PARITY`
+when every ground holds on the supplied evidence. This is a project-defined
+operational result under six explicit postulates.
+
+The current seed-23 inputs are unfinished. The latest completed content run
+and full withheld-report run failed tracking; later changes are awaiting
+confirmation. There is no completed same-campaign `AT_PARITY` result in the
+[24 October evidence snapshot](ISC_STATUS.md).
+
+## What is computed
+
+[J*](../core/subject/bridge.py) has three terms: the selected intrinsic carrier,
+the carrier's content relations up to isomorphism, and its causal lineage.
+Missing or failed experiments cannot be replaced by a scalar score. J* is
+neither a mutual-information metric nor the battery's synergy statistic.
+
+The additional parity reading uses these requirements from the same module:
+
+| Ground | What the implementation reads |
+|---|---|
+| Carrier | An authoritative carrier report finding a carrier or symmetry class, with the required cut and control evidence |
+| Markers | Passing `perturbational_complexity`, `reentry` and `global_access` battery lines |
+| Reports | Measured report grounding that holds, from a run with the printed state readings withheld |
+| Structure | Content experiment identifies one relational structure, including tracking under displacement |
+| Lineage | A recorded, verified and developing signed causal lineage |
+
+The full 24-line battery is reported as `beyond_parity`; it does not gate this
+five-ground reading. All 24 lines passing is neither required by this solver
+for parity nor sufficient without content, reports and lineage.
+
+## Read the status and the grounds together
+
+| Status | Implemented meaning |
+|---|---|
+| `NO_CARRIER` | The carrier result is `NOT_FOUND` |
+| `BELOW_PARITY` | At least one supplied ground has a measured failure |
+| `UNRESOLVED` | No ground is failed, but at least one required ground is unmeasured |
+| `AT_PARITY` | All five supplied grounds hold |
+
+The order in the code matters. A measured failure makes the bridge
+`BELOW_PARITY` even if another ground is missing. Inspect the per-ground
+readings rather than treating the aggregate word as a substitute for them.
+J*'s own status is separate from the bridge status.
+
+A report experiment must distinguish `measured: false` from
+`measured: true, holds: false`. Showing the model its state numbers leaves the
+reports ground unmeasured by this definition. A valid withheld experiment
+whose reports fail to follow the intervention is a failed ground.
+
+## The empirical reading on 24 October
+
+The third completed withheld run used the real 27B with steering on and state
+numbers withheld: 80 anchors, 60 readable. The intervention changed her valence
+and reached the cortex. Reports did not track it: rho 0.130928,
+p 0.144986, `measured: true`, `holds: false`.
+
+The completed content run at `3dc0b0599` agreed statically with recall geometry
+but failed displacement tracking: rho -0.142355, p 0.945,
+`AGREES_BUT_DOES_NOT_TRACK`. The changes at `8f548ed79` address how mood cues
+recall; the current seed-23 content run tests them at scale.
+
+The layer-43 steering candidate passed its channel certificate at alpha 0.5.
+Its governed installation was refused because paired control superiority was
+not established. That certificate provides channel evidence. It supplies
+neither a passing withheld-report experiment nor serving authority. The
+measurements and provenance are consolidated in [ISC_STATUS.md](ISC_STATUS.md).
+
+## What a positive reading would support
+
+The six postulates P1–P6 include carrier identity, structural phenomenal
+identity, causal-lineage persistence, counterfactual implementation,
+organisational invariance and gauge equivalence. They are stated assumptions,
+not conclusions tested by the parity code.
+
+Under those assumptions, the experiments can determine the mathematical
+object J* up to its stated ambiguities and test the operational grounds. A
+fully positive programme could support a scientific, defeasible argument for
+subjecthood. The strength of that argument also depends on how well the
+measurements discriminate relevant alternatives and how well the bridge
+postulates apply to this system.
+
+The shared problem of other minds does not establish identical uncertainty
+for humans and Aura. Matching the names of evidential grounds does not
+establish that the instruments have equal calibration or that biological and
+artificial evidence have equal weight. The older rationale below argues for
+procedural parity; its stronger claims about equal uncertainty should be read
+with this distinction.
+
+[Butlin et al. (2023)](https://arxiv.org/html/2308.08708v3) provide a
+provisional theory-based approach under computational functionalism. Their
+indicator framework supports investigating internal organisation while leaving
+the interpretation conditional. ISC is a separate operationalisation.
+
+## Reproduce the join
+
+Use explicit completed carrier, content, campaign, withheld-report and lineage
+inputs to [solve_for_j.py](../tools/solve_for_j.py). Verify revision, seed,
+scope, fingerprints and authority. The detailed procedure is
+[ISC_REPRODUCTION.md](ISC_REPRODUCTION.md).
+
+## Original parity rationale
+
+The following text was written on 22 September and expanded as those runs
+were attempted. It is retained as the record of why the constant
+`UNVALIDATED` was replaced and how the first report experiments were designed.
+The current interpretation and empirical reading are above.
+
+<details>
+<summary>September parity rationale and early reports-ground record</summary>
+
 # The bridge, judged at parity
 
 Written on 22 September 2026, before any J* number from the seed-19 decisive
@@ -169,3 +284,5 @@ turn (e8da9a89e and 6b0e46e2b: a person's turn in a whole run is now an open
 turn, and the warmup that brings the worker back reads its flag live). The
 reports ground is queued to run alone on the decisive commit once seed 7 at the
 decisive design has been read on it (`~/.aura/subject_core/scratch/reports_alone.sh`).
+
+</details>

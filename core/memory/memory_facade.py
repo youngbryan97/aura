@@ -862,6 +862,47 @@ class MemoryFacade(_NormalisesWhatItReturns):
         
         return results[:limit]
 
+    def search_by_feeling(self, now: dict[str, float], limit: int = 5) -> list[dict[str, Any]]:
+        """The memories made in what she feels now, most held first.
+
+        A mood is itself a cue: what was learned in a state comes to mind in
+        that state, whatever else is asked (Bower, "Mood and memory", 1981).
+        Every other search here is cued by words, so her mood could only reorder
+        what the words found: on 24 October, feeling better changed what she
+        recalled on most presentations and the distance between what a good and
+        a bad percept brought back by 0.0002 on average, where her internal
+        state drew them 0.94 closer. Scored by `felt_at_encoding.held_now`, the
+        share of what she felt then that she holds now; memories made at rest
+        carry nothing and are not returned. Synchronous; callers off the loop.
+        """
+        from core.memory.felt_at_encoding import FELT_KEY, held_now
+
+        if not now or self.vector is None or not hasattr(self.vector, "_collection"):
+            return []
+        try:
+            collection = self.vector._collection.get(include=["documents", "metadatas"])
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation('memory_facade', e)
+            return []
+        docs = list(collection.get("documents", []) or [])
+        metas = list(collection.get("metadatas", []) or [])
+        ids = list(collection.get("ids", []) or [])
+        scored = []
+        for index, metadata in enumerate(metas):
+            if not isinstance(metadata, dict) or not metadata.get(FELT_KEY) or index >= len(docs):
+                continue
+            held = held_now(now, metadata.get(FELT_KEY))
+            if held > 0.0:
+                scored.append((held, index))
+        scored.sort(reverse=True)
+        return [
+            self._normalize_memory_result(
+                content=docs[index], metadata=metas[index],
+                memory_id=ids[index] if index < len(ids) else "", score=held,
+            )
+            for held, index in scored[: max(0, int(limit))]
+        ]
+
     def _detect_relational_significance(self, context: str, action: str, outcome: str) -> float:
         """Detect if this conversation is relational/bonding and return significance multiplier.
         

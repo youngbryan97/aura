@@ -1163,3 +1163,108 @@ holds the one reference. Two anchors decoded from that run's bank deep-copy
 cleanly, and all 128 had compared equal by content, so the bank is not the
 cause. The carrier was started again at 07:37 at `3dc0b0599` with the trace
 off; `89360dda4` counts on the run's own thread from now on.
+
+## Her felt state at layer 43, read where she reads, certified (24 October, 09:26 to 11:26)
+
+The layer-59 felt push written at every position (generation `cee23346687c335f`)
+was refused at 09:35: at the certificate's high state it cut the right-answer
+margin by 0.178 nats. Its controls had been the size of the composite alone,
+and `db6cac9f3` gives each control a random felt push of the felt push's own
+norm; refused again at 09:53 (-0.178 against +0.031), so the cost was real.
+For each layer and size, written at every position, the swing in her expected
+rating across six conversations between z = -1 and +1, and the certificate's
+margin at its high state against two random pushes of the same norm
+(`felt_wide_layers.py`, chosen by the rule fixed before reading: the largest
+swing among the cells whose margin is no worse than random):
+
+| Cell | Swing | Margin, felt | Margin, random |
+|---|---|---|---|
+| 35, 4 x | +0.394 | +0.119 | +0.036 |
+| 35, 8 x | +0.900 | +0.213 | -0.039 |
+| 43, 4 x | +0.631 | +0.181 | +0.188 |
+| 43, 8 x | +0.981 | +0.303 | -0.033 |
+| 51, 4 x | +0.688 | -0.013 | -0.061 |
+| 51, 8 x | +1.012 | -1.009 | -0.191 |
+| 59, 2 x | +0.074 | +0.009 | +0.038 |
+| 59, 4 x | +0.429 | -0.147 | +0.153 |
+
+At layer 43, eight half-differences, a spread below her usual brought ratings
+of -0.07 to -0.58 and a spread above 0.36 to 0.88, in every conversation: the
+first push that lowers her rating as well as raising it. Generation
+`8ae8eac8b7ce1c9c` (`fitted-voicefit-x2-felt43-20261024`) holds the certificate
+at alpha 0.5 (11:26): shift 0.655 against 0.301 for a random push of the same
+total size, margin +0.331 against +0.322, her held-out replies 0.243 nats a token
+more likely at their own state. The governed install started at 11:27.
+
+## The structure ground at `3dc0b0599` (content run, 04:57 to 10:17)
+
+Verdict AGREES_BUT_DOES_NOT_TRACK. Her internal geometry agrees with what she
+recalls (rho 0.351, p 0.001) and recovers the design (0.698), and the
+displacement moved both, internal 0.267 against a sham of 0.0001 and recall 0.023
+against 0, in different pairs (rho -0.142, p 0.945). On 29 September at
+`409628b9b` they moved together (0.381); across seventeen earlier quick runs and
+seeds the reading ranged from -0.60 to +0.38.
+
+From the run's own samples (`diagnose_structure.py`), the internal change is
+almost all in the domain the experiment displaces, A (2.27 a pair against at most
+0.73 elsewhere), and no domain's change follows recall's (W +0.20, M +0.12, C
+-0.23; without A, -0.03; without A, G and S, -0.04). Inside her forks
+(`diagnose_recall.py`) feeling better changes what she recalls on most
+presentations, 19 of 24, and the distance between what two kinds of percept
+bring back by 0.22 on a single presentation, but not consistently by kind:
+averaged over the run's 24 anchors and 8 conditions the recall geometry moved by
+0.004. Cueing her mood channel with the percept's appraised emotions as well
+made it worse (0 of 24 changed) and was not kept. What is open is a recall whose
+response to how she feels is systematic by kind of percept.
+
+## The governed install refused the layer-43 generation (24 October, 11:27 to 13:08)
+
+Verify scored her 110 held-out replies as it scored the fitted generation on 23
+October: 66 more likely at their own state, against 51 for random directions,
+60 for her directions at the wrong layers and none with every direction zeroed
+(sign test p 0.022). The paired rule added on 23 October (`23f80834c`) asks for
+superiority over every control, and 66 against 60 does not establish it, so
+nothing was installed. That reading sees the fitted directions only: a held-out
+record made before FELT_SLOT carried her felt valence reads neutral there, so
+the felt push adds nothing to it. The felt push's evidence is its certificate
+(11:26) and the readings above. The reports ground is steered through the
+measurement basis with that certificate, and her installed generation stays the
+fitted one of 23 October.
+
+## Her recall follows her internal state when she feels better, and the decisive reading starts (24 October, 13:00 to 13:39)
+
+The structure ground's miss, grouped by the valence of the two kinds of percept
+(content run at `3dc0b0599`): when she felt better her internal state drew a
+good and a bad percept 0.936 closer, two good ones 0.165 and two bad ones 0.249,
+and what they brought back moved by under a thousandth in each group. Two
+mechanisms were missing, and `8f548ed79` adds both. A mood colours appraisal
+(Forgas, 1995): each emotion a percept moves cues recall by one plus its
+valence sign times her valence against her own usual. And a mood is a cue of
+its own (Bower, 1981): memories made in what she feels now come to mind beside
+what the words found.
+
+Checked small inside her forks, eight classes from six anchors, against the
+content run's per-pair internal change (28 pairs): her recall's per-pair change
+read rho -0.08 and -0.25 before, +0.42 with appraisal alone, and +0.61 and
++0.67 (p 0.001 and under 0.001) with both. The mood cue alone moved recall four
+times as much and in the opposite direction, which is why both are needed.
+
+The v6 probe at `8f548ed79`, 13:38, with every other subject run paused: all
+four triples at direction p 5e-05, fractions A,S -> G 0.86, P,M -> W 1.01,
+W,A -> D 0.81, S,D -> C 0.51. The decisive reading on seed 23 started at 13:39:
+the carrier with three workers and six grain helpers, and the content run. J*
+is read as soon as they finish; then her withheld reports run on the layer-43
+felt generation, alone; then the campaign on seed 23; then J* and the bridge
+from all of them. The seed-7 carrier rehearsal was stopped to give it the
+machine, and the seed-7 campaign at `3dc0b0599` continues for the 24/24 reading.
+
+## The structure ground holds on seed 23 at `8f548ed79` (24 October, 13:39 to 19:29)
+
+The decisive content run, seed 23, 24 anchors, 20 classes over 8 conditions,
+calibrated axes: verdict ONE_STRUCTURE. Her internal geometry and what she
+recalls agree (rho 0.484, p 0.001), the internal geometry recovers the design
+(0.670), and when she feels better the two move in the same pairs (rho 0.379,
+p 0.001, against a sham floor of 0.0). What she recalls moved 0.106 and her
+internal geometry 0.116, against 0.023 and 0.267 at `3dc0b0599`. The carrier's
+grain finished at 18:53 (rank 23 of 8,448 signature columns, 111 of 128 rows made
+by the helpers); its three workers are scoring their cuts.

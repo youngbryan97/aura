@@ -1,3 +1,12 @@
+# Subject Core: the earlier mechanism target
+
+Status: Historical plan · Retained against the campaigns named below
+
+For current measurements, unresolved grounds and the running seed-23
+confirmation, start with [ISC_STATUS.md](ISC_STATUS.md). The original target
+below compares earlier organisms and instruments. Its status paragraphs and
+proposed repairs do not describe a new reading of the October organism.
+
 # What 24 of 24 requires
 
 Each criterion in `core/subject/battery.py` is a stated property of a causal
