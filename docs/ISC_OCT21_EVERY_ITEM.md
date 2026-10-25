@@ -1384,3 +1384,35 @@ that had read as unanswered were the reader's doing: twenty-four stated a rating
 before asking a courtesy question of their own, which the reader discarded by
 keeping only what followed the last question mark, and ten named a second number
 in range because she had mentioned the time.
+
+## The sweep was reading the machine it was loading (25 October, 02:30 to 06:30)
+
+Stopping the defensive host watch removed twenty-four of the twenty-six module
+attributes a restore left behind, and a 60-round probe with the repair in showed
+none of them. It did not remove the drift, because the larger path was never the
+security organs. It was her body.
+
+Her soma reads the host's CPU, memory and thermal pressure; homeostasis reads her
+soma; `metabolism` is computed from it, and `metabolism` is the second-largest
+leak the carrier reports. `freeze_host` exists for exactly this and declares one
+reading for every arm, holding the hardware and latency dicts and every answer of
+the shared resource observer — which is where the thermal probe, the process
+memory and the cpu reading all come from. `subject_core_probe` calls it. The v25
+sweep that decides the carrier never did.
+
+What `turn_once` does instead is take a hold per turn and release it at the turn's
+end, so the machine is held within a turn and read again for the next one. Across
+a sweep that is the machine's own load, turn by turn. MEASURED on a sixty-round
+baseline this morning: sixty "THERMAL RESONANCE: Hardware is overheating.
+Emergency throttling." records and thirteen metabolic-pressure mitigations, in
+the run, caused by the run. Thermal strain multiplies her depth by 0.4, her
+creativity by 0.5 and her temperature by 0.7, so two arms minutes apart were not
+thinking at the same depth.
+
+One `freeze_host` before the anchors holds it for the whole sweep, because
+`turn_once` only takes a hold of its own when none is in place (`8bca0222d`).
+The baseline still runs on the real machine, which is one trajectory rather than
+a paired comparison; what the arms share is now one declared host.
+
+A small sweep is measuring whether the late-fork control is undecided under the
+three repairs. No campaign is rerun until it is.
