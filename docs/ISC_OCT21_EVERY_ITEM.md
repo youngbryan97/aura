@@ -1257,3 +1257,14 @@ is read as soon as they finish; then her withheld reports run on the layer-43
 felt generation, alone; then the campaign on seed 23; then J* and the bridge
 from all of them. The seed-7 carrier rehearsal was stopped to give it the
 machine, and the seed-7 campaign at `3dc0b0599` continues for the 24/24 reading.
+
+## The structure ground holds on seed 23 at `8f548ed79` (24 October, 13:39 to 19:29)
+
+The decisive content run, seed 23, 24 anchors, 20 classes over 8 conditions,
+calibrated axes: verdict ONE_STRUCTURE. Her internal geometry and what she
+recalls agree (rho 0.484, p 0.001), the internal geometry recovers the design
+(0.670), and when she feels better the two move in the same pairs (rho 0.379,
+p 0.001, against a sham floor of 0.0). What she recalls moved 0.106 and her
+internal geometry 0.116, against 0.023 and 0.267 at `3dc0b0599`. The carrier's
+grain finished at 18:53 (rank 23 of 8,448 signature columns, 111 of 128 rows made
+by the helpers); its three workers are scoring their cuts.
