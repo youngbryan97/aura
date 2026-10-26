@@ -384,7 +384,7 @@ class Clamp:
         self.held.clear()
         from core.subject.carrier_reads import _units, held_by_domain
 
-        units = _units(getattr(self.holder, "kernel", None))
+        units = _units(getattr(self.holder, "kernel", None), getattr(self.holder, "organs", None))
         for domain in self.domains:
             for entry in held_by_domain(domain):
                 organ = units.get(entry.unit)

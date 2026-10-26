@@ -63,6 +63,9 @@ HELD: tuple[Held, ...] = (
     # Self-state: the beliefs she holds, her beliefs about herself among them
     # (the interventional test, at every anchor once the order of swaps let it).
     Held("belief_authority", "_beliefs", "S"),
+    # Deliberation: the choices she has made, which her portrait and her worth
+    # ledger read (the interventional test with her organs whole, every anchor).
+    Held("subjective_choice_engine", "_history", "D"),
     # Recurrent cognition: the self-predictive loop, binding oscillations, STDP traces.
     Held("closed_causal_loop", "_loop_state", "C"),
     Held("closed_causal_loop", "_predictor", "C"),
@@ -87,6 +90,32 @@ HELD: tuple[Held, ...] = (
 )
 
 
+#: K's organs are held whole. K reads a few readouts of each organ, and on
+#: seed 23's anchors almost every other attribute of those organs, swapped alone
+#: from another anchor, moved K within two turns: agency's record of what
+#: succeeded (0.39), the credit ledger's weights (0.39), good news's errors
+#: (0.33), homeostasis's modifiers (0.14), the mesh's columns, the field's
+#: inputs, each organ's own random state. An organ's internal state decides how
+#: the readout K reads will move, so the organ is part of the carrier, not the
+#: few numbers read off it. The cut clamps already hold each organ whole for the
+#: domain that reads it (`core/subject/clamp.py`); the reader and the periphery
+#: now agree with them.
+ORGANS_WHOLE: bool = True
+
+
+def organs_of(organs: Any) -> dict[str, Any]:
+    """K's organs by field name, the ones that exist."""
+    if organs is None:
+        return {}
+    from dataclasses import fields as dataclass_fields
+
+    try:
+        names = [field.name for field in dataclass_fields(organs)]
+    except TypeError:
+        return {}
+    return {name: getattr(organs, name) for name in names if getattr(organs, name, None) is not None}
+
+
 def held_attributes_of(unit: str) -> frozenset[str]:
     """The attributes of one unit that K* holds."""
     return frozenset(entry.attribute for entry in HELD if entry.unit == unit)
@@ -96,20 +125,23 @@ def held_by_domain(domain: str) -> tuple[Held, ...]:
     return tuple(entry for entry in HELD if entry.domain == domain)
 
 
-def _units(kernel: Any) -> dict[str, Any]:
-    """Every unit K* holds part of, by name: built services and the kernel's phases."""
+def _units(kernel: Any, organs: Any = None) -> dict[str, Any]:
+    """Every unit K* holds part of, by name: built services, the kernel's phases, and K's organs as `organ:<field>`."""
     from core.subject.snapshot import _built_services
 
     out: dict[str, Any] = {}
     services = _built_services()
     phases = {type(phase).__name__: phase for phase in getattr(kernel, "_phases", []) or []}
     for unit in {entry.unit for entry in HELD}:
+        if unit.startswith("organ:"):
+            out[unit] = getattr(organs, unit.split(":", 1)[1], None) if organs is not None else None
+            continue
         found = services.get(unit)
         out[unit] = found if found is not None else phases.get(unit)
     return out
 
 
-def read_held(kernel: Any, units: Mapping[str, Any] | None = None) -> dict[str, float]:
+def read_held(kernel: Any, units: Mapping[str, Any] | None = None, organs: Any = None) -> dict[str, float]:
     """Every held attribute's numbers, named `held.<unit>.<attribute>...`.
 
     Read by the periphery's own reader so the two sides of the closure test
@@ -124,7 +156,7 @@ def read_held(kernel: Any, units: Mapping[str, Any] | None = None) -> dict[str, 
     from core.subject.snapshot import _built_services
 
     out: dict[str, float] = {}
-    live = dict(units) if units is not None else _units(kernel)
+    live = dict(units) if units is not None else _units(kernel, organs)
     # Each attribute's own numbers, never another unit's reached through a
     # reference it holds. Her heartbeat keeps the qualia synthesizer, homeostasis
     # and temporal binding as fields; read whole, it put their state into K*, and
@@ -132,6 +164,11 @@ def read_held(kernel: Any, units: Mapping[str, Any] | None = None) -> dict[str, 
     # The fork skips such references for the same reason (`_carried_by_name`).
     others = {id(service) for service in _built_services().values() if service is not None}
     others |= {id(phase) for phase in getattr(kernel, "_phases", []) or []}
+    whole = organs_of(organs) if ORGANS_WHOLE else {}
+    others |= {id(organ) for organ in whole.values()}
+    for field_name, organ in whole.items():
+        # Each organ's own numbers, never another organ's or service's through a field.
+        _numbers(organ, f"held.organ:{field_name}", out, depth=0, ceiling=None, seen=set(others) - {id(organ)})
     for entry in HELD:
         organ = live.get(entry.unit)
         if organ is None:

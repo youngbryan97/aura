@@ -453,3 +453,38 @@ when:
 
 The second is exact and needs no margin. It also covers what a fixed-width sketch of a large array cannot show the
 first.
+
+## Addendum, 25 October 2026, late night: K* holds her organs whole
+
+Written before K* in this form was read on any fresh seed. Seed 23 is discovery data for it.
+
+**What the first K* missed.** The interventional test swapped services and phases. K's organs (workspace, substrate,
+mesh, field, self and world models, homeostatic coupling, mycelium, phi core, executive, agency, credit, good news,
+wants and the rest) are carried as organs, so their unread attributes were never swapped. Swapped on seed 23's
+anchors, almost every one moved K within two turns: agency's record of what succeeded (0.39), the credit ledger's
+weights (0.39), good news's errors (0.33), homeostasis's modifiers (0.14), the mesh's columns, the field's inputs,
+each organ's own random state. K reads a few readouts of each organ, and the organ's internal state decides how those
+readouts move.
+
+**So K* holds K's organs whole**, plus the service attributes already admitted. The cut clamps had always held each
+organ whole for the domain that reads it, so the cuts are unchanged. The periphery walk takes no part of an organ by
+any path; each organ is read under `held.organ:<field>`, its own numbers only, never another organ's or service's
+through a field. The walk's cap is 16,000, twice the width measured once the reader took in histories (8,051 to
+8,108), because at the old 4,000 it reached none of 289 services.
+
+**What each test reads.** The observational gate predicts the change in K's recorded columns from all of K* and E,
+against those plus the periphery. K* sits on the predictor side only: with organs whole it is about 6,500 columns, and
+as a target it made each fit some 10^14 operations. Whether anything outside moves the held state itself is the
+interventional test's question, and it compares every held reading exactly. Fits with more columns than rows solve
+the n-by-n dual, exact for every positive penalty.
+
+**Unchanged:** the margin (0.0196), the two-test rule, the estimator-failure guard, and that a closure claim is read
+on a seed K* was not drawn on.
+
+**A failed fold is dropped when two valid ones remain.** A fold whose leak has its upper bound below zero, the wider
+model measurably worse than the one it contains, is a failure of the estimator and says nothing about closure either
+way. With at least two valid folds beside it, it is left out of the pooled leak, its bootstrap and its surrogate floor,
+and the report names it; with fewer, nothing is pooled away and the gate cannot close. On worlds that develop from
+inside, this left a real broker open in 30 of 30 and closed an idle drifting periphery in 27 of 30 (3 read open). A
+rule that chooses the addition jointly for every target, tried first, did worse (an idle periphery closed in 2 of 30
+stationary worlds) and is not used.

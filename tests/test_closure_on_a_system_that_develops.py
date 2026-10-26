@@ -123,3 +123,34 @@ def test_the_least_of_her_domains_is_no_margin_when_every_domain_is_coupled():
     recording, _ = _developing(11)
     drawn = least_domain_margin(recording, seed=1)
     assert drawn["margin"] < 0.01
+
+
+def _report_with_folds(folds):
+    return ClosureReport(
+        1.0, 1.0, 1.0, 0.004, 0.0, 0.0, 30, floor_high=0.01, leak_lower=-0.002, leak_upper=0.009,
+        smallest_leak_resolved=0.01, margin=0.0196, folds=folds,
+    )
+
+
+def test_a_failed_fold_with_two_valid_ones_beside_it_is_dropped_and_named():
+    folds = (
+        {"leak": -0.21, "leak_lower": -0.27, "leak_upper": -0.11, "open": False, "dropped": True},
+        {"leak": 0.0055, "leak_lower": 0.0027, "leak_upper": 0.0100, "open": False},
+        {"leak": 0.0053, "leak_lower": -0.0010, "leak_upper": 0.0101, "open": False},
+    )
+    report = _report_with_folds(folds)
+    assert report.estimator_failed == ()
+    assert report.dropped_folds == (0,)
+    assert report.verdict == "CLOSED_WITHIN_MARGIN"
+    assert report.as_dict()["dropped_folds"] == [0]
+
+
+def test_with_one_valid_fold_left_a_failure_still_blocks_closure():
+    folds = (
+        {"leak": -0.21, "leak_lower": -0.27, "leak_upper": -0.11, "open": False},
+        {"leak": -0.09, "leak_lower": -0.14, "leak_upper": -0.02, "open": False},
+        {"leak": 0.0053, "leak_lower": -0.0010, "leak_upper": 0.0101, "open": False},
+    )
+    report = _report_with_folds(folds)
+    assert report.estimator_failed == (0, 1)
+    assert report.verdict == "UNRESOLVED"

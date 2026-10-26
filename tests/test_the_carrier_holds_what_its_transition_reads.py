@@ -132,3 +132,30 @@ def test_a_held_attribute_is_read_for_its_own_numbers_not_another_units():
     read = read_held(kernel)
     assert read["held.AffectUpdatePhase.appraisal.gain"] == 0.4
     assert not any("friend" in name for name in read)
+
+
+def test_her_organs_are_held_whole_and_left_out_of_the_periphery():
+    """An organ's internal state decides how the readout K reads will move, so the carrier holds it whole."""
+    from core.subject.state import Organs
+
+    workspace = SimpleNamespace(ignition_level=0.3, _inhibition=0.7, _history=deque([0.1, 0.2]))
+    kernel = SimpleNamespace(_phases=[], organs={"workspace": workspace})
+    read = read_periphery(kernel, Organs(workspace=workspace))
+    assert read["held.organ:workspace._inhibition"] == 0.7
+    assert read["held.organ:workspace._history#"] == 2.0
+    assert not any(name.startswith("organ.workspace") for name in read)
+
+
+def test_the_screen_puts_a_column_that_predicts_the_core_first():
+    from core.subject.closure import _screened
+
+    rng = np.random.default_rng(5)
+    rows = 900
+    cause = rng.normal(size=rows)
+    k = np.zeros((rows, 3))
+    for t in range(rows - 1):
+        k[t + 1] = 0.6 * k[t] + np.array([0.9, 0.0, 0.4]) * cause[t] + rng.normal(0, 0.2, 3)
+    own, change = k[:-1], k[1:] - k[:-1]
+    outside = np.column_stack([rng.normal(size=(rows - 1, 30)), cause[:-1]])
+    picked = _screened(own, change, outside, slice(0, 500), slice(500, 700), limit=3)
+    assert picked[0] == 30

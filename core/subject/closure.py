@@ -429,12 +429,16 @@ def read_periphery(kernel: Any, organs: Any = None) -> dict[str, float]:
     # meets the unit that carries it, so it is on one side of the test only.
     from core.subject.carrier_reads import _units, held_attributes_of, read_held
 
-    units = _units(kernel)
+    from core.subject.carrier_reads import ORGANS_WHOLE, organs_of
+
+    units = _units(kernel, organs)
     for unit, organ in units.items():
         if organ is not None:
             own.setdefault(id(organ), set()).update(held_attributes_of(unit))
-    out.update(read_held(kernel, units))
-    seen: set[int] = set()
+    out.update(read_held(kernel, units, organs))
+    # K's organs are K*'s whole, so the walk takes none of them, by whatever
+    # path it meets them.
+    seen: set[int] = {id(organ) for organ in organs_of(organs).values()} if ORGANS_WHOLE else set()
     _numbers(kernel, "kernel", out, depth=1, seen=seen, own=own)
     for phase in getattr(kernel, "_phases", []):
         _numbers(phase, phase.__class__.__name__, out, seen=seen, own=own)
@@ -604,8 +608,14 @@ class ClosureReport:
         read closed through those folds.
         """
         return tuple(
-            index for index, fold in enumerate(self.folds) if float(fold.get("leak_upper", 0.0)) < 0.0
+            index for index, fold in enumerate(self.folds)
+            if float(fold.get("leak_upper", 0.0)) < 0.0 and not fold.get("dropped")
         )
+
+    @property
+    def dropped_folds(self) -> tuple[int, ...]:
+        """Failed folds left out of the pooled reading because at least two valid ones remained."""
+        return tuple(index for index, fold in enumerate(self.folds) if fold.get("dropped"))
 
     def _pooled_open(self) -> bool:
         if self.leak_lower is None:
@@ -635,7 +645,7 @@ class ClosureReport:
             "surrogate": "circular_shift",
             "scored": "forward_folds",
             "folds": [
-                {key: (value if isinstance(value, str) else round(float(value), 6))
+                {key: (value if isinstance(value, (str, bool)) else round(float(value), 6))
                  for key, value in fold.items()}
                 for fold in self.folds
             ],
@@ -653,6 +663,7 @@ class ClosureReport:
             "environment_width": self.environment_width,
             "smallest_leak_resolved": self.resolution,
             "estimator_failed_folds": list(self.estimator_failed),
+            "dropped_folds": list(self.dropped_folds),
             "periphery_entered_as": "increments",
             "target": "the change in K",
             "why_unresolved": (
@@ -937,8 +948,7 @@ def _scored(
     per_fold: list[dict[str, Any]] = []
     gains: list[np.ndarray] = []
     bases: list[np.ndarray] = []
-    sse_own = sse_both = 0.0
-    floor_sse = np.zeros(max(1, draws))
+    sses: list[tuple[float, float, np.ndarray]] = []
     for index, (train, validate, test) in enumerate(folds):
         rng = np.random.default_rng(seed + index)
         narrow = fit_predict(own, nxt, train=train, validate=validate, test=test)
@@ -975,12 +985,29 @@ def _scored(
         })
         gains.append(gain)
         bases.append(np.asarray(narrow.row_sse))
-        sse_own += narrow.sse
-        sse_both += wide.sse
-        floor_sse += np.array([fit.sse for fit in surrogates])
+        sses.append((float(narrow.sse), float(wide.sse), np.array([fit.sse for fit in surrogates])))
+    # A fold where the wider model did measurably worse than the narrower one
+    # it contains is a fold where the estimator failed: its upper bound is below
+    # zero, which no real effect can produce. With at least two valid folds left
+    # it is dropped from the pooled reading and named in the report; with fewer,
+    # nothing is pooled away and the reading cannot close (`estimator_failed`).
+    # MEASURED 25 October: on worlds that develop from inside, dropping failed
+    # folds left a real broker open in 30 of 30 and closed an idle periphery in
+    # 27 of 30; on seed 23 the first fold, trained on her first fifth with her
+    # organs whole, read -0.21 while the other two read +0.0055 and +0.0053.
+    valid = [i for i, fold in enumerate(per_fold) if fold["leak_upper"] >= 0.0]
+    if 2 <= len(valid) < len(per_fold):
+        for i, fold in enumerate(per_fold):
+            if i not in valid:
+                fold["dropped"] = True
+    else:
+        valid = list(range(len(per_fold)))
+    sse_own = sum(sses[i][0] for i in valid)
+    sse_both = sum(sses[i][1] for i in valid)
+    floor_sse = np.sum([sses[i][2] for i in valid], axis=0)
     pooled = (sse_own - sse_both) / sse_own if sse_own > 1e-12 else 0.0
     floor = (sse_own - floor_sse) / sse_own if sse_own > 1e-12 else np.zeros_like(floor_sse)
-    lower, upper = _pooled_bounds(gains, bases, seed=seed)
+    lower, upper = _pooled_bounds([gains[i] for i in valid], [bases[i] for i in valid], seed=seed)
     return {
         "folds": per_fold,
         "leak": float(pooled),
@@ -992,6 +1019,34 @@ def _scored(
         "loss_core_and_periphery": float(np.median([fold["loss_core_and_periphery"] for fold in per_fold])),
         "loss_shuffled_periphery": float(np.median([fold["loss_shuffled_periphery"] for fold in per_fold])),
     }
+
+
+def _screened(
+    own: np.ndarray, change: np.ndarray, outside: np.ndarray, train: slice, validate: slice, *, limit: int
+) -> list[int]:
+    """The periphery columns that could add most to K*'s prediction of K's change, on the fitting rows.
+
+    The added-variable score: a column's gain, added to a model that already
+    holds K*, comes through its correlation with what that model leaves
+    unexplained in each target, so each column is scored by the sum over
+    targets of its squared correlation with the residual.
+    """
+    from core.subject.estimate import _ridge, _standardise
+
+    rows = slice(train.start, validate.stop)
+    fit = fit_predict(own, change, train=train, validate=validate, test=validate)
+    x, _keep = _standardise(own[rows], own[rows])
+    y = change[rows]
+    spread = y.std(axis=0)
+    y = (y - y.mean(axis=0)) / np.where(spread > 1e-12, spread, 1.0)
+    weights = _ridge(x, y, max(float(fit.alpha), 1e-3))
+    residual = y - x @ weights
+    residual = residual / np.where(residual.std(axis=0) > 1e-12, residual.std(axis=0), 1.0)
+    block = outside[rows]
+    block = (block - block.mean(axis=0)) / np.where(block.std(axis=0) > 1e-12, block.std(axis=0), 1.0)
+    correlation = (block.T @ (residual - residual.mean(axis=0))) / max(1, block.shape[0])
+    scores = (correlation**2).sum(axis=1)
+    return [int(i) for i in np.argsort(-scores)[:limit]]
 
 
 def _opens(scored: Mapping[str, Any]) -> bool:
@@ -1129,8 +1184,12 @@ def closure_gain(
     now = recording.x[:-1][:, live]
     nxt = recording.x[1:][:, live]
     # K*: what K's transition reads beyond its ten domains, recorded under
-    # `held.` (core/subject/carrier_reads.py), is part of the carrier, on the
-    # side of the test that predicts and is predicted, never the periphery.
+    # `held.` (core/subject/carrier_reads.py), is part of the carrier and never
+    # the periphery. It predicts; K's own columns are what is predicted. With
+    # her organs whole that is about six thousand columns, and every one of them
+    # as a target made each fit some 10^14 operations; whether anything outside
+    # moves the held state itself is asked exactly, by the interventional test
+    # (ISC-v6 addendum, 25 October, night), which compares every held reading.
     if periphery.size and names:
         held = np.array([name.startswith("held.") for name in names], dtype=bool)
         if held.any():
@@ -1141,7 +1200,6 @@ def closure_gain(
             block = block[:, moving]
             if block.shape[1] and block.shape[0] == recording.x.shape[0]:
                 now = np.hstack([now, block[:-1]])
-                nxt = np.hstack([nxt, block[1:]])
             periphery = periphery[:, ~held]
             names = tuple(name for name, flag in zip(names, held, strict=True) if not flag)
     outside = periphery[:-1]
@@ -1176,7 +1234,7 @@ def closure_gain(
     outside = _as_increments(outside, np.ones(outside.shape[1], dtype=bool))
     if outside.shape[1] == 0:
         return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0, margin=margin)
-    change = nxt - now
+    change = nxt - now[:, : nxt.shape[1]]
 
     scored = _scored(now, env, change, outside, seed=seed, draws=draws)
     folds = forward_folds(now.shape[0])
@@ -1189,7 +1247,15 @@ def closure_gain(
     # thing rather than reporting an amount.
     ranked: list[tuple[str, float]] = []
     if scored["leak"] > 0.0:
-        for index, name in enumerate(kept_names):
+        # Screened first, then fitted exactly. With K* holding her organs whole
+        # each exact fit is a model of six and a half thousand columns, and one
+        # per periphery column was two hours of a run for a diagnostic. A column
+        # can only carry gain through what K* leaves unexplained, so the columns
+        # whose increments correlate most with that residual on the training rows
+        # are the ones fitted; the rest cannot rank above them by much.
+        candidates = _screened(own, change, outside, train, validate, limit=max(4 * rank, 40))
+        for index in candidates:
+            name = kept_names[index]
             single = fit_predict(
                 np.hstack([own, outside[:, index : index + 1]]),
                 change,
