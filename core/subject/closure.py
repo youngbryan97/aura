@@ -941,8 +941,13 @@ def _scored(
     *,
     seed: int,
     draws: int,
+    only: Sequence[int] | None = None,
 ) -> dict[str, Any]:
-    """K + E against K + E + P on the forward folds: pooled leak, bounds, floor, and each fold's reading."""
+    """K + E against K + E + P on the forward folds: pooled leak, bounds, floor, and each fold's reading.
+
+    `only` pools over those folds and no others: a planted cause is read on the
+    folds the verdict read, not on a fold its own strength rescued.
+    """
     own = np.hstack([now, env]) if env.size else now
     folds = forward_folds(now.shape[0])
     per_fold: list[dict[str, Any]] = []
@@ -995,8 +1000,8 @@ def _scored(
     # folds left a real broker open in 30 of 30 and closed an idle periphery in
     # 27 of 30; on seed 23 the first fold, trained on her first fifth with her
     # organs whole, read -0.21 while the other two read +0.0055 and +0.0053.
-    valid = [i for i, fold in enumerate(per_fold) if fold["leak_upper"] >= 0.0]
-    if 2 <= len(valid) < len(per_fold):
+    valid = list(only) if only is not None else [i for i, fold in enumerate(per_fold) if fold["leak_upper"] >= 0.0]
+    if 2 <= len(valid) < len(per_fold) or (only is not None and len(valid) < len(per_fold)):
         for i, fold in enumerate(per_fold):
             if i not in valid:
                 fold["dropped"] = True
@@ -1050,13 +1055,14 @@ def _screened(
 
 
 def _opens(scored: Mapping[str, Any]) -> bool:
-    if any(fold["open"] for fold in scored["folds"]):
+    if any(fold["open"] and not fold.get("dropped") for fold in scored["folds"]):
         return True
     return scored["leak"] > scored["floor_high"] and scored["leak_lower"] > scored["shuffled_leak"]
 
 
 def _resolution(
     now: np.ndarray, env: np.ndarray, nxt: np.ndarray, outside: np.ndarray, *, seed: int, draws: int,
+    only: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     """The smallest planted leak the same estimator calls open, among the same periphery.
 
@@ -1067,30 +1073,71 @@ def _resolution(
     alone beside K, as the control did until 25 October, it was found more
     easily than any real leak could be.
     """
-    hardest = int(np.argmax(np.abs(np.diff(nxt, axis=0)).std(axis=0)))
-    carried = nxt[:, hardest : hardest + 1]
-    spread = float(carried.std())
-    spread = spread if spread > 1e-12 else 1.0
+    order = np.argsort(-np.abs(np.diff(nxt, axis=0)).std(axis=0))
     ladder: list[dict[str, Any]] = []
     resolved: float | None = None
-    for noise in (0.0, 0.125, 0.25, 0.375, 0.5, 0.75, 1.0):
+    carried = nxt[:, order[:1]]
+
+    def plant(columns: np.ndarray, noise: float) -> np.ndarray:
         rng = np.random.default_rng(seed + 1)
-        planted = carried + rng.standard_normal(carried.shape) * spread * noise
-        scored = _scored(now, env, nxt, np.hstack([outside, planted]), seed=seed + 7, draws=draws)
+        spread = columns.std(axis=0)
+        spread = np.where(spread > 1e-12, spread, 1.0)
+        return columns + rng.standard_normal(columns.shape) * spread * noise
+
+    # How many of K's hardest columns the plant carries. One column predicted
+    # perfectly is one of K's several hundred targets: on seed 23, once a
+    # failing fold was dropped, it could not explain more than 0.013 of what K
+    # leaves unexplained, under the surrogate floor's 0.0137, so the gate could
+    # never be shown to find a leak the size of the margin however good it was.
+    # The plant doubles its columns until, noiseless, it reaches the margin.
+    target = CLOSURE_MARGIN if CLOSURE_MARGIN is not None else 0.0
+    width = 1
+    while width < min(len(order), 64):
+        trial = _scored(now, env, nxt, np.hstack([outside, nxt[:, order[:width]]]), seed=seed + 7, draws=1, only=only)
+        if trial["leak"] >= target:
+            break
+        width *= 2
+    carried = nxt[:, order[: min(width, len(order))]]
+
+    def rung(noise: float, refined: bool = False) -> bool:
+        nonlocal resolved
+        planted = plant(carried, noise)
+        scored = _scored(now, env, nxt, np.hstack([outside, planted]), seed=seed + 7, draws=draws, only=only)
         found = _opens(scored)
         ladder.append({
-            "noise_in_spreads": noise,
+            "noise_in_spreads": round(noise, 6),
             "leak": round(scored["leak"], 6),
             "leak_lower": round(scored["leak_lower"], 6),
             "shuffled_q95": round(scored["floor_high"], 6),
             "detected": found,
+            "refined": refined,
         })
-        if not found:
+        if found and (resolved is None or scored["leak"] < resolved):
+            resolved = scored["leak"]
+        return found
+
+    found_at: float | None = None
+    missed_at: float | None = None
+    for noise in (0.0, 0.125, 0.25, 0.375, 0.5, 0.75, 1.0):
+        if not rung(noise):
             # Spoiling it further only makes the plant fainter.
+            missed_at = noise
             break
-        resolved = scored["leak"]
+        found_at = noise
+    # The rungs are coarse where the planted leak falls fastest: on seed 23 with
+    # her organs whole it was found at 0.197 and missed at the next rung,
+    # 0.0117, with the margin between them, so the ladder reported the grid's
+    # step as the gate's reach. Bisecting between the last rung found and the
+    # first missed measures the smallest leak the gate actually finds.
+    if found_at is not None and missed_at is not None:
+        for _ in range(6):
+            middle = (found_at + missed_at) / 2.0
+            if rung(middle, refined=True):
+                found_at = middle
+            else:
+                missed_at = middle
     return {
-        "carried_next_value_of": "the one column K predicts worst, spoilt by noise, among the real periphery",
+        "carried_next_value_of": f"the {carried.shape[1]} columns K predicts worst, spoilt by noise, among the real periphery",
         "ladder": ladder,
         "detected": resolved is not None,
         "smallest_leak_resolved": resolved,
@@ -1273,7 +1320,8 @@ def closure_gain(
     resolution: dict[str, Any] = {"skipped": "the gate read open, so its resolution decides nothing"}
     drawn: dict[str, Any] = {"named": margin}
     if not _opens(scored):
-        resolution = _resolution(now, env, change, outside, seed=seed, draws=max(8, draws // 4))
+        read = [i for i, fold in enumerate(scored["folds"]) if not fold.get("dropped")]
+        resolution = _resolution(now, env, change, outside, seed=seed, draws=max(8, draws // 4), only=read)
         if margin is None and CLOSURE_MARGIN_RULE == LEAST_DOMAIN:
             drawn = least_domain_margin(recording, seed=seed, environment=environment)
             margin = drawn["margin"]
@@ -1296,7 +1344,7 @@ def closure_gain(
         shuffled_draws=int(draws),
         floor_high=float(scored["floor_high"]),
         folds=tuple(scored["folds"]),
-        leaking_folds=int(sum(1 for fold in scored["folds"] if fold["open"])),
+        leaking_folds=int(sum(1 for fold in scored["folds"] if fold["open"] and not fold.get("dropped"))),
         differenced=differenced,
         dropped_as_clocks=tuple(
             name for name, flag in zip(names, clocks, strict=True) if flag

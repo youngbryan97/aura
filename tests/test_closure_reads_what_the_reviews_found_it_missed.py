@@ -101,3 +101,20 @@ def test_the_bridge_reports_an_undecided_carrier_as_unresolved():
     })
     assert term.status == "UNRESOLVED"
     assert any("closure of ACDGIMNPSW is unresolved" in b for b in term.blockers)
+
+
+def test_the_resolution_is_measured_between_the_rungs_not_at_them():
+    """Found at one rung and missed at the next, the gate's reach is bisected, not reported as the grid's step."""
+    rng = np.random.default_rng(9)
+    rows = 1200
+    k = np.zeros((rows + 1, 3))
+    for t in range(rows):
+        k[t + 1] = 0.7 * k[t] + rng.normal(0, 0.3, 3)
+    noise = rng.normal(0, 1, (rows, 40))
+    now, nxt = k[:-1], k[1:]
+    found = _resolution(now, np.zeros((rows, 0)), nxt, noise, seed=9, draws=8)
+    coarse = [rung for rung in found["ladder"] if not rung["refined"]]
+    if any(rung["detected"] for rung in coarse) and not coarse[-1]["detected"]:
+        refined = [rung for rung in found["ladder"] if rung["refined"]]
+        assert len(refined) == 6
+        assert found["smallest_leak_resolved"] <= min(r["leak"] for r in coarse if r["detected"])
