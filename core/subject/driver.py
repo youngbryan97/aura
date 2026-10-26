@@ -52,6 +52,7 @@ from core.subject.state import (
     Organs,
     read_core_state,
 )
+from core.subject.monotonic_instants import rebased, tag_snapshot
 from core.subject.steppable import Steps, step_once
 
 __all__ = [
@@ -537,7 +538,8 @@ class SubjectRuntime(_HeldHost):
 
     def snapshot(self) -> Snapshot:
         carried = _carried_by_name(self)
-        return Snapshot(
+        monotonic_at = time.monotonic()
+        taken = Snapshot(
             outcomes_by_kind=dict(getattr(self, "_outcomes_by_kind", {}) or {}),
             organs={
                 name: _organ_state(getattr(self.organs, name, None), skip=carried)
@@ -566,6 +568,7 @@ class SubjectRuntime(_HeldHost):
             effort=_effort_state(),
             taken_at=time.time(),
             clock_at=None if self.clock is None else self.clock.now(),
+            monotonic_at=monotonic_at,
             frame_index=self.frame_index,
             spoken=self.spoken,
             global_random=random.getstate(),
@@ -576,6 +579,8 @@ class SubjectRuntime(_HeldHost):
             intentions=_intentions_state(self._intentions),
             layers=_layer_state(self.organism, carried),
         )
+        tag_snapshot(taken, monotonic_at)
+        return taken
 
     def _module_keys(self) -> set[str] | None:
         """The module globals calibration saw move, and any singleton made since."""
@@ -590,6 +595,14 @@ class SubjectRuntime(_HeldHost):
         return _empty_module_slots(self.empty_at_calibration)
 
     def restore(self, snapshot: Snapshot) -> None:
+        # Every reading of `time.monotonic` the snapshot copied comes back at
+        # the age it had then, however long the snapshot sat. Seed 71's
+        # untouched anchors, restored an hour into the process, read an hour
+        # of idle that nobody lived (26 October).
+        with rebased(getattr(snapshot, "monotonic_at", None)):
+            self._restore(snapshot)
+
+    def _restore(self, snapshot: Snapshot) -> None:
         self._outcomes_by_kind = dict(snapshot.outcomes_by_kind)
         for name, saved in snapshot.organs.items():
             _restore_organ(getattr(self.organs, name, None), saved)

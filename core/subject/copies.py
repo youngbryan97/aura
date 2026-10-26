@@ -30,6 +30,8 @@ from typing import Any
 
 import numpy as np
 
+from core.subject.monotonic_instants import MonotonicInstant
+
 #: A field an object does not have, as distinct from one that holds None.
 _ABSENT = object()
 
@@ -297,10 +299,15 @@ _VALUES: tuple[type, ...] = (
 )
 
 
+#: A tagged monotonic instant is the float it was, so a snapshot that tagged a
+#: field can still hand its copy to the next snapshot when nothing changed.
+_FLOATS: tuple[type, ...] = (float, MonotonicInstant)
+
+
 def _identical(left: Any, right: Any, pairs: set[tuple[int, int]]) -> bool:
     if left is right:
         return True
-    if type(left) is not type(right):
+    if type(left) is not type(right) and not (type(left) in _FLOATS and type(right) in _FLOATS):
         return False
     if isinstance(left, float):
         return (left == right and math.copysign(1.0, left) == math.copysign(1.0, right)) or (

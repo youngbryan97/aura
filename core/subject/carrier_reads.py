@@ -142,6 +142,9 @@ HELD: tuple[Held, ...] = (
     Held("module:core.social.warmth:_LEDGER", WHOLE, "A"),
     Held("module:core.social.constancy:_LEDGER", WHOLE, "A"),  # (1.0)
     Held("module:core.motivation.fuel:_LEDGER", WHOLE, "A"),
+    # Her pain: swapped alone it moved the pain buffer of her affect grounding
+    # at 2 of 16 swaps of seed 37 (round 6, 26 October).
+    Held("module:core.affect.nociception:_engine", WHOLE, "A"),
     # How near the end of a sitting is, from how her sittings have ended.
     Held("module:core.social.closing_window:_ledger", WHOLE, "W"),  # (2.7)
     # Memory that returns: relived, and arriving unbidden.

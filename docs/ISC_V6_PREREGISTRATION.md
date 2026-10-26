@@ -577,3 +577,44 @@ The fifth round, on seeds 31, 53 and 59 with K* as above less the sweeper, had n
 
 **Seed 71 is the confirmatory seed.** No run has read it. Unchanged: the margin (0.0196), the two-test rule, the
 observational gate, every v6 line and bar, and the reports run's design.
+
+## Addendum, 26 October 2026, late morning: her clock readings keep their age, the event graph travels, and seed 73
+
+Written before seed 73 was read by any run.
+
+**Seed 71, stopped.** The decisive reading at `8dd0d44ad` lost two of its parts. The carrier built a bank of 128 anchors
+for 80 minutes and every worker refused it at the first anchor: the cognitive event graph, carried since the fork took
+every module holding, kept a lambda as its clock, and a worker that had not yet made a graph of its own had nothing to
+fill it from. The interventional test swapped 648 of its 756 units with no mover and no one-off; from there, an hour into
+its process, untouched rolls at anchors 2, 3 and 5 stood apart from their first rolls by 0.671, 0.762 and 0.58 after
+every swap, which reads UNRESOLVED. The five units it then read as moving K* (`affect_engine._lock`,
+`affect_engine._seen_event_ids`, `being_runtime`, `coherence_report.selected_initiative`, `coherence_report.tick_id`)
+moved it at those anchors and by those amounts, and none is admitted. The interventional test and the campaign were
+stopped at 08:15. The content run goes on as a reading of the structure term at `8dd0d44ad`, beside seed 23's. Seed 71
+is discovery data from here.
+
+**Her clock readings came back older.** Much of what she keeps is a reading of `time.monotonic` that something later
+turns into an elapsed time: when the body was last sampled, when a pathway last pulsed, when a cache was filled. A
+restore put the reading back and the clock ran on, so an anchor restored an hour after it was taken read an hour of
+idle she never lived. Moving `time.monotonic` an hour forward in a fresh process on seed 71 parted untouched rolls at
+anchors 2, 3 and 5 by 2.35, 3.01 and 0.62, and at 600 and 1800 s nothing; traced, two initiative approvals that each
+stepped the ontogeny core and the world model no longer happened. From the commit that carries this addendum a
+snapshot tags every float it copied that lies between the start of the process and a day past the snapshot, and a
+restore hands each back at the age it had when the snapshot was taken (`core/subject/monotonic_instants.py`). The
+interventional test's donor gives the receiver's tagged readings, as it gives its wall-clock instants.
+
+On seed 71's first anchor the snapshot tags 57 readings at 57 paths, every one a stamp by its name: start times, last
+pulses, last samples, creation times, cache times; no count, rate or duration. Restored with the clock moved an hour
+on, nothing in her organs, services, phases, module holdings or state is left at its real age.
+
+**The event graph travels.** Its clock is a named function now. Before the carrier builds a bank, a two-process
+preflight writes one anchor as the coordinator does and reads it as a worker does: at `8dd0d44ad` it names the graph's
+clock as the one hole, and at the commit that carries this addendum it finds none and runs a turn on the restored
+anchor.
+
+**K\* holds her pain.** `core.affect.nociception:_engine` is held whole under A. Swapped alone it moved the pain buffer
+of her affect grounding at 2 of 16 swaps of seed 37, in the sixth round at `8dd0d44ad` (seeds 37 and 47, three shards
+each); every other shard of that round read CLOSED, with no residue and no one-offs.
+
+**Seed 73 is the confirmatory seed.** No run has read it. Unchanged: the margin (0.0196), the two-test rule, the
+observational gate, every v6 line and bar, and the reports run's design.

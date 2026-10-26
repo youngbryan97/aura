@@ -53,13 +53,16 @@ WARM_ROUNDS = 6
 def aligned(donor: Any, receiver: Any, key: str = "") -> Any:
     """The donor's state with every instant taken from the receiver: state swapped, time since not."""
     from core.subject.closure import _named_clock
+    from core.subject.monotonic_instants import MonotonicInstant
     from core.subject.snapshot import _EPOCH_FLOOR
 
     if isinstance(donor, dict) and isinstance(receiver, dict):
         return {k: aligned(v, receiver.get(k), str(k)) if k in receiver else v for k, v in donor.items()}
     if isinstance(donor, tuple) and isinstance(receiver, tuple) and len(donor) == len(receiver) == 2:
         return (donor[0], aligned(donor[1], receiver[1], key))
-    is_instant = isinstance(donor, (int, float)) and not isinstance(donor, bool) and donor > _EPOCH_FLOOR
+    is_instant = isinstance(donor, MonotonicInstant) or (
+        isinstance(donor, (int, float)) and not isinstance(donor, bool) and donor > _EPOCH_FLOOR
+    )
     if (is_instant or _named_clock(key) or "monotonic" in key.lower()) and receiver is not None:
         return receiver
     return donor

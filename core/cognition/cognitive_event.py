@@ -197,10 +197,20 @@ def cycle(label: str = "") -> _CycleScope:
     return _CycleScope(label)
 
 
+def _now() -> float:
+    """The wall clock, looked up when asked, so an installed experiment clock is the one read.
+
+    A named function rather than a lambda: a fork snapshot written in one
+    process and read in another carries the graph, and a lambda has no name
+    the reader can find (seed 71's carrier, 26 October).
+    """
+    return time.time()
+
+
 class EventGraph:
     """The events, their causal edges, and the questions worth asking of them."""
 
-    def __init__(self, *, capacity: int=_DEFAULT_CAPACITY, clock: Any=lambda: time.time()) -> None:
+    def __init__(self, *, capacity: int=_DEFAULT_CAPACITY, clock: Any=_now) -> None:
         self._lock = checked_lock("core.cognition.cognitive_event.EventGraph", reentrant=True)
         self._events: dict[int, CognitiveEvent] = {}
         self._order: list[int] = []

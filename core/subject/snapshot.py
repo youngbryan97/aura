@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.subject.monotonic_instants import MonotonicInstant
 from core.subject.copies import (  # moved when this module crossed the size ceiling
     _ATOMIC,
     _holds_furniture,
@@ -152,12 +153,14 @@ def _place(value: Any) -> Any:
     shared state wearing an immutable type — so the check goes one level in
     rather than trusting the container.
     """
+    if type(value) is MonotonicInstant:
+        return value.placed()
     if isinstance(value, _ATOMIC):
         return value
     if isinstance(value, np.ndarray):
         return np.array(value, copy=True)
     if isinstance(value, (tuple, frozenset)) and all(
-        isinstance(item, _ATOMIC) for item in value
+        isinstance(item, _ATOMIC) and type(item) is not MonotonicInstant for item in value
     ):
         return value
     return copy.deepcopy(value)
@@ -1998,6 +2001,10 @@ class Snapshot:
     #: a drive decays by `decay * dt` and a mind-moment binds over a window,
     #: both against `time.time`.
     clock_at: float | None = None
+    #: Where `time.monotonic` stood. Every reading of it the snapshot holds is
+    #: tagged, and a restore hands each back this far before its own now
+    #: (core/subject/monotonic_instants.py).
+    monotonic_at: float | None = None
     #: Wall clock when the snapshot was taken. Restoring rewinds the state but
     #: not the clock, so the second arm of a trial always sees more elapsed
     #: time than the first — the motivation phase decays every drive by
