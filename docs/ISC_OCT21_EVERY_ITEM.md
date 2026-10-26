@@ -1663,3 +1663,28 @@ reach, measured by bisection on the verdict's own folds, is 0.197: one near-perf
 thousand outside columns is found at a leak of 0.197 and missed at 0.013, because the outside block shares one ridge
 penalty. A certificate of closure within 0.0196 is out of this instrument's reach on her recording. The question of
 what closure should require, given that, went to Bryan at 23:20.
+
+## The gate's reach, seed 31, and the decisive reading on seed 61 (26 October, 00:00 to 02:32)
+
+**The reach.** The outside block now enters each nested fit through a screen: only columns whose added-variable score
+on the training rows beats the largest score of the same block circularly shifted (`da9c3fbe2`). On seed 23, as
+discovery, the reach fell from 0.197 to 0.010 against the 0.0196 margin, and the gate read CLOSED_WITHIN_MARGIN
+(upper bound +0.0003, one failed fold dropped). Closure still needs both tests.
+
+**Seed 31, stopped.** The decisive reading at `c1b7b1843` started at 01:10. Its interventional test was run early,
+beside the carrier, and read OPEN: swapping the discourse tracker in from another anchor moved K at 4 of 8 anchors
+(largest 0.429), and alone only its count of the conversation's messages did. Six more seeds read the same. Seed 23
+never showed it: its six anchors put each donor 48 turns away, six messages, in phase with the tracker's deeper
+reading on every sixth message. The carrier was stopped at 01:52 with no line scored, and seed 31 became discovery
+data. A test that takes every swap from one distance cannot see a cycle whose period divides it, and there are about
+eighty counted cycles in her code.
+
+**The fix (`a6f18b7e3`).** K* holds the tracker's count under G. The interventional test spaces anchors 13 turns apart
+and swaps each unit in from two donors, 13 and 52 turns away, so no cycle of 2 to 12 turns sits in phase with both.
+The ISC-v6 addendum of 26 October names seed 61 as the confirmatory seed. The tools that score the reading were run
+on seed 23's saved reports with seed 31's interventional result attached: J* reads the carrier term from it, and the
+closure line fails on an OPEN result, as it should.
+
+**Seed 61.** Launched at 02:22; the v6 line passed at 02:32 (all four triples at direction p 0.0001), and the carrier,
+content run, campaign and the two-donor interventional test started together. The seed-31 campaign and content run
+continue at low priority as a full-size rehearsal of the lines that read K alone.
