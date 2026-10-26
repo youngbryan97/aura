@@ -51,7 +51,7 @@ _FLAG_OF_HERSELF = declare(
     "AURA_READINGS_OF_HERSELF", kind=FlagKind.STRING, default="",
     description="withheld keeps every reading of her own state out of the text her model is given, "
                 "for the reports ground's control arm",
-    owner="subject_core",
+    owner="prompt",
 )
 
 #: Her own state, as the readings print it: a name of one of her states, a few
