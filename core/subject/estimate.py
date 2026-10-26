@@ -132,6 +132,20 @@ def _ridge(x: np.ndarray, y: np.ndarray, alpha: float | np.ndarray) -> np.ndarra
         if live.any():
             weights[live] = _ridge(x[:, live], y, penalty[live])
         return weights
+    rows, columns = x.shape
+    if rows < columns:
+        # More columns than rows: the same weights from an n-by-n system,
+        # w = D^-1 X^T (X D^-1 X^T + I)^-1 y, exact for every positive penalty.
+        # The closure periphery is about eight thousand columns over two
+        # thousand rows since its reader took in histories, and the p-by-p
+        # Gram matrix cost (p/n)^3 times as much on every one of the thousands
+        # of solves a closure reading makes.
+        scaled = x / penalty
+        kernel = scaled @ x.T + np.eye(rows)
+        try:
+            return scaled.T @ np.linalg.solve(kernel, y)
+        except np.linalg.LinAlgError:
+            return scaled.T @ (np.linalg.pinv(kernel) @ y)
     gram = x.T @ x + np.diag(penalty)
     try:
         return np.linalg.solve(gram, x.T @ y)

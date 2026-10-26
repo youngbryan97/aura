@@ -93,7 +93,10 @@ def test_a_broker_outside_a_developing_core_opens_it():
     assert report.verdict == "OPEN"
 
 
-def test_no_margin_named_means_nothing_closes():
+def test_no_margin_named_means_nothing_closes(monkeypatch):
+    import core.subject.closure as closure
+
+    monkeypatch.setattr(closure, "CLOSURE_MARGIN", None)
     recording, walks = _developing(11)
     report = closure_gain(recording, walks, _names(walks), seed=1, draws=16)
     assert report.margin is None

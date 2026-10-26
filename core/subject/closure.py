@@ -104,7 +104,13 @@ _COVERAGE: dict[str, Any] = {}
 #: 101 ms a frame against 3.3 ms at the old cap; a gate that is wrong is worse
 #: than a gate that is slow. `coverage()["hit_the_cap"]` still says when a
 #: larger machine binds it.
-MAX_PERIPHERY: int = 4000
+MAX_PERIPHERY: int = 16000
+#: Raised from 4000 on 25 October. Once the reader took in deques and nested
+#: containers the machine carried 8,051 to 8,108 numbers over three rounds of
+#: a fresh organism, and the walk, which reads the kernel, phases and organs
+#: before the services, spent all 4,000 before reaching any of 289 services:
+#: closure was judged without a single service in its periphery. Twice the
+#: measured width, because histories keep filling as a run goes on.
 
 #: How deep to walk into an object's attributes. Two levels reaches the state a
 #: phase keeps inside a helper it owns, which is where the interesting hidden
