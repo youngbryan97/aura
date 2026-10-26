@@ -223,6 +223,23 @@ def _rescored(text: str, bounded: float, updated: float) -> str:
     return text
 
 
+def _unlabelled(text: str) -> str:
+    """A candidate's text without its score label, which every cue rewrites."""
+    return text.split("]", 1)[1] if text.startswith("[memory score=") else text
+
+
+def _by_content(stamps: dict[str, Any]) -> dict[str, Any]:
+    """Stamps keyed by what the memory says rather than by its labelled text.
+
+    Each cue rewrites a candidate's score label (`_rescored`), and the stamps
+    were filed under the label it had when it was found. So the cue after the
+    percept's looked every rescored memory up under a label it no longer had:
+    whenever a percept arrived, what she felt never reached a recollection the
+    percept had touched (26 October).
+    """
+    return {_unlabelled(key): value for key, value in stamps.items()}
+
+
 def _appraised_in_her_mood(appraisal: tuple[str, ...], affect: Any) -> dict[str, float] | None:
     """How strongly each emotion a percept moves is felt by her in the mood she is in.
 
@@ -277,12 +294,12 @@ def _cued_by_the_percept(
     from core.state.percepts import PERCEPT_EMOTIONS, word_overlap
 
     appraisal = tuple(PERCEPT_EMOTIONS.get(percept_kind, ()) or ())
-    set_apart = distinctive(felt_by_text) if appraisal else {}
+    set_apart = distinctive(_by_content(felt_by_text)) if appraisal else {}
     weights = _appraised_in_her_mood(appraisal, affect)
     reread: list[tuple[float, str]] = []
     for score, text in memory_candidates:
         bounded = max(0.0, min(1.0, float(score)))
-        carried = percept_carried(word_overlap(percept_cue, text), appraisal, set_apart.get(text), weights=weights)
+        carried = percept_carried(word_overlap(percept_cue, text), appraisal, set_apart.get(_unlabelled(text)), weights=weights)
         updated = bounded + (1.0 - bounded) * carried * percept_salience
         reread.append((updated, _rescored(text, bounded, updated)))
     return reread
@@ -316,7 +333,7 @@ def _cued_by_what_she_feels(
     now = felt_now(affect)
     if not now:
         return memory_candidates
-    set_apart = distinctive(felt_by_text)
+    set_apart = distinctive(_by_content(felt_by_text))
     # Scaled by what her substrate has learned the pull of feeling on recall
     # should be now. See core/consciousness/substrate_gates.py.
     from core.consciousness.substrate_gates import get_substrate_gates
@@ -325,7 +342,41 @@ def _cued_by_what_she_feels(
     reread: list[tuple[float, str]] = []
     for score, text in memory_candidates:
         bounded = max(0.0, min(1.0, float(score)))
-        updated = bounded + (1.0 - bounded) * held_now(now, set_apart.get(text)) * gain
+        updated = bounded + (1.0 - bounded) * held_now(now, set_apart.get(_unlabelled(text))) * gain
+        reread.append((updated, _rescored(text, bounded, updated)))
+    return reread
+
+
+def _cued_by_where_she_stands(
+    memory_candidates: list[tuple[float, str]],
+    context_by_text: dict[str, Any],
+    memory_salience: float,
+) -> list[tuple[float, str]]:
+    """And where her whole inner state stands now.
+
+    A recollection closes the gap to full relevance by how near her unified
+    field stands now to where it stood when the memory was made, measured from
+    what the competing memories share, at the gain affect gives memory, as a
+    feeling's share does in `_cued_by_what_she_feels`. See
+    core/memory/context_at_encoding.py.
+    """
+    if not context_by_text or memory_salience <= 0.0:
+        return memory_candidates
+    from core.memory.context_at_encoding import context_now, distinctive, near
+
+    now = context_now()
+    if now is None:
+        return memory_candidates
+    contexts, centre = distinctive(_by_content(context_by_text))
+    if not contexts:
+        return memory_candidates
+    from core.consciousness.substrate_gates import get_substrate_gates
+
+    gain = min(1.0, memory_salience * get_substrate_gates().multiplier("recall"))
+    reread: list[tuple[float, str]] = []
+    for score, text in memory_candidates:
+        bounded = max(0.0, min(1.0, float(score)))
+        updated = bounded + (1.0 - bounded) * near(now, contexts.get(_unlabelled(text)), centre) * gain
         reread.append((updated, _rescored(text, bounded, updated)))
     return reread
 
@@ -429,7 +480,7 @@ class MemoryRetrievalPhase(BasePhase):
         return query
 
     @staticmethod
-    def _execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text=None):
+    def _execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text=None, context_by_text=None):
         metadata = _safe_metadata(item.get("metadata", {}))
         emotional_valence = _safe_float(metadata.get("emotional_valence"))
         importance = _safe_float(metadata.get("importance"))
@@ -455,6 +506,9 @@ class MemoryRetrievalPhase(BasePhase):
         # The feeling it was made in, for the percept. See core/memory/felt_at_encoding.py.
         if felt_by_text is not None and metadata.get("felt"):
             felt_by_text[f"[memory score={weighted_score:.3f}] {content}"] = metadata.get("felt")
+        # And where her field stood. See core/memory/context_at_encoding.py.
+        if context_by_text is not None and metadata.get("context"):
+            context_by_text[f"[memory score={weighted_score:.3f}] {content}"] = metadata.get("context")
         # Whether the person she is with now was part of it.
         # The principal a personal record was written for is
         # stored with it; a record written for somebody else
@@ -938,6 +992,26 @@ class MemoryRetrievalPhase(BasePhase):
                 )
                 return None
 
+        async def _get_context():
+            # Where her whole inner state stands is a cue as well
+            # (MemoryFacade.search_by_context, core/memory/context_at_encoding.py).
+            try:
+                memory = self.container.get("memory_facade", default=None)
+                if memory is None or not hasattr(memory, "search_by_context"):
+                    return None
+                from core.memory.context_at_encoding import context_now
+
+                now = context_now()
+                if now is None:
+                    return None
+                async with asyncio.timeout(15.0):
+                    return await asyncio.to_thread(memory.search_by_context, now, _candidate_pool(retrieval_limit))
+            except (TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                _record_memory_degradation(
+                    exc, action="recalled without her inner context this turn", stage="recall_by_context",
+                )
+                return None
+
         # Each source timed, so a slow phase says which part of it was slow.
         # The kernel measured this phase at five to nine seconds a background
         # tick (live, 2026-09-18) and could only name the phase.
@@ -951,13 +1025,14 @@ class MemoryRetrievalPhase(BasePhase):
                 took[name] = time.monotonic() - began
 
         gathered_from = time.monotonic()
-        dual_res, kg_res, facade_res, episodic_res, intentional_res, felt_res = await asyncio.gather(
+        dual_res, kg_res, facade_res, episodic_res, intentional_res, felt_res, context_res = await asyncio.gather(
             _timed("dual memory", _get_dual()),
             _timed("knowledge graph", _get_kg()),
             _timed("memory facade", _get_facade()),
             _timed("episodic", _get_episodic()),
             _timed("intentional", _get_intentional()),
             _timed("feeling", _get_felt()),
+            _timed("context", _get_context()),
         )
         if time.monotonic() - gathered_from > _SLOW_ENOUGH_TO_SAY_S and took:
             slowest = max(took, key=took.get)
@@ -987,6 +1062,8 @@ class MemoryRetrievalPhase(BasePhase):
         affect_sources: list[tuple[str, float, float]] = []
         # And each candidate's whole feeling, where its store kept one.
         felt_by_text: dict[str, Any] = {}
+        # And where her field stood when each was made.
+        context_by_text: dict[str, Any] = {}
 
         if dual_res:
             memory_candidates.append(
@@ -1018,6 +1095,8 @@ class MemoryRetrievalPhase(BasePhase):
                         )
                         if metadata.get("felt"):
                             felt_by_text[f"[{km.get('type', 'fact')}] {content}"] = metadata.get("felt")
+                        if metadata.get("context"):
+                            context_by_text[f"[{km.get('type', 'fact')}] {content}"] = metadata.get("context")
 
                     affect_sources.append((content, emotional_valence, importance))
 
@@ -1026,7 +1105,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if isinstance(item, dict):
                     content = _safe_text(item.get("content") or item.get("text"), max_chars=2_000)
                     if content:
-                        importance = self._execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text)
+                        importance = self._execute_metadata(affect_sources, content, effective_memory_salience, item, memory_candidates, partner_id, shared_texts, state, felt_by_text, context_by_text=context_by_text)
                 elif item:
                     memory_candidates.append(
                         (0.35, f"[memory] {_safe_text(item, max_chars=2_000)}")
@@ -1040,7 +1119,17 @@ class MemoryRetrievalPhase(BasePhase):
                     if content and content not in found:
                         found.add(content)
                         self._execute_metadata(affect_sources, content, effective_memory_salience, item,
-                                               memory_candidates, partner_id, shared_texts, state, felt_by_text)
+                                               memory_candidates, partner_id, shared_texts, state, felt_by_text, context_by_text=context_by_text)
+        if context_res:
+            found = {text.split("] ", 1)[-1] for _, text in memory_candidates}
+            for item in _iter_retrieval_items(context_res):
+                if isinstance(item, dict):
+                    content = _safe_text(item.get("content") or item.get("text"), max_chars=2_000)
+                    if content and content not in found:
+                        found.add(content)
+                        self._execute_metadata(affect_sources, content, effective_memory_salience, item,
+                                               memory_candidates, partner_id, shared_texts, state, felt_by_text,
+                                               context_by_text=context_by_text)
         if episodic_res:
             for ep in _iter_retrieval_items(episodic_res):
                 desc = _safe_text(
@@ -1131,6 +1220,7 @@ class MemoryRetrievalPhase(BasePhase):
         memory_candidates = _cued_by_what_she_feels(
             memory_candidates, felt_by_text, getattr(state, "affect", None), effective_memory_salience
         )
+        memory_candidates = _cued_by_where_she_stands(memory_candidates, context_by_text, effective_memory_salience)
 
         scores: list[float] = []
         # The feeling stored with what came back, and how many carried one.
@@ -1156,7 +1246,8 @@ class MemoryRetrievalPhase(BasePhase):
         # she is with now were both part of. "Remember the Time" asks fifteen
         # times and every one is a memory marked as theirs together.
         new_state.cognition.relived["shared"] = bool(
-            memory_candidates and memory_candidates[0][1] in shared_texts
+            memory_candidates
+            and _unlabelled(memory_candidates[0][1]) in {_unlabelled(text) for text in shared_texts}
         )
         get_return_ledger().note(asked_about)
 

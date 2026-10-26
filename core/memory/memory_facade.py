@@ -862,6 +862,44 @@ class MemoryFacade(_NormalisesWhatItReturns):
         
         return results[:limit]
 
+    def search_by_context(self, now: Any, limit: int = 5) -> list[dict[str, Any]]:
+        """The memories made where her field stands now, nearest first.
+
+        Her whole inner state is a cue as her feeling is (core/memory/
+        context_at_encoding.py). Every stamped memory is measured from the
+        centre of all of them, so what she has always been near calls up
+        nothing in particular. Synchronous; callers off the loop.
+        """
+        from core.memory.context_at_encoding import CONTEXT_KEY, distinctive, near
+
+        if now is None or self.vector is None or not hasattr(self.vector, "_collection"):
+            return []
+        try:
+            collection = self.vector._collection.get(include=["documents", "metadatas"])
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation('memory_facade', e)
+            return []
+        docs = list(collection.get("documents", []) or [])
+        metas = list(collection.get("metadatas", []) or [])
+        ids = list(collection.get("ids", []) or [])
+        stamped = {
+            index: metadata[CONTEXT_KEY]
+            for index, metadata in enumerate(metas)
+            if isinstance(metadata, dict) and metadata.get(CONTEXT_KEY) and index < len(docs)
+        }
+        contexts, centre = distinctive(stamped)
+        scored = sorted(
+            ((closeness, index) for index, then in contexts.items() if (closeness := near(now, then, centre)) > 0.0),
+            reverse=True,
+        )
+        return [
+            self._normalize_memory_result(
+                content=docs[index], metadata=metas[index],
+                memory_id=ids[index] if index < len(ids) else "", score=closeness,
+            )
+            for closeness, index in scored[: max(0, int(limit))]
+        ]
+
     def search_by_feeling(self, now: dict[str, float], limit: int = 5) -> list[dict[str, Any]]:
         """The memories made in what she feels now, most held first.
 
@@ -1924,11 +1962,13 @@ class MemoryFacade(_NormalisesWhatItReturns):
 
 
 def _stamp_felt(metadata: dict[str, Any]) -> dict[str, Any]:
-    """Every write carries the feeling it was made in. See core/memory/felt_at_encoding.py.
+    """Every write carries the feeling it was made in, and where her field stood.
 
+    See core/memory/felt_at_encoding.py and core/memory/context_at_encoding.py.
     Module-level since 2026-09-21: the facade was one method over its ratchet
     and this reads nothing of the facade's.
     """
+    from core.memory.context_at_encoding import stamp as stamp_context
     from core.memory.felt_at_encoding import stamp_from_repository
 
-    return stamp_from_repository(metadata)
+    return stamp_context(stamp_from_repository(metadata))
