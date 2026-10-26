@@ -371,3 +371,49 @@ hub, hidden broker, prompt-only and common driver.
 
 The fresh seed's closure is read under this rule. Seed 23 is computed under it afterwards, as discovery, and does
 not decide it.
+
+## Addendum, 25 October 2026, evening: the least-domain margin is withdrawn, and the estimator is chosen on a world that develops
+
+Written before the new estimator was run on any recording of her.
+
+**The least-domain rule is withdrawn.** The afternoon addendum argued that every domain is a broker known to matter,
+because the partition sweep finds each one needed by the rest. That conflates two things. A domain can be needed by
+the rest and still carry almost nothing the rest's own past does not, because the rest already holds most of what
+it would say. In a world built with every domain coupled to the next, the least of these leaks sits near zero (median
++0.0005 over ten worlds), and on seed 23 four of her ten domains read at or below zero. As a margin it made closure
+impossible whatever the gate measured. `least_domain_margin` stays in `core/subject/closure.py` as the record;
+`CLOSURE_MARGIN_RULE` is None.
+
+**Why the estimator changed.** Read on seed 23 as part of that rule, leaving her affect domain out returned a leak of
+-0.797 and her self-state -0.877, both from the first forward fold, where her columns stand up to 17 training spreads
+from where the model learned them. So the estimator was tested on known answers from worlds that develop the way she
+does: ten domains in a ring, N accumulating what the rest did and setting where every other domain sits, 2,960 rows,
+and a periphery of drifting random walks K never reads (the answer is not open) or those plus a fast broker that
+drives every domain (the answer is open). An earlier world drove development with an outside clock, which makes a
+drifting periphery a genuine leak, and was discarded for that reason.
+
+| Estimator | Idle periphery read open | Folds failed, idle worlds | Real broker read open | Real broker read closed |
+|---|---:|---:|---:|---:|
+| as committed (levels, one-way columns as increments) | 4 of 15 | 15 of 15 | 9 of 15 | 3 of 15 |
+| every outside column as its increment, K's change as the target | 3 of 30 | 2 of 30 | 30 of 30 | 0 of 30 |
+
+A fold fails when the wider model does measurably worse than the one it contains: the fold's leak has its one-sided
+upper bound below zero. Variants that held the added columns inside their fitted range, or reduced them to their
+principal directions above the Marchenko-Pastur edge, did worse on these worlds; the second drops a lone broker
+column because it is not a high-variance direction, and read real brokers closed in 4 of 30.
+
+**From this addendum the gate:**
+
+- enters every outside column as its first increment;
+- predicts K's change over the turn rather than its next level, in the verdict, the per-column ranking, the audit and
+  the planted cause;
+- reads UNRESOLVED, never CLOSED_WITHIN_MARGIN, when any fold failed. A model offered more information cannot do worse
+  than one offered less, so such a fold is a failure of the estimator and a bound read from it is not a claim.
+
+On the stationary ring of the earlier known answers this estimator closes against a noise periphery in 24 of 30
+worlds (1 of 30 open) and opens on a slow broker in 28 of 30. Every null architecture with state outside its ten
+domains reads OPEN, including prompt-only and common-driver. On the developing worlds, with a margin given for the
+test, the idle periphery closes in 18 of 20 and is never falsely closed.
+
+**The margin is not named here.** It is the size of outside influence below which closure counts, and it is named
+before a fresh seed is scored, by a rule that does not read a recording of her.

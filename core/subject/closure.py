@@ -67,11 +67,14 @@ OPEN, CLOSED, UNRESOLVED, NOT_MEASURED = "OPEN", "CLOSED_WITHIN_MARGIN", "UNRESO
 #: chosen with seed 23's leak in view.
 CLOSURE_MARGIN: float | None = None
 
-#: How the margin is drawn when no number is named: the least of her own
-#: domains (`least_domain_margin`). Preregistered in the ISC-v6 addendum of 25
-#: October, afternoon, before it was computed on any recording.
+#: How the margin is drawn when no number is named. The least-domain rule
+#: (`least_domain_margin`) was preregistered on 25 October and withdrawn the same
+#: day: a part of K the rest needs can carry almost nothing the rest's own past
+#: does not, so the least of those leaks sits near zero in a world built with
+#: every domain coupled, and on her. No rule is in force, so nothing closes
+#: until a margin is named.
 LEAST_DOMAIN = "least_domain"
-CLOSURE_MARGIN_RULE: str | None = LEAST_DOMAIN
+CLOSURE_MARGIN_RULE: str | None = None
 
 #: Draws behind each bootstrap bound, as the partition sweep's design uses
 #: (core/subject/isc_v5.py).
@@ -482,9 +485,8 @@ class ClosureReport:
     #: The smallest planted leak the same estimator called open on this
     #: recording, read on the same folds and against the same periphery.
     smallest_leak_resolved: float | None = None
-    #: The margin a closed reading is claimed within: a named number, or the
-    #: least of K's own domains (`least_domain_margin`). None when neither was
-    #: available, and then the gate can never say closed.
+    #: The margin a closed reading is claimed within, named before a fresh seed
+    #: is scored. None until then, and then the gate can never say closed.
     margin: float | None = None
     #: How many declared environment columns both models were given.
     environment_width: int = 0
@@ -530,6 +532,8 @@ class ClosureReport:
             return NOT_MEASURED
         if self.leaking_folds > 0 or self._pooled_open():
             return OPEN
+        if self.estimator_failed:
+            return UNRESOLVED
         if (
             self.margin is not None
             and self.leak_upper is not None
@@ -539,6 +543,21 @@ class ClosureReport:
         ):
             return CLOSED
         return UNRESOLVED
+
+    @property
+    def estimator_failed(self) -> tuple[int, ...]:
+        """Folds where the wider model did measurably worse than the one it contains.
+
+        A model offered more information cannot do worse than one offered less,
+        so a fold whose leak has its upper bound below zero is a fold where the
+        estimator failed, and a bound read from it is not a claim of closure.
+        MEASURED 25 October on worlds that develop from inside, as she does: the
+        earlier estimator failed a fold in every one, and three real brokers
+        read closed through those folds.
+        """
+        return tuple(
+            index for index, fold in enumerate(self.folds) if float(fold.get("leak_upper", 0.0)) < 0.0
+        )
 
     def _pooled_open(self) -> bool:
         if self.leak_lower is None:
@@ -585,10 +604,15 @@ class ClosureReport:
             "margin": self.margin,
             "environment_width": self.environment_width,
             "smallest_leak_resolved": self.resolution,
+            "estimator_failed_folds": list(self.estimator_failed),
+            "periphery_entered_as": "increments",
+            "target": "the change in K",
             "why_unresolved": (
                 ""
                 if self.verdict != UNRESOLVED
-                else "no margin: none was named and no domain of K could be scored for one"
+                else "the wider model did measurably worse than the narrower on a fold, so the estimator failed there"
+                if self.estimator_failed
+                else "no margin is named, so closure cannot be claimed"
                 if self.margin is None
                 else "the leak's upper bound or the gate's resolution is not below the margin"
             ),
@@ -972,7 +996,18 @@ def _resolution(
 
 
 def least_domain_margin(recording: Recording, *, seed: int = 0, environment: bool = True) -> dict[str, Any]:
-    """The margin, drawn from her: the smallest leak one of K's own domains shows from outside.
+    """The smallest leak one of K's own domains shows from outside. Withdrawn as the margin.
+
+    It was preregistered as the margin on 25 October and withdrawn the same day,
+    and is kept so the record can be checked. The argument for it was that the
+    partition sweep shows every domain is needed by the rest, so each is a broker
+    known to matter. That conflates two things: a domain can be needed by the
+    rest and still carry almost nothing the rest's own past does not, because
+    the rest already holds most of what it would say. In a world built with every
+    domain coupled the least of these leaks sits near zero, and on seed 23 four
+    of her ten read at or below zero, so as a margin it made closure impossible
+    whatever the gate measured. What follows is the original reasoning.
+
 
     Each domain in turn is left out of the core and read as its periphery, by
     the same estimator on the same folds with the same environment: the rest of
@@ -1003,10 +1038,9 @@ def least_domain_margin(recording: Recording, *, seed: int = 0, environment: boo
         if not mine.any() or not rest.any() or rows < 60:
             continue
         outside = recording.x[:-1][:, mine]
-        outside = _as_increments(outside, _one_way(outside))
-        scored = _scored(
-            recording.x[:-1][:, rest], env, recording.x[1:][:, rest], outside, seed=seed, draws=1,
-        )
+        outside = _as_increments(outside, np.ones(outside.shape[1], dtype=bool))
+        before = recording.x[:-1][:, rest]
+        scored = _scored(before, env, recording.x[1:][:, rest] - before, outside, seed=seed, draws=1)
         by_domain[key] = float(scored["leak"])
     if not by_domain:
         return {"rule": LEAST_DOMAIN, "margin": None, "domain": None, "by_domain": {}}
@@ -1066,15 +1100,25 @@ def closure_gain(
     differenced = tuple(
         name for name, flag in zip(kept_names, rising, strict=True) if flag
     )
-    outside = _as_increments(outside, rising)
+    # Every outside column enters as its increment, not only the one-way ones,
+    # and every model predicts K's change rather than its next level. On a
+    # system that develops, a drifting level regresses spuriously on a core that
+    # drifts beside it: MEASURED 25 October on worlds whose development runs
+    # inside K, as hers does, unrelated drifting columns read open in 4 of 15
+    # and the estimator failed a fold in all 15; entered this way, 3 of 30 read
+    # open, 2 of 30 failed a fold, and a real broker opened in 30 of 30. Ridge
+    # then shrinks toward no change, which is persistence, rather than toward
+    # the training mean of something that moves.
+    outside = _as_increments(outside, np.ones(outside.shape[1], dtype=bool))
     if outside.shape[1] == 0:
         return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0, margin=margin)
+    change = nxt - now
 
-    scored = _scored(now, env, nxt, outside, seed=seed, draws=draws)
+    scored = _scored(now, env, change, outside, seed=seed, draws=draws)
     folds = forward_folds(now.shape[0])
     own = np.hstack([now, env]) if env.size else now
     train, validate, test = folds[-1]
-    core = fit_predict(own, nxt, train=train, validate=validate, test=test)
+    core = fit_predict(own, change, train=train, validate=validate, test=test)
     base = core.loss if core.loss > 1e-12 else 1.0
 
     # Which outside variables carry it, one at a time, so the answer names a
@@ -1084,7 +1128,7 @@ def closure_gain(
         for index, name in enumerate(kept_names):
             single = fit_predict(
                 np.hstack([own, outside[:, index : index + 1]]),
-                nxt,
+                change,
                 train=train,
                 validate=validate,
                 test=test,
@@ -1095,11 +1139,11 @@ def closure_gain(
                 ranked.append((name, float(gain)))
         ranked.sort(key=lambda pair: -pair[1])
 
-    audit = audit_leaks(own, nxt, outside, kept_names, ranked[:rank], differenced, seed=seed, draws=draws)
+    audit = audit_leaks(own, change, outside, kept_names, ranked[:rank], differenced, seed=seed, draws=draws)
     resolution: dict[str, Any] = {"skipped": "the gate read open, so its resolution decides nothing"}
     drawn: dict[str, Any] = {"named": margin}
     if not _opens(scored):
-        resolution = _resolution(now, env, nxt, outside, seed=seed, draws=max(8, draws // 4))
+        resolution = _resolution(now, env, change, outside, seed=seed, draws=max(8, draws // 4))
         if margin is None and CLOSURE_MARGIN_RULE == LEAST_DOMAIN:
             drawn = least_domain_margin(recording, seed=seed, environment=environment)
             margin = drawn["margin"]
