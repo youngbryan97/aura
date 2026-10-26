@@ -242,12 +242,31 @@ async def main(argv: list[str] | None = None) -> int:
             return None
         return dataclasses.replace(snaps[a], **{field: {**getattr(snaps[a], field), name: {**mine, key: given}}})
 
-    async def moves(swapped: Any, a: int) -> tuple[bool, float, list[str], float]:
+    one_offs: list[dict[str, Any]] = []
+
+    async def moves(swapped: Any, a: int, label: str = "") -> tuple[bool, float, list[str], float]:
         control_x, control_h = await roll(snaps[a], a)
         drift = float(np.max(np.abs(control_x - base[a][0])))
         x, h = await roll(swapped, a)
         apart = float(np.max(np.abs(x - control_x)))
         changed = sorted(k for k in comparable[a] if h.get(k) != control_h.get(k))
+        if apart > 0.0 or changed or drift > 0.0:
+            # What a swap does comes back when the pair is rolled again, and so
+            # does anything a restore left behind. One untouched roll in a
+            # process that differs once and never again is neither; it is kept
+            # in the record rather than counted as a cause (26 October: one such
+            # roll per process, at one anchor, 0.0018, on every fresh seed).
+            again_x, again_h = await roll(snaps[a], a)
+            redrift = float(np.max(np.abs(again_x - base[a][0])))
+            y, g = await roll(swapped, a)
+            reapart = float(np.max(np.abs(y - again_x)))
+            rechanged = sorted(k for k in comparable[a] if g.get(k) != again_h.get(k))
+            if (apart > 0.0 or changed) and not (reapart > 0.0 or rechanged):
+                one_offs.append({"swap": label, "anchor": a, "apart": apart, "kind": "a swap that did not come back"})
+                apart, changed = 0.0, []
+            if drift > 0.0 and redrift == 0.0:
+                one_offs.append({"swap": label, "anchor": a, "drift": drift, "kind": "an untouched roll that did not come back"})
+                drift = 0.0
         return apart > 0.0 or bool(changed), apart, changed, drift
 
     def write(payload: dict[str, Any]) -> None:
@@ -274,7 +293,7 @@ async def main(argv: list[str] | None = None) -> int:
                 if swapped is None:
                     continue
                 row["tested"] += 1
-                _hit, apart, changed, drift = await moves(swapped, a)
+                _hit, apart, changed, drift = await moves(swapped, a, label)
                 if drift > 0.0:
                     residue.append({"after": previous, "anchor": a, "drift": drift})
                     print(f"  RESIDUE: an untouched roll at anchor {a} moved {drift:.3g} after {previous}", flush=True)
@@ -290,7 +309,8 @@ async def main(argv: list[str] | None = None) -> int:
             moved.append(label)
             print(f"[{time.monotonic() - started:.0f}s] {label} MOVES K* (K {row['moved_k']}/{row['tested']}, max "
                   f"{row['max_k']:.3g}; held {row['moved_held']}/{row['tested']} {row['held_keys'][:3]})", flush=True)
-        write({"seed": args.seed, "anchors": len(snaps), "results": results, "moves_k_star": moved, "residue": residue})
+        write({"seed": args.seed, "anchors": len(snaps), "results": results, "moves_k_star": moved, "residue": residue,
+               "one_offs": one_offs})
 
     culprits: dict[str, list[str]] = {}
     for label in [m for m in moved if m in whole]:
@@ -308,7 +328,7 @@ async def main(argv: list[str] | None = None) -> int:
                     continue
                 for offset in offsets:
                     swapped = hybrid(a, (a + offset) % len(snaps), label, key)
-                    if swapped is not None and (await moves(swapped, a))[0]:
+                    if swapped is not None and (await moves(swapped, a, f"{label}.{key}"))[0]:
                         hits += 1
             if hits:
                 found.append(key)
@@ -319,7 +339,7 @@ async def main(argv: list[str] | None = None) -> int:
     print(f"\ninterventional closure of K*: {verdict}; {len(results)} swaps; moved by: {moved}", flush=True)
     write({"seed": args.seed, "anchors": len(snaps), "spacing": args.spacing, "donor_offsets": offsets, "shard": args.shard,
            "verdict": verdict, "results": results, "moves_k_star": moved,
-           "residue": residue, "culprit_attributes": culprits})
+           "residue": residue, "one_offs": one_offs, "culprit_attributes": culprits})
     return 0
 
 

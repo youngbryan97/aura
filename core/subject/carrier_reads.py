@@ -42,7 +42,9 @@ class Held:
 
 
 #: K*'s additions to K. From the attribute-level fixed point on the seed-23
-#: anchors at the commit named in the ISC-v6 addendum of 25 October.
+#: anchors at the commit named in the ISC-v6 addendum of 25 October, and the
+#: interventional tests on discovery seeds 31, 37, 43, 47, 53, 59 and 67 named
+#: in the addenda of 26 October.
 HELD: tuple[Held, ...] = (
     # Affect and conation: her appraisal, her affect engine's markers, the
     # buffer her affect grounding reads, and her homeostatic drives.
@@ -85,6 +87,9 @@ HELD: tuple[Held, ...] = (
     Held("oscillatory_binding", "_theta_phase", "C"),
     Held("stdp_engine", "_eligibility", "C"),
     Held("stdp_engine", "_mesu_var", "C"),
+    # The count toward the next symmetry break, every fifty updates, which
+    # moved K at 33 swaps of two fresh seeds (26 October).
+    Held("stdp_engine", "_total_updates_since_symmetry_break", "C"),
     # Workspace and unity: coherence, the unity binding, the moments she binds.
     Held("coherence_report", "overall_coherence", "G"),
     Held("unity_runtime", "_last_unity_state", "G"),
@@ -98,6 +103,67 @@ HELD: tuple[Held, ...] = (
     # K at half the anchors of seven fresh seeds (26 October); seed 23's donors
     # sat six messages away, in phase, and it never moved K there.
     Held("discourse_tracker", "_turn_count", "G"),
+    # What her modules keep, held whole (26 October). The interventional test
+    # swapped services and phases and never these, and once it did, each of
+    # the following moved K or a K* reading at many anchors of four fresh seeds
+    # (31, 37, 43, 47); the largest changes are in brackets.
+    # Her learned affect ledgers: what each feeling has meant before.
+    Held("module:core.affect.a_moment_that_fits:_LEDGER", WHOLE, "A"),  # (0.04)
+    Held("module:core.affect.acting_in_decline:_ledger", WHOLE, "A"),  # (0.92)
+    Held("module:core.affect.ambivalence:_LEDGER", WHOLE, "A"),  # (1.03)
+    Held("module:core.affect.anger_feeds_itself:_LEDGER", WHOLE, "A"),  # (0.016)
+    Held("module:core.affect.confirmation:_LEDGER", WHOLE, "A"),  # (0.35)
+    Held("module:core.affect.containment:_LEDGER", WHOLE, "A"),  # (6.6)
+    Held("module:core.affect.conviction:_LEDGER", WHOLE, "A"),  # (0.10)
+    Held("module:core.affect.feelings_about:_LEDGER", WHOLE, "A"),  # (3.7)
+    Held("module:core.affect.frisson:_LEDGER", WHOLE, "A"),  # (2.2)
+    Held("module:core.affect.tangled:_LEDGER", WHOLE, "A"),  # (0.0018, at 2 or 3 anchors of every seed)
+    # The emotions' neurochemical recipes and the motivational state she assembles.
+    Held("module:core.consciousness.emotion_signatures:_emotion_engine", WHOLE, "A"),
+    Held("module:core.conation.engine:_ENGINE", WHOLE, "A"),
+    # Her habits and reflexes, which her choices answer to.
+    Held("module:core.agency.habits_are_hers:_LEDGER", WHOLE, "D"),  # (0.45)
+    # The substrate's perturbations and its say in her decisions.
+    Held("module:core.consciousness.controlled_chaos:_instances_by_dim", WHOLE, "C"),
+    Held("module:core.consciousness.substrate_gates:_GATES", WHOLE, "C"),
+    # The drafts that compete to become what she is aware of.
+    Held("module:core.consciousness.multiple_drafts:_engine", WHOLE, "G"),
+    # The rhythm of the conversation as it engages her workspace, and what
+    # arrived and what held her attention.
+    Held("module:core.conversational.dynamics:_engine_instance", WHOLE, "G"),  # (0.43)
+    Held("module:core.perception.salience:_ATTENTION", WHOLE, "G"),  # (0.34)
+    Held("module:core.perception.salience:_ARRIVALS", WHOLE, "P"),  # (1.7)
+    Held("module:core.sensors.sensor_registry:_instance", WHOLE, "P"),
+    # Her interior life: the appraisal of what a person said, its receptors and its cleft.
+    Held("module:core.interiority.service:_SERVICE", WHOLE, "A"),  # (1.6)
+    Held("module:core.interiority.receptors:_BANK", WHOLE, "A"),
+    Held("module:core.interiority.cleft:_CLEFT", WHOLE, "A"),
+    # What she feels toward the people she meets, and what drives her.
+    Held("module:core.social.warmth:_LEDGER", WHOLE, "A"),
+    Held("module:core.social.constancy:_LEDGER", WHOLE, "A"),  # (1.0)
+    Held("module:core.motivation.fuel:_LEDGER", WHOLE, "A"),
+    # How near the end of a sitting is, from how her sittings have ended.
+    Held("module:core.social.closing_window:_ledger", WHOLE, "W"),  # (2.7)
+    # Memory that returns: relived, and arriving unbidden.
+    Held("module:core.memory.reliving:_RETURNS", WHOLE, "M"),  # (7.7)
+    Held("module:core.memory.reliving:_MATCHES", WHOLE, "M"),  # (1.0)
+    Held("module:core.memory.unbidden:_LEDGER", WHOLE, "M"),  # (7.6)
+    # Her development: the ontogeny core and its experience.
+    Held("module:core.ontogeny.service:_core", WHOLE, "N"),  # (6.2)
+    # The hierarchy that predicts her own next state.
+    Held("module:core.consciousness.predictive_hierarchy:_instance", WHOLE, "C"),
+    # How she delivers what she says.
+    Held("module:core.expression.delivery:_LEDGER", WHOLE, "D"),  # (2.8)
+    # Her body: what she carries, her fatigue, what she holds in, her pulse.
+    Held("module:core.soma.carrying:_LEDGER", WHOLE, "I"),  # (0.43)
+    Held("module:core.soma.fatigue:_LEDGER", WHOLE, "I"),  # (0.14)
+    Held("module:core.soma.held_in:_LEDGER", WHOLE, "I"),  # (0.05)
+    Held("module:core.soma.pulse:_LEDGER", WHOLE, "I"),  # (0.69)
+    # The faults she reads as threat through her existential stakes (declared to fork with her).
+    Held("module:core.runtime.errors:_RECORDS", WHOLE, "I"),
+    # Self-state: how she has grown, and the rhythm of a relationship that sets her bond.
+    Held("module:core.self.growth:_LEDGER", WHOLE, "S"),
+    Held("BondingPhase", WHOLE, "S"),
 )
 
 
