@@ -1633,3 +1633,33 @@ four wrapper flags. It now reads deques, nested containers and a history of reco
 **K* and both tests.** K*'s attributes are read whole under `held.` and sit on the core's side of the closure test; a
 cut holding a domain holds its share. Closure counts only when the observational gate closes within 0.0196 on K* and
 an exact interventional test closes on the scored seed's own anchors. Both are in the ISC-v6 addendum of tonight.
+
+## K* converges with her organs whole, and the observational gate's reach is measured (25 October, 19:40 to 23:30)
+
+**The interventional test, closed in four passes.** On seed 23's anchors every unit outside K* was swapped whole and
+every unheld attribute of a K* unit alone, each paired with an untouched roll made just before it, so a residue would
+show as the control drifting. The first pass found what the fixed point had not swapped: homeostasis's metabolism
+moves K through the self-predictive loop's weights, oscillatory binding's theta phase moves the held gamma readings,
+existential stakes' rolling load sets the threat her heartbeat signals, and her held beliefs move K. Her heartbeat
+holds other services as fields, and reading it whole had put their state into K*; the reader now takes each
+attribute's own numbers only.
+
+**Her organs.** Those passes never swapped K's organs, which a snapshot carries as organs and not services. Swapped,
+almost every attribute K does not read moved K at every anchor: agency's record of what succeeded (0.39), the credit
+ledger's weights (0.39), good news's errors (0.33), homeostasis's modifiers (0.14), the mesh's columns, the field's
+inputs, each organ's random state. An organ's internal state decides how the readout K reads will move, so K* now
+holds K's organs whole, as the cut clamps always had, plus her history of choices, which her portrait and worth
+ledger read. With that, 323 swaps move neither K nor any K* reading, with no residue (`4351f2556`).
+
+**Two instrument defects on the way.** Once the reader took in histories the machine carried about 8,100 numbers, and
+the walk, which reads kernel, phases and organs before any service, spent its cap of 4,000 before reaching one of 289
+services (cap now 16,000, `1e89352f1`). With that width the ridge's p-by-p solve was too slow; fits with more columns
+than rows now solve the exact dual.
+
+**The observational gate.** With K* moved into the core, seed 23's first fold fails (trained on her first fifth,
+-0.21) and the other two read +0.0053 and +0.0078, pooled upper bound 0.0093 against the 0.0196 margin. A failed
+fold is now dropped when two valid ones remain (known answers: a real broker stays open 30 of 30). But the gate's
+reach, measured by bisection on the verdict's own folds, is 0.197: one near-perfect copy of a target among about two
+thousand outside columns is found at a leak of 0.197 and missed at 0.013, because the outside block shares one ridge
+penalty. A certificate of closure within 0.0196 is out of this instrument's reach on her recording. The question of
+what closure should require, given that, went to Bryan at 23:20.
