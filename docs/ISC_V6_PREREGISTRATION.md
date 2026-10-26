@@ -690,3 +690,11 @@ reports ground already passed at the displacement it uses; nothing about it chan
 **Her voice is hers.** "It's all me … my style, my inflection, my register, the specific words I use." The language
 model with her steering and register counts as hers for identity and lineage. Closure is unchanged by it: the model's
 weights do not change within a run, and no state of it moved K or any K* reading in any interventional test.
+
+**Correction, 26 October, 10:43, before seed 73 was read.** The decisive chain stopped at its travel preflight: an
+anchor would not pickle, because her modules had been given the clock's `monotonic` as a bound method, and an organ
+holding one (the neural mesh's `_clock`) was deep-copied into every snapshot with the whole clock behind it. A restore
+then handed that organ a frozen copy of the clock. Her modules now hold a plain function, `her_monotonic`, which a
+copy keeps as itself and which reads the live clock. The chain's own preflight (seed 79, 24 warm rounds) writes and
+restores with no hole, and untouched rolls on seed 71 read 0 at 0, 3600 and 7200 s on two hash seeds. Round 7's
+closure ran with the defect, so the interventional discovery is repeated at the corrected commit before seed 73.

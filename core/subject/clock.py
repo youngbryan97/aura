@@ -48,21 +48,35 @@ real_time = _time.time
 real_monotonic = _time.monotonic
 
 
+def her_monotonic() -> float:
+    """`time.monotonic` as her modules read it: the installed clock's, or the real one.
+
+    A plain function at module scope, so what holds it can be copied and pickled
+    and restored and still read the live clock. A bound method of the clock was
+    what her modules held first: a snapshot deep-copied the neural mesh's
+    `_clock` with the whole clock behind it, a restore handed the mesh a frozen
+    copy of the clock, and pickling an anchor for a carrier worker failed on the
+    copy's real `time.time` (26 October).
+    """
+    clock = _INSTALLED
+    return clock.monotonic() if clock is not None else real_monotonic()
+
+
+def her_monotonic_ns() -> int:
+    return int(her_monotonic() * 1e9)
+
+
 class _HerTime(types.ModuleType):
     """`time` as her modules see it: the module itself, with the run's monotonic."""
 
-    def __init__(self, clock: ExperimentClock) -> None:
+    monotonic = staticmethod(her_monotonic)
+    monotonic_ns = staticmethod(her_monotonic_ns)
+
+    def __init__(self) -> None:
         super().__init__("time")
-        self._clock = clock
 
     def __getattr__(self, name: str) -> Any:
         return getattr(_time, name)
-
-    def monotonic(self) -> float:
-        return self._clock.monotonic()
-
-    def monotonic_ns(self) -> int:
-        return int(self._clock.monotonic() * 1e9)
 
 #: The process-wide installed clock, if any. One per process, because it
 #: replaces a module-level function that every subsystem shares.
@@ -192,7 +206,7 @@ class ExperimentClock:
         from core.subject.snapshot import _MACHINERY_PACKAGES, _ORGANISM_PACKAGES, _in_packages
 
         if self._her_time is None:
-            self._her_time = _HerTime(self)
+            self._her_time = _HerTime()
         for name, module in list(sys.modules.items()):
             if module is None or not _in_packages(name, _ORGANISM_PACKAGES):
                 continue
@@ -201,13 +215,14 @@ class ExperimentClock:
             space = getattr(module, "__dict__", None)
             if not isinstance(space, dict):
                 continue
-            if space.get("time") is _time:
-                space["time"] = self._her_time
-                self._given.append((space, "time", _time))
-            # Under any name: `from time import monotonic`, `_now = time.monotonic`.
+            # The module under any name (`import time as _t`), and its monotonic
+            # under any name (`from time import monotonic`, `_now = time.monotonic`).
             for key, value in list(space.items()):
-                if value is real_monotonic:
-                    space[key] = self.monotonic
+                if value is _time:
+                    space[key] = self._her_time
+                    self._given.append((space, key, _time))
+                elif value is real_monotonic:
+                    space[key] = her_monotonic
                     self._given.append((space, key, real_monotonic))
         # And the references her modules captured before the install: a closure
         # cell, which is where a dataclass keeps `field(default_factory=
@@ -232,7 +247,7 @@ class ExperimentClock:
                     continue
                 for key, value in list(fields.items()):
                     if value is real_monotonic:
-                        fields[key] = self.monotonic
+                        fields[key] = her_monotonic
                         self._given.append((fields, key, real_monotonic))
                 continue
             if not obj.__closure__:
@@ -248,7 +263,7 @@ class ExperimentClock:
                 except ValueError:
                     continue
                 if held is real_monotonic:
-                    cell.cell_contents = self.monotonic
+                    cell.cell_contents = her_monotonic
                     self._cells.append((cell, real_monotonic))
         self._modules_seen = len(sys.modules)
 

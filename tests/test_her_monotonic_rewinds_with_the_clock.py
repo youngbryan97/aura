@@ -100,3 +100,26 @@ def test_a_reading_keeps_its_age_in_another_process_that_takes_the_snapshots_off
     worker.offset += 37.0  # another process: another real origin
     worker.set(at, offset=offset)
     assert worker.monotonic() - stamp == pytest.approx(0.5)
+
+
+def test_an_organ_holding_her_monotonic_copies_and_pickles_and_still_reads_the_live_clock(clock):
+    """The neural mesh keeps `self._clock = time.monotonic`. Held as a bound method of the clock, a
+    snapshot deep-copied the clock with it, a restore handed the mesh a frozen copy, and pickling an
+    anchor for a carrier worker failed on the copy's real `time.time`."""
+    import copy
+    import pickle
+
+    hers = types.ModuleType("core._her_clock_probe_organ")
+    hers.time = time
+    sys.modules[hers.__name__] = hers
+    try:
+        clock.advance()
+        organ = types.SimpleNamespace(_clock=hers.time.monotonic)
+        copied = copy.deepcopy(organ)
+        travelled = pickle.loads(pickle.dumps(copied))
+        before = travelled._clock()
+        clock.advance()
+        assert travelled._clock() - before == pytest.approx(0.1)
+        assert copied._clock is organ._clock
+    finally:
+        sys.modules.pop(hers.__name__, None)
