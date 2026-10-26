@@ -8,6 +8,7 @@
 > **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Version `2026.07.23.1` — registry digest `4957567e2b201f57dc049c9389fb28a9e572e22b0e597c20619c5c91a6f1e8af`.

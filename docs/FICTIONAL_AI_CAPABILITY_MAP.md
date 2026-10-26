@@ -8,7 +8,13 @@
 > **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Comparison scope:** fictional systems supply design targets and metaphors.
+A mapped mechanism or an offline test does not establish equivalence to a
+fictional character's abilities. Integration statements describe their
+recorded source pass; current execution requires a request trace or receipt.
 
 **Honest question: what can we actually take from fictional AI and build into Aura
 — at the level of mind, agency, maneuverability, external capability, and the real
@@ -222,7 +228,7 @@ Being *registered and callable* is not the same as *acting on a live turn*. This
 tracks which derived engines are actually invoked on the live path vs. built-and-
 callable-only, and the seam each remaining one wires into.
 
-All fourteen derived engines are now invoked on a live path — none are registered-
+The recorded integration pass wired the fourteen derived engines to production entry points — none were registered-
 but-dormant. Each does real work, internal and external.
 
 | Engine | Live seam | Function (internal / external) |

@@ -8,7 +8,13 @@
 > **In everyday use:** When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#conversation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#conversation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#interaction) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Evidence scope:** source wiring and focused offline checks are distinct
+from measured microphone-to-speaker latency. This document does not certify
+the installed app's timing or error rate. Producer task binding, clause
+ownership and final governance must be retained when using early speech.
 
 What changed, why, and — at the end — what is not measured.
 
@@ -42,8 +48,9 @@ than a slow one.
 a turn. The publish site walks no registry and takes no lock — it asks what
 channel this turn is running under. Context propagates into every await and
 is copied into every task spawned underneath, so the binding follows the turn
-and cannot leak sideways. A turn with nothing bound (every text turn today)
-costs one ContextVar read.
+when the producing task is explicitly bound to that turn. Task ownership and
+final reconciliation remain required; an unbound producer does not acquire a
+channel merely because a consumer has one. An unbound turn takes the no-channel path.
 
 Three properties are load-bearing:
 
@@ -94,8 +101,7 @@ heard and decide otherwise.
 
 ## 3. It interrupted people who paused to think
 
-This is the single most common complaint about every voice assistant that
-ships, and it is structural rather than a tuning miss. Deciding turn-end from
+A silence-based endpointer can interrupt a person who pauses before finishing. Deciding turn-end from
 the transcript plus a silence timer discards the signal humans actually use,
 which is intonation. Whisper punctuates from a language-model prior, so it
 writes a full stop onto someone drawing breath — and a full stop is what makes
@@ -103,8 +109,8 @@ an endpointer pounce.
 
 `core/voice/duplex/acoustic_endpoint.py` fits the pitch trend over the final
 voiced stretch, in semitones so one threshold serves every speaker. The
-safety argument is the asymmetry: it can only ever **extend** the wait. A
-wrong reading costs a beat of latency and can never cost an interruption.
+safety argument is the asymmetry: it can only ever **extend** the wait. This extension does not shorten the base wait. The complete turn-taking path
+still needs live interruption and latency measurements.
 
 ## 4. She could not see, and did not know it
 

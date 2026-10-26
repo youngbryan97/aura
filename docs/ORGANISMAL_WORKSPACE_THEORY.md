@@ -8,6 +8,7 @@
 > **In everyday use:** Your new question should not be overwritten by a background task that happened to win a previous competition.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#attention) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#attention) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#cognitive-architectures) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Aura's operational target is not "the model says it feels." The target is a

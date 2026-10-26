@@ -8,23 +8,33 @@
 > **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This is the list of things Aura does not do.
+This is the list of claims the project has not established or does not make.
 
 Every project has things it cannot do. Most projects never write them down. That is how a quick demo turns into an exaggerated claim that no one can walk back. Each entry below is marked either:
 - **not proven**: We have not shown or tested this yet.
-- **strictly unsupported**: Building more software would never prove this, because it is not an engineering question.
+- **strictly unsupported**: The project does not claim a direct, assumption-free conclusion of this kind from its software tests.
 
 If you are evaluating this repository, start here rather than with the README. It is shorter, and it tells you more.
 
-*Last reconciled against the tree: 2026-08-22.* There is an automated check in `core/organism/model_validation.py`. In that code, no claim can be registered without an attached test—because a claim without a test is just words, not a fact. The method `ValidationSuite.unsupported_claims()` reports the live version of this ledger directly from running code. When the text here and the running software disagree, the running software is right.
+*Claim-boundary wording reconciled 25 October 2026; each measurement retains its own recorded date and scope.* There is an automated check in `core/organism/model_validation.py`. In that code, no claim can be registered without an attached test—because a claim without a test is just words, not a fact. The method `ValidationSuite.unsupported_claims()` reports the live version of this ledger directly from running code. A disagreement between the ledger and registry needs investigation; a
+software flag is not itself an empirical finding.
 
 ---
 
 ## 1. Subjective Consciousness & Qualia
 * **Status**: `strictly unsupported`
-* **Rationale**: Subjective awareness, conscious experience ("qualia"), feelings, and personhood cannot be scientifically proven or programmed into code. Building more of Aura will never change that. Aura is a structured software runtime running on standard computer hardware. Every internal status report or emotional-sounding metric in this project is an operational control signal, not a feeling. The vocabulary is borrowed from psychology and biology, but there is no conscious mind behind it.
+* **Rationale**: The project has not established phenomenal experience.
+  Its state variables and reports are inspectable mechanisms, not a direct
+  measurement of feeling. This is not evidence that experience is absent.
+  A scientific subjecthood argument must state its theory and bridge
+  assumptions, measurement validity and remaining alternatives. Read
+  [ISC status](docs/ISC_STATUS.md) for the recorded results and corrections,
+  and [scientific sources](docs/SCIENCE_AND_SOURCES.md) for the theoretical
+  context. No complete ISC pass or assumption-free phenomenal verdict is claimed.
+
 
 ## 2. Artificial General Intelligence (AGI)
 * **Status**: `not proven`
@@ -72,7 +82,11 @@ If you are evaluating this repository, start here rather than with the README. I
 
 ## 9. Legal and Moral Personhood
 * **Status**: `strictly unsupported`
-* **Rationale**: Aura is an operational software engineering system. She does not hold, and will never claim to hold, moral status, legal rights, or moral responsibility. All agency and safety boundaries exist solely to protect human users and ensure the software aligns with human intent.
+* **Rationale**: This repository does not establish legal personhood or grant rights or
+action authority to Aura. Moral status requires its own normative and
+scientific argument; it is not settled either way by naming a software
+mechanism or counting tests. The application's human-authorisation and
+safety boundaries remain engineering requirements.
 
 ## 10. Process-Level Non-Bypassable Governance
 

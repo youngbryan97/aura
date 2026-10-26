@@ -1,5 +1,11 @@
 # Aura
 
+**How to read the evidence:** implementation descriptions and older test-suite
+counts below do not certify the current live process. Suites named “proof” or
+“guarantee” check their declared contracts. The maintained
+[ISC status](docs/ISC_STATUS.md) records the separate experimental result and
+later corrections; [TESTING](TESTING.md) distinguishes the older catalogue.
+
 [AuraDemos channel](https://www.youtube.com/@AuraDemos) · [Project video](https://www.youtube.com/watch?v=iTyxeugcZtI) · [What the demos and research support](docs/DEMOS_AND_RELATED_WORK.md)
 
 Aura is a local AI research project that runs entirely on your Mac. It explores
@@ -41,6 +47,10 @@ for what the main parts do, with examples and metaphors. The
 [variables guide](docs/VARIABLES_EXPLAINED.md) explains what the numbers change
 in practice, and the [documentation map](docs/DOCUMENTATION_INDEX.md) points
 to the detailed pages.
+
+[Glossary of terms](docs/GLOSSARY.md) ·
+[Formulas with worked examples](docs/FORMULAS.md) ·
+[Documentation content audit](docs/DOCUMENTATION_CONTENT_AUDIT.md)
 
 **Intrinsic Subject Core:** [plain-English explanation](docs/ISC_EXPLAINED.md),
 [variables and worked examples](docs/ISC_VARIABLES.md),
@@ -725,24 +735,22 @@ Tick-based cognitive cycle. One tick = one unit of thought. Phases run in order,
 state versions, state commits, lock released.
 
 ### Brain (`core/brain/`)
-Local LLM router with automatic failover:
+The model router uses local lanes under admission control:
 
-1. **Primary (Cortex)** — `Aura-Cortex` (fused Qwen3.8-27B, migrated from
-   historical Qwen 2.5 32B). Handles nearly everything.
-2. **Secondary (Solver)** — Qwen 2.5 / Qwen 3 72B for deep reasoning, hot-swapped
-   only when the request actually needs it.
-3. **Tertiary (Brainstem)** — Qwen 3.5 9B 4-bit, lazy-loaded to save memory for
-   the Cortex, with explicit reasoning-mode control.
-4. **Reflex** — Qwen 2.5 1.5B 4-bit on CPU as an emergency fallback.
-5. **Cloud** — Gemini Flash/Pro, with personal info scrubbed and rate-limited.
-   Off by default.
-6. **Last resort** — rule-based static responses that can't fail.
+| Role | Source default | Scope |
+|---|---|---|
+| Cortex | `Aura-Cortex` | Foreground conversation and reasoning |
+| Deep | `Aura-Cortex` | A distinct specialist needs explicit configuration, qualification and memory admission |
+| Vision | `Aura-Cortex` | Image requests need compatible artifact and image encoding |
+| Brainstem | `Ternary-Bonsai-2-27B-mlx-2bit` | Background lane, loaded only when admitted |
+| Reflex | `Qwen2.5-1.5B-Instruct-4bit` | Auxiliary fallback; device and draft compatibility are separate contracts |
 
-Lane names map to `core/config.py`: `fast_model` is the Cortex
-(`Aura-Cortex` / fused `Qwen3.8-27B`), `deep_model` defaults to the Cortex
-(promoted to `Qwen2.5-72B-Instruct-4bit` via `AURA_DEEP_MODEL`),
-`chat_model` the Brainstem (`Qwen3.5-9B-4bit`), and `vision_model` is
-pinned to the Cortex build so vision and conversation share one identity.
+There is no opt-in cloud-model fallback. Compatibility names such as
+`api_fast` resolve locally, and remote-only model requests are refused.
+Static fallback responses can also fail to be useful or delivered. The
+[model card](MODEL_CARD.md) and [roster](docs/MODEL_ROSTER.md) separate current
+configuration, historical measurements and a particular runtime's activation.
+
 
 Two non-LLM lanes were replaced in August 2026 based on measurements:
 
@@ -835,7 +843,7 @@ decision the agent can make. Volition levels 0–3 gate progressively autonomous
 behavior up to and including self-modification.
 
 ### Skills (`core/skills/`, legacy wrappers in `skills/`)
-115 modules: shell with sandboxing, web search and browse, coding, sleep and
+Tools include shell with sandboxing, web search and browse, coding, sleep and
 dream consolidation, local media generation, social media (Twitter, Reddit),
 screen capture, filesystem, browser automation, network recon, malware
 analysis, self-evolution and self-repair, inter-agent messaging, knowledge
@@ -872,7 +880,7 @@ that tests modifications without actually restarting, a shadow AST healer, and
 code repair. Nothing modifies itself without Will sign-off.
 
 ### Resilience (`core/resilience/`)
-63 modules for not crashing: a stability guardian, circuit breakers with
+Reliability mechanisms include a stability guardian, circuit breakers with
 persistent state, a cognitive write-ahead log, graceful degradation that
 sheds capability under pressure, a healing swarm, a sovereign watchdog, a
 resource arbitrator, a lock watchdog that hunts deadlocks, a memory governor,
@@ -889,7 +897,7 @@ Hot-reload button in the UI for code changes.
 
 
 ### Memory (`core/memory/`)
-116 modules across four tiers: working (in-process), episodic
+Memory spans four tiers: working (in-process), episodic
 (SQLite with emotional tags and recency ranking), semantic (vector search via
 `Qwen3-Embedding-0.6B` at 384 dimensions), and strategic (long-horizon goal
 state). Key subsystems include a hippocampal indexer, reconsolidation engine,
@@ -911,7 +919,7 @@ and PROOF (refuses to answer unless verifier-clean). An adversarial Courtroom
 assertions. See [docs/REASONING_ENGINES.md](docs/REASONING_ENGINES.md).
 
 ### Verification (`core/verify/`)
-37 modules implementing structural validation discipline (modeled after
+Components implement structural validation discipline (modeled after
 LLVM's `-verify-each`). 52 standing runtime invariants enforce service
 container acyclicity, lock ordering (with zero inversion errors), OOM
 spine immunity, and epistemic consistency. Any check that raises an unhandled
@@ -1285,8 +1293,8 @@ instance.
 ## Testing
 
 ```bash
-make smoke     # ~100 contract tests, under 10s — run after every change
-make test      # full offline suite in 6 bounded process chunks
+make smoke     # focused contracts; record duration per host and revision
+make test      # full offline suite; choose TEST_CHUNKS for the host budget
 ```
 
 `make test` runs the offline subset that needs neither hardware nor a
@@ -1308,44 +1316,44 @@ isolated-retry pass reports those separately.
 preserved in [TESTING.md](TESTING.md); read them as dated snapshots, not as
 current status.
 
-- **Null hypothesis defeat** (168 tests) — tries to show the consciousness
+- **Null hypothesis defeat** — tries to show the consciousness
   features are just text decoration. Adversarial baselines, 50-shuffle
   decoupling, per-class ablation, identity swap, 8-metric degradation panel,
   cross-seed reproducibility.
-- **Causal exclusion** (10 tests) — argues the stack determines output in
+- **Causal exclusion** — argues the stack determines output in
   ways pure RLHF training couldn't produce. Cryptographic state binding,
   counterfactual injection, receptor adaptation dynamics.
-- **Grounding** (8 tests) — valence predicts token budget, arousal predicts
+- **Grounding** — valence predicts token budget, arousal predicts
   temperature, plasticity learning moves the trajectory, idle drift is
   nonzero, homeostasis changes context.
-- **Functional phenomenology** (13 tests) — GWT broadcast signatures, HOT
+- **Functional phenomenology** — GWT broadcast signatures, HOT
   metacognitive accuracy, IIT perturbation propagation, honest degradation.
-- **Embodied dynamics** (13 tests) — active inference, homeostatic override
+- **Embodied dynamics** — active inference, homeostatic override
   of workspace competition, surprise gating, cross-subsystem temporal
   coherence.
-- **Phenomenal convergence** (13 tests) — the QDT 6-gate protocol:
+- **Phenomenal convergence** — the QDT 6-gate protocol:
   pre-report geometry, counterfactual swap, no-report footprint,
   perturbational integration, baseline failure, phenomenal tethering,
   multi-theory convergence.
-- **Consciousness conditions** (81 tests) — 20 conditions from IIT, GWT,
+- **Consciousness conditions** — 20 conditions from IIT, GWT,
   HOT, active inference, enactivism, and philosophy of mind, each scored
   across four dimensions (existence, causal influence, indispensability,
   longitudinal stability).
-- **Technological autonomy** (58 tests) — can the agent use its computer
+- **Technological autonomy** — can the agent use its computer
   "body" the way a human uses theirs? Covers unified action space, motor
   control, persistent perception, endogenous initiative, reliability,
   closed-loop behavior, self-maintenance, and three autonomy probes
   historically nicknamed the Soul Triad (unprompted help signal, dream replay,
   causal exclusion of prompt).
-- **Stability** (32 tests) — every failure mode we've actually hit in the
+- **Stability** — every failure mode we've actually hit in the
   inference pipeline: zombie warming, cortex recovery deadlocks, empty
   response detection, timeout cascades, watchdog, emergency fallback.
-- **Functional indicators C1–C5** (44 tests) + **C6–C10** (38 tests) —
+- **Functional indicators C1–C5** (44 tests) + **C6–C10** —
   endogenous activity, unified global state, privileged first-person
   access, real valence, lesion equivalence, no-report awareness, temporal
   continuity, blindsight dissociation, qualia manifold, adversarial
   baseline failure.
-- **Personhood-marker battery** (28 tests) — full-model IIT, phenomenal
+- **Personhood-marker battery** — full-model IIT, phenomenal
   self-report, GWT phenomenology, counterfactual simulation, identity
   persistence, embodied phenomenology. This is a marker suite, not proof
   of personhood.

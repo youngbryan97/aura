@@ -8,6 +8,7 @@
 > **In everyday use:** When a reply arrives late, separate time spent waiting for input, reasoning, synthesis and playback before deciding which stage to optimise.
 >
 > [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#observability) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#observability) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
+> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Covers [F13](../../KNOWN_FAILURE_MODES.md). Low severity — **no data loss**.

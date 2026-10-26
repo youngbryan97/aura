@@ -860,7 +860,7 @@
           "name": "Closure",
           "meaning": "Whether the proposed boundary omits an important internal driver after declared input is accounted for",
           "practical": "Can remain unresolved rather than pass by default",
-          "example": "The current rule derives its margin from the least informative internal domain"
+          "example": "No margin is currently in force; the earlier least-domain rule was withdrawn"
         },
         {
           "name": "Parity",
@@ -1061,6 +1061,336 @@
         "docs/VARIABLES_EXPLAINED.md"
       ],
       "related": "measurement"
+    }
+  ],
+  "glossary_extra_terms": [
+    {
+      "name": "Anchor",
+      "context": "ISC",
+      "meaning": "A saved comparison moment from which experimental arms begin.",
+      "practical": "Accepted anchors, collected anchors and independent observations are different counts.",
+      "example": "A collected moment can be unusable if one required arm is unreadable.",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Arm",
+      "context": "Experiment",
+      "meaning": "One treatment or control path in a comparison.",
+      "practical": "Arms must share the intended starting conditions without sharing later residue.",
+      "example": "One copy receives an intervention; another is left unchanged.",
+      "reference": "ISC_EXPLAINED.md"
+    },
+    {
+      "name": "Autocorrelation",
+      "context": "Statistics",
+      "meaning": "A signal resembles its own earlier values.",
+      "practical": "Closely related samples can carry less independent information than their count suggests.",
+      "example": "Memory usage in adjacent seconds is often similar.",
+      "reference": "FORMULAS.md#trend-and-time-to-a-threshold"
+    },
+    {
+      "name": "Bootstrap",
+      "context": "Statistics",
+      "meaning": "Recalculate a statistic on resampled data to estimate variability.",
+      "practical": "The resampling unit and dependence assumptions affect the interval.",
+      "example": "Resample the declared comparison units rather than treating every time frame as independent.",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Calibration",
+      "context": "Measurement",
+      "meaning": "Check whether scores or forecasts match observed outcomes under stated conditions.",
+      "practical": "A confident number needs evidence that its interpretation is justified.",
+      "example": "Score a resource forecast when its deadline arrives.",
+      "reference": "SCIENCE_AND_SOURCES.md#measurement-and-statistical-interpretation"
+    },
+    {
+      "name": "Causal claim",
+      "context": "Experiment",
+      "meaning": "A claim about what changes because a factor is changed.",
+      "practical": "A correlation or a module name alone does not supply that comparison.",
+      "example": "Changing internal valence changes the measured response under controls.",
+      "reference": "ISC_EXPLAINED.md"
+    },
+    {
+      "name": "Causal closure",
+      "context": "ISC",
+      "meaning": "The proposed boundary is adequate under the declared outside-information test and margin.",
+      "practical": "It is conditional on measurement coverage, estimator and environment.",
+      "example": "An outside driver may improve prediction and keep the boundary open.",
+      "reference": "FORMULAS.md#closure-leak"
+    },
+    {
+      "name": "Confidence interval",
+      "context": "Statistics",
+      "meaning": "An interval produced by a procedure designed for stated repeated-sampling coverage.",
+      "practical": "Its interpretation depends on the procedure and assumptions.",
+      "example": "An upper bound above the declared margin cannot establish closure within that margin.",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Conjunction",
+      "context": "Decision rule",
+      "meaning": "Every required condition must hold.",
+      "practical": "A strong result on one condition does not replace a failed required condition.",
+      "example": "Four bridge grounds do not replace an unresolved fifth.",
+      "reference": "FORMULAS.md#j-star-and-the-bridge-are-structured-claims"
+    },
+    {
+      "name": "Counterfactual",
+      "context": "Causal reasoning",
+      "meaning": "What would happen under an alternative stated intervention or condition.",
+      "practical": "It makes a dependence claim testable.",
+      "example": "What would the target do if this connection were removed?",
+      "reference": "ISC_EXPLAINED.md"
+    },
+    {
+      "name": "Experimental basis",
+      "context": "Steering",
+      "meaning": "A measured direction or set of directions used for an intervention.",
+      "practical": "A basis used in an experiment is not automatically authorised for desktop serving.",
+      "example": "A channel certificate can pass while an installation qualification fails.",
+      "reference": "DEMOS_AND_RELATED_WORK.md#steering"
+    },
+    {
+      "name": "False positive",
+      "context": "Measurement",
+      "meaning": "The procedure declares an effect when the relevant null condition holds.",
+      "practical": "Nulls and decision levels need a declared interpretation.",
+      "example": "A noisy unchanged copy crosses the same threshold as a cut.",
+      "reference": "FORMULAS.md#finite-randomisation-p-values"
+    },
+    {
+      "name": "Falsifiable",
+      "context": "Research",
+      "meaning": "The claim has a specified possible observation that would count against it.",
+      "practical": "A test that always passes cannot discriminate the hypothesis.",
+      "example": "Declare the failure condition before measuring.",
+      "reference": "RESEARCH_GUIDE.md"
+    },
+    {
+      "name": "Free energy",
+      "context": "Model-dependent term",
+      "meaning": "A quantity defined by a particular inference model; its meaning needs the model and equation.",
+      "practical": "It is not automatically thermodynamic energy or a measure of felt discomfort.",
+      "example": "Read the named implementation rather than inferring joules from the label.",
+      "reference": "TERMINOLOGY.md"
+    },
+    {
+      "name": "Functional evidence",
+      "context": "Evidence scope",
+      "meaning": "Evidence about computations, dependencies or behavior under specified tests.",
+      "practical": "It supports that mechanism without settling every interpretation of experience.",
+      "example": "A state change reaches recall through a measured route.",
+      "reference": "ISC_EXPLAINED.md"
+    },
+    {
+      "name": "Hypothesis",
+      "context": "Research",
+      "meaning": "A proposed explanation with stated predictions and scope.",
+      "practical": "The comparison must distinguish it from an alternative.",
+      "example": "The internal state matters versus the state is unused commentary.",
+      "reference": "phenomenology/README.md"
+    },
+    {
+      "name": "IIT",
+      "context": "Theory",
+      "meaning": "Integrated information theory: a specific formal account of intrinsic causal structure and experience.",
+      "practical": "A similarly named graph score is not automatically the theory's full calculation.",
+      "example": "A Gaussian integration estimate needs its own estimator label.",
+      "reference": "SCIENCE_AND_SOURCES.md#consciousness-research-and-the-isc-argument"
+    },
+    {
+      "name": "Intervention",
+      "context": "Experiment",
+      "meaning": "A deliberate, declared change to a measured system.",
+      "practical": "Its writer, size, duration and consumers determine what was tested.",
+      "example": "Change one source domain while keeping the other declared conditions fixed.",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "J-star",
+      "context": "ISC bridge",
+      "meaning": "The combined description of carrier, content relations and causal lineage.",
+      "practical": "It is a structured identification, not a scalar score to maximise.",
+      "example": "No carrier means the other recorded grounds cannot manufacture J-star.",
+      "reference": "FORMULAS.md#j-star-and-the-bridge-are-structured-claims"
+    },
+    {
+      "name": "KV cache",
+      "context": "Model runtime",
+      "meaning": "Stored attention keys and values reused during generation.",
+      "practical": "Cache ownership, context size and invalidation affect memory and correctness.",
+      "example": "A longer conversation can use more cache memory even with fixed model weights.",
+      "reference": "../MODEL_CARD.md"
+    },
+    {
+      "name": "Likelihood ratio",
+      "context": "Probability",
+      "meaning": "The evidence probability under one hypothesis divided by that under another.",
+      "practical": "A project score is not a calibrated likelihood ratio merely because it has that label.",
+      "example": "Identical stipulated observation distributions give ratio one.",
+      "reference": "FORMULAS.md#likelihood-ratios-and-assumptions"
+    },
+    {
+      "name": "Logit",
+      "context": "Language model",
+      "meaning": "A model score before conversion into a token probability.",
+      "practical": "A logit is not already a probability.",
+      "example": "Temperature rescales relative logits before sampling.",
+      "reference": "FORMULAS.md#sampling-temperature"
+    },
+    {
+      "name": "MIP",
+      "context": "Integration search",
+      "meaning": "Minimum-information partition under a specified objective and search.",
+      "practical": "A candidate cut and a certified minimum are different claims.",
+      "example": "Exhaustive search can certify the small-grain minimum.",
+      "reference": "FORMULAS.md#gaussian-integration-score"
+    },
+    {
+      "name": "Norm",
+      "context": "Mathematics",
+      "meaning": "A declared way to measure the size of a vector.",
+      "practical": "Different coordinate scales can change an unnormalised distance.",
+      "example": "The Euclidean norm of (3, 4) is 5.",
+      "reference": "FORMULAS.md#vector-length-and-whitening"
+    },
+    {
+      "name": "Null",
+      "context": "Experiment",
+      "meaning": "The specified comparison model or condition representing the alternative being tested.",
+      "practical": "There is no universal null that rules out every explanation.",
+      "example": "A shuffled comparison destroys a selected relationship while preserving others.",
+      "reference": "FORMULAS.md#finite-randomisation-p-values"
+    },
+    {
+      "name": "P-value",
+      "context": "Statistics",
+      "meaning": "How extreme the statistic is under the declared null procedure and assumptions.",
+      "practical": "It is not the probability of consciousness or the probability that the hypothesis is false.",
+      "example": "Zero exceedances among finite random draws still does not produce p = 0.",
+      "reference": "FORMULAS.md#finite-randomisation-p-values"
+    },
+    {
+      "name": "Periphery",
+      "context": "ISC",
+      "meaning": "Recorded internal information outside the selected core.",
+      "practical": "Unmeasured outside state limits how broad a closure claim can be.",
+      "example": "A service record can be relevant even though it is outside the ten domain vectors.",
+      "reference": "FORMULAS.md#closure-leak"
+    },
+    {
+      "name": "Phenomenal experience",
+      "context": "Consciousness discussion",
+      "meaning": "Subjective experience: whether there is something it is like for the system.",
+      "practical": "A software label or operational pass is not an assumption-free verdict on it.",
+      "example": "A report can be causally grounded while its experiential interpretation needs an argument.",
+      "reference": "SCIENCE_AND_SOURCES.md#consciousness-research-and-the-isc-argument"
+    },
+    {
+      "name": "Qualia",
+      "context": "Philosophy and project names",
+      "meaning": "Qualitative aspects of experience; in code, often a label for a descriptor mechanism.",
+      "practical": "The implemented descriptor and the experiential claim must be distinguished.",
+      "example": "A QualiaDescriptor can be inspected without establishing felt experience.",
+      "reference": "TERMINOLOGY.md"
+    },
+    {
+      "name": "Rank correlation",
+      "context": "Statistics",
+      "meaning": "Agreement in the ordering of paired measurements.",
+      "practical": "It can show a monotonic relationship without showing causation.",
+      "example": "Ranks (1, 2, 3) versus (1, 3, 2) give rho = 0.5.",
+      "reference": "FORMULAS.md#rank-correlation"
+    },
+    {
+      "name": "Refit",
+      "context": "Estimation",
+      "meaning": "Estimate model parameters again using the declared data split.",
+      "practical": "Changing a refit rule after seeing a result can change what the experiment means.",
+      "example": "Keep a baseline whitening transform fixed across compared arms.",
+      "reference": "FORMULAS.md#vector-length-and-whitening"
+    },
+    {
+      "name": "Replication",
+      "context": "Research",
+      "meaning": "Repeat the defined measurement on fresh data or an independently executed setup.",
+      "practical": "Reprinting the same artifact is not a new replication.",
+      "example": "A fresh seed tests a method chosen on discovery data.",
+      "reference": "ISC_REPRODUCTION.md"
+    },
+    {
+      "name": "Resolution",
+      "context": "Measurement",
+      "meaning": "The scale of effect the method has demonstrated it can detect under the stated conditions.",
+      "practical": "Not seeing an effect below that scale can leave the question unresolved.",
+      "example": "A detector resolving 0.05 cannot support a 0.03 closure claim from non-detection.",
+      "reference": "FORMULAS.md#closure-margin-and-decision"
+    },
+    {
+      "name": "Sham",
+      "context": "Experiment",
+      "meaning": "Repeat the intervention procedure without the intended change.",
+      "practical": "It checks whether the procedure itself creates an apparent effect.",
+      "example": "Four untouched forks provide the matched synergy sham.",
+      "reference": "FORMULAS.md#joint-effects"
+    },
+    {
+      "name": "SSE",
+      "context": "Prediction metric",
+      "meaning": "Sum of squared prediction errors over the declared cases and outputs.",
+      "practical": "Pooling errors is different from averaging arbitrary fold percentages.",
+      "example": "Core error 100 versus wider-predictor error 80 gives a 0.20 leak.",
+      "reference": "FORMULAS.md#closure-leak"
+    },
+    {
+      "name": "Subject",
+      "context": "Research question",
+      "meaning": "Here, a system considered as a possible bearer of experience.",
+      "practical": "The project tests operational organisation and states the assumptions of a subjecthood argument.",
+      "example": "The name subject-core does not itself answer the question.",
+      "reference": "ISC_EXPLAINED.md"
+    },
+    {
+      "name": "Surrogate",
+      "context": "Measurement",
+      "meaning": "Constructed comparison data that preserve selected properties and disrupt others.",
+      "practical": "What was preserved or disrupted determines the alternative explanation tested.",
+      "example": "Shift a recorded series to disrupt a declared cross-channel relationship.",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Telemetry",
+      "context": "Runtime",
+      "meaning": "Measurements emitted by the system about its state or operation.",
+      "practical": "A named measurement needs a reader, units and known limitations.",
+      "example": "A coherence score can be internal telemetry without measuring conversation quality.",
+      "reference": "COHERENCE_LEVERS.md"
+    },
+    {
+      "name": "Tensor",
+      "context": "Computation",
+      "meaning": "An array of numbers, with a declared shape and interpretation.",
+      "practical": "Its size alone does not tell you what information it carries.",
+      "example": "A hidden-state vector is a one-dimensional tensor.",
+      "reference": "../MODEL_CARD.md"
+    },
+    {
+      "name": "Theory",
+      "context": "Research",
+      "meaning": "An organised account that connects assumptions, mechanisms and predictions.",
+      "practical": "An implementation inspired by a theory must still be tested on its own terms.",
+      "example": "Workspace theory motivates a coordination mechanism; it does not validate every implementation.",
+      "reference": "SCIENCE_AND_SOURCES.md"
+    },
+    {
+      "name": "Whitening",
+      "context": "Measurement",
+      "meaning": "Transform baseline coordinates so declared variation is put on a reference scale.",
+      "practical": "It helps compare changes but cannot remove shared-history contamination.",
+      "example": "A scalar two baseline standard deviations above its mean becomes 2.",
+      "reference": "FORMULAS.md#vector-length-and-whitening"
     }
   ]
 }

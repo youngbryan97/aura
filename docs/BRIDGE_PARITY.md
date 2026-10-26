@@ -8,6 +8,7 @@
 > **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,

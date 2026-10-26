@@ -15,6 +15,12 @@ The [scientific source map](SCIENCE_AND_SOURCES.md) explains the research
 connections and their limits; the [BibTeX bibliography](../research/references.bib)
 provides citation keys for a future paper.
 
+Use [the alphabetical glossary](GLOSSARY.md) to look up a term and
+[the formula guide](FORMULAS.md) for symbols, units, worked arithmetic,
+practical meaning and source links. A resolved hyperlink is not a content
+review; [the content audit](DOCUMENTATION_CONTENT_AUDIT.md) records the
+contradictions corrected and the limits of the checks.
+
 ## Running it
 
 | | |

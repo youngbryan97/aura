@@ -8,6 +8,7 @@
 > **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 The hard edges of what this repository is allowed to claim.
@@ -97,8 +98,13 @@ The following claims are classified as **not proven** due to local environment o
 * **Blocker**: Recursive self-improvement requires repeated autonomous capability gains under hidden validation. Aura's current self-modification path is intentionally constrained to quarantined proposals, branch-aware promotion, supervised validation, and sandboxed skill patches. Open-ended, unconstrained RSI is not claimed and not sought.
 
 ### E. Concurrent Model-Lane Residency
-* **Status**: `strictly bounded — never all lanes at once`
-* **Boundary**: The 64 GB production host holds the resident 27B cortex plus at most one smaller warm lane inside the declared lane budget (`core/brain/lane_admission.py`). "All model lanes concurrently resident" is architecturally refused by admission control, not merely unproven — the degradation ladder swaps lanes; it never stacks them.
+* **Status**: `bounded by admission and serving policy`
+* **Boundary**: The 64 GB host has a declared lane-memory budget and durable admission
+  controls (`core/brain/lane_admission.py`, `core/runtime/model_lane_control.py`).
+  A list of model roles is not permission to load them together. The arithmetic
+  module alone does not establish a universal one-auxiliary-lane limit; the
+  actual serving policy, reservations and observed workloads decide admission.
+  Do not duplicate the resident Cortex or bypass the live-instance rules.
 
 ### F. Corpus Coverage vs Answer Quality
 * **Status**: `presence demonstrated; encyclopedic answer quality not claimed`

@@ -28,9 +28,10 @@ sys.modules["lint_doc_drift"] = gate
 _spec.loader.exec_module(gate)
 
 
-def test_preregistered_protocol_is_not_rewritten_for_moved_modules():
-    assert "docs/ISC_V5_PREREGISTRATION.md" in gate.EXCLUDE_PREFIX
-    assert "docs/ISC_V5_PREREGISTRATION.md" not in gate.tracked_docs()
+@pytest.mark.parametrize("name", ["docs/ISC_V5_PREREGISTRATION.md", "docs/ISC_V6_PREREGISTRATION.md"])
+def test_preregistered_protocol_is_not_rewritten_for_moved_modules(name):
+    assert name in gate.EXCLUDE_PREFIX
+    assert name not in gate.tracked_docs()
 
 
 def test_an_evidence_filename_is_not_an_environment_variable(scan):

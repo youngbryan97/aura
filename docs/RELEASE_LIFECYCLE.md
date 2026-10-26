@@ -8,15 +8,16 @@
 > **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Status: written 2026-08-21. The GitHub repository has published **no
-releases**. The signing, notarization, SBOM and provenance machinery in
-`.github/workflows/release.yml` is real and has never produced a public
-artifact, which means the lifecycle below is a policy this repository now
-holds itself to, not a history it can point at. `tools/check_release_ready.py`
-enforces the parts that are checkable before a tag; the rest becomes true the
-first time a tag is pushed.
+Status: Guide · GitHub release listing checked 25 October 2026: zero releases.
+
+The signing, notarization, SBOM and provenance workflow describes the release
+process. A workflow's existence does not establish that it produced a signed
+public release. `tools/check_release_ready.py` checks the pre-tag conditions;
+published artifacts need their own provenance and verification. The release
+listing check does not audit every historical Actions artifact.
 
 ## Versioning
 

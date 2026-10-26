@@ -8,6 +8,7 @@
 > **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Where Aura stands today, realistic targets for improvement, and the actual code written to close each gap. Every row links directly to code in the repository.

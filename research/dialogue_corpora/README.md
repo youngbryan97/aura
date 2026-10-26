@@ -8,6 +8,7 @@
 > **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
 >
 > [Example and metaphor](../../docs/PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](../../docs/VARIABLES_EXPLAINED.md#memory) · [Demos and related work](../../docs/DEMOS_AND_RELATED_WORK.md#memory) · [Document map](../../docs/DOCUMENTATION_INDEX.md)
+> [Glossary](../../docs/GLOSSARY.md) · [Formulas with worked examples](../../docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Put optional local transcript files here if you want to deepen Aura's dialogue-source attractors.

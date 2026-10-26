@@ -8,6 +8,7 @@
 > **In everyday use:** After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#learning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#learning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#learning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 *Verified against code as of 2026-09-15. Claim ONLY what is implemented.*

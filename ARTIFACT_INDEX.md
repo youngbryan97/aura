@@ -8,11 +8,16 @@
 > **In everyday use:** When a reply arrives late, separate time spent waiting for input, reasoning, synthesis and playback before deciding which stage to optimise.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#observability) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#observability) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 The `artifacts/current/` directory holds generated build and test outputs. Because it is listed in `.gitignore`, files created there during verification runs are not pushed to GitHub. They exist only locally on the computer where they were generated, which means clicking a link to one from a web browser will result in a 404 error. This page maps each test artifact to the command used to generate it.
 
-Running `make final-proof` generates the complete set of artifacts in one pass. When developing, you can run individual checks separately; they will write their output to `/tmp`, which is much faster.
+The `make final-proof` target orchestrates configured proof producers. Plan
+its resource budget before execution; it is not a harmless artifact download
+or a current live certification. Individual producers write their declared
+outputs, often under `/tmp`. Check the run and source revision before treating
+a local artifact as current or publishing it.
 
 ## Core reports
 

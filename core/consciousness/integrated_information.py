@@ -184,9 +184,10 @@ def queyranne_min_bipartition(
     singleton cut value is optimal among all sets separating u from t —
     record {u} (as the current merged group it represents), then contract
     t,u and recurse.  The best recorded candidate is the global minimum
-    cut in O(n³) oracle calls.  For the Gaussian stochastic-interaction
-    bipartition function this yields the true MIP without enumerating the
-    2^(n-1) cuts.
+    cut in O(n³) oracle calls when the objective is symmetric and submodular.
+    Gaussian stochastic interaction is not generally submodular; its caller
+    therefore labels this search as a candidate unless exhaustive search
+    separately certifies the minimum.
     """
     if n < 2:
         raise ValueError("need at least two elements")

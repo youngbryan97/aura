@@ -8,6 +8,7 @@
 > **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#memory) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#memory) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Overview

@@ -299,7 +299,7 @@ ISC asks whether Aura’s measured parts form one continuing process under contr
 | Core | The selected group of measured state | Defines the proposed process boundary | Useful internal causes outside it can make the description incomplete |
 | Carrier | The process proposed to carry the state being studied | Must be identified by the carrier experiment | A name or a passing synergy statistic does not select it |
 | Synergy | A joint effect beyond adding the separate effects | Checks dependence of one source’s effect on another | The detailed guide works through 19 - 12 - 13 + 10 |
-| Closure | Whether the proposed boundary omits an important internal driver after declared input is accounted for | Can remain unresolved rather than pass by default | The current rule derives its margin from the least informative internal domain |
+| Closure | Whether the proposed boundary omits an important internal driver after declared input is accounted for | Can remain unresolved rather than pass by default | No margin is currently in force; the earlier least-domain rule was withdrawn |
 | Parity | The project’s five-ground bridge conjunction under named assumptions | Organises supporting evidence | It is not an independently calibrated probability of experience |
 
 [Why this matters, with a metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc)

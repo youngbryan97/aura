@@ -1,6 +1,6 @@
 # ISC: what the latest results show
 
-Status: Guide · Evidence and source checked 25 October 2026, 13:20 PDT
+Status: Guide · Evidence and source checked 25 October 2026, 18:55 PDT · through 517c4807c
 
 **The completed run recorded 22 of 24 checks passing under ISC-v6.** Its
 separate content and self-report outputs were positive. A later isolation
@@ -65,7 +65,7 @@ positive results.
 | Do self-reports follow changed internal valence? | `measured: true`, `holds: true`, tracking rho 0.612475 | 29 of 80 anchors were fully readable under the stored policy; experimental basis and sample scope must be retained |
 | Is the proposed carrier established? | Completed carrier report: `NOT_FOUND`; completed J*/bridge output: `NO_CARRIER` | Later closure-rule changes require a new reading and fresh confirmation |
 | Do all five bridge grounds hold? | Carrier fails; markers, reports, structure and lineage hold in the completed join | No `AT_PARITY` result |
-| What does the latest source code allow? | At `cf0ace7e3`, closure can be open, closed within a margin, unresolved, or unmeasured; the margin is drawn by a rule fixed before it was computed on Aura: the smallest contribution any one of the core's own ten parts makes when left outside | On seed 23 that rule reads below zero, because the shared prediction method fails on the earliest stretch of a developing run; the method must be chosen on known answers before it reads her again |
+| What does the latest source code allow? | At `72dd0d703`, the least-domain margin is withdrawn; outside columns enter as increments, the target is core change, and failed estimator folds cannot support closure | No margin or margin rule is currently named, so a positive closed reading is unavailable; fresh measurement and confirmation remain required |
 
 The completed 22/24 result belongs to the experiment at `8f548ed79`. It is not
 an evaluated result for source at `cf0ace7e3`. Seed 23 informed the later
@@ -137,26 +137,36 @@ inside containers rather than only their lengths. It can return:
 | `UNRESOLVED` | The measurement does not justify either conclusion |
 | `NOT_MEASURED` | The required outside variation was not measured |
 
-At `cf0ace7e3`, the afternoon addendum defines the margin by a rule. Leave each
-live domain out in turn, ask how much it helps predict the rest on the same
-folds with the same environment, and take the smallest contribution. The
-outside information must have an upper bound below that margin; the method
-must also resolve planted leaks at or below it, with no fold reading open.
-If an internal domain adds nothing, a zero or negative margin cannot support
-a closed reading. The numeric override `CLOSURE_MARGIN` stays `None`, while
-`CLOSURE_MARGIN_RULE` is `least_domain`.
+The afternoon `cf0ace7e3` addendum proposed a least-domain margin. It was
+**withdrawn** at `72dd0d703`: a domain can be needed while adding almost no
+predictive information beyond what the rest's past already carries. Its
+smallest predictive contribution is therefore not a justified closure margin.
+The [afternoon snapshot](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json)
+remains a record of that proposal, not the active rule.
 
-In ordinary terms, the claim becomes: everything measured outside the proposed
-core contributes less predictive information than its least informative
-internal domain, under this estimator. The rule avoids choosing a convenient
-number after seeing the outside leak. It remains a project-defined bounded
-criterion requiring fresh confirmation. See the
-[source-hashed rule update](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json)
-and [the afternoon v6 addendum](ISC_V6_PREREGISTRATION.md).
+Current code: `CLOSURE_MARGIN` is `None`; `CLOSURE_MARGIN_RULE` is `None`.
+A margin still needs to be declared before fresh confirmation. Until then,
+the gate cannot return a positive `CLOSED_WITHIN_MARGIN` reading.
+
+The evening amendment also changes the estimator: it enters every outside
+column as an increment and predicts the core's change. A fold where the wider
+predictor does measurably worse is marked as an estimator failure; such a
+measurement cannot establish closure. The amendment records known-answer
+comparisons used to choose the method. Those synthetic results are not a new
+Aura carrier measurement. See the
+[withdrawal and estimator record](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json)
+and [the evening v6 addendum](ISC_V6_PREREGISTRATION.md).
 
 Carrier selection preserves an unresolved closure question as `UNRESOLVED`,
 rather than treating it as a measured absence of a carrier. Neither this rule
 nor the isolation repair supplies a replacement for the completed verdict.
+
+A later restore repair at `517c4807c` found that deep-copying containers of
+bound methods could bind processors to frozen copies of their organs. Both
+experimental twins could then agree while processing through the wrong state.
+The restore now treats those method tables as wiring. This is another reason
+to recheck the earlier paired results; matching unchanged twins alone does
+not establish a faithful intervention setup.
 
 ## The joint-effect result within the full campaign
 
@@ -211,12 +221,13 @@ live desktop. The earlier certificate and refusal are retained in the
 
 1. Recheck paired comparisons under the consequence-history isolation repair,
    including the previously positive synergy, content and report readings.
-2. Repair the shared prediction method for a system that develops, choosing
-   it on known-answer worlds whose development runs inside the core. The
-   margin rule is named (`cf0ace7e3`) and calls that method.
+2. Declare a defensible closure margin before fresh confirmation. The
+   least-domain rule was withdrawn; retain the changed estimator's validation,
+   coverage and failed-fold diagnostics.
 3. Confirm in a campaign that unchanged forks stay within their control floor.
    The pre-flight on the repaired source reads them identical, with a positive
-   control that fires.
+   control that fires. Also verify that restored methods remain bound to the
+   live organs; an identical pair alone cannot detect a frozen copy shared by both.
 4. Resolve the proposed core boundary under the amended closure rule, retaining
    any genuine outside influence or insufficient measurement as such.
 5. Run and join the required fresh campaign, carrier, content and report inputs

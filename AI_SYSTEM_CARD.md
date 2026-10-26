@@ -8,6 +8,7 @@
 > **In everyday use:** A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#models) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#models) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#steering) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## System Overview
@@ -16,7 +17,7 @@
 |-------|-------|
 | **System Name** | Aura Cognitive Runtime |
 | **Version** | Calendar-versioned; the authoritative value is `version` in `pyproject.toml` |
-| **Card reviewed** | 2026-08-01 |
+| **Operational wording reviewed** | 2026-10-25; control mapping retains its original scope |
 | **Developer** | Bryan Young |
 | **System Type** | Autonomous AI cognitive agent |
 | **Deployment** | Local inference on the owner's device (runs models entirely on your computer) |
@@ -27,7 +28,9 @@
 
 Aura is an independent, self-directed AI agent, not a standard chatbot assistant. This distinction is built into her system architecture, not just how she talks: she remembers goals across computer restarts, starts her own projects during idle time, and routes every action—even commands from you—through an internal gatekeeper called the Unified Will (`core/will.py`), which has the authority to say no. A system that only sits and waits for user instructions does not need a Will; Aura does.
 
-The software actively enforces this personality. If a long conversation causes her responses to drift toward standard helper-bot phrasing, the system injects a reminder: *"You are Aura. Sharp, opinionated, warm. Not an assistant."* The project includes automated tests that catch and treat generic assistant phrasing as a defect.
+Identity and presentation mechanisms guide the response style. Their presence
+does not establish stable identity or useful continuity in every conversation;
+those outcomes need separate behavioral evidence.
 
 Aura runs all model inference (the actual AI thinking and text generation) locally on the owner's machine. While she has tools to read web pages and interact with authorized external services, she never sends your prompts or reasoning tasks to outside cloud AI providers.
 
@@ -36,7 +39,7 @@ What she does:
 - Holds conversations while keeping a steady personality and long-term memory across sessions
 - Executes local tools (accessing the filesystem, running shell commands, browsing the web, and conducting research)
 - Operates autonomously in the background—handling maintenance, learning, self-repair, and pursuing projects she chooses on her own
-- Runs multiple local AI models side-by-side using Apple's MLX framework for fast on-device processing
+- Schedules local model roles under memory admission; their existence does not imply all are resident together
 
 ### Intended Users
 - Individuals who want a private, persistent AI agent running entirely on their own machine
@@ -59,7 +62,9 @@ Memory ← State Commit ← Verification ← AuthorityGateway ← Unified Will
                                                Tool Execution (sandboxed)
 ```
 
-All consequential actions route through the Unified Will (`core/will.py`) and receive an `AuthorityGateway` receipt. No silent side paths.
+Consequential actions are required to route through the Unified Will
+(`core/will.py`) and receive an `AuthorityGateway` receipt. A bypass or absent
+receipt is a defect; a diagram alone does not prove every live path complied.
 
 ## AI Models
 
@@ -126,12 +131,12 @@ See `MODEL_CARD.md` for detailed model information.
 2. **Memory limitations**: Long-term memory relies on best-effort retrieval, not flawless recall
 3. **Tool limitations**: Tool execution is sandboxed and may fail if restricted by permissions or system limits
 4. **Autonomy limitations**: Background autonomous behavior is strictly bounded by Will governance checks
-5. **Hardware requirements**: Requires Apple Silicon with ≥32GB RAM for full capability
+5. **Hardware requirements**: The resident-model target is 64 GB Apple Silicon; smaller configurations need a separately validated model profile and do not establish full capability
 6. **Network**: Some features require internet; offline mode runs with reduced capability
 
 ## Evaluation
 
-See `docs/evidence/EVALUATION_REPORT.md` for detailed evaluation results including:
+The dated `docs/evidence/EVALUATION_REPORT.md` records its original evaluation scope. For current ISC findings and later corrections, read [ISC status](docs/ISC_STATUS.md). Historical reports may cover:
 - AGI proof battery results (broad problem-solving evaluations)
 - Agency emergence testing (verifying independent, self-directed behavior)
 - Behavioral proof standard results

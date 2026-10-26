@@ -440,8 +440,8 @@ class LLMConfig(BaseModel):
     # Tier 2: Cortex. The registry binds this stable role to one exact artifact.
     fast_model: str = "Aura-Cortex"
     fast_max_tokens: int = Field(default=8192, gt=0)
-    # 2.0 is the sampling contract's ceiling, not a taste call: above it the
-    # softmax is effectively uniform and "temperature" stops naming anything.
+    # 2.0 is this interface's sampling ceiling. Higher temperatures do not
+    # universally imply a uniform distribution; the logits still matter.
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, allow_inf_nan=False)
 
     # Deep work stays on the resident systems-intelligence path unless a

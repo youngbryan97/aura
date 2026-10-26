@@ -8,9 +8,17 @@
 > **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-**Status**: Living document · Verified against the tree 2026-08-29  
+**Current reading, 25 October 2026:** the four-part assessment below records
+the August programme stage. Its “established” labels concern those named task
+families and mechanisms; they do not establish broad general intelligence or
+a fresh desktop qualification. Read [the RLC landing page](RECURSIVE_LATENT_CORTEX.md)
+and [kept-procedure results](REASONING_ENGINES.md#9-procedures-she-writes-and-keeps)
+for later bounded results and remaining limits.
+
+**Assessment scope**: August 2026 programme analysis; later results linked above
 **Scope**: Everything Aura does to learn, represent, and compose new abstractions  
 **Honest boundary**: What is measured, what is aspirational, where the walls are
 
@@ -23,7 +31,7 @@
 > reusable abstraction, apply it in an unrelated domain, and then use the fact
 > that it did this to get better at doing it again?
 
-That question has four parts, and each has a different answer today.
+That question had four separately assessed parts in the August analysis below.
 
 ---
 

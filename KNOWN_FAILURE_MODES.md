@@ -8,6 +8,7 @@
 > **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Purpose

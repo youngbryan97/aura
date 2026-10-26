@@ -8,6 +8,7 @@
 > **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 This document catalogues what Aura has taken out of the model's hands.
@@ -110,7 +111,7 @@ Implemented in `core.learning.procedures_from_solved_examples`, with the shared 
 ## 10. Evidence Boundaries: What These Engines DON'T Replace
 While Aura enforces strict verification on logic, math, and execution, it is critical to note what these boundaries **do not** do:
 - They **do not** replace the model's world knowledge. The verifiers check *consistency*, not external truth (unless explicitly grounded via Evidence Clerk).
-- They **do not** guarantee an optimal search path, only that the *selected* path is free of provable structural/arithmetic errors.
+- They **do not** guarantee an optimal search path, a checked path means no error was found by the applicable checks in their supported representation.
 - A passed check means "no provable error found", not "provably optimal."
 
 *Note: Test counts and verification reliability metrics are continually measured by the internal verifier foundry.*

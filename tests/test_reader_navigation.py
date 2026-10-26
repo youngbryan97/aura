@@ -28,7 +28,8 @@ def test_updating_a_reading_note_replaces_only_the_owned_block():
 def test_frozen_and_generated_records_never_receive_reader_cards():
     for name in ('docs/ISC_V6_PREREGISTRATION.md', 'docs/evidence/run.md',
                  'docs/AURA_EXECUTION_TRACKER.md', 'proof_kernel/report.md',
-                 'docs/worktodo/RESULTS.md', 'aura/knowledge/bryan-curated-media.md'):
+                 'docs/worktodo/RESULTS.md', 'docs/SETTINGS_WIRING_AUDIT.md',
+                 'aura/knowledge/bryan-curated-media.md'):
         assert category(name) != 'Guide or reference'
     assert category('security/OWASP_LLM_MAPPING.md') != 'Guide or reference'
     assert category('docs/DEPENDENCY_AUDIT.md', '# Dependency Audit Policy\n') != 'Guide or reference'

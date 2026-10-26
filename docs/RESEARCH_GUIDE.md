@@ -8,6 +8,7 @@
 > **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: Guide · Research entry points reconciled 25 October 2026
@@ -46,9 +47,10 @@ under repaired isolation before being called clean causal confirmation. The
 finding. No full ISC pass or settled five-ground bridge result is reported.
 
 The later closure method also keeps an open boundary distinct from an
-unresolved question. The afternoon addendum at `cf0ace7e3` derives its margin
-from the least informative internal domain under a predeclared rule. A change
-to the method is not a new result. Use [current status](ISC_STATUS.md) for the exact
+unresolved question. The least-domain margin proposed in the afternoon was
+withdrawn at `72dd0d703`. No margin is now in force. The revised estimator
+predicts change and excludes failed folds from closed readings. A method
+change is not a new result. Use [current status](ISC_STATUS.md) for the exact
 versioned reading and the distinction between discovery and confirmation.
 
 ## Source names and measured mechanisms

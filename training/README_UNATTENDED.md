@@ -8,6 +8,7 @@
 > **In everyday use:** After solving one kind of task, the system may reuse a checked procedure on a later task of that kind instead of deriving every step again.
 >
 > [Example and metaphor](../docs/PLAIN_ENGLISH_GUIDE.md#learning) · [Variables and practical meanings](../docs/VARIABLES_EXPLAINED.md#learning) · [Demos and related work](../docs/DEMOS_AND_RELATED_WORK.md#learning) · [Document map](../docs/DOCUMENTATION_INDEX.md)
+> [Glossary](../docs/GLOSSARY.md) · [Formulas with worked examples](../docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Foreground wrapper that drives `training/train_and_fuse.py` to completion

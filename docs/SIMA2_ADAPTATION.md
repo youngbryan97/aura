@@ -8,6 +8,7 @@
 > **In everyday use:** In a moving game, a key can arrive after the picture it was chosen from. The controller must learn how its actions affect the identified body.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#vision) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#vision) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#agents) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Bryan, 25 Sep 2026: adapt everything SIMA 2 can do into Aura, general and

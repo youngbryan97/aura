@@ -8,6 +8,7 @@
 > **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Requirements
@@ -16,7 +17,12 @@
 - Python 3.12+.
 - 32 GB RAM minimum; 64 GB recommended.
 
-64 GB is the recommended hardware setup. The target machine is an Apple Silicon Mac with 64 GB of unified memory, which has enough room to run the primary 27B model (Cortex) alongside the compressed 27B fallback model (Brainstem, 8.6 GB) on demand. Aura works with 32 GB RAM, but you will need to switch to smaller models, and response times will be slower than the benchmark numbers quoted in this repository (which were measured on 64 GB hardware).
+The target is an Apple Silicon Mac with 64 GB of unified memory. The
+Cortex, Brainstem and Reflex are model roles; their names do not authorise
+loading every lane concurrently. Admission depends on the current process
+tree, reserved memory and existing campaigns. A 32 GB configuration requires
+a smaller declared model profile and its own validation; this guide supplies
+no latency guarantee for it. See [HARDWARE_PROFILES.md](HARDWARE_PROFILES.md).
 
 ## Setup
 
@@ -137,8 +143,8 @@ There is no `AURA_HOST` environment variable; use the `--host` command-line flag
 | `AURA_LORA_PATH` | auto-detected | Path to the directory containing fine-tuned LoRA weights. |
 | `AURA_MODEL` | `Aura-Cortex` | Main language model (`Aura-Qwen3.8-27B-persona`, a persona fine-tune of the fused Qwen3.8-27B). |
 | `AURA_DEEP_MODEL` | unset (deep work runs on the Cortex) | A second local model for hard reasoning, admitted only with an attested qualification certificate (`AURA_DEEP_SPECIALIST_CERTIFICATE`); see `docs/OPERATOR_GUIDE.md`. |
-| `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Background lane (heartbeat, telemetry, background tasks), lazy-loaded: 2-bit quantized Qwen3.5 27B, requiring 8.6 GB RAM (replaced 9B on 2026-09-20; see `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md`). |
-| `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | Emergency CPU fallback model. Kept in the same model family as Cortex to ensure consistent output style during speculative decoding. |
+| `AURA_BRAINSTEM_MODEL` | `Ternary-Bonsai-2-27B-mlx-2bit` | Background lane (heartbeat, telemetry, background tasks), lazy-loaded: 2-bit quantized Qwen3.5 27B, about 8.6 GB of weights before runtime/cache overhead (replaced 9B on 2026-09-20; see `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md`). |
+| `AURA_FALLBACK_MODEL` | `Qwen2.5-1.5B-Instruct-4bit` | Configured auxiliary fallback role. A draft or contrastive use additionally requires compatibility with the selected Cortex; a name does not prove compatibility or CPU-only execution. |
 | `AURA_LOCAL_BACKEND` | `mlx` | Local inference engine (Apple MLX framework). Production Aura always uses this backend. |
 | `AURA_BROWSER_STEALTH` | `1` | Whether her browser hides that it is automated: playwright-stealth, a borrowed user agent, and the automation flag switched off. `0` browses as what it is. A site that refuses automated visitors should be met with `0`; see `docs/BROWSER_PURSUIT.md`. |
 | `AURA_SUBSTRATE_PRIMARY` | `1` | Check continuous neural state before falling back to standard text tokens. |
@@ -166,7 +172,7 @@ There is no `AURA_HOST` environment variable; use the `--host` command-line flag
 ## Docker
 
 ```bash
-# Full stack: Aura + Redis + Celery worker
+# Headless container services; this does not supply the Apple MLX model runtime
 docker-compose up -d
 
 # Tail logs
@@ -177,8 +183,15 @@ The Docker image is built on `python:3.12-slim`, runs under a non-root user for 
 
 ## Troubleshooting
 
-- **Out of memory.** Close other applications, or switch to a smaller model. The 27B model requires around 18–20 GB of unified memory. On machines with less memory, explicitly set `AURA_MODEL=Qwen3.5-9B-4bit` in advance rather than waiting for an out-of-memory error during inference.
+- **Out of memory.** Account for existing runtimes and campaigns before a new
+  load. The earlier 18–20 GB figure does not include every cache, worker and
+  live request. Plan a smaller validated profile or postpone the work; do not
+  rely on the model label alone as a safe memory budget.
 - **Model won't load.** Verify that `mlx-lm` is installed (`pip install mlx-lm`). Both the desktop app and backend runtime rely on the internal Apple MLX engine to run models locally.
-- **Port in use.** Shut down the existing instance cleanly with `python aura_main.py --stop`, which saves state and revokes temporary security tokens. Avoid running `pkill -f aura_main`, as this will abruptly terminate an active Aura instance mid-operation.
+- **Port in use.** Identify the process and its owner first. A working Aura
+  instance is not a stale port to clear. Only with authorisation for that
+  instance, use the supported graceful shutdown path (`python aura_main.py --stop`).
+  Never use a blanket `pkill -f aura_main`.
 - **Model load hangs.** Aura loads only one model into GPU memory at a time. If loading appears frozen, check for lingering background MLX worker processes.
-- **Backend choice.** Keep `AURA_LOCAL_BACKEND=mlx` on Apple Silicon. Running MLX in-process allows Aura's internal state, memory, and emotion models to directly guide the language model without extra latency.
+- **Backend choice.** Keep `AURA_LOCAL_BACKEND=mlx` on Apple Silicon. Native MLX hooks allow internal-state interventions. This does not establish
+  zero serving overhead or a measured end-to-end response time.

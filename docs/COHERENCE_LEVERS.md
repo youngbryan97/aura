@@ -8,23 +8,23 @@
 > **In everyday use:** Your new question should not be overwritten by a background task that happened to win a previous competition.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#attention) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#attention) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#cognitive-architectures) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Every number governing how much of a conversation Aura can see is a named
-environment variable, read **at call time** — a live runtime picks up a change
-without a reboot, though the prompt cache will re-warm.
-
-Set them in the launcher environment. For a soak instance, export them in
-the shell that starts the run — they are read at call time, so a value set
-after boot still takes effect.
+The continuity controls below are read from the Aura process's environment
+at call time. Set them in the launcher environment **before** starting a
+new process. Exporting a value in another shell after launch does not change
+an already-running process's environment. A supported in-process settings
+change must explicitly reach the reader; reading at call time alone does not
+provide that update route. Follow the live-instance rules before any restart.
 
 ## Why these exist
 
 The reported failure — "great for a few turns, loses the plot, great again,
 worse every time" — was not cognition. `build_system_prompt` sized its whole
 trimming regime against a docstring claiming *"the 32B model has ~8K tokens"*.
-The registry says `Qwen2.5-32B-Instruct` = **32,768**, and the live desktop
-system prompt measured **2,189 chars ≈ 550 tokens**. She was discarding
+In that historical 32B incident, the registry window was **32,768** and the
+desktop system prompt measured **2,189 chars ≈ 550 tokens**. She was discarding
 continuity to defend a budget she was using about 2% of.
 
 The policy was also inverted: continuity *shrank* as the conversation grew

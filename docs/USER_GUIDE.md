@@ -8,6 +8,7 @@
 > **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 *Last reviewed against the tree: 2026-08-21.*

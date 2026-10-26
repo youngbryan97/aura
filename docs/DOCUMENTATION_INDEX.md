@@ -6,13 +6,13 @@ Start with [the plain-English tour](PLAIN_ENGLISH_GUIDE.md), [variables and exam
 
 This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.
 
-**979 Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.
+**982 Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.
 
 Definitions, examples and reading notes come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.
 
 ## Guide or reference
 
-171 pages. A historical entry is read against its original date and source, rather than as a new measurement.
+172 pages. A historical entry is read against its original date and source, rather than as a new measurement.
 
 | Page | Plain-language context |
 |---|---|
@@ -57,6 +57,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [Deliberate Practice — the Practice Director](DELIBERATE_PRACTICE.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
 | [Demonstrations, evidence and related work](DEMOS_AND_RELATED_WORK.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [DNU AGI battery — baseline fairness audit](DNU_BASELINE_FAIRNESS_AUDIT.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Documentation content audit](DOCUMENTATION_CONTENT_AUDIT.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Documentation status map](DOC_STATUS.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [The endogenous language pathway](ENDOGENOUS_LANGUAGE_PATHWAY.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [Engineering adoption: what Aura took from ten mature projects](ENGINEERING_ADOPTION.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
@@ -65,6 +66,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [Aura Flagship Platform Polish Research](FLAGSHIP_PLATFORM_POLISH_RESEARCH.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
 | [Aura Flagship Readiness Gate](FLAGSHIP_READINESS.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Black-box flight recorder — crash-survivable last moments (roadmap A5)](FLIGHT_RECORDER.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
+| [Aura formulas, explained with examples](FORMULAS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [The Frontier-General Arc — breaking the intelligence ceiling honestly](FRONTIER_GENERAL_ARC.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [Semantic correctness and transfer contract](G03_SEMANTIC_CORRECTNESS_CONTRACT.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [What would have to be true, who would say so, and what is already known](GENERALITY_ANALYSIS.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
@@ -122,7 +124,6 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [R Runtime Acceptance Matrix](R_RUNTIME_ACCEPTANCE_MATRIX.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [The science behind the ideas, and what each source supports](SCIENCE_AND_SOURCES.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Scoped Computational Knowledge](SCOPED_COMPUTATIONAL_KNOWLEDGE.md) | [Engineering calculations and drawings](PLAIN_ENGLISH_GUIDE.md#engineering) |
-| [Runtime Settings Control-Plane Audit](SETTINGS_WIRING_AUDIT.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
 | [SIMA 2 in Aura](SIMA2_ADAPTATION.md) | [Visual control and moving worlds](PLAIN_ENGLISH_GUIDE.md#vision) |
 | [Aura SLO Contract](SLO.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [What eighteen records do, and which of it she cannot do yet](SOUL.md) | [Affect and operating condition](PLAIN_ENGLISH_GUIDE.md#affect) |
@@ -183,7 +184,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [Runbook: telemetry emission failure](runbooks/telemetry-emission-failure.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Runbook: Tool Timeout Storm](runbooks/tool-timeout-storm.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
 | [Runbook: Worker process crash during inference (F02)](runbooks/worker-crash.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
-| [Aura Operational Cognition Kernel](../proof_kernel/README.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Aura operational cognition component demo](../proof_kernel/README.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Third-Party Replication Protocol for Aura](../research/consciousness/third_party_replication.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Dialogue Corpora Layout](../research/dialogue_corpora/README.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
 | [Unattended LoRA Training (macOS)](../training/README_UNATTENDED.md) | [Learning and kept procedures](PLAIN_ENGLISH_GUIDE.md#learning) |
@@ -239,7 +240,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 
 ## Generated reference
 
-9 pages. A historical entry is read against its original date and source, rather than as a new measurement.
+10 pages. A historical entry is read against its original date and source, rather than as a new measurement.
 
 | Page | Plain-language context |
 |---|---|
@@ -247,6 +248,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [Aura Progress Control](AURA_PROGRESS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura documentation: every tracked Markdown page](DOCUMENTATION_INDEX.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura FMEA — failure modes & effects registry](FMEA.md) | [Staying alive and recovering](PLAIN_ENGLISH_GUIDE.md#reliability) |
+| [Aura glossary: terms in ordinary language](GLOSSARY.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [The ISC completion list](ISC_COMPLETION_TODO.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [Aura in plain English](PLAIN_ENGLISH_GUIDE.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Runtime Contract — what must be alive](RUNTIME_CONTRACT.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -255,7 +257,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 
 ## Historical or frozen record
 
-757 pages. A historical entry is read against its original date and source, rather than as a new measurement.
+758 pages. A historical entry is read against its original date and source, rather than as a new measurement.
 
 | Page | Plain-language context |
 |---|---|
@@ -375,6 +377,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [27B recovery: what is proven, what is prepared, what needs the model](RLC_27B_HANDOFF.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [RLC Spark Execution Ledger](RLC_SPARK_EXECUTION_LEDGER.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
 | [RLC wiring handoff (CP234) — seams closed CP236–238](RLC_WIRING_HANDOFF.md) | [Reasoning and checking answers](PLAIN_ENGLISH_GUIDE.md#reasoning) |
+| [Runtime Settings Control-Plane Audit](SETTINGS_WIRING_AUDIT.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
 | [Final Soak Verdict — the grow-up mandate's last act (2026-07-14/15)](SOAK_VERDICT_2026_07_15.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Soak verdict — 2026-07-18 (headless :8001, tip c8d4ef5c + lease-P0 fix)](SOAK_VERDICT_2026_07_18.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Soak verdict — 2026-07-25 02:38 run](SOAK_VERDICT_2026_07_25.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |

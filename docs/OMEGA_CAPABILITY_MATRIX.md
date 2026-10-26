@@ -8,11 +8,20 @@
 > **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**How to read this matrix:** the July mandate and later build-pass labels
+below are a programme record. “Built,” “TESTED-NOW” and “LIVE-PROVEN” retain
+their original pass/run scope; they do not mean every row is active or freshly
+qualified in the current desktop. A current capability claim needs the row's
+source, actual test or interaction receipt and applicable claim boundary.
+See [demos and evidence](DEMOS_AND_RELATED_WORK.md) and
+[current ISC status](ISC_STATUS.md) for the separate evidence layers.
 
 Mapping of the full capability mandate (2026-07-12) onto Aura's actual
 codebase: what exists, what was built in this pass, what each claim is
-backed by, and what is honestly out of reach today.
+backed by, and what the corresponding build pass left out of reach.
 
 **Evidence classes** (every row carries one — no vibes):
 

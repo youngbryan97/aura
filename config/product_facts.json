@@ -5,12 +5,30 @@
       "value": "3.12",
       "owner": "pyproject.toml [project] requires-python",
       "restated_in": [
-        {"file": "pyproject.toml", "pattern": "requires-python\\s*=\\s*\"[^\"]*?(\\d+\\.\\d+)"},
-        {"file": "pyproject.toml", "pattern": "target-version\\s*=\\s*\"py(\\d)(\\d+)\""},
-        {"file": "pyproject.toml", "pattern": "python_version\\s*=\\s*\"(\\d+\\.\\d+)\""},
-        {"file": "Dockerfile", "pattern": "FROM python:(\\d+\\.\\d+)"},
-        {"file": "docker/Dockerfile", "pattern": "FROM python:(\\d+\\.\\d+)"},
-        {"glob": ".github/workflows/*.yml", "pattern": "python-version:\\s*['\"](\\d+\\.\\d+)['\"]"}
+        {
+          "file": "pyproject.toml",
+          "pattern": "requires-python\\s*=\\s*\"[^\"]*?(\\d+\\.\\d+)"
+        },
+        {
+          "file": "pyproject.toml",
+          "pattern": "target-version\\s*=\\s*\"py(\\d)(\\d+)\""
+        },
+        {
+          "file": "pyproject.toml",
+          "pattern": "python_version\\s*=\\s*\"(\\d+\\.\\d+)\""
+        },
+        {
+          "file": "Dockerfile",
+          "pattern": "FROM python:(\\d+\\.\\d+)"
+        },
+        {
+          "file": "docker/Dockerfile",
+          "pattern": "FROM python:(\\d+\\.\\d+)"
+        },
+        {
+          "glob": ".github/workflows/*.yml",
+          "pattern": "python-version:\\s*['\"](\\d+\\.\\d+)['\"]"
+        }
       ]
     },
     "license.spdx": {
@@ -18,31 +36,258 @@
       "owner": "LICENSE",
       "note": "Source-available with no grant. SPDX has no identifier for that; the OCI spec accepts any expression and NONE is the honest one.",
       "restated_in": [
-        {"file": "Dockerfile", "pattern": "org\\.opencontainers\\.image\\.licenses=\"([^\"]*)\""},
-        {"file": "docker/Dockerfile", "pattern": "org\\.opencontainers\\.image\\.licenses=\"([^\"]*)\""}
+        {
+          "file": "Dockerfile",
+          "pattern": "org\\.opencontainers\\.image\\.licenses=\"([^\"]*)\""
+        },
+        {
+          "file": "docker/Dockerfile",
+          "pattern": "org\\.opencontainers\\.image\\.licenses=\"([^\"]*)\""
+        }
       ]
     },
     "runtime.default_port": {
       "value": "8000",
       "owner": "aura_main.py --port default",
       "restated_in": [
-        {"file": "aura_main.py", "pattern": "add_argument\\(\"--port\", type=int, default=(\\d+)"},
-        {"file": "Dockerfile", "pattern": "EXPOSE (\\d+)"},
-        {"file": "Dockerfile", "pattern": "urlopen\\('http://localhost:(\\d+)/"}
+        {
+          "file": "aura_main.py",
+          "pattern": "add_argument\\(\"--port\", type=int, default=(\\d+)"
+        },
+        {
+          "file": "Dockerfile",
+          "pattern": "EXPOSE (\\d+)"
+        },
+        {
+          "file": "Dockerfile",
+          "pattern": "urlopen\\('http://localhost:(\\d+)/"
+        }
       ]
     },
     "package.version": {
       "value": "2026.4.20",
       "owner": "pyproject.toml [project] version",
       "restated_in": [
-        {"file": "pyproject.toml", "pattern": "^version = \"([^\"]+)\""}
+        {
+          "file": "pyproject.toml",
+          "pattern": "^version = \"([^\"]+)\""
+        }
       ]
     },
     "package.name": {
       "value": "aura-zenith",
       "owner": "pyproject.toml [project] name",
       "restated_in": [
-        {"file": "pyproject.toml", "pattern": "^name = \"([^\"]+)\""}
+        {
+          "file": "pyproject.toml",
+          "pattern": "^name = \"([^\"]+)\""
+        }
+      ]
+    },
+    "model.cortex_role": {
+      "value": "Aura-Cortex",
+      "owner": "core/config.py LLMConfig.fast_model",
+      "restated_in": [
+        {
+          "file": "core/config.py",
+          "pattern": "^    fast_model: str = \"([^\"]+)\""
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "^\\| Cortex \\| `([^`]+)`"
+        },
+        {
+          "file": "INSTALL.md",
+          "pattern": "^\\| `AURA_MODEL` \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Cortex \\| `([^`]+)`"
+        }
+      ]
+    },
+    "model.deep_default_role": {
+      "value": "Aura-Cortex",
+      "owner": "core/config.py LLMConfig.deep_model",
+      "restated_in": [
+        {
+          "file": "core/config.py",
+          "pattern": "^    deep_model: str = \"([^\"]+)\""
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "^\\| Deep \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Deep \\| `([^`]+)`"
+        }
+      ]
+    },
+    "model.vision_role": {
+      "value": "Aura-Cortex",
+      "owner": "core/config.py LLMConfig.vision_model",
+      "restated_in": [
+        {
+          "file": "core/config.py",
+          "pattern": "^    vision_model: str = \"([^\"]+)\""
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "^\\| Vision \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Vision \\| `([^`]+)`"
+        }
+      ]
+    },
+    "model.brainstem": {
+      "value": "Ternary-Bonsai-2-27B-mlx-2bit",
+      "owner": "core/config.py LLMConfig.chat_model and registry flag",
+      "restated_in": [
+        {
+          "file": "core/config.py",
+          "pattern": "^    chat_model: str = \"([^\"]+)\""
+        },
+        {
+          "file": "core/brain/llm/model_registry.py",
+          "pattern": "_FLAG_BRAINSTEM_MODEL = _declare_flag\\([\\s\\S]*?default=\"([^\"]+)\""
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "^\\| Brainstem \\| `([^`]+)`"
+        },
+        {
+          "file": "INSTALL.md",
+          "pattern": "^\\| `AURA_BRAINSTEM_MODEL` \\| `([^`]+)`"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Brainstem \\| `([^`]+)`"
+        }
+      ]
+    },
+    "embedding.model": {
+      "value": "Qwen/Qwen3-Embedding-0.6B",
+      "owner": "core/memory/embedding_model.py REPO_ID",
+      "restated_in": [
+        {
+          "file": "core/memory/embedding_model.py",
+          "pattern": "^REPO_ID = \"([^\"]+)\""
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "selects\\s+`([^`]+)` with 384"
+        }
+      ]
+    },
+    "embedding.dimensions": {
+      "value": "384",
+      "owner": "core/memory/embedding_model.py VECTOR_DIM",
+      "restated_in": [
+        {
+          "file": "core/memory/embedding_model.py",
+          "pattern": "^VECTOR_DIM = (\\d+)"
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "with (\\d+) output dimensions"
+        }
+      ]
+    },
+    "embedding.native_window": {
+      "value": "32768",
+      "owner": "core/memory/embedding_model.py MAX_INPUT_TOKENS",
+      "restated_in": [
+        {
+          "file": "core/memory/embedding_model.py",
+          "pattern": "^MAX_INPUT_TOKENS = ([\\d_]+)",
+          "normalise": "integer"
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "its ([\\d,]+)-token native window",
+          "normalise": "integer"
+        }
+      ]
+    },
+    "embedding.operational_view": {
+      "value": "1024",
+      "owner": "core/memory/embedding_model.py OPERATIONAL_INPUT_TOKENS",
+      "restated_in": [
+        {
+          "file": "core/memory/embedding_model.py",
+          "pattern": "^OPERATIONAL_INPUT_TOKENS = ([\\d_]+)",
+          "normalise": "integer"
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "from a ([\\d,]+)-token operational view",
+          "normalise": "integer"
+        }
+      ]
+    },
+    "embedding.padded_work_budget": {
+      "value": "2048",
+      "owner": "core/memory/embedding_model.py OPERATIONAL_PADDED_TOKEN_BUDGET",
+      "restated_in": [
+        {
+          "file": "core/memory/embedding_model.py",
+          "pattern": "^OPERATIONAL_PADDED_TOKEN_BUDGET = ([\\d_]+)",
+          "normalise": "integer"
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "a\\s+([\\d,]+)-token padded-work budget",
+          "normalise": "integer"
+        }
+      ]
+    },
+    "closure.closure_margin": {
+      "value": "None",
+      "owner": "core/subject/closure.py CLOSURE_MARGIN",
+      "restated_in": [
+        {
+          "file": "core/subject/closure.py",
+          "pattern": "^CLOSURE_MARGIN: (?:float|str) \\| None = (\\w+)\\s*(?:#.*)?$"
+        },
+        {
+          "file": "docs/ISC_STATUS.md",
+          "pattern": "Current code: `CLOSURE_MARGIN` is `(\\w+)`"
+        }
+      ]
+    },
+    "closure.closure_margin_rule": {
+      "value": "None",
+      "owner": "core/subject/closure.py CLOSURE_MARGIN_RULE",
+      "restated_in": [
+        {
+          "file": "core/subject/closure.py",
+          "pattern": "^CLOSURE_MARGIN_RULE: (?:float|str) \\| None = (\\w+)\\s*(?:#.*)?$"
+        },
+        {
+          "file": "docs/ISC_STATUS.md",
+          "pattern": "`CLOSURE_MARGIN_RULE` is `(\\w+)`"
+        }
+      ]
+    },
+    "model.reflex_role": {
+      "value": "Qwen2.5-1.5B-Instruct-4bit",
+      "owner": "core/brain/llm/model_registry.py fallback flag",
+      "restated_in": [
+        {
+          "file": "core/brain/llm/model_registry.py",
+          "pattern": "_FLAG_FALLBACK_MODEL = _declare_flag\\([\\s\\S]*?default=\"([^\"]+)\""
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Reflex \\| `([^`]+)`"
+        },
+        {
+          "file": "MODEL_CARD.md",
+          "pattern": "^\\| Reflex/fallback \\| `([^`]+)`"
+        }
       ]
     }
   },
@@ -51,6 +296,9 @@
     "reason": "the resident model runs on MLX, which is Metal-only; core/brain/llm/mlx_client.py is the substrate and there is no second one",
     "container": "linux/amd64, headless, without the model runtime",
     "owner": "requirements.txt (mlx, mlx-lm, mlx-metal with no environment markers)",
-    "evidence_files": ["requirements.txt", "core/brain/llm/mlx_client.py"]
+    "evidence_files": [
+      "requirements.txt",
+      "core/brain/llm/mlx_client.py"
+    ]
   }
 }

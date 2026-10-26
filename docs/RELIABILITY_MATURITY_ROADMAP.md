@@ -8,6 +8,7 @@
 > **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 The goal: Chrome/Kubernetes/aerospace-grade reliability *given* Aura's
@@ -26,7 +27,7 @@ try/except." It is **declarative desired-state + control loops that converge**,
 
 - Supervision: `core/supervisor/tree.py`, `core/resilience/{supervisor,stall_watchdog,memory_watchdog,sovereign_watchdog,cognitive_governor,resource_governor}.py`, `core/runtime/organ_supervisor.py`.
 - Health/liveness: `core/runtime/{health_contract,liveness,boot_probes,flagship_readiness,concurrency_health}.py`, `core/health/*`, generated `docs/RUNTIME_CONTRACT.md`.
-- Recovery: `core/runtime/self_repair_ladder.py`, the cortex→cloud→reflex degradation ladder, the watchdog dead-man clock.
+- Recovery: `core/runtime/self_repair_ladder.py`, the local fallback/degradation contracts (legacy cloud descriptors do not enable a remote provider), the watchdog dead-man clock.
 - Backpressure/circuits: `core/runtime/backpressure.py`, `core/resilience/circuit_breaker*.py`, `core/utils/token_budget.py`.
 - Forensics: `make triage` / `tools/crash_triage.py` (fingerprinted incident classes), the incident narrator, `data/error_logs/{crash,stalls,memory}/`, and the A5 black-box flight recorder (`core/runtime/flight_recorder.py`, `docs/FLIGHT_RECORDER.md`).
 - SLOs: `docs/SLO.md`, `core/runtime/telemetry_sli.py`.
@@ -98,14 +99,17 @@ probe (`readiness_coherence`) with explicit budgets that gate regressions.
 crashes came from unbounded awaits / on-loop fsync. Turn "every await is bounded +
 watchdog-covered" into a static ratchet like the async-write-lane test.
 
-**A2. FMEA / failure-mode registry.** No systematic enumeration exists. For each
+**A2. FMEA / failure-mode registry.** The registry now exists in
+`core/runtime/fmea.py` and renders [FMEA.md](FMEA.md). Its coverage and mitigation
+gaps remain separate questions; the earlier absence is no longer current. For each
 subsystem: failure modes → detection → mitigation → blast radius. This *drives*
 the reconciler (K1), probes (K2), and isolation (C3), rather than reacting to
 soak findings one at a time.
 
-**A3. Formal degradation ladder (N-version).** The cortex→cloud→reflex ladder is
-real but implicit; make it a tested first-class contract with explicit fallback
-ordering and per-rung SLAs.
+**A3. Formal degradation ladder (N-version).** The local fallback contracts are
+declared in `core/brain/degradation_ladder.py` and checked by
+`tests/test_degradation_ladder.py`. Their presence is distinct from measured
+end-to-end recovery under a current failure and resource budget.
 
 **A4. Envelope protection.** Runtime guards that refuse to enter unsafe states:
 never admit a model that would exceed the memory envelope (→ K3); never let SLO

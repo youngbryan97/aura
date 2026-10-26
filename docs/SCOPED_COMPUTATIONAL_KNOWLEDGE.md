@@ -8,6 +8,7 @@
 > **In everyday use:** A beam calculation should retain the load, units, material assumptions and equation beside the proposed dimension.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#engineering) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#engineering) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#engineering) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Aura can calculate consequences of an explicit model and scoped premises, then

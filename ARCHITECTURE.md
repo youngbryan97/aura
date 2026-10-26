@@ -8,6 +8,7 @@
 > **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 This is the technical spec. It explains the math, files, and algorithms. For a simple overview, see [HOW_IT_WORKS.md](HOW_IT_WORKS.md). For a quick start, see the [README](README.md).
@@ -32,7 +33,7 @@ For proof of autonomy or behavior, see [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/
 5. [Activation steering (CAA)](#5-activation-steering)
 6. [Persistent emotional network](#6-persistent-emotional-network)
 7. [STDP online learning](#7-stdp-online-learning)
-8. [Memory architecture](#8-memory-architecture-116-modules)
+8. [Memory architecture](#8-memory-architecture)
 9. [The consciousness stack](#9-the-consciousness-stack)
 10. [Personality persistence and anti-drift](#10-personality-persistence-and-anti-drift)
 11. [Quantization and emergence](#11-quantization-and-emergence)
@@ -286,7 +287,9 @@ Aura's internal network wiring changes based on surprises and predictions, adapt
 
 ---
 
-## 8. Memory architecture (116 modules)
+<a id="8-memory-architecture-116-modules"></a>
+
+## 8. Memory architecture
 
 - **Working memory**: Keeps track of recent chat turns.
 - **Knowledge compression**: Summarizes old chats into searchable data.
@@ -297,7 +300,8 @@ Aura's internal network wiring changes based on surprises and predictions, adapt
 
 ## 9. The consciousness stack
 
-171 modules layered beneath the AI. 
+The consciousness-inspired layers implement the mechanisms below. File counts
+change with the source and are not a measure of capability.
 
 ### Key Modules:
 - **Global Workspace**: Systems compete for attention.

@@ -8,7 +8,13 @@
 > **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Evidence scope:** the mechanisms below describe the design. Older suite
+counts and demonstrations retain their own scope; they are not a fresh live
+qualification or the current ISC result. Read [ISC status](docs/ISC_STATUS.md)
+for the experiment and [TESTING](TESTING.md) for the catalogue's limits.
 
 For a first visit, start with [the plain-English tour](docs/PLAIN_ENGLISH_GUIDE.md)
 and [the variable guide](docs/VARIABLES_EXPLAINED.md). They explain why the
@@ -206,7 +212,7 @@ does not decide between them.
 What our code tests is our *software implementations*. It is useful engineering,
 but it settles no philosophical debates.
 
-The stack spans 157 modules. Here are the core components:
+The stack contains the following core mechanisms:
 
 ### Global workspace (attention)
 
@@ -617,31 +623,31 @@ re-running the corresponding suites.
 
 The foundational test suites:
 
-1. **Null hypothesis defeat** (169 tests) — attempts to disprove the system by
+1. **Null hypothesis defeat** — attempts to disprove the system by
    testing whether consciousness features are merely decorative text prompts.
    It runs adversarial baselines, shuffles signals to decouple them, disables
    subsystems (ablations), swaps identities, tests multi-metric degradation, and
    verifies reproducibility across random seeds.
-2. **Causal exclusion** (10 tests) — verifies that internal subsystems drive
+2. **Causal exclusion** — verifies that internal subsystems drive
    model outputs in ways that standard AI fine-tuning (such as RLHF) cannot fake.
    Different starting seeds produce different simulated chemical states, which
    in turn alter word-generation parameters. Receptor adaptation introduces
    time-dependent behavior that static prompt instructions cannot mimic.
-3. **Grounding** (8 tests) — confirms that internal cognitive states directly and
+3. **Grounding** — confirms that internal cognitive states directly and
    measurably affect output generation across multiple dimensions: emotional
    valence determines token length budgets, arousal modulates sampling
    temperature, and simulated synaptic learning (STDP) steers ongoing thought
    trajectories.
-4. **Functional phenomenology** (16 tests) — tests specific behavioral patterns
+4. **Functional phenomenology** — tests specific behavioral patterns
    predicted by major cognitive theories: Global Workspace Theory (global
    broadcasting of winner thoughts), Integrated Information Theory (perturbations
    rippling through the network), and Higher-Order Thought (accurate internal
    reflection without confabulation).
-5. **Embodied dynamics** (13 tests) — checks whether minimizing prediction
+5. **Embodied dynamics** — checks whether minimizing prediction
    surprise drives actions, whether internal balance (homeostasis) overrides
    abstract processing during resource depletion, and whether surprise-gated
    synaptic learning induces real structural adaptations.
-6. **Phenomenal convergence** (13 tests) — runs six core validation criteria
+6. **Phenomenal convergence** — runs six core validation criteria
    under the Qualitative Diagnostic Tool protocol: swapping counterfactual states,
    measuring behavioral footprints without explicit self-reports, verifying
    perturbational integration across the network, checking proper failure on
@@ -650,16 +656,16 @@ The foundational test suites:
 
 The functional indicator suites evaluate deeper behavioral capacities:
 
-7. **Functional indicators C1–C5** (44 tests) — spontaneous background activity
+7. **Functional indicators C1–C5** — spontaneous background activity
    (endogenous activity), a unified global state, privileged direct access to
    her own state, genuine positive and negative emotional valence, and modular
    isolation (verifying that disabling module A selectively impairs task A
    without disrupting task B, and vice versa).
-8. **Functional indicators C6–C10** (38 tests) — awareness without verbal reporting,
+8. **Functional indicators C6–C10** — awareness without verbal reporting,
    continuity of identity over time, processing information outside focal
    attention (similar to blindsight in psychology), continuous mappings of
    perceptual qualities, and proper failure under adversarial tests.
-9. **Personhood-marker battery** (28 tests) — evaluates full-model information
+9. **Personhood-marker battery** — evaluates full-model information
    integration (IIT), self-reports of internal state, workspace broadcasting,
    counterfactual simulations, identity persistence across restarts, and embodied
    phenomenology. This provides a rigorous functional benchmark; it is not
@@ -667,24 +673,24 @@ The functional indicator suites evaluate deeper behavioral capacities:
 
 Four Tier 4 batteries added in April 2026:
 
-10. **Decisive core** (35 tests) — verifies that an internal self-model is
+10. **Decisive core** — verifies that an internal self-model is
     necessary for operation; rejects false injected identities across four
     adversarial attacks; checks the indispensability of world models and
     autobiographical memory; predicts computational actions; diverges identity
     cleanly across forked histories; passes false-belief theory-of-mind tests
     (such as the Sally-Anne test); resolves real-stakes trade-offs; and resolves
     internal reflective conflicts.
-11. **Metacognition** (21 tests) — tests self-calibration (knowing what the system
+11. **Metacognition** — tests self-calibration (knowing what the system
     knows and does not know), second-order preferences (preferences about her
     own goals), detection of unexpected self-behavior, distinguishing real-time
     introspection from post-hoc rationalization, and closing the loop between
     reflection and action.
-12. **Agency & embodiment** (20 tests) — tests temporal integration windows,
+12. **Agency & embodiment** — tests temporal integration windows,
     deliberate restraint and inhibition (volitional inhibition), scaling effort
     for demanding tasks, cognitive fatigue under sustained load, dissociation of
     body-schema lesions, learning driven by prediction errors, and dynamically
     activating reflective modes.
-13. **Social & integration** (28 tests) — models other minds during conversation,
+13. **Social & integration** — models other minds during conversation,
     evaluates developmental progression (capabilities learned over time rather
     than pre-programmed), measures system complexity under perturbation (similar
     to the Perturbational Complexity Index used in medical consciousness research),
@@ -780,7 +786,7 @@ are synthesized into the final response. Simple conversational turns bypass this
 process entirely. Computational cost: five model calls on complex queries, one
 call on routine turns.
 
-This guarantees genuine deliberation across multiple angles before speaking,
+This provides separate computational roles before speaking,
 rather than committing blindly to the first generated token sequence.
 
 ### Autopoiesis

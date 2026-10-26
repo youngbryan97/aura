@@ -1,29 +1,29 @@
 {
   "checkpoint_inventory": {
-    "distinct_pushed_commits": 783,
-    "pushed_checkpoint_records": 821,
-    "records_in_tracker": 821,
-    "records_on_shared_commits": 66,
+    "distinct_pushed_commits": 818,
+    "pushed_checkpoint_records": 858,
+    "records_in_tracker": 858,
+    "records_on_shared_commits": 69,
     "unpushed_checkpoint_records": 0,
     "unpushed_record_ids": []
   },
   "completion": {
     "engineering_estimate_percent": "27.00",
     "engineering_estimate_status": "legacy_uncertified_not_used_for_release",
-    "machine_certified_percent": "0.33",
+    "machine_certified_percent": "0.00",
     "status": "provisional_evidence_backfill_incomplete",
-    "verified_basis_points": 33
+    "verified_basis_points": 0
   },
   "evidence_classes": [
     {
       "cells_total": 516,
-      "cells_verified": 1,
+      "cells_verified": 0,
       "evidence_class": "implementation",
       "weight": 2
     },
     {
       "cells_total": 516,
-      "cells_verified": 4,
+      "cells_verified": 0,
       "evidence_class": "test",
       "weight": 2
     },
@@ -69,15 +69,15 @@
     "confidence": "low",
     "conservative_weighted_points_per_checkpoint": 10,
     "optimistic_weighted_points_per_checkpoint": 30,
-    "remaining_checkpoint_records_high": 298,
+    "remaining_checkpoint_records_high": 299,
     "remaining_checkpoint_records_low": 100,
-    "total_checkpoint_records_high": 1119,
-    "total_checkpoint_records_low": 921
+    "total_checkpoint_records_high": 1157,
+    "total_checkpoint_records_low": 958
   },
   "inputs": {
-    "evidence_ledger_sha256": "1d859d519ce1e1b64454d8573019a58f0215e362f48a695734585afd5e4ee910",
+    "evidence_ledger_sha256": "5ff3752b52683721d919ea9c338c6373d4ab1595502e551d9dd5578c6c17c182",
     "progress_policy_sha256": "51b725d4ff7c375ae98cece8d7d6d4351739689b500450b67b836e7e37006a47",
-    "registry_sha256": "cebc5b3b7743f8a8c53f3c91dd2e187e17df5f48a94512efa377823a72c08f32",
+    "registry_sha256": "2cf8ea4d0a76ed7829475a4897dcaa4e0559bb6d1a885febccccb3748badc570",
     "scope_baseline_sha256": "b6e9e3295b297e9a32223fa75322584e1f9d395225888924a38f9791205b7336"
   },
   "non_claims": [
@@ -86,7 +86,7 @@
     "Checkpoint records sharing one commit are counted as records and exposed separately from distinct commits.",
     "Parent and child requirements are both counted when each declares its own integration or proof burden."
   ],
-  "report_sha256": "3c20fa84e796f478f201802d396ce0f201a716e0c52599403af04ded85773bbc",
+  "report_sha256": "2259df707691a01a5047f9b38b44461d126b34f02160c52459fc636860c3d16d",
   "requirements": [
     {
       "acceptance_evidence_required": [
@@ -1495,7 +1495,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CHECKPOINT-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -1505,7 +1505,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -6055,7 +6055,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 6,
-      "cells_verified": 1,
+      "cells_verified": 0,
       "id": "PROGRESS-CONTROL-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -6069,7 +6069,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "19.00",
-      "weighted_points_verified": "2.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7104,7 +7104,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 3,
-      "cells_verified": 1,
+      "cells_verified": 0,
       "id": "SCOPE-001",
       "kind": "parent",
       "required_evidence_classes": [
@@ -7115,7 +7115,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "8.00",
-      "weighted_points_verified": "2.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7627,7 +7627,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 1,
+      "cells_verified": 0,
       "id": "STORAGE-GATEWAY-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -7637,7 +7637,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "2.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7975,13 +7975,13 @@
   "schema_version": 1,
   "scope": {
     "acceptance_evidence_cells_total": 1305,
-    "acceptance_evidence_cells_verified": 5,
+    "acceptance_evidence_cells_verified": 0,
     "assigned_weight_requirements": 0,
     "mandatory_requirements": 312,
     "requirements_total": 313,
     "scope_baseline_cells": 1305,
-    "weighted_points_remaining": "2977.00",
+    "weighted_points_remaining": "2987.00",
     "weighted_points_total": "2987.00",
-    "weighted_points_verified": "10.00"
+    "weighted_points_verified": "0.00"
   }
 }

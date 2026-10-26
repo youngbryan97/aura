@@ -51,6 +51,14 @@ def _extract(pattern: str, text: str) -> list[str]:
     return found
 
 
+def _normalise(value: str, mode: str | None) -> str:
+    if mode is None:
+        return value
+    if mode == "integer":
+        return str(int(value.replace("_", "").replace(",", "")))
+    raise ValueError(f"unsupported normalisation {mode!r}")
+
+
 def check(payload: dict) -> list[str]:
     problems: list[str] = []
 
@@ -75,6 +83,11 @@ def check(payload: dict) -> list[str]:
                     continue
                 seen_anywhere = True
                 for value in found:
+                    try:
+                        value = _normalise(value, entry.get("normalise"))
+                    except ValueError as exc:
+                        problems.append(f"{name}: {path.relative_to(ROOT)} has an invalid value: {exc}")
+                        continue
                     if value != expected:
                         problems.append(
                             f"{name}: {path.relative_to(ROOT)} says {value!r} and "
