@@ -148,8 +148,20 @@ HELD: tuple[Held, ...] = (
     Held("module:core.memory.reliving:_RETURNS", WHOLE, "M"),  # (7.7)
     Held("module:core.memory.reliving:_MATCHES", WHOLE, "M"),  # (1.0)
     Held("module:core.memory.unbidden:_LEDGER", WHOLE, "M"),  # (7.6)
-    # Her development: the ontogeny core and its experience.
-    Held("module:core.ontogeny.service:_core", WHOLE, "N"),  # (6.2)
+    # Her development: what the ontogeny core has learned and where it stands.
+    # Held by attribute, not whole: its experience spine is the record each
+    # turn writes, read back only when maintenance trains, which an experiment
+    # stops, and held whole it made every unit that changes what is written a
+    # mover of K* while K itself never moved (26 October). Its locks, threads,
+    # trainer and the instants of its last checkpoint are machinery.
+    *(
+        Held("module:core.ontogeny.service:_core", attribute, "N")  # (6.2, the core whole)
+        for attribute in (
+            "heads", "_control_points", "_state", "_calibration", "_candidate_calibration",
+            "_operational_calibration", "moments", "_advance_moments", "_episode_buckets",
+            "_episodes_seen", "evidence_at_last_fit", "_last_reading", "_track",
+        )
+    ),
     # The hierarchy that predicts her own next state.
     Held("module:core.consciousness.predictive_hierarchy:_instance", WHOLE, "C"),
     # How she delivers what she says.
@@ -163,7 +175,11 @@ HELD: tuple[Held, ...] = (
     Held("module:core.runtime.errors:_RECORDS", WHOLE, "I"),
     # Self-state: how she has grown, and the rhythm of a relationship that sets her bond.
     Held("module:core.self.growth:_LEDGER", WHOLE, "S"),
-    Held("BondingPhase", WHOLE, "S"),
+    # Held by attribute: the phase also holds the service container, and a
+    # whole hold reached through it.
+    Held("BondingPhase", "_usual_gap_s", "S"),
+    Held("BondingPhase", "_engaged_span_s", "S"),
+    Held("BondingPhase", "_exchanges_seen", "S"),
 )
 
 

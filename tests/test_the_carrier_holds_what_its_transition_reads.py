@@ -201,3 +201,27 @@ def test_a_ledger_kept_at_module_scope_is_held_whole_read_whole_and_held_still_b
     clamp.apply()
     assert module._LEDGER is ledger
     assert ledger == {"praise": [0.2, 0.4], "rebuke": [0.6]}
+
+
+def test_a_cut_holds_a_units_own_state_and_not_a_neighbour_it_keeps_as_a_field():
+    """Her heartbeat keeps other services as fields, and the bonding phase keeps the container.
+
+    A capture that walked through them restored other units on every apply,
+    which is not the cut's to hold: 8.3 ms a phase through the heartbeat, 11.0 through the phase (26 October).
+    """
+    from core.subject.clamp import Clamp
+
+    class Neighbour:
+        def __init__(self) -> None:
+            self.level = 0.75
+
+    neighbour = Neighbour()
+    phase = AffectUpdatePhase()
+    phase.appraisal.friend = neighbour
+    runtime = SimpleNamespace(state=SimpleNamespace(), organs=None, kernel=SimpleNamespace(_phases=[phase, neighbour]))
+    clamp = Clamp(runtime, ["A"])
+    phase.appraisal.gain = 0.9
+    neighbour.level = 0.1
+    clamp.apply()
+    assert phase.appraisal.gain == 0.4
+    assert neighbour.level == 0.1

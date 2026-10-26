@@ -382,9 +382,19 @@ class Clamp:
         # recurrent cognition directly, so a clamp on affect that left them free
         # would let affect reach the other side of the cut around the clamp.
         self.held.clear()
-        from core.subject.carrier_reads import WHOLE, _units, held_by_domain
+        from core.subject.carrier_reads import WHOLE, _units, held_by_domain, organs_of
 
         units = _units(getattr(self.holder, "kernel", None), getattr(self.holder, "organs", None))
+        # Each unit's own state, never another unit's reached through a field:
+        # her heartbeat keeps the qualia synthesizer and homeostasis, and the
+        # bonding phase keeps the service container, so a capture that walked
+        # through them restored other units on every apply: the heartbeat cost a cut
+        # 8.3 ms a phase and the bonding phase 11.0 (26 October). The reader skips them the same way.
+        from core.subject.snapshot import _built_services
+
+        others = {id(service) for service in _built_services().values() if service is not None}
+        others |= {id(phase) for phase in getattr(getattr(self.holder, "kernel", None), "_phases", []) or []}
+        others |= {id(organ) for organ in (organs_of(getattr(self.holder, "organs", None)) or {}).values()}
         for domain in self.domains:
             for entry in held_by_domain(domain):
                 organ = units.get(entry.unit)
@@ -392,7 +402,7 @@ class Clamp:
                     # A unit held whole: an object restored field by field, or a
                     # ledger restored in place, so its holders keep the same one.
                     if hasattr(organ, "__dict__"):
-                        self.held.append((organ, WHOLE, _organ_state(organ), True))
+                        self.held.append((organ, WHOLE, _organ_state(organ, skip=frozenset(others - {id(organ)})), True))
                     else:
                         self.held.append((organ, WHOLE, copy.deepcopy(organ), False))
                     continue
@@ -400,7 +410,9 @@ class Clamp:
                     continue
                 value = getattr(organ, entry.attribute)
                 if hasattr(value, "__dict__") and not callable(value):
-                    self.held.append((value, entry.attribute, _organ_state(value), True))
+                    self.held.append(
+                        (value, entry.attribute, _organ_state(value, skip=frozenset(others - {id(value)})), True)
+                    )
                 else:
                     self.held.append((organ, entry.attribute, copy.deepcopy(value), False))
 
