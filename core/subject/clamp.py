@@ -382,7 +382,7 @@ class Clamp:
         # recurrent cognition directly, so a clamp on affect that left them free
         # would let affect reach the other side of the cut around the clamp.
         self.held.clear()
-        from core.subject.carrier_reads import WHOLE, _units, held_by_domain, organs_of
+        from core.subject.carrier_reads import WHOLE, _module_held_ids, _units, held_by_domain, organs_of
 
         units = _units(getattr(self.holder, "kernel", None), getattr(self.holder, "organs", None))
         # Each unit's own state, never another unit's reached through a field:
@@ -395,6 +395,7 @@ class Clamp:
         others = {id(service) for service in _built_services().values() if service is not None}
         others |= {id(phase) for phase in getattr(getattr(self.holder, "kernel", None), "_phases", []) or []}
         others |= {id(organ) for organ in (organs_of(getattr(self.holder, "organs", None)) or {}).values()}
+        others |= _module_held_ids()
         for domain in self.domains:
             for entry in held_by_domain(domain):
                 organ = units.get(entry.unit)

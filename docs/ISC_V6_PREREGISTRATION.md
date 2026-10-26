@@ -524,3 +524,56 @@ also runs from the start of the reading, beside the trio, rather than after the 
 
 **Seed 61 is the confirmatory seed.** No run has read it. Unchanged: the margin (0.0196), the two-test rule, the
 observational gate, every v6 line and bar, and the reports run's design.
+
+## Addendum, 26 October 2026, morning: what her modules keep, a fork that carries all of it, and seed 71
+
+Written before seed 71 was read by any run.
+
+**Seed 61, stopped.** The decisive reading at `a6f18b7e3` ran its two-donor interventional test beside the carrier, and it
+read movers within a minute, so the carrier, campaign and content run were stopped at 02:34 with no line scored. Seed 61
+is discovery data from here.
+
+**A fork that left her module state behind.** Over 250 untouched rolls on seed 67 an untouched roll moved K by 0.0018:
+the substate bus, the cognitive event graph, the ontogeny core and its experience spine grew through every restore. The
+fork carried a module holding only if it had moved in the turns calibration watched, and these stood still then. From
+`6efce2d0e` it carries every module holding, 664 against 411, for 0.38 s a snapshot against 0.29.
+
+**What her modules keep.** The interventional test swapped services, phases and K's organs and never a module holding.
+From `6efce2d0e` it swaps each as a unit of its own, and on four seeds read for this and nothing else (31, 37, 43, 47)
+her learned ledgers moved K at many anchors of every seed: containment by up to 6.6, memory relived 7.7 and unbidden
+7.6, the ontogeny core 6.2, feelings about 3.7, delivery 2.8, the closing window 2.7, frisson 2.2. K* holds each unit
+that moved K or a K* reading there, under the domain it serves. A ledger is one value rather than an object with
+fields, so it is held whole (`408e378e0`): read whole, put back in place by a cut of its domain, and not swapped. The
+additions since the addendum of 25 October, late night:
+
+- P: `core.perception.salience:_ARRIVALS`, `core.sensors.sensor_registry:_instance`
+- I: `core.soma.carrying:_LEDGER`, `core.soma.fatigue:_LEDGER`, `core.soma.held_in:_LEDGER`, `core.soma.pulse:_LEDGER`,
+  `core.runtime.errors:_RECORDS`
+- A: ten affect ledgers (`a_moment_that_fits`, `acting_in_decline`, `ambivalence`, `anger_feeds_itself`, `confirmation`,
+  `containment`, `conviction`, `feelings_about`, `frisson`, `tangled`), the emotion engine, the conation engine, the
+  interiority service, its receptors and its cleft, `core.social.warmth`, `core.social.constancy`, `core.motivation.fuel`
+- G: `discourse_tracker._turn_count`, the multiple drafts engine, the conversational dynamics engine,
+  `core.perception.salience:_ATTENTION`
+- C: `stdp_engine._total_updates_since_symmetry_break`, the controlled chaos instances, the substrate gates, the
+  predictive hierarchy
+- S: `core.self.growth`, the bonding phase's usual gap, engaged span and exchanges seen
+- M: `core.memory.reliving` (returns and matches), `core.memory.unbidden`
+- W: `core.social.closing_window`
+- D: `core.agency.habits_are_hers`, `core.expression.delivery`
+- N: the ontogeny core's heads, control points, state, calibrations, moments, episodes, evidence at last fit, last
+  reading, track record and outcome sweeper
+
+The ontogeny core is held by these attributes and not whole: whole, it brought in its experience spine, the record each
+turn writes, read back only when maintenance trains, which an experiment stops, and every unit that changed what was
+written then moved K* while K never moved. The bonding phase is held by its relationship rhythm, since whole it reached
+the service container. A held unit is read, and held by a cut, for its own state only: every other service, phase, organ
+and module holding it keeps as a field is skipped (`a44be4ae4` and the commit that carries this addendum).
+
+**One-offs.** On every discovery seed of the third round one untouched roll now and then differed from its anchor's first
+by 0.0018 and never again. A swap's effect comes back when the pair is rolled again, and so does anything a restore
+left behind; a one-off does not. The test rolls any pair that differs a second time and counts only what comes back
+(`cfdc63de0`). Every one-off is reported under `one_offs`, and a reading with more one-offs than anchors is UNRESOLVED.
+The fifth round, on seeds 31, 53 and 59 with K* as above less the sweeper, had none.
+
+**Seed 71 is the confirmatory seed.** No run has read it. Unchanged: the margin (0.0196), the two-test rule, the
+observational gate, every v6 line and bar, and the reports run's design.

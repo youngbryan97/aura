@@ -160,6 +160,9 @@ HELD: tuple[Held, ...] = (
             "heads", "_control_points", "_state", "_calibration", "_candidate_calibration",
             "_operational_calibration", "moments", "_advance_moments", "_episode_buckets",
             "_episodes_seen", "evidence_at_last_fit", "_last_reading", "_track",
+            # Which episodes have had their outcomes resolved: swapped alone it
+            # moved the episode buckets at 4, 3 and 6 of 16 swaps on seeds 31, 53 and 59.
+            "_sweeper",
         )
     ),
     # The hierarchy that predicts her own next state.
@@ -212,6 +215,18 @@ def organs_of(organs: Any) -> dict[str, Any]:
 def held_attributes_of(unit: str) -> frozenset[str]:
     """The attributes of one unit that K* holds."""
     return frozenset(entry.attribute for entry in HELD if entry.unit == unit)
+
+
+def _module_held_ids() -> set[int]:
+    """Every object her modules keep, so a held unit is read for its own numbers only.
+
+    A module holding is a unit of its own (the interventional test swaps it),
+    so a held object that keeps one as a field, as the ontogeny core's sweeper
+    keeps its experience spine, must not bring it in.
+    """
+    from core.subject.snapshot import _module_holdings
+
+    return {id(value) for value in _module_holdings().values()}
 
 
 def held_whole(unit: str) -> bool:
@@ -269,6 +284,7 @@ def read_held(kernel: Any, units: Mapping[str, Any] | None = None, organs: Any =
     # The fork skips such references for the same reason (`_carried_by_name`).
     others = {id(service) for service in _built_services().values() if service is not None}
     others |= {id(phase) for phase in getattr(kernel, "_phases", []) or []}
+    others |= _module_held_ids()
     whole = organs_of(organs) if ORGANS_WHOLE else {}
     others |= {id(organ) for organ in whole.values()}
     for field_name, organ in whole.items():
