@@ -94,6 +94,16 @@ def _organ_state(organ: Any, depth: int = 0, skip: frozenset[int] = frozenset())
     for name, value in list(vars(organ).items()):
         if callable(value) or inspect.ismodule(value) or _is_process_furniture(value):
             continue
+        # A table of the organ's own methods is wiring, as a registry of
+        # callbacks is at module scope (`_is_held_state`). A deep copy of a bound
+        # method copies the object it is bound to, so a restore put back methods
+        # bound to a copy of the organ as it was at the snapshot. MEASURED 25
+        # October: after one restore, all six of affect grounding's conditions
+        # (boredom, curiosity, flow, anxiety, frustration, contentment) were
+        # bound to a frozen copy and read the anchor's buffer, not the live one,
+        # so no arm could move them.
+        if _is_a_table_of_methods(value):
+            continue
         # Already carried under its own name. A phase holds references to
         # services, and capturing them twice doubles the cost of every fork
         # and writes the same values through two paths.
@@ -1365,6 +1375,14 @@ _CONTAINERS: tuple[type, ...] = (dict, list, set, deque)
 
 def _in_packages(module_name: str, packages: tuple[str, ...]) -> bool:
     return any(module_name == name or module_name.startswith(name + ".") for name in packages)
+
+
+def _is_a_table_of_methods(value: Any) -> bool:
+    """A container whose members are functions or bound methods."""
+    if not isinstance(value, (*_CONTAINERS, tuple)):
+        return False
+    items = list(value.values()) if isinstance(value, dict) else list(value)
+    return bool(items) and any(isinstance(item, _CALLABLE_TYPES) for item in items)
 
 
 def _is_held_state(value: Any) -> bool:
