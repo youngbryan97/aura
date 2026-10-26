@@ -488,3 +488,13 @@ and the report names it; with fewer, nothing is pooled away and the gate cannot 
 inside, this left a real broker open in 30 of 30 and closed an idle drifting periphery in 27 of 30 (3 read open). A
 rule that chooses the addition jointly for every target, tried first, did worse (an idle periphery closed in 2 of 30
 stationary worlds) and is not used.
+
+**The outside enters through a screen.** One ridge penalty shared by thousands of outside columns drowns a single
+informative one. On seed 23 with her organs whole, the gate's reach, measured by bisecting a planted cause on the
+verdict's own folds, was 0.197 against a margin of 0.0196, so no closure claim was within its reach. In each nested
+fit the added block now enters through the columns whose added-variable score, on the training rows, exceeds the
+largest score of the same block circularly shifted. The surrogate floor and the planted cause pass through the same
+screen. Known answers: on worlds that develop from inside, a real broker opens in 30 of 30 and an idle drifting
+periphery closes in 23 of 30 (2 read open); on the stationary ring a slow broker opens in 28 of 30 and a noise
+periphery reads open in 2 of 30; every null with state outside its domains reads open; one broker among 300 noise
+columns opens. On seed 23, as discovery, the gate's reach became 0.010. Closure still needs both tests.

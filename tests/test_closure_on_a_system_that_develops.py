@@ -154,3 +154,29 @@ def test_with_one_valid_fold_left_a_failure_still_blocks_closure():
     report = _report_with_folds(folds)
     assert report.estimator_failed == (0, 1)
     assert report.verdict == "UNRESOLVED"
+
+
+def _broker_among(columns: int, seed: int = 2, rows: int = 1500, strength: float = 0.5):
+    rng = np.random.default_rng(seed)
+    hidden = np.zeros(rows)
+    k = np.zeros((rows, 4))
+    for t in range(rows - 1):
+        hidden[t + 1] = 0.5 * hidden[t] + rng.normal(0, 1)
+        k[t + 1] = 0.6 * k[t] + strength * hidden[t] * np.array([1.0, -0.5, 0.0, 0.3]) + rng.normal(0, 0.3, 4)
+    noise = rng.normal(size=(rows, columns))
+    return _recording(k, ("A.0", "A.1", "G.0", "G.1")), hidden, noise
+
+
+def test_one_cause_among_hundreds_of_idle_columns_is_found():
+    """A single broker among three hundred noise columns: the shared penalty used to drown it."""
+    recording, hidden, noise = _broker_among(300)
+    periphery = np.column_stack([noise, hidden])
+    report = closure_gain(recording, periphery, _names(periphery), seed=1, draws=8, margin=WORLD_MARGIN)
+    assert report.verdict == "OPEN"
+
+
+def test_hundreds_of_idle_columns_alone_leak_nothing():
+    recording, _hidden, noise = _broker_among(300, strength=0.0)
+    report = closure_gain(recording, noise, _names(noise), seed=1, draws=8, margin=WORLD_MARGIN)
+    assert report.verdict != "OPEN"
+    assert report.leak_upper is not None and report.leak_upper < WORLD_MARGIN

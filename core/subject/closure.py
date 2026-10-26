@@ -933,6 +933,60 @@ def _pooled_bounds(
     return float(np.quantile(values, alpha)), float(np.quantile(values, 1.0 - alpha))
 
 
+def _added_variable_scores(
+    own: np.ndarray, target: np.ndarray, block: np.ndarray, rows: slice, alpha: float
+) -> np.ndarray:
+    """Each added column's summed squared correlation with what `own` leaves unexplained in each target, on `rows`."""
+    from core.subject.estimate import _ridge, _standardise
+
+    x, _keep = _standardise(own[rows], own[rows])
+    y = target[rows]
+    spread = y.std(axis=0)
+    y = (y - y.mean(axis=0)) / np.where(spread > 1e-12, spread, 1.0)
+    residual = y - x @ _ridge(x, y, alpha)
+    residual = residual / np.where(residual.std(axis=0) > 1e-12, residual.std(axis=0), 1.0)
+    added = block[rows]
+    added = (added - added.mean(axis=0)) / np.where(added.std(axis=0) > 1e-12, added.std(axis=0), 1.0)
+    correlation = (added.T @ (residual - residual.mean(axis=0))) / max(1, added.shape[0])
+    return (correlation**2).sum(axis=1)
+
+
+def _fit_nested(
+    features: np.ndarray, targets: np.ndarray, *, train: slice, validate: slice, test: slice,
+    own_width: int | None = None,
+) -> Any:
+    """A nested fit whose added block enters through the columns that beat every time-shifted copy of themselves.
+
+    One ridge penalty shared by thousands of outside columns drowns a single
+    informative one: on seed 23 with her organs whole, a near-perfect copy of
+    a target among two thousand columns was found at a leak of 0.197 and missed
+    at 0.013, while the margin is 0.0196. Screened on the training rows only,
+    an added column enters when its added-variable score exceeds the largest
+    score of the same block circularly shifted, which keeps every column's
+    course in time and breaks its alignment with K. The surrogate floor and the
+    planted cause pass through the same screen, so false entries are matched
+    on both sides. On worlds that develop from inside a real broker stayed open
+    in 30 of 30; on seed 23 the gate then found a planted leak of 0.010.
+    """
+    if own_width is None or own_width >= features.shape[1]:
+        return fit_predict(features, targets, train=train, validate=validate, test=test, own_width=own_width)
+    own, added = features[:, :own_width], features[:, own_width:]
+    rows = slice(train.start, train.stop)
+    alpha = max(float(fit_predict(own, targets, train=train, validate=validate, test=validate).alpha), 1e-3)
+    real = _added_variable_scores(own, targets, added, rows, alpha)
+    count = train.stop - train.start
+    rng = np.random.default_rng(int(added.shape[1]) + int(train.stop))
+    shifted = added.copy()
+    shifted[rows] = np.roll(added[rows], int(rng.integers(max(1, count // 10), max(2, count - count // 10))), axis=0)
+    threshold = float(_added_variable_scores(own, targets, shifted, rows, alpha).max())
+    keep = np.flatnonzero(real > threshold)
+    if keep.size == 0:
+        return fit_predict(own, targets, train=train, validate=validate, test=test)
+    return fit_predict(
+        np.hstack([own, added[:, keep]]), targets, train=train, validate=validate, test=test, own_width=own_width,
+    )
+
+
 def _scored(
     now: np.ndarray,
     env: np.ndarray,
@@ -957,11 +1011,11 @@ def _scored(
     for index, (train, validate, test) in enumerate(folds):
         rng = np.random.default_rng(seed + index)
         narrow = fit_predict(own, nxt, train=train, validate=validate, test=test)
-        wide = fit_predict(
+        wide = _fit_nested(
             np.hstack([own, outside]), nxt, train=train, validate=validate, test=test, own_width=own.shape[1],
         )
         surrogates = [
-            fit_predict(
+            _fit_nested(
                 np.hstack([own, _surrogate(outside, rng)]), nxt,
                 train=train, validate=validate, test=test, own_width=own.shape[1],
             )
@@ -1303,7 +1357,7 @@ def closure_gain(
         candidates = _screened(own, change, outside, train, validate, limit=max(4 * rank, 40))
         for index in candidates:
             name = kept_names[index]
-            single = fit_predict(
+            single = _fit_nested(
                 np.hstack([own, outside[:, index : index + 1]]),
                 change,
                 train=train,
