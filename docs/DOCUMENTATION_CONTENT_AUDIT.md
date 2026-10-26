@@ -28,7 +28,7 @@ were included too.
 Every page entered the inventory and text/reference screening. Manual
 reconciliation concentrated on maintained claims and the source, result or
 procedure that could support them. The
-[per-file review record](evidence/DOCUMENTATION_SEMANTIC_REVIEW_2026-10-25.json)
+[per-file review record](evidence/DOCUMENTATION_SEMANTIC_REVIEW_FINAL_2026-10-25.json)
 records categories, content hashes, the checks actually applied and their
 limits. A keyword screen is not a manual proof of every sentence. An HTTP
 response is not validation of the paper behind it.
@@ -103,12 +103,14 @@ scientific assertion.
 
 ## Validation and remaining limits
 
-The [dated review record](evidence/DOCUMENTATION_SEMANTIC_REVIEW_2026-10-25.json)
+The [dated review record](evidence/DOCUMENTATION_SEMANTIC_REVIEW_FINAL_2026-10-25.json)
 contains final checks, per-file coverage and unresolved external URLs. It also
 records a combined test batch stopped at its time budget, followed by smaller
 checks. An interrupted run is not counted as passing. The
 [earlier validation record](evidence/DOCUMENTATION_CONTENT_AUDIT_2026-10-25.json)
-is preserved as the smaller audit it actually covered.
+is preserved as the smaller audit it actually covered. The
+[content snapshot before public URL checks](evidence/DOCUMENTATION_SEMANTIC_REVIEW_2026-10-25.json)
+is also retained unchanged; the final record completes its pending validation.
 
 This pass did not restart Aura, load a model or launch a new ISC/capability
 campaign. Tests used a separate log directory and bounded resources. Current

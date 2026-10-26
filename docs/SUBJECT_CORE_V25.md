@@ -50,6 +50,11 @@ Read [the plain-English explanation](ISC_EXPLAINED.md),
 [current results](ISC_STATUS.md) before the instrument details below.
 **v25 names this programme; ISC-v6 names the battery's current rules.**
 
+The earlier exclusion wording in the preserved specification below needs a
+qualification: crossing spectra can leave several non-dominated candidates;
+a symmetry class needs symmetry evidence. Read the
+[current bridge arguments](BRIDGE_PROOFS.md) for the corrected assumptions.
+
 ## The split-system design and its later closure amendment
 
 The `--v5` split-system sweep uses the design declared in
@@ -58,7 +63,7 @@ The `--v5` split-system sweep uses the design declared in
 
 | Item | Current design |
 |---|---|
-| State | Ten measured domains, with schema pinned to the campaign |
+| State | Ten-domain K; the current closure test also includes declared K* held-state readings. Schema and membership belong to the named campaign |
 | Partition | 511 unique bipartitions; clamped trajectories composed from their free halves |
 | Decision metric | Each anchor's paired displacement, whitened by untouched-future variation |
 | Deciding horizon | Two turns, 66 experiment-clock frames; one turn reported beside it |
@@ -372,8 +377,7 @@ the distance, for Čencov's uniqueness rather than for taste. The cut built by
 clamping each side and composing the free halves, which this repository already
 had and the review was right to reuse. All 511 bipartitions with sequential
 allocation rather than a shorter list. Exclusion as a Pareto frontier that
-can return multiple non-dominated candidates when spectra cross. A symmetry
-class additionally needs symmetry evidence; crossing alone does not establish it. The representation-invariance
+returns a symmetry class when spectra cross. The representation-invariance
 check, the playback null, the two campaigns, the discovery/freeze/confirmation
 split, the authority gates, and the refusal to print the word the measurement
 does not establish.
