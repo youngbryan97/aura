@@ -2005,6 +2005,13 @@ class Snapshot:
     #: tagged, and a restore hands each back this far before its own now
     #: (core/subject/monotonic_instants.py).
     monotonic_at: float | None = None
+    #: What the clock's stall valve had added to her monotonic when the snapshot
+    #: was taken; a restore puts it back with the clock (core/subject/clock.py).
+    clock_slack: float | None = None
+    #: Her monotonic's offset from the experiment's time. A worker process
+    #: restoring a bank its coordinator wrote takes the coordinator's, so a
+    #: reading keeps its age across processes (core/subject/clock.py).
+    clock_offset: float | None = None
     #: Wall clock when the snapshot was taken. Restoring rewinds the state but
     #: not the clock, so the second arm of a trial always sees more elapsed
     #: time than the first — the motivation phase decays every drive by

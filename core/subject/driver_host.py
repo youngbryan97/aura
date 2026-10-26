@@ -23,10 +23,22 @@ from typing import Any
 class _HeldHost:
     """Lifted whole out of SubjectRuntime; see driver.py."""
 
-    def freeze_host(self) -> dict[str, float]:
-        """Take the body's current reading and hold it for every arm to come."""
-        hardware = dict(getattr(self.state.soma, "hardware", {}) or {})
-        latency = dict(getattr(self.state.soma, "latency", {}) or {})
+    def freeze_host(self, declared: Any = None) -> dict[str, float]:
+        """Take the body's current reading and hold it for every arm to come.
+
+        `declared` is another process's held reading, `{"hardware", "latency"}`:
+        a carrier worker holds its coordinator's, so every arm of the run is one
+        body. Holding its own, each worker held the machine as it found it, and
+        a worker's two turns from a coordinator's anchor stood 2.14 apart from
+        the coordinator's, first in the body's cpu, vram and temperature
+        (26 October).
+        """
+        if isinstance(declared, dict) and declared.get("hardware") is not None:
+            hardware = dict(declared.get("hardware") or {})
+            latency = dict(declared.get("latency") or {})
+        else:
+            hardware = dict(getattr(self.state.soma, "hardware", {}) or {})
+            latency = dict(getattr(self.state.soma, "latency", {}) or {})
         self.frozen_host = {
             key: float(hardware.get(key, 0.0) or 0.0)
             for key in ("cpu_usage", "vram_usage", "ram_usage", "temperature")

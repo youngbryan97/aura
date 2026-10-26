@@ -701,7 +701,7 @@ async def _spectrum(
     return spectrum, detail
 
 
-def _hold_the_machine_still(runtime: Any) -> dict[str, float] | None:
+def _hold_the_machine_still(runtime: Any, declared: Any = None) -> dict[str, float] | None:
     """Declare one host reading for every arm, as the probe already does.
 
     Everything after the anchors forks paired arms, and the argument for
@@ -724,7 +724,7 @@ def _hold_the_machine_still(runtime: Any) -> dict[str, float] | None:
     if not callable(hold):
         return None
     try:
-        declared = hold()
+        declared = hold(declared) if declared is not None else hold()
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
         from core.runtime.errors import record_degradation
 
@@ -1443,7 +1443,9 @@ async def main() -> int:
         anchors: list[Any] = []
         if shared_bank is not None:
             evidence["stopped_loops"] = stopped_at_boot + await quiesce_organism(runtime)
-            evidence["declared_host"] = _hold_the_machine_still(runtime)
+            # The coordinator's held body, not this worker's machine: one body
+            # for every arm of the run (core/subject/driver_host.py).
+            evidence["declared_host"] = _hold_the_machine_still(runtime, shared_bank.get("declared_host"))
             anchors = list(shared_bank["anchors"])
         elif "nulls" not in done_v25:
             # Everything from here forks paired arms off these anchors, so the
@@ -1474,7 +1476,9 @@ async def main() -> int:
                 written = await asyncio.to_thread(
                     _write_anchor_bank, Path(args.from_shards) / ANCHOR_BANK,
                     {"anchors": anchors, "doses": dict(doses), "scale": scale, "live_mask": live_mask,
-                     "baseline_mean": baseline_mean},
+                     "baseline_mean": baseline_mean,
+                     "declared_host": {"hardware": dict(getattr(runtime, "frozen_host", None) or {}),
+                                       "latency": dict(getattr(runtime, "frozen_latency", None) or {})}},
                 )
                 _log(f"  wrote the anchors for the shards, {written} bytes")
                 # And forks from them as the shards do, an anchor decoded when

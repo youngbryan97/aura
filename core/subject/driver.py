@@ -569,6 +569,8 @@ class SubjectRuntime(_HeldHost):
             taken_at=time.time(),
             clock_at=None if self.clock is None else self.clock.now(),
             monotonic_at=monotonic_at,
+            clock_slack=None if self.clock is None else self.clock.slack,
+            clock_offset=None if self.clock is None else self.clock.offset,
             frame_index=self.frame_index,
             spoken=self.spoken,
             global_random=random.getstate(),
@@ -579,7 +581,11 @@ class SubjectRuntime(_HeldHost):
             intentions=_intentions_state(self._intentions),
             layers=_layer_state(self.organism, carried),
         )
-        tag_snapshot(taken, monotonic_at)
+        # Her monotonic readings are on the experiment clock when one is
+        # installed, and rewind with it; re-aging them as real readings would
+        # move them twice. Only a run without the clock re-ages.
+        if self.clock is None:
+            tag_snapshot(taken, monotonic_at)
         return taken
 
     def _module_keys(self) -> set[str] | None:
@@ -599,7 +605,7 @@ class SubjectRuntime(_HeldHost):
         # the age it had then, however long the snapshot sat. Seed 71's
         # untouched anchors, restored an hour into the process, read an hour
         # of idle that nobody lived (26 October).
-        with rebased(getattr(snapshot, "monotonic_at", None)):
+        with rebased(getattr(snapshot, "monotonic_at", None) if self.clock is None else None):
             self._restore(snapshot)
 
     def _restore(self, snapshot: Snapshot) -> None:
@@ -647,7 +653,11 @@ class SubjectRuntime(_HeldHost):
             # is zero. The shift stays because a run without the clock still
             # has to rewind, and because it covers what the clock cannot: a
             # module that bound `time.time` before the install.
-            self.clock.set(snapshot.clock_at)
+            self.clock.set(
+                snapshot.clock_at,
+                slack=getattr(snapshot, "clock_slack", None),
+                offset=getattr(snapshot, "clock_offset", None),
+            )
         if snapshot.taken_at:
             _reanchor(self, time.time() - snapshot.taken_at)
 
@@ -863,7 +873,13 @@ class SubjectRuntime(_HeldHost):
 
         async def capture(tag: str) -> None:
             if self.clock is not None:
+                opened = self.clock.valve_openings
                 self.clock.advance()
+                if opened:
+                    # A frame of hers ran past the phase budget and her monotonic
+                    # followed the real clock: this arm left the run's one
+                    # timeline, and the report has to say so.
+                    self.failures["clock.valve"] = opened
             # The free-running layers, advanced by the harness's own count
             # rather than by the machine's schedule. Both arms of a trial run
             # them the same number of times, which is the only way a layer that
@@ -1814,6 +1830,20 @@ def release_declared_host(runtime: Any) -> None:
     release_the_entropy(runtime)
 
 
+def _longest_phase_budget(runtime: SubjectRuntime) -> float:
+    """The longest a phase may run before the harness abandons it."""
+    budget = PHASE_TIMEOUT
+    if getattr(runtime, "whole", False):
+        kernel = getattr(runtime, "kernel", None)
+        for phase in getattr(kernel, "_phases", []) or []:
+            for priority in (False, True):
+                try:
+                    budget = max(budget, float(kernel._phase_timeout_seconds(type(phase).__name__, priority=priority)))
+                except (AttributeError, TypeError, ValueError):
+                    continue
+    return budget
+
+
 async def calibrate_clock(
     runtime: SubjectRuntime, conditions: Sequence[Condition], *, turns: int = 3
 ) -> dict[str, float]:
@@ -1836,6 +1866,9 @@ async def calibrate_clock(
     step = SECONDS_PER_TURN / per_turn
     clock = ExperimentClock(step)
     clock.install()
+    # Her monotonic follows the machine's only past the point where the harness
+    # would abandon a phase anyway (core/subject/clock.py).
+    clock.stall_after = _longest_phase_budget(runtime)
     runtime.clock = clock
     # And a host of its own, for the same reason and in the same place: every
     # reader of the machine's load, in any thread and between turns, reads the

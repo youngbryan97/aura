@@ -119,11 +119,15 @@ def rebased(taken_at: float | None) -> Iterator[None]:
         _SHIFT = previous
 
 
-def tag_instants(value: Any, low: float, high: float, seen: set[int], depth: int = 0) -> Any:
+def tag_instants(
+    value: Any, low: float, high: float, seen: set[int], depth: int = 0, furniture: Any = None
+) -> Any:
     """`value` with each float in (low, high] tagged; containers are changed in place.
 
     Returns the value to keep in the parent: a tagged float, a rebuilt tuple,
-    or `value` itself.
+    or `value` itself. An object `furniture` names is left alone: a handle's
+    deep copy is the live handle (core/runtime/descriptor_owner.py), so one
+    inside a copied value is not the snapshot's to change.
     """
     kind = type(value)
     if kind is float:
@@ -136,24 +140,24 @@ def tag_instants(value: Any, low: float, high: float, seen: set[int], depth: int
     deeper = depth + 1
     if isinstance(value, dict):
         for key, item in list(value.items()):
-            new = tag_instants(item, low, high, seen, deeper)
+            new = tag_instants(item, low, high, seen, deeper, furniture)
             if new is not item:
                 value[key] = new
         return value
     if isinstance(value, list):
         for index, item in enumerate(value):
-            new = tag_instants(item, low, high, seen, deeper)
+            new = tag_instants(item, low, high, seen, deeper, furniture)
             if new is not item:
                 value[index] = new
         return value
     if isinstance(value, deque):
-        items = [tag_instants(item, low, high, seen, deeper) for item in value]
+        items = [tag_instants(item, low, high, seen, deeper, furniture) for item in value]
         if any(new is not old for new, old in zip(items, value, strict=True)):
             value.clear()
             value.extend(items)
         return value
     if isinstance(value, tuple):
-        items = [tag_instants(item, low, high, seen, deeper) for item in value]
+        items = [tag_instants(item, low, high, seen, deeper, furniture) for item in value]
         if all(new is old for new, old in zip(items, value, strict=True)):
             return value
         if kind is tuple:
@@ -162,10 +166,12 @@ def tag_instants(value: Any, low: float, high: float, seen: set[int], depth: int
         return make(items) if callable(make) else value
     if isinstance(value, (types.ModuleType, types.FunctionType, types.MethodType, type)):
         return value
+    if furniture is not None and furniture(value):
+        return value
     fields = getattr(value, "__dict__", None)
     if isinstance(fields, dict):
         for name, item in list(fields.items()):
-            new = tag_instants(item, low, high, seen, deeper)
+            new = tag_instants(item, low, high, seen, deeper, furniture)
             if new is not item:
                 fields[name] = new
     return value
@@ -179,22 +185,28 @@ def tag_snapshot(snapshot: Any, taken_at: float) -> None:
     restored by their own methods, which take what they are given rather than
     copying it, and their numbers are not instants.
     """
+    from core.subject.copies import _is_process_furniture
+
     low, high = PROCESS_START, float(taken_at) + HORIZON_S
     seen: set[int] = set()
+
+    def tag(value: Any) -> Any:
+        return tag_instants(value, low, high, seen, furniture=_is_process_furniture)
+
     for part in ("organs", "services", "phases", "singletons", "layers"):
         held = getattr(snapshot, part, None)
         if isinstance(held, dict):
-            tag_instants(held, low, high, seen)
+            tag(held)
     state = getattr(snapshot, "state", None)
     if state is not None:
-        tag_instants(state, low, high, seen)
+        tag(state)
     for key, pair in list((getattr(snapshot, "module_state", None) or {}).items()):
         if isinstance(pair, tuple) and len(pair) == 2:
-            copied = tag_instants(pair[1], low, high, seen)
+            copied = tag(pair[1])
             if copied is not pair[1]:
                 snapshot.module_state[key] = (pair[0], copied)
     intentions = getattr(snapshot, "intentions", None)
     if isinstance(intentions, dict):
         for part in ("active", "completed"):
             if intentions.get(part) is not None:
-                intentions[part] = tag_instants(intentions[part], low, high, seen)
+                intentions[part] = tag(intentions[part])

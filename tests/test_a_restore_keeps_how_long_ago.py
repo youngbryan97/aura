@@ -176,3 +176,18 @@ def test_the_event_graph_travels_to_another_process() -> None:
     graph = loads(dumps(EventGraph()))
     assert not isinstance(graph._clock, LiveFunction)
     assert isinstance(graph._clock(), float)
+
+
+def test_a_handle_inside_a_copy_is_left_alone() -> None:
+    from core.runtime.descriptor_owner import OwnsDescriptors
+
+    class Handle(OwnsDescriptors):
+        __slots__ = ("opened_at", "__dict__")
+
+    handle = Handle()
+    handle.opened_at = time.monotonic()
+    handle.last_used = time.monotonic()
+    snapshot = SimpleNamespace(services={"store": {"handle": copy.deepcopy(handle)}})
+    assert snapshot.services["store"]["handle"] is handle
+    tag_snapshot(snapshot, time.monotonic())
+    assert type(handle.last_used) is float

@@ -618,3 +618,39 @@ each); every other shard of that round read CLOSED, with no residue and no one-o
 
 **Seed 73 is the confirmatory seed.** No run has read it. Unchanged: the margin (0.0196), the two-test rule, the
 observational gate, every v6 line and bar, and the reports run's design.
+
+## Addendum, 26 October 2026, morning: her monotonic is on the experiment's clock, and seed 73 waits for it
+
+Written before any run has read seed 73.
+
+**Re-aging is replaced before it was used.** The previous addendum handed each copied `time.monotonic` reading back
+at the age it had when the snapshot was taken. That cleared the hour-long residue, and it made short time-to-lives
+depend on how fast the machine ran a turn: restored stamps were now seconds old, so a cache or window near its edge
+fell on one side or the other by the machine's pace. Two untouched passes of seed 71 seconds apart then parted anchor
+3 by 0.476 on one hash seed, with no warp at all.
+
+From the commit that carries this addendum her modules read the experiment clock's monotonic, through their own
+`time` name, under any name they bound the real function to, and in every closure and instance attribute of theirs
+that captured it before the install (a dataclass's `default_factory` is a closure). Her monotonic is the experiment's
+time plus an offset; it advances one step a frame and rewinds with a restore, and the offset and anything the stall
+valve added travel with a snapshot, so a carrier worker restoring its coordinator's anchor reads each of her stamps at
+the age it had. asyncio, threading and the machinery packages keep the real clock, so every timeout still fires.
+
+A frame that runs longer than the harness gives a phase before abandoning it (12 s, or the kernel's longest phase
+budget in a whole run) is one where something of hers would wait on a deadline a frozen clock never reaches; from then
+on her monotonic follows the real clock, the frame is counted, and the run records it as a failure (`clock.valve`).
+Re-aging stays only for a run without the experiment clock.
+
+**Measured before any confirmatory read.** On seed 71, four hash seeds (6 to 9), eight anchors, untouched rolls
+before and after moving the real monotonic forward by 0, 600, 1800, 3600 and 7200 s: every difference is 0. Before
+re-aging, every hash seed parted anchors 2, 3 and 5 at 3600 s; under re-aging, anchor 3 parted with no warp. After
+the install, a census of a live organism finds no reference to the real monotonic left in her code; the last was the
+neural mesh's `_clock`. Five turns opened the valve in no frame.
+
+**One body for the carrier.** A carrier worker held the machine as it found it, so a worker's two turns from its
+coordinator's anchor stood 2.14 apart from the coordinator's, first in the body's cpu, vram and temperature. The bank
+now carries the coordinator's held body and a worker holds that. What remains between two processes, 0.298 from the
+percept profile on, is state a fresh worker lacks and never varies within one process; every comparison the criteria
+make is within one process, and the untouched controls, twins and warps above read 0.
+
+**Seed 73 is still the confirmatory seed.** No run has read it.
