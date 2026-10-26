@@ -17,7 +17,9 @@ and snapshot-bound methods (`517c4807c`). Retain the scores as recorded;
 paired results need rechecking under repaired isolation. The least-domain
 closure margin was withdrawn at `72dd0d703`. The later `96487c6f1` addendum
 now declares K*, a numeric margin about 0.0196 and a separate interventional
-closure requirement; it supplies no replacement campaign verdict.
+closure requirement. The later `5bc357b8c` account reports 284 unchanged
+discovery swaps and repairs service-reference ownership. Fresh held-out
+confirmation remains required; neither commit supplies a replacement battery verdict.
 [Current ISC status](ISC_STATUS.md) links the source-hashed updates and
 separates method repair from a replacement campaign.
 

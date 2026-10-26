@@ -35,6 +35,7 @@ GENERATED = {
     "docs/AURA_PROGRESS.md", "docs/ISC_COMPLETION_TODO.md", "proof_kernel/report.md", *OUTPUTS,
     "docs/AURA_REMAINING_DOCKET.md", "SERVICE_OWNERSHIP.md",
     "docs/AURA_INHERITED_RECONCILIATION.md",
+    "artifacts/architecture/latest.md",
 }
 LIVING_STATUS = {
     "docs/AURA_1_0_MASTER_TODO.md", "docs/AURA_EXECUTION_TRACKER.md",

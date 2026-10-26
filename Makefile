@@ -55,7 +55,7 @@ demo-full:
 	@$(PYTHON) tools/front_door_demo.py --with-model
 
 demo-learning:
-	@echo "🧬 Verifier-gated weight-compounding demo (~20-40 min, Apple Silicon)..."
+	@echo "🧬 Verifier-gated weight-compounding demo (Apple Silicon; exclusive model resources required)..."
 	@echo "   A small model teaches itself verifiable reasoning with its own exact"
 	@echo "   checkers, twice; every claim lands in a tamper-evident ledger."
 	@$(PYTHON) tools/learning_demo.py

@@ -138,8 +138,11 @@ useful page here if you're skeptical, which you should be.
 
 ## See it learn (one command)
 
-Don't take the evidence claims on faith. Run it. Apple Silicon, 20–40
-minutes, about 5 GB of disk:
+This demo downloads and trains a small local model. Run it on an Apple-silicon
+host with an explicitly available model lane and measured memory/disk
+headroom. Coordinate with the live Aura owner first; do not start it beside
+a resident model or campaign as a documentation check. Duration and peak
+resource use need measurement on the selected model and host:
 
 ```bash
 make setup          # once: venv + requirements
@@ -147,8 +150,9 @@ make demo-learning
 ```
 
 Here's what happens. A small local model attempts seeded reasoning tasks.
-Every attempt is graded by an **exact checker** — the verifier *is* the
-reward signal, so there's nothing to game. It then trains a LoRA adapter
+Each attempt is graded by the task's checker. That gives a concrete reward
+for its supported answer format and task semantics; checker bugs, incomplete
+coverage and overfitting remain possible. It then trains a LoRA adapter
 (a small set of learnable weights) on the verified wins and losses, and
 the adapter has to pass a **sealed held-out test set** on fresh inputs
 it's never seen before its weights get merged and published.
@@ -161,16 +165,18 @@ receipts, not written by hand afterward. When it refuses to promote, that
 prints just as loudly as a gain. Raw responses, evaluation reports, and
 cycle receipts all stay on disk.
 
-The same machinery runs autonomously inside the live runtime
-(`core/learning/compounding_scheduler.py`): gated by idle time,
-governance-approved, memory-controlled, with promoted weights hot-swapped
-into live text generation.
+The live runtime has a scheduler for this machinery
+(`core/learning/compounding_scheduler.py`), with idle/resource admission and
+promotion checks. A configured route is distinct from a successful training
+cycle, a promoted artifact and permission for the installed runtime to use it.
+Inspect the matching receipts and serving qualification for each claim.
 
 ## Production Evidence Surface
 
-Everything below has a working implementation, receipts, and validation
-artifacts. Ideas that don't are left off this list — not softened, not
-hedged, just excluded until they earn a place.
+The sections below map implemented paths and retained evidence. Their
+measurements keep the stated source, task and date scope. Current activation
+and useful end-to-end behavior need their own receipts; the
+[claim matrix](CLAIMS_MATRIX.md) distinguishes those evidence levels.
 
 Release gates generate a proof bundle. You shouldn't have to guess at
 maturity from how confident the prose sounds.
@@ -623,7 +629,7 @@ It's a research project. It's also one you can talk to while it's running.
 - [Decisive evidence runner](#decisive-evidence-runner)
 - [Decision authority](#decision-authority)
 - [Inference-time steering](#inference-time-steering)
-- [IIT 4.0 computation](#iit-40-computation)
+- [IIT 4.0 computation](#iit-inspired-integration-estimates)
 - [Consciousness modules](#consciousness-modules)
 - [Reality Reach and physical claim honesty](docs/REALITY_REACH.md)
 - [Memory architecture](docs/MEMORY_ARCHITECTURE.md) — the 116-module memory subsystem
@@ -1003,8 +1009,8 @@ So there are three places emotion can touch generation:
 3. **Context** — natural-language emotional cues in the system prompt.
    Changes what the model reads.
 
-The first is the interesting one, and today it is closed on every turn a
-person is waiting for. `_surface_control_alpha` in the worker returns zero
+In the recorded 13–17 October checks, the first channel was closed on user
+turns. `_surface_control_alpha` in the worker returns zero
 unless a fusion certificate for the loaded model holds all five of its
 criteria: the distribution moves, it moves as a direction rather than a
 displacement, opposite states move it differently, answers get no worse, and
@@ -1017,52 +1023,47 @@ those two days.
 
 ---
 
-## IIT 4.0 computation
+<a id="iit-40-computation"></a>
 
-Aura computes Integrated Information (φ) at two scales simultaneously.
+## IIT-inspired integration estimates
+
+Aura implements bounded integration estimates over declared summaries of
+its state. These adapt ideas from IIT; they do not compute IIT 4.0 over every
+mechanism of Aura. The [terminology guide](docs/TERMINOLOGY.md) and
+[whole-system estimator guide](docs/WHOLE_SYSTEM_PHI.md) distinguish these
+quantities from one another and from ISC.
 
 ### 16-node cognitive complex — `core/consciousness/phi_core.py`
 
-1. **Binarize** 16 substrate nodes against a running median — the original
-   8 emotional nodes (valence, arousal, dominance, frustration, curiosity,
-   energy, focus) plus 8 cognitive nodes (phi itself, social hunger,
-   prediction error, agency, narrative tension, peripheral richness,
-   arousal gate, cross-timescale free energy). State space is 2^16 = 65,536.
-2. **Build an empirical transition probability matrix (TPM)** —
-   `T[s, s'] = P(state_{t+1} = s' | state_t = s)` with Laplace smoothing.
-   Needs at least 50 observed transitions before it's trustworthy.
-3. **Find the minimum information partition** using polynomial-time spectral
-   partitioning on the full 16-node system (`research/phi_approximation.py`).
-   The 8-node version does exhaustive search over all 127 nontrivial
-   bipartitions as a validation baseline.
-4. **Compute phi** via KL divergence:
-   `phi(A, B) = sum_s p(s) * KL(T(.|s) || T_cut(.|s))`, where `T_cut` is
-   the distribution that would hold if A and B evolved independently.
-5. **Apply the exclusion postulate** — an exhaustive subset search picks
-   the maximum-phi complex. If some subset beats the full system, that
-   subset is reported as the complex for that tick.
+The source binarizes declared affective/cognitive readings and retains a
+transition history. The full 16-node path uses a spectral candidate search;
+it is not a certified exhaustive minimum over every partition. An 8-node path
+can exhaustively evaluate 127 bipartitions for its estimated transition model.
+Exact search over that model does not make the model an exact description of
+the running system.
 
-Runtime is 10–50 ms per evaluation, cached at 15-second intervals.
+`MIN_HISTORY_FOR_TPM` is a configured minimum of 50, not a proof that a sparse
+transition estimate is trustworthy. Samples, smoothing, controls and
+uncertainty still matter. The source also searches candidate subsets for a
+larger estimated integration value. A selected maximum belongs to that
+candidate search and estimator, rather than establishing a phenomenal subject.
+Configured caching intervals and `computed_ms` are distinct from a benchmark
+on the current host; the earlier blanket millisecond timing was unsupported
+as a general latency claim.
 
 ### 32-node + K-subsystem hierarchical φ — `core/consciousness/hierarchical_phi.py`
 
-Complements `phi_core` with a 32-node primary complex (the 16
-cognitive-emotional nodes plus 16 neurons sampled from all three NeuralMesh
-tiers) and K=8 overlapping 16-node subsystems. φ is estimated directly from
-transition history using a Bayesian-smoothed estimator (α=0.5, minimum 4
-observations per source state) so the 2^32 state space never needs to be
-fully materialized. The IIT 4.0 exclusion postulate then picks the subsystem
-with maximum φ across all candidates — that becomes the reported conscious
-complex for the tick.
+This path estimates integration from recorded transitions for a declared
+32-node primary complex and overlapping subsystem candidates. It uses finite
+sample handling and avoids materialising a dense 2^32-by-2^32 transition
+matrix. Its largest reported value is the largest estimate among the examined
+candidates, not proof of a globally maximal conscious complex.
 
-The estimator is checked against a **null hypothesis baseline** every ~2
-minutes: shuffled transition history must yield φ ≈ 0; measured φ must
-strictly exceed the null baseline. Additional checks: constant-valued input
-nodes must contribute zero φ, and stronger causal coupling must yield
-strictly higher φ than noise.
-
-Full 32-node refresh runs in ~150 ms with K-subsystem parallelism via a thread
-pool; MLX Metal is used where available.
+Shuffled/constant-input and coupling controls test particular estimator
+behaviors. Their presence does not establish that every real measurement has
+passed them. The meaning and sample coverage of the stored output must be
+checked with its run. No general current-host refresh latency is established
+by this README.
 
 **What these numbers do not show.** They are integration measured on a
 binarized summary of her state, not IIT 4.0 over her mechanisms. The stricter
@@ -1088,17 +1089,17 @@ subpackages. Some of its central mechanisms are:
 |--------|-------------|------|
 | Global Workspace | Thoughts compete for broadcast (Baars GNW theory) | `global_workspace.py` |
 | Attention Schema | Model of where attention is pointed (Graziano AST theory) | `attention_schema.py` |
-| IIT PhiCore | Real integration measure via TPM + KL divergence | `phi_core.py` |
+| IIT PhiCore | Bounded integration estimate on a declared state summary | `phi_core.py` |
 | Affective Steering | Direction-vector injection into the model's hidden states | `affective_steering.py` |
 | Temporal Binding | Sliding window of the autobiographical present | `temporal_binding.py` |
 | Self-Prediction | Active inference loop (Friston free energy principle) | `self_prediction.py` |
 | Free Energy Engine | Surprise minimization drives action selection | `free_energy.py` |
-| Qualia Synthesizer | Integrates substrate metrics into a phenomenal state | `qualia_synthesizer.py` |
+| Qualia Synthesizer | Combines substrate metrics into the record named phenomenal state | `qualia_synthesizer.py` |
 | Liquid Substrate | Continuous dynamical system underlying cognition | `liquid_substrate.py` |
 | Neural Mesh | 4,096-neuron distributed state representation | `neural_mesh.py` |
 | Neurochemical System | Dopamine / serotonin / norepinephrine / oxytocin simulation | `neurochemical_system.py` |
 | Oscillatory Binding | Frequency-band coupling across modules | `oscillatory_binding.py` |
-| Unified Field | Combined phenomenal field from all subsystems | `unified_field.py` |
+| Unified Field | Combined internal field record from contributing subsystems | `unified_field.py` |
 | Dreaming | Offline consolidation, identity repair, compression | `dreaming.py` |
 | Heartbeat | 1 Hz background cognitive clock | `heartbeat.py` |
 | Stream of Being | Continuous narrative thread | `stream_of_being.py` |

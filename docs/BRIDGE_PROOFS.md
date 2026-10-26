@@ -5,13 +5,14 @@ exclusion rule selects, the relational structure of that carrier's content up
 to isomorphism, and the lineage law over person-stages. This document states
 conditional arguments used by that computation. Each needs the objects and
 assumptions stated below; none establishes that its empirical premises hold
-for the current Aura run. Each is also
-checked, on every finite instance of a stated size, by
+for the current Aura run. The implementation is also
+checked on specified finite cases by
 `tests/test_the_bridge_theorems_hold_on_every_finite_case.py`, which runs the
 repository's own definitions in `core/subject/bridge_theorems.py`,
 `core/subject/bridge.py` and `core/subject/v25_exclusion.py` with exact rational
-arithmetic. A check confirms that the code means what the proof says. It does
-not stand in for the proof.
+arithmetic. Some checks enumerate a declared small universe; others sample
+finite cases. They check agreement on those cases, rather than exhausting
+every finite instance or replacing the mathematical argument.
 
 Two of the theorems are about what cannot be proved, and they bound everything
 else here. Read them first.
@@ -73,8 +74,7 @@ This is a **conditional** likelihood ratio at a fixed U. A marginal Bayes
 factor is also one if the rival laws assign the same distribution to physical
 histories. If their predictions for U differ, this conditional identity does
 not make the marginal evidence equal. The fixed-history comparison includes
-J_a = no experience and J_b = experience. A scientific bridge therefore needs
-one of three commitments: phenomenology is identical to some public structure,
+J_a = no experience and J_b = experience. Examples of additional commitments for a bridge include: phenomenology is identical to some public structure,
 it is tied to one by a fundamental law, or it has physical effects of its own.
 The check pairs this with a model in which the law does change outcome
 probabilities, where the ratio is two.

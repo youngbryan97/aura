@@ -184,3 +184,9 @@ proof of matching provenance or adequate intervention coverage; inspect the
 report's manifest, anchors, unchanged twins and tested units. Keep missing,
 open and closed results distinct. A new source rule does not rescore the
 older committed outputs automatically.
+
+At `5bc357b8c`, the upstream discovery account reports 284 unchanged swaps on
+the seed-23 anchors used to develop K*. It also fixes service references and
+republish-before-relink ordering during restore. Verify object ownership as
+well as matching numbers. A new seed supplies the held-out check; do not use
+the discovery account as that confirmation. See [the scoped status](ISC_STATUS.md#later-discovery-check-and-another-restore-repair).

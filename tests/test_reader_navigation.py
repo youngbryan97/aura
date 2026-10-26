@@ -58,3 +58,4 @@ def test_current_obligations_are_not_labelled_a_frozen_record():
 
 def test_the_requirement_docket_is_regenerated_rather_than_hand_edited():
     assert category('docs/AURA_REMAINING_DOCKET.md') == 'Generated reference'
+    assert category('artifacts/architecture/latest.md') == 'Generated reference'

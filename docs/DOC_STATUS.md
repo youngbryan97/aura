@@ -361,7 +361,9 @@ The [evening withdrawal](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json)
 records that the rule was subsequently withdrawn, with no margin in force
 at that point. The [night method update](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
 records the later K* boundary, numeric margin and two-test closure criterion
-at `96487c6f1`. It supplies no fresh passing campaign result.
+at `96487c6f1`. It supplies no fresh passing campaign result. The later
+`5bc357b8c` source account reports 284 unchanged K* discovery swaps and
+repairs service-reference ownership; fresh held-out confirmation is still open.
 
 The [dated link audit](evidence/DOCUMENTATION_LINK_AUDIT_2026-10-25.json)
 checked 979 Markdown pages: ordinary relative file and heading targets

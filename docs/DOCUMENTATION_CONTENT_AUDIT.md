@@ -1,6 +1,6 @@
 # Documentation content audit
 
-Status: Guide · Full-tree review dated 25 October 2026 · Source reconciled through 96487c6f1
+Status: Guide · Full-tree review dated 25 October 2026 · Source reconciled through 5bc357b8c
 
 The earlier link audit missed real content contradictions. G09 had passed its
 registered broad-gain criterion while the README still denied broad gain.
@@ -18,8 +18,8 @@ before its result changes.
 
 The [complete document map](DOCUMENTATION_INDEX.md) inventories **983 Markdown
 pages** in Aura: 162 guides/references, 42 standards/policies/contributor
-references, four living status or append-only ledgers, 13 generated references
-and 762 historical or frozen records. The nine Markdown pages in the standalone
+references, four living status or append-only ledgers, 14 generated references
+and 761 historical or frozen records. The nine Markdown pages in the standalone
 [proof-kernel repository](https://github.com/youngbryan97/aura-consciousness-proof-kernel)
 and the landing README in
 [Aura-Cognitive-Engine](https://github.com/youngbryan97/Aura-Cognitive-Engine)
@@ -44,7 +44,7 @@ not treated as evidence that its mapped safeguard has passed an experiment.
 |---|---|---|
 | Broad gain was denied beside G09's positive result | G09 is closed on its registered math/planning comparison: 29 reviewed gains, zero losses. Unrestricted reasoning, static RLC backbone fusion and G12 frontier comparison remain separate claims | A demonstrated gain should receive its credit without acquiring unrelated claims. [Result](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md), [RLC guide](RECURSIVE_LATENT_CORTEX.md) |
 | L09 still described a future 18 October check | The taught date procedure worked in three later replies; reliable broader ordinary use remains open after the later underpowered, losing and stopped attempts | A useful learned recipe is not proof that every later request selects the right recipe. [Claim account](../CLAIMS_NOT_SUPPORTED.md#22-learning-from-conversation-that-improves-ordinary-use), [master ledger](AURA_1_0_MASTER_TODO.md) |
-| Later code repairs were read as new passing ISC results | The stored seed-23 outputs remain 22/24 v6 and 21/24 v5. Shared histories and frozen method bindings limit paired interpretations; the latest K* and two-test closure rule need fresh confirmation | Repairing a ruler does not remeasure the object. [Current status](ISC_STATUS.md), [night method snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json) |
+| Later code repairs were read as new passing ISC results | The stored seed-23 outputs remain 22/24 v6 and 21/24 v5. Shared histories, frozen method bindings and service-reference ownership limit paired interpretations. The K* discovery check reports 284 unchanged swaps; held-out confirmation remains required | Repairing a ruler does not remeasure the object. [Current status](ISC_STATUS.md), [night method snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json) |
 | Generated completion credit disagreed with its evidence owners | The regenerated docket now reports twelve claimed completions needing evidence and zero certified completions, consistent with the progress ledger's zero current certification credit | Missing evidence credit does not mean zero capability. [Docket](AURA_REMAINING_DOCKET.md), [progress](AURA_PROGRESS.md) |
 | The ISC checklist's green boxes looked like hundreds of measured capability passes | Its generator now explains what each configured check can establish. A context-only refresh preserves the stored rows and counts without executing campaign commands | A file-existence check can pass while the capability experiment remains open. [Generated checklist](ISC_COMPLETION_TODO.md) |
 | Gaussian/project estimators were described as generally exact IIT measurements | Exactness is certified only at the declared exhaustive limit; larger candidate searches and bounded project proxies retain their assumptions | An integration score must keep the definition it actually measures. [Whole-system guide](WHOLE_SYSTEM_PHI.md), [terminology](TERMINOLOGY.md) |
@@ -60,7 +60,11 @@ not treated as evidence that its mapped safeguard has passed an experiment.
 | A proposed role matrix or artifact hash established deployed access control or publisher identity | The permissions page describes local-owner/device authority. A digest alone is not a publisher signature, and a source policy is not an execution receipt | Readers need to know who can act and what was verified. [Permission matrix](../security/permission_matrix.md), [platform posture](PLATFORM_POSTURE.md) |
 | Model roles, native windows and configured routes implied every host could serve them together | Model identity, native limits, operational budgets and measured serving authority are distinct. The reference host has 64 GB; other profiles need their own qualification | A model's advertised window does not make an arbitrarily large local encode safe. [Model card](../MODEL_CARD.md), [roster](MODEL_ROSTER.md), [hardware](../HARDWARE_PROFILES.md) |
 
-Other corrections cover the implemented soft-cancel path, current local-model
+Other corrections remove unsupported general demo/estimator timings and the
+claim that an exact checker leaves nothing to game. The README now names
+spectral estimates as approximations and separates scheduler integration from
+recorded promotion and serving authority. Corrections also cover the
+implemented soft-cancel path, current local-model
 routing, bounded formal checks, memory-store compatibility, backup families,
 retention scope and training/sleep instructions. Dated measurements keep their
 sample, source and host scope. Proposed ablations are not called completed

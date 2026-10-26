@@ -1,6 +1,6 @@
 # ISC: what the latest results show
 
-Status: Guide · Source reconciled 25 October 2026, 21:16 PDT · through 96487c6f1
+Status: Guide · Source reconciled 25 October 2026 · through 5bc357b8c
 
 **The completed run recorded 22 of 24 checks passing under ISC-v6.** Its
 separate content and self-report outputs were positive. A later isolation
@@ -69,7 +69,7 @@ positive results.
 | What does the latest source code require? | At `96487c6f1`, the carrier is K*: K plus declared state its transition reads. The numeric margin is 0.02 / 1.02, about 0.0196; closure also needs an interventional `CLOSED` result | Fresh source-bound measurements on the scored seed, all required controls and confirmation; this is not a new positive verdict |
 
 The completed 22/24 result belongs to the experiment at `8f548ed79`. It is not
-an evaluated result for source at `96487c6f1`. Seed 23 informed the later
+an evaluated result for source at `5bc357b8c`. Seed 23 informed the later
 method and is discovery data for that revision. The old `NO_CARRIER` output
 remains part of the record; no new carrier verdict was produced for this
 publication update.
@@ -208,6 +208,25 @@ and not found when outside state moves it. The historical seed-23 outputs
 remain unchanged. The [work log](ISC_OCT21_EVERY_ITEM.md) also reports a
 post-repair seed-7 synergy probe; that diagnostic is separate from a new full
 battery, carrier sweep and joined confirmation. This review ran none of them.
+
+### Later discovery check and another restore repair
+
+The [21:24 upstream commit](https://github.com/youngbryan97/aura/commit/5bc357b8c66bad13eaa8cad4c2ea9b368037537d)
+reports that 284 swaps left K and K* unchanged after adding dependencies missed
+by the earlier boundary pass. These were seed-23 anchors used to develop K*;
+the commit explicitly reserves a fresh seed for the held-out test. This is
+positive discovery evidence, not a fresh independent confirmation or a new
+24-check battery total. This documentation review read the committed account
+and source; it did not independently replay those swaps or obtain a new
+source-bound carrier verdict.
+
+That commit also repairs references between registered services: capture keeps
+a service link by name, restore points it back at the live service, and
+published values are restored before organs relink to them. Equal numeric
+readings alone cannot show that a pointer reaches the right object. This
+ownership check joins the earlier history and method-binding isolation checks.
+The [method snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
+records the current held-attribute table and the evidence limits.
 
 ## The joint-effect result within the full campaign
 

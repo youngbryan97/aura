@@ -241,11 +241,12 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 
 ## Generated reference
 
-13 pages. Generated inventories describe the inputs and revision their producer recorded; a checked-in snapshot is not a live service report.
+14 pages. Generated inventories describe the inputs and revision their producer recorded; a checked-in snapshot is not a live service report.
 
 | Page | Plain-language context |
 |---|---|
 | [Aura Subsystem and Service Ownership Manifest](../SERVICE_OWNERSHIP.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
+| [Aura Architecture Dependency Map](../artifacts/architecture/latest.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Aura Architecture Dependency Map](ARCHITECTURE_MAP.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Inherited obligation reconciliation](AURA_INHERITED_RECONCILIATION.md) | [Reading records and research plans](PLAIN_ENGLISH_GUIDE.md#documentation) |
 | [Aura Progress Control](AURA_PROGRESS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
@@ -261,7 +262,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 
 ## Historical or frozen record
 
-762 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
+761 pages. Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth.
 
 | Page | Plain-language context |
 |---|---|
@@ -312,7 +313,6 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [Tool Discoveries](../artifacts/aletheia/tool_discoveries.md) | [ISC and the subjecthood research](PLAIN_ENGLISH_GUIDE.md#isc) |
 | [World Model](../artifacts/aletheia/world_model.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Subsystem Census](../artifacts/architecture/census_latest.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
-| [Aura Architecture Dependency Map](../artifacts/architecture/latest.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [FINAL VERDICT](../artifacts/certification/latest/FINAL_VERDICT.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Aura Closeout Tracker](../artifacts/closeout/CLOSEOUT_TRACKER.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |
 | [Open Findings — 2026-06-09 closeout pass](../artifacts/closeout/OPEN_FINDINGS_2026-06-09.md) | [Logs, measurements and evidence trails](PLAIN_ENGLISH_GUIDE.md#observability) |

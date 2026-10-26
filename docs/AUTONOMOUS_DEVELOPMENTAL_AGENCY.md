@@ -169,16 +169,18 @@ search. So
 $$V(d) = n(d)\cdot g(d) - c(d) - r(d)$$
 
 in one unit — candidates walked — because that is what a search spends and what
-a better language saves. Everything about this is ordinary. What matters is
+a better language saves. The future horizon and smoothing prior are
+modelling choices; this is an estimated cost-benefit rule, not the unique
+mathematically required developmental objective. Everything about this is ordinary. What matters is
 where the four numbers come from, and the answer is: from a record she keeps of
 her own work, with a refusal where the record is silent.
 
 | term | read from | when the record is silent |
 |---|---|---|
-| `n` | how often that family has come up | as many ahead as behind, which is the only horizon the record evidences |
+| `n` | how often that family has come up | as many ahead as behind: an explicit horizon heuristic |
 | `g` | what admissions of that kind measurably saved before | refused — the action is unpriced |
 | `c` | what that action has actually spent | its stated price, else the occasion in hand |
-| `r` | how often that kind left the family no cheaper | Laplace, which needs no constant |
+| `r` | how often that kind left the family no cheaper | Laplace-smoothed failure estimate, with its explicit prior |
 
 A refused estimate is not a gap in the design; it is what makes exploration
 necessary. An action nobody can price is worth trying precisely because trying
