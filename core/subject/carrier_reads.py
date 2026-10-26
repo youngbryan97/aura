@@ -87,6 +87,12 @@ HELD: tuple[Held, ...] = (
     Held("phenomenal_now_engine", "_recent", "G"),
     Held("consciousness", "heartbeat", "G"),
     Held("qualia_synthesizer", "q_norm", "G"),
+    # How many messages of the conversation she has had. The tracker reads the
+    # discourse more deeply on every sixth, and G reads what it writes:
+    # conversation energy, discourse depth, branch load. Swapped alone it moved
+    # K at half the anchors of seven fresh seeds (26 October); seed 23's donors
+    # sat six messages away, in phase, and it never moved K there.
+    Held("discourse_tracker", "_turn_count", "G"),
 )
 
 

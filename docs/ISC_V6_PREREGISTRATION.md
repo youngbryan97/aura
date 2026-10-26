@@ -498,3 +498,29 @@ screen. Known answers: on worlds that develop from inside, a real broker opens i
 periphery closes in 23 of 30 (2 read open); on the stationary ring a slow broker opens in 28 of 30 and a noise
 periphery reads open in 2 of 30; every null with state outside its domains reads open; one broker among 300 noise
 columns opens. On seed 23, as discovery, the gate's reach became 0.010. Closure still needs both tests.
+
+## Addendum, 26 October 2026, early morning: the discourse tracker, two donors, and seed 61
+
+Written before seed 61 was read by any run.
+
+**What seed 31 showed.** The decisive reading on seed 31 at `c1b7b1843` ran its interventional test early, beside the
+carrier, campaign and content run. With eight anchors 16 turns apart and each swap taken from the anchor half the bank
+away, the discourse tracker moved K at 4 of 8 anchors (largest change 0.429). Swapped alone, only its count of the
+conversation's messages, `_turn_count`, moved K. Six more seeds read for this purpose and nothing else (37, 43, 47, 53,
+59, 67) gave the same result. On seed 23 it never moved K, in four runs: there were six anchors, so the donor sat 48
+turns away. A message comes every eighth turn and the tracker reads the discourse more deeply on every sixth message,
+so every swap there handed over a count in phase with the receiver's. The seed-31 carrier was stopped at 01:52, before
+any line was scored. Seed 31 and the six seeds above are discovery data for K* from here. The seed-31 campaign and
+content run continued as a rehearsal of the lines that read K alone and decide nothing.
+
+**K* holds the tracker's count of messages**, under G, which reads what the tracker writes (conversation energy,
+discourse depth, branch load). Nothing else changes in K*.
+
+**The interventional test takes each swap from two donors at distances that share no factor.** Anchors are 13 turns
+apart, and each unit is swapped in from the anchor one away and the anchor half the bank away, 13 and 52 turns. A
+cycle hides from the test only when every donor's distance is a whole number of its periods; with these two distances
+no cycle of 2 to 12 turns does (`periods_in_phase` in `tools/run_interventional_closure.py`, with its test). The test
+also runs from the start of the reading, beside the trio, rather than after the carrier.
+
+**Seed 61 is the confirmatory seed.** No run has read it. Unchanged: the margin (0.0196), the two-test rule, the
+observational gate, every v6 line and bar, and the reports run's design.

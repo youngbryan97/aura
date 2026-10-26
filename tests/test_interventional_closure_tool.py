@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tools.run_interventional_closure import aligned, verdict_of
+from tools.run_interventional_closure import aligned, donor_offsets, periods_in_phase, verdict_of
 
 pytestmark = pytest.mark.unit
 
@@ -27,3 +27,20 @@ def test_the_verdict_names_residue_as_unresolved_never_closed():
     assert verdict_of(["belief_authority"], [], decided=True) == "OPEN"
     assert verdict_of([], [{"after": "x", "anchor": 0, "drift": 0.1}], decided=True) == "UNRESOLVED"
     assert verdict_of([], [], decided=False) == "UNRESOLVED"
+
+
+def test_donors_one_anchor_and_half_the_bank_away():
+    assert donor_offsets("1,half", 8) == [1, 4]
+    assert donor_offsets("half", 6) == [3]
+    assert donor_offsets("0,8,1", 8) == [1]
+
+
+def test_no_cycle_shorter_than_the_spacing_hides_behind_the_donors():
+    """Seed 23's one donor sat 48 turns away, in phase with every cycle of 2, 3, 4, 6, 8 or 12 turns.
+
+    Six messages are 48 turns when a message comes every eighth turn, which is how
+    the discourse tracker's cycle hid there. Anchors 13 turns apart with donors one
+    anchor and half the bank away leave no cycle up to 12 turns in phase.
+    """
+    assert periods_in_phase([3], 16, 12) == [2, 3, 4, 6, 8, 12]
+    assert periods_in_phase(donor_offsets("1,half", 8), 13, 12) == []

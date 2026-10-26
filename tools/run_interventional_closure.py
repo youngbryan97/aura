@@ -12,11 +12,20 @@ with an untouched roll made just before the swap. If that untouched roll has
 drifted from the one made at the start, an earlier swap left something behind
 that a restore did not undo: a fork defect, reported as residue.
 
+Each swap comes from more than one donor, at distances that share no factor.
+A unit that acts on a cycle, every sixth message or every twentieth tick, holds
+a count; a donor whose count is in phase with the receiver's hands over the same
+phase and nothing moves. The discourse tracker deepens its reading on every sixth
+message, and seed 23's donors sat 48 turns away, six messages, in phase every
+time: it never moved K there, and it moved K at half the anchors of seven fresh
+seeds whose donors sat 64 turns away (26 October). Anchors 13 turns apart and
+donors one anchor and half the bank away leave only a period of 13 hidden.
+
 CLOSED: no swap moves K or any comparable K* reading at any anchor whose
 untouched twins agree, with no residue. OPEN names what moves it and, for a
 whole unit, which of its attributes. UNRESOLVED: residue, or no anchor decided.
 
-    python tools/run_interventional_closure.py --anchors 8 --spacing 16 --seed 31 --out runs/interventional
+    python tools/run_interventional_closure.py --anchors 8 --spacing 13 --seed 61 --out runs/interventional
 """
 from __future__ import annotations
 
@@ -56,6 +65,19 @@ def aligned(donor: Any, receiver: Any, key: str = "") -> Any:
     return donor
 
 
+def donor_offsets(spec: str, anchors: int) -> list[int]:
+    """Donor distances in anchors, from "1,half"-style text; zero and repeats dropped."""
+    return sorted({
+        (anchors // 2 if part.strip() == "half" else int(part)) % anchors
+        for part in str(spec).split(",") if part.strip()
+    } - {0})
+
+
+def periods_in_phase(offsets: list[int], spacing: int, longest: int) -> list[int]:
+    """The cycles, in turns, that every donor's distance is a whole number of: a swap cannot show them."""
+    return [p for p in range(2, longest + 1) if all((o * spacing) % p == 0 for o in offsets)]
+
+
 def verdict_of(moved: list[str], residue: list[dict[str, Any]], decided: bool) -> str:
     """OPEN when something moved K*, UNRESOLVED on residue or with no anchor decided, CLOSED otherwise."""
     if moved:
@@ -68,7 +90,11 @@ def verdict_of(moved: list[str], residue: list[dict[str, Any]], decided: bool) -
 async def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--anchors", type=int, default=8)
-    parser.add_argument("--spacing", type=int, default=16)
+    parser.add_argument("--spacing", type=int, default=13)
+    parser.add_argument(
+        "--donors", default="1,half",
+        help="donor distances in anchors, comma-separated; 'half' is half the bank",
+    )
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
@@ -103,6 +129,8 @@ async def main(argv: list[str] | None = None) -> int:
     rounds = max(1, (args.anchors * args.spacing) // len(CONDITIONS))
     bank = await collect_anchor_bank(runtime, CONDITIONS, rounds=rounds, history_turns=8, every=args.spacing)
     snaps = [anchor.snapshot for anchor in list(bank)[: args.anchors]]
+    offsets = donor_offsets(args.donors, len(snaps))
+    print(f"donors at {offsets} anchors, {[o * args.spacing for o in offsets]} turns away", flush=True)
     held_units = {entry.unit for entry in HELD}
 
     async def roll(snapshot: Any, index: int) -> tuple[Any, dict[str, float]]:
@@ -193,20 +221,21 @@ async def main(argv: list[str] | None = None) -> int:
         for a in range(len(snaps)):
             if base[a] is None:
                 continue
-            swapped = hybrid(a, (a + len(snaps) // 2) % len(snaps), name, key)
-            if swapped is None:
-                continue
-            row["tested"] += 1
-            _hit, apart, changed, drift = await moves(swapped, a)
-            if drift > 0.0:
-                residue.append({"after": previous, "anchor": a, "drift": drift})
-                print(f"  RESIDUE: an untouched roll at anchor {a} moved {drift:.3g} after {previous}", flush=True)
-            if apart > 0.0:
-                row["moved_k"] += 1
-                row["max_k"] = max(row["max_k"], apart)
-            if changed:
-                row["moved_held"] += 1
-                row["held_keys"] = sorted(set(row["held_keys"]) | set(changed[:5]))
+            for offset in offsets:
+                swapped = hybrid(a, (a + offset) % len(snaps), name, key)
+                if swapped is None:
+                    continue
+                row["tested"] += 1
+                _hit, apart, changed, drift = await moves(swapped, a)
+                if drift > 0.0:
+                    residue.append({"after": previous, "anchor": a, "drift": drift})
+                    print(f"  RESIDUE: an untouched roll at anchor {a} moved {drift:.3g} after {previous}", flush=True)
+                if apart > 0.0:
+                    row["moved_k"] += 1
+                    row["max_k"] = max(row["max_k"], apart)
+                if changed:
+                    row["moved_held"] += 1
+                    row["held_keys"] = sorted(set(row["held_keys"]) | set(changed[:5]))
         results[label] = row
         previous = label
         if row["moved_k"] or row["moved_held"]:
@@ -225,9 +254,10 @@ async def main(argv: list[str] | None = None) -> int:
             for a in range(len(snaps)):
                 if base[a] is None:
                     continue
-                swapped = hybrid(a, (a + len(snaps) // 2) % len(snaps), label, key)
-                if swapped is not None and (await moves(swapped, a))[0]:
-                    hits += 1
+                for offset in offsets:
+                    swapped = hybrid(a, (a + offset) % len(snaps), label, key)
+                    if swapped is not None and (await moves(swapped, a))[0]:
+                        hits += 1
             if hits:
                 found.append(key)
         culprits[label] = found
@@ -235,7 +265,8 @@ async def main(argv: list[str] | None = None) -> int:
 
     verdict = verdict_of(moved, residue, any(b is not None for b in base))
     print(f"\ninterventional closure of K*: {verdict}; {len(results)} swaps; moved by: {moved}", flush=True)
-    write({"seed": args.seed, "anchors": len(snaps), "verdict": verdict, "results": results, "moves_k_star": moved,
+    write({"seed": args.seed, "anchors": len(snaps), "spacing": args.spacing, "donor_offsets": offsets,
+           "verdict": verdict, "results": results, "moves_k_star": moved,
            "residue": residue, "culprit_attributes": culprits})
     return 0
 

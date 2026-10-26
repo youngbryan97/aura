@@ -159,3 +159,11 @@ def test_the_screen_puts_a_column_that_predicts_the_core_first():
     outside = np.column_stack([rng.normal(size=(rows - 1, 30)), cause[:-1]])
     picked = _screened(own, change, outside, slice(0, 500), slice(500, 700), limit=3)
     assert picked[0] == 30
+
+
+def test_the_count_of_messages_her_discourse_tracker_keeps_is_held_with_her_workspace():
+    """Seven fresh seeds found it moving K; one donor in phase had hidden it on seed 23."""
+    from core.subject.carrier_reads import Held, held_attributes_of, held_by_domain
+
+    assert "_turn_count" in held_attributes_of("discourse_tracker")
+    assert Held("discourse_tracker", "_turn_count", "G") in held_by_domain("G")
