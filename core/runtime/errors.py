@@ -307,9 +307,16 @@ class _EscalationGovernor:
     again. Kill switch: AURA_ESCALATION_CAP=0 (never suppresses).
     """
 
-    #: Elapsed time, not the date. A window on the wall clock moves when the
-    #: clock is set, and a test cannot step it without sleeping through it.
-    _clock = staticmethod(time.monotonic)
+    @staticmethod
+    def _clock() -> float:
+        """``time.time``, looked up at each call; a test replaces this to step the window.
+
+        Not ``time.monotonic``. A subject-core run installs its experiment clock
+        as ``time.time`` and a restore rewinds it, so two arms see the same
+        window; ``time.monotonic`` stays real for asyncio, and a window on it
+        would differ between arms by however long the machine took.
+        """
+        return time.time()
 
     def __init__(self) -> None:
         self._allowed: dict[tuple[str, str], list[float]] = {}

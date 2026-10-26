@@ -203,7 +203,7 @@ class TestEscalationCap:
         from core.runtime.errors import get_escalation_governor
 
         monkeypatch.setenv("AURA_ESCALATION_CAP_WINDOW_S", "0.05")
-        # The test moves the governor's clock. On the real one, four calls
+        # The test moves the governor's clock. On the wall clock, four calls
         # under a loaded suite outlasted the 50 ms window before the fourth.
         now = [1_000.0]
         monkeypatch.setattr(get_escalation_governor(), "_clock", lambda: now[0])
@@ -231,3 +231,12 @@ class TestEscalationCap:
                 severity="degraded",
                 action="unit test",
             )
+
+    def test_the_window_runs_on_the_experiment_clock(self):
+        # A subject-core arm installs its own clock as time.time and a restore
+        # rewinds it. A window on any other clock differs between arms.
+        from core.runtime.errors import get_escalation_governor
+        from core.subject.clock import ExperimentClock
+
+        with ExperimentClock(1.0, start=5_000.0):
+            assert get_escalation_governor()._clock() == 5_000.0
