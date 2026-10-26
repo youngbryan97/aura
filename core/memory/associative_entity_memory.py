@@ -410,11 +410,21 @@ class AssociativeEntityMemory:
 
     def __init__(
         self,
-        db_path: str | Path = "data/associative_entity_memory.sqlite",
+        db_path: str | Path | None = None,
         *,
         calibration: Calibration | None = None,
         attachment_system: Any = None,
     ) -> None:
+        if db_path is None:
+            # Under her data directory, as every other store is. A path relative
+            # to the working directory put every process started in one checkout
+            # on one file: seed 73's campaign and content run wrote the same
+            # entity memory, and two runs started together found it locked and
+            # ran without one (26 October). The live app's data directory is the
+            # checkout's `data`, where this file has always been.
+            from core.config import config
+
+            db_path = Path(config.paths.data_dir) / "associative_entity_memory.sqlite"
         self._db_path = Path(db_path)
         self._cal = calibration or Calibration()
         self._attachment = attachment_system

@@ -576,3 +576,16 @@ def test_live_path_learns_then_resolves_a_pronoun(memory, monkeypatch):
 
     assert followup["pronouns"] == {"she": "sarah"}
     assert "sarah" in second.response_modifiers["entity_retrieval_cues"]
+
+
+def test_the_default_store_lives_under_her_data_directory(tmp_path, monkeypatch) -> None:
+    """Not the working directory: every process started in one checkout shared one file (26 October)."""
+    from core.config import config
+    from core.memory.associative_entity_memory import AssociativeEntityMemory
+
+    monkeypatch.chdir(tmp_path)
+    memory = AssociativeEntityMemory()
+    # Under a test, the configured data directory is the test's own world.
+    assert memory._db_path == config.paths.data_dir / "associative_entity_memory.sqlite"
+    assert memory._db_path.exists()
+    assert not (tmp_path / "data").exists()
