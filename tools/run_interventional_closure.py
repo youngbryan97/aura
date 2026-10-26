@@ -126,6 +126,7 @@ async def main(argv: list[str] | None = None) -> int:
     runtime.freeze_host()
     runtime.forked_services = None
     runtime.forked_phases = None
+    runtime.forked_modules = None
     rounds = max(1, (args.anchors * args.spacing) // len(CONDITIONS))
     bank = await collect_anchor_bank(runtime, CONDITIONS, rounds=rounds, history_turns=8, every=args.spacing)
     snaps = [anchor.snapshot for anchor in list(bank)[: args.anchors]]
@@ -163,6 +164,19 @@ async def main(argv: list[str] | None = None) -> int:
                         continue
                     if key not in held_attributes_of(f"organ:{organ}"):
                         yield f"organ:{organ}", key
+        # What her modules keep is a unit too: the substate bus, the cognitive
+        # event graph, the ontogeny core. A test that swapped only services and
+        # phases could never find one of them moving K.
+        for key in sorted(set().union(*((s.module_state or {}).keys() for s in snaps))):
+            name = f"module:{key}"
+            if name not in held_units:
+                yield name, None
+                continue
+            entry = (snaps[0].module_state or {}).get(key)
+            captured = entry[1] if isinstance(entry, tuple) and len(entry) == 2 else None
+            for attribute in sorted(captured) if isinstance(captured, dict) else ():
+                if attribute not in held_attributes_of(name):
+                    yield name, attribute
         names = sorted(set().union(*(s.services.keys() for s in snaps)) | set().union(*(s.phases.keys() for s in snaps)))
         for name in names:
             if name not in held_units:
@@ -174,6 +188,21 @@ async def main(argv: list[str] | None = None) -> int:
                     yield name, key
 
     def hybrid(a: int, b: int, name: str, key: str | None) -> Any:
+        if name.startswith("module:"):
+            held_key = name.split(":", 1)[1]
+            mine = (snaps[a].module_state or {}).get(held_key)
+            donor = (snaps[b].module_state or {}).get(held_key)
+            if not (isinstance(mine, tuple) and isinstance(donor, tuple) and len(mine) == len(donor) == 2):
+                return None
+            if key is None:
+                given = aligned(donor[1], mine[1])
+            elif isinstance(mine[1], dict) and isinstance(donor[1], dict) and key in mine[1] and key in donor[1]:
+                given = {**mine[1], key: aligned(donor[1][key], mine[1][key], key)}
+            else:
+                return None
+            if identical(given, mine[1]):
+                return None
+            return dataclasses.replace(snaps[a], module_state={**snaps[a].module_state, held_key: (mine[0], given)})
         if name.startswith("organ:"):
             organ = name.split(":", 1)[1]
             mine, donor = snaps[a].organs.get(organ), snaps[b].organs.get(organ)
@@ -215,8 +244,11 @@ async def main(argv: list[str] | None = None) -> int:
     residue: list[dict[str, Any]] = []
     previous = None
     started = time.monotonic()
+    whole: set[str] = set()
     for name, key in swaps():
         label = name if key is None else f"{name}.{key}"
+        if key is None:
+            whole.add(label)
         row: dict[str, Any] = {"tested": 0, "moved_k": 0, "moved_held": 0, "max_k": 0.0, "held_keys": []}
         for a in range(len(snaps)):
             if base[a] is None:
@@ -245,9 +277,13 @@ async def main(argv: list[str] | None = None) -> int:
         write({"seed": args.seed, "anchors": len(snaps), "results": results, "moves_k_star": moved, "residue": residue})
 
     culprits: dict[str, list[str]] = {}
-    for label in [m for m in moved if "." not in m]:
-        field = "services" if label in snaps[0].services else "phases"
-        entry = getattr(snaps[0], field).get(label)
+    for label in [m for m in moved if m in whole]:
+        if label.startswith("module:"):
+            held = (snaps[0].module_state or {}).get(label.split(":", 1)[1])
+            entry = held[1] if isinstance(held, tuple) and len(held) == 2 else None
+        else:
+            field = "services" if label in snaps[0].services else "phases"
+            entry = getattr(snaps[0], field).get(label)
         found = []
         for key in sorted(entry) if isinstance(entry, dict) else ():
             hits = 0

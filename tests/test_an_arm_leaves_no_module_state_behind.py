@@ -160,3 +160,34 @@ def test_no_module_global_grows_from_one_arm_to_the_next() -> None:
         }
     )
     assert not grew, f"module state one arm left for the next: {grew[:12]}"
+
+
+def test_a_holding_that_stood_still_while_the_fork_calibrated_is_carried_all_the_same(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The substate bus files an impasse only when the workspace ties.
+
+    It stood still through the turns calibration watched, so the fork left it
+    behind, and over 250 untouched rolls on seed 67 it grew through every
+    restore until an untouched roll moved K (26 October). Every holding is
+    carried now, whatever calibration saw.
+    """
+    from core.subject.driver import SubjectRuntime
+
+    _probe_module(monkeypatch)
+    runtime = object.__new__(SubjectRuntime)
+    runtime.kernel = None
+    runtime.organs = None
+    runtime.forked_services = None
+    runtime.forked_phases = None
+    runtime.forked_modules = None
+    runtime.empty_at_calibration = None
+
+    async def still(_condition: object) -> list:
+        return []
+
+    runtime.turn_once = still
+    report = asyncio.run(runtime.calibrate_fork([]))
+    assert report["modules_carried"] == "every holding"
+    assert runtime._module_keys() is None
+    assert f"{PROBE}:_instance" in _module_state(runtime._module_keys(), runtime._fork_skip())

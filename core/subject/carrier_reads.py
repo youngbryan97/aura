@@ -142,6 +142,13 @@ def _units(kernel: Any, organs: Any = None) -> dict[str, Any]:
         if unit.startswith("organ:"):
             out[unit] = getattr(organs, unit.split(":", 1)[1], None) if organs is not None else None
             continue
+        if unit.startswith("module:"):
+            # What a module of hers keeps at module scope, named `module:<module>:<name>`.
+            from core.subject.snapshot import _ABSENT, _held
+
+            value = _held(unit.split(":", 1)[1])
+            out[unit] = None if value is _ABSENT else value
+            continue
         found = services.get(unit)
         out[unit] = found if found is not None else phases.get(unit)
     return out

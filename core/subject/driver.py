@@ -423,13 +423,22 @@ class SubjectRuntime(_HeldHost):
 
         self.forked_services = moved(before_services, after_services)
         self.forked_phases = moved(before_phases, after_phases)
-        self.forked_modules = moved(before_modules, after_modules)
+        # Every module holding is carried, not the ones these turns saw move.
+        # A record that only starts moving later was left behind: the substate
+        # bus files an impasse when the workspace ties, the cognitive event
+        # graph and the ontogeny core grow with it, and over 250 untouched
+        # rolls on seed 67 they grew through every restore until an untouched
+        # roll moved K by 0.0018 (26 October). Carrying all 664 costs a
+        # snapshot 0.38 s against 0.29 s and a restore nothing measurable.
+        stood_still = (set(before_modules) | set(after_modules)) - moved(before_modules, after_modules)
+        self.forked_modules = None
         self.empty_at_calibration = _empty_module_slots()
         return {
             "services_carried": sorted(self.forked_services),
             "services_seen": len(before_services | after_services.keys()),
             "phases_carried": sorted(self.forked_phases),
-            "modules_carried": sorted(self.forked_modules),
+            "modules_carried": "every holding",
+            "modules_still_while_calibrating": len(stood_still),
             "modules_seen": len(before_modules | after_modules.keys()),
         }
 
