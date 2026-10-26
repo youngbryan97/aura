@@ -48,9 +48,10 @@ finding. No full ISC pass or settled five-ground bridge result is reported.
 
 The later closure method also keeps an open boundary distinct from an
 unresolved question. The least-domain margin proposed in the afternoon was
-withdrawn at `72dd0d703`. No margin is now in force. The revised estimator
-predicts change and excludes failed folds from closed readings. A method
-change is not a new result. Use [current status](ISC_STATUS.md) for the exact
+withdrawn at `72dd0d703`. The night addendum at `96487c6f1` names K*, a
+numeric margin about 0.0196 and an additional interventional closure test.
+The revised estimator predicts change and excludes failed folds from closed
+readings. These method changes need fresh confirmation. Use [current status](ISC_STATUS.md) for the exact
 versioned reading and the distinction between discovery and confirmation.
 
 ## Source names and measured mechanisms

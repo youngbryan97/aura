@@ -413,3 +413,13 @@ performance under one fixed shared budget.
 [The mathematical-claim guide](MATHEMATICAL_CLAIM_LIMITS.md) gives plain-English
 counterexamples, the corrected assumptions and their practical consequences.
 A unit test over finite examples cannot supply a missing universal proof.
+
+## Current numeric closure margin and K*
+
+The night method at `96487c6f1` names `epsilon = 0.02 / (1 + 0.02)`, about
+0.0196078. That is the numeric conversion adopted by this project; its
+scientific scope is explained in [current status](ISC_STATUS.md#the-night-addendum-include-what-the-transition-reads-then-test-both-ways).
+The full closure criterion additionally needs the interventional report to
+read `CLOSED` on the matching scored seed. The observational formula above
+alone is insufficient. K* includes the declared held-state dependencies on
+the core's side of that calculation. No new result follows from this formula.

@@ -861,7 +861,7 @@
           "name": "Closure",
           "meaning": "Whether the proposed boundary omits an important internal driver after declared input is accounted for",
           "practical": "Can remain unresolved rather than pass by default",
-          "example": "No margin is currently in force; the earlier least-domain rule was withdrawn"
+          "example": "K* now uses a declared numeric margin about 0.0196 plus an interventional closure test; the earlier least-domain rule stays withdrawn"
         },
         {
           "name": "Parity",
@@ -1456,6 +1456,38 @@
       "example": "With a common floor e, missing after n trials has bound (1-e)^n.",
       "context": "Mathematical claim limits",
       "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "K*",
+      "meaning": "The proposed core K plus declared held-state dependencies its transition reads.",
+      "practical": "It changes which readings count as inside the candidate boundary.",
+      "example": "An identified history buffer is included alongside the original ten-domain vector.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Held state",
+      "meaning": "Declared attributes counted on the core side of the K* closure test.",
+      "practical": "They must not also be treated as outside predictors.",
+      "example": "Readings under held. move with the domain they serve during a cut.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Observational closure",
+      "meaning": "The outside predictor adds no more than the permitted contribution under the specified estimator and controls.",
+      "practical": "A bounded predictive result needs a margin, uncertainty and measurement validity.",
+      "example": "The upper bound must clear the named margin; a failed estimator fold cannot support closure.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Interventional closure",
+      "meaning": "The specified outside-state swaps leave the measured core and held state unchanged at the tested anchors and horizon.",
+      "practical": "It checks actual effects beyond the observational prediction comparison.",
+      "example": "The current rule checks bit-for-bit equality within two turns when untouched twins agree.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
     }
   ]
 }

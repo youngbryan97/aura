@@ -245,16 +245,16 @@
       ]
     },
     "closure.closure_margin": {
-      "value": "None",
+      "value": "0.02 / 1.02",
       "owner": "core/subject/closure.py CLOSURE_MARGIN",
       "restated_in": [
         {
           "file": "core/subject/closure.py",
-          "pattern": "^CLOSURE_MARGIN: (?:float|str) \\| None = (\\w+)\\s*(?:#.*)?$"
+          "pattern": "^CLOSURE_MARGIN: float \\| None = (0\\.02 / 1\\.02)\\s*$"
         },
         {
           "file": "docs/ISC_STATUS.md",
-          "pattern": "Current code: `CLOSURE_MARGIN` is `(\\w+)`"
+          "pattern": "Current code: `CLOSURE_MARGIN` is `(0\\.02 / 1\\.02)`"
         }
       ]
     },

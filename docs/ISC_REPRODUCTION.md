@@ -64,12 +64,14 @@ The code changes frequently. A result at `3dc0b0599` and one at `8f548ed79`
 measure different organisms. Combining them can guide discovery; it cannot
 produce a same-revision confirmatory result.
 
-The evening v6 addendum at `72dd0d703` withdraws the least-domain margin.
-Both margin settings are `None`; a fresh confirmation needs a defensible
-predeclared margin. Retain the increment-based periphery/target definition,
-estimator failure diagnostics, fold results, uncertainty and planted-cause
-resolution. Do not choose a margin after inspecting the new recording.
-See [the withdrawal record](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json).
+The evening `72dd0d703` addendum withdrew the least-domain margin. The later
+night addendum at `96487c6f1` declares K*, a numeric margin `0.02 / 1.02`, and
+requires **both** observational and interventional closure on the scored seed.
+Retain held-state membership, increment-based inputs, estimator diagnostics,
+fold results, uncertainty and planted-cause resolution. A missing
+interventional input cannot qualify a found carrier. Read the
+[current method snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
+and the [scoped explanation](ISC_STATUS.md#the-night-addendum-include-what-the-transition-reads-then-test-both-ways).
 
 The `517c4807c` restore repair also keeps method tables bound to the actual
 organs rather than deep-copied frozen instances. Verify this property alongside
@@ -171,3 +173,14 @@ An independent rerun should report disagreements and unresolved criteria. A
 minimal alternative architecture should face the same frozen protocol, scope
 and controls. Optimizing one synergy statistic or hand-labeling the comparator
 unconscious does not test the full conjunction's specificity.
+
+## Joining the current closure evidence
+
+The scorer and J* command now accept `--interventional-closure PATH`, pointing
+to the actual measured report for the matching seed, boundary and source.
+See [score_isc_v5.py](../tools/score_isc_v5.py) and
+[solve_for_j.py](../tools/solve_for_j.py). Supplying a JSON file is not itself
+proof of matching provenance or adequate intervention coverage; inspect the
+report's manifest, anchors, unchanged twins and tested units. Keep missing,
+open and closed results distinct. A new source rule does not rescore the
+older committed outputs automatically.

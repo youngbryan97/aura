@@ -358,7 +358,10 @@ The [afternoon closure-rule update](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.
 records the subsequent least-domain margin rule without replacing the older
 snapshots or claiming a fresh carrier result.
 The [evening withdrawal](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json)
-records that the rule was subsequently withdrawn and no margin is in force.
+records that the rule was subsequently withdrawn, with no margin in force
+at that point. The [night method update](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
+records the later K* boundary, numeric margin and two-test closure criterion
+at `96487c6f1`. It supplies no fresh passing campaign result.
 
 The [dated link audit](evidence/DOCUMENTATION_LINK_AUDIT_2026-10-25.json)
 checked 979 Markdown pages: ordinary relative file and heading targets

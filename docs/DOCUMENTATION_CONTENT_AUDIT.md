@@ -1,126 +1,114 @@
 # Documentation content audit
 
-Status: Guide · Reconciliation dated 25 October 2026 · Source baseline through 517c4807c
+Status: Guide · Full-tree review dated 25 October 2026 · Source reconciled through 96487c6f1
 
-The earlier documentation pass checked targets and added reading explanations.
-It did not establish that every statement in every linked page was current.
-This pass found substantive contradictions and corrected the affected current
-guides. This page records what was checked so that link coverage cannot be
-mistaken for factual certification again.
+The earlier link audit missed real content contradictions. G09 had passed its
+registered broad-gain criterion while the README still denied broad gain.
+This review corrected that conflict and checked the wider documentation for
+stale status, unsupported scientific conclusions and instructions that did
+not match the code.
 
-## Whole-document reconciliation in progress
+For explaining Aura aloud: **a working mechanism, a useful measured result,
+and a scientific interpretation are different claims.** For example, G09
+supports its registered math/planning gain; it does not settle the separate
+frontier comparison. A repaired ISC measurement needs a new valid experiment
+before its result changes.
 
-Bryan’s G09 counterexample exposed a real gap in the earlier pass: positive
-G09 summaries coexisted with a blanket denial in the README and RLC table.
-The current pass checks the content of guides and status pages against their
-source owners and dated results. The previous validation record below does
-not certify this expanded pass as complete.
+## What this review covers
 
-Corrections made in this pass include G09’s passed criterion and separate
-open claims, the L09 results through 20 October, the implemented soft-cancel
-path, bounded IIT-inspired estimators, native versus operational embedding
-limits, and installation/certification commands. Dated results remain intact.
-Named repeated claims now have negative checks too: a correct summary does
-not hide the same page’s conflicting blanket denial.
+The [complete document map](DOCUMENTATION_INDEX.md) inventories **983 Markdown
+pages** in Aura: 162 guides/references, 42 standards/policies/contributor
+references, four living status or append-only ledgers, 13 generated references
+and 762 historical or frozen records. The nine Markdown pages in the standalone
+[proof-kernel repository](https://github.com/youngbryan97/aura-consciousness-proof-kernel)
+and the landing README in
+[Aura-Cognitive-Engine](https://github.com/youngbryan97/Aura-Cognitive-Engine)
+were included too.
 
-## Contradictions and stale readings corrected
+Every page entered the inventory and text/reference screening. Manual
+reconciliation concentrated on maintained claims and the source, result or
+procedure that could support them. The
+[per-file review record](evidence/DOCUMENTATION_SEMANTIC_REVIEW_2026-10-25.json)
+records categories, content hashes, the checks actually applied and their
+limits. A keyword screen is not a manual proof of every sentence. An HTTP
+response is not validation of the paper behind it.
 
-| Earlier wording | Current explanation | Source or evidence route |
+Historical bodies retain their earlier states. Current guides identify later
+corrections rather than silently changing old outputs. Frozen protocols retain
+original requirements and upstream dated addenda. Framework control text is
+not treated as evidence that its mapped safeguard has passed an experiment.
+
+## Contradictions and overstated claims corrected
+
+| Issue | Reconciled reading | Why it matters / evidence route |
 |---|---|---|
-| The Cortex cannot process images | Vision uses the configured Cortex role; the artifact and image path still need to support the request | [LLMConfig](../core/config.py), [model card](../MODEL_CARD.md) |
-| Every Cortex build is four-bit with the same context window | Quantization and native context belong to the measured artifact; safe serving limits are separate | [artifact profiler](../core/brain/llm/model_artifact_profile.py) |
-| Three model roles mean three models running together | Admission and reservations constrain concurrent work; no second full Cortex is authorised | [lane controller](../core/runtime/model_lane_control.py), [hardware guide](../HARDWARE_PROFILES.md) |
-| A 32 GB setup supplies full capability | A smaller configuration needs its own model profile and evidence | [model card](../MODEL_CARD.md), [system card](../AI_SYSTEM_CARD.md) |
-| The Reflex is necessarily a CPU emergency/draft model compatible with the present Cortex | It is a configured auxiliary role; execution device, draft compatibility and admission need their actual contracts | [roster](MODEL_ROSTER.md) |
-| Model training contained no personal data | This card cannot certify all foundation/persona data without their provenance | [model card](../MODEL_CARD.md) |
-| Parakeet v3 is English-only or a short timing sample establishes general accuracy | NVIDIA describes multilingual support; the local timings retain their short warm-sample scope | [model card](../MODEL_CARD.md), [NVIDIA card](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) |
-| The old encoder read 256 words | Its input limit used word-piece tokens; the 77% truncation figure belongs to the measured example | [model card](../MODEL_CARD.md), [original encoder card](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) |
-| A 32K native embedding window makes a whole-page GPU encode safe | The source declares smaller operational views and a padded-work budget, with coverage of long text | [embedding source](../core/memory/embedding_model.py), [roster](MODEL_ROSTER.md) |
-| Changing another shell's environment changes an already-running Aura process | These readers read the Aura process environment; external shell changes are not an in-process settings update | [context assembler](../core/brain/llm/context_assembler.py), [continuity guide](COHERENCE_LEVERS.md) |
-| Cloud-model fallback can be opted into | Current model routing is local; remote-only model requests are refused. Authorised browser/tool traffic can still leave the host | [request contract](../core/brain/request_contract.py), [data card](../DATA_CARD.md) |
-| Six test chunks are a safe general recommendation, or smoke always takes under ten seconds | Chunk count is a memory budget; duration is measured per host/revision | [TESTING](../TESTING.md), [reviewer packet](REVIEWER_PACKET.md) |
-| A named consciousness/personhood unit suite means the current ISC battery passed | Unit contracts, historical catalogue results and the current ISC experiment have different scopes | [TESTING](../TESTING.md), [ISC status](ISC_STATUS.md) |
-| Every natural-language belief becomes formal logic and a checked path is error-free | The checker supports a bounded representation and can report no error found within that scope | [memory card](../MEMORY_CARD.md), [reasoning guide](REASONING_ENGINES.md) |
-| Gaussian whole-system phi has a generally exact Queyranne minimum | Exactness is certified at the declared exhaustive-search limit; the general theorem requires submodularity | [estimator](../core/consciousness/integrated_information.py), [terminology](TERMINOLOGY.md) |
-| Temperature above two is mathematically uniform | Two is the interface ceiling; the probability distribution still depends on logits | [configuration](../core/config.py), [worked formula](FORMULAS.md#sampling-temperature) |
-| Embedded and standalone proof kernels use interchangeable package commands | The embedded package is aura-operational-cognition; the older standalone package keeps its own names | [embedded demo](../proof_kernel/README.md), [standalone repo](https://github.com/youngbryan97/aura-consciousness-proof-kernel) |
-| Old “live,” “not started” and “established” labels describe today's whole project | The language, capability and phenomenology pages now identify the particular earlier programme/run being discussed | [language programme](LANGUAGE_SUBSTRATE_AND_GENERALITY.md), [phenomenology](phenomenology/README.md), [capability matrix](OMEGA_CAPABILITY_MATRIX.md) |
-| The consequence-bus repair alone accounts for all later isolation work | The degradation tracker also needed restoration; the reported pre-flight is distinct from a replacement campaign | [current ISC status](ISC_STATUS.md), [reproduction](ISC_REPRODUCTION.md) |
-| Naming the derived closure margin solved the estimator question | The least-domain rule was withdrawn; the estimator changed and no margin is currently in force | [ISC status](ISC_STATUS.md) |
+| Broad gain was denied beside G09's positive result | G09 is closed on its registered math/planning comparison: 29 reviewed gains, zero losses. Unrestricted reasoning, static RLC backbone fusion and G12 frontier comparison remain separate claims | A demonstrated gain should receive its credit without acquiring unrelated claims. [Result](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md), [RLC guide](RECURSIVE_LATENT_CORTEX.md) |
+| L09 still described a future 18 October check | The taught date procedure worked in three later replies; reliable broader ordinary use remains open after the later underpowered, losing and stopped attempts | A useful learned recipe is not proof that every later request selects the right recipe. [Claim account](../CLAIMS_NOT_SUPPORTED.md#22-learning-from-conversation-that-improves-ordinary-use), [master ledger](AURA_1_0_MASTER_TODO.md) |
+| Later code repairs were read as new passing ISC results | The stored seed-23 outputs remain 22/24 v6 and 21/24 v5. Shared histories and frozen method bindings limit paired interpretations; the latest K* and two-test closure rule need fresh confirmation | Repairing a ruler does not remeasure the object. [Current status](ISC_STATUS.md), [night method snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json) |
+| Generated completion credit disagreed with its evidence owners | The regenerated docket now reports twelve claimed completions needing evidence and zero certified completions, consistent with the progress ledger's zero current certification credit | Missing evidence credit does not mean zero capability. [Docket](AURA_REMAINING_DOCKET.md), [progress](AURA_PROGRESS.md) |
+| The ISC checklist's green boxes looked like hundreds of measured capability passes | Its generator now explains what each configured check can establish. A context-only refresh preserves the stored rows and counts without executing campaign commands | A file-existence check can pass while the capability experiment remains open. [Generated checklist](ISC_COMPLETION_TODO.md) |
+| Gaussian/project estimators were described as generally exact IIT measurements | Exactness is certified only at the declared exhaustive limit; larger candidate searches and bounded project proxies retain their assumptions | An integration score must keep the definition it actually measures. [Whole-system guide](WHOLE_SYSTEM_PHI.md), [terminology](TERMINOLOGY.md) |
+| Synthetic inner-light output was presented as a live consciousness classifier | The demo arm is synthetic; four project summaries do not reproduce a clinical PCI protocol or establish a substrate-independent classifier | A realistic-looking control-panel example is still an example. [Inner light](INNER_LIGHT_TEST.md) |
+| Expressiveness, changing scores and retained predecessors implied stronger theorems | Universality does not end engineering needs; changing scores need not change the winning action; retaining an option does not guarantee fixed-budget performance | These counterexamples change the conclusion, not the stored experimental numbers. [Mathematical claim limits](MATHEMATICAL_CLAIM_LIMITS.md) |
+| Undecidability, speedup and eventual search were stated too broadly | General semantic limits do not forbid particular program proofs; Blum's result is existential; eventual-success arguments need actual probability and persistence premises. The incomplete opportunity-detector proof was withdrawn | A named theorem needs its actual premises. [Corrected arguments](MATHEMATICAL_CLAIM_LIMITS.md) |
+| Pairwise shared-horizon dominance was claimed to be transitive; crossing meant symmetry | Dominance needs the fixed common grid already used by the code. Crossing spectra alone do not establish symmetry or guarantee both survive a larger candidate set | Comparing different races can produce a circular ranking. [Bridge arguments](BRIDGE_PROOFS.md) |
+| A commit-derived seed proved an unseen task | It supports repeatability; finite hashes, known generators and shared task families do not establish novelty or independent evaluation | Recreating a recipe does not prove nobody has cooked it before. [Gauntlet](AGI_GAUNTLET.md) |
+| Overlapping confidence intervals established equivalent performance; similar vectors established contraction | Neither inference follows. Performance comparisons need the stated difference/margin; contraction needs a distance bound on its declared domain | Similar-looking numbers are not interchangeable scientific claims. [SIMA2 adaptation](SIMA2_ADAPTATION.md), [RLC search](RLC_COMMITMENT_SEARCH.md) |
+| Production source promotion was entirely disabled; every mode error failed closed | Eligible low-risk repair has a separate default-on policy. Broader promotion needs opt-in; tier, mode and trust checks still apply. Some lookup errors permit tier checking to continue | Describe the authority the system actually has. A successful promoted repair still needs its receipt. [RSI guide](RSI_ARCHITECTURE.md), [autonomy boundaries](../AUTONOMY_BOUNDARIES.md) |
+| “Purge complete” and “export” commands implied implemented data operations | Several Makefile targets only print messages or create a directory. The current guide identifies them as placeholders and points to store-specific procedures | A reassuring message does not delete or export data. [Override policy](../HUMAN_OVERRIDE_POLICY.md) |
+| Runbooks prescribed generic restarts, guessed tests or WAL rebuilding | Procedures now require the right owner/process, a named regression with collected tests, actual backup scope and scratch recovery. A checkpoint does not rebuild a corrupted database | Recovery instructions must preserve the running instance and the only copy of data. [Runbooks](runbooks/README.md), [recovery](runbooks/disaster-recovery.md) |
+| A proposed role matrix or artifact hash established deployed access control or publisher identity | The permissions page describes local-owner/device authority. A digest alone is not a publisher signature, and a source policy is not an execution receipt | Readers need to know who can act and what was verified. [Permission matrix](../security/permission_matrix.md), [platform posture](PLATFORM_POSTURE.md) |
+| Model roles, native windows and configured routes implied every host could serve them together | Model identity, native limits, operational budgets and measured serving authority are distinct. The reference host has 64 GB; other profiles need their own qualification | A model's advertised window does not make an arbitrarily large local encode safe. [Model card](../MODEL_CARD.md), [roster](MODEL_ROSTER.md), [hardware](../HARDWARE_PROFILES.md) |
 
-The former whole-system-phi claim also survived in a function docstring after
-the module-level correction. That docstring and the temperature-ceiling
-comment were corrected without changing their algorithms.
+Other corrections cover the implemented soft-cancel path, current local-model
+routing, bounded formal checks, memory-store compatibility, backup families,
+retention scope and training/sleep instructions. Dated measurements keep their
+sample, source and host scope. Proposed ablations are not called completed
+merely because a later mechanism was implemented.
 
-## Checks that now protect repeated facts
+## Definitions, examples and citations
 
-The existing [product-facts gate](../tools/check_product_facts.py) now compares
-ten additional model/embedding facts with their source owners: Cortex, Deep,
-Vision, Brainstem and Reflex defaults, embedding model and dimensions, native window,
-operational view and padded-work budget. It checks the named copies in the
-model card and installation guide and reports a mismatch or removed statement.
-It also checks the two current closure-margin settings against the status
-page. The gate is now part of `make doc-drift`.
+The [plain-English tour](PLAIN_ENGLISH_GUIDE.md) explains purpose and practical
+use. The [variables guide](VARIABLES_EXPLAINED.md),
+[ISC variables](ISC_VARIABLES.md), [glossary](GLOSSARY.md) and
+[formula guide](FORMULAS.md) supply definitions, units/scales, examples and
+limits. Invented arithmetic is labeled as an example rather than a result.
+K*, held state and the two closure tests are included in the shared glossary.
 
-[The configuration](../config/product_facts.json) lists exactly which
-statements are checked. It does not parse every sentence or certify every
-capability. Regression tests check that a real budget change is caught,
-formatting such as 1_024 versus 1,024 is accepted, removed statements are
-reported, and unsupported normalization cannot silently pass.
+The [science/source map](SCIENCE_AND_SOURCES.md) and
+[BibTeX bibliography](../research/references.bib) distinguish external findings,
+Aura adaptations and Aura's own evidence. A conventional effect-size reference
+supports that convention; it does not validate a consciousness threshold.
+Access limitations and unverified advisory status remain visible.
 
-The [reading-note renderer](../tools/render_reader_navigation.py) keeps the
-glossary and shared definitions consistent. The
-[link audit](../tools/audit_documentation_links.py) checks files/headings and,
-when requested, bounded public HTTP reachability. These are different checks. Frozen v6 preregistration references now receive
-the same historical protection as v5: the name of a retired test remains part
-of its original protocol. The dated settings audit is also indexed as a
-historical audit; its older cloud-setting row does not describe current
-model-routing permission.
+## What protects against recurrence
 
-## Generated references
+The [product-facts gate](../tools/check_product_facts.py) checks **20 named
+facts** against their owners, including model/embedding limits, current closure
+settings, low-risk repair policy and G09's status/count. Its contradiction rules
+also reject named stale denials even when a correct summary appears elsewhere.
+[Configuration](../config/product_facts.json) states the exact coverage.
 
-The FMEA, runtime contract and architecture map were regenerated through their
-source tools. The progress page was also regenerated from the current
-registry and evidence ledger. Its certification figure is evidence credit
-under that ledger, not a measurement of intelligence or the percentage of
-Aura's functions that work. Missing or stale evidence cannot be promoted into
-credit by changing the prose. The regeneration produced 0.00% certified credit,
-rather than the earlier 0.33%; inspected rejection examples had stale source
-manifests. This is a source-bound certification/backfill result, not a
-measurement that Aura has zero capability.
+The [reading-note renderer](../tools/render_reader_navigation.py) now separates
+living ledgers, historical records and generated snapshots correctly. Its owned
+navigation cannot hide a status line or convert a generated report into an
+ordinary guide. Tests check these cases. The
+[link audit](../tools/audit_documentation_links.py) and document-drift gate check
+targets and declared source references; neither claims to understand every
+scientific assertion.
 
-## Definitions and arithmetic
+## Validation and remaining limits
 
-The [glossary](GLOSSARY.md) provides contextual definitions. The
-[formula guide](FORMULAS.md) defines symbols, units or scales, examples,
-practical interpretation and limits. Its examples are illustrative numbers,
-not additional experiment results. Shared words such as phi, free energy,
-alpha and subject must retain the definition used by the relevant page.
+The [dated review record](evidence/DOCUMENTATION_SEMANTIC_REVIEW_2026-10-25.json)
+contains final checks, per-file coverage and unresolved external URLs. It also
+records a combined test batch stopped at its time budget, followed by smaller
+checks. An interrupted run is not counted as passing. The
+[earlier validation record](evidence/DOCUMENTATION_CONTENT_AUDIT_2026-10-25.json)
+is preserved as the smaller audit it actually covered.
 
-## Validation record
-
-The [dated validation record](evidence/DOCUMENTATION_CONTENT_AUDIT_2026-10-25.json)
-records the 81 focused checks, 164 passing smoke tests with one skip, zero
-current document-drift findings, regenerated references and the public URL
-results. It also records resource limits and what was not measured. The final
-link pass covered 982 Markdown pages: no ordinary relative file/heading target
-was missing; 314 public URLs answered and ten remained unverified.
-
-## What remains conditional
-
-Historical records and frozen protocols intentionally preserve earlier states
-and methods. A later method is linked as a correction or successor; old
-outputs are not silently rescored. Some current guides include earlier
-catalogues or measurements, which must retain their explicit run/date scope.
-
-Source inspection establishes a configured route or formula, not that the
-current installed process used it successfully. Current activation, live
-latency, broad capability, long-run stability and independent replication
-require their own receipts or experiments. This documentation pass does not
-launch them on the shared host.
-
-Reachable external pages can still disagree, change or require access. A
-citation supports the passage and scope actually checked; it does not certify
-Aura's adaptation. A universal “no stale or contradictory information anywhere”
-claim is not established by these checks. New changes require the same source,
-evidence and cross-document review.
+This pass did not restart Aura, load a model or launch a new ISC/capability
+campaign. Tests used a separate log directory and bounded resources. Current
+live behavior, long-run stability, broad untested capability and independent
+replication still need their own evidence. This is a full-tree documentation
+review with stated coverage, not a guarantee that every historical statement
+is current or that every scientific claim has independent empirical validation.

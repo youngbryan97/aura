@@ -15,7 +15,9 @@
 shared consequence history (`dcdcd637c`), degradation history (`3e9211d3f`)
 and snapshot-bound methods (`517c4807c`). Retain the scores as recorded;
 paired results need rechecking under repaired isolation. The least-domain
-closure margin was withdrawn at `72dd0d703`; no margin is currently in force.
+closure margin was withdrawn at `72dd0d703`. The later `96487c6f1` addendum
+now declares K*, a numeric margin about 0.0196 and a separate interventional
+closure requirement; it supplies no replacement campaign verdict.
 [Current ISC status](ISC_STATUS.md) links the source-hashed updates and
 separates method repair from a replacement campaign.
 

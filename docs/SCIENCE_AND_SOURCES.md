@@ -180,3 +180,14 @@ and an unknown task distribution does not by itself prove no optimum exists.
 The [inner-light guide](INNER_LIGHT_TEST.md) now identifies its synthetic demo
 and project-defined thresholds. Neither its four-axis conjunction nor a
 shared term such as PCI inherits clinical validation from the original study.
+
+## The current closure margin is an adopted convention
+
+The night addendum at `96487c6f1` adopts a small regression-effect convention
+as a numeric margin and separately requires an interventional closure test.
+The [current ISC explanation](ISC_STATUS.md#the-night-addendum-include-what-the-transition-reads-then-test-both-ways)
+links the checked book passage, shows the conversion and states what does not
+transfer. This is a design choice requiring fresh evaluation, rather than a
+published finding that this number identifies a subject. The
+[source-hashed snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
+keeps it separate from the withdrawn least-domain proposal.

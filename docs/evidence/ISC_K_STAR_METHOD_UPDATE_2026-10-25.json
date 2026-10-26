@@ -1,0 +1,189 @@
+{
+  "schema": "aura.isc.k_star_method_update.v1",
+  "checked_at_utc": "2026-10-26T04:18:27.734066+00:00",
+  "method_commit": "96487c6f176bba225389aeb33f0888bf37bef29a",
+  "source_baseline": "38b4bfacca873ef1265122d812fd795c66ce8181",
+  "source_files_sha256": {
+    "core/subject/closure.py": "7876d038bb2d0765c933f77e11bb2170ffabbb0da995c98ee086d172d38d3c3b",
+    "core/subject/carrier_reads.py": "6641efba4caa790014f5f058d2be1627c0e9c62a5385a33dabe355f6ab19090a",
+    "core/subject/clamp.py": "90ea6a1a198ec034f52abdc27f74d48d280d023cecb58f59647cc525ed38df5f",
+    "core/subject/battery.py": "31579f0b002e74110a5a204e3684a7b7aff6a78695ba01890d09635249cc85b2",
+    "core/subject/bridge.py": "63a65dd19b0166c8695b50fcb588b616d2289fa072d7b3a5042d414dfdb07a9a",
+    "docs/ISC_V6_PREREGISTRATION.md": "3a4e75b3cb428621934d011add3796b8d46a340fca903cec4fa9b74b7f2948cf",
+    "tests/test_the_carrier_holds_what_its_transition_reads.py": "b0ecde16d3f1644d8a30c799f573cab9243f94d0ba29bea812f0b808ab5beaaa",
+    "tools/score_isc_v5.py": "e7b106839ffcea496d5011a71ae5c7aef2e2c9314f50afeb1f9131bbbcd8de6e",
+    "tools/solve_for_j.py": "a74392ba00d3b1555d345a8113e73ecb791ce5aa7a58e6cdce853963073d4d75"
+  },
+  "CLOSURE_MARGIN_expression": "0.02 / 1.02",
+  "CLOSURE_MARGIN": 0.0196078431372549,
+  "CLOSURE_MARGIN_RULE": null,
+  "least_domain_rule": "withdrawn",
+  "held_attribute_count": 30,
+  "held_unit_count": 14,
+  "held": [
+    {
+      "unit": "AffectUpdatePhase",
+      "attribute": "appraisal",
+      "domain": "A"
+    },
+    {
+      "unit": "affect_engine",
+      "attribute": "markers",
+      "domain": "A"
+    },
+    {
+      "unit": "affect_grounding",
+      "attribute": "_buf",
+      "domain": "A"
+    },
+    {
+      "unit": "homeostasis",
+      "attribute": "_setpoints",
+      "domain": "A"
+    },
+    {
+      "unit": "homeostasis",
+      "attribute": "integrity",
+      "domain": "A"
+    },
+    {
+      "unit": "homeostasis",
+      "attribute": "persistence",
+      "domain": "A"
+    },
+    {
+      "unit": "homeostasis",
+      "attribute": "sovereignty",
+      "domain": "A"
+    },
+    {
+      "unit": "homeostasis",
+      "attribute": "metabolism",
+      "domain": "A"
+    },
+    {
+      "unit": "embodied_interoception",
+      "attribute": "channels",
+      "domain": "I"
+    },
+    {
+      "unit": "neurochemical_system",
+      "attribute": "chemicals",
+      "domain": "I"
+    },
+    {
+      "unit": "neurochemical_system",
+      "attribute": "_control",
+      "domain": "I"
+    },
+    {
+      "unit": "neurochemical_system",
+      "attribute": "_tick_count",
+      "domain": "I"
+    },
+    {
+      "unit": "closed_causal_loop",
+      "attribute": "_loop_state",
+      "domain": "C"
+    },
+    {
+      "unit": "closed_causal_loop",
+      "attribute": "_predictor",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_gamma_at_theta_peak",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_gamma_at_theta_trough",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_gamma_phase",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_mesh_association_energy",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_mesh_executive_energy",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_mesh_sensory_energy",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_phase_reports",
+      "domain": "C"
+    },
+    {
+      "unit": "oscillatory_binding",
+      "attribute": "_theta_phase",
+      "domain": "C"
+    },
+    {
+      "unit": "stdp_engine",
+      "attribute": "_eligibility",
+      "domain": "C"
+    },
+    {
+      "unit": "stdp_engine",
+      "attribute": "_mesu_var",
+      "domain": "C"
+    },
+    {
+      "unit": "coherence_report",
+      "attribute": "overall_coherence",
+      "domain": "G"
+    },
+    {
+      "unit": "unity_runtime",
+      "attribute": "_last_unity_state",
+      "domain": "G"
+    },
+    {
+      "unit": "unity_runtime",
+      "attribute": "temporal_binding",
+      "domain": "G"
+    },
+    {
+      "unit": "phenomenal_now_engine",
+      "attribute": "_recent",
+      "domain": "G"
+    },
+    {
+      "unit": "consciousness",
+      "attribute": "heartbeat",
+      "domain": "G"
+    },
+    {
+      "unit": "qualia_synthesizer",
+      "attribute": "q_norm",
+      "domain": "G"
+    }
+  ],
+  "requires": [
+    "Observational CLOSED_WITHIN_MARGIN on K* with required uncertainty, resolution, fold and estimator-validity checks",
+    "Interventional CLOSED on held-out anchors of the scored seed, with declared outside-state swaps and two-turn K/held-state equality when untouched twins agree"
+  ],
+  "new_full_campaign_run_by_this_task": false,
+  "new_carrier_verdict": null,
+  "evidence_scope": "Source and preregistration reconciliation, not fresh confirmation. Seed 23 informed boundary discovery. The committed work log reports a seed-7 synergy diagnostic, not a replacement full battery/carrier/joined campaign.",
+  "scientific_source": {
+    "reference": "Cohen (1988), Statistical Power Analysis for the Behavioral Sciences, second edition, section 9.2.2, printed p. 413 (PDF page 425)",
+    "url": "https://utstat.utoronto.ca/~brunner/oldclass/378f16/readings/CohenPower.pdf#page=425",
+    "supports": "Conventional small regression effect f-squared 0.02 and its partial-R-squared conversion",
+    "does_not_establish": "A natural subject boundary or validation of this estimator on Aura"
+  },
+  "supersedes_for_current_method": "ISC_CLOSURE_WITHDRAWAL_2026-10-25.json"
+}

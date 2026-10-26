@@ -19,7 +19,7 @@ The [retained-constraint design](G_SEMANTIC_CONSTRAINT_DESIGN.md) derives the
 bounded correctness conditions and separates numerical fitting, capacity
 expansion and fresh transfer. It adds no new master-ledger identifiers.
 
-## v7 promotion snapshot, 28–29 September 2026
+## Current promotion path, 2026-09-28
 
 This section retains the state of that candidate at that point. Its “not run”
 entries and running-campaign references are not today's whole-project status.

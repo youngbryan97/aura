@@ -1,10 +1,11 @@
 # ISC: what the latest results show
 
-Status: Guide · Evidence and source checked 25 October 2026, 18:55 PDT · through 517c4807c
+Status: Guide · Source reconciled 25 October 2026, 21:16 PDT · through 96487c6f1
 
 **The completed run recorded 22 of 24 checks passing under ISC-v6.** Its
 separate content and self-report outputs were positive. A later isolation
-repair at `dcdcd637c` found that comparison copies shared consequence history,
+series found shared consequence history, shared degradation history and methods
+bound to frozen copies,
 so these paired results need rechecking before being presented as clean causal
 confirmation. There is no full ISC pass or settled five-ground bridge result.
 
@@ -65,17 +66,19 @@ positive results.
 | Do self-reports follow changed internal valence? | `measured: true`, `holds: true`, tracking rho 0.612475 | 29 of 80 anchors were fully readable under the stored policy; experimental basis and sample scope must be retained |
 | Is the proposed carrier established? | Completed carrier report: `NOT_FOUND`; completed J*/bridge output: `NO_CARRIER` | Later closure-rule changes require a new reading and fresh confirmation |
 | Do all five bridge grounds hold? | Carrier fails; markers, reports, structure and lineage hold in the completed join | No `AT_PARITY` result |
-| What does the latest source code allow? | At `72dd0d703`, the least-domain margin is withdrawn; outside columns enter as increments, the target is core change, and failed estimator folds cannot support closure | No margin or margin rule is currently named, so a positive closed reading is unavailable; fresh measurement and confirmation remain required |
+| What does the latest source code require? | At `96487c6f1`, the carrier is K*: K plus declared state its transition reads. The numeric margin is 0.02 / 1.02, about 0.0196; closure also needs an interventional `CLOSED` result | Fresh source-bound measurements on the scored seed, all required controls and confirmation; this is not a new positive verdict |
 
 The completed 22/24 result belongs to the experiment at `8f548ed79`. It is not
-an evaluated result for source at `cf0ace7e3`. Seed 23 informed the later
+an evaluated result for source at `96487c6f1`. Seed 23 informed the later
 method and is discovery data for that revision. The old `NO_CARRIER` output
 remains part of the record; no new carrier verdict was produced for this
 publication update.
 
 The [25 October evidence snapshot](evidence/ISC_STATUS_2026-10-25.json)
 contains selected fields and hashes from the completed battery, carrier,
-content, reports and J* files, plus the current closure policy. The
+content, reports and J* files, plus the closure policy at that snapshot. The
+[later K* method snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
+records the subsequent policy without rewriting those earlier outputs. The
 [24 October snapshot](evidence/ISC_STATUS_2026-10-24.json) is preserved as the
 record of the earlier, unfinished state. Neither is a full raw-data package.
 
@@ -144,9 +147,9 @@ smallest predictive contribution is therefore not a justified closure margin.
 The [afternoon snapshot](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json)
 remains a record of that proposal, not the active rule.
 
-Current code: `CLOSURE_MARGIN` is `None`; `CLOSURE_MARGIN_RULE` is `None`.
-A margin still needs to be declared before fresh confirmation. Until then,
-the gate cannot return a positive `CLOSED_WITHIN_MARGIN` reading.
+Current code: `CLOSURE_MARGIN` is `0.02 / 1.02`; `CLOSURE_MARGIN_RULE` is `None`.
+The night addendum at `96487c6f1` declares this numeric margin and a second,
+interventional closure requirement. The least-domain rule remains withdrawn.
 
 The evening amendment also changes the estimator: it enters every outside
 column as an increment and predicts the core's change. A fold where the wider
@@ -159,7 +162,7 @@ and [the evening v6 addendum](ISC_V6_PREREGISTRATION.md).
 
 Carrier selection preserves an unresolved closure question as `UNRESOLVED`,
 rather than treating it as a measured absence of a carrier. Neither this rule
-nor the isolation repair supplies a replacement for the completed verdict.
+nor the isolation repairs supply a replacement for the completed verdict.
 
 A later restore repair at `517c4807c` found that deep-copying containers of
 bound methods could bind processors to frozen copies of their organs. Both
@@ -167,6 +170,44 @@ experimental twins could then agree while processing through the wrong state.
 The restore now treats those method tables as wiring. This is another reason
 to recheck the earlier paired results; matching unchanged twins alone does
 not establish a faithful intervention setup.
+
+## The night addendum: include what the transition reads, then test both ways
+
+At `96487c6f1`, K* extends the ten-domain core with declared attributes whose
+state changes reached the core or an already held attribute in the discovery
+probe. The source lists the additions in
+[carrier_reads.py](../core/subject/carrier_reads.py). Wall-clock instants and
+tables of bound methods are excluded by the declared rule. Held attributes
+are read on the core's side, and a cut holding a domain holds its additions.
+The periphery reader also now reads deques and nested histories it missed.
+
+The practical issue is an incomplete control panel: if a machine's next step
+uses a buffer, recording only the panel lamps omits a cause. Adding the buffer
+to the record makes the boundary more faithful; it does not prove the enlarged
+boundary is closed or conscious.
+
+The source now requires **both**:
+
+1. An observational result bounding the remaining outside contribution below
+   `0.02 / 1.02` (about 0.0196078), with the required resolution, fold and
+   estimator-validity controls.
+2. An interventional `CLOSED` result on held-out anchors of the scored seed:
+   the declared outside-state swaps change neither K's recorded vector nor
+   K*'s held readings within two turns, bit for bit, when untouched twins agree.
+
+The numeric choice adapts Cohen's conventional small regression effect:
+[f-squared 0.02 converts to partial R-squared about 0.0196, section 9.2.2](https://utstat.utoronto.ca/~brunner/oldclass/378f16/readings/CohenPower.pdf#page=425).
+That supports the convention and conversion. It does not establish a natural
+boundary for subjects, causal closure in all situations, or the adequacy of
+this project's out-of-sample estimator. The two-turn intervention has its own
+finite unit, anchor and horizon coverage.
+
+The battery needs both results. J*/the bridge also requires the intervention:
+a previously found carrier becomes unresolved when that input is missing,
+and not found when outside state moves it. The historical seed-23 outputs
+remain unchanged. The [work log](ISC_OCT21_EVERY_ITEM.md) also reports a
+post-repair seed-7 synergy probe; that diagnostic is separate from a new full
+battery, carrier sweep and joined confirmation. This review ran none of them.
 
 ## The joint-effect result within the full campaign
 
@@ -221,15 +262,16 @@ live desktop. The earlier certificate and refusal are retained in the
 
 1. Recheck paired comparisons under the consequence-history isolation repair,
    including the previously positive synergy, content and report readings.
-2. Declare a defensible closure margin before fresh confirmation. The
-   least-domain rule was withdrawn; retain the changed estimator's validation,
-   coverage and failed-fold diagnostics.
+2. Evaluate the newly declared K* boundary and numeric margin under the
+   night addendum. Retain the estimator's validation, coverage, bounds and
+   failed-fold diagnostics, plus the required interventional closure result.
 3. Confirm in a campaign that unchanged forks stay within their control floor.
    The pre-flight on the repaired source reads them identical, with a positive
    control that fires. Also verify that restored methods remain bound to the
    live organs; an identical pair alone cannot detect a frozen copy shared by both.
-4. Resolve the proposed core boundary under the amended closure rule, retaining
-   any genuine outside influence or insufficient measurement as such.
+4. Resolve the K* boundary under both closure tests, retaining any detected
+   outside influence or insufficient measurement as such. Seed 23 helped
+   develop the boundary; a new rule does not make it independent confirmation.
 5. Run and join the required fresh campaign, carrier, content and report inputs
    under their declared source, design and scope. Preserve the old results.
 6. Publish the required artifacts and obtain independent reproduction before

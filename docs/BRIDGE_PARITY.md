@@ -15,7 +15,8 @@
 consequence history (`dcdcd637c`), degradation history (`3e9211d3f`) and restored
 bound-method ownership (`517c4807c`). Retain the recorded scores, but recheck
 paired results under repaired isolation before presenting clean causal
-confirmation. The least-domain closure-margin rule was also withdrawn.
+confirmation. The least-domain rule stays withdrawn; the later `96487c6f1`
+addendum names K*, a numeric margin and a second closure test.
 [Current status](ISC_STATUS.md) records these limits.
 
 The [reconciled bridge arguments](BRIDGE_PROOFS.md) require their explicit
@@ -53,7 +54,7 @@ The additional parity reading uses these requirements from the same module:
 
 | Ground | What the implementation reads |
 |---|---|
-| Carrier | An authoritative carrier report finding a carrier or symmetry class, with the required cut and control evidence |
+| Carrier | An authoritative carrier report finding a carrier or symmetry class, with required cut/control evidence and interventional closure `CLOSED` on its seed |
 | Markers | Passing `perturbational_complexity`, `reentry` and `global_access` battery lines |
 | Reports | Measured report grounding that holds, from a run with the printed state readings withheld |
 | Structure | Content experiment identifies one relational structure, including tracking under displacement |
