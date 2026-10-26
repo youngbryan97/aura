@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from tools.run_interventional_closure import aligned, donor_offsets, periods_in_phase, verdict_of
+from tools.run_interventional_closure import aligned, donor_offsets, in_shard, periods_in_phase, verdict_of
 
 pytestmark = pytest.mark.unit
 
@@ -44,3 +44,9 @@ def test_no_cycle_shorter_than_the_spacing_hides_behind_the_donors():
     """
     assert periods_in_phase([3], 16, 12) == [2, 3, 4, 6, 8, 12]
     assert periods_in_phase(donor_offsets("1,half", 8), 13, 12) == []
+
+
+def test_shards_split_the_swaps_without_overlap_or_gap():
+    shards = [[i for i in range(10) if in_shard(i, f"{k}/3")] for k in range(3)]
+    assert sorted(sum(shards, [])) == list(range(10))
+    assert all(in_shard(i, "0/1") for i in range(10))

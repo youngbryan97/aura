@@ -73,6 +73,12 @@ def donor_offsets(spec: str, anchors: int) -> list[int]:
     } - {0})
 
 
+def in_shard(index: int, shard: str) -> bool:
+    """Whether the index-th swap belongs to shard "k/n"."""
+    k, _, n = str(shard).partition("/")
+    return index % max(1, int(n or 1)) == int(k or 0)
+
+
 def periods_in_phase(offsets: list[int], spacing: int, longest: int) -> list[int]:
     """The cycles, in turns, that every donor's distance is a whole number of: a swap cannot show them."""
     return [p for p in range(2, longest + 1) if all((o * spacing) % p == 0 for o in offsets)]
@@ -91,6 +97,10 @@ async def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--anchors", type=int, default=8)
     parser.add_argument("--spacing", type=int, default=13)
+    parser.add_argument(
+        "--shard", default="0/1",
+        help="k/n: swap only every n-th unit from the k-th, so one seed's test can run in n processes",
+    )
     parser.add_argument(
         "--donors", default="1,half",
         help="donor distances in anchors, comma-separated; 'half' is half the bank",
@@ -245,7 +255,9 @@ async def main(argv: list[str] | None = None) -> int:
     previous = None
     started = time.monotonic()
     whole: set[str] = set()
-    for name, key in swaps():
+    for index, (name, key) in enumerate(swaps()):
+        if not in_shard(index, args.shard):
+            continue
         label = name if key is None else f"{name}.{key}"
         if key is None:
             whole.add(label)
@@ -301,7 +313,7 @@ async def main(argv: list[str] | None = None) -> int:
 
     verdict = verdict_of(moved, residue, any(b is not None for b in base))
     print(f"\ninterventional closure of K*: {verdict}; {len(results)} swaps; moved by: {moved}", flush=True)
-    write({"seed": args.seed, "anchors": len(snaps), "spacing": args.spacing, "donor_offsets": offsets,
+    write({"seed": args.seed, "anchors": len(snaps), "spacing": args.spacing, "donor_offsets": offsets, "shard": args.shard,
            "verdict": verdict, "results": results, "moves_k_star": moved,
            "residue": residue, "culprit_attributes": culprits})
     return 0
