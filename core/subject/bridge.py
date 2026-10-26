@@ -199,11 +199,16 @@ class CarrierTerm:
         }
 
 
-def carrier_term(report: Mapping[str, Any] | None) -> CarrierTerm:
+def carrier_term(
+    report: Mapping[str, Any] | None, interventional: Mapping[str, Any] | None = None
+) -> CarrierTerm:
     """The first term, read off a v25 report.
 
     Only an authoritative run settles it. A run that found a carrier and was
-    not authoritative has not found one.
+    not authoritative has not found one. Nor has one whose closure was not
+    also shown under intervention (ISC-v6 addendum, 25 October, night): found
+    with something outside K* that moves it is not found, and found with the
+    intervention unread is unresolved.
     """
     if not report:
         return CarrierTerm("UNRESOLVED", blockers=("no carrier run was read",))
@@ -218,6 +223,15 @@ def carrier_term(report: Mapping[str, Any] | None) -> CarrierTerm:
     exclusion = report.get("exclusion") or {}
     status = str(exclusion.get("status") or "")
     frontier = tuple(str(s) for s in exclusion.get("frontier") or ())
+    if status in ("FOUND", "SYMMETRY_CLASS"):
+        verdict = str((interventional or {}).get("verdict") or "NOT_MEASURED")
+        if verdict == "OPEN":
+            moved = ", ".join(str(m) for m in list((interventional or {}).get("moves_k_star") or [])[:6])
+            return CarrierTerm("NOT_FOUND", level=level,
+                               blockers=(f"under intervention, state outside K* moves it: {moved}",))
+        if verdict != "CLOSED":
+            return CarrierTerm("UNRESOLVED", level=level,
+                               blockers=("closure under intervention was not measured",))
     if status == "FOUND":
         return CarrierTerm("FOUND", carriers=frontier, level=level)
     if status == "SYMMETRY_CLASS":
@@ -628,10 +642,11 @@ def solve(
     *,
     battery: Mapping[str, bool] | None = None,
     reports: Mapping[str, Any] | None = None,
+    interventional: Mapping[str, Any] | None = None,
 ) -> JStar:
     """J*(U_t) from the three runs that bear on it, and the bridge from those plus two more."""
     return JStar(
-        carrier=carrier_term(carrier_report),
+        carrier=carrier_term(carrier_report, interventional),
         structure=structure_term(content_report),
         lineage=lineage_term(lineage),
         battery=dict(battery) if battery is not None else None,

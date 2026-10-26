@@ -417,3 +417,39 @@ test, the idle periphery closes in 18 of 20 and is never falsely closed.
 
 **The margin is not named here.** It is the size of outside influence below which closure counts, and it is named
 before a fresh seed is scored, by a rule that does not read a recording of her.
+
+## Addendum, 25 October 2026, night: K*, the margin, and closure by intervention as well
+
+Written before K* or this margin was read on any recording of her, and before any fresh seed.
+
+**The carrier is K*.** On seed 23's anchors, thirteen units outside K's ten domains changed K within two turns when
+their state alone was swapped in from another anchor, through hybrid snapshots and `runtime.restore` and nothing else.
+A core whose transition reads state it does not contain is drawn too small. K* is K plus that state, decided by
+mechanism: an attribute is held when swapping it alone changes K, or changes an attribute already held, within two
+turns at some anchor, iterated until a round adds nothing. Membership never depends on which columns leaked. Two
+kinds of attribute are left out by rule: wall-clock instants, whose swap injects an elapsed time no run produces, and
+tables of an organ's own methods, which are wiring. The table is `core/subject/carrier_reads.py`, with the domain
+each attribute serves; a cut that holds a domain holds its share of K*.
+
+The periphery the carrier recorded on seed 23 could not see much of this. It read no deque at all, a dict of buffers
+as nothing, and nothing below two levels of a service, so a unit whose state reached K (the unity runtime) entered as
+its wrapper's four flags. The reader now reads deques, nested containers two levels down, and a history of objects
+through its latest item; K*'s attributes are read whole under `held.` and sit on the core's side of the test.
+
+**The margin is 0.0196**, Cohen's small partial effect (f-squared 0.02, a partial R-squared of 0.02 / 1.02; Cohen,
+*Statistical Power Analysis for the Behavioral Sciences*, 2nd ed., 1988). The leak is exactly a partial R-squared:
+the share of what K and E cannot predict about K's change that the outside explains. A published convention, not a
+number read off her; every value proposed before it came after seed 23's leak had been read.
+
+**Closure needs both tests.** `causal_closure_of_the_core`, and the carrier's closure for J* and the bridge, pass only
+when:
+
+1. the observational gate reads CLOSED_WITHIN_MARGIN on K*: the leak's one-sided 95% upper bound below 0.0196, the
+   planted cause found at or below it, no fold open and no fold failed; and
+2. the interventional test reads CLOSED on held-out anchors of the seed being scored: every unit outside K* swapped
+   whole, and every attribute of a K* unit that K* does not hold swapped alone, with the donor's instants aligned to
+   the receiving anchor, changes neither K's recorded vector nor any K* reading after two turns, bit for bit, at any
+   anchor whose untouched twins agree.
+
+The second is exact and needs no margin. It also covers what a fixed-width sketch of a large array cannot show the
+first.

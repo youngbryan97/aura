@@ -23,11 +23,12 @@ recovered measurement evidence rather than a second baseline.
 from __future__ import annotations
 
 import copy
+from collections import deque
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from typing import Any
 
-from core.subject.snapshot import _organ_state, _restore_organ
+from core.subject.snapshot import _organ_state, _restore_into, _restore_organ
 from core.subject.state import _SCHEMAS, DOMAINS, domain_slices, feature_names
 
 __all__ = [
@@ -332,6 +333,7 @@ class Clamp:
         self.hidden: Any = None
         self.reservoir: dict[str, Any] = {}
         self.organs: dict[str, tuple[Any, dict[str, Any]]] = {}
+        self.held: list[tuple[Any, str, Any, bool]] = []
         self.capture()
 
     def capture(self) -> None:
@@ -375,6 +377,24 @@ class Clamp:
             if organ is not None:
                 skip = owned_elsewhere - {id(organ)}
                 self.organs[name] = (organ, _organ_state(organ, skip=skip))
+        # And what K* holds of these domains beyond K's columns
+        # (core/subject/carrier_reads.py). Her affect engine's markers feed her
+        # recurrent cognition directly, so a clamp on affect that left them free
+        # would let affect reach the other side of the cut around the clamp.
+        self.held.clear()
+        from core.subject.carrier_reads import _units, held_by_domain
+
+        units = _units(getattr(self.holder, "kernel", None))
+        for domain in self.domains:
+            for entry in held_by_domain(domain):
+                organ = units.get(entry.unit)
+                if organ is None or not hasattr(organ, entry.attribute):
+                    continue
+                value = getattr(organ, entry.attribute)
+                if hasattr(value, "__dict__") and not callable(value):
+                    self.held.append((value, entry.attribute, _organ_state(value), True))
+                else:
+                    self.held.append((organ, entry.attribute, copy.deepcopy(value), False))
 
     def apply(self) -> None:
         state = self.holder.state
@@ -401,6 +421,19 @@ class Clamp:
                     continue
         for organ, saved in self.organs.values():
             _restore_organ(organ, saved)
+        for owner, attribute, saved, in_place in self.held:
+            if in_place:
+                # The object itself, restored field by field, so whatever else
+                # holds a reference to it holds the same object.
+                _restore_organ(owner, saved)
+                continue
+            current = getattr(owner, attribute, None)
+            if isinstance(current, (dict, list, set, deque)) and _restore_into(current, saved, set()):
+                continue
+            try:
+                setattr(owner, attribute, copy.deepcopy(saved))
+            except (AttributeError, TypeError):
+                continue
 
 
 @contextmanager

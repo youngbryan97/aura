@@ -15,8 +15,19 @@ import math
 import numpy as np
 import pytest
 
-from core.subject.bridge import POSTULATES, orbits, solve, structure_term
+from core.subject.bridge import POSTULATES, carrier_term, orbits, structure_term
+from core.subject.bridge import solve as _solve
 from core.subject.lineage import Lineage, Stage
+
+#: A carrier is found only when its closure also holds under intervention
+#: (ISC-v6 addendum, 25 October, night). These tests are about the other terms,
+#: so the carrier's run is given one that held.
+CLOSED_UNDER_INTERVENTION = {"verdict": "CLOSED", "moves_k_star": []}
+
+
+def solve(*args, **kwargs):
+    kwargs.setdefault("interventional", CLOSED_UNDER_INTERVENTION)
+    return _solve(*args, **kwargs)
 
 CORE = "ACDGIMNPSW"
 
@@ -192,3 +203,15 @@ def test_no_status_it_can_return_says_conscious() -> None:
     for j in cases:
         assert "CONSCIOUS" not in j.status.upper()
         assert "CONSCIOUS" not in j.bridge.upper()
+
+
+def test_a_found_carrier_with_no_intervention_read_is_unresolved() -> None:
+    term = carrier_term(_carrier_report())
+    assert term.status == "UNRESOLVED"
+    assert any("under intervention was not measured" in b for b in term.blockers)
+
+
+def test_a_found_carrier_that_something_outside_moves_is_not_found() -> None:
+    term = carrier_term(_carrier_report(), {"verdict": "OPEN", "moves_k_star": ["homeostasis.metabolism"]})
+    assert term.status == "NOT_FOUND"
+    assert any("homeostasis.metabolism" in b for b in term.blockers)

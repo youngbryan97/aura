@@ -626,14 +626,21 @@ def assemble(evidence: dict[str, Any]) -> Verdict:
         "> 0, and above the shuffled-state control",
         over_shuffle=intrinsic.get("delta_over_shuffled_state"),
     ))
+    # Observed and under intervention (ISC-v6 addendum, 25 October, night). The
+    # observational gate reads a sketch of a large array; the interventional
+    # test swaps the whole thing and needs no margin.
+    interventional = evidence.get("interventional_closure") or {}
     add(_c(
         "causal_closure_of_the_core", "3",
-        "no variable outside K predicts K's future better than K and its environment do",
-        bool(closure.get("closed")),
+        "nothing outside K* moves K*: observed, and under intervention",
+        bool(closure.get("closed")) and interventional.get("verdict") == "CLOSED",
         round(float(closure.get("leak", 1.0)), 4),
-        "closed within the preregistered margin: the leak's upper bound below it, a planted leak "
-        "no larger found, no fold open (an unresolved gate does not pass)",
+        "closed within the preregistered margin (the leak's upper bound below 0.0196, a planted leak no "
+        "larger found, no fold open or failed) and closed under intervention on held-out anchors (no swap "
+        "outside K* changes K or K* within two turns)",
         largest_leaks=closure.get("largest_leaks", []),
+        interventional=interventional.get("verdict", "NOT_MEASURED"),
+        moved_by=list(interventional.get("moves_k_star") or [])[:12],
     ))
     add(_c(
         "perturbational_spread", "24",

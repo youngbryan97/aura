@@ -46,6 +46,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--campaign", type=Path, required=True, help="a campaign run directory or its report")
     parser.add_argument("--sweep", type=Path, required=True, help="a v25 run directory or its report, run with --v5")
     parser.add_argument("--null-sweep", action="append", default=[], help="NAME=REPORT for a null that passes the rest")
+    parser.add_argument(
+        "--interventional-closure", type=Path, default=None,
+        help="the interventional closure of K* on this seed's held-out anchors; the closure line needs it",
+    )
     args = parser.parse_args(argv)
 
     from core.runtime.atomic_writer import atomic_write_text
@@ -67,6 +71,8 @@ def main(argv: list[str] | None = None) -> int:
         null_sweeps[name] = json.loads(Path(where).read_text(encoding="utf-8"))
 
     evidence = {key: value for key, value in campaign.items() if key != "verdict"}
+    if args.interventional_closure is not None:
+        evidence["interventional_closure"] = json.loads(args.interventional_closure.read_text(encoding="utf-8"))
     if "synergy_v4" not in evidence:
         # A campaign recorded before ISC-v5 read synergy with the clocks out.
         # The line is computed from the campaign's own recording, as the

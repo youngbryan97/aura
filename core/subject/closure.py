@@ -33,8 +33,9 @@ predicts K's future for the same reason any monotone series predicts any other
 from __future__ import annotations
 
 import math
+from collections import deque
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from typing import Any
 
 import numpy as np
@@ -61,11 +62,17 @@ TURN_CLOSES: str = "ontogeny"
 #: The four readings of the gate (`ClosureReport.verdict`).
 OPEN, CLOSED, UNRESOLVED, NOT_MEASURED = "OPEN", "CLOSED_WITHIN_MARGIN", "UNRESOLVED", "NOT_MEASURED"
 
-#: The margin within which a closed reading is a claim, as a leak (a share of
-#: what K and its environment cannot predict about K's next turn). A number here
-#: overrides the rule below; none is named, because any number would have been
-#: chosen with seed 23's leak in view.
-CLOSURE_MARGIN: float | None = None
+#: The margin within which a closed reading is a claim, as a leak: the share
+#: of what K and its environment cannot predict about K's change that the
+#: outside explains, which is the partial R-squared of the outside given K and
+#: E. Cohen's convention for a small partial effect is f-squared 0.02 (Cohen,
+#: Statistical Power Analysis for the Behavioral Sciences, 2nd ed., 1988),
+#: which is a partial R-squared of 0.02 / 1.02. A published convention rather
+#: than a number read off her: every value proposed before it (0.025, 0.03,
+#: 0.045, 0.059) came after seed 23's leak had been read. Named in the ISC-v6
+#: addendum of 25 October, night, beside the interventional test closure now
+#: also needs (`core/subject/carrier_reads.py`).
+CLOSURE_MARGIN: float | None = 0.02 / 1.02
 
 #: How the margin is drawn when no number is named. The least-domain rule
 #: (`least_domain_margin`) was preregistered on 25 October and withdrawn the same
@@ -191,9 +198,9 @@ def _numbers(
             number = float(value)
             if math.isfinite(number) and not _is_clock(number):
                 out[f"{prefix}.{name}"] = number
-        elif isinstance(value, (list, tuple, dict, set)):
+        elif isinstance(value, (list, tuple, dict, set, deque)):
             out[f"{prefix}.{name}#"] = float(len(value))
-            _contents(value, f"{prefix}.{name}", out)
+            _contents(value, f"{prefix}.{name}", out, seen=seen, own=own)
         elif _is_array(value):
             # An array fell through every branch above and through the one
             # below, because a numpy array is not a sequence this walk
@@ -206,7 +213,14 @@ def _numbers(
             _numbers(value, f"{prefix}.{name}", out, depth + 1, ceiling=stop, seen=seen, own=own)
 
 
-def _contents(value: Any, name: str, out: dict[str, float]) -> None:
+def _contents(
+    value: Any,
+    name: str,
+    out: dict[str, float],
+    depth: int = 0,
+    seen: set[int] | None = None,
+    own: Mapping[int, set[str]] | None = None,
+) -> None:
     """The numbers a container holds, not only how many things it holds.
 
     Until 25 October a dict or list entered the periphery as its length, so a
@@ -227,6 +241,24 @@ def _contents(value: Any, name: str, out: dict[str, float]) -> None:
             return
     else:
         items = [(str(index), item) for index, item in enumerate(value)]
+    # A container of containers, or a history of objects. Until 25 October only
+    # numbers sitting directly inside were read, and a deque not at all, so a
+    # dict of buffers (affect grounding's `_buf`, eight deques) and a deque of
+    # moments (the phenomenal-now engine's `_recent`) entered as nothing: the
+    # closure test could not see a leak kept in any history. A nested container
+    # is read as its own container, two levels down; a history of records (a
+    # dataclass per moment) is read through its most recent record, which is
+    # the one its readers use. A list of organs is not a history: the kernel's
+    # phases are walked under their own names, with K's attributes kept out.
+    if depth < 2:
+        for key, item in items:
+            if isinstance(item, (list, tuple, dict, set, deque)):
+                out[f"{name}[{key}]#"] = float(len(item))
+                _contents(item, f"{name}[{key}]", out, depth + 1, seen=seen, own=own)
+        if items and not isinstance(value, (dict, set)):
+            last = items[-1][1]
+            if is_dataclass(last) and not isinstance(last, type):
+                _numbers(last, f"{name}[-1]", out, depth=MAX_DEPTH - 1, seen=seen, own=own)
     numbers = [
         (key, float(item))
         for key, item in items
@@ -386,6 +418,16 @@ def read_periphery(kernel: Any, organs: Any = None) -> dict[str, float]:
     out: dict[str, float] = {}
     core = _core_attributes()
     own = _own_attributes(organs)
+    # What K* holds beyond K's ten domains (core/subject/carrier_reads.py) is
+    # read whole under `held.`, and left out of the periphery wherever the walk
+    # meets the unit that carries it, so it is on one side of the test only.
+    from core.subject.carrier_reads import _units, held_attributes_of, read_held
+
+    units = _units(kernel)
+    for unit, organ in units.items():
+        if organ is not None:
+            own.setdefault(id(organ), set()).update(held_attributes_of(unit))
+    out.update(read_held(kernel, units))
     seen: set[int] = set()
     _numbers(kernel, "kernel", out, depth=1, seen=seen, own=own)
     for phase in getattr(kernel, "_phases", []):
@@ -1080,6 +1122,22 @@ def closure_gain(
     live = recording.live_columns()
     now = recording.x[:-1][:, live]
     nxt = recording.x[1:][:, live]
+    # K*: what K's transition reads beyond its ten domains, recorded under
+    # `held.` (core/subject/carrier_reads.py), is part of the carrier, on the
+    # side of the test that predicts and is predicted, never the periphery.
+    if periphery.size and names:
+        held = np.array([name.startswith("held.") for name in names], dtype=bool)
+        if held.any():
+            block = periphery[:, held]
+            moving = (block.std(axis=0) > 1e-9) & ~np.array(
+                [_named_clock(name) for name, flag in zip(names, held, strict=True) if flag], dtype=bool
+            )
+            block = block[:, moving]
+            if block.shape[1] and block.shape[0] == recording.x.shape[0]:
+                now = np.hstack([now, block[:-1]])
+                nxt = np.hstack([nxt, block[1:]])
+            periphery = periphery[:, ~held]
+            names = tuple(name for name, flag in zip(names, held, strict=True) if not flag)
     outside = periphery[:-1]
     if outside.size == 0 or now.shape[0] < 60:
         return ClosureReport(1.0, 1.0, 1.0, 0.0, 0.0, 0.0, int(outside.shape[1] if outside.size else 0),

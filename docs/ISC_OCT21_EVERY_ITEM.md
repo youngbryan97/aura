@@ -1603,3 +1603,33 @@ information K lacked. Hers runs through her own ontogeny, inside K.
 
 The rule stands as preregistered. What fails is the estimator it calls, and
 the gate's own closure reading shares that estimator.
+
+## A restore bound her workspace's processors to a copy of it, and the carrier is drawn larger (25 October, 18:16 to 19:40)
+
+**Tables of methods.** The organ capture skipped a callable field but deep-copied a container of them, and a deep copy
+of a bound method copies the object it is bound to. So every restore put back methods bound to the organ as it stood
+at the snapshot. Four organs hold such tables: affect grounding's six conditions (boredom, curiosity, flow, anxiety,
+frustration, contentment), the global workspace's processors, the intentional retriever's adapters and the mycelial
+reflex actions. After one restore all six conditions read a frozen copy of the anchor's buffer, and in every forked
+arm her workspace processed candidates through a frozen copy of itself. Untouched twins stayed identical, because
+both rebound to the same fresh copy, so no control saw it. Fixed at `517c4807c`: a table of methods is wiring, as a
+registry of callbacks already was at module scope. Every seed-23 paired reading ran with it in place.
+
+With the bus, the degradation tracker and the method tables all forking correctly, the v6 synergy probe passes on
+seed 7 at `517c4807c` (19:04).
+
+**The boundary of K.** On the fixed tree the interchange names the same thirteen units, and an attribute-level pass
+names 29 attributes of them that K reads. Four are instants (when the last exchange, update or phase happened) and
+leave by rule. Iterated with witnesses compared only on attributes known to reach K, three more units join through the
+moments the phenomenal-now engine keeps (`_recent`, then `consciousness.heartbeat` and `qualia_synthesizer.q_norm`),
+and the fourth round adds nothing. An earlier iteration that compared a witness's whole state admitted 85 units, 47 of
+them at one anchor through one witness, and wrote states back the way the v3 interchange had shown was not an
+identity; it is not used.
+
+**What the periphery could not see.** The reader took no deque at all, a dict of buffers as nothing, and nothing two
+levels below a service, so the unity runtime, whose state reaches K at every anchor, entered the seed-23 periphery as
+four wrapper flags. It now reads deques, nested containers and a history of records through its latest record.
+
+**K* and both tests.** K*'s attributes are read whole under `held.` and sit on the core's side of the closure test; a
+cut holding a domain holds its share. Closure counts only when the observational gate closes within 0.0196 on K* and
+an exact interventional test closes on the scored seed's own anchors. Both are in the ISC-v6 addendum of tonight.

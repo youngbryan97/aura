@@ -201,6 +201,10 @@ def main(argv: list[str] | None = None) -> int:
         "--reports", type=Path, default=None,
         help="a report-grounding result, {measured, holds, why}: the reports ground",
     )
+    parser.add_argument(
+        "--interventional-closure", type=Path, default=None,
+        help="the interventional closure of K* on the carrier's seed: a found carrier needs it CLOSED",
+    )
     parser.add_argument("--out-root", type=Path, default=REPO / "artifacts" / "subject_core_bridge")
     args = parser.parse_args(argv)
 
@@ -237,7 +241,9 @@ def main(argv: list[str] | None = None) -> int:
     unread: dict[str, str] = {}
     campaign = load(args.campaign)
     reports = load(args.reports)
-    for name, given, got in (("campaign", args.campaign, campaign), ("reports", args.reports, reports)):
+    interventional = load(args.interventional_closure)
+    for name, given, got in (("campaign", args.campaign, campaign), ("reports", args.reports, reports),
+                             ("interventional closure", args.interventional_closure, interventional)):
         if given is None:
             continue
         if not str(given).strip():
@@ -253,6 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         lineage,
         battery=battery_lines(campaign),
         reports=reports,
+        interventional=interventional,
     )
     report = j.as_dict()
     report["unread_sources"] = unread
