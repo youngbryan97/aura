@@ -1688,3 +1688,45 @@ closure line fails on an OPEN result, as it should.
 **Seed 61.** Launched at 02:22; the v6 line passed at 02:32 (all four triples at direction p 0.0001), and the carrier,
 content run, campaign and the two-donor interventional test started together. The seed-31 campaign and content run
 continue at low priority as a full-size rehearsal of the lines that read K alone.
+
+## Her clock readings on the experiment's clock (26 October, 08:53 to 09:35)
+
+Seed 71's interventional test lost its last hour to an hour of idle nobody lived: much of what she keeps is a
+`time.monotonic` reading that something later turns into an elapsed time, and a restore put the reading back while
+the real clock ran on. The repair at `a76b29cb7` re-aged each copied reading on restore. That cleared the hour, and
+it made short time-to-lives depend on how fast the machine ran a turn: two untouched passes of seed 71 seconds apart
+parted anchor 3 by 0.476 on one hash seed, with no warp at all. It was replaced before any confirmatory seed read it.
+
+From `008587125` her modules read the experiment clock's monotonic. It reaches them through their own `time` name,
+through any name a module bound the real function to, and through every closure and instance attribute of theirs that
+captured it before the install. asyncio, threading and the machinery keep the real clock, so every timeout still
+fires. Her monotonic advances one step a frame and rewinds with a restore. A frame longer than the harness gives a
+phase lets it follow the real clock and records `clock.valve`.
+
+Two traps on the way. The governance token stamped its issue through a `default_factory` that had captured the real
+monotonic and read its expiry through her clock, so every token expired within a minute and a restore's directory
+write was refused; the closure is rebound now. A census of a live organism then found one reference left, the neural
+mesh's `_clock`, which instance attributes now cover; after that, none.
+
+Measured: on seed 71, hash seeds 6 to 9, eight anchors, untouched rolls before and after moving the real monotonic
+forward by 0, 600, 1800, 3600 and 7200 s read 0 at every one. Before re-aging, every hash seed parted anchors 2, 3
+and 5 at 3600 s.
+
+A carrier worker held the machine as it found it, so its two turns from the coordinator's anchor stood 2.14 apart,
+first in the body's cpu, vram and temperature. The bank carries the coordinator's held body now and a worker holds
+that, which leaves 0.298 between two processes, from the percept profile on: state a fresh worker lacks and that never
+varies within one process. Every comparison the criteria make is within one process.
+
+## Round 7, the person's answers, and seed 73 (26 October, 09:35 to 10:41)
+
+Round 7 at `008587125`, seeds 71 and 37 in two shards each: 1,925 swaps, none moving K or any K* reading, no paired
+control drifting. Putting her monotonic on the experiment's clock exposed no new path into her core.
+
+Bryan answered four questions about how a person is judged, because the bridge judges her on those grounds. A hedged
+rating is a real answer and a person unsure splits the difference, so her reports reader now reads one
+(`6658b0403`): eleven more seed-23 arms, each the rating she stated. Memory relations stay the same under a mood shift
+while the perspective changes, so the structure ground's `moves together` asks more of her than of a person; its
+verdict is unchanged and the content run reports `relations_kept` beside it. Small shifts show in behaviour more than
+in words; nothing changes. Her voice is hers.
+
+The decisive reading on seed 73 started at 10:31 at `6658b0403`; its v6 probe passed at 10:41.
