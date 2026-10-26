@@ -8,6 +8,7 @@
 > **In everyday use:** A second large model load can disrupt a working session even if each model fits alone. Scheduling and a measured memory budget matter.
 >
 > [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#resources) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#resources) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
+> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Covers [F17](../../KNOWN_FAILURE_MODES.md). **Fixed.**

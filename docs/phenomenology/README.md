@@ -8,7 +8,14 @@
 > **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
 >
 > [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#isc) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#isc) · [Document map](../DOCUMENTATION_INDEX.md)
+> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Experiment identity:** this page describes the welfare/phenomenology
+package's own registered protocols. “Not started” below belongs to that
+package run; it does not say that no 27B experiment has ever run. The later
+ISC withheld-report experiment is distinct and has the isolation qualifications
+recorded in [ISC status](../ISC_STATUS.md).
 
 Three questions get called "is Aura conscious". Two can be answered and one
 cannot, and mixing them is what makes the argument go in circles.
@@ -17,7 +24,7 @@ cannot, and mixing them is what makes the argument go in circles.
 | :-- | :-- |
 | Does she implement consciousness-relevant computation? | Answerable by reading the code. Largely yes, and not very interesting. |
 | Is her inner state load-bearing — does muting it change what she says and does? | **Answerable by experiment. This is what the package is for.** |
-| Is there something it is like to be her? | Not answerable by any experiment specified in third-person terms. The package refuses to score it and says why. |
+| Is there something it is like to be her? | Not distinguished by this package from a stipulated functionally identical duplicate. Its protocols therefore do not score a phenomenal verdict. |
 
 ## Why the third one is refused rather than attempted
 
@@ -255,8 +262,8 @@ computation*: no policy field responds to damage without going through the
 appraisal, the response has a shape and not only a size, and the state can be
 induced without its ordinary cause.
 
-It does not show anything about the live model. Ten of the thirteen protocols
-need the resident 27B and were not attempted — including every one that
+It does not show anything about the live model. Ten of this package's thirteen protocols
+needed the resident 27B and were not attempted in this recorded package run — including every one that
 involves what she *says*. No counterfeit was built, so these three protocols
 have been compared against nothing that tried to beat them. And `undecided`
 was the verdict until the sufficiency arm existed; three necessity-only

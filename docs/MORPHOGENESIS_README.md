@@ -8,6 +8,7 @@
 > **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 *Reviewed against the tree: 2026-08-01. See [documentation status map](DOC_STATUS.md) for how to read this file.*

@@ -51,6 +51,14 @@ def _extract(pattern: str, text: str) -> list[str]:
     return found
 
 
+def _normalise(value: str, mode: str | None) -> str:
+    if mode is None:
+        return value
+    if mode == "integer":
+        return str(int(value.replace("_", "").replace(",", "")))
+    raise ValueError(f"unsupported normalisation {mode!r}")
+
+
 def check(payload: dict) -> list[str]:
     problems: list[str] = []
 
@@ -75,6 +83,11 @@ def check(payload: dict) -> list[str]:
                     continue
                 seen_anywhere = True
                 for value in found:
+                    try:
+                        value = _normalise(value, entry.get("normalise"))
+                    except ValueError as exc:
+                        problems.append(f"{name}: {path.relative_to(ROOT)} has an invalid value: {exc}")
+                        continue
                     if value != expected:
                         problems.append(
                             f"{name}: {path.relative_to(ROOT)} says {value!r} and "
@@ -82,6 +95,16 @@ def check(payload: dict) -> list[str]:
                         )
         if not seen_anywhere:
             problems.append(f"{name}: no file states this fact any more")
+        for entry in fact.get("contradicted_by", []):
+            for path in _files_for(entry):
+                if not path.exists():
+                    problems.append(f"{name}: contradiction check file {path.relative_to(ROOT)} is missing")
+                    continue
+                if re.search(entry["pattern"], path.read_text("utf-8"), re.MULTILINE):
+                    problems.append(
+                        f"{name}: {path.relative_to(ROOT)} also contains a conflicting claim: "
+                        f"{entry['reason']}"
+                    )
 
     platform = payload.get("platform") or {}
     for relative in platform.get("evidence_files", []):

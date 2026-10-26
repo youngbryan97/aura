@@ -145,21 +145,19 @@ as 0.02, while a predeclared acceptable margin is 0.03. If the upper bound is
 that margin. If the method can only detect 0.05, it cannot establish the
 0.03 claim by failing to see a contribution.
 
-At `cf0ace7e3`, `CLOSURE_MARGIN` is `None` because no fixed numeric override
-was chosen. `CLOSURE_MARGIN_RULE` is `least_domain`: the rule leaves each live
-internal domain out in turn and uses its predictive contribution to the rest;
-the smallest contribution supplies the margin. Both sides use the same
-estimator, forward folds and environment. A zero or negative contribution
-cannot support a closed reading.
+**Current method, through `72dd0d703`:** both `CLOSURE_MARGIN` and
+`CLOSURE_MARGIN_RULE` are `None`. The least-domain rule proposed earlier on
+25 October was withdrawn. A domain can be necessary while contributing little
+new prediction beyond the other domains' past; those are different questions.
+A defensible margin still needs to be declared before fresh confirmation, so
+closure cannot currently be positively established by the gate.
 
-For an invented example, three internal domains contribute 0.12, 0.08 and
-0.05. The derived margin is 0.05. An outside-contribution upper bound of 0.03
-could fit within it if the other controls pass and the method can resolve
-planted leaks that small. An upper bound of 0.07 does not establish closure
-within that margin. These values illustrate the rule; no such new Aura result
-was measured for this documentation update. Read the
-[afternoon addendum](ISC_V6_PREREGISTRATION.md) and
-[rule snapshot](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json).
+The estimator now predicts core change from declared inputs, enters periphery
+columns as increments, and refuses to use a failed fold to establish closure.
+A failed predictor is not evidence of a closed boundary. Read the
+[withdrawal record](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json) and
+[formula guide](FORMULAS.md#closure-margin-and-decision). The earlier numerical
+margin example above is illustrative arithmetic, not a newly selected threshold.
 
 The experiment's clock is also distinct from wall-clock waiting. A two-turn
 comparison can be defined as 66 simulated processing frames even when the

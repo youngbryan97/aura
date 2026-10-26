@@ -15,15 +15,16 @@ attached to it.
 
 - Local model missing or fails to load.
 - Router timeout.
-- Cloud fallback disabled.
-- Cloud fallback unavailable.
+- A legacy caller requests remote model inference, which is refused.
+- All admitted local model lanes are unavailable.
 - Model produces policy-unsafe or structurally invalid output.
-- Provider returns rate-limit, auth, or quota errors.
+- A local lane reports an admission, capacity or model-identity failure.
 
 ## Required Behavior
 
 - Do not invent successful model execution.
-- Prefer local fallback tiers before cloud fallback unless explicitly allowed.
+- Use admitted local fallback tiers only. Remote model routing is retired;
+  a compatibility field cannot authorise a cloud-model fallback.
 - If all model lanes fail, return a bounded degraded response and record
   degradation.
 - Background model work must not starve foreground user work.

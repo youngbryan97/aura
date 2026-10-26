@@ -49,6 +49,7 @@ EXCLUDE_PREFIX = (
     "docs/RLC_SPARK_EXECUTION_LEDGER.md",
     # A preregistered protocol is a dated record, not a live module map.
     "docs/ISC_V5_PREREGISTRATION.md",
+    "docs/ISC_V6_PREREGISTRATION.md",
     "docs/evidence/",
     # Proposals. docs/DOC_STATUS.md: "Several name modules that were never
     # built; that is what a proposal is, not a broken reference."

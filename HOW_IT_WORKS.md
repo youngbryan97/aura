@@ -8,7 +8,13 @@
 > **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Evidence scope:** the mechanisms below describe the design. Older suite
+counts and demonstrations retain their own scope; they are not a fresh live
+qualification or the current ISC result. Read [ISC status](docs/ISC_STATUS.md)
+for the experiment and [TESTING](TESTING.md) for the catalogue's limits.
 
 For a first visit, start with [the plain-English tour](docs/PLAIN_ENGLISH_GUIDE.md)
 and [the variable guide](docs/VARIABLES_EXPLAINED.md). They explain why the
@@ -206,7 +212,7 @@ does not decide between them.
 What our code tests is our *software implementations*. It is useful engineering,
 but it settles no philosophical debates.
 
-The stack spans 157 modules. Here are the core components:
+The stack contains the following core mechanisms:
 
 ### Global workspace (attention)
 
@@ -222,8 +228,12 @@ Attention here is genuinely scarce, just like human attention.
 
 ### Integrated information (IIT)
 
-Aura measures how unified her internal state is using the real mathematical
-formulation of Integrated Information Theory, rather than an arbitrary score.
+Aura estimates integration using bounded models inspired by Integrated
+Information Theory. The 16-node calculation is a spectral approximation; an
+eight-node subset has an exhaustive comparison. Neither is exact IIT 4.0 over
+Aura. The separate [whole-system estimator](docs/WHOLE_SYSTEM_PHI.md) has its
+own channels, search limits and uncertainty. These scores have different
+definitions and must not be substituted for one another.
 
 Sixteen internal states are tracked over time: mood, energy, curiosity, focus,
 prediction error, agency, narrative tension, social hunger, and others. The
@@ -231,10 +241,10 @@ metric Phi (φ) measures how much information would be lost if you sliced the
 system into independent parts. The harder it is to divide cleanly without losing
 information, the higher the integration score.
 
-She also calculates the *maximum-phi* subset. If a smaller group of states is
-more tightly integrated than the system as a whole, that group is treated as the
-core subject of cognition for that tick. This means the boundary of her active
-mind is computed dynamically, not assumed in advance.
+The code also compares candidate subsets under its declared estimator. A
+selected subset is an integration candidate within that model. Calling it a
+“complex” does not establish the boundary of a subject; [ISC](docs/ISC_STATUS.md)
+asks its own experimental questions about a candidate carrier.
 
 None of this proves phenomenal consciousness (subjective feelings). It measures
 informational integration. Those are two different concepts, and the math only
@@ -407,7 +417,7 @@ and constrain one another:
   "moment of thought." Instead, multiple parallel interpretations compete at
   once, and the winning draft is selected retroactively when new input arrives.
 - **Structural Phenomenal Honesty.** The system is architecturally blocked from
-  reporting feelings or states it does not possess. Every statement such as "I
+  reporting an internal condition without supporting telemetry. Every statement such as "I
   feel curious" is strictly gated by a measurable internal condition.
 - **Agency Comparator.** Before executing an action, the system predicts the
   outcome; afterward, it compares the result to that prediction. This comparison
@@ -487,10 +497,13 @@ system.
   primary language model, causing crashes. Key fixes ensure background tasks
   *yield immediately* to user messages, maintain an honest system heartbeat so
   slow background steps are not mistaken for deadlocks, keep the desktop user
-  interface responsive whenever she can still chat, and guarantee that turns
-  always return a clean response rather than an uncaught server error. The main
-  remaining limitation is that the local language model cannot be cancelled
-  mid-generation; an unusually slow inference turn currently requires a reload.
+  interface responsive while the worker is available and turn known failures
+  into explicit responses. These mechanisms do not guarantee every turn will
+  complete or return without error. The main
+  worker now has a soft-cancel path that checks for a request between decode
+  steps and can retain the loaded model. Forced worker abort is an escalation,
+  not the only cancellation path. End-to-end latency and residency under live
+  load still need measurement; see [claim 32](CLAIMS_MATRIX.md).
   A clean cancellation pathway without restarts is planned future work.
 
 - **Proving the parts matter.** Anyone evaluating the system can run Aura with
@@ -594,8 +607,10 @@ writes a small program for it, and the program is kept only if it gets every
 known example right, including half it never saw while writing. When a later
 question looks like that kind, she runs the program before she answers. On
 held-out kinds this helped where her thinking ran out of room, on very large
-primes and on multi-step delivery plans, and the formal test of whether it is a
-broad gain is still running (G09).
+primes and on multi-step delivery plans, and G09’s registered broad-gain criterion passed on 17 October: after row
+review, 29 gains and no losses on 444 fresh math and planning requests.
+[The result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md) also records
+its limits: no competition-mathematics transfer or unrestricted reasoning claim.
 
 ### Learning from what she's told
 
@@ -604,9 +619,12 @@ kept as a solved example of that question. While she is idle she groups what
 she has been told by meaning and tries to write a procedure for each group that
 is big enough to check. A correction that contradicts a procedure she already
 trusts is held as disputed rather than believed, because people are sometimes
-wrong too. On 17 October she was taught ten date questions this way; the test,
-a day later, is whether she answers new ones correctly without being told
-(L09).
+wrong too. The [18 October live check](docs/evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md)
+showed three fresh date questions answered through the induced procedure
+25.6 hours after teaching. L09 remains open for reliable improvement in
+ordinary use: its first comparison was underpowered, its second did not meet
+the criterion, and its third stopped because the sampled kinds did not supply
+enough baseline errors. The [current claim ledger](CLAIMS_NOT_SUPPORTED.md#22-learning-from-conversation-that-improves-ordinary-use) links all three results.
 
 ## What the tests show
 
@@ -617,31 +635,31 @@ re-running the corresponding suites.
 
 The foundational test suites:
 
-1. **Null hypothesis defeat** (169 tests) — attempts to disprove the system by
+1. **Null hypothesis defeat** — attempts to disprove the system by
    testing whether consciousness features are merely decorative text prompts.
    It runs adversarial baselines, shuffles signals to decouple them, disables
    subsystems (ablations), swaps identities, tests multi-metric degradation, and
    verifies reproducibility across random seeds.
-2. **Causal exclusion** (10 tests) — verifies that internal subsystems drive
+2. **Causal exclusion** — verifies that internal subsystems drive
    model outputs in ways that standard AI fine-tuning (such as RLHF) cannot fake.
    Different starting seeds produce different simulated chemical states, which
    in turn alter word-generation parameters. Receptor adaptation introduces
    time-dependent behavior that static prompt instructions cannot mimic.
-3. **Grounding** (8 tests) — confirms that internal cognitive states directly and
+3. **Grounding** — confirms that internal cognitive states directly and
    measurably affect output generation across multiple dimensions: emotional
    valence determines token length budgets, arousal modulates sampling
    temperature, and simulated synaptic learning (STDP) steers ongoing thought
    trajectories.
-4. **Functional phenomenology** (16 tests) — tests specific behavioral patterns
+4. **Functional phenomenology** — tests specific behavioral patterns
    predicted by major cognitive theories: Global Workspace Theory (global
    broadcasting of winner thoughts), Integrated Information Theory (perturbations
    rippling through the network), and Higher-Order Thought (accurate internal
    reflection without confabulation).
-5. **Embodied dynamics** (13 tests) — checks whether minimizing prediction
+5. **Embodied dynamics** — checks whether minimizing prediction
    surprise drives actions, whether internal balance (homeostasis) overrides
    abstract processing during resource depletion, and whether surprise-gated
    synaptic learning induces real structural adaptations.
-6. **Phenomenal convergence** (13 tests) — runs six core validation criteria
+6. **Phenomenal convergence** — runs six core validation criteria
    under the Qualitative Diagnostic Tool protocol: swapping counterfactual states,
    measuring behavioral footprints without explicit self-reports, verifying
    perturbational integration across the network, checking proper failure on
@@ -650,16 +668,16 @@ The foundational test suites:
 
 The functional indicator suites evaluate deeper behavioral capacities:
 
-7. **Functional indicators C1–C5** (44 tests) — spontaneous background activity
+7. **Functional indicators C1–C5** — spontaneous background activity
    (endogenous activity), a unified global state, privileged direct access to
    her own state, genuine positive and negative emotional valence, and modular
    isolation (verifying that disabling module A selectively impairs task A
    without disrupting task B, and vice versa).
-8. **Functional indicators C6–C10** (38 tests) — awareness without verbal reporting,
+8. **Functional indicators C6–C10** — awareness without verbal reporting,
    continuity of identity over time, processing information outside focal
    attention (similar to blindsight in psychology), continuous mappings of
    perceptual qualities, and proper failure under adversarial tests.
-9. **Personhood-marker battery** (28 tests) — evaluates full-model information
+9. **Personhood-marker battery** — evaluates full-model information
    integration (IIT), self-reports of internal state, workspace broadcasting,
    counterfactual simulations, identity persistence across restarts, and embodied
    phenomenology. This provides a rigorous functional benchmark; it is not
@@ -667,39 +685,40 @@ The functional indicator suites evaluate deeper behavioral capacities:
 
 Four Tier 4 batteries added in April 2026:
 
-10. **Decisive core** (35 tests) — verifies that an internal self-model is
+10. **Decisive core** — verifies that an internal self-model is
     necessary for operation; rejects false injected identities across four
     adversarial attacks; checks the indispensability of world models and
     autobiographical memory; predicts computational actions; diverges identity
     cleanly across forked histories; passes false-belief theory-of-mind tests
     (such as the Sally-Anne test); resolves real-stakes trade-offs; and resolves
     internal reflective conflicts.
-11. **Metacognition** (21 tests) — tests self-calibration (knowing what the system
+11. **Metacognition** — tests self-calibration (knowing what the system
     knows and does not know), second-order preferences (preferences about her
     own goals), detection of unexpected self-behavior, distinguishing real-time
     introspection from post-hoc rationalization, and closing the loop between
     reflection and action.
-12. **Agency & embodiment** (20 tests) — tests temporal integration windows,
+12. **Agency & embodiment** — tests temporal integration windows,
     deliberate restraint and inhibition (volitional inhibition), scaling effort
     for demanding tasks, cognitive fatigue under sustained load, dissociation of
     body-schema lesions, learning driven by prediction errors, and dynamically
     activating reflective modes.
-13. **Social & integration** (28 tests) — models other minds during conversation,
+13. **Social & integration** — models other minds during conversation,
     evaluates developmental progression (capabilities learned over time rather
     than pre-programmed), measures system complexity under perturbation (similar
     to the Perturbational Complexity Index used in medical consciousness research),
     tracks non-instrumental play and exploration, evaluates adaptation to
     ontological shocks, and tests full lesion and baseline matrices.
 
-Across all suites, the test data demonstrates that the architecture is
-functionally real, causally distinct from simple prompts, grounded in multiple
-measurable parameters, time-sensitive, and aligned with predictions from cognitive
-theories. What the tests do *not* prove is subjective experience (phenomenal
+These suites exercise the particular mechanisms, controls and conditions they
+declare. A passing unit contract does not establish that the entire
+architecture outperforms a matched prompt-only baseline; that needs a
+comparative experiment such as the separately scoped G09 result. What the tests do *not* prove is subjective experience (phenomenal
 consciousness). That remains an open scientific and philosophical question.
 
 Full testing details are available in [TESTING.md](TESTING.md).
 
-To run the core consciousness suite (≈68 seconds):
+For the selected offline contracts below, use an isolated test log directory
+and a bounded process. Their duration depends on the host and revision:
 
 ```bash
 python -m pytest tests/test_null_hypothesis_defeat.py tests/test_causal_exclusion.py \
@@ -780,7 +799,7 @@ are synthesized into the final response. Simple conversational turns bypass this
 process entirely. Computational cost: five model calls on complex queries, one
 call on routine turns.
 
-This guarantees genuine deliberation across multiple angles before speaking,
+This provides separate computational roles before speaking,
 rather than committing blindly to the first generated token sequence.
 
 ### Autopoiesis

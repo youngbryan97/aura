@@ -8,6 +8,7 @@
 > **In everyday use:** A reminder to inspect a document should not become permission to send it to somebody else. A new request can change the priority of existing work.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#agency) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#agency) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#agents) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Core Principle

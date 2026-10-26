@@ -8,6 +8,7 @@
 > **In everyday use:** A change in internal condition may alter how a reply is formed; a channel measurement must show the change rather than relying on the reply sounding different.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#models) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#models) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#steering) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: Guide · Reviewed against the tree 2026-10-17
@@ -31,13 +32,13 @@ The tri-cameral architecture, tuned for an M5-class Apple Silicon Mac with
 | **Cortex** (Tier 2) | `Aura-Cortex` (`Aura-Qwen3.8-27B-persona`, a persona fine-tune of the fused `Qwen3.8-27B`, `qwen3_5`) | `fast_model` | `AURA_MODEL` | Daily interaction, primary conversation lane. Handles nearly everything |
 | **Solver** (Tier 3) | `Aura-Cortex` (default) / a second local model such as `Qwen2.5-72B-Instruct-4bit` (override) | `deep_model` | `AURA_DEEP_MODEL` | Deep reasoning. A second model is admitted only when its artifact is measured and an attested qualification certificate verifies (`core/brain/llm/model_registry_deep_solver.py`) |
 | **Brainstem** (Tier 1) | `Ternary-Bonsai-2-27B-mlx-2bit` (Qwen3.5 27B, two-bit, Hadamard-folded; 8.6GB) | `chat_model` | `AURA_BRAINSTEM_MODEL` | Heartbeat, telemetry, background tasks. Lazy-loaded. Replaced `Qwen3.5-9B-4bit` on 2026-09-20: see `docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md` |
-| **Reflex** | `Qwen2.5-1.5B-Instruct-4bit` | — | `AURA_FALLBACK_MODEL` | CPU emergency fallback; in a process of its own, the likelihoods `core/brain/llm/what_she_expects_next.py` reads (on the live desktop that pass runs on the Cortex worker) |
+| **Reflex** | `Qwen2.5-1.5B-Instruct-4bit` | — | `AURA_FALLBACK_MODEL` | Auxiliary fallback; when run in a process of its own, the likelihoods `core/brain/llm/what_she_expects_next.py` reads (on the live desktop that pass runs on the Cortex worker) |
 | **Vision** | `Aura-Cortex` (`Qwen3.8-27B`) | `vision_model` | — | Pinned to the Cortex build so vision and conversation share one identity |
-| **Last resort** | rule-based | — | — | Static responses that cannot fail |
+| **Last resort** | rule-based | — | — | Static fallback responses; delivery and relevance can still fail |
 
-Sampling contract: `temperature` is bounded `[0.0, 2.0]`. The ceiling is not a
-taste call — above 2.0 the softmax is effectively uniform and "temperature"
-stops naming anything.
+Sampling contract: `temperature` is bounded `[0.0, 2.0]` by `LLMConfig`.
+This is a project interface limit, not a universal theorem that sampling
+becomes uniform above 2.0; the distribution also depends on the logits.
 
 All language-model inference is local. Legacy `api_fast` and `api_deep`
 labels remain accepted at compatibility boundaries, but resolve to the local
@@ -98,8 +99,8 @@ known transcript (locally synthesised — nothing left the machine), median of
 | `whisper-large-v3-turbo` | 317 ms | finals |
 
 One Parakeet decode is cheaper than the incumbent *partial* and about half the
-incumbent *final*: one model-lane lease, one set of weights resident, no
-accuracy sacrificed on partials.
+incumbent *final* on that short warm sample. It does not establish unchanged
+accuracy across languages, noise conditions or a loaded live desktop.
 
 **A discarded first benchmark.** The first pass used synthetic noise and
 produced nonsense for Whisper.
@@ -126,21 +127,20 @@ measurement.
 `all-MiniLM-L6-v2` declared `max_seq_length: 256`. The ingestion path chunked
 at a fixed 800 words (`black_hole_vault.py`, `ingestion_loop.py`;
 `rag.chunk_text` at 500). Measured through the model's own tokenizer, an
-800-word chunk is **1,122 tokens — so 77% of every full chunk never reached the
-encoder.** Nothing logged it: tokenizer truncation is silent by design, and
+measured 800-word example was **1,122 tokens, leaving about 77% outside the
+encoder’s window**. That percentage belongs to the example, not every chunk. Nothing logged it: tokenizer truncation is silent by design, and
 both constants were individually sane.
 
 The damage was in the blend. `retrieve_memories` mixes dense cosine 60/40 with
 lexical TF-IDF. The lexical half read whole chunks; the dense half read the
 first quarter; and the heavier weight sat on the half that saw less.
 
-**Both halves were fixed.** Chunk size is no longer a constant at all — it is
-*derived* from the encoder's declared window via
-`embedding_model.chunk_for_embedding`, so a whole page is normally one chunk
-and one memory is one vector. An explicit `chunk_size` is still honoured for
-callers with a real reason to want fine-grained passages, but it is clamped to
-what the encoder can actually read, so an explicit request can never
-reintroduce silent truncation.
+The current implementation separates the 32,768-token native window from
+safe live work. `core/memory/embedding_model.py` declares 1,024-token operational
+views, a 2,048-token padded-work budget and overlapping coverage of longer
+text. `chunk_for_embedding` and the runtime embedding route must be read
+together. A long source page is not a licence to allocate one large GPU encode;
+retaining all text and bounding each encode are separate requirements.
 
 ### The measurement
 
@@ -155,7 +155,10 @@ Four ~800-word documents whose distinguishing sentence sits past token 256
 MiniLM ranked the *same* document first for all four queries — four identical
 prefixes, so it tied and broke arbitrarily. **1/4 is chance.**
 
-Vectors from both models have 384 entries, so the store shape is unchanged.
+Vectors from both models have 384 entries, so the array shape can stay the
+same. Their coordinate meanings differ: matching dimensions do not make old
+and new vectors comparable. Preserve the model fingerprint and rebuild or
+separate incompatible stored embeddings.
 Qwen3-Embedding conditions the query embedding on a natural-language task
 instruction; that wire format is documented on the model card and implemented
 in `embedding_model.py`.

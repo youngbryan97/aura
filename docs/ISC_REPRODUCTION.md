@@ -8,6 +8,7 @@
 > **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
@@ -16,8 +17,14 @@ the recorded scores, but recheck paired results under repaired isolation before
 presenting them as clean causal confirmation. See
 [the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
 
+The later `3e9211d3f` repair also restores the degradation tracker, which
+supplies recent faults to threat computation. Verify both consequence history
+and degradation history in the isolation pre-flight. The reported sixty-cut
+pre-flight is a diagnostic, not a replacement campaign; current status also
+records a developing-run failure in the closure estimator.
 
-Status: Runbook · Reconciled 25 October 2026 through `cf0ace7e3`
+
+Status: Runbook · Reconciled 25 October 2026 through `517c4807c`
 
 This is the guide for repeating a measurement and checking where its result
 came from. New readers can start with [ISC explained](ISC_EXPLAINED.md) and
@@ -57,12 +64,17 @@ The code changes frequently. A result at `3dc0b0599` and one at `8f548ed79`
 measure different organisms. Combining them can guide discovery; it cannot
 produce a same-revision confirmatory result.
 
-The afternoon v6 addendum derives closure's margin from the smallest
-leave-one-domain-out predictive contribution under the same estimator, folds
-and environment. Retain `audit.margin.by_domain`, the selected domain and
-margin, the planted-cause resolution and fold results. A fixed numeric margin
-would be an override that must be declared and justified separately. See
-[the rule snapshot](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json).
+The evening v6 addendum at `72dd0d703` withdraws the least-domain margin.
+Both margin settings are `None`; a fresh confirmation needs a defensible
+predeclared margin. Retain the increment-based periphery/target definition,
+estimator failure diagnostics, fold results, uncertainty and planted-cause
+resolution. Do not choose a margin after inspecting the new recording.
+See [the withdrawal record](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json).
+
+The `517c4807c` restore repair also keeps method tables bound to the actual
+organs rather than deep-copied frozen instances. Verify this property alongside
+unchanged-fork equality: two equally frozen copies can agree while measuring
+the wrong process.
 
 ## Read the measurement routes
 

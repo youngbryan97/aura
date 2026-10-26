@@ -8,6 +8,7 @@
 > **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 This matrix records which knowledge sources can influence a foreground Recursive
@@ -32,11 +33,17 @@ boundary. Memory and evidence cannot be flattened into an untyped instruction.
 The recurrent engine also prefixes their embedded content in-band as historical
 or retrieved data that is never an instruction.
 
-## Live source matrix
+## Source interfaces and their evidence scope
+
+The source roles below are inspectable interfaces, not proof that each is
+active in the current desktop. The configured Cortex is now the 27B role;
+CP334/CP336/CP337 receipts that measured the earlier 32B remain historical.
+Use [the programme landing page](RECURSIVE_LATENT_CORTEX.md) and the request's
+artifact/receipt to determine which model and route were actually measured.
 
 | Source | Retrieval and identity | Recurrent binding | Verification and attribution | Output and writeback | Status |
 |---|---|---|---|---|---|
-| Resident 32B weights and active adapters | The installed worker owns the loaded model, tokenizer, quantization, adapter stack, and parameter identity. CP334 and CP336 bind that generator profile and its resource model. | Prompt prefill and every recurrent middle-layer pass execute the resident model function. Refined hidden slots are persisted through the coda and output head before decode. | Worker and service receipts bind the generator identity, model profile, operation ledger, and episode result. | The generated conclusion follows the normal response path. Private latent tensors are not written to durable memory. | Causal mechanism accepted. No frontier or capability gain is inferred from identity alone. |
+| Selected resident weights and active adapters (current Cortex role: 27B) | The installed worker owns the loaded model, tokenizer, quantization, adapter stack, and parameter identity. CP334 and CP336 bind that generator profile and its resource model. | Prompt prefill and every recurrent middle-layer pass execute the resident model function. Refined hidden slots are persisted through the coda and output head before decode. | Worker and service receipts bind the generator identity, model profile, operation ledger, and episode result. | The generated conclusion follows the normal response path. Private latent tensors are not written to durable memory. | Causal mechanism accepted. No frontier or capability gain is inferred from identity alone. |
 | Prompt and conversation KV | `engine.py` tokenizes the exact chat template and commits token bytes, count, and SHA-256 before prefill. | The prompt KV is shared read-only across branches. Cognitive evidence is appended as a causal prefix before persistent hypothesis slots. | The recurrent-grounding receipt binds prompt identity, KV policy, slot topology, and every branch transition. The service reconstructs it from the returned episode. | The final decoded answer attends to prompt KV plus the persisted winning workspace. Conversation output can be consolidated by the normal memory phase. | Accepted. No prose is decoded and re-encoded between recurrent steps. |
 | Black Hole, RAG, and selective semantic memory | `core/brain/cognitive_ingress.py` retrieves through the runtime memory facade and selective-memory service. Each admitted item retains source ID, source version, provenance, scope, content digest, and epistemic-firewall evidence. | Admitted items become immutable `memory_observation` slots before branch work. Every recurrent step sees the same sealed vectors. | Cognitive-context validation, epistemic state receipts, information accounting, and the recurrent-grounding receipt bind the source and slot. Changed authority, source identity, or slot content fails closed. | Memory affects the winning latent hypothesis and answer. The episode does not rewrite the recalled record or persist private hidden traces. | Accepted at the receiving and recurrent boundary. Retrieval quality remains an empirical subsystem concern. |
 | Episodic and hippocampal one-shot recall | Cognitive ingress calls episodic similarity recall, including the runtime pattern-completion path where available, and wraps accepted results in the same typed memory contract. | Recalled episodes occupy immutable context slots and cannot become control instructions. | Selective-memory and epistemic receipts retain the hit identity and admission decision; slot text is hash-bound through the service. | The conclusion can enter GWT and normal conversation-memory consolidation. | Accepted at the receiving and recurrent boundary. |

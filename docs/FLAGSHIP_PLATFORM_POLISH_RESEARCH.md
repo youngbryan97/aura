@@ -8,7 +8,12 @@
 > **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Scope:** this is an earlier design/research plan. The initial UI findings
+below are not a new audit of today's installed app. Source wiring, visible UI
+behavior and a measured user experience require their respective evidence.
 
 *Reviewed against the tree: 2026-08-01. See [documentation status map](DOC_STATUS.md) for how to read this file.*
 
@@ -67,13 +72,15 @@ Flagship polish is measurable:
    - Add dependency and secret scanning to the quality path.
    - Move toward signed build provenance and reproducible release artifacts.
 
-## Current First-Pass Findings
+## Initial findings (recorded 1 August 2026)
 
 - Legacy mobile overflows horizontally because the chat panel keeps a desktop `450px` minimum width and the header action row does not collapse.
 - Legacy desktop has small neural buttons and copy buttons below the WCAG target-size baseline.
 - Long Aura responses re-render message HTML word by word, which can feel laggy as response length grows.
 - React `/shell` is cleaner and faster, but the user prefers the original visual system, so it should be treated as a reference, not a replacement.
-- The active `.venv` had `pytest` but not `ruff`, while `make quality` requires `ruff`. The setup path needs to install dev tooling consistently.
+- The initial environment lacked `ruff`. Current `make setup` installs the dev
+  requirements; source/setup checks should be used for the present environment
+  rather than treating this old finding as a current missing dependency.
 
 ## Immediate Direction
 

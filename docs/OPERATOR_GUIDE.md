@@ -8,7 +8,13 @@
 > **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Resource scope:** the commands below are alternatives to plan for a new,
+reserved environment, not an unattended install-and-test sequence on a host
+already running Aura. Read [CLAUDE.md](../CLAUDE.md), set a separate
+`AURA_LOG_DIR`, and budget model loads, test chunks and timeouts first.
 
 How to run Aura on your own hardware, configure system settings, and troubleshoot operational issues.
 
@@ -38,7 +44,9 @@ make run          # foreground launch
 Two specific checks are especially important:
 
 - `make layering` — Enforces architectural boundaries defined in `DEPS` files. Low-level components (`core/runtime` and `core/observability`) are strictly forbidden from importing high-level cognitive or autonomous agent modules. Any legacy exceptions listed in `config/layering_baseline.json` can only be removed over time, never added.
-- `make test` — Runs the full test suite split into 6 separate worker processes via `tools/run_test_chunks.py`. As recorded in `config/test_inventory.json` on 2026-09-30, the test suite contains **60,348 tests across 4,457 files**. Running all tests in a single `pytest` process runs out of system memory (OOM crash) at about 83% completion, so you must always use the chunk runner.
+- `make test` — Runs the broad suite through `tools/run_test_chunks.py`;
+  choose chunk count from the memory budget. With a resident model, the
+  historical six-chunk setting is not a safe default. As recorded in `config/test_inventory.json` on 2026-09-30, the test suite contains **60,348 tests across 4,457 files**. Running all tests in a single `pytest` process runs out of system memory (OOM crash) at about 83% completion, so you must always use the chunk runner.
 
 ## Backup & restore
 - Backup: `tar czf aura-backup.tar.gz ~/.aura/data ~/.aura/live-source`
@@ -146,7 +154,7 @@ Keep this separate from the primary 27B desktop Cortex unless a live proof run s
 Setting these variables does not admit the model on its own. A second deep model is used only after its artifact has been measured and an attested qualification certificate (`AURA_DEEP_SPECIALIST_CERTIFICATE`) verifies against a pinned key (`AURA_DEEP_SPECIALIST_TRUST_ROOT`); until then deep work stays on the Cortex. The rule is in `core/brain/llm/model_registry_deep_solver.py`.
 
 ## Performance tuning
-- There is no Performance settings group. You do not need to configure model parallelism or concurrency settings: one model loads at a time through the GPU semaphore, and the memory monitor decides what stays cached in memory.
+- There is no Performance settings group. The absence of a settings group is not a resource guarantee. Model admission, reservations and the existing workloads determine which lanes can load; read `core/runtime/model_lane_control.py` and the hardware guide before changing a model.
 - The memory monitor automatically lowers generation length (`max_tokens`) under RAM pressure and purges GPU memory (VRAM) as pressure climbs. The memory ceilings are set by:
   - `AURA_PROCESS_RSS_LIMIT_GB` (main Python process)
   - `AURA_MLX_MEMORY_LIMIT_GB` (Apple MLX allocator)

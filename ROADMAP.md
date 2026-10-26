@@ -8,9 +8,12 @@
 > **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Where Aura stands today, realistic targets for improvement, and the actual code written to close each gap. Every row links directly to code in the repository.
+This scorecard records dated assessments and later progress notes. The August
+grades are not a fresh October re-score. Current experiment outcomes belong
+to their linked results and [claim summary](docs/RECURSIVE_LATENT_CORTEX.md).
 
 This is a candid engineering scorecard, not a sales pitch. Some grades are intentionally harsh.
 
@@ -54,7 +57,12 @@ The table columns are:
 
 **Bears on 2, Agency.** The browser automation skill added an autonomous feedback loop (`core/skills/sovereign_browser.py`, in `pursue` mode). It maintains context across multiple steps and stops based on actual task progress rather than arbitrary timeouts. Similarly, `core/skills/screen_pursuit.py` brings this same goal-directed behavior to desktop screen interactions. Ten new modules were added under `core/agency/`, including `plan_synthesis.py`, `replanning.py`, `stuck_detector.py`, and `deliberate_action.py`. The August review held this grade because independent action capabilities had not meaningfully deepened; future reviews will test whether these additions change that verdict. See [docs/BROWSER_PURSUIT.md](docs/BROWSER_PURSUIT.md).
 
-**Bears on 5, Consciousness Proxies, or on a research line rather than a dimension.** Research into recurrent feedback loops (feeding model activations back into itself) produced its first positive benchmark: an internal test across four specific problem domains scored 60/60 with recurrence versus 16/60 with standard generation, confirming a distinct, reproducible performance gain (`BOUNDED_WOW_SIGNAL`) deployed to the live inference path. However, this boost is strictly limited to four specific code-generation problem types and does not represent a general reasoning upgrade. See [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md).
+**Bears on 5, Consciousness Proxies, or on a research line rather than a dimension.** Research into recurrent feedback loops (feeding model activations back into itself) produced its first positive benchmark: a typed semantic machine plus state-conditioned decode scored 60/60 versus
+16/60 ordinary decode (`BOUNDED_WOW_SIGNAL`) on four declared executable
+families. This is a combined mechanism result, not evidence that repeating
+the frozen backbone caused a gain. Serving qualification is dated; current
+activation needs a process-bound receipt. The result is limited to its recorded task families and decode contract; G09’s
+later kept-procedure result is a separate broad-gain claim with its own scope. See [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md).
 
 **Bears on nothing yet — still held.** Sovereignty: `WalletAdapter` remains an abstract interface whose only working version is `InMemoryAdapter`. External Undeniability: still awaiting independent third-party replication. Runtime Survivability: issue F16 remains unresolved at the architectural level, as documented in `KNOWN_FAILURE_MODES.md`.
 

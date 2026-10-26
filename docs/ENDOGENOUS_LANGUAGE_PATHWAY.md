@@ -8,7 +8,14 @@
 > **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
+
+**Version scope:** model identities, generation counts and live readings in
+the August measurements below belong to those runs. The current Brainstem
+source default is the compressed 27B, not the old 9B. Consult
+[the model roster](MODEL_ROSTER.md) for configuration and the specific receipt
+for current activation; this guide does not establish a new live measurement.
 
 **What this builds.** A trained, causal path from Aura's own cognitive state
 into the transformer's output distribution:
@@ -180,7 +187,7 @@ document cites is
 
 Real, above chance, and modest. `tools/endogenous_paired_recovery.py` runs it.
 
-**Still not measured.** Her conversational voice: the 9B is the utility lane,
+**Limit of the recorded August experiment.** Her conversational voice: the then-9B was the utility lane,
 not the 27B cortex that answers Bryan. And no generation has been biased by
 the substrate, because no head has been admitted to a decode loop — the
 pathway reports `no_head:no trained head on disk` on all 51 generations it has
@@ -188,9 +195,10 @@ seen. A gain on held-out likelihood is not the same claim as a measured
 difference between two generations under two states, and that experiment
 needs an attached head.
 
-## What z_Aura actually is, live
+## Earlier live z_Aura observation (retained measurement)
 
-Coverage reads 0.365 in the running instance. That number is kinder than the
+The recorded instance read coverage 0.365; this is not a new measurement of
+the currently running desktop. That number is kinder than the
 truth: of 74 named dimensions, **50 were pinned at one value across all 1,629
 turns**, and a constant dimension pads coverage while carrying nothing.
 

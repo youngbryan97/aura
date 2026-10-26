@@ -115,9 +115,10 @@ There is a second issue: some internal information outside the selected core
 helps predict its next state. Researchers must establish whether the selected
 core is too small, whether there is a real outside driver, or whether the
 measurement cannot yet decide. The revised rule keeps “we cannot tell”
-separate from “we found a failure.” The latest predeclared rule compares the
-outside contribution with the smallest contribution from an internal domain.
-It still needs fresh confirmation under that rule and repaired isolation.
+separate from “we found a failure.” An earlier rule tried comparing the
+outside contribution with the smallest internal contribution, but was withdrawn.
+A suitable margin is still open, and the changed estimator and restore repairs
+need fresh confirmation. No rule change supplies a new passing result.
 
 The [current status page](ISC_STATUS.md) gives the exact results and separates
 the old recorded verdict from the newer method. **22/24 is a count of checks,

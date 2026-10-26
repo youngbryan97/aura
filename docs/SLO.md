@@ -8,6 +8,7 @@
 > **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 *Reviewed against the tree: 2026-08-01. See [documentation status map](DOC_STATUS.md) for how to read this file.*
@@ -45,8 +46,9 @@ OR
 measurement > slo.hard_limit                             # hard
 ```
 
-For correctness scores (Brier loss on a synthetic perfect predictor)
-the inequality flips: lower is better, so failing means
+For the lower-is-better correctness score (Brier loss on a synthetic perfect
+predictor), the checker uses its hard ceiling without the soft timing
+comparison. Failing means
 `measurement > slo.hard_limit`.
 
 ## Current SLOs

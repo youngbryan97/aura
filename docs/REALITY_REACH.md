@@ -8,6 +8,7 @@
 > **In everyday use:** A command to a device is an attempt. A separate sensor reading is needed to establish that the intended physical quantity changed.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#physical) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#physical) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#engineering) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: active implementation initiative

@@ -110,7 +110,7 @@ Three categories must not be rewritten:
 ## Gates
 
 ```bash
-make smoke     # ~100 contract tests, <10s — after every change
+make smoke     # focused contracts; record duration per host — run after every change
 make test      # full suite, 6 bounded chunks (60,331 offline tests, recorded 2026-09-30)
 make lint compile governance-lint layering
 make quality   # the aggregate sweep

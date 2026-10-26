@@ -8,10 +8,13 @@
 > **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#memory) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#memory) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Overview
-Aura's memory system is not a passive transcript but an active cognitive substrate. It shapes generation, preference, identity, and affective context. Memories are ingested, consolidated, and reconsolidated in a multi-tiered architecture that strictly enforces write governance and local encryption.
+Aura's memory system is not a passive transcript but an active cognitive substrate. It shapes generation, preference, identity, and affective context. Memories have several storage and retrieval paths. Governance and encryption
+apply through their declared owners; the presence of an encrypted quarantine
+store does not establish encryption of every memory database or artifact.
 
 ## Multi-Tiered Architecture
 
@@ -34,7 +37,8 @@ Semantic relations are modeled in the **Knowledge Graph** (`knowledge_graph.py`)
 ## Black Hole Quarantine & Scar Formation
 
 Memory writes that trigger constitutional governance or represent unresolved high-conflict states can be sent to **Quarantine** (`black_hole.py` / `memory_write_gateway.py`). 
-**BlackHole** implements local AES-256-GCM authenticated encryption for all persistent data. If encryption keys are unavailable, the system fails closed and refuses to write plaintext to disk.
+**BlackHole** implements authenticated encryption for the data that its own
+store persists. This is not an encryption claim about every application store. If encryption keys are unavailable, the system fails closed and refuses to write plaintext to disk.
 High-arousal or traumatic conversation moments result in **Scar Formation** (`scar_formation.py`), bounding future plasticity.
 
 ## Memory Write Gateway & Retention Policies
@@ -53,7 +57,9 @@ Mirroring human neuroscience, `hippocampus.py` manages indexing. Episodic memori
 
 The core embedding model is **Qwen3-Embedding-0.6B** (`embedding_model.py`).
 - Operating at exactly **384 dimensions**.
-- Maximum input tokens: **32,768** (drastically reducing the need for arbitrary chunking).
+- Native model window: **32,768 tokens**. Safe live work uses **1,024-token**
+  operational views and a **2,048-token** padded-work budget; longer text is
+  covered through overlapping views, not one unbounded encode.
 - Explicit instructions differentiate tasks (`memory_recall`, `evidence`, `document`) rather than using generic web-search prefixes.
 
 ## Conceptual Gravitation & Reconsolidation
@@ -62,7 +68,7 @@ Recalling an episodic memory places it back into a labile state (`reconsolidatio
 
 ## Memory Physics & Substrate Allocation
 
-Memory follows physical allocation limits (`physics.py`, `substrate_allocation.py`). Working memory and engram retrieval compete under homeostatic constraints where slightly stronger representations naturally suppress weaker ones, preventing confabulation.
+Memory follows physical allocation limits (`physics.py`, `substrate_allocation.py`). Working memory and engram retrieval compete under homeostatic constraints where slightly stronger representations naturally suppress weaker ones, reducing one source of confabulation.
 
 ## Her Corpus and What Her Searches Kept
 
@@ -70,8 +76,11 @@ Beside episodic and semantic memory sits her corpus (`core/knowledge/local_corpu
 
 ## Evidence Boundaries: What Memory DOESN'T Do
 - **Memory does NOT write to disk without a governance check.** The `MemoryWriteGateway` fails closed if no authority is wired.
-- **Memory does NOT write plaintext.** If Horcrux/BlackHole encryption fails, the system crashes rather than persisting unencrypted text.
-- **Memory does NOT chunk arbitrarily.** With the 32K token window in Qwen3-Embedding, chunking is purely an overflow mechanism, preventing the splitting of semantic context.
+- **Encrypted-store writes must fail closed when their keys are unavailable.**
+  This requirement applies to the named encrypted store, not every application
+  database. See [the data card](../DATA_CARD.md) for storage scope.
+- **Embedding work is bounded below the native window.** Operational views
+  enforce the live padded-work budget even when the text fits in 32K tokens.
 - **Memory does NOT statically record.** Repeated recall changes the vividness and fidelity of a trace, meaning the model reads a *reconsolidated* memory, not a permanent transcript.
 
 ---

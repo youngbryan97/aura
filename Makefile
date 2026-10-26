@@ -567,7 +567,7 @@ claim-constants:
 	@echo "📐 Checking that every constant a claim cites still holds that value..."
 	@$(PYTHON) tools/verify_claim_constants.py
 
-doc-drift: reader-docs
+doc-drift: reader-docs product-facts
 	@echo "🔗 Checking that every file a document names is a file that exists..."
 	@$(PYTHON) tools/lint_doc_drift.py --quiet
 	@echo "🔗 Checking the subject-core evidence table against the runs..."

@@ -8,15 +8,16 @@
 > **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Use `make test-inventory` to count the current tests. This count and the code version it comes from are saved in `config/test_inventory.json`.
-The system checks this count using `make doc-drift`. Always update it by running `make test-inventory` instead of typing the new number yourself.
+The inventory is a dated record; `make doc-drift` checks document references,
+not every factual assertion or current test count. Always update it by running `make test-inventory` instead of typing the new number yourself.
 
 ```bash
-pytest tests/ --collect-only -q     # the current number
-make smoke                          # ~100 contract tests, under 10s
-make test                           # the full suite, 6 bounded chunks
+make smoke       # focused contracts; duration depends on host and revision
+# For broad coverage, choose the chunk budget before running the full suite
 ```
 
 Always use the chunk runner for tests. Running all tests at once uses too much memory and crashes at around 83%. This is a known issue, and trying again won't fix it. Running `make test` uses `tools/run_test_chunks.py` to break the work into pieces. You can use `--continue-on-failure` to find all errors instead of stopping at the first one. Use `--only-chunks 5,6` to pick up where a run left off.
@@ -24,6 +25,30 @@ Always use the chunk runner for tests. Running all tests at once uses too much m
 The number of chunks is a memory budget, not a constant. Six chunks (about 743 files a pytest process) suit an idle host. With her 27B model resident, or a training run holding memory, six chunks get the runner itself killed, and its log then holds only the chunk header, because each chunk's output was buffered in the process that died. Check free memory first; with the 27B up, use `--chunks 40` (about 112 files a chunk). `/tmp/aura_test_chunks_progress.log` names the chunk that was running, and `--min-free-gb N` refuses to start rather than gamble.
 
 Remember this rule: **if a test fails when run with others but passes when run alone, it is broken because it depends on the order of tests, not because it is a random error.** The test runner checks for this and reports these errors clearly so they cannot be ignored.
+
+## Current evidence interpretation
+
+A passing unit test supports its declared software contract. A suite named
+“consciousness guarantee,” “personhood proof” or “decisive” does not establish
+those labels as empirical conclusions. The current ISC battery and its
+controls are separate: read [ISC status](docs/ISC_STATUS.md) and
+[reproduction](docs/ISC_REPRODUCTION.md). No complete ISC pass is reported.
+
+Collection can also be expensive. Plan `make test-inventory` or broad
+collection under the same resource budget as tests; do not collect or run the
+entire suite casually beside a resident model. Set a separate `AURA_LOG_DIR`.
+
+## Earlier test catalogue and attestation language
+
+The catalogue below is retained for its named suites and historical wording.
+Its old counts, timings, “real” labels and pass statements are not a current
+source/runtime attestation. In particular, passing the named software suites
+must not be restated as passing the current ISC experiment or proving
+consciousness. Commands below are reference routes, not a sequence to execute
+on the live host. Use the resource rules above first.
+
+<details>
+<summary>Earlier catalogue: original descriptions and counts, read within their stated scope</summary>
 
 ## Production Attestation (updated 2026-04-29)
 
@@ -823,3 +848,6 @@ This is the bare minimum standard. If the system fails any of these, we cannot c
 The 10 core tests ([`tests/test_tier4_decisive.py`](tests/test_tier4_decisive.py)) are our absolute standard for claiming consciousness mechanics. These ten tests cover the same properties we use to judge if biological creatures are conscious.
 
 This standard is locked. We will never remove or weaken these tests. Any failure in this group means the system is fundamentally broken.
+
+
+</details>

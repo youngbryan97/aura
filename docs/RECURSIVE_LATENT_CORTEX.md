@@ -8,9 +8,10 @@
 > **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Status: Guide · Programme landing page · Claim boundary reconciled 2026-10-17.
+Status: Guide · Programme landing page · Claim boundary reconciled 2026-10-25.
 Checkpoints land faster than this page tracks; the claims ladder
 below changes slowly, and the append-only
 [ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
@@ -28,7 +29,7 @@ four executable families with the resident 32B (CP566) and fused 27B (CP1011).
 Those studies do not prove a reasoning gain from repeated middle-layer passes
 through the resident language model. The programme contains both mechanisms.
 
-## Current evidence boundary, 2026-10-17
+## Current evidence boundary, 2026-10-25
 
 The programme's later items ran on her resident 27B (Aura-Qwen3.8-27B, persona
 fine-tuned), with a reader learned from its hidden states:
@@ -154,8 +155,10 @@ preregistered campaigns with committed seeds.
 | **Recurrence-native backbone training** | **OPEN for broad gain.** The CP566/CP1011 semantic-machine results do not establish that training the resident backbone to repeat its middle layers caused those gains. That path needs its own matched behavioral evidence. |
 | **Native decoder semantic selection** | **RESEARCH ONLY (2026-09-25).** Source-only native suffix adaptation selects 45/50 correct programs on a frozen wording bank versus incumbent 41/50 and matched unfitted 27/50, with five gains and one regression. A separate whole-graph contrast checkpoint returns 38/50, with three gains and six regressions. Neither is promotable under the non-regression requirement. These are candidate-selection measurements, not freely decoded public answers, fresh-family transfer, recurrence gain or frontier qualification. [Complete evidence](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md). |
 | **Learned hidden-state reader on the resident 27B** | **SUPPORTED, BOUNDED (2026-10-07).** G04: held-out vocabulary 33 vs 21, depth 54 vs 8, family 62 vs 47 on fresh requests with execution unavailable. G05: public answers 48 vs 29 (p 1.9e-6). G06: lesions cost 27 to 0 and 35 to 0. G10: qualified through her resident worker. |
-| **Kept procedures, held-out kinds (G09)** | **CLOSED (2026-10-17).** Attempt 6, as registered (35 to 0) and as read row by row: held-out math 13 gained and 0 lost, planning 16 to 0, p 3.7e-9. |
-| **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
+| **Broad reasoning gain under G09’s registered criterion** | **CLOSED (2026-10-17).** Kept procedures on held-out math and planning kinds: 35 gains as registered; after row review, 29 gained, 0 lost, p 3.7e-9 (math 13 to 0; planning 16 to 0). [Result and limits](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md). |
+| **Unrestricted open-ended reasoning / competition mathematics transfer** | **NOT ESTABLISHED.** G09’s route admitted no MATH test problem; passing its two-domain criterion does not establish these wider claims. |
+| **Static fusion of the learned RLC mechanism** | **NOT CLAIMED** by these results; this differs from the persona model’s recorded fusion. |
+| **Frontier performance (G12)** | **OPEN.** The named-system comparison is a separate ledger item. |
 
 **Indirect meaning research (2026-09-27).** The shared semantic runtime can now
 ask the local cortex to propose source-cited, arbitrary-arity scene graphs and

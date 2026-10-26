@@ -8,6 +8,7 @@
 > **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Every task given in this session, in one place, with its state. Append-only in

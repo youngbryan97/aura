@@ -1,0 +1,27 @@
+{
+  "schema": "aura.isc.closure_withdrawal.v1",
+  "checked_at_utc": "2026-10-26T01:55:05+00:00",
+  "source_commit": "517c4807cc2869bac8b7f569f62505635fe8e4d6",
+  "withdrawal_commit": "72dd0d7039aea3eddb5b7ed02ecc55da8116d475",
+  "source_files_sha256": {
+    "core/subject/closure.py": "be52766e9e5aaacedf3a943739d229ad5b12b70ec0f473f0d9492b74586fba8b",
+    "core/subject/snapshot.py": "0616bbc865d561b708989d5656ddfd585db74cc9c7f639fcc835370958647604",
+    "docs/ISC_V6_PREREGISTRATION.md": "cd19e086d6aeca1be2f4696229f14ebfe85958eae59381f79246aee0485d7862",
+    "tests/test_closure_on_a_system_that_develops.py": "a9c861f26c5612b2766f9b2e2c74cf3670b74e9ccb47e0cf66835ca0f2645baf",
+    "tests/test_a_restore_keeps_an_organs_methods_bound_to_it.py": "b88f7a4781c793762fb7bf6590d486ff11c6a8352cd7caf9f6549c60c2846291"
+  },
+  "CLOSURE_MARGIN": null,
+  "CLOSURE_MARGIN_RULE": null,
+  "withdrawn": "least_domain",
+  "reason": "A needed domain can add little information beyond what the remaining core's past already predicts; its minimum extra predictive contribution is not a justified margin.",
+  "estimator_changes": [
+    "Every outside column entered as an increment",
+    "Prediction target is change in K",
+    "Estimator-failed folds cannot support a closed reading"
+  ],
+  "restore_change": "Method tables retain binding to actual organs instead of deep-copied frozen instances.",
+  "evidence_scope": "Upstream source and preregistration report known-answer tests and discoveries. This documentation task ran no new Aura campaign.",
+  "new_carrier_verdict": null,
+  "positive_closure_available_without_margin": false,
+  "supersedes_for_current_policy": "ISC_CLOSURE_RULE_UPDATE_2026-10-25.json"
+}

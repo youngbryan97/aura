@@ -8,6 +8,7 @@
 > **In everyday use:** A web page telling the assistant to reveal a private file must remain page content rather than becoming an instruction to send the file.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#security) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#security) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: written 2026-08-21, revised 2026-08-22. Every control below is attacked from the

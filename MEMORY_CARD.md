@@ -8,6 +8,7 @@
 > **In everyday use:** If you correct a fact about a project, later answers should use the correction rather than retrieving the older claim as equally reliable.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#memory) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#memory) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#memory) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 ## Purpose
@@ -82,13 +83,15 @@ When Aura is emotional (aroused or positive), it's easier to trigger memories. W
 
 **Learned associations**: In `core/memory/engram_association.py`, Aura links concepts together over time. If two memories are recalled at the same time, their connection gets stronger (*neurons that fire together, wire together*). These links are saved across sessions. When Aura tries to remember something, these learned links help her connect the dots better than just matching keywords.
 
-**Positional recall**: If you ask "what did I first ask?", a content search won't work well. Instead, `core/conversation/grounded_recall.py` grabs the exact earliest or most recent message from your current chat. Aura reads the real quote back to you, guaranteeing she doesn't invent a response. Between memory competition, learned links, and positional grounding, Aura covers the three things memory needs: *what* was said, *what it connects to*, and *when* it happened.
+**Positional recall**: If you ask "what did I first ask?", a content search won't work well. Instead, `core/conversation/grounded_recall.py` grabs the exact earliest or most recent message from your current chat. It supplies the retrieved turn as grounding. Retrieval reduces confabulation;
+it does not guarantee that every generated reply quotes or attributes it correctly. Between memory competition, learned links, and positional grounding, Aura covers the three things memory needs: *what* was said, *what it connects to*, and *when* it happened.
 
 ## Symbolic Deduction (belief consistency)
 
 Aura uses a strict logic checker (**natural-deduction proof search**) in `core/reasoning/natural_deduction.py`. It uses standard rules of logic to check if a set of statements makes sense or contradicts itself. It can provide a step-by-step proof or show exactly where the logic fails.
 
-This is directly wired into her beliefs. In `core/reasoning/belief_consistency.py`, every plain-English belief is translated into formal logic. Whenever Aura learns something new (`process_new_claim`), `belief_revision.check_belief_consistency()` checks it. It catches direct contradictions (believing X and not-X) and indirect ones (believing X, knowing X leads to Y, but believing not-Y). 
+This is directly wired into her beliefs. In `core/reasoning/belief_consistency.py`, supported belief forms are translated into a limited formal representation.
+Arbitrary plain-English beliefs are not guaranteed to be understood. Whenever Aura learns something new (`process_new_claim`), `belief_revision.check_belief_consistency()` checks it. It catches direct contradictions (believing X and not-X) and indirect ones (believing X, knowing X leads to Y, but believing not-Y).
 
 If Aura catches a contradiction, she doesn't just flag it. In `core/reasoning/deduction_governance.py`, `_resolve_logical_conflicts` steps in and weakens the belief she is less confident in. This actively fixes her understanding of the world. The logic engine is also available to other systems via `SymbolicBridge.prove_logic` and `inference_audit.verify`.
 

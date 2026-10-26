@@ -8,15 +8,18 @@
 > **In everyday use:** If generation is progressing slowly, the system needs a different response from the one appropriate to a worker that has stopped making progress.
 >
 > [Example and metaphor](../PLAIN_ENGLISH_GUIDE.md#reliability) · [Variables and practical meanings](../VARIABLES_EXPLAINED.md#reliability) · [Demos and related work](../DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](../DOCUMENTATION_INDEX.md)
+> [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Covers [F16](../../KNOWN_FAILURE_MODES.md). **Partially mitigated. The
 architectural cause is open.** This is the honest daily-stability edge — do
 not expect a clean fix below.
 
-MLX cannot soft-cancel a running generation. So freeing a busy worker means
-force-killing it, and killing it unloads ~18 GB of model. The kill *is* the
-recovery. That is the whole problem.
+The original incident used worker termination as recovery, unloading the
+resident model. Current source includes a soft-cancel channel polled between
+decode steps, so termination is now an escalation rather than the only path.
+The contract checks are listed in [claim 32](../../CLAIMS_MATRIX.md); live
+cancel latency and model residency under load remain unmeasured there.
 
 ## Symptoms
 - A cluster of turns returns 503 or fails closed, then recovers on its own.
@@ -42,7 +45,8 @@ cascade becomes likely rather than possible.
 
 ## Safe mitigation
 - **Close other memory-heavy apps.** Headroom is the actual lever here.
-- Let it finish. It self-recovers and RSS stays bounded.
+- Observe progress, memory and the owner’s logs. A bounded sample or earlier
+  recovery does not guarantee the present process will recover.
 - Avoid issuing more turns during the reload; each one is another timeout
   that can restart the cycle.
 
@@ -66,8 +70,8 @@ Three mitigations are in place; a recurrence means one regressed:
 
 Stated plainly because the mitigations do not close it:
 
-- A soft-cancel path into the MLX worker, **or** a persistent model server.
-- More host RAM headroom removes the cascade entirely.
-
-Until one of those lands, this failure mode is bounded and survivable, not
-gone. Anyone quoting daily-stability numbers should say so.
+- Measure soft-cancel acknowledgement, model residency and the next successful
+  turn on the intended live revision; source wiring alone does not close this.
+- Exercise the refusal and escalation paths under a declared memory budget.
+- Preserve cold-load failure evidence. More RAM reduces one pressure source
+  without proving that every recovery path succeeds.

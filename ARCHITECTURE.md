@@ -8,6 +8,7 @@
 > **In everyday use:** If a memory value is updated but no response path reads it, fixing its storage alone will not change an answer.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#architecture) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#architecture) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
 This is the technical spec. It explains the math, files, and algorithms. For a simple overview, see [HOW_IT_WORKS.md](HOW_IT_WORKS.md). For a quick start, see the [README](README.md).
@@ -27,12 +28,12 @@ For proof of autonomy or behavior, see [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/
 0. [The Unified Will: decision authority](#0-the-unified-will-decision-authority)
 1. [System model](#1-system-model)
 2. [The tick: the pipeline that produces one committed state](#2-the-tick)
-3. [Integrated information (IIT 4.0)](#3-integrated-information-iit-40)
+3. [Bounded integration models inspired by IIT](#3-bounded-integration-models-inspired-by-iit)
 4. [Affective modulation pipeline](#4-affective-modulation)
 5. [Activation steering (CAA)](#5-activation-steering)
 6. [Persistent emotional network](#6-persistent-emotional-network)
 7. [STDP online learning](#7-stdp-online-learning)
-8. [Memory architecture](#8-memory-architecture-116-modules)
+8. [Memory architecture](#8-memory-architecture)
 9. [The consciousness stack](#9-the-consciousness-stack)
 10. [Personality persistence and anti-drift](#10-personality-persistence-and-anti-drift)
 11. [Quantization and emergence](#11-quantization-and-emergence)
@@ -176,7 +177,8 @@ Two loops run:
 `RobustOrchestrator` (`core/orchestrator/main.py`) coordinates everything using 15 separate modules for tasks like booting, state management, and running tools. 
 
 #### Synchronization locks
-It uses locks to prevent conflicts during state updates, memory saving, and background tasks. A deadlock watchdog prevents the system from freezing for more than 45 seconds.
+It uses locks to prevent conflicts during state updates, memory saving, and background tasks. The watchdog detects selected stalled conditions. Its thresholds do not impose
+a universal upper bound on a freeze or guarantee recovery.
 
 ### Invariants
 1. Ticks either save completely or not at all.
@@ -233,17 +235,22 @@ SelfReviewPhase, LearningPhase.
 
 ---
 
-## 3. Integrated information (IIT 4.0)
+## 3. Bounded integration models inspired by IIT
 
 **File**: `core/consciousness/phi_core.py`
 
-Aura measures how integrated her internal systems are using a 16-node model. This tracks how well her emotional and cognitive states link together. 
+The 16-node model estimates dependencies among selected affective and cognitive
+variables. Its full-network score uses a spectral approximation; the eight-node
+affective subset has an exhaustive baseline. It does not implement exact IIT 4.0
+over the runtime. See [the source](core/consciousness/phi_core.py) and the
+separate [whole-system estimator](docs/WHOLE_SYSTEM_PHI.md).
 
 ### Transition probability matrix (TPM)
 Calculates how states change over time based on past observations.
 
 ### Minimum information partition (MIP)
-Finds the "weakest link" in the system to measure integration. 
+Searches for a weak division under the declared estimator and search budget.
+An approximate search does not certify a global minimum or identify a subject.
 
 *Note: This measures system integration, not actual consciousness.*
 
@@ -286,7 +293,9 @@ Aura's internal network wiring changes based on surprises and predictions, adapt
 
 ---
 
-## 8. Memory architecture (116 modules)
+<a id="8-memory-architecture-116-modules"></a>
+
+## 8. Memory architecture
 
 - **Working memory**: Keeps track of recent chat turns.
 - **Knowledge compression**: Summarizes old chats into searchable data.
@@ -297,7 +306,8 @@ Aura's internal network wiring changes based on surprises and predictions, adapt
 
 ## 9. The consciousness stack
 
-171 modules layered beneath the AI. 
+The consciousness-inspired layers implement the mechanisms below. File counts
+change with the source and are not a measure of capability.
 
 ### Key Modules:
 - **Global Workspace**: Systems compete for attention.

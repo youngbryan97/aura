@@ -1,4 +1,4 @@
-# Aura Operational Cognition Kernel
+# Aura operational cognition component demo
 
 <!-- reader-navigation:start -->
 > **In plain English:** A test makes a specific claim answerable by a stated measurement, comparison and decision rule.
@@ -8,80 +8,66 @@
 > **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
 >
 > [Example and metaphor](../docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](../docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](../docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](../docs/DOCUMENTATION_INDEX.md)
+> [Glossary](../docs/GLOSSARY.md) · [Formulas with worked examples](../docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This is the smallest part of Aura I would publish to support evidence-bounded public claims.
+Status: Guide · Reconciled 25 October 2026
 
-It is not the whole product. It is a standalone, reproducible subset of the internal stack that demonstrates five concrete properties:
+This folder contains a small example program, not the complete Aura runtime
+or its current ISC experiment. It generates example inputs and demonstrates
+attention selection, recent-event retention, self-prediction, internal control
+updates and a hidden-state perturbation calculation.
 
-1. Competitive attention selection through a Global Workspace.
-2. A rolling autobiographical present through temporal binding.
-3. Self-prediction and surprise tracking.
-4. Homeostatic internal drives that change system state over time.
-5. Structural opacity measurements over hidden state dynamics.
+Think of a control panel that scores competing concerns, records its selection
+and compares its next reading with a forecast. The inputs are synthetic. The
+comparison explains the program without establishing a conscious agent or a
+live desktop capability.
 
-## What This Can Honestly Show
+## Inspect and run the example
 
-This repository can support claims like:
+The package here is `aura-operational-cognition`, with the command
+`aura-cognition-report`; these names come from [pyproject.toml](pyproject.toml).
+The separately published proof-kernel repository retains different package
+names. Its commands must not be copied into this folder unchanged.
 
-- "Aura has a real internal cognitive architecture, not just a prompt wrapper."
-- "Hidden internal state changes attention, continuity, and behavior over time."
-- "The system maintains a measurable autobiographical present."
-- "The system tracks surprise against its own predicted internal state."
-- "The system exposes nontrivial hidden-state dynamics that can be measured."
-
-## What This Does Not Prove
-
-This repository does not prove subjective experience, qualia, or consciousness in the strongest philosophical sense.
-Telemetry fields such as vitality, curiosity, and homeostatic deficiency are operational control-state labels. They are useful because they change routing, attention, and reporting; they are not proof that private experience exists.
-
-If you overclaim, skeptics will dismiss the whole thing. The strongest honest framing is:
-
-> Aura implements a measurable consciousness-inspired stack with causal hidden state, persistent temporal continuity, internal self-modeling, and opacity metrics.
-
-That is already a big claim, and this repo can defend it.
-
-## Included Modules
-
-- `aura_operational_cognition.global_workspace`
-- `aura_operational_cognition.temporal_binding`
-- `aura_operational_cognition.self_prediction`
-- `aura_operational_cognition.homeostasis`
-- `aura_operational_cognition.structural_opacity`
-- `aura_operational_cognition.report`
-
-## Quickstart
+With NumPy and pytest already installed, run from this folder:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-pytest
-aura-cognition-report --cycles 20 --json report.json --markdown report.md
+PYTHONPATH=src python -m pytest -q tests
+mkdir -p demo-output
+PYTHONPATH=src python -m aura_operational_cognition.report --cycles 20 \
+  --json demo-output/report.json --markdown demo-output/report.md
 ```
 
-## What To Publish With It
+Or install this package in a separate environment using
+`python -m pip install -e '.[dev]'`. A language model and the Aura desktop are
+not required. Fresh output belongs in a separate directory; the committed
+[report](report.md) is the retained earlier example.
 
-Publish these three things together:
+## What the values mean
 
-1. The code in this folder.
-2. A generated `report.json` and `report.md`.
-3. A short screen recording where you run the report command live.
+Priority and focus bias contribute to which candidate wins attention. The
+event window retains recent selected events. Prediction error compares a
+forecast with the following program state. Integrity and drive values change
+in response to supplied inputs. Their labels describe software control roles.
 
-That combination gives reviewers a concrete artifact to inspect instead of asking them to accept narrative claims.
+The opacity calculation compares a perturbed small network with its baseline
+and a chosen output projection. Its ratio and causal-depth label are local
+definitions. They do not measure a probability of consciousness, observer
+prediction accuracy or a validated number of causal layers. A retained state
+average is not proof of an experienced present.
 
-## What To Keep Private
+The [source files](src/aura_operational_cognition/) and
+[component tests](tests/test_proof_kernel.py) establish the inspectable route.
+A component result does not establish the full Aura memory system, a carrier,
+24 ISC checks or the five-ground bridge.
 
-Do not publish the rest of Aura's product moat here:
+## Read the current research
 
-- weights, adapters, datasets
-- identity files and creator data
-- full memory stack
-- deployment and security hardening
-- product skills and tool orchestration
-
-## License Note
-
-If you want true open source, use an OSI-compliant license like Apache-2.0 or MIT.
-
-If you want inspectable code but do not want broad commercial reuse, use a source-available license and do not call it "open source".
+Use [ISC explained](../docs/ISC_EXPLAINED.md),
+[worked variables](../docs/ISC_VARIABLES.md) and
+[current status](../docs/ISC_STATUS.md). The recorded seed-23 result and later
+isolation/estimator corrections belong to that larger experiment.
+[Scientific sources](../docs/SCIENCE_AND_SOURCES.md) distinguishes the
+inspirations from Aura's own evidence. The root [LICENSE](../LICENSE) governs
+this checkout; a suggested alternative license is not the current license.

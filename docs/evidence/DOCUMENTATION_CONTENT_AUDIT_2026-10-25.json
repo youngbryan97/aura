@@ -1,0 +1,192 @@
+{
+  "schema": "aura.documentation.content_audit.v1",
+  "checked_at_utc": "2026-10-26T02:31:35+00:00",
+  "checked_at_local": "2026-10-25T19:31:35-07:00",
+  "published_checkpoint": "a232e2db0",
+  "incorporated_source_through": "517c4807cc2869bac8b7f569f62505635fe8e4d6",
+  "existing_markdown_pages_with_body_changes": 47,
+  "glossary_contextual_definitions": 156,
+  "fact_gate_registered_facts": 17,
+  "global_factual_certification": false,
+  "scope": "Targeted source/evidence reconciliation and cross-document consistency, plus complete Markdown target audit. Historical records retain dates and original outputs; this is not a new model or ISC experiment.",
+  "link_audit": {
+    "source_commit": "a232e2db08f411319797bcd1ff5e3c306a47d329",
+    "checked_at_utc": "2026-10-26T02:24:53+00:00",
+    "markdown_pages": 982,
+    "unique_page_targets": 9454,
+    "local_missing": [],
+    "local_skips": {
+      "illustrative_target": 1,
+      "non_web_or_local_only": 5418
+    },
+    "external_counts": {
+      "illustrative_or_sensitive_target_not_requested": 7,
+      "reachable": 314,
+      "unverified": 10
+    },
+    "unverified": [
+      {
+        "url": "https://act-r.psy.cmu.edu/actr7.x/reference-manual.pdf",
+        "documents": [
+          "docs/DEMOS_AND_RELATED_WORK.md"
+        ],
+        "status": "unverified",
+        "reason": "URLError: <urlopen error timed out>"
+      },
+      {
+        "url": "https://gpbib.cs.ucl.ac.uk/gp-html/Togelius_2010_cec.html",
+        "documents": [
+          "docs/design-docs/HOW_PEOPLE_AND_SYSTEMS_ACT_TOWARD_AN_END.md"
+        ],
+        "status": "unverified",
+        "reason": "URLError: <urlopen error timed out>"
+      },
+      {
+        "url": "https://ice.ci.ritsumei.ac.jp/~ftgaic/index-2a.html",
+        "documents": [
+          "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+        ],
+        "status": "unverified",
+        "reason": "URLError: <urlopen error timed out>"
+      },
+      {
+        "url": "https://journals.sagepub.com/doi/10.1177/0022022113505357",
+        "documents": [
+          "docs/SOUL.md"
+        ],
+        "status": "unverified",
+        "http": 403,
+        "reason": "Forbidden"
+      },
+      {
+        "url": "https://onlinelibrary.wiley.com/doi/10.1111/j.1551-6708.1987.tb00863.x",
+        "documents": [
+          "docs/evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md"
+        ],
+        "status": "unverified",
+        "http": 403,
+        "reason": "Forbidden"
+      },
+      {
+        "url": "https://web.eecs.umich.edu/~soar/sitemaker/docs/pubs/Kennedy-ICCM2006.pdf",
+        "documents": [
+          "docs/GENERALITY_ANALYSIS.md",
+          "docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md"
+        ],
+        "status": "unverified",
+        "reason": "URLError: <urlopen error _ssl.c:993: The handshake operation timed out>"
+      },
+      {
+        "url": "https://www.ice.ci.ritsumei.ac.jp/~ruck/PAP/ieeeCIG2014.pdf",
+        "documents": [
+          "docs/design-docs/WHAT_THE_RUNNERS_WON_BY.md"
+        ],
+        "status": "unverified",
+        "reason": "URLError: <urlopen error timed out>"
+      },
+      {
+        "url": "https://www.sciencedirect.com/science/article/abs/pii/S002216949700125X",
+        "documents": [
+          "docs/SCIENCE_AND_SOURCES.md"
+        ],
+        "status": "unverified",
+        "http": 403,
+        "reason": "Forbidden"
+      },
+      {
+        "url": "https://www.sciencedirect.com/science/article/pii/000437029090007M",
+        "documents": [
+          "docs/evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md"
+        ],
+        "status": "unverified",
+        "http": 403,
+        "reason": "Forbidden"
+      },
+      {
+        "url": "https://www.tandfonline.com/doi/abs/10.1080/01621459.1968.10480934",
+        "documents": [
+          "docs/SCIENCE_AND_SOURCES.md"
+        ],
+        "status": "unverified",
+        "http": 403,
+        "reason": "Forbidden"
+      }
+    ],
+    "scope": "HTTP reachability does not validate contents; local/example/private endpoints were not requested."
+  },
+  "checks": [
+    {
+      "command": "Focused docs/fact tests and exact-search certification regression",
+      "passed": 81,
+      "seconds": 135.14,
+      "peak_owned_rss_mib": 407.9
+    },
+    {
+      "command": "make smoke",
+      "passed": 164,
+      "skipped": 1,
+      "seconds": 55.27,
+      "runner_wall_seconds": 57.04,
+      "peak_owned_rss_mib": 428.9
+    },
+    {
+      "command": "make doc-drift",
+      "findings": 0,
+      "fact_gate_passed": 17,
+      "subject_core_matches_artifacts": true,
+      "seconds": 106.82,
+      "peak_owned_rss_mib": 209.6
+    },
+    {
+      "command": "Public URL audit (2 workers, request timeout 3 seconds)",
+      "seconds": 68.68,
+      "peak_owned_rss_mib": 87.0
+    },
+    {
+      "command": "make fmea-doc contract-doc architecture-map",
+      "exit_code": 0,
+      "seconds": 28.39,
+      "peak_owned_rss_mib": 121.2
+    },
+    {
+      "command": "tools/reqproof/progress.py",
+      "exit_code": 0,
+      "seconds": 21.58,
+      "peak_owned_rss_mib": 418.9,
+      "report": "artifacts/reqproof/PROGRESS_REPORT.json",
+      "report_sha256": "2259df707691a01a5047f9b38b44461d126b34f02160c52459fc636860c3d16d",
+      "machine_certified_percent": "0.00",
+      "scope": "Source-bound evidence credit, not measured intelligence; sampled rejections cite stale source manifests."
+    },
+    {
+      "command": "Writing and Ruff checks",
+      "writing_findings": 10,
+      "writing_baseline_lowered_from": 11,
+      "ruff": "passed"
+    },
+    {
+      "command": "Runtime source AST comparison",
+      "result": "core/config.py executable AST unchanged; integrated_information.py unchanged after excluding docstrings"
+    },
+    {
+      "command": "Illustrative formula arithmetic",
+      "result": "checked using standard-library arithmetic"
+    }
+  ],
+  "resource_limits": {
+    "own_check_tree_limit_mib": 768,
+    "host_free_plus_inactive_floor_gb": 12,
+    "numeric_library_threads": 1
+  },
+  "live_actions": {
+    "runtime_restart": false,
+    "model_load": false,
+    "campaign_rerun": false
+  },
+  "known_limits": [
+    "Ten public URLs remained access-restricted or timed out.",
+    "Link correctness is distinct from complete semantic verification.",
+    "Current process activation and live performance require their own evidence.",
+    "The least-domain closure rule is withdrawn and no margin is in force."
+  ]
+}

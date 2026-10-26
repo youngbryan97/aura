@@ -7,7 +7,7 @@ git clone https://github.com/youngbryan97/aura.git
 cd aura
 pip install -e ".[dev]"
 
-# Fast contract sweep (~100 tests, <10s) — run after every change
+# Focused contracts; measure duration on this host — run after every change
 make smoke
 
 # Full offline suite — 6 bounded process chunks. A single pytest process over

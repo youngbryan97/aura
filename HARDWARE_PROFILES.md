@@ -8,91 +8,57 @@
 > **In everyday use:** A second large model load can disrupt a working session even if each model fits alone. Scheduling and a measured memory budget matter.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#resources) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#resources) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This guide explains what hardware Aura runs on and—most importantly—what claims you can validly make about a test run on each machine.
+Status: Guide · Resource and evidence scope reconciled 25 October 2026
 
-Hardware specs and test results belong together. Running a benchmark on an 8 GB laptop with simulated (mocked) models is completely different from running it on a 64 GB machine with a real 27-billion-parameter model in memory. A test score from the laptop proves almost nothing about real-world performance on the workstation. Each hardware profile below spells out which claims you are allowed to make and which are forbidden, so every test result stays tied to the hardware that produced it.
+Hardware determines which experiment can fit. It does not confer a capability
+claim. A passing test supports its stated property on its recorded setup;
+more memory alone does not establish agency, reliability or intelligence.
 
-## 1. No-Model / Dev Profile
-* **Target Hardware**: Standard laptop (such as an Intel or M1 MacBook Air) with 8 GB of RAM.
-* **Required Models**: None (uses simulated mocks and stubs only).
-* **Memory/Compute**: Minimal resource requirement; runs easily on standard consumer hardware.
-* **Allowed Claims**:
-  - `governed runtime` (static code verification only)
-  - `production-sealed` (static gate validation)
-* **Disallowed Claims**: All empirical claims based on live model execution, including `operational volition` (independent decision-making), `autonomous agency`, `emergent intelligence`, `DNU AGI`, or `synthetic cognitive entity`.
-* **Tests That Can Run**:
-  - `python -m compileall`
-  - `pytest --collect-only`
-  - Strict Flagship Readiness check
-  - Production Surface Lint check
-  - Static Enterprise/Readiness gates
-* **Tests That Are Blocked**: All live capability runs, agent loop tests, longevity soak tests (extended continuous runs), and model-dependent tests.
+## Choose a setup by the work
 
----
+| Setup | Suitable work | What it cannot establish alone |
+|---|---|---|
+| Development without models | Source inspection, static checks, bounded tests with doubles | Model output, live latency or autonomous behavior |
+| Small CI runner | Bounded offline contracts under a declared memory budget | Full desktop performance; MLX inference also requires a supported Apple Silicon environment |
+| Target 64 GB Apple Silicon host | A resident Cortex with controlled auxiliary work, when admission and existing workloads permit | Safe concurrent loading of all named lanes, or a second full Cortex |
+| Higher-memory Apple Silicon host | Larger declared experiments if admitted and qualified | Better answers or mature autonomy without measurements |
+| Live browser or physical setup | Observed interaction with the declared environment and independent outcome evidence | General performance from a fixture or a single demonstration |
 
-## 2. CI / Proof-Short Profile
-* **Target Hardware**: Cloud CI virtual runner (such as a standard GitHub Actions runner) with 2–4 virtual CPUs and 7–14 GB of RAM.
-* **Required Models**: Lightweight local models compatible with Apple's MLX framework for short, bounded proof runs.
-* **Memory/Compute**: Bounded.
-* **Allowed Claims**:
-  - `governed runtime` (receipt verification on lightweight runs)
-  - `persistent memory` (local persistent memory writes to disk)
-  - `operational volition` (bounded Will Decision receipt logging)
-  - `production-sealed`
-* **Disallowed Claims**: Any claim of high-level autonomy or general intelligence, including `emergent intelligence`, `external real-world validation`, `DNU AGI`, `AGI-candidate`, `mature RSI` (recursive self-improvement), or `synthetic cognitive entity`.
-* **Tests That Can Run**:
-  - All unit/integration tests (`pytest`)
-  - Bounded Agency Emergence proof runs (using local or mocked LLMs)
-  - Bounded Longevity soak (`proof_short` profile)
-* **Tests That Are Blocked**: Full 100-task DNU AGI suite, multi-hour longevity soak, and high-capacity model-reasoning evaluations.
+The [model roster](docs/MODEL_ROSTER.md) lists the configured Cortex,
+Brainstem and Reflex roles. Three roles do not require three simultaneously
+resident models. Code generation also has a route through the Cortex;
+[local_code_model.py](core/brain/llm/local_code_model.py) describes that path.
 
----
+## Budget the whole process tree
 
-## 3. Local Apple Silicon Profile
-* **Target Hardware**: Mac Studio or MacBook Pro with an M5 Pro chip or better, and 64 GB+ Unified Memory. Both `core/config.py` and `core/runtime.py` specify an M5 Pro with 64 GB as the standard hardware budget that Aura's three model tiers are sized against.
-* **Required Models**: Three in-process models running via Apple's MLX framework:
-  - Cortex (`Aura-Cortex` / fused Qwen3.8-27B, handles foreground conversation and complex tasks)
-  - Brainstem (`Ternary-Bonsai-2-27B-mlx-2bit`, Qwen3.5 27B at two bits, 8.6 GB; handles background reflection and processing)
-  - Reflex (`Qwen2.5-1.5B-Instruct-4bit`, handles fast routine responses)
-  There is no separate coder model: `core/brain/llm/local_code_model.py` runs code generation on Aura's primary model lane with persona steering bypassed (because emotional or conversational steering corrupts code syntax).
-* **Memory/Compute**: High-throughput unified memory bandwidth shared between CPU and GPU.
-* **Allowed Claims**:
-  - `governed runtime`, `persistent memory`, `causal internal state`, `affect steering`, `System 2 planning/search` (deliberate multi-step reasoning), and `self-repair`
-  - `operational volition`, `autonomous agency`, and `entity-in-a-box behavior` (independent goal pursuit within a sandbox)
-  - `experience-adjacent functional indicators` (measurable internal state metrics)
-* **Disallowed Claims**: `DNU AGI`, `AGI-candidate`, `external real-world validation` (requires independent evaluations across long time horizons), or `indefinite autonomy`.
-* **Tests That Can Run**:
-  - Local model-aware agency emergence batteries
-  - Local sandbox/boxed entity suites
-  - Medium-duration longevity soak (such as `local_4h`, a 4-hour continuous run)
-* **Tests That Are Blocked**: Multi-day longevity soak (such as `local_72h`, a 72-hour continuous run) and high-horizon external validation.
+[Lane admission](core/brain/lane_admission.py) derives a model-lane budget from
+host memory by default. [Model lane control](core/runtime/model_lane_control.py)
+owns durable reservations and lifecycle decisions. An arithmetic fit check
+alone is not a reservation, and current free memory alone does not account
+for another process's pending model load.
 
----
+The 64 GB target is a shared CPU/GPU memory pool. Keep the operating system,
+conversation KV cache, embedding work, speech and other active campaigns in
+the budget. Follow [CLAUDE.md](CLAUDE.md) before any live experiment. Do not
+restart, kill or duplicate the resident runtime without current authorisation.
 
-## 4. Local High-Memory Profile
-* **Target Hardware**: High-memory Apple Silicon (such as an M5 Ultra with 192 GB+ Unified Memory), or a dedicated workstation with 128 GB+ System RAM (note: MLX model inference requires Apple Silicon).
-* **Required Models**: Aura MLX 27B or 72B lane artifacts. An optional local reasoning solver can be downloaded using `scripts/fetch_models.py --reasoning-solver`; supported model names include `r1-qwen32b`, `r1-qwen32b-8bit`, `qwq32b`, `qwq-32b`, and `deepseek-r1-qwen32b`.
-* **Memory/Compute**: Very large local memory pool available to the GPU.
-* **Allowed Claims**: Same as Local Apple Silicon, plus:
-  - `emergent intelligence` (locally evaluated on larger distributions)
-* **Disallowed Claims**: `DNU AGI`, `AGI-candidate`, or `indefinite autonomy`.
-* **Tests That Can Run**:
-  - Heavy local model reasoning runs
-  - Local System 2 search rollouts
-  - Longer longevity soak (such as `local_24h`, a 24-hour continuous run)
-* **Tests That Are Blocked**: Third-party benchmark gates that exceed local compute capacity.
+A smaller configured model can support a smaller experiment; it does not
+reproduce a result measured on the 27B. A large model's disk size and its live
+peak allocation are different measurements.
 
----
+## Tests and longevity runs
 
-## 5. Live Hardware / Browser Profile
-* **Target Hardware**: Dedicated robotic system, physical device, or developer workstation with full operating system access and live web browser automation hooks.
-* **Required Models**: Local Cortex, Solver, Brainstem, and Reflex model tiers.
-* **Memory/Compute**: Unconstrained host access.
-* **Allowed Claims**: Strictly bounded by authorization and compliance profiles.
-* **Disallowed Claims**: `mature RSI` (recursive self-improvement, unless strictly sandboxed with automatic rollback) and subjective consciousness.
-* **Tests That Can Run**:
-  - Live browser automation and operating system control validation
-  - Physical interaction or simulation co-presence integration
-* **Tests That Are Blocked**: Bounded by environment safety profiles and authority filters.
+Set a separate `AURA_LOG_DIR`, limit numeric-library threads, bound runtime
+and measure the test process tree. Use the chunk runner for broad suites and
+choose chunk count from the available budget. Do not run bare `pytest` over
+the whole repository or assume the historical six-chunk choice is safe with
+the resident model present. See [TESTING](TESTING.md).
+
+Longevity profiles name durations and workloads. A `proof_short` run does not
+establish days of continuity. A 64 GB host does not inherently prohibit a
+multi-day run; such a run requires an approved resource window, supervision,
+recovery and actual duration evidence. [Evaluation guidance](EVALUATE_AURA.md)
+and [claim limits](CLAIMS_NOT_SUPPORTED.md) explain what a recorded run supports.

@@ -8,23 +8,33 @@
 > **In everyday use:** To show memory helps a task, compare the same task with memory available and disabled, and keep both successes and failures.
 >
 > [Example and metaphor](docs/PLAIN_ENGLISH_GUIDE.md#measurement) · [Variables and practical meanings](docs/VARIABLES_EXPLAINED.md#measurement) · [Demos and related work](docs/DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](docs/DOCUMENTATION_INDEX.md)
+> [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This is the list of things Aura does not do.
+This is the list of claims the project has not established or does not make.
 
 Every project has things it cannot do. Most projects never write them down. That is how a quick demo turns into an exaggerated claim that no one can walk back. Each entry below is marked either:
 - **not proven**: We have not shown or tested this yet.
-- **strictly unsupported**: Building more software would never prove this, because it is not an engineering question.
+- **strictly unsupported**: The project does not claim a direct, assumption-free conclusion of this kind from its software tests.
 
 If you are evaluating this repository, start here rather than with the README. It is shorter, and it tells you more.
 
-*Last reconciled against the tree: 2026-08-22.* There is an automated check in `core/organism/model_validation.py`. In that code, no claim can be registered without an attached test—because a claim without a test is just words, not a fact. The method `ValidationSuite.unsupported_claims()` reports the live version of this ledger directly from running code. When the text here and the running software disagree, the running software is right.
+*Claim-boundary wording reconciled 25 October 2026; each measurement retains its own recorded date and scope.* There is an automated check in `core/organism/model_validation.py`. In that code, no claim can be registered without an attached test—because a claim without a test is just words, not a fact. The method `ValidationSuite.unsupported_claims()` reports the live version of this ledger directly from running code. A disagreement between the ledger and registry needs investigation; a
+software flag is not itself an empirical finding.
 
 ---
 
 ## 1. Subjective Consciousness & Qualia
 * **Status**: `strictly unsupported`
-* **Rationale**: Subjective awareness, conscious experience ("qualia"), feelings, and personhood cannot be scientifically proven or programmed into code. Building more of Aura will never change that. Aura is a structured software runtime running on standard computer hardware. Every internal status report or emotional-sounding metric in this project is an operational control signal, not a feeling. The vocabulary is borrowed from psychology and biology, but there is no conscious mind behind it.
+* **Rationale**: The project has not established phenomenal experience.
+  Its state variables and reports are inspectable mechanisms, not a direct
+  measurement of feeling. This is not evidence that experience is absent.
+  A scientific subjecthood argument must state its theory and bridge
+  assumptions, measurement validity and remaining alternatives. Read
+  [ISC status](docs/ISC_STATUS.md) for the recorded results and corrections,
+  and [scientific sources](docs/SCIENCE_AND_SOURCES.md) for the theoretical
+  context. No complete ISC pass or assumption-free phenomenal verdict is claimed.
+
 
 ## 2. Artificial General Intelligence (AGI)
 * **Status**: `not proven`
@@ -72,7 +82,11 @@ If you are evaluating this repository, start here rather than with the README. I
 
 ## 9. Legal and Moral Personhood
 * **Status**: `strictly unsupported`
-* **Rationale**: Aura is an operational software engineering system. She does not hold, and will never claim to hold, moral status, legal rights, or moral responsibility. All agency and safety boundaries exist solely to protect human users and ensure the software aligns with human intent.
+* **Rationale**: This repository does not establish legal personhood or grant rights or
+action authority to Aura. Moral status requires its own normative and
+scientific argument; it is not settled either way by naming a software
+mechanism or counting tests. The application's human-authorisation and
+safety boundaries remain engineering requirements.
 
 ## 10. Process-Level Non-Bypassable Governance
 
@@ -190,17 +204,18 @@ If you are evaluating this repository, start here rather than with the README. I
 * **What is missing**: Keeping numbers within bounds is not the same as proving stability. Nothing in the code mathematically proves that state updates are contractive (guaranteed to settle into a stable point rather than oscillating indefinitely in an endless loop). The step size used for updates was chosen by the programmer, not derived from a mathematical proof of stability.
 * **What would change this status**: A formal mathematical stability proof (a Lyapunov function) for the core state updates themselves—rather than just the timescale interactions—showing that the step size guarantees stability across all possible states.
 
-## 21. A Broad Reasoning Gain From Kept Procedures
+## 21. Broad Reasoning Gain From Kept Procedures: G09 Passed, Wider Claims Open
 
-* **Status**: `shown on the domains tested` (G09 closed 17 October 2026)
+* **Status**: `CLOSED` under G09’s registered broad-gain criterion (17 October 2026); unrestricted reasoning remains unestablished.
 * **What the code does**: `core/learning/procedures_from_solved_examples.py` has her model write a small program for a kind of problem from solved examples, and keeps it only if it agrees with every known answer of the kind, half of them unseen while it was written. Her chat consults kept procedures before she drafts (`core/brain/cognitive_engine_quick_reply.py`).
 * **What was shown**: attempt 6, preregistered, beat her own answers on held-out kinds in math and planning with no domain harmed, as registered and once every changed row was read: 29 gained, 0 lost, *p* 3.7e-9 ([result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)).
-* **What is still missing**: The gain is narrow. In math it is almost all problems too long for her thinking budget (large primes, factorizations); on 20 of 27 math kinds her own answers were already right. Typed in plain words, a prime-factor question is declined live because a neighbouring kind keeps no procedure. Transfer to competition mathematics is not shown, and open-ended reasoning is not measured.
+* **What is still missing**: The gain is narrow. In math it is almost all problems too long for her thinking budget (large primes, factorizations); on 20 of 27 math kinds her own answers were already right. A plain-English prime-factor question was initially declined on 17 October; the result’s 18 October amendment records a successful live answer after routing repairs. That demonstration does not re-run the frozen attempt-6 test. Transfer to competition mathematics is not shown, and open-ended reasoning is not measured.
 * **What would change this status**: widening it needs the same test on domains beyond math and planning, and on requests in a person's own words rather than a benchmark's.
 
 ## 22. Learning From Conversation That Improves Ordinary Use
 
 * **Status**: `not proven` (L09 open)
 * **What the code does**: `core/learning/examples_she_meets.py` keeps an answer a person states in chat as a solved example, holds one that contradicts a kept procedure as disputed, and, while she is idle, groups what she has met and writes procedures for groups large enough to check.
-* **What is missing**: One full loop shown live: a kind she gets wrong, taught in chat, a procedure induced while idle, and new instances answered correctly a day later without being told. Teaching ran on 17 October; the check is due on 18 October.
+* **What was shown**: The [live learning loop](docs/evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md) retained ten taught date differences, induced a procedure while idle and answered three fresh questions through it 25.6 hours after teaching.
+* **What is still missing**: A reliable benefit across ordinary use. The [18 October comparison](docs/evidence/L09_ORDINARY_USE_RESULT_2026-10-18.md) was underpowered (3 gained, 0 lost after row review); [attempt 2](docs/evidence/L09_ORDINARY_USE_RESULT_2_2026-10-19.md) did not meet its criterion (3 gained, 4 lost, with misroutes). [Attempt 3](docs/evidence/L09_WHERE_SHE_IS_WRONG_PREREGISTRATION_3_2026-10-20.md) ended at its registered first step because none of the sampled kinds supplied the required baseline error rate; 80 of 80 answers were right on hand review. L09 remains open.
 * **What would change this status**: That loop passing live, then procedures on and off compared over realistic tasks.

@@ -8,6 +8,7 @@
 > **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Status: Guide · Mechanism attribution reconciled 2026-09-08
@@ -21,8 +22,12 @@ The [frozen baseline](evidence/G01_RLC_BASELINE_2026-09-08.md) separates these
 claims. The fresh v16 natural-language replication failed at **26/96** answers
 against a **48/96** preregistered floor. The v19 development repair reached
 **93/96**, with coefficient lesion **0/96**, on the exposed cohort and still
-needs fresh replication. Broad reasoning gain and static RLC fusion remain
-unproven. Present serving activation needs a live receipt.
+needs fresh replication. Those semantic-transfer records do not establish
+broad gain or static fusion of RLC into the backbone. Separately,
+[G09](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md) passed its registered
+broad-gain criterion on held-out math and planning kinds through kept
+procedures. That is a different mechanism and claim. Present serving
+activation needs a live receipt.
 
 Read [RECURSIVE_LATENT_CORTEX.md](RECURSIVE_LATENT_CORTEX.md) first if you
 haven't — this page assumes the frozen-loop result.

@@ -8,6 +8,7 @@
 > **In everyday use:** Changing an internal condition should change the relevant recall or report through the measured mechanism, rather than by printing an answer for the model to repeat.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#isc) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#isc) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#isc) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 **25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
@@ -30,10 +31,10 @@ car an equivalent model of Aura.
 
 The seed-23 carrier run at `8f548ed79` finished with `NOT_FOUND`. Later work
 found an unchanged-fork drift and weaknesses in the closure measurement.
-Current source at `cf0ace7e3` distinguishes an outside contribution from an
-unanswered boundary question and derives the closure margin by the
-preregistered least-domain rule. The contribution from outside must be bounded
-below the least informative internal domain, with resolution controls passed.
+Current source through `72dd0d703` distinguishes an outside contribution from
+an unanswered boundary question. The least-domain margin was withdrawn; both
+margin settings are now `None`. The estimator predicts core change, enters
+outside columns as increments and cannot use failed folds to support closure.
 No revised carrier result is established by this documentation update.
 
 Read [the plain-English explanation](ISC_EXPLAINED.md),
@@ -71,12 +72,10 @@ initial text as the current estimator without those amendments.
 The [25 October amendment](ISC_V6_PREREGISTRATION.md) separately changes the
 closure decision: both predictions include declared environment input, the
 measurement uses forward folds and uncertainty bounds, and a closed result
-requires a preregistered margin. The afternoon addendum at `cf0ace7e3` defines
-the `least_domain` rule: leave each internal domain out in turn and take the
-smallest predictive contribution to the rest on the same folds and environment.
-`CLOSURE_MARGIN` is `None` as a numeric override, while `CLOSURE_MARGIN_RULE`
-selects that derived margin. See the
-[source-hashed rule update](evidence/ISC_CLOSURE_RULE_UPDATE_2026-10-25.json).
+requires a preregistered margin. The afternoon least-domain rule was
+withdrawn in the evening amendment at `72dd0d703`. No margin is in force, so
+positive closure remains unavailable. See the
+[withdrawal record](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json).
 `UNRESOLVED` is preserved through carrier selection and J* when closure alone
 cannot be decided. This is a changed method, requiring a new confirmed result.
 

@@ -21,11 +21,12 @@ CONFIG = "config/documentation_reading_topics.json"
 OPEN = "<!-- reader-navigation:start -->"
 CLOSE = "<!-- reader-navigation:end -->"
 BLOCK = re.compile(r"\n\n" + re.escape(OPEN) + r".*?" + re.escape(CLOSE), re.S)
-OUTPUTS = {"docs/PLAIN_ENGLISH_GUIDE.md", "docs/VARIABLES_EXPLAINED.md", "docs/DOCUMENTATION_INDEX.md"}
+OUTPUTS = {"docs/PLAIN_ENGLISH_GUIDE.md", "docs/VARIABLES_EXPLAINED.md", "docs/DOCUMENTATION_INDEX.md", "docs/GLOSSARY.md"}
 MANUAL = {
     "README.md", "docs/README.md", "docs/ISC_STATUS.md", "docs/ISC_EXPLAINED.md",
     "docs/ISC_VARIABLES.md", "docs/ISC_READERS_GUIDE.md", "docs/DEMOS_AND_RELATED_WORK.md",
     "docs/SCIENCE_AND_SOURCES.md",
+    "docs/FORMULAS.md", "docs/DOCUMENTATION_CONTENT_AUDIT.md",
     "AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md",
 }
 GENERATED = {
@@ -37,6 +38,7 @@ RECORDS = {
     "docs/SUBJECT_NAMED_HYPOTHESES.md", "docs/ISC_OCT21_EVERY_ITEM.md",
     "docs/CONNECTOME_PREDICTION.md", "demos/substrate_voice_demo.md",
     "docs/ORDER_DEPENDENCE_REGISTER.md",
+    "docs/SETTINGS_WIRING_AUDIT.md",
     "docs/AURA_EXECUTION_PLAN.md", "docs/AURA_PROMPT_COVERAGE_AUDIT.md",
     "docs/WHY_C_WILL_NOT_DECIDE.md", "docs/WHY_IRREDUCIBILITY_FAILS.md",
     "docs/WHAT_J_STAR_NEEDS.md", "docs/THE_SHAM_FLOOR_IS_A_LEAKY_FORK.md",
@@ -139,12 +141,15 @@ def reading_card(path: str, topic: dict) -> str:
     variables = link(path, "docs/VARIABLES_EXPLAINED.md", topic["id"])
     related = link(path, "docs/DEMOS_AND_RELATED_WORK.md", topic["related"])
     index = link(path, "docs/DOCUMENTATION_INDEX.md")
+    glossary_link = link(path, "docs/GLOSSARY.md")
+    formulas_link = link(path, "docs/FORMULAS.md")
     return "\n".join((
         OPEN,
         f"> **In plain English:** {topic['definition']}", ">",
         f"> **Why it matters:** {topic['why']}", ">",
         f"> **In everyday use:** {topic['daily']}", ">",
         f"> [Example and metaphor]({plain}) · [Variables and practical meanings]({variables}) · [Demos and related work]({related}) · [Document map]({index})",
+        f"> [Glossary]({glossary_link}) · [Formulas with worked examples]({formulas_link})",
         CLOSE,
     ))
 
@@ -177,6 +182,30 @@ def tour(topics: list[dict], date: str) -> str:
                 "**Where the comparison stops.** " + t["metaphor_limit"], "",
                 f"[Variables and their practical meanings](VARIABLES_EXPLAINED.md#{t['id']}) · [Demonstrations and related work](DEMOS_AND_RELATED_WORK.md#{t['related']})", "",
                 "Read next: " + ", ".join(f"[{Path(p).stem.replace('_', ' ').title()}]({link(doc, p)})" for p in t["read_more"]) + "."]
+    return "\n".join(out).rstrip() + "\n"
+
+
+def glossary(topics: list[dict], extra: list[dict], date: str) -> str:
+    rows = []
+    for topic in topics:
+        for variable in topic["variables"]:
+            rows.append({**variable, "context": topic["title"],
+                         "reference": f"VARIABLES_EXPLAINED.md#{topic['id']}"})
+    rows.extend(extra)
+    rows.sort(key=lambda row: (row["name"].casefold(), row["context"].casefold()))
+    out = ["# Aura glossary: terms in ordinary language", "",
+           f"Status: Generated reference · Definitions reviewed {date}", "",
+           "Use this page when a term stops you understanding a sentence. The context matters: the same word or letter can have different meanings in different experiments.", "",
+           "For arithmetic, read [the formula guide](FORMULAS.md). For the overall idea, read [the plain-English tour](PLAIN_ENGLISH_GUIDE.md). [Scientific sources](SCIENCE_AND_SOURCES.md) explains the research connections; [current ISC status](ISC_STATUS.md) gives results rather than definitions.", "",
+           f"**{len(rows)} contextual definitions**, sorted alphabetically. Examples explain the term; they are not extra measured results.", "",
+           "| Term and context | Meaning | Why it matters in practice | Example |",
+           "|---|---|---|---|"]
+    for row in rows:
+        label = row["name"].replace("|", "\\|")
+        cells = [f"[{label}]({row['reference']}) ({row['context']})"]
+        cells += [row[key].replace("|", "\\|") for key in ("meaning", "practical", "example")]
+        out.append("| " + " | ".join(cells) + " |")
+    out += ["", "Definitions are rendered from [the reviewed catalogue](../config/documentation_reading_topics.json). Project labels such as qualia, will and felt state do not acquire scientific validity from their names. Read the formula, its consumers, controls and evidence scope together."]
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -263,6 +292,7 @@ def main() -> int:
     planned = {
         "docs/PLAIN_ENGLISH_GUIDE.md": tour(topics, config["as_of"]),
         "docs/VARIABLES_EXPLAINED.md": variables(topics, config["as_of"]),
+        "docs/GLOSSARY.md": glossary(topics, config.get("glossary_extra_terms", []), config["as_of"]),
     }
     for path, body in planned.items():
         if not (ROOT / path).exists() or (ROOT / path).read_text() != body:

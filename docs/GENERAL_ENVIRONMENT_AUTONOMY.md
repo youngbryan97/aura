@@ -8,6 +8,7 @@
 > **In everyday use:** Opening the right page, selecting the correct field and confirming the changed state are separate steps in filling a form.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#browser) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#browser) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#agents) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 This is the current, code-grounded checklist for an Aura architecture that can

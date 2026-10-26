@@ -25,7 +25,7 @@ fixes reach the live instance only when the user restarts it themselves.
 ```bash
 make compile      # syntax sweep (core + tests)
 make lint         # ruff, three passes (surface E9, critical F-codes, curated files)
-make smoke        # ~100 contract tests, <10s — run after every change
+make smoke        # focused contracts; record duration per host — run after every change
 make test         # FULL offline suite (60,331 tests, 2026-09-30) in 6 bounded process chunks
 make governance-lint  security  enterprise-gate  # scrutiny gates
 make layering     # DEPS include-rule gate; baseline in config/ only shrinks

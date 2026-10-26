@@ -8,6 +8,7 @@
 > **In everyday use:** When you interrupt a spoken reply, the old reply should stop owning the conversation and the new turn should take priority.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#conversation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#conversation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#interaction) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
 Aura Velvet starts with an original synthetic studio recording. The design

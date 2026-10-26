@@ -8,7 +8,14 @@
 > **In everyday use:** An entry saying the next run is queued can remain correct history after that run finishes; the maintained status page gives the later outcome.
 >
 > [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#documentation) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#documentation) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#measurement) · [Document map](DOCUMENTATION_INDEX.md)
+> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
+
+The aliases below name project mechanisms. They are not interchangeable with
+all scientific uses of the same word. In particular, a bounded integration
+score is not full IIT 4.0, and a name such as free energy needs its own model
+and units. Use the [glossary](GLOSSARY.md) and
+[formula guide](FORMULAS.md) for the definitions and limits.
 
 ## Start with the ordinary meaning
 
@@ -82,8 +89,8 @@ That's what this table is for.
 | stem cell                  | immutable signed organ snapshot                        |
 | somatic gate               | sensorimotor permission gate                           |
 | oscillatory binding        | phase-locked subsystem binding                         |
-| free energy                | predictive-coding error budget                         |
-| phi / phi_s                | integrated information (IIT 4.0 spectral approximation)|
+| free energy                | model-dependent inference/control quantity; not thermodynamic energy without a physical model                         |
+| phi / phi_s                | bounded integration estimator; formula and grain must be specified|
 | HOT                        | higher-order representation of own state               |
 | GWT ignition               | global broadcast event in the workspace                |
 | latent-space bridge        | substrate-state-driven sampling parameter modulation   |
@@ -106,7 +113,7 @@ That's what this table is for.
 | program DNA                | authorized clean-room behavioral reconstruction         |
 | backpressure               | expected-timeout yield (not a degradation) under load   |
 | reasoning amplifier        | mandatory verifier-gated hard-task cognition layer      |
-| whole-system phi           | exact-MIP Gaussian integrated information over real channels |
+| whole-system phi           | Gaussian stochastic-interaction estimate; exact search only at the declared small-grain limit |
 | reality reach              | typed causal contract + reachability proof for a physical request |
 | reality layer              | evidence scope: internal / effective / direct / ambient |
 | limitation certificate     | typed machine-verifiable no-go verdict for an unreachable request |
