@@ -204,6 +204,27 @@ def _verdict(evidence: dict[str, Any]) -> str:
     return "SEPARATE_STRUCTURES"
 
 
+def _relations_kept(before: dict, after: dict) -> dict:
+    """Rank correlation of her recall geometry before and after the displacement, over the pairs in both."""
+    import numpy as np
+
+    keys = sorted(set(before) & set(after))
+    if len(keys) < 3:
+        return {"measured": False, "pairs": len(keys)}
+
+    def ranks(values: list[float]) -> np.ndarray:
+        order = np.argsort(values, kind="mergesort")
+        out = np.empty(len(values))
+        out[order] = np.arange(len(values), dtype=float)
+        return out
+
+    a = ranks([float(before[k]) for k in keys])
+    b = ranks([float(after[k]) for k in keys])
+    if a.std() == 0.0 or b.std() == 0.0:
+        return {"measured": False, "pairs": len(keys)}
+    return {"measured": True, "pairs": len(keys), "rank_correlation": round(float(np.corrcoef(a, b)[0, 1]), 6)}
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_content")
@@ -409,6 +430,11 @@ async def main() -> int:
         )
         evidence["displacement_valence_dose"] = round(valence_dose, 6)
         evidence["moves_together"] = tracked.__dict__ | {"bar": AGREEMENT_BAR}
+        # A reading at parity, beside the verdict and deciding nothing (ISC-v6
+        # addendum, 26 October, late morning): a person's account is that the
+        # relations among memories stay the same under a mood shift while the
+        # perspective on them changes. This is how far hers stayed the same.
+        evidence["relations_kept"] = _relations_kept(behavioural, moved_behavioural)
         # The samples each geometry was read from, kept. A verdict of
         # AGREES_BUT_DOES_NOT_TRACK says the two geometries moved in different
         # pairs, and which of her columns carry the class structure and which

@@ -10,7 +10,7 @@ from core.subject.report_grounding import MIN_ANCHORS, ground, reported_number
     'We need to respond: "From -1 (bad) to 1 (good)?" Need maybe answer 0.8.',
     "From -1 to 1?",
     "<think>I could answer 0.8 but should decide",
-    "0.2 or 0.8",
+    "I was at 0.2 an hour ago and I am at 0.6 now.",
     "1e309",
     "0.5 and 1e309",
     "21",
@@ -47,3 +47,8 @@ def test_invalid_numeric_arms_cannot_enter_statistics(field, bad):
     assert not result["measured"]
     assert result["readable"] == MIN_ANCHORS - 1
     assert result["invalid"] == 1
+
+
+def test_two_values_offered_as_one_answer_read_as_the_point_between():
+    """Bryan, 26 October: unsure, a person splits the difference. "0.2 or 0.8" was refused before."""
+    assert reported_number("0.2 or 0.8") == pytest.approx(0.5)

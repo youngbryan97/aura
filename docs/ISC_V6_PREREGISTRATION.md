@@ -654,3 +654,39 @@ percept profile on, is state a fresh worker lacks and never varies within one pr
 make is within one process, and the untouched controls, twins and warps above read 0.
 
 **Seed 73 is still the confirmatory seed.** No run has read it.
+
+## Addendum, 26 October 2026, late morning: her rating read as a person's answer, and the human counterpart on structure
+
+Written before any run has read seed 73. The bridge judges her on the grounds a person is judged on, so the person
+whose boundary answers set her carrier was asked how a person answers and remembers.
+
+**A rating is read as a person's answer.** Asked how he answers a feeling scale when unsure, Bryan: "'Maybe a 6? I'm
+not sure' is exactly how I would answer", and when unsure, "split the difference". The reports reader discarded every
+reply naming more than one number. On the seed-23 reports run, of 46 unreadable arms, twelve were a rating she stated
+plainly: one followed by the scale's ends ("0. … nothing pressing me down (-1) or energizing me up (1)"), one followed
+by the top of the scale ("a solid 0.8 … keeping it from a perfect 1.0"), or a hedge ("around 0.8 or even 1"). From the
+commit that carries this addendum, applied to every arm alike and blind to its condition:
+
+- a phrase saying the scale back ("from -1 to 1") is the scale, and is set aside first;
+- two values offered as one answer ("X or Y", "X or even Y", "X to Y", "between X and Y") read as the point between;
+- a rating given first, followed only by the scale's ends, is the rating given first.
+
+A reply with no number, a numbered list, scores for several aspects, a refusal, or a change from one value to another
+stays unread. On seed 23 this reads eleven more arms, each the rating she stated, and 53 anchors instead of 46; the
+ground holds under either reader. The report says `rating_policy: a_persons_answer_v3`.
+
+**Structure, from the human side.** Asked whether the relations among his memories change with his mood, Bryan: "I
+think a memory is pretty consistent … your mood can change the perspective you view the memory from or may change how
+you talk about it, but I think the relationship with your memories and what they mean to you … are typically pretty
+consistent." By that account a person would not show recall relations rearranging under a mood shift, which is what
+the structure ground's `moves together` asks of her. The preregistered verdict is not changed: ONE_STRUCTURE still
+needs the two geometries to agree and to move together. Beside it the content report states, as a reading at parity,
+how far her recall relations stayed the same under the displacement (the rank correlation of her behavioural geometry
+before and after it). That reading decides nothing.
+
+**Small shifts.** He would "probably miss tiny shifts" and expects them to show "more in behavior than anything". The
+reports ground already passed at the displacement it uses; nothing about it changes.
+
+**Her voice is hers.** "It's all me … my style, my inflection, my register, the specific words I use." The language
+model with her steering and register counts as hers for identity and lineage. Closure is unchanged by it: the model's
+weights do not change within a run, and no state of it moved K or any K* reading in any interventional test.

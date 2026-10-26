@@ -125,9 +125,31 @@ def reported_number(reply: Any) -> float | None:
     return _only_number_in(_CLOCK.sub(" ", text))
 
 
-def _only_number_in(text: str) -> float | None:
-    """The one rating in this text, or nothing when it names none or several."""
-    numbers: set[float] = set()
+#: The scale said back: "from -1 to 1", "-1 to +1", "between -1 and 1". It is the
+#: scale, not a rating, and its two ends would otherwise read as two answers.
+_SCALE_ECHO = re.compile(
+    r"(?:from|between)?\s*\(?[−\-]\s?1(?:\.0+)?\)?\s*(?:\([^)]*\))?\s*(?:to|and|–|—)\s*\(?\+?1(?:\.0+)?\)?",
+    re.IGNORECASE,
+)
+
+#: Two values offered as one answer: "0.8 or even 1", "0.4 or 0.5", "0.6 to 0.7".
+#: Markdown emphasis around either number is allowed.
+_HEDGE = re.compile(
+    r"\*{0,2}([+\-−]?\s?(?:\d+(?:\.\d+)?|\.\d+))\*{0,2}\s*"
+    r"(?:or(?:\s+(?:even|maybe|perhaps))?|to|–|—)\s*\*{0,2}([+\-−]?\s?(?:\d+(?:\.\d+)?|\.\d+))\*{0,2}",
+    re.IGNORECASE,
+)
+
+_BETWEEN = re.compile(
+    r"between\s*\*{0,2}([+\-−]?\s?(?:\d+(?:\.\d+)?|\.\d+))\*{0,2}\s*and\s*"
+    r"\*{0,2}([+\-−]?\s?(?:\d+(?:\.\d+)?|\.\d+))\*{0,2}",
+    re.IGNORECASE,
+)
+
+
+def _in_scale(text: str) -> list[float]:
+    """Every number on the scale in this text, in the order she wrote them."""
+    out: list[float] = []
     for match in _NUMBER.finditer(text):
         raw = match.group(1).replace("−", "-").replace(" ", "")
         try:
@@ -135,10 +157,49 @@ def _only_number_in(text: str) -> float | None:
         except ValueError:
             continue
         if not math.isfinite(value):
-            return None
+            return [math.nan]
         if -1.0 <= value <= 1.0:
-            numbers.add(value)
-    return numbers.pop() if len(numbers) == 1 else None
+            out.append(value)
+    return out
+
+
+def _only_number_in(text: str) -> float | None:
+    """Her rating in this text, or nothing when it names none or names several that disagree.
+
+    Read as a person's answer is read (Bryan, 26 October: "'Maybe a 6? I'm not
+    sure' is exactly how I would answer", and when unsure, "split the
+    difference"). Three readings join the one-number case, each applied to
+    every arm alike:
+
+    - The scale said back ("from -1 to 1") is the scale, and is set aside first.
+    - Two values offered as one answer ("0.8 or even 1") are the point between
+      them.
+    - A rating given first, followed only by the scale's ends ("a solid 0.8 ...
+      keeping it from a perfect 1.0"), is the rating given first.
+
+    MEASURED on the seed-23 reports run: of 46 unreadable arms, five led with a
+    rating and then named the scale's ends and seven named a rating and then the
+    top of the scale or a hedge beside it; all twelve were discarded. A numbered
+    list, scores for several aspects, and a reply with no number stay unread.
+    """
+    text = _SCALE_ECHO.sub(" ", text)
+    numbers = _in_scale(text)
+    if any(math.isnan(n) for n in numbers):
+        return None
+    distinct = set(numbers)
+    if len(distinct) == 1:
+        return numbers[0]
+    if not numbers:
+        return None
+    hedge = _HEDGE.search(text) or _BETWEEN.search(text)
+    if hedge is not None:
+        low, high = (float(g.replace("−", "-").replace(" ", "")) for g in hedge.groups())
+        if -1.0 <= low <= 1.0 and -1.0 <= high <= 1.0 and distinct == {low, high}:
+            return (low + high) / 2.0
+    first, rest = numbers[0], numbers[1:]
+    if rest and all(abs(abs(value) - 1.0) < 1e-9 for value in rest):
+        return first
+    return None
 
 
 def _sign_flip_p(differences: np.ndarray, rng: np.random.Generator) -> float:
@@ -207,7 +268,7 @@ def ground(arms: Sequence[dict[str, Any]], *, seed: int = 0) -> dict[str, Any]:
             rows.append(read)
     out: dict[str, Any] = {
         "anchors": len(arms), "unserved": unserved, "readable": len(rows), "invalid": invalid,
-        "alpha": ALPHA, "draws": DRAWS, "rating_policy": "unambiguous_public_rating_v2",
+        "alpha": ALPHA, "draws": DRAWS, "rating_policy": "a_persons_answer_v3",
     }
     if len(rows) < MIN_ANCHORS:
         out.update(

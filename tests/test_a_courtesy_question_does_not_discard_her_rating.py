@@ -44,10 +44,12 @@ pytestmark = pytest.mark.unit
         # A repeated question and then musing is not an answer, and the scale's
         # own ends are two numbers rather than a rating.
         ('We need to respond: "From -1 (bad) to 1 (good)?" Need maybe answer 0.8.', None),
-        # Still refused: no number, several numbers, nothing said.
+        # Still refused: no number, nothing said.
         ("I can't work through that right now — my language backend is down.", None),
-        ("I would say around 0.8 or even 1.", None),
         ("", None),
+        # Two values offered as one answer are the point between them, as a person
+        # splitting the difference answers (Bryan, 26 October).
+        ("I would say around 0.8 or even 1.", 0.9),
     ],
 )
 def test_what_she_reports_is_read_from_what_she_said(reply: str, rating: float | None) -> None:
