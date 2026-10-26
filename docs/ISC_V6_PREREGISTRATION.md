@@ -698,3 +698,38 @@ then handed that organ a frozen copy of the clock. Her modules now hold a plain 
 copy keeps as itself and which reads the live clock. The chain's own preflight (seed 79, 24 warm rounds) writes and
 restores with no hole, and untouched rolls on seed 71 read 0 at 0, 3600 and 7200 s on two hash seeds. Round 7's
 closure ran with the defect, so the interventional discovery is repeated at the corrected commit before seed 73.
+
+## Addendum, 26 October 2026, afternoon: seed 73's carrier runs at the commit that carries this, beside the rest at `572f3dc60`
+
+Written before seed 73's carrier was read. Its interventional test had been read, and is recorded here.
+
+**What was read.** At `572f3dc60` the chain passed the v6 probe and the travel preflight and started the carrier, the
+campaign, the content run and the interventional test at 12:34. The interventional test read CLOSED: 960 units, 2,601
+swaps, no mover, no residue and no one-off. The content run read agreement 0.448 (p 0.001) after its base pass; how
+far the two geometries move together is not yet read.
+
+**The carrier did not start.** It wrote its bank of 128 anchors at 13:33, and all three workers stopped at 13:34, the
+first time each held a cut. The fork carried the shared embedding runtime as a module holding. Restoring a
+coordinator's anchor in a worker wrote the coordinator's list of open leases over the worker's own, so every lease the
+worker held was released under it, and the next enumeration of module state asked one of those leases whether it had
+a `__dict__`. The lease passed the question to its engine, which was gone, and raised RuntimeError where Python
+expects AttributeError.
+
+**The change.** The runtime and its leases are process furniture, as a descriptor owner is: never carried and never
+copied, and a lease answers questions about itself instead of passing them on (`core/subject/copies.py`,
+`core/memory/embedding_runtime.py`, `tests/test_an_embedding_lease_is_not_her_state.py`). On seed 73 the
+interventional test had swapped the runtime between anchors 16 times without moving K or any K* reading.
+
+**Why the carrier alone runs again.** In one process on seed 71, four moments were captured under both the old
+handling and the new, and each was rolled two turns from its own snapshot, twice: eight comparisons, every one
+bit-identical. Two processes on one commit are not bit-identical to each other (18.1 apart on seed 71 at hash seed 7),
+so the proof is made inside one process, where rolls repeat exactly. The change leaves what she does in one process as
+it was and changes only whether a worker can hold a cut. The carrier therefore runs on seed 73 at the commit that
+carries this addendum and is scored with the campaign, the content run and the interventional test from `572f3dc60`;
+`score_isc_v5` records both commits.
+
+**The preflight does what a worker does.** After restoring the anchor in a fresh process it now holds half her domains
+through a turn and forks again. At `572f3dc60` it stops with the workers' error; at the commit that carries this
+addendum it passes.
+
+Unchanged: seed 73 as the confirmatory seed, the margin (0.0196), the two-test rule, every v6 line and bar.

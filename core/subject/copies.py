@@ -69,6 +69,7 @@ def _furniture_types() -> tuple[type, ...]:
     import threading as _threading
     from concurrent.futures import Executor, Future
 
+    from core.memory.embedding_runtime import SharedEmbeddingLease, SharedEmbeddingRuntime
     from core.runtime.descriptor_owner import OwnsDescriptors
 
     return (
@@ -77,6 +78,16 @@ def _furniture_types() -> tuple[type, ...]:
         # whole report run of 23 September died of the double close (EXC_GUARD
         # on descriptor 39). See core/runtime/descriptor_owner.py.
         OwnsDescriptors,
+        # The process's one embedding engine and the claims on it. The fork
+        # carried the runtime as a module holding, so restoring a coordinator's
+        # anchor in a carrier worker wrote the coordinator's list of open
+        # leases over the worker's, every lease the worker held was released
+        # under it, and all three workers of seed 73's carrier died the first
+        # time they enumerated module state (26 October). Swapped between
+        # anchors 16 times on seed 73, the runtime never moved K: it is the
+        # machine's bookkeeping of a loaded model, not something she keeps.
+        SharedEmbeddingLease,
+        SharedEmbeddingRuntime,
         # A pipe, a queue, a lock or a value shared with a model worker. A copy
         # of a pipe closed the worker's descriptor when it was collected, even
         # from a copy that failed part-way, and the dry run of 23 September

@@ -33,7 +33,24 @@ class SharedEmbeddingLease:
         self._closed = False
 
     def __getattr__(self, name: str) -> Any:
+        # The engine's attributes, and never its protocol. Forwarded, a
+        # question about the lease itself (`hasattr(lease, "__dict__")`, the
+        # `__deepcopy__` a copy looks up) went to the engine, and on a lease
+        # whose engine was gone it raised RuntimeError where Python expects
+        # AttributeError. Seed 73's carrier workers died of it on 26 October.
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         return getattr(self._runtime.resolve(self._token), name)
+
+    def __copy__(self) -> SharedEmbeddingLease:
+        return self
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> SharedEmbeddingLease:
+        # A lease is a claim on this process's engine. A copy of it would be a
+        # second claim nobody releases, so a copy is the lease itself, as a
+        # descriptor owner's is (core/runtime/descriptor_owner.py).
+        memo[id(self)] = self
+        return self
 
     def __enter__(self) -> SharedEmbeddingLease:
         self._runtime.resolve(self._token)
