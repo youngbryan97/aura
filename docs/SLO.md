@@ -46,8 +46,9 @@ OR
 measurement > slo.hard_limit                             # hard
 ```
 
-For correctness scores (Brier loss on a synthetic perfect predictor)
-the inequality flips: lower is better, so failing means
+For the lower-is-better correctness score (Brier loss on a synthetic perfect
+predictor), the checker uses its hard ceiling without the soft timing
+comparison. Failing means
 `measurement > slo.hard_limit`.
 
 ## Current SLOs

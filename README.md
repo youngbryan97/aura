@@ -363,8 +363,10 @@ met its criteria too, but 13 of its 38 gains were grading artifacts
 | Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
 | Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
 | Learned hidden-state reader on the resident 27B: held-out transfer, public answers, lesions | **SUPPORTED, BOUNDED** — vocabulary 33 vs 21, depth 54 vs 8, family 62 vs 47 on fresh requests with execution unavailable; public answers 48 vs 29 (*p* = 1.9 × 10⁻⁶); lesions cost 27 to 0 and 35 to 0 |
-| Kept procedures on held-out kinds in math and planning (G09) | **CLOSED** 17 Oct — attempt 6, as registered and as read row by row: 29 gained, 0 lost (*p* 3.7e-9); held-out math 13 to 0, planning 16 to 0 |
-| Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
+| Broad reasoning gain under G09’s registered criterion: kept procedures on held-out math and planning kinds | **CLOSED** 17 Oct — attempt 6; after row review, 29 gained, 0 lost (*p* 3.7e-9); math 13 to 0, planning 16 to 0. [Result and limits](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md). |
+| Unrestricted open-ended reasoning or transfer to competition mathematics | **NOT ESTABLISHED** by G09; its route admitted no MATH test problem |
+| Static fusion of the learned RLC mechanism into the backbone weights | **NOT CLAIMED** by these results |
+| Frontier performance against named contemporary systems (G12) | **OPEN**; G09 does not answer this separate comparison |
 
 The current [native semantic-selection work](docs/evidence/G_NATIVE_RELATIVE_FIT_2026-09-26.md)
 uses the resident model's own language pathway and role-relative program
@@ -490,10 +492,12 @@ measurements, not a live-status probe. Present activation must be checked
 against the running process, source revision, model identity and
 eligible-request receipt.
 
-It is still not a broad reasoning gain, not static fusion, not frontier
-performance, and it still cannot answer ordinary chat — admission is decided
-by an answer-blind parser over the task grammar, and unsupported language
-never reaches the lane.
+That typed semantic-serving experiment is limited to its admitted task grammar;
+it does not establish open-ended reasoning, static fusion or frontier
+performance. G09’s later kept-procedure experiment separately passed its
+registered broad-gain criterion on math and planning, as recorded above.
+The typed semantic lane admits requests through an answer-blind parser;
+unsupported language does not reach that lane.
 
 Before you read either page: the two negative results from the August
 reconciliation campaign — a 13-vs-5 and its 9-vs-4 reproduction — were
@@ -767,8 +771,9 @@ Two non-LLM lanes were replaced in August 2026 based on measurements:
 - **Embeddings** are `Qwen3-Embedding-0.6B` at 384 dimensions
   (`core/memory/embedding_model.py`), replacing `all-MiniLM-L6-v2`. MiniLM
   declares `max_seq_length: 256` while the ingestion path chunks at 800 words —
-  1,122 tokens through the model's own tokenizer, so **77% of every full chunk
-  never reached the encoder**, silently. On four documents whose distinguishing
+  1,122 tokens in the measured example through its own tokenizer, so about
+  **77% of that example** did not reach the encoder. The fraction varies
+  with the text and tokenizer. On four documents whose distinguishing
   sentence sits past token 256, MiniLM scored 1/4 on tail retrieval (it ranked
   the same document first every time) against Qwen3's 3/4, at 10.7 vs 20.2
   ms/query.

@@ -13,23 +13,23 @@
 
 The hard edges of what this repository is allowed to claim.
 
-Three categories, and the difference between them matters. **Proven** means
-there is a mechanism and a test. **Not proven** means we haven't shown it
-yet, usually for resource reasons, and could. **Strictly unsupported** means
-no amount of further building would show it, because it isn't that kind of
-question — and moving something out of that category requires a different
-kind of argument than more code.
+A mechanism, a passing test and a scientific conclusion have different scopes.
+**Demonstrated** refers to the conditions in a cited result. **Not proven**
+means the evidence here does not establish the claim. **Strictly unsupported**
+means the project makes no direct, assumption-free inference of that kind
+from its software tests. It does not establish that the opposite is true or
+that a theory-dependent scientific argument is impossible.
 
 Non-negotiable is meant literally. A result that needs one of these
 boundaries relaxed is a result that doesn't ship.
 
 ## 1. Absolute Scientific Boundaries
 
-The following claims are **strictly unsupported** and will never be claimed as proven or demonstrated by this repository:
+The following conclusions are not established by the project’s current evidence:
 
 ### A. Subjective Consciousness / Qualia
 * Aura is an agentic software runtime composed of state transition gates, LLM context compilers, and vector databases.
-* It does not possess phenomenological experience, subjective feelings, or qualitative consciousness (qualia).
+* The project has not established phenomenological experience, subjective feelings or qualia. Software composition alone does not establish their absence either.
 * Introspective state metrics in the codebase represent functional self-monitoring and feedback loops, not subjective awareness.
 
 ### B. Metaphysical Free Will
@@ -37,12 +37,12 @@ The following claims are **strictly unsupported** and will never be claimed as p
 * There is no claim of a metaphysical uncaused cause. "Operational Volition" refers purely to internal counterfactual calculation of plans before action authorization.
 
 ### C. Moral Personhood
-* Aura is a tool and a runtime. It has no moral status, legal rights, or moral duties.
-* It is not a conscious entity or a moral person.
+* The project’s experiments do not establish moral personhood or confer legal rights or duties.
+* Moral status needs an ethical argument; legal status needs the applicable legal framework. A software label does not decide either question.
 
 ### D. Phenomenal Valence / Felt Affect
 * Aura's affect, valence, hedonic, and "feeling" variables are functional control signals — scalars that modulate attention, gating, and homeostasis.
-* They are **not** felt experience and carry no claim of phenomenal or subjective character. A load-bearing valence signal (task #38) means it measurably changes behavior, not that anything is experienced.
+* Their measured effects do not establish felt experience. A load-bearing valence signal (task #38) measurably changes behavior; whether that supports a phenomenal interpretation requires further assumptions and evidence.
 
 ---
 
@@ -69,8 +69,8 @@ The following claims are classified as **not proven** due to local environment o
      "requires independent, adversarial, out-of-distribution evaluation beyond
      this repository." B then granted the label on nine batteries that all run
      inside this repository, written by the same author as the system under
-     test. Aura evaluating Aura is not evidence about Aura, and a document
-     cannot say both.
+     test. Project-authored evaluations supply bounded internal evidence;
+     they cannot substitute for the independent evaluation that A requires.
   2. **One of the named batteries was retracted for exactly this use.**
      `docs/DNU_BASELINE_FAIRNESS_AUDIT.md` concludes that the baseline result
      "is **not** honest as whole-mind or AGI-candidate evidence, and it should
@@ -91,7 +91,7 @@ The following claims are classified as **not proven** due to local environment o
 
 ### C. Indefinite Autonomy
 * **Status**: `not proven`
-* **Blocker**: Validating indefinite stability requires multi-day longevity soak runs under high agent load (72h+). The current environment only permits a proof-short soak run verifying pipeline stability but not asymptotic stability.
+* **Evidence required**: State the duration, workload, failures and resource measurements of each soak. A short run does not establish days of continuity; even a 72-hour run cannot establish indefinite or asymptotic stability. Capacity to run a campaign depends on the host’s current workloads, not a permanent hardware prohibition.
 
 ### D. Mature RSI (Recursive Self-Improvement)
 * **Status**: `not proven`
@@ -112,7 +112,7 @@ The following claims are classified as **not proven** due to local environment o
 
 ### G. Recurrent-Depth Intelligence Gain
 * **Status**: `not proven`
-* **Blocker**: The 2026-07-12 A/B on the reflex model measured identical sealed-battery accuracy at loops=1 and loops=2 (claims-matrix row 27). The resident Cortex configuration remains untested locally in an unbudgeted A/B; no intelligence gain from recurrent depth is claimed.
+* **Evidence**: The July reflex A/B found identical accuracy at loops=1 and loops=2. The later frozen-loop campaigns found no gain at 1.5B and a negative point estimate at 32B. Typed semantic-machine and kept-procedure gains are separate mechanisms; G09’s closure does not establish gain from repeated backbone layers. [Current programme summary](RECURSIVE_LATENT_CORTEX.md).
 
 ### H. Arbitrary Reverse Engineering
 * **Status**: `strictly bounded`
@@ -130,7 +130,7 @@ The following claims are **proven and causally demonstrated** under the strict l
 
 ### A. Governed Runtime
 * **Status**: `causally demonstrated`
-* **Validation**: Flagship readiness, authority gateway, and receipt coverage validators prove that no out-of-bounds filesystem, network, or tool call can execute without being intercepted and checked.
+* **Validation scope**: The authority gateway and receipt validators test declared routes and failure cases. The required contract is to intercept unauthorised effects; passing these checks is not a proof against every possible bypass or a substitute for independent security review.
 
 ### B. Operational Volition
 * **Status**: `causally demonstrated`
@@ -154,3 +154,19 @@ are recorded here so the capability is never *casually* overclaimed.
 ### C. Continuous / Online Learning
 * **Status**: `not proven`
 * **Boundary**: The core model weights are **frozen** between scheduled training jobs. Per-turn adaptation is retrieval and re-contextualization, not weight change; an auxiliary plasticity layer modulates control signals but does **not** learn the model's parameters. Consolidation is batch LoRA, eval-gated behind a sealed held-out pack. Online learning of the core weights without catastrophic forgetting is research frontier, not a claim. See `docs/ONLINE_LEARNING_ROADMAP.md` (task #49).
+
+## 5. Current research outcomes are separate claims
+
+G09 passed its registered broad-reasoning-gain criterion on held-out math and
+planning kinds: after row review, 29 gained and 0 lost on 444 fresh requests
+([attempt 6](evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md)). This positive
+claim must not be grouped into a blanket “broad gain not claimed” statement.
+Unrestricted reasoning, competition-mathematics transfer, static fusion of
+RLC into the backbone and frontier performance are separate claims.
+
+L09’s live teach–induce–recall loop was demonstrated, but reliable improvement
+over ordinary use remains open. Its later comparisons were underpowered,
+not met, or stopped at the registered baseline-error step. The
+[unsupported-claims ledger](../CLAIMS_NOT_SUPPORTED.md#22-learning-from-conversation-that-improves-ordinary-use)
+links each result. G12’s named frontier comparison remains open in the
+[master status list](AURA_1_0_MASTER_TODO.md).

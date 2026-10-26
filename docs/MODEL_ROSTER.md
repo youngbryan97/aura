@@ -127,8 +127,8 @@ measurement.
 `all-MiniLM-L6-v2` declared `max_seq_length: 256`. The ingestion path chunked
 at a fixed 800 words (`black_hole_vault.py`, `ingestion_loop.py`;
 `rag.chunk_text` at 500). Measured through the model's own tokenizer, an
-800-word chunk is **1,122 tokens — so 77% of every full chunk never reached the
-encoder.** Nothing logged it: tokenizer truncation is silent by design, and
+measured 800-word example was **1,122 tokens, leaving about 77% outside the
+encoder’s window**. That percentage belongs to the example, not every chunk. Nothing logged it: tokenizer truncation is silent by design, and
 both constants were individually sane.
 
 The damage was in the blend. `retrieve_memories` mixes dense cosine 60/40 with
@@ -155,7 +155,10 @@ Four ~800-word documents whose distinguishing sentence sits past token 256
 MiniLM ranked the *same* document first for all four queries — four identical
 prefixes, so it tied and broke arbitrarily. **1/4 is chance.**
 
-Vectors from both models have 384 entries, so the store shape is unchanged.
+Vectors from both models have 384 entries, so the array shape can stay the
+same. Their coordinate meanings differ: matching dimensions do not make old
+and new vectors comparable. Preserve the model fingerprint and rebuild or
+separate incompatible stored embeddings.
 Qwen3-Embedding conditions the query embedding on a natural-language task
 instruction; that wire format is documented on the model card and implemented
 in `embedding_model.py`.

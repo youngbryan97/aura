@@ -25,7 +25,7 @@ know they're changing a decision, not filling a hole.
 | Decision area      | Posture today                       | Enforced by                                                                                       |
 |--------------------|-------------------------------------|---------------------------------------------------------------------------------------------------|
 | RBAC               | **Single user (no RBAC)**           | one operator per install; capability tokens in `core/security/` are the only authorisation gate    |
-| SSO                | **API tokens only**                 | the existing capability-token system; no OIDC/SAML wiring; tokens revoke on process restart       |
+| SSO                | **API tokens only**                 | the existing capability-token system; no OIDC/SAML wiring; capability leases are process-scoped; paired-device credentials have separate persistence and revocation       |
 | Tenant isolation   | **Single-tenant per install**       | `core/runtime/tenant_boundary.py` (stamp + `assert_owned()`); `AURA_TENANT_ID` + `AURA_HOME` env vars |
 | Disaster recovery  | **Manual backups + tested drill**   | `aura backup` / `aura restore` + `core/runtime/restore_drill.py` round-trip with fingerprint diff |
 | Plugin signing     | **SHA-256 hash allowlist**          | `core/security/plugin_allowlist.py` (`is_allowed()` raises on unlisted/revoked/drift)             |
@@ -46,8 +46,11 @@ A future migration to "admin / operator / viewer" would require a
 binding — none of those exist today.
 
 ### SSO: API tokens only
-Authentication is bearer-token style.  Tokens are bound to a process
-+ thread (see `capability_engine`) and revoke on restart.  There is
+Separate API authentication from execution authority. Internal capability
+leases in `core/capability_engine.py` bind their declared process/context.
+[Paired-device credentials](../interface/routes/devices.py) have separate
+storage, scopes and revocation; a runtime restart is not a general claim
+that every API credential has been revoked.  There is
 no OIDC discovery, no SAML, no IdP integration.  Operators wanting
 hosted-deployment-style SSO should treat that as a separate platform
 project.
@@ -79,8 +82,9 @@ operator re-approves.  Revoked entries refuse with a distinct
 `hash_revoked` reason so operators can tell forgotten approvals from
 edited files.
 
-The trust root is the operator's signature on each file.  No
-external CA, works offline.  Future migrations to sigstore/cosign
+The trust decision is the operator’s recorded approval of a file digest.
+A SHA-256 allowlist is not a publisher’s digital signature and does not
+by itself authenticate who wrote the plugin. No external CA is required.  Future migrations to sigstore/cosign
 would replace `compute_sha256` with cryptographic verification but
 keep the same `is_allowed()` interface.
 

@@ -83,7 +83,8 @@ When Aura is emotional (aroused or positive), it's easier to trigger memories. W
 
 **Learned associations**: In `core/memory/engram_association.py`, Aura links concepts together over time. If two memories are recalled at the same time, their connection gets stronger (*neurons that fire together, wire together*). These links are saved across sessions. When Aura tries to remember something, these learned links help her connect the dots better than just matching keywords.
 
-**Positional recall**: If you ask "what did I first ask?", a content search won't work well. Instead, `core/conversation/grounded_recall.py` grabs the exact earliest or most recent message from your current chat. Aura reads the real quote back to you, guaranteeing she doesn't invent a response. Between memory competition, learned links, and positional grounding, Aura covers the three things memory needs: *what* was said, *what it connects to*, and *when* it happened.
+**Positional recall**: If you ask "what did I first ask?", a content search won't work well. Instead, `core/conversation/grounded_recall.py` grabs the exact earliest or most recent message from your current chat. It supplies the retrieved turn as grounding. Retrieval reduces confabulation;
+it does not guarantee that every generated reply quotes or attributes it correctly. Between memory competition, learned links, and positional grounding, Aura covers the three things memory needs: *what* was said, *what it connects to*, and *when* it happened.
 
 ## Symbolic Deduction (belief consistency)
 

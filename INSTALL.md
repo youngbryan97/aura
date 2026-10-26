@@ -14,7 +14,7 @@
 ## Requirements
 
 - macOS on Apple Silicon (M-series chip).
-- Python 3.12+.
+- Python 3.12, matching `.python-version` and the production doctor check.
 - 32 GB RAM minimum; 64 GB recommended.
 
 The target is an Apple Silicon Mac with 64 GB of unified memory. The
@@ -103,11 +103,16 @@ aura plugin                  # plugin management
 
 ## First boot
 
-The first startup takes 30–60 seconds while Apple Metal compiles GPU shaders and loads the local model into memory. If the model files are not yet on disk, allow an extra 5–10 minutes for them to download. After the first run, model weights and shaders are cached, and subsequent startups are much faster.
+Startup includes artifact loading and, when needed, Metal shader compilation.
+Duration depends on the artifact, cache, disk, network and host workload; the
+previous timing estimates were not a universal startup or download guarantee.
+Use startup progress and logs to distinguish loading from a stalled process.
 
 System state is loaded from a local SQLite database. If no database exists, Aura starts with a clean slate.
 
-The secondary model (Brainstem) does not load at boot time. It loads only when needed (lazy loading) so the primary model (Cortex) gets all available memory. On machines where free RAM is tight, keeping the Brainstem's 8.6 GB out of memory until requested ensures the main Cortex model can start reliably.
+The secondary model (Brainstem) does not load at boot time. It loads only when needed (lazy loading) so the primary model (Cortex) gets all available memory. Keeping those weight bytes out of memory reduces pressure; it does not
+guarantee a successful Cortex load. Admission must include caches, workers,
+other applications and reservations.
 
 ## Optional: fine-tune personality
 

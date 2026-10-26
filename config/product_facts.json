@@ -289,6 +289,72 @@
           "pattern": "^\\| Reflex/fallback \\| `([^`]+)`"
         }
       ]
+    },
+    "reasoning.g09_status": {
+      "value": "CLOSED",
+      "owner": "docs/AURA_1_0_MASTER_TODO.md G09 and attempt-6 result",
+      "restated_in": [
+        {
+          "file": "docs/AURA_1_0_MASTER_TODO.md",
+          "pattern": "- \\[x\\] G09[^\\n]*\\n  (CLOSED)"
+        },
+        {
+          "file": "README.md",
+          "pattern": "^\\| Broad reasoning gain under G09[^\\n]*\\*\\*(CLOSED)\\*\\*"
+        },
+        {
+          "file": "docs/RECURSIVE_LATENT_CORTEX.md",
+          "pattern": "^\\| \\*\\*Broad reasoning gain under G09[^\\n]*\\*\\*(CLOSED) "
+        },
+        {
+          "file": "CLAIMS_NOT_SUPPORTED.md",
+          "pattern": "\\* \\*\\*Status\\*\\*: `(CLOSED)` under G09"
+        }
+      ],
+      "contradicted_by": [
+        {
+          "file": "README.md",
+          "pattern": "(?i)^\\|[^\\n]*broad reasoning gain, fusion, frontier performance[^\\n]*\\|[^\\n]*NOT CLAIMED",
+          "reason": "the blanket denial erases G09’s passed registered criterion"
+        },
+        {
+          "file": "docs/RECURSIVE_LATENT_CORTEX.md",
+          "pattern": "(?i)^\\|[^\\n]*broad reasoning gain, fusion, frontier performance[^\\n]*\\|[^\\n]*NOT CLAIMED",
+          "reason": "the blanket denial erases G09’s passed registered criterion"
+        },
+        {
+          "file": "HOW_IT_WORKS.md",
+          "pattern": "broad gain is still running \\(G09\\)",
+          "reason": "G09 closed on 17 October"
+        },
+        {
+          "file": "CLAIMS_NOT_SUPPORTED.md",
+          "pattern": "the check is due on 18 October",
+          "reason": "the L09 results through 20 October are already recorded"
+        }
+      ]
+    },
+    "reasoning.g09_reviewed_gains": {
+      "value": "29",
+      "owner": "docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md reviewed primary result",
+      "restated_in": [
+        {
+          "file": "docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md",
+          "pattern": "^\\| Primary \\| (\\d+) gained, 0 lost"
+        },
+        {
+          "file": "README.md",
+          "pattern": "after row review, (\\d+) gained, 0 lost"
+        },
+        {
+          "file": "docs/RECURSIVE_LATENT_CORTEX.md",
+          "pattern": "after row review, (\\d+) gained, 0 lost"
+        },
+        {
+          "file": "CLAIMS_NOT_SUPPORTED.md",
+          "pattern": "once every changed row was read: (\\d+) gained, 0 lost"
+        }
+      ]
     }
   },
   "platform": {

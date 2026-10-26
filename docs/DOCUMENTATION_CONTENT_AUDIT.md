@@ -8,6 +8,21 @@ This pass found substantive contradictions and corrected the affected current
 guides. This page records what was checked so that link coverage cannot be
 mistaken for factual certification again.
 
+## Whole-document reconciliation in progress
+
+Bryan’s G09 counterexample exposed a real gap in the earlier pass: positive
+G09 summaries coexisted with a blanket denial in the README and RLC table.
+The current pass checks the content of guides and status pages against their
+source owners and dated results. The previous validation record below does
+not certify this expanded pass as complete.
+
+Corrections made in this pass include G09’s passed criterion and separate
+open claims, the L09 results through 20 October, the implemented soft-cancel
+path, bounded IIT-inspired estimators, native versus operational embedding
+limits, and installation/certification commands. Dated results remain intact.
+Named repeated claims now have negative checks too: a correct summary does
+not hide the same page’s conflicting blanket denial.
+
 ## Contradictions and stale readings corrected
 
 | Earlier wording | Current explanation | Source or evidence route |

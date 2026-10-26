@@ -95,6 +95,16 @@ def check(payload: dict) -> list[str]:
                         )
         if not seen_anywhere:
             problems.append(f"{name}: no file states this fact any more")
+        for entry in fact.get("contradicted_by", []):
+            for path in _files_for(entry):
+                if not path.exists():
+                    problems.append(f"{name}: contradiction check file {path.relative_to(ROOT)} is missing")
+                    continue
+                if re.search(entry["pattern"], path.read_text("utf-8"), re.MULTILINE):
+                    problems.append(
+                        f"{name}: {path.relative_to(ROOT)} also contains a conflicting claim: "
+                        f"{entry['reason']}"
+                    )
 
     platform = payload.get("platform") or {}
     for relative in platform.get("evidence_files", []):

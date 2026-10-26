@@ -24,7 +24,8 @@ that any "learning helps" claim must pass).
 
 ## 1. The honest baseline: what changes, and when
 
-Aura runs a **frozen** local model. The ~32B MLX core weights do **not** change
+Aura’s resident Cortex is now a 27B; older measurements below name the
+then-resident model. Its core weights do **not** change
 during a conversation, a day, or a week of use. Between explicit, scheduled
 training jobs the pretrained/fine-tuned weights are immutable. Anything that
 *looks* like "learning within a session" is one of the mechanisms below — none

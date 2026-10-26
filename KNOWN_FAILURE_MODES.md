@@ -19,7 +19,12 @@ Understanding the distinction between these failures is important:
 - **F01–F14 are planned failure classes.** These are operational edge cases anticipated and planned for during system design.
 - **F15–F19 are real issues observed in production.** They occurred on a live desktop machine during sustained conversations, with full diagnostic records saved on disk. These five represent real-world operational challenges rather than theoretical scenarios. If you only have time to read part of this guide, start with these five.
 
-Note that **F16 is not yet fully fixed**, as documented below. Apple's MLX framework cannot gracefully pause or cancel an AI model while it is generating text. As a result, the only way to free a busy worker process is to terminate it completely and unload its 18 GB model from memory. Terminating the process is the recovery mechanism. While existing safeguards keep the system running, they do not eliminate the root issue.
+**F16 remains a recovery risk, but its original missing-cancel diagnosis is
+superseded.** The worker implements soft cancellation between decode steps;
+forced abort and model reload are escalation paths. The real predicates and
+client have contract tests, while cancellation latency and retained residency
+under a loaded Cortex still need their own live measurements. See claim 32 in
+[the claims matrix](CLAIMS_MATRIX.md) and the F16 runbook.
 
 Every operator should read this guide before running Aura in any production environment.
 
@@ -174,11 +179,18 @@ These five issues were identified and resolved on a live desktop machine during 
 
 ### F16: MLX worker-kill cold-lane cascade (the honest daily-stability edge)
 
-**Cause**: Apple's MLX library cannot safely interrupt an in-progress model generation. To stop a stuck worker, the runtime must force-kill it, which purges the ~18 GB model from RAM. If a deep foreground prompt exceeds its allowed time budget, the worker is killed. On a machine with limited free memory, reloading the 18 GB model takes time. If the next user turn arrives and times out while the model is still loading, that reloading worker is also killed—triggering a repeating cascade where the model never finishes loading.
+**Cause**: A forced worker abort unloads the resident model. Repeated aborts
+during a cold reload can prevent that reload from finishing. Earlier versions
+lacked a usable cooperative cancellation path; current source offers soft
+cancellation before that escalation. An unacknowledged request or a blocked
+worker still needs separate diagnosis.
 **Likelihood**: Medium on machines with less than ~25 GB of free RAM (for example, when other large applications are open).
 **Impact**: Several user turns in a row return a 503 error until the model finally finishes loading into memory. Process memory (RSS) repeatedly cycles (21 GB → ~1 GB → reload). The system eventually recovers on its own without unbounded memory growth (unlike the true memory leak described in F07).
 **Detection**: Log messages like `Cortex generation exceeded inference-gate timeout … aborting` followed by repeated `Loading model:` lines, while worker memory drops to near 0.
-**Recovery**: Partially mitigated — background timeouts no longer terminate the shared worker, worker restarts now wait for the operating system to reclaim RAM, and workers actively loading models are protected from being killed mid-load. **Open architectural work**: adding a soft-cancel mechanism to MLX or using a persistent model server; adding more physical RAM headroom eliminates this cascade completely.
+**Recovery**: Source controls include soft cancellation, background-timeout
+protection, memory-reclaim waits and protection during model loading. Verify
+which rung ran and whether the next turn succeeds. More headroom can reduce
+reload pressure; it does not eliminate every cascade or establish live closure.
 **Runbook**: `docs/runbooks/mlx-worker-cold-lane-cascade.md`
 
 ### F17: Failure-lockdown escalation from expected backpressure

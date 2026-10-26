@@ -39,3 +39,25 @@ def test_unknown_normalisation_cannot_pass(tmp_path, monkeypatch, mode):
     (tmp_path / "source.py").write_text("limit = 1024")
     (tmp_path / "guide.md").write_text("limit = 1024")
     assert any("invalid value" in p for p in facts.check(_payload(normalise=mode)))
+
+
+def test_a_correct_summary_does_not_hide_a_contradiction_elsewhere(tmp_path, monkeypatch):
+    monkeypatch.setattr(facts, "ROOT", tmp_path)
+    (tmp_path / "source.py").write_text("limit = 1024")
+    (tmp_path / "guide.md").write_text("limit = 1024\nAll budgets are unlimited.")
+    payload = _payload()
+    payload["facts"]["budget"]["contradicted_by"] = [{
+        "file": "guide.md", "pattern": r"All budgets are unlimited", "reason": "unbounded budget",
+    }]
+    assert any("conflicting claim" in p for p in facts.check(payload))
+
+
+def test_a_missing_contradiction_check_is_not_silently_skipped(tmp_path, monkeypatch):
+    monkeypatch.setattr(facts, "ROOT", tmp_path)
+    (tmp_path / "source.py").write_text("limit = 1024")
+    (tmp_path / "guide.md").write_text("limit = 1024")
+    payload = _payload()
+    payload["facts"]["budget"]["contradicted_by"] = [{
+        "file": "absent.md", "pattern": "unlimited", "reason": "unbounded budget",
+    }]
+    assert any("contradiction check file absent.md is missing" in p for p in facts.check(payload))

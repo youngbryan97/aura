@@ -24,7 +24,7 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [Aura: Unsupported Claims Ledger](../CLAIMS_NOT_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Aura: Supported Claims Ledger](../CLAIMS_SUPPORTED.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Aura Data Card](../DATA_CARD.md) | [Memory and recall](PLAIN_ENGLISH_GUIDE.md#memory) |
-| [Guide to Evaluating Aura: Cognitive Agent Runtime](../EVALUATE_AURA.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Guide to evaluating Aura](../EVALUATE_AURA.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 | [Aura Hardware & Model Profiles](../HARDWARE_PROFILES.md) | [Memory, speed and resource limits](PLAIN_ENGLISH_GUIDE.md#resources) |
 | [How Aura works](../HOW_IT_WORKS.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Installation](../INSTALL.md) | [Getting started](PLAIN_ENGLISH_GUIDE.md#getting-started) |
@@ -234,9 +234,9 @@ Definitions, examples and reading notes come from [the reviewed topic catalogue]
 | [SLSA Supply-Chain Provenance — Aura Cognitive Runtime](../security/SLSA_PROVENANCE.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
 | [Aura Permission Matrix](../security/permission_matrix.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
 | [Aura Threat Model](../security/threat_model.md) | [Privacy and trust boundaries](PLAIN_ENGLISH_GUIDE.md#security) |
-| [Aura Architecture Specification](../specs/ARCHITECTURE.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
+| [Aura architecture reference](../specs/ARCHITECTURE.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
 | [Aura Personality Specification](../specs/PERSONALITY.md) | [Architecture and runtime components](PLAIN_ENGLISH_GUIDE.md#architecture) |
-| [Quality Gates](../specs/QUALITY_GATES.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
+| [Quality gates](../specs/QUALITY_GATES.md) | [Tests, controls and claims](PLAIN_ENGLISH_GUIDE.md#measurement) |
 
 ## Generated reference
 

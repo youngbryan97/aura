@@ -11,13 +11,16 @@
 > [Glossary](docs/GLOSSARY.md) · [Formulas with worked examples](docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-This document lists the proven engineering capabilities of the Aura agent runtime. Every claim listed here is backed by real code, automated tests, and execution logs.
+This ledger lists bounded engineering claims and their implementation/test
+entry points. A named test is a way to check a contract, not a fresh passing
+receipt for the live process. Classifications below retain their local scope;
+read the cited result’s model, date, controls and limitations before quoting it.
 
 ---
 
 ## 1. Governed Runtime
 * **Classification**: `causally demonstrated`
-* **Definition**: All system actions and real-world effects (like editing files, running tools, or executing shell commands) are blocked by default. They require explicit cryptographic or rules-based permission from a central safety governor before running.
+* **Definition**: The required contract for consequential effects is closed-by-default authorisation and a receipt. Gateway checks cover their declared routes and cases; they do not prove the absence of every possible bypass.
 * **Code / Evidence Path**:
   - Central gatekeeper implementation: [core/executive/authority_gateway.py](core/executive/authority_gateway.py)
   - Unified system interface: [core/container.py](core/container.py)
@@ -35,7 +38,7 @@ This document lists the proven engineering capabilities of the Aura agent runtim
 * **Definition**: A dynamic set of internal variables (such as energy levels, stability indicators, and focus registers) directly shapes which actions the agent chooses and how it builds prompts.
 * **Code / Evidence Path**:
   - Homeostatic state tracking: [core/state/aura_state.py](core/state/aura_state.py)
-  - Introspective state verification: [proof_kernel/tests/test_proof_kernel.py](proof_kernel/tests/test_proof_kernel.py)
+  - Runtime affect checks: [tests/test_affect_update_runtime.py](tests/test_affect_update_runtime.py). The separate proof-kernel toy does not validate the full runtime.
 
 ## 4. Affect Steering
 * **Classification**: `locally demonstrated`
@@ -53,7 +56,7 @@ This document lists the proven engineering capabilities of the Aura agent runtim
 
 ## 6. Diagnostic Self-Repair
 * **Classification**: `locally demonstrated`
-* **Definition**: Automatically inspects error traces, generates targeted code patches, and runs recovery loops to resolve temporary problems like file locks or resource conflicts.
+* **Definition**: The repair ladder validates a proposed patch through syntax, safety and caller-provided functional/recovery probes. A missing required probe rejects the patch. The ladder alone does not generate patches or establish autonomous recovery from every fault.
 * **Code / Evidence Path**:
   - Diagnostic ladder: [core/runtime/self_repair_ladder.py](core/runtime/self_repair_ladder.py)
   - Self-healing checks: Automated tests injecting runtime errors and confirming automatic rollback or recovery.
@@ -78,7 +81,7 @@ This document lists the proven engineering capabilities of the Aura agent runtim
 
 ## 9. Boxed Entity Confinement Safety
 * **Classification**: `locally demonstrated`
-* **Definition**: Strictly honors containment boundaries during execution. Sandboxed code cannot write outside allowed directories, escape directory trees, or run unauthorized subprocesses.
+* **Definition**: Strictly honors containment boundaries during execution. The sandbox tests exercise declared path, import and subprocess restrictions. Passing them supports those cases; it does not establish universal escape immunity.
 * **Code / Evidence Path**:
   - Hardened sandbox boundaries: [tests/test_sandbox_hardening.py](tests/test_sandbox_hardening.py)
 
@@ -88,4 +91,11 @@ This document lists the proven engineering capabilities of the Aura agent runtim
 * **Code / Evidence Path**:
   - Strict mode configuration: [core/runtime/mode.py](core/runtime/mode.py)
   - Fail-closed container intercepts: [core/container.py](core/container.py)
-  - Clean master verdict generation: `make certify` (which verifies 100% test compilation, boot gateway probes, live Aletheia benchmarks, and architecture ablations).
+  - Configured certification: [tools/certify.py](tools/certify.py) runs a selected safe-mode test, boot gateway probes, live Aletheia and ablations. It does not compile or run 100% of the tests.
+
+## 11. Broad reasoning gain under G09’s registered criterion
+
+* **Classification**: `CLOSED` on 17 October 2026, within the tested scope.
+* **Result**: On 444 fresh math and planning requests, the row-reviewed count is 29 gained and 0 lost (p 3.7e-9); math 13 to 0, planning 16 to 0.
+* **Practical meaning**: Kept programs can finish some calculations and plans that the model alone fails to finish or answers wrongly.
+* **Evidence and limits**: [Attempt 6](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md), including the later live demonstration. This is not an unrestricted reasoning or frontier comparison. [L09](CLAIMS_NOT_SUPPORTED.md#22-learning-from-conversation-that-improves-ordinary-use) remains open for reliable ordinary-use improvement.

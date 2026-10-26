@@ -228,8 +228,12 @@ Attention here is genuinely scarce, just like human attention.
 
 ### Integrated information (IIT)
 
-Aura measures how unified her internal state is using the real mathematical
-formulation of Integrated Information Theory, rather than an arbitrary score.
+Aura estimates integration using bounded models inspired by Integrated
+Information Theory. The 16-node calculation is a spectral approximation; an
+eight-node subset has an exhaustive comparison. Neither is exact IIT 4.0 over
+Aura. The separate [whole-system estimator](docs/WHOLE_SYSTEM_PHI.md) has its
+own channels, search limits and uncertainty. These scores have different
+definitions and must not be substituted for one another.
 
 Sixteen internal states are tracked over time: mood, energy, curiosity, focus,
 prediction error, agency, narrative tension, social hunger, and others. The
@@ -237,10 +241,10 @@ metric Phi (φ) measures how much information would be lost if you sliced the
 system into independent parts. The harder it is to divide cleanly without losing
 information, the higher the integration score.
 
-She also calculates the *maximum-phi* subset. If a smaller group of states is
-more tightly integrated than the system as a whole, that group is treated as the
-core subject of cognition for that tick. This means the boundary of her active
-mind is computed dynamically, not assumed in advance.
+The code also compares candidate subsets under its declared estimator. A
+selected subset is an integration candidate within that model. Calling it a
+“complex” does not establish the boundary of a subject; [ISC](docs/ISC_STATUS.md)
+asks its own experimental questions about a candidate carrier.
 
 None of this proves phenomenal consciousness (subjective feelings). It measures
 informational integration. Those are two different concepts, and the math only
@@ -413,7 +417,7 @@ and constrain one another:
   "moment of thought." Instead, multiple parallel interpretations compete at
   once, and the winning draft is selected retroactively when new input arrives.
 - **Structural Phenomenal Honesty.** The system is architecturally blocked from
-  reporting feelings or states it does not possess. Every statement such as "I
+  reporting an internal condition without supporting telemetry. Every statement such as "I
   feel curious" is strictly gated by a measurable internal condition.
 - **Agency Comparator.** Before executing an action, the system predicts the
   outcome; afterward, it compares the result to that prediction. This comparison
@@ -493,10 +497,13 @@ system.
   primary language model, causing crashes. Key fixes ensure background tasks
   *yield immediately* to user messages, maintain an honest system heartbeat so
   slow background steps are not mistaken for deadlocks, keep the desktop user
-  interface responsive whenever she can still chat, and guarantee that turns
-  always return a clean response rather than an uncaught server error. The main
-  remaining limitation is that the local language model cannot be cancelled
-  mid-generation; an unusually slow inference turn currently requires a reload.
+  interface responsive while the worker is available and turn known failures
+  into explicit responses. These mechanisms do not guarantee every turn will
+  complete or return without error. The main
+  worker now has a soft-cancel path that checks for a request between decode
+  steps and can retain the loaded model. Forced worker abort is an escalation,
+  not the only cancellation path. End-to-end latency and residency under live
+  load still need measurement; see [claim 32](CLAIMS_MATRIX.md).
   A clean cancellation pathway without restarts is planned future work.
 
 - **Proving the parts matter.** Anyone evaluating the system can run Aura with
@@ -600,8 +607,10 @@ writes a small program for it, and the program is kept only if it gets every
 known example right, including half it never saw while writing. When a later
 question looks like that kind, she runs the program before she answers. On
 held-out kinds this helped where her thinking ran out of room, on very large
-primes and on multi-step delivery plans, and the formal test of whether it is a
-broad gain is still running (G09).
+primes and on multi-step delivery plans, and G09’s registered broad-gain criterion passed on 17 October: after row
+review, 29 gains and no losses on 444 fresh math and planning requests.
+[The result](docs/evidence/G09_PROCEDURES_RESULT_6_2026-10-17.md) also records
+its limits: no competition-mathematics transfer or unrestricted reasoning claim.
 
 ### Learning from what she's told
 
@@ -610,9 +619,12 @@ kept as a solved example of that question. While she is idle she groups what
 she has been told by meaning and tries to write a procedure for each group that
 is big enough to check. A correction that contradicts a procedure she already
 trusts is held as disputed rather than believed, because people are sometimes
-wrong too. On 17 October she was taught ten date questions this way; the test,
-a day later, is whether she answers new ones correctly without being told
-(L09).
+wrong too. The [18 October live check](docs/evidence/L09_LEARNING_IN_USE_LOOP_2026-10-18.md)
+showed three fresh date questions answered through the induced procedure
+25.6 hours after teaching. L09 remains open for reliable improvement in
+ordinary use: its first comparison was underpowered, its second did not meet
+the criterion, and its third stopped because the sampled kinds did not supply
+enough baseline errors. The [current claim ledger](CLAIMS_NOT_SUPPORTED.md#22-learning-from-conversation-that-improves-ordinary-use) links all three results.
 
 ## What the tests show
 
@@ -697,15 +709,16 @@ Four Tier 4 batteries added in April 2026:
     tracks non-instrumental play and exploration, evaluates adaptation to
     ontological shocks, and tests full lesion and baseline matrices.
 
-Across all suites, the test data demonstrates that the architecture is
-functionally real, causally distinct from simple prompts, grounded in multiple
-measurable parameters, time-sensitive, and aligned with predictions from cognitive
-theories. What the tests do *not* prove is subjective experience (phenomenal
+These suites exercise the particular mechanisms, controls and conditions they
+declare. A passing unit contract does not establish that the entire
+architecture outperforms a matched prompt-only baseline; that needs a
+comparative experiment such as the separately scoped G09 result. What the tests do *not* prove is subjective experience (phenomenal
 consciousness). That remains an open scientific and philosophical question.
 
 Full testing details are available in [TESTING.md](TESTING.md).
 
-To run the core consciousness suite (≈68 seconds):
+For the selected offline contracts below, use an isolated test log directory
+and a bounded process. Their duration depends on the host and revision:
 
 ```bash
 python -m pytest tests/test_null_hypothesis_defeat.py tests/test_causal_exclusion.py \

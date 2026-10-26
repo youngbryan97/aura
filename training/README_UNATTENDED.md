@@ -11,8 +11,10 @@
 > [Glossary](../docs/GLOSSARY.md) · [Formulas with worked examples](../docs/FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Foreground wrapper that drives `training/train_and_fuse.py` to completion
-even with the lid closed. No launchd/plist, no daemons.
+Foreground wrapper that runs the training orchestrator under a sleep
+inhibitor and retries nonzero exits up to a declared limit. Completion,
+lid-close survival and recovery after a host crash are not guaranteed.
+Do not run it beside a resident model without an exclusive resource budget.
 
 ## Start
 
@@ -47,9 +49,11 @@ checkpoint observation, so re-spawns are idempotent.
 
 The wrapper runs the orchestrator under `caffeinate -i -m -s -d`, which
 prevents idle/disk/system/display sleep for the subprocess lifetime —
-including when the lid is shut. `ulimit -n 4096` avoids mid-run FD
-exhaustion. **macOS only** (caffeinate is mac-specific). On Linux,
-swap caffeinate for `systemd-inhibit` or `setsid`.
+subject to macOS power and lid policy. A sleep assertion is not proof that
+work continues through lid close, reboot or power loss. `ulimit -n 4096` sets
+an FD limit; it does not establish that the workload cannot exhaust it. **macOS only** (caffeinate is mac-specific). On Linux,
+port the wrapper and use an appropriate sleep inhibitor. `setsid` only
+changes session attachment; it does not inhibit sleep.
 
 ## Safe abort
 
