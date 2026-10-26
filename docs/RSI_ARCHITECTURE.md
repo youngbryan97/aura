@@ -11,7 +11,8 @@
 > [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-*Verified against code as of 2026-09-15. Claim ONLY what is implemented.*
+*Source policy reconciled 25 October 2026. Earlier module counts retain their
+15 September scope. Policy admission is separate from successful live repair.*
 
 This document describes Aura's Recursive Self-Improvement (RSI) pipeline, which allows Aura to diagnose, draft, validate, and propose improvements to its own source code and architecture.
 
@@ -24,7 +25,10 @@ This document describes Aura's Recursive Self-Improvement (RSI) pipeline, which 
 
 **What RSI IS NOT:**
 - **It is NOT unbounded or uncontrolled.** The process is constrained by formal safety rules, constitutional invariants, and mutation tiers.
-- **Autonomous source promotion is DISABLED by default.** Normal desktop/server Aura sessions can diagnose and draft repairs, but they **CANNOT** promote patches to disk. Source promotion is reserved for an explicit repair-lab profile with opt-in switches.
+- **Low-risk repair and broad source promotion have different policies.** The
+  safe auto-repair policy defaults on for eligible Tier 0/1 changes, subject to
+  their checks. The broader repair-lab promotion path requires explicit opt-in.
+  A normal-runtime blanket prohibition would misdescribe the current source.
 - **It does NOT remove governance or bypass safety.** Self-improvement that can rewrite its own constraints is considered an unbounded process; Aura explicitly prohibits this via Tier 3 sealed paths.
 
 ## Module Counts
@@ -51,7 +55,24 @@ Code modifications are strictly tested via the `ShadowASTHealer` and executed in
 
 ### Promotion Gate & Promotion Policy
 
-Aura operates under a **fail-closed safety policy** (`promotion_policy.py`). Normal runtime environments cannot write patches back to the source tree. Autonomous source promotion is disabled unless operators explicitly enable a repair-lab profile by setting specific environment variables (e.g., `AURA_ALLOW_AUTONOMOUS_PATCH_PROMOTION`, `AURA_ALLOW_REPAIR_LAB_SOURCE_PROMOTION`).
+[`promotion_policy.py`](../core/self_modification/promotion_policy.py) has
+separate decisions. `safe_autonomous_repair_decision()` defaults enabled by
+`AURA_ENABLE_SAFE_AUTO_REPAIR` and applies to eligible low-risk repairs after
+their required gates. The broader autonomous promotion decision requires the
+runtime, autonomous-promotion and repair-lab switches. Supervised promotion
+has its own opt-in.
+
+| Setting | Source default | Meaning |
+|---|---|---|
+| `AURA_ENABLE_SAFE_AUTO_REPAIR` | `True` | Eligible low-risk repair may proceed through its required gates; this does not grant all source paths authority |
+
+[`mutation_constitution.py`](../core/self_modification/mutation_constitution.py)
+checks mode, target tier, turn trust and owner approval. Production and live
+manifests permit tier-gated self-modification; safe, simulated and test modes
+refuse it. Its mode lookup currently permits tier checks to continue after
+certain lookup errors, so this is not an unconditional fail-closed claim.
+A policy admitting an attempt is not evidence that a particular repair was
+applied safely or improved behavior; that needs a source-bound repair receipt.
 
 The `LabPromotionGate` (`core/self_improvement/promotion_gate.py`) evaluates candidate patches for promotion. It assesses comparison reports, guardrail audits, hardcoding audits, and syntax validations. A patch is rejected outright if it violates governance bounds.
 
@@ -66,7 +87,10 @@ The `program_dna.py` module builds a lawful behavioral "DNA" profile from author
 ## Evidence, Consent, and Authorization
 
 ### Lineage Enclosure & Patch Genealogy
-Aura maintains a hash-chained RSI generation lineage (`lineage_enclosure.py` and `patch_genealogy.py`). This guarantees deterministic accountability for any autonomous self-improvement generation, preserving the patch history for external review.
+Aura maintains a hash-chained RSI generation lineage (`lineage_enclosure.py` and `patch_genealogy.py`). These records support reconstruction and review of recorded generations.
+Coverage, persistence and verification of the actual lineage must be checked;
+the existence of these modules does not prove every repair has a complete,
+tamper-proof history.
 
 ### Repair Calibration & Standing Authorization
 The systems behind `repair_calibration.py` and `standing_authorization.py` ensure that Aura's self-improvement loops act continuously but only within explicitly authorized boundaries. They calibrate confidence against formal proof obligations rather than arbitrary thresholds.
@@ -78,6 +102,8 @@ The RSI pipeline observes strict `consent_invariant.py` checks. It cannot perfor
 
 - **PROVEN:** Bounded hash-chained lineage tracking, formal verifier preservation of public surfaces, deterministic shadow runtime evaluations.
 - **SUPPORTED:** Bounded local process-pool scaling for evaluations, clean-room Program DNA reconstruction.
-- **BOUNDED:** Autonomous source promotion (restricted to explicit repair-lab opt-in), BCI/neural-decode affect inputs (capped as advisory context).
+- **BOUNDED:** Tier-gated low-risk repair, broader source promotion through its
+  separate opt-in policy, and BCI/neural-decode affect inputs capped as advisory
+  context.
 - **CONJECTURE:** Unbounded self-editing without regression (Aura formally rejects this).
 - **REFUTED:** Bypassing governance constraints to rewrite safety files (Blocked by Tier 3 Sealed paths).

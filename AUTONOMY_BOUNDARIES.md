@@ -34,7 +34,10 @@ perception → shared state → attention → goals → planning → Unified Wil
 
 ### Production Defaults
 
-The maximum autonomy level is set using the `AURA_MODE` environment variable. The ceiling for each mode is defined in `MODE_MANIFESTS[mode]["max_autonomy_level"]` in `core/runtime/mode.py` and read at runtime using `max_autonomy_level()`. If an unrecognized mode is supplied, Aura logs a warning and automatically defaults to `production` to keep the system secure (it never fails open).
+The maximum autonomy level is set using the `AURA_MODE` environment variable. The ceiling for each mode is defined in `MODE_MANIFESTS[mode]["max_autonomy_level"]` in `core/runtime/mode.py` and read at runtime using `max_autonomy_level()`. If an unrecognized mode is supplied, Aura logs a warning and defaults to `production`. That is a level-2 ceiling, not the level-0 safe
+mode. A misspelled request for lockdown therefore does not establish lockdown;
+verify the resolved mode. Tier admission and individual tool policies still
+apply.
 
 | `AURA_MODE` | Max autonomy level |
 |------|----------------------|

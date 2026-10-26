@@ -9,8 +9,8 @@ Generated: `0.0`
 ## Summary
 
 - Subsystems: 169
-- Python files: 4556
-- Python lines: 1803962
+- Python files: 4557
+- Python lines: 1804251
 - Dependency edges: 1490
 - ServiceContainer `.get()` calls: 1353
 - ServiceContainer registrations: 334
@@ -25,7 +25,7 @@ graph TD
     brain["brain<br/>476 files, 316671 lines"]
     conversation["conversation<br/>82 files, 40313 lines"]
     memory["memory<br/>121 files, 36991 lines"]
-    consciousness["consciousness<br/>188 files, 87426 lines"]
+    consciousness["consciousness<br/>188 files, 87403 lines"]
     verify["verify<br/>37 files, 12098 lines"]
     security["security<br/>38 files, 14088 lines"]
     resilience["resilience<br/>64 files, 19542 lines"]
@@ -185,7 +185,7 @@ graph TD
     providers["providers<br/>6 files, 1560 lines"]
     reproducibility["reproducibility<br/>2 files, 498 lines"]
     stand_ins["stand_ins<br/>4 files, 629 lines"]
-    subject["subject<br/>68 files, 28110 lines"]
+    subject["subject<br/>69 files, 28422 lines"]
     swarm["swarm<br/>4 files, 366 lines"]
     tools["tools<br/>11 files, 1956 lines"]
     twins["twins<br/>1 files, 97 lines"]
@@ -1688,7 +1688,7 @@ graph TD
 | brain | 476 | 316671 | 13327295 | 70 | 62 |
 | learning | 366 | 186834 | 7582852 | 32 | 13 |
 | runtime | 295 | 113423 | 4341876 | 63 | 151 |
-| consciousness | 188 | 87426 | 3750290 | 52 | 38 |
+| consciousness | 188 | 87403 | 3748805 | 52 | 38 |
 | agency | 239 | 74388 | 3458674 | 51 | 30 |
 | skills | 164 | 69385 | 3095470 | 54 | 21 |
 | cognition | 205 | 67370 | 2797031 | 32 | 29 |
@@ -1698,7 +1698,7 @@ graph TD
 | core_root | 53 | 33662 | 1471915 | 77 | 0 |
 | phases | 44 | 32993 | 1501007 | 51 | 9 |
 | reality_reach | 33 | 31032 | 1277348 | 13 | 4 |
-| subject | 68 | 28110 | 1225188 | 24 | 0 |
+| subject | 69 | 28422 | 1241491 | 24 | 0 |
 | orchestrator | 44 | 23860 | 1049507 | 107 | 11 |
 | capabilities | 29 | 19746 | 827081 | 19 | 11 |
 | resilience | 64 | 19542 | 809814 | 22 | 33 |

@@ -117,8 +117,11 @@ core is too small, whether there is a real outside driver, or whether the
 measurement cannot yet decide. The revised rule keeps “we cannot tell”
 separate from “we found a failure.” An earlier rule tried comparing the
 outside contribution with the smallest internal contribution, but was withdrawn.
-A suitable margin is still open, and the changed estimator and restore repairs
-need fresh confirmation. No rule change supplies a new passing result.
+The night addendum now names a conventional small-effect margin and enlarges
+the recorded core to include state its transition reads, called K*. It also
+requires a direct outside-state swapping test to close on the scored seed.
+Those two tests, the changed estimator and the restore repairs need fresh
+confirmation. No rule change supplies a new passing result.
 
 The [current status page](ISC_STATUS.md) gives the exact results and separates
 the old recorded verdict from the newer method. **22/24 is a count of checks,

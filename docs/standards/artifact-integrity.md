@@ -35,10 +35,11 @@ Four checks, cheapest disqualifier first:
 1. **Containment** by resolved path components. `str(p).startswith(str(base))`
    accepts any sibling whose name merely begins with the base —
    `data/backups_evil` passes a `data/backups` prefix test.
-2. **Regular file**, resolved strictly, so a symlink swapped in after the check
-   cannot redirect the read.
-3. **Digest** against a manifest whose **absence is a refusal**. Unsigned
-   content must not become running code because nobody supplied a signature.
+2. **Regular file**, resolved strictly and checked at the resolved path.
+   This does not make a later path read race-free; the verifier returns a
+   path, and promotion must preserve the identity of the verified bytes.
+3. **Digest** against a manifest whose **absence is a refusal**. This is a
+   digest comparison, not signature verification or publisher authentication.
 4. **Parses** as Python. Restoring a syntactically broken file leaves the target
    unimportable — bricking the thing the promotion was meant to rescue.
 

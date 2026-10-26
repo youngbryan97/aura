@@ -1,19 +1,14 @@
 """tools/agi_gauntlet/protocol.py — the freeze, and what it is worth.
 
-An evaluation whose tasks existed before the system did tells you about the
-overlap between the two. The control that removes that is the only one that
-cannot be added afterwards: fix the system, then build the tasks.
+The seed binds the recorded commit, selected-source digest, model identity
+and configuration descriptor to a repeatable instance selection. It is a
+64-bit hash, so collisions and repeated generated worlds are possible. This
+does not certify that a task family or solution was unseen during development.
 
-    H = the commit                W = the model weights
-    C = the configuration         S = the seed every environment comes from
-
-S is derived from H, W and C, and from nothing else. So an environment in this
-gauntlet could not have existed when the commit was written, because its shape
-is a function of the commit's own hash — change one line of the organism and
-every environment changes with it. That is weaker than an outside team
-inventing tasks in a room Aura has never been in, and it is stronger than a
-fixture checked in beside the code, and the difference between those three is
-worth saying out loud rather than blurring.
+The model descriptor is not a checksum of every weight byte. The source
+digest covers selected Python trees. The clean-tree flag is a limited local
+check, not a complete custody or contamination audit. Independent evaluators
+and held-out task families remain separate evidence requirements.
 
 What this file will not do
 --------------------------

@@ -11,11 +11,17 @@
 > [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
-which repairs consequence history shared between experimental arms. Retain
-the recorded scores, but recheck paired results under repaired isolation before
-presenting them as clean causal confirmation. See
-[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
+**25 October current reading:** the seed-23 outputs predate repairs to
+shared consequence history (`dcdcd637c`), degradation history (`3e9211d3f`)
+and snapshot-bound methods (`517c4807c`). Retain the scores as recorded;
+paired results need rechecking under repaired isolation. The least-domain
+closure margin was withdrawn at `72dd0d703`. The later `96487c6f1` addendum
+now declares K*, a numeric margin about 0.0196 and a separate interventional
+closure requirement. The later `5bc357b8c` account reports 284 unchanged
+discovery swaps and repairs service-reference ownership. Fresh held-out
+confirmation remains required; neither commit supplies a replacement battery verdict.
+[Current ISC status](ISC_STATUS.md) links the source-hashed updates and
+separates method repair from a replacement campaign.
 
 
 Status: Guide · Current implementation reconciled 25 October 2026
@@ -31,16 +37,23 @@ car an equivalent model of Aura.
 
 The seed-23 carrier run at `8f548ed79` finished with `NOT_FOUND`. Later work
 found an unchanged-fork drift and weaknesses in the closure measurement.
-Current source through `72dd0d703` distinguishes an outside contribution from
-an unanswered boundary question. The least-domain margin was withdrawn; both
-margin settings are now `None`. The estimator predicts core change, enters
-outside columns as increments and cannot use failed folds to support closure.
+Current source through `96487c6f1` distinguishes an outside contribution from
+an unanswered boundary question. The least-domain rule stays withdrawn; a
+numeric margin `0.02 / 1.02` and an additional interventional test now apply
+to K*, the core plus its declared held dependencies. The estimator predicts
+core change, enters outside columns as increments and cannot use failed folds
+to support closure.
 No revised carrier result is established by this documentation update.
 
 Read [the plain-English explanation](ISC_EXPLAINED.md),
 [variables and examples](ISC_VARIABLES.md) or
 [current results](ISC_STATUS.md) before the instrument details below.
 **v25 names this programme; ISC-v6 names the battery's current rules.**
+
+The earlier exclusion wording in the preserved specification below needs a
+qualification: crossing spectra can leave several non-dominated candidates;
+a symmetry class needs symmetry evidence. Read the
+[current bridge arguments](BRIDGE_PROOFS.md) for the corrected assumptions.
 
 ## The split-system design and its later closure amendment
 
@@ -50,7 +63,7 @@ The `--v5` split-system sweep uses the design declared in
 
 | Item | Current design |
 |---|---|
-| State | Ten measured domains, with schema pinned to the campaign |
+| State | Ten-domain K; the current closure test also includes declared K* held-state readings. Schema and membership belong to the named campaign |
 | Partition | 511 unique bipartitions; clamped trajectories composed from their free halves |
 | Decision metric | Each anchor's paired displacement, whitened by untouched-future variation |
 | Deciding horizon | Two turns, 66 experiment-clock frames; one turn reported beside it |
@@ -73,9 +86,10 @@ The [25 October amendment](ISC_V6_PREREGISTRATION.md) separately changes the
 closure decision: both predictions include declared environment input, the
 measurement uses forward folds and uncertainty bounds, and a closed result
 requires a preregistered margin. The afternoon least-domain rule was
-withdrawn in the evening amendment at `72dd0d703`. No margin is in force, so
-positive closure remains unavailable. See the
-[withdrawal record](evidence/ISC_CLOSURE_WITHDRAWAL_2026-10-25.json).
+withdrawn in the evening amendment at `72dd0d703`. The night addendum at
+`96487c6f1` names a numeric margin and requires interventional closure too.
+See [the current method snapshot](evidence/ISC_K_STAR_METHOD_UPDATE_2026-10-25.json)
+and [its measurement limits](ISC_STATUS.md).
 `UNRESOLVED` is preserved through carrier selection and J* when closure alone
 cannot be decided. This is a changed method, requiring a new confirmed result.
 

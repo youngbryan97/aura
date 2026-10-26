@@ -13,11 +13,12 @@
 
 ## Purpose
 
-This document explains the nineteen core failure modes in the Aura runtime: what causes each issue, what it looks like, and how to fix it. Every failure mode has a dedicated troubleshooting runbook (part of 41 incident runbooks maintained in `docs/runbooks/`).
+This document explains the 21 numbered failure modes in the Aura runtime: what causes each issue, what it looks like, and how to fix it. The linked runbooks provide diagnosis and recovery entry points; some share a
+runbook. Their existence does not certify the fix on the current runtime.
 
 Understanding the distinction between these failures is important:
 - **F01–F14 are planned failure classes.** These are operational edge cases anticipated and planned for during system design.
-- **F15–F19 are real issues observed in production.** They occurred on a live desktop machine during sustained conversations, with full diagnostic records saved on disk. These five represent real-world operational challenges rather than theoretical scenarios. If you only have time to read part of this guide, start with these five.
+- **F15–F21 are issues observed in production.** They occurred on a live desktop machine during sustained conversations, with full diagnostic records saved on disk. These entries represent real-world operational challenges rather than theoretical scenarios. If you only have time to read part of this guide, start with the observed incidents.
 
 **F16 remains a recovery risk, but its original missing-cancel diagnosis is
 superseded.** The worker implements soft cancellation between decode steps;
@@ -166,7 +167,8 @@ There is no cloud inference fallback that could leak data. Every model lane Aura
 
 ## Observed Failure Modes (2026-07, live-runtime)
 
-These five issues were identified and resolved on a live desktop machine during extended conversations. They are documented here because they represent real, everyday operational challenges rather than hypothetical problems.
+These incidents were identified on a live desktop machine during extended
+conversations. Each entry states its recorded repair and remaining limits. They are documented here because they represent real, everyday operational challenges rather than hypothetical problems.
 
 ### F15: mind_tick false-death → "Connecting to runtime"
 

@@ -56,8 +56,7 @@ described in words.
 
 ## Part II — Two conditions, and why they are conditions
 
-### Theorem 1 (one choice set). *If developmental actions are not in the same
-choice set as ordinary actions, initiation is exogenous.*
+### Design criterion 1: one explicit comparison of development and ordinary work
 
 Suppose acting and developing are separate modes with a switch `σ` between
 them, and let `V` be whatever ranks the actions inside a mode. `σ` is a
@@ -68,33 +67,37 @@ exactly when the best developmental action outranks the best ordinary one —
 then `σ` computes `argmax V` over the union, and the two modes were one choice
 set written in two places. Nothing is lost by saying so.
 
-If `σ` is a function of anything else, then there is a situation where the
-union's ranking prefers a developmental action and `σ` says act, or the
-reverse. In that situation the decision was not made by `V`. It was made by
-whoever wrote `σ`.
+A different switching rule may disagree with the union’s ranking. This is a
+property to test on the declared inputs, not a theorem that a hierarchical
+policy is necessarily exogenous: the switch can itself depend on retained
+state, observations and learned values. Here the project chooses one explicit
+comparison so its authority and inputs can be traced.
 
-A fixed ladder is the degenerate case: its `σ` is a constant, and a constant
-disagrees with every non-constant ranking somewhere. ∎
+A fixed ladder does not adapt its mode to a changing comparison. Whether it
+chooses wrongly depends on which actions and situations are actually reachable.
 
 `where_a_split_disagrees_with_the_whole` in
 [what_it_is_worth_doing.py](../core/cognition/what_it_is_worth_doing.py) runs
 both and returns the situations. It is not an illustration of the theorem; it
-is the theorem, executed, and a test holds both directions.
+checks the implemented comparison on its declared cases; it is not a proof
+over every possible hierarchy or environment.
 
-### Theorem 2 (an estimable value). *A choice caused by the record varies when
-the record varies.*
+### Causal sensitivity of a decision
 
-If the choice is a function of the record then two records producing different
-values produce different choices for some pair of records. Contrapositive: a
-chooser answering the same thing on every record is not reading it. ∎
+Changing a record can change its scores without changing the selected action.
+For example, scores `(10, 1)` and `(9, 2)` have different margins but the same
+winner. A chooser can also read a record and return the same action because
+that action dominates everywhere. The earlier contrapositive, “the same
+answer means it is not reading,” was invalid.
 
-Trivial, and it is here because it is the check a ladder fails on purpose, and
-because writing it down is what turned "it decides" from something to be
-asserted into something to be run. `the_choice_follows_the_record` varies the
-record and looks. Two tests use it: one on the ranking, which passes, and one
-on a function that returns the first rung, which does not.
+The retained sensitivity test is positive evidence for the particular record
+interventions it exercises. To assess a negative result, inspect the values,
+rankings and route as well as the chosen action; an unchanged argmax alone
+does not establish that the input had no causal influence.
 
-### Theorem 3 (sufficiency). *One choice set containing developmental actions,
+### Operational definition: self-directed development here
+
+*One choice set containing developmental actions,
 a value estimable from the record, and both the actions and the policy as
 objects of the same substrate, are together sufficient for development to be
 self-directed.*
@@ -102,8 +105,10 @@ self-directed.*
 Given the first, no decision about whether to develop is made outside the
 ranking. Given the second, the ranking's inputs come from what she has
 recorded. Given the third, the ranking itself and the things it ranges over are
-terms, so a choice to revise either is a choice inside the same set. There is
-no remaining step at which something outside supplies a decision. ∎
+terms, so those revisions can be represented inside the same set. The
+implementation, scheduling, priors and acceptance rule are still authored.
+Receipts identify whether this particular episode was initiated internally or
+requested by a harness; this definition does not establish metaphysical agency.
 
 The third condition is what the previous mandate built and is why this one is
 short. The order is a term, the proposer is a term, a way of computing is a
@@ -113,44 +118,42 @@ lesioned and persisted by the same code.
 ### Theorem 3.5 (the envelope). *Reach grows monotonically only if the
 predecessor is kept.*
 
-If `M_{t+1}` replaces `M_t`, `Reach_B(t+1) ⊇ Reach_B(t)` need not hold: a
-better order on average can be worse on some family. What does grow is the
-reach of the envelope `K_t = {M_0 … M_t}`, because a mechanism still available
-still reaches what it reached. This is why every installer here has a lesion
+Replacing `M_t` can lose reach on some families. Keeping predecessors is
+sufficient for a nondecreasing **union of ideal reachable sets** when each
+retained mechanism can still receive its original budget and state. It is not
+necessary: a successor may dominate its predecessor. Nor does keeping every
+mechanism guarantee monotonic performance under one fixed shared budget;
+selection, storage and replay overhead can consume that budget. This is why every installer here has a lesion
 and why the rollback stack keeps what it replaced — not caution, arithmetic.
 
-### Theorem 4 (no optimal developmental policy). *There is no policy that
-maximises long-run value over developmental actions.*
+### Optimality is not established
 
-The value of a developmental action depends on the distribution of future
-tasks, which is not given; and each development changes the cost of every later
-action, so the reward is non-stationary in a way the policy itself causes. Even
-with a known task distribution, choosing the sequence of language changes that
-minimises total search is an instance of choosing an optimal code for an
-unknown source. ∎
+An unknown or non-stationary task distribution does not itself prove that an
+optimal policy does not exist. A specified finite-horizon problem can have an
+optimal policy. This project has not established global optimality for its
+open-ended developmental problem; it claims the measured choices and gains.
 
-This is why nothing below claims optimality. The claim is that the decision is
-hers and that it is made on evidence, not that it is the best decision.
+Blum’s speedup theorem provides functions with no fastest program under its
+complexity assumptions. Its existential result does not show that every task
+or every developmental policy lacks an optimum. Löb’s theorem concerns formal
+provability under specific conditions; it does not prohibit proving that a
+particular patch preserves an invariant. Formal verification remains possible
+under stated semantics and a trusted checker. See
+[the mathematical-claim corrections](MATHEMATICAL_CLAIM_LIMITS.md).
 
-Two sharper forms of the same limit are worth naming. Blum's speedup theorem
-says some functions have no best program — every implementation can be beaten —
-so a developmental process need not terminate in an optimum even in principle.
-And Löb's theorem says a consistent system cannot prove that installing a
-change preserves what the change was meant to preserve; the evidence is always
-a probe and never a proof, which is what the promotion ladder in
-`how_a_change_is_promoted` is arithmetic about rather than cautious about.
+### Opportunity-detector limitation
 
-### Theorem 5 (no complete opportunity detector). *No total computable function
-decides whether a change to her language would reduce her future search.*
+This project has no complete oracle for whether any proposed language change
+will reduce arbitrary future search. That question first needs a task
+population, resource model, horizon and definition of improvement. On finite
+specified cases it may be decidable by enumeration.
 
-Suppose `D` decided it. Then for any program `p` and input `x`, form a family
-whose only regularity is that `p` halts on `x`. A change reduces search on that
-family exactly when the regularity is there. `D` would decide halting. ∎
-
-So the detector below is a sound but incomplete reading, and the honest form of
-that is: what it reports is real, and what it misses is not bounded. The same
-shape as the inadequacy result in the last document, which is not a
-coincidence — they are the same theorem in different clothes.
+The earlier paragraph presented a sketch involving halting as a theorem about
+this entire developmental problem. It did not specify a reduction that
+preserved the claimed search-cost comparison, so that proof is withdrawn.
+Undecidability of unrestricted program semantics is a relevant limit, not a
+substitute for that missing argument. The detector below is a bounded heuristic
+with measured cases; neither completeness nor general soundness is established.
 
 ---
 
@@ -166,16 +169,18 @@ search. So
 $$V(d) = n(d)\cdot g(d) - c(d) - r(d)$$
 
 in one unit — candidates walked — because that is what a search spends and what
-a better language saves. Everything about this is ordinary. What matters is
+a better language saves. The future horizon and smoothing prior are
+modelling choices; this is an estimated cost-benefit rule, not the unique
+mathematically required developmental objective. Everything about this is ordinary. What matters is
 where the four numbers come from, and the answer is: from a record she keeps of
 her own work, with a refusal where the record is silent.
 
 | term | read from | when the record is silent |
 |---|---|---|
-| `n` | how often that family has come up | as many ahead as behind, which is the only horizon the record evidences |
+| `n` | how often that family has come up | as many ahead as behind: an explicit horizon heuristic |
 | `g` | what admissions of that kind measurably saved before | refused — the action is unpriced |
 | `c` | what that action has actually spent | its stated price, else the occasion in hand |
-| `r` | how often that kind left the family no cheaper | Laplace, which needs no constant |
+| `r` | how often that kind left the family no cheaper | Laplace-smoothed failure estimate, with its explicit prior |
 
 A refused estimate is not a gap in the design; it is what makes exploration
 necessary. An action nobody can price is worth trying precisely because trying
@@ -348,7 +353,7 @@ yes. **Proof** run, and reported in the previous document.
 
 ### 3. Can she discover abstractions nobody asked for?
 
-**Possible** yes. **Limits** Theorem 5 — no complete detector of which
+**Possible** yes. **Limits** the opportunity-detector limitation — no complete detector of which
 abstraction would help. **Now** yes: a kind of thing she named, a way of
 computing, a rule with no shape. **Evidence** the invention modules and their
 tests. **Missing** nothing here. **Herself** yes. **Proof** an abstraction
@@ -368,7 +373,7 @@ concept is kept, which means a second measurement rather than a fit.
 problem is hard?
 
 **Possible** partly. **Limits** the two are not distinguishable in general —
-Theorem 5 again. **Now** partly: `why_nothing_fits` separates a language
+the opportunity-detector limitation again. **Now** partly: `why_nothing_fits` separates a language
 failure from a search that went badly, and the attribution table says which
 route spends without answering. **Evidence** the guard on the maker rung, and
 `what_the_record_says_is_slow`. **Missing** a reading that separates "my search
@@ -405,8 +410,9 @@ candidate rule for deciding what to change. **Evidence** the recursion arm.
 
 ### 9. Does this recur, or stop at one level?
 
-**Possible** it recurs. **Limits** Theorem 5 of the previous document: at
-universality no new level is required and none is possible.
+**Possible** it recurs. **Limits** universality prevents a new computable
+denotation beyond the ideal class, but allows new search methods, interfaces
+and representations. It does not settle the measured benefit of another level.
 **Now** the ranking chooses among actions; one action changes the ranking's own
 rule; the changed rule chooses the next action. **Evidence** the recursion arm.
 **Missing** nothing. **Herself** yes. **Proof** M0 to M1 to M2 with no `asked`
@@ -415,7 +421,8 @@ in the trace.
 ### 10. Does each level need a new human-authored mechanism?
 
 **Possible** no, and this is the load-bearing result. **Limits** it requires the
-bedrock to be universal; below universality authoring is required forever.
+bedrock’s denotational scope. A fixed non-universal evaluator can miss tasks;
+one change can make it universal without establishing efficient discovery.
 **Now** the floor is universal and carries its certificate. **Evidence**
 [the_floor_she_stands_on.py](../core/cognition/the_floor_she_stands_on.py) and
 [what_the_floor_can_say.py](../core/cognition/what_the_floor_can_say.py).
@@ -452,7 +459,7 @@ its matched control that shares no structure. **Missing** nothing.
 
 ### 15. Can she recognise that a transfer opportunity exists?
 
-**Possible** partly — Theorem 5. **Limits** recognising it in general is
+**Possible** partly — the opportunity-detector limitation. **Limits** recognising it in general is
 deciding whether two families share a term, which is undecidable.
 **Now** she does not recognise it; she reuses, which is different and cheaper.
 Every library entry is a leaf of every later search, so a shared term is found
@@ -525,7 +532,7 @@ is wrong and she notices.
 
 ### 23. Can she tell different kinds of problem apart?
 
-**Possible** partly. **Limits** Theorem 5 for the general case.
+**Possible** partly. **Limits** the opportunity-detector limitation for the general case.
 **Now** partly: language-versus-search is separated by `why_nothing_fits`,
 answered-versus-unanswerable by whether the occasion is lost, and dear-versus-
 cheap by the record. **Evidence** those three branches, each with a test.
@@ -657,9 +664,9 @@ predicting a future she has not already had. **Herself** yes within that.
 
 ### 38. Can she optimise her own future learning?
 
-**Possible** yes, non-optimally by Theorem 4. **Now** yes in the one sense
+**Possible** yes, without a global optimality claim. **Now** yes in the one sense
 available: she chooses the change the record says pays most. **Evidence** the
-ranking. **Missing** optimality, which is impossible. **Herself** yes.
+ranking. **Missing** a defined optimality result under a declared task distribution and budget. **Herself** yes.
 **Proof** the recursion arm.
 
 ### 39. Can she change the balance between exploring and developing?
@@ -675,7 +682,7 @@ and does better on sealed episodes.
 
 ### 40. Can she become better at becoming better?
 
-**Possible** yes. **Limits** Theorem 4 bounds how much; Theorem 5 bounds what
+**Possible** yes. **Limits** The optimality discussion limits the claim being made; the opportunity-detector limitation describes what
 she can notice. **Now** yes, in the exact sense the recursion arm measures: the
 rule that decides what to change is itself something the rule can decide to
 change, and a rule it installs governs the next decision. **Evidence** Part IX.
@@ -743,7 +750,8 @@ that misses one thing is a control that has quietly stopped being one.
 
 1. **"The eight rungs are still eight functions somebody wrote."** True, and
    the claim is not that they are not. The claim is about what selects among
-   them, and Theorem 1 is why that is the thing that matters: a fixed order is
+   them. The explicit-comparison design criterion explains the implementation’s
+   choice: a fixed order is
    a decision made outside any ranking, and a ranking over the same eight is
    not. A ninth rung is `what_she_could_do` with a name, a destination and a
    way of doing it, and `the_action_she_wrote` builds one from a term.
@@ -751,8 +759,8 @@ that misses one thing is a control that has quietly stopped being one.
 2. **"The value function is yours."** It was, and it is a term now, and
    `a_worth_that_would_have_chosen_better` searches for a replacement scored on
    her own record. The regress this raises is the one the previous document
-   closed: at universality no new authored level is required and none is
-   possible.
+   qualified: universality removes a denotational ceiling, while useful search
+   methods and engineering can still change.
 
 3. **"Candidates walked is your unit."** Yes. It is the unit search spends,
    and a proxy for the things that matter — an answer, an accurate answer, an
@@ -791,8 +799,7 @@ that misses one thing is a control that has quietly stopped being one.
    returned nothing.
 
 10. **"Undoing a change that did not pay is hill-climbing, not development."**
-    It is hill-climbing on a landscape she is also changing, which is what makes
-    Theorem 4 bite. The design does not claim to escape that; it claims to
+    It is hill-climbing on a landscape she is also changing, which makes the task distribution and resource budget matter. The design does not claim to escape that; it claims to
     measure each step and to keep only the ones that paid.
 
 11. **"The transfer is a library lookup."** Yes, and that is the finding rather
@@ -900,8 +907,9 @@ is an edit.
 
 ## Part XII — What this does not claim
 
-It does not claim optimality; Theorem 4 forbids it. It does not claim complete
-opportunity detection; Theorem 5 forbids it. It does not claim she can find
+It does not claim global optimality; the evaluations here do not establish it. It does not claim complete
+opportunity detection; The unrestricted decision problem lacks a general total detector under the
+stated assumptions; bounded opportunity checks remain possible. It does not claim she can find
 stepping stones; question 35 is an honest no and question 36 follows it. It
 does not claim the improvements measured here are large. It does not claim
 anything about wanting, beyond a quantity, a reading and a choice that follows
@@ -941,17 +949,19 @@ and the rest are held by tests beside the code they lesion.
 
 ## Part XIV — Two more results worth stating
 
-**Fair search reaches any finite chain.** Suppose every developmental action
-has some chance of being drawn, every beneficial candidate has some chance of
-passing the probe, and what passes persists. Then for any finite sequence of
-beneficial changes `M_0 → … → M_k`, the probability that repeated search
-eventually finds the whole sequence goes to one as resources grow. Induction on
-the sequence: each required term has positive eventual hit probability, and an
-accepted installation changes the state the next search starts from. The result
-is worth stating precisely because of what it does not give — no bound. Busy
-beaver forbids one. Drawing from the posterior rather than the argmax is what
-makes the first premise true here, and it is the reason exploration is not a
-decoration.
+**Fair search can reach a finite chain under stronger conditions.** For each
+required step, assume repeated eligible trials have a conditional success
+probability bounded below by an `epsilon > 0`, enough budget to try the step,
+and persistence of prior successful steps. The chance of missing that step
+after `n` trials is at most `(1-epsilon)**n`, which tends to zero. Induction
+extends this to a finite chain when each step continues to receive trials.
+
+“Some positive chance” at each time is insufficient: probabilities may shrink
+so quickly that there remains a positive chance of never finding the step.
+Finite hardware, forgetting and a changing scheduler can also violate the
+premises. A posterior sampler’s existence alone does not establish them for
+Aura. A finite-step bound under a known epsilon is possible; undecidability
+results concern unrestricted searches, not every bounded problem.
 
 **Why reach, and not expressiveness, is the operative quantity.** Levin's bound
 prices a search for a term at exponential in its length, so what changes what

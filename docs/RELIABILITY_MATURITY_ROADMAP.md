@@ -41,6 +41,27 @@ storms**. The roadmap targets these roots.
 
 ---
 
+## Source reconciliation, 25 October 2026
+
+Several mechanisms proposed in the original sections below now exist. Their
+source integration is distinct from complete live acceptance:
+
+| Earlier proposal | Current source owner | What remains evidence-dependent |
+|---|---|---|
+| Desired/observed lane reconciliation (K1) | `core/runtime/lane_reconciler.py`, `control_plane.py` | Recovery and singularity on the installed revision |
+| Startup/readiness/liveness distinctions (K2) | `core/runtime/boot_probes.py`, `health_contract.py` | Correct classification under real startup and failure conditions |
+| Lane admission and budgets (K3) | `core/brain/lane_admission.py`, `core/runtime/model_lane_control.py` | Safe behavior for the measured concurrent workload |
+| Typed conditions and finalizers (K6) | `core/runtime/service_conditions.py` | Consumer behavior and graceful completion under faults |
+| Typed runtime settings (C1) | `core/runtime/runtime_settings.py`, `settings_control_plane.py` | Correct propagation for the setting and process being tested |
+| Crash capture (A5) | [Flight recorder](FLIGHT_RECORDER.md) | Recoverable records under each tested failure, not universal durability |
+
+The proposals below retain their earlier design context. “Build” and “today”
+inside them are not assertions that the mechanism is still absent. Use the
+[master obligations](AURA_1_0_MASTER_TODO.md) and revision-bound acceptance
+receipts for closure; source presence alone closes no live obligation.
+
+## Earlier adoption proposals
+
 ## Kubernetes — orchestration & control-plane maturity
 
 **K1. Declarative reconciler for the model-serving lane (highest leverage).**

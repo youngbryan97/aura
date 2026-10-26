@@ -35,7 +35,8 @@ So maturity is a **gate on reach, not on capability**:
 | Autonomous (Aura decided; nobody watching) | SILVER |
 | Autonomous + irreversible | GOLD |
 
-Attended use is deliberately unrestricted. The goal is to stop the
+UNRATED attended use is unrestricted by this maturity gate; ordinary action
+authorisation, sandbox and resource controls still apply. The goal is to stop the
 least-exercised code in the registry from being reachable by the most
 consequential path — not to shrink what Aura can do when asked.
 
@@ -49,8 +50,9 @@ the one gating autonomous action.
 Only claims the metadata genuinely supports are inferred:
 
 - a typed input model **is** a typed request schema;
-- a `read_only` / `pure_compute` effect scope **is** retry-safe by construction,
-  and has nothing to undo;
+- a declared `read_only` / `pure_compute` scope earns the gate’s retry-safe
+  classification. The declaration must match behavior; resource use,
+  time-dependent reads and hidden effects still need appropriate checks;
 - a classified authority **is** authority scoping.
 
 Bounded timeouts, postcondition verification, effect receipts, recovery and
@@ -91,8 +93,8 @@ that enforcement is opt-in.
 
 ## Known unsupported
 
-- No skill declares the SILVER+ properties yet, so essentially the whole
-  surface currently grades UNRATED. That is the backlog, and it is the honest
-  starting state rather than a hidden one.
+- The initial rollout found most capabilities ungraded. Read the current
+  metadata-derived report before quoting today’s tier distribution; this
+  guide is not a fresh inventory of every skill.
 - The gate is applied in `CapabilityEngine.execute` only; other execution
   entry points do not yet consult it.

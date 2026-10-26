@@ -1,107 +1,78 @@
-# Human Override Policy — Aura Cognitive Runtime
+# Human override policy — Aura
 
-## Principle
+Status: Policy · Mechanisms and limitations reconciled 25 October 2026
 
-A human operator always has complete control over Aura. You can override, disable, or roll back any action or feature at any time. The system will never resist, bypass, or delay a human override command.
+The operator must be able to stop effects, withdraw permissions and retain
+control of their data. This is a required contract. It is not a guarantee that
+every override works instantly during every host or runtime failure.
 
-## Override Mechanisms
+## Stop and containment
 
-### 1. Immediate Kill
+A graceful stop asks the supported lifecycle to drain work and save state.
+Its success must be checked. SIGKILL ends the selected process without that
+cleanup and can lose in-flight data; a write-ahead log does not make it
+risk-free. Closing a GUI window may differ from stopping its backend: confirm
+the actual runtime process rather than inferring termination from the window.
 
-| Method | Effect | Data Loss Risk |
-|--------|--------|----------------|
-| Ctrl+C / SIGINT | Graceful shutdown (state saved) | None |
-| SIGTERM | Graceful shutdown with 12s budget | None |
-| SIGKILL | Immediate process death | Minimal (database write-ahead log recovery) |
-| GUI close button | Graceful shutdown | None |
-| `AURA_MODE=safe` | Disable all autonomous behavior | None |
+For agent work on Bryan’s shared host, follow [AGENTS](AGENTS.md): the live
+instance cannot be restarted or killed without current-task authorisation.
+Identify training/campaign ownership and use one controlled lifecycle change.
 
-### 2. Capability Disable
+## Launch settings and live settings differ
 
-You can turn off any Aura capability at runtime:
+`AURA_MODE=safe`, `AURA_AUTONOMY_LEVEL=0` and `AURA_FOREGROUND_ONLY=1`
+are process settings. Assigning or exporting them in another shell does not
+change an already-running process. A supported live settings endpoint must
+apply the particular setting; otherwise it takes effect on a later launch.
+Do not weaken Will enforcement as a way to contain an unsafe capability.
 
-```bash
-# Disable autonomy
-AURA_AUTONOMY_LEVEL=0
+Standing directives in [the governance module](core/governance/standing_directives.py)
+can deny tool or path use on routes that read them. Use the supported owner
+control and inspect the resulting directive/receipt. Their existence is not
+proof that every possible effect path reads the file, and executing a Python
+snippet in a separate process does not automatically exercise the resident
+application’s container or settings.
 
-# Disable background tasks
-AURA_FOREGROUND_ONLY=1
+[Paired-device routes](interface/routes/devices.py) provide explicit device
+and scope revocation. Device credentials, model-lane capability leases and
+identity state are different authorities: resetting one is not a general
+revocation of all the others.
 
-# Turn off a governed subsystem by its flag name
-AURA_FLAG_WILL_STRICT_ENFORCEMENT=0
-```
+## Memory and identity controls
 
-Flag names are defined in `_DEFAULT_FLAGS` within `core/governance/feature_flags.py`. To override a flag from your environment, add `AURA_FLAG_` to the capitalized flag name. Environment variables take precedence over both default settings and `feature_flags.json` under the state root.
+Use the app’s implemented memory controls and the actual response from
+[the memory routes](interface/routes/memory.py). Export/delete scope is
+store-specific; consult [the data card](DATA_CARD.md). Verify the selected
+records were exported or removed rather than trusting a status message.
 
-To block specific tools or file paths, use **standing directives** rather than environment variables. Directives are saved to `data/governance/standing_directives.json`. The authority gateway checks this file on disk before running every important action. Because it reads the file directly from disk, prompt injection or conversational context cannot bypass it:
+**Known command limitation:** the current Makefile’s `memory-export` target
+prints availability metadata, `data-export` creates a directory, and
+`memory-purge`, `data-purge` and `identity-reset` print completion messages
+without implementing the advertised operation. These targets must not be
+cited as completed exports, deletion or identity reset. This documentation
+correction does not implement them.
 
-```python
-from core.governance.standing_directives import add_directive, KIND_TOOL, SCOPE_ANY
+For backup and recovery, use [the recovery runbook](docs/runbooks/disaster-recovery.md)
+and verify the actual archive, included stores and required keys before
+restoring during an authorised window. Restoring state does not undo an
+external action that has already happened.
 
-add_directive(kind=KIND_TOOL, value="shell", reason="operator override", scope=SCOPE_ANY)
-```
+## Auditability
 
-The directive file only supports blocklists (deny rules). It intentionally does not support allowlists (permit rules). If directives could grant permissions, a malicious prompt injection could create a permanent backdoor through the system's safety gate. You can block access to specific filesystem locations the same way using `KIND_PATH`.
+Governed decisions are required to have authorisation and outcome records.
+Hash links can expose covered modifications to retained records; they do not
+make a disk immutable or guarantee all effects were captured. Intentional
+privacy deletion and retention have their own record-handling rules.
 
-There is no cloud fallback to disable because model inference (running AI predictions) is strictly local. See `docs/runbooks/local-inference-boundary.md`.
+`make governance-lint` checks named source patterns, not every historical live
+action. `tools/receipt_coverage_validator.py` checks supplied artifacts; missing
+or wrong-process artifacts cannot establish receipt coverage for the resident
+app. Keep the source revision, process and observation window with each result.
 
-### 3. Memory Override
+## Required behavior and acceptance
 
-```bash
-# Export all memories
-make memory-export
-
-# Delete a specific memory — through the app's memory controls, which call the
-# POST /api/memory/delete API (interface/routes/memory.py)
-
-# Delete all memories
-make memory-purge
-
-# Reset identity to canonical state
-make identity-reset
-
-# Restore from backup
-make restore BACKUP=<path>
-```
-
-### 4. Governance Override
-
-```bash
-# Audit all Will receipts
-python tools/receipt_coverage_validator.py --artifacts artifacts/current
-
-# List all ungoverned actions (should be 0)
-make governance-lint
-```
-
-Every action Aura takes produces a "Will receipt" — an append-only, tamper-evident audit log entry protected with cryptographic hashes. Because past receipts form an unchangeable audit trail, you cannot rewrite history. However, to withdraw authority for future actions, you can reset Aura's identity (`make identity-reset`) or revoke permissions for a paired device through the app (`POST /api/devices/revoke-scope`).
-
-## Override Hierarchy
-
-```
-Admin Override → Operator Override → User Override → Will Decision → Subsystem
-```
-
-Higher levels in this chain always take precedence over lower levels. When an override is issued, the system obeys immediately without arguing.
-
-## Override Logging
-
-Every override action is permanently recorded in the audit trail with:
-- Timestamp
-- Override type
-- Actor (user, operator, or administrator)
-- Previous state
-- New state
-- Reason (if provided)
-
-Overrides cannot be hidden from or erased from the audit logs.
-
-## Non-Negotiable Rules
-
-1. **Aura must never resist a shutdown command.**
-2. **Aura must never hide its actions from the operator.**
-3. **Aura must never circumvent permission restrictions.**
-4. **Aura must always report its current capability state honestly.**
-5. **Aura must always allow you to export or delete your stored memories.**
-6. **Aura must always allow override logging to be read.**
-7. **Override mechanisms must work even when Aura is degraded or malfunctioning.**
+Shutdown, revocation and memory controls must remain usable during degradation,
+with explicit failures when an operation cannot complete. Test each control’s
+normal, denied, unavailable and interrupted cases. Verify both that the
+forbidden next effect is refused and that permitted recovery remains possible.
+A policy statement or a printed success message is not acceptance evidence.

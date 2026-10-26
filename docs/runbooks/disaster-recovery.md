@@ -1,4 +1,4 @@
-# Runbook: Disaster Recovery
+# Runbook: disaster recovery
 
 <!-- reader-navigation:start -->
 > **In plain English:** Reliability work detects failed or stalled components, preserves useful state and recovers through a controlled lifecycle.
@@ -11,155 +11,91 @@
 > [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
-## Recovery Scenarios
+Status: Runbook · Commands and recovery limits reconciled 25 October 2026
 
-### 1. Dirty Shutdown Recovery
+Recover a known state without destroying the evidence needed to understand
+what failed. A command returning success does not establish that every store
+or external effect was restored.
 
-**Symptoms**: Aura was killed (SIGKILL, power loss, crash)
+## Identify the owner before changing anything
 
-```bash
-# Boot will automatically recover via WAL replay
-make run
-# Verify state integrity
-make doctor
-```
+Record the installed source revision, process identity, active model artifact,
+last completed work and relevant logs. Check whether a campaign or another
+operator owns the resident model. `make release-status` reports the release
+train’s recorded state; it is not a complete live-process health check.
 
-### 2. Corrupted Memory Database
+Do not launch `make run` while another Aura instance owns the runtime. Do not
+restart, restore over live stores or kill a process from an unverified PID file.
+Use an authorised maintenance window, graceful shutdown and proof that the
+old owner has exited before starting one replacement through the supported
+launcher. See [the operational guide](../../CLAUDE.md).
 
-**Symptoms**: SQLite errors on boot, memory retrieval fails
+## Preserve the affected stores
 
-```bash
-# Check integrity
-python -c "
-import sqlite3
-conn = sqlite3.connect('data/aura_memory.db')
-result = conn.execute('PRAGMA integrity_check').fetchone()
-print(f'Integrity: {result[0]}')
-"
+Keep the database, its `-wal` and `-shm` files, and the failure logs together.
+Work on a scratch copy when possible. SQLite WAL recovery can replay valid
+committed transactions; it cannot guarantee recovery from arbitrary corruption.
+`PRAGMA wal_checkpoint(TRUNCATE)` is a checkpoint operation, not a repair
+that reconstructs missing data. Do not use it as a substitute for a backup.
 
-# If corrupted: restore from backup
-make restore BACKUP=$(ls -t ~/.aura/backups/*.tar.gz | head -1)
+The real database path comes from the installed configuration and store owner;
+`data/aura_memory.db` is not a universal path for all memory. Open a known
+scratch copy explicitly when testing integrity. Connecting to a guessed path
+can create an empty database and make a meaningless integrity check pass.
 
-# If no backup: rebuild from WAL
-python -c "
-import sqlite3
-conn = sqlite3.connect('data/aura_memory.db')
-conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-print('WAL checkpoint complete')
-"
-```
+## Choose the backup family and verify its coverage
 
-### 3. Partial Model Download
+There are two different backup paths in source:
 
-**Symptoms**: Model fails to load, checksum mismatch
+| Entry point | Owner | Scope to inspect |
+|---|---|---|
+| `make backup`, `make backup-verify`, `make restore BACKUP=<archive>` | [tools/state_backup.py](../../tools/state_backup.py) | Repository roots plus the resolved live data root, with exclusions, per-file bounds and a manifest |
+| `aura backup`, `aura restore` | [core/runtime/backup_restore.py](../../core/runtime/backup_restore.py) | The declared directories under its resolved Aura home |
 
-```bash
-# Verify model files
-python -c "
-from core.brain.llm.model_registry import verify_model_integrity
-result = verify_model_integrity()
-print(f'Model integrity: {result}')
-"
+Do not assume their archives, verification rules or included stores are
+interchangeable. Read the archive’s manifest, omitted files, creation source
+and verification result. The state-backup tool skips oversized and excluded
+files; a successful archive is not automatically a complete copy of everything
+at `~/.aura/`.
 
-# Re-download whatever is missing (bounded, resumable)
-python -c "
-from core.brain.llm.model_lifecycle import get_model_lifecycle_manager
-print(get_model_lifecycle_manager().ensure_present())
-"
-```
+During an authorised restore window, select an explicit verified archive
+rather than blindly choosing the newest file. Confirm compatible source,
+schema, keys and model custody; restore into a scratch location first when
+supported. A copy without the required encryption key cannot restore its
+encrypted contents. Keep the pre-restore state until acceptance is complete.
 
-`ensure_present` checks free disk first, downloads only the models with a
-known source, and resumes a partial fetch rather than restarting it.
+## Handle the diagnosed failure
 
-### 4. Failed Self-Repair
+- **Dirty shutdown:** retain flight/crash records and check the actual stores.
+  WAL recovery and a clean next boot are observations to verify, not promises.
+- **Corrupt memory:** preserve the original and test a verified backup or
+  store-specific recovery on a copy. Do not truncate WAL or delete the vault
+  to silence the error.
+- **Incomplete model artifact:** inspect the artifact manifest and missing
+  files before a separately budgeted download. A structural fingerprint is
+  not a full weight-file checksum. Do not load another model to test a path.
+- **Failed repair:** retain the proposed patch, quarantine result and lineage.
+  Disable its promotion through the owning control. Deleting the patch
+  registry destroys evidence and does not establish a repaired source tree.
+- **Full disk:** inspect actual disk consumers and retention rules. Preserve
+  recent incident logs and verified backups. `make log-purge` only targets its
+  declared repository `logs/` patterns; it is not the complete live-log policy.
+- **Source rollback:** use a known source/state pair and the release lifecycle.
+  A bare checkout of an older commit does not roll back schemas, installed
+  packages, model pointers or external effects.
 
-**Symptoms**: Self-repair left system in inconsistent state
+## Verify the replacement
 
-```bash
-# Refuse self-modification for this run. `production`, `live`, `safe`, `test`,
-# `simulated`, and `research` all set allows_self_modification=False; only
-# `dev` permits it (core/runtime/mode.py).
-export AURA_MODE=production
+Record what was checked and what remained unavailable:
 
-# Check repair registry
-cat data/selfmod/pending_patch_registry.jsonl
+- Exactly one intended runtime loaded the expected source/configuration/model.
+- The affected stores open and return known retained content.
+- Required services become ready and an ordinary request finishes correctly.
+- New receipts name the replacement process and expected action path.
+- Resource use stays inside the declared observation budget.
+- No new error or missing-data condition is being hidden as healthy.
 
-# If registry is corrupt: remove it. AURA_PENDING_PATCH_REGISTRY overrides
-# this location; without it the path is data_dir/selfmod/ from core/config.py.
-rm data/selfmod/pending_patch_registry.jsonl
-
-# Restart
-make run
-```
-
-### 5. Disk Full
-
-**Symptoms**: Write failures, log rotation stops
-
-```bash
-# Check disk usage
-df -h
-
-# Purge logs
-make log-purge
-
-# Purge old backups (keep last 3)
-ls -t ~/.aura/backups/*.tar.gz | tail -n +4 | xargs rm -f
-
-# Purge bytecode caches
-find . -name __pycache__ -exec rm -rf {} +
-
-# Restart
-make run
-```
-
-### 6. Version Downgrade
-
-**Symptoms**: Need to roll back to previous version
-
-```bash
-# Check current version
-git log -1 --oneline
-
-# Restore previous version
-git checkout <previous-commit>
-
-# Restore state from backup taken at that version
-make restore BACKUP=<matching-backup>
-
-# Verify
-make doctor
-make run
-```
-
-### 7. Full Disaster Recovery (Fresh Machine)
-
-```bash
-# 1. Clone repository
-git clone https://github.com/youngbryan97/aura.git
-cd aura
-
-# 2. Setup
-make setup-prod
-
-# 3. Restore state from backup
-make restore BACKUP=<backup-path>
-
-# 4. Verify
-make doctor
-
-# 5. Run
-make run
-```
-
-## Recovery Verification Checklist
-
-After any recovery:
-
-- [ ] `make doctor` passes
-- [ ] `make compile` succeeds
-- [ ] Boot completes without errors
-- [ ] Memory retrieval returns expected results
-- [ ] Model loads successfully
-- [ ] Will receipt chain is intact
-- [ ] No orphaned background tasks
+`make doctor` checks its environment. A CLI diagnostic bundle can contain
+collector-local state rather than the running app’s service container; bind
+it to the right process before citing it. A successful smoke test supplies
+offline contract evidence, not proof of a complete live recovery.

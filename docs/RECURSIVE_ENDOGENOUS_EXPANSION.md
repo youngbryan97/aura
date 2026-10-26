@@ -21,10 +21,12 @@ The question:
 > its own future learning themselves products of experience — recursively —
 > without requiring a new human-authored mechanism at every meta-level?
 
-The answer, in one sentence, is a theorem rather than an architecture: **the
-regress ends at universality, and it ends nowhere else.** Everything below is
-the derivation, the measurement of which side of that line Aura was on, the
-code that moved her across it, and an exact account of what remains.
+An ideal universal evaluator removes a ceiling on which partial computable
+functions can be expressed. It does not guarantee that useful programs can be
+found efficiently or that human engineering is finished. This guide separates
+that expressiveness argument from the bounded measurements below. The
+[mathematical-claim corrections](MATHEMATICAL_CLAIM_LIMITS.md) explain the
+revised assumptions; the recorded experiments retain their original data.
 
 ---
 
@@ -106,7 +108,7 @@ and is fixed. B2, B3 and B5 are named in Part XIII as open.
 
 Let `U` be a fixed evaluator and `Σ` its signature. Let `A_t` be the finite
 library of named terms at time `t`, and `P(A_t)` the terms constructible from
-`Σ` and `A_t`. Write `⟦p⟧` for what `U` computes from `p` under fuel, and
+`Σ` and `A_t`. Write `⟦p⟧` for the partial function computed by idealised `U` from `p`, and
 
     E(A_t) = { ⟦p⟧ : p ∈ P(A_t) }.
 
@@ -132,9 +134,10 @@ load-bearing:
 3. **a new distinction** — some `f ∈ E(A_{t+1})` that no term of `A_t` denotes,
    over a search that *finished*.
 
-The third is available only while the substrate is not universal, and is
-therefore available exactly once in the whole developmental history. Part VI
-shows Aura had not yet spent it.
+The third can occur while the evaluator is non-universal. Several strict
+extensions can precede universality; it is not restricted to one event. Once
+the evaluator is universal, computable denotations cannot expand further.
+Bounded search reach and useful abstractions can still improve.
 
 ### Representational inadequacy
 
@@ -151,8 +154,9 @@ Not a boolean. A certificate set, with each member's decidability stated:
 | `UNDECIDED` | otherwise | — |
 
 `what_the_failures_have_in_common` and `language_limits` implement most of this
-already. General inadequacy over a universal language reduces to halting and is
-not available at any price.
+already. General semantic questions over unrestricted programs can be
+undecidable. A bounded fragment or a particular program may still admit a
+certificate; the general limitation does not prohibit those checks.
 
 ---
 
@@ -474,8 +478,7 @@ something: it says that counting down is a shape worth looking for. It adds no
 meanings, by Theorem 1, and removing it is a test. But it is a prior, and
 calling it anything else would be the kind of claim this document exists to
 refuse. That is the
-difference between a fixed substrate and a fixed vocabulary. Part VI proves the
-first is unavoidable, and Part X shows the last two cannot be inside the
+difference between a fixed substrate and a fixed vocabulary. Part VI states the fixed-evaluator and denotational assumptions, and Part X shows the last two cannot be inside the
 hypothesis space without ceasing to hold.
 
 ---
@@ -533,8 +536,10 @@ number of makers or levels. `where_doubling_escapes(L)` returns a length at
 which every term of `L` symbols is already too small — 49 at `L=8`, 180 at
 `L=24`, 546 at `L=60` — so the conclusion is not budget-relative.
 
-**Corollary 3.2 (proven).** The only thing that puts doubling into her
-positional language is a person editing `run`. That is the regress, located.
+**Corollary 3.2.** Definitional extensions of this fixed positional language
+cannot express doubling as a function of unbounded length. Changing the
+evaluator or admitted operations can change that boundary. That change need
+not be a never-ending series of human edits.
 
 ### Theorem 4 (a witness inside the range a position lives in). Proven.
 
@@ -550,32 +555,39 @@ recursively enumerable. Let `w_0, w_1, …` be that enumeration and define
 and every `n ≥ 2`, `g(i, n) ≠ w_i(i, n)`. So no word she can build computes
 `g`. ∎
 
-**Checked.** `no_word_of_hers_says_it(400)`: 400 words, 1,200 places, no
+The computable diagonal assumes an effective enumeration whose evaluations
+terminate or return a declared refusal. It cannot be applied unchanged to an
+unrestricted universal enumeration whose members may diverge.
+
+**Checked on the declared bounded evaluator.** `no_word_of_hers_says_it(400)`: 400 words, 1,200 places, no
 agreement at any diagonal point.
 
-### Theorem 5 (the regress). Proven.
+### Proposition 5: a fixed non-universal language leaves some tasks outside
 
-Let `B` be a bedrock with `E(B)` not all of the computable functions, and let
-the task stream eventually demand each computable function. Then the number of
-human authoring events required is unbounded.
+If the evaluator stays fixed and each endogenous extension is a term in that
+language, definitional extensions cannot add a function outside its denotation
+set (Theorem 1). A task requiring such a function needs a change to the
+representation, evaluator or admitted external operations.
 
-*Proof.* Some computable `f ∉ E(B)`. By Theorem 1, no term over `B` reaches
-`f`, and every endogenous step adds a term, so no sequence of endogenous steps
-of any length and at any level reaches `f`. Only an edit to the evaluator does.
-After the edit the bedrock is `B'`; if `E(B')` is again not everything, some
-`f' ∉ E(B')` and the argument repeats. By induction the required edits do not
-terminate. ∎
+The earlier claim that this requires **unbounded human authoring** was false
+without an extra premise. A single evaluator change can install a universal
+language. An unbounded sequence follows only if every finite extension remains
+non-universal, the task stream demands functions outside each extension, and
+only a human can perform the required evaluator changes. Those assumptions
+are not consequences of non-universality alone.
 
-### Theorem 6 (the top). Proven.
+### Proposition 6: universality removes a denotational ceiling
 
-If `E(B)` is all the computable functions, the number of required authoring
-events is nought, and by Theorem 2 no authoring event could add anything.
+For an ideal universal language, every partial computable function already
+has a program. Naming another computable operation cannot enlarge that set
+(Theorem 2). It can still improve search, interfaces, verification or runtime
+cost. Human engineering therefore remains possible and may remain useful.
 
-**Corollary 6.1.** Universality is necessary and sufficient for the tower of
-authored meta-levels to have a top. It is not a design preference among
-substrates. `where_the_tower_has_a_top.where_the_tower_ends` returns which of
-the three cases a bedrock is in, and refuses to guess when no certificate
-exists either way.
+This statement concerns **representability with sufficient resources**.
+It does not establish that Aura can discover the program, ground a request,
+run it within finite memory, or improve itself without further human work.
+Universality is sufficient for this particular denotational ceiling to vanish;
+it is not a necessary condition for every bounded useful task stream.
 
 ### Theorem 7 (the floor is universal). Proven, modulo Kleene.
 
@@ -585,8 +597,9 @@ projection}` under composition, primitive recursion and unbounded search
 `ZERO`, `SUCCESS`, `take_the_one_at`, application for composition,
 `by_recursion`, `the_least_where` — and checks each against what it should
 compute, including that unbounded search on a predicate with no root exhausts
-its meter rather than returning. That last check is the one that separates
-universal from merely large.
+its meter rather than returning. That check exercises the declared search/meter behavior. A finite
+nontermination or timeout test alone cannot certify universality; the argument
+rests on the semantics of the exhibited constructors under sufficient resources.
 
 **Corollary 7.1 (proven).** `E(floor) ⊋ E(positional)`, by Theorem 3 on one
 side and a 38-symbol term on the other. It is a genuine new distinction, and by
@@ -597,14 +610,19 @@ Theorem 2 it is the last one that will ever be available.
 `same as` from `plus`, `minus` and `below` as terms, and checks the derived
 version against the primitive on a 13×13 grid.
 
-### Theorem 8 (abstraction and reach). Proven for tree enumeration.
+### Proposition 8: shorter descriptions can reduce enumerative search
 
-Enumerating expressions of length up to `L` over `b` primitives visits
-`Θ(b**L)` candidates. If naming a recurring subterm shortens the target by `d`,
-the space to walk shrinks by `b**d`; under a prior favouring short hypotheses
-the same idea makes the target `2**d` times more probable. This is what
-`what_it_costs_to_say` already records, and it is why reach is the operative
-quantity once `E` stops moving.
+Under a specified coding/enumeration model whose candidate count scales as
+`b**L`, shortening a target by `d` symbols gives a nominal `b**d` count ratio
+when the alphabet, branching assumptions and search order remain fixed.
+For a binary length prior proportional to `2**(-L)`, the unnormalised weight
+ratio is `2**d`. Normalisation and additional library symbols can change the
+comparison. Typed trees and grammar constraints need their own counting rule.
+
+These are conditional cost comparisons. A new abbreviation can add matching
+cost and distract search; shorter syntax alone does not guarantee an end-to-end
+capability or speed improvement. The paired retained measurements below test
+particular cases.
 
 ### Theorem 9 (finite memory). Proven.
 
@@ -613,33 +631,42 @@ infinite strictly increasing chain of uncompressed libraries is impossible.
 Long-run development requires forgetting, merging, compression and structural
 replacement. `keeping_the_language_small` already carries this.
 
-### Theorem 10 (no free lunch). Proven.
+### Distribution-dependent improvement
 
-No representation-update rule improves `C(·; T, B)` on every `T`.
-`no_updater_wins_everywhere` builds the environment that beats a given rule and
-runs it. Every improvement claim must name its distribution and its budget.
+The retained counterexample shows that a particular update can help one
+stream and hurt another. It does not prove a no-free-lunch theorem over every
+possible update rule. General no-free-lunch results need their distribution
+and search assumptions; structured priors can favor useful algorithms. Every
+improvement claim here must name its task distribution and budget.
 
-### Theorem 11 (inadequacy). Proven.
+### General undecidability limits and bounded verification
 
-Over a universal language, "does some term solve family `F`" is undecidable by
-reduction from halting. Bounded certificates remain, and `which_kind_of_growth`
-already refuses a new-distinction verdict on a search that did not finish.
+For an unrestricted universal program class, nontrivial extensional semantic
+properties are generally undecidable (Rice’s theorem). The property, program
+class and meaning of “solve a family” must be specified before applying that
+result. On a finite sample a lookup program can fit every row, so the mere
+existence of a fitting program is not the same decision problem as solving
+an unrestricted family.
 
-### Theorem 12 (verification). Proven.
+The earlier blanket statement that no program’s semantic invariants can be
+proved was too strong. Particular programs can have checked proofs under
+stated semantics and assumptions. A sound but incomplete verifier may accept
+some correct programs while rejecting or leaving others unresolved; a total
+bounded checker can decide its finite problem. None supplies a total,
+complete decider of every nontrivial semantic property of arbitrary programs.
+See [the mathematical-claim corrections](MATHEMATICAL_CLAIM_LIMITS.md).
 
-No total procedure decides, for arbitrary `a*`, whether it preserves every
-semantic invariant of interest (Rice). So a governor may demand proofs in a
-total fragment, or bounded empirical evidence, and never both totality and
-universality.
+### Proposition 13: admission of an unrestricted guard replacement is unsafe
 
-### Proposition 13 (the gate must stay outside). Proven, and executed.
+If an installer admits a replacement that makes its sole safety guard accept
+every candidate, and no independent invariant prevents that replacement, the
+original guard no longer protects later admissions. The retained example
+constructs that failure in its declared model.
 
-If the predicate authorising installation is itself installable under its own
-authority, a candidate exists whose effect is to accept everything, and after
-it is admitted the invariant "everything admitted is harmless" is no longer
-preserved — with nothing violated on the way.
-`a_gate_inside_the_space_cannot_hold` constructs that candidate and reports
-that the invariant held while the gate was fixed and failed once it was not.
+**Mutability alone does not prove failure.** A separate proof checker or
+protected policy can require an updated guard to preserve a safety property.
+The example supports keeping an effective trust boundary, not the claim that
+no governed guard update can ever be verified.
 
 ### Definition (meta-order).
 
@@ -750,10 +777,12 @@ that never settles or asks for nonsense is refused; the invented head is
 lesioned and the reach goes with it; a search order that will not answer sends
 every word to the back rather than stopping the search, and the order lesion
 restores the previous order exactly; a head that costs more search than it
-saves is taken back out. Required and not implemented: random candidate
-generator, fixed-DSL enumerator with a larger budget, retrieval, macro-only
-compression, inline expansion, equal-persistent-bytes, matched compute across
-GROWN and RESET.
+saves is taken back out. The earlier control list also requested a random
+candidate generator, larger-budget fixed-DSL enumeration, retrieval, macro-only
+compression, inline expansion, equal persistent bytes and matched compute
+across GROWN and RESET. Later entries report an inline-expansion control.
+The proposed ablations need a consolidated source-bound coverage report before
+this guide can claim that every requested control has been run.
 
 ### Experiment H, as run
 
@@ -922,7 +951,9 @@ whole mitigation, and it is not a proof.
 5. **"So invention is not from nothing."** Conceded, and asserted rather than
    defended: no learner escapes priors. What is claimed is the minimality of
    this one, and Corollary 7.2 is the evidence.
-6. **"The language is Turing-complete, so expansion is impossible."** Now, yes.
+6. **"The language is Turing-complete, so expansion is impossible."**
+   Computable denotations cannot expand beyond the ideal universal class;
+   usable abstractions, search and interfaces can still improve.
    Before this work, no — and that was the whole problem.
 7. **"MDL rewards compression, not semantics."** Compression alone does not
    admit anything here. The family must become sayable, the judged half must
@@ -937,22 +968,27 @@ whole mitigation, and it is not a proof.
 10. **"The LLM is doing the invention."** There is no LLM in the invention
     path. Not as proposer, not as ranker.
 11. **"Recursive self-improvement is code optimisation."** The meta-order is
-    defined on sealed invention tasks. Since experiment H is not run, no
-    recursive self-improvement is claimed.
+    evaluated on held-out invention tasks. Experiment H later ran on a bounded
+    stream, as reported above. That supports the measured mechanism change,
+    not sustained general self-improvement.
 12. **"Finite memory forbids open-endedness."** Conceded (Theorem 9). Open-ended
     here means no authored ceiling on what can be discovered, not infinite
     accumulation.
-13. **"The meta-level moved one interpreter up."** Yes — to the floor, and
-    then it stops, and Theorem 6 says why it stops there and only there. If a
-    later family needs a nineteenth head, the design has failed.
-14. **"Self-reference destroys verification."** Conceded (Theorem 12). The gate
-    is not self-referential and the Gödel-machine install rule is rejected.
-15. **"You cannot tell representation failure from insufficient search."** In
-    general, conceded (Theorem 11). Certificates, not omniscience.
-16. **"The library will worsen search."** A real risk, and the search-cost
-    probe is not implemented. Listed as open rather than answered.
-17. **"The developmental advantage is curriculum overfitting."** Unaddressed:
-    experiments F, G and J are not run.
+13. **"The meta-level moved one interpreter up."** The fixed evaluator remains
+    a human-authored prior. Proposition 6 concerns its ideal denotations; a
+    later engineering change can still improve search, interfaces or execution.
+14. **"Self-reference destroys verification."** That is too broad. The
+    verification limitation in Part VI does not prohibit proving particular
+    updates correct under explicit specifications and a trusted checker.
+15. **"You cannot tell representation failure from insufficient search."** A
+    total oracle for unrestricted semantic questions is unavailable. Bounded
+    certificates can distinguish some cases; the rest remain undecided.
+16. **"The library will worsen search."** A real risk. The later search-cost
+    gate compares the measured expense and savings before retention. Its
+    bounded acceptance is not a guarantee for every future task.
+17. **"The developmental advantage is curriculum overfitting."** The retained
+    experiments address selected held-out families. Experiment J still needs
+    an independent evaluator; internal holdouts do not settle that concern.
 18. **"Safety prevents the open-endedness you claim."** Partly true, and
     deliberate. The maximal *safe* property is the target.
 19. **"The proof assumes its conclusion."** Theorems 1–7 do not. Theorem 3's
@@ -1018,8 +1054,9 @@ whole mitigation, and it is not a proof.
 5. The claim in `model_validation` that the positional grammar was the floor of
    computing was corrected. It was false, and it was the sentence that hid the
    regress.
-6. Experiments F through J were moved from "designed" to "not run", and the
-   claim boundary was rewritten around what is measured.
+6. At that earlier audit, experiments F through J were relabelled “not run.”
+   F through I and the later proposer work were subsequently executed as
+   recorded above; J’s independent acceptance remains open.
 
 ---
 
@@ -1047,8 +1084,8 @@ whole mitigation, and it is not a proof.
    term that reads the state at a place.
 5. **Why are those priors sufficient?** Theorem 7 — the floor computes every
    partial computable function, by Kleene's characterisation with each
-   constructor exhibited as a term and checked. Theorem 6 — that is exactly the
-   condition under which no further authoring is ever required.
+   constructor exhibited as a term and checked. Proposition 6 concerns ideal
+   expressiveness; it does not establish that further authoring is unnecessary.
 6. **What counts as semantic novelty?** Six tiers, and the strongest reached is
    reported: syntactic, canonical, exact extensional on a finite carrier,
    bounded observational, description length, resource frontier. For the one
@@ -1074,10 +1111,11 @@ whole mitigation, and it is not a proof.
 14. **How does she modify the invention process itself?** The rule deciding
     what to try first is a term, replaced by the call that replaces a head.
     Experiment H, run.
-15. **Why does this not require another human meta-level?** Theorem 6. Above a
-    universal bedrock no task can require an edit and no edit could add
-    anything. The regress is a regress of primitives, and it ends where the
-    primitives run out.
+15. **Why does this not require another human meta-level?** Proposition 6 says
+    another primitive is not required to express a partial computable function
+    in an ideal universal evaluator. Search, resource limits, observations and
+    integration can still require human work. This does not prove independence
+    from all future engineering.
 16. **What is mathematically impossible even after this?** Growth of the
     computable functions, decidable general inadequacy, complete verification of
     arbitrary self-modification, monotone improvement across environments, and
@@ -1099,7 +1137,7 @@ whole mitigation, and it is not a proof.
     opening only where there is structure to carry, a piece carrying to a
     surface that looks unrelated and not to one that does not, and a written
     order improving ordinary invention on two streams of three and making it
-    worse on the third. Theorem 10 says no stronger claim is available.
+    worse on the third. That mixed result does not establish a general no-free-lunch theorem.
 
 ## Part XIII — The exact claim boundary
 
@@ -1116,10 +1154,11 @@ whole mitigation, and it is not a proof.
   characterisation with each constructor exhibited as a term and checked.
 - `E(floor) ⊋ E(positional)`, and by Theorem 2 that is the last strict
   expressiveness gain available.
-- A bedrock that is not universal requires unbounded human authoring; a
-  universal one requires none and admits none. Universality is necessary and
-  sufficient for the regress to end.
-- A gate inside the hypothesis space does not preserve its invariant.
+- A fixed non-universal bedrock can leave tasks outside its denotation set.
+  An ideal universal floor removes that denotational ceiling; it does not
+  eliminate engineering needs, finite-resource limits or the cost of discovery.
+- An admitted accept-everything replacement breaks an unprotected sole guard
+  in the demonstrated model; mutability alone does not establish this failure.
 
 ### Measured
 
@@ -1144,11 +1183,12 @@ whole mitigation, and it is not a proof.
 
 ### Not established
 
-- Meta-invention. The rule for what to try first is a term; the search that
-  would replace it is not. Nothing here demonstrates that she writes a better
-  rule, and the test suite asserts the rule in force at import is the authored
-  one so that a later change cannot pass unnoticed. Experiments H and I are not
-  run and no recursive self-improvement is claimed.
+- Sustained recursive capability growth on independently supplied tasks.
+  Experiments H and I **were run**, as their sections above record: one
+  selected order improved sealed rank, and its ordinary-invention comparison
+  improved two constructed streams and worsened one. The later proposer
+  experiment is recorded in Part XIV. These bounded meta-changes do not
+  establish general or reliably compounding self-improvement.
 - Post-freeze evaluation. Both the compounding and the transfer results are
   measured on streams and relations this work constructed, which is a weaker
   thing than either on a distribution nobody constructed. Experiment J is what
@@ -1159,14 +1199,16 @@ whole mitigation, and it is not a proof.
 
 ### Still authored, and open
 
-- `operator_invention` still has no runtime caller. It takes a term now, and
-  nothing in the live path reaches it.
+- A current source-bound live acceptance trace for `operator_invention`.
+  The earlier no-caller note describes the initial audit; later ladder and
+  developmental integration below must not be erased by that stale summary.
 - A rule needing three sources, and one whose second source sits at a place
   past the forty-eight the fold walks.
-- A third generation of meta-change, and any evidence that the gain compounds.
-- The dependency graph, quarantine and rebuild for descendants of a removed
-  head.
-- The search-cost probe that would stop the library eating the mind.
+- A sustained series of independently evaluated meta-changes. Constructed
+  compounding and proposer results below do not establish that broader claim.
+- Independent acceptance of the dependency/quarantine/rebuild and search-cost
+  controls. Their implementation is recorded in Part XIV; their presence is
+  not a general proof of safe long-run growth.
 
 ### What it would not prove even if all of it worked
 
@@ -1185,9 +1227,9 @@ root; consciousness; AGI.
 | Reflective | its own programs are represented and manipulated as objects | quotation, a self-interpreter as a term | **yes** |
 | Self-hosting | the evaluator of the language is written in the language | `THE_INTERPRETER` agreeing with the machine | **yes** |
 | Metaprogrammable | programs construct and transform programs | quotation plus head synthesis | **yes** |
-| Open-ended | no authored ceiling on the computable semantics reachable | Theorem 6 plus J | **qualified**: the ceiling is gone by theorem; J is not run |
+| Open-ended | no authored ceiling on the computable semantics reachable | Proposition 6 plus J | **qualified**: the ceiling is gone by theorem; J is not run |
 | Developmental | earlier learning changes later learning capacity | G | **shown on a constructed stream**, with a flat negative control and a lesion; not shown on a distribution nobody constructed |
-| Recursively self-improving | improves the machinery producing future improvements | H, I, sealed, with lesion | **no** |
+| Recursively self-improving | improves the machinery producing future improvements | H, I, sealed, with lesion | **bounded meta-changes measured** on constructed streams; sustained independent capability growth not established |
 | AGI | broad competence across independently designed domains | far more | **no** |
 
 AGI would additionally need reliable world models, credit assignment over long
@@ -1242,7 +1284,8 @@ failed at four training families and passed at ten, so the mechanism was never
 the problem; four families were not enough to fit a proposer that generalised.
 The four real defects behind the first failures are in Part XI.
 
-One item is still open, and it cannot be closed from inside:
+Independent evaluation remains open and cannot be supplied by this project
+alone. The earlier ablation list also needs consolidated coverage:
 
 17. Freeze, and commission the sealed family from someone else. J is the only
     experiment here that needs an independent party.
@@ -1257,15 +1300,16 @@ level `k+1` is a symptom; the disease is that the bedrock is small enough for
 something computable to sit outside it, and no invention at any level ever
 reaches outside a bedrock.
 
-So the tower has exactly one place it can end, and Theorem 5 and Theorem 6 say
-where. Below universality, authoring is required forever. At universality,
-authoring is required never and is also impossible. Aura's positional algebra
-was below it — provably, with two independent witnesses — and the floor is at
-it, with Kleene's certificate.
+Propositions 5 and 6 describe the denotational limit. A fixed non-universal language misses some
+computable functions; one change can replace it with a universal evaluator.
+The ideal floor can express partial computable functions under the stated
+construction, but finding and executing useful terms remains resource-bound.
+Universality does not make further human engineering unnecessary or impossible.
 
 What is bought by crossing: `E` stops being the interesting quantity, and reach
-becomes it. What is not bought: tractability. Shortest-first over a universal
-language reaches a few dozen symbols, and no budget changes that. What moves
+becomes it. What is not bought: tractability. The retained shortest-first search reached only short terms under its
+measured budget. A larger budget can move that finite horizon, often at
+exponential cost under the chosen enumeration. What moves
 the horizon is the library and a schema that turns a whole rule into a step,
 and both are measurements rather than arguments.
 

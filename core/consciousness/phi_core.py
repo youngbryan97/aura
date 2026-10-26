@@ -491,7 +491,7 @@ class PhiCore:
     states is intractable in real-time.
 
     The original 8-node affective subset is kept for exact-computation
-    validation (127 bipartitions, 256 states — runs in ~10-50ms).
+    validation (127 bipartitions, 256 states; latency requires a run-specific measurement).
 
     USAGE:
         phi_core = PhiCore()

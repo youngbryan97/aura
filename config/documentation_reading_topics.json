@@ -315,7 +315,8 @@
       ],
       "read_more": [
         "docs/RECURSIVE_LATENT_CORTEX.md",
-        "docs/REASONING_ENGINES.md"
+        "docs/REASONING_ENGINES.md",
+        "docs/MATHEMATICAL_CLAIM_LIMITS.md"
       ],
       "related": "reasoning"
     },
@@ -860,7 +861,7 @@
           "name": "Closure",
           "meaning": "Whether the proposed boundary omits an important internal driver after declared input is accounted for",
           "practical": "Can remain unresolved rather than pass by default",
-          "example": "No margin is currently in force; the earlier least-domain rule was withdrawn"
+          "example": "K* now uses a declared numeric margin about 0.0196 plus an interventional closure test; the earlier least-domain rule stays withdrawn"
         },
         {
           "name": "Parity",
@@ -1391,6 +1392,102 @@
       "practical": "It helps compare changes but cannot remove shared-history contamination.",
       "example": "A scalar two baseline standard deviations above its mean becomes 2.",
       "reference": "FORMULAS.md#vector-length-and-whitening"
+    },
+    {
+      "name": "Argmax",
+      "meaning": "The choice whose score is greatest among the candidates considered.",
+      "practical": "Scores can change without changing the winner.",
+      "example": "Scores (10, 1) and (9, 2) choose the first action both times.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "Contraction",
+      "meaning": "An update that shrinks distances by a factor strictly below one on a declared domain.",
+      "practical": "A near-one cosine between two states does not establish contraction.",
+      "example": "F(x)=2x preserves direction but doubles distances.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "Denotation",
+      "meaning": "The mathematical function or meaning assigned to a program under specified semantics.",
+      "practical": "A shorter name can preserve meaning while changing search cost.",
+      "example": "Naming a long calculation does not add a new computable function.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "Extensional property",
+      "meaning": "A property of what a program computes, rather than how its code is written.",
+      "practical": "Rice’s theorem needs this and other assumptions; it does not prohibit every program proof.",
+      "example": "Two differently spelled programs can compute the same function.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "Non-inferiority",
+      "meaning": "A comparison asking whether a treatment is no worse than a baseline by more than a predeclared acceptable margin.",
+      "practical": "Overlapping confidence intervals do not establish it.",
+      "example": "A declared loss margin needs an appropriate comparison, not a visual overlap.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "Universal computation",
+      "meaning": "An ideal program system able to represent every partial computable function given sufficient resources.",
+      "practical": "Representability does not supply the correct program or a practical runtime budget.",
+      "example": "A universal language can express a search that the finite machine cannot finish.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "Trust boundary",
+      "meaning": "The part of a system whose assumptions must remain valid for a security or verification claim.",
+      "practical": "Changing an admission rule needs protection of the property it was meant to preserve.",
+      "example": "A protected checker may reject a proposed guard that would admit every action.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "Epsilon lower bound",
+      "meaning": "A positive floor on success probability for each eligible repeated trial in a stated argument.",
+      "practical": "Some positive chance at each time is weaker than a common positive floor.",
+      "example": "With a common floor e, missing after n trials has bound (1-e)^n.",
+      "context": "Mathematical claim limits",
+      "reference": "MATHEMATICAL_CLAIM_LIMITS.md"
+    },
+    {
+      "name": "K*",
+      "meaning": "The proposed core K plus declared held-state dependencies its transition reads.",
+      "practical": "It changes which readings count as inside the candidate boundary.",
+      "example": "An identified history buffer is included alongside the original ten-domain vector.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Held state",
+      "meaning": "Declared attributes counted on the core side of the K* closure test.",
+      "practical": "They must not also be treated as outside predictors.",
+      "example": "Readings under held. move with the domain they serve during a cut.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Observational closure",
+      "meaning": "The outside predictor adds no more than the permitted contribution under the specified estimator and controls.",
+      "practical": "A bounded predictive result needs a margin, uncertainty and measurement validity.",
+      "example": "The upper bound must clear the named margin; a failed estimator fold cannot support closure.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
+    },
+    {
+      "name": "Interventional closure",
+      "meaning": "The specified outside-state swaps leave the measured core and held state unchanged at the tested anchors and horizon.",
+      "practical": "It checks actual effects beyond the observational prediction comparison.",
+      "example": "The current rule checks bit-for-bit equality within two turns when untouched twins agree.",
+      "context": "Current ISC method",
+      "reference": "ISC_VARIABLES.md"
     }
   ]
 }

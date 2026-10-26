@@ -15,7 +15,8 @@
 
 - macOS on Apple Silicon (M-series chip).
 - Python 3.12, matching `.python-version` and the production doctor check.
-- 32 GB RAM minimum; 64 GB recommended.
+- The resident-model target is 64 GB of unified memory. Smaller profiles
+  require their own model and workload validation.
 
 The target is an Apple Silicon Mac with 64 GB of unified memory. The
 Cortex, Brainstem and Reflex are model roles; their names do not authorise

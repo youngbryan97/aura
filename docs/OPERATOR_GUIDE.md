@@ -18,15 +18,15 @@ already running Aura. Read [CLAUDE.md](../CLAUDE.md), set a separate
 
 How to run Aura on your own hardware, configure system settings, and troubleshoot operational issues.
 
-*Last reviewed against the tree: 2026-08-01.*
+*Operational wording reconciled 25 October 2026; individual live claims still need their own receipts.*
 
 ## Requirements
 - macOS on Apple Silicon (M-series chips; development is tracked on M5-class hardware).
-- 64 GB or more of unified memory (RAM). This is the required minimum to run the 27-billion parameter language model (27B Cortex) alongside continuous background processing tasks — not an optional buffer.
+- 64 GB or more of unified memory (RAM). This is the reference resident-model target, not a guarantee that every model/campaign combination fits. Smaller profiles need separate validation.
 - 50 GB or more of free disk space for AI models and operational data.
 - Python 3.12.
 
-Before starting, review the incident response documentation. [KNOWN_FAILURE_MODES.md](../KNOWN_FAILURE_MODES.md) catalogs 19 specific failure modes for this runtime, each linked to a step-by-step troubleshooting guide in [runbooks/](runbooks/). Five of these (F15 through F19) occurred in actual production testing, and their diagnostic forensic logs are preserved in the repository. Failure mode F16 is **not yet fully resolved**, and its runbook explicitly documents its current status and workarounds.
+Before starting, review the incident response documentation. [KNOWN_FAILURE_MODES.md](../KNOWN_FAILURE_MODES.md) catalogs 21 numbered failure modes for this runtime, each linked to a step-by-step troubleshooting guide in [runbooks/](runbooks/). The later entries (F15 through F21) record observed incidents, and their diagnostic forensic logs are preserved in the repository. Failure mode F16 is **not yet fully resolved**, and its runbook explicitly documents its current status and workarounds.
 
 ## Install + boot
 ```bash
@@ -39,7 +39,9 @@ make provenance   # writes artifacts/provenance/{sbom,provenance}.json
 make run          # foreground launch
 ```
 
-`make quality` is the primary verification suite. It runs the following automated checks in order: `source-hygiene`, `enterprise-gate`, `enterprise-collect`, `production-gate`, `frontend-contract`, `cognitive-gate-audit`, `skill-catalog-audit`, `model-load-audit`, `resource-observation-audit`, `integration-liveness`, `architecture-map`, `compile`, `lint`, `governance-lint`, `security`, `typecheck`, and `smoke`.
+`make quality` is the broad verification aggregate. Its exact dependencies and
+ordering are owned by the Makefile; the following list is an orientation, not
+a version-independent exhaustive command contract: `source-hygiene`, `enterprise-gate`, `enterprise-collect`, `production-gate`, `frontend-contract`, `cognitive-gate-audit`, `skill-catalog-audit`, `model-load-audit`, `resource-observation-audit`, `integration-liveness`, `architecture-map`, `compile`, `lint`, `governance-lint`, `security`, `typecheck`, and `smoke`.
 
 Two specific checks are especially important:
 
@@ -89,7 +91,10 @@ The baseline standard for production deployment is defined in [`docs/PRODUCTION_
 Data retention and deletion policies are defined in [`docs/DATA_RETENTION_DELETION_POLICY.md`](DATA_RETENTION_DELETION_POLICY.md). Continuous experience records adhere to distinct private and standard retention windows, and sensitive private data is redacted by default in diagnostic exports.
 
 ## Service-level objectives
-Operational performance targets (Service-Level Objectives, or SLOs) are documented in [`docs/SLO.md`](SLO.md). Metrics are gathered using `python -m slo.measure` and automatically validated in continuous integration (`.github/workflows/slo-gate.yml`). Any performance degradation exceeding defined tolerances or breaching a hard limit automatically blocks deployment.
+Operational performance targets (Service-Level Objectives, or SLOs) are documented in [`docs/SLO.md`](SLO.md). Metrics are gathered using `python -m slo.measure` and automatically validated in continuous integration (`.github/workflows/slo-gate.yml`). The configured workflow reports failures when a measurement crosses its
+threshold. Whether that failure blocks a deployment also depends on the
+actual required-check and release configuration; a workflow file alone does
+not prove branch protection is enabled.
 
 ## Runbooks
 Every known incident scenario has a dedicated runbook under [`docs/runbooks/`](runbooks/). Each guide maps observable system symptoms to specific diagnostic fields from `aura doctor --bundle`, followed by concrete steps for diagnosis, temporary mitigation, system rollback, and post-fix verification.
@@ -97,28 +102,44 @@ Every known incident scenario has a dedicated runbook under [`docs/runbooks/`](r
 ## Self-improving research core
 Aura includes an experimental neural architecture (combining attention mechanisms, state-space models [SSM], and mixture-of-experts [MoE] layers) alongside an autonomous research engine. This engine runs iterative cycles to evaluate capabilities, explore algorithmic improvements, verify logic, and generate stress tests, promoting new changes only when they meet statistical quality thresholds.
 
-The research engine registers as `research_core` in the application `ServiceContainer` and runs in the background within the main process. You can inspect its status using `aura doctor --bundle`; the resulting archive includes `research_core.json`, which details the total iteration count, timestamp of the last cycle, model parameter count, storage vault size, and summary reports from the last five research cycles.
+The research engine has a `research_core` registration path in the application
+`ServiceContainer`; current activation must be checked on the installed process. A diagnostics bundle includes `research_core.json` when its collector can
+observe the relevant service. A separate CLI container is not automatically
+the resident app’s container. An available report can include which details the total iteration count, timestamp of the last cycle, model parameter count, storage vault size, and summary reports from the last five research cycles.
 
 ## Tamper-evident audit trail
 Every action receipt produced by the runtime is appended to a cryptographically linked log (a hash chain where each entry includes the hash of the preceding one) at `~/.aura/receipts/_chain.jsonl`. To verify the integrity of the audit log after an incident:
 `python -c "from core.runtime.receipts import get_receipt_store; print(get_receipt_store().verify_chain())"`. The diagnostics bundle includes an export of this log at `audit_chain/chain.jsonl`, accompanied by a `MANIFEST.txt` file listing the latest hash and total chain length.
 
 ## Self-modification quarantine
-When Aura proposes an automated code change (mutation), the safety evaluator in `core/self_modification/mutation_safety.py` tests it in an isolated subprocess with strict resource limits (CPU and memory limits). The evaluation produces one of seven outcomes: `passed`, `compile_fail`, `import_fail`, `runtime_exception`, `assertion_fail`, `timeout`, or `oom` (out of memory).
+The evaluator in `core/self_modification/mutation_safety.py` executes a
+candidate in a subprocess with a wall-time bound and attempts address-space
+and CPU rlimits on supported fork platforms. `_set_rlimits` can report those
+limits unavailable, so their existence in source is not an enforced-memory
+quota guarantee on every host. A subprocess alone is not an OS sandbox. The evaluation produces one of seven outcomes: `passed`, `compile_fail`, `import_fail`, `runtime_exception`, `assertion_fail`, `timeout`, or `oom` (out of memory).
 
-If a proposed change results in anything other than `passed`, it is quarantined in `~/.aura/data/mutation_quarantine/<id>/`. This folder preserves the generated code, optional test files, standard output, error messages, and a structured `result.json` file. Because execution is sandboxed in a separate process, broken code cannot crash the parent application process.
+If a proposed change results in anything other than `passed`, it is quarantined in `~/.aura/data/mutation_quarantine/<id>/`. This folder preserves the generated code, optional test files, standard output, error messages, and a structured `result.json` file. A separate process contains some interpreter failures but still shares host
+resources and can have external effects unless another boundary prevents
+them. It does not guarantee that arbitrary candidate code cannot exhaust or
+disrupt the host. An `oom` label also needs host evidence to distinguish a
+resource kill from another SIGKILL cause.
 
 ## Reading logs
-- Live log output: `tail -f ~/.aura/data/logs/aura.log`
+- Live log root: `~/.aura/logs/` by default; verify `AURA_LOG_DIR` in the
+  owning process. The current desktop stdout log is `desktop-launch.log`.
 - Action receipts: `~/.aura/data/agency_receipts/agency_receipts.jsonl`
 - Decision and intent receipts: `~/.aura/data/will_receipts/receipts.jsonl`
 - Dynamic code generation records (stem cells): `~/.aura/data/stem_cells/`
 - Database migration ledger: `~/.aura/data/migration/ledger.jsonl`
 
 ## Service lifecycle
-- macOS background service (launchd): `launchctl load ~/Library/LaunchAgents/aura.plist`
-- Linux user service (systemd): `systemctl --user start aura`
-- Stop: Sending a standard termination signal (`SIGTERM`) triggers a clean, graceful shutdown — pending receipts are written to disk and active authorization tokens are revoked before exiting.
+- Use the installed application’s supported lifecycle and launcher identity.
+  A sample `launchd` or `systemd` service name does not establish that such a
+  service is installed; inspect the real installation before controlling it.
+- SIGTERM requests graceful shutdown. Verify drain, persistence, exit and
+  process identity; a signal alone does not guarantee they all completed.
+- Do not restart a resident or campaign-owned model from a documentation
+  procedure without current authorisation.
 
 ## Model configuration
 - `AURA_MODEL` — Name of the primary conversational model (default: `Aura-Cortex`, based on a quantized 27-billion parameter Qwen model).
@@ -127,7 +148,7 @@ If a proposed change results in anything other than `passed`, it is quarantined 
 - There is no cloud fallback and no setting for one. All model routing stays entirely on your local machine. In code, `allow_cloud_fallback` is hard-coded to `False` in `core/brain/request_contract.py` regardless of any parameter passed by callers — see [`docs/runbooks/local-inference-boundary.md`](runbooks/local-inference-boundary.md).
 - Failure policy: Guidelines for handling model loading or inference errors are documented in [`docs/MODEL_PROVIDER_FAILURE_POLICY.md`](MODEL_PROVIDER_FAILURE_POLICY.md).
 
-### Fully local frontier-reasoning solver lane
+### Optional qualified local reasoning-solver lane
 
 Aura can fetch an optional local reasoning solver without using an external inference server. This does not replace the Aura Cortex conversational model; instead, it provides a dedicated secondary solver model for complex mathematical, logic, and tool-validation queries.
 
@@ -166,7 +187,9 @@ Setting these variables does not admit the model on its own. A second deep model
 ## Security settings
 - Safety rules (Conscience): Core behavioral safety rules are protected by a cryptographic hash at `~/.aura/data/conscience/rules.sha256`. If the rule file is modified or tampered with, Aura refuses all actions until the file is restored.
 - External permissions (World bridge): Granular permissions for external tools and communication channels live at `~/.aura/data/world/permissions.json`.
-- Capability tokens: Security tokens granting access to system capabilities are bound to the specific process ID (PID) and operating thread. Restarting the application revokes all active tokens.
+- Capability tokens: Security tokens granting access to system capabilities are bound to the specific process ID (PID) and operating thread. Internal leases and paired-device credentials have different lifetimes.
+  A restart is not general revocation of all API/device credentials; use the
+  explicit device and scope revocation route where appropriate.
 
 ## Governance lint
 Running `make governance-lint` fails the build if any code attempts to bypass safety checks or makes high-impact system calls that violate the baseline rules enforced by `tools/lint_governance.py`.

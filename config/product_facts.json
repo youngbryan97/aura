@@ -245,16 +245,16 @@
       ]
     },
     "closure.closure_margin": {
-      "value": "None",
+      "value": "0.02 / 1.02",
       "owner": "core/subject/closure.py CLOSURE_MARGIN",
       "restated_in": [
         {
           "file": "core/subject/closure.py",
-          "pattern": "^CLOSURE_MARGIN: (?:float|str) \\| None = (\\w+)\\s*(?:#.*)?$"
+          "pattern": "^CLOSURE_MARGIN: float \\| None = (0\\.02 / 1\\.02)\\s*$"
         },
         {
           "file": "docs/ISC_STATUS.md",
-          "pattern": "Current code: `CLOSURE_MARGIN` is `(\\w+)`"
+          "pattern": "Current code: `CLOSURE_MARGIN` is `(0\\.02 / 1\\.02)`"
         }
       ]
     },
@@ -353,6 +353,32 @@
         {
           "file": "CLAIMS_NOT_SUPPORTED.md",
           "pattern": "once every changed row was read: (\\d+) gained, 0 lost"
+        }
+      ]
+    },
+    "repair.safe_autonomous_default": {
+      "value": "True",
+      "owner": "core/self_modification/promotion_policy.py safe_autonomous_repair_decision",
+      "restated_in": [
+        {
+          "file": "core/self_modification/promotion_policy.py",
+          "pattern": "env_flag\\(SAFE_AUTONOMOUS_REPAIR_ENV, (True)\\)"
+        },
+        {
+          "file": "docs/RSI_ARCHITECTURE.md",
+          "pattern": "^\\| `AURA_ENABLE_SAFE_AUTO_REPAIR` \\| `(True)` \\|"
+        }
+      ],
+      "contradicted_by": [
+        {
+          "file": "docs/RSI_ARCHITECTURE.md",
+          "pattern": "Autonomous source promotion is DISABLED by default",
+          "reason": "safe low-risk auto-repair has a separate default-on policy"
+        },
+        {
+          "file": "security/threat_model.md",
+          "pattern": "Self-modification disabled in production mode",
+          "reason": "production permits tier-gated mutation"
         }
       ]
     }

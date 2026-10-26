@@ -230,19 +230,24 @@ chain rather than forking it.
 
 ### Whole-System Φ
 
-Continuous Gaussian dynamics over all live channels. Exact MIP by Queyranne's
-algorithm (O(n³), verified against brute force). Grain discovery via causal
-emergence. Surrogate nulls (coupling-destroying).
+**Correction to the earlier method summary:** the Gaussian stochastic-
+interaction objective is not generally submodular, so Queyranne’s theorem
+does not certify its minimum. Current code certifies an exhaustive search
+for at most 12 elements and labels larger candidate searches uncertified.
+The grain search and surrogate null have their own limits; see
+[the estimator guide](WHOLE_SYSTEM_PHI.md).
 
-**Checked-in measurement**: 30.1 min, 2 Hz, 3,960 samples, 8 channels.
+**Retained July organ-host measurement**, not a fresh measurement of October
+source: 30.1 min, 2 Hz, 3,960 samples, 8 channels.
 Φ̂ = 0.0175 nats, z = 26.3 against null. Integration established.
 PCI 0.087 vs sham 0.0.
 
 ### Inner Light Test
 
-Four neuroscience markers (differentiation, integrated complexity, criticality,
-ignition) scored against 6 negative controls. Only the intact system is 4/4;
-strongest surrogates reach 3/4. The claim is a **conjunction**, not a score.
+The inner-light demo applies four project-adapted summaries to a synthetic
+reference and six controls. In that demo the intact reference is 4/4 and the
+strongest controls reach 3/4. This is not a live Aura measurement or a
+clinically validated consciousness classifier. [Methods and limits](INNER_LIGHT_TEST.md).
 
 > [!IMPORTANT]
 > No number this subsystem emits is presented as a consciousness measurement.

@@ -27,11 +27,19 @@ MANUAL = {
     "docs/ISC_VARIABLES.md", "docs/ISC_READERS_GUIDE.md", "docs/DEMOS_AND_RELATED_WORK.md",
     "docs/SCIENCE_AND_SOURCES.md",
     "docs/FORMULAS.md", "docs/DOCUMENTATION_CONTENT_AUDIT.md",
+    "docs/MATHEMATICAL_CLAIM_LIMITS.md",
     "AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md",
 }
 GENERATED = {
     "docs/ARCHITECTURE_MAP.md", "docs/FMEA.md", "docs/RUNTIME_CONTRACT.md",
     "docs/AURA_PROGRESS.md", "docs/ISC_COMPLETION_TODO.md", "proof_kernel/report.md", *OUTPUTS,
+    "docs/AURA_REMAINING_DOCKET.md", "SERVICE_OWNERSHIP.md",
+    "docs/AURA_INHERITED_RECONCILIATION.md",
+    "artifacts/architecture/latest.md",
+}
+LIVING_STATUS = {
+    "docs/AURA_1_0_MASTER_TODO.md", "docs/AURA_EXECUTION_TRACKER.md",
+    "docs/RLC_SPARK_EXECUTION_LEDGER.md", "docs/THE_OPEN_LIST.md",
 }
 RECORDS = {
     "CHANGELOG.md", "docs/SUBJECT_CORE_TARGET.md", "docs/SUBJECT_CORE_WORK_LOG.md",
@@ -39,6 +47,10 @@ RECORDS = {
     "docs/CONNECTOME_PREDICTION.md", "demos/substrate_voice_demo.md",
     "docs/ORDER_DEPENDENCE_REGISTER.md",
     "docs/SETTINGS_WIRING_AUDIT.md",
+    "docs/GENERALITY_ANALYSIS.md", "docs/METALANGUAGE_MY_OWN_ATTEMPT.md",
+    "docs/SYNERGY_KNOWN_ANSWERS.md", "docs/DNU_BASELINE_FAIRNESS_AUDIT.md",
+    "docs/AUDIT_REPAIR_PLAN.md", "docs/RLC_27B_MIGRATION.md",
+    "docs/FLAGSHIP_PLATFORM_POLISH_RESEARCH.md",
     "docs/AURA_EXECUTION_PLAN.md", "docs/AURA_PROMPT_COVERAGE_AUDIT.md",
     "docs/WHY_C_WILL_NOT_DECIDE.md", "docs/WHY_IRREDUCIBILITY_FAILS.md",
     "docs/WHAT_J_STAR_NEEDS.md", "docs/THE_SHAM_FLOOR_IS_A_LEAKY_FORK.md",
@@ -112,8 +124,11 @@ def topic_for(path: str) -> str:
 
 
 def category(path: str, text: str = "") -> str:
+    text = BLOCK.sub("", text)
     if path in GENERATED:
         return "Generated reference"
+    if path in LIVING_STATUS:
+        return "Living status or append-only ledger"
     if (path in RECORDS or path.startswith(RECORD_PREFIXES) or DATED.search(path)
             or any(word in path.upper() for word in ("PREREGISTRATION", "TRACKER", "LEDGER", "_TODO", "HANDOFF", "_RESULTS", "_COUNCIL_"))
             or Path(path).name.upper() in {"TODO.MD", "RESULTS.MD"}
@@ -253,9 +268,15 @@ def document_map(root: Path, paths: list[str], topics: list[dict], date: str) ->
            "This map includes the source repository's Markdown pages and the new reading guides. It is an inventory, not a claim that every old document is a current capability statement. Historical records and frozen protocols retain their original wording; generated pages and standards retain their own sources.", "",
            f"**{len(paths)} Markdown pages indexed.** The links below are relative to their actual repository paths, so they continue to work in a local checkout and on GitHub.", "",
            "Definitions, examples and reading notes come from [the reviewed topic catalogue](../config/documentation_reading_topics.json). Regenerate navigation with `python tools/render_reader_navigation.py`; verify it with `--check`.", ""]
-    for group in ("Guide or reference", "Standard, policy or contributor reference", "Generated reference", "Historical or frozen record"):
+    for group in ("Guide or reference", "Living status or append-only ledger", "Standard, policy or contributor reference", "Generated reference", "Historical or frozen record"):
         rows = groups.get(group, [])
-        out += [f"## {group}", "", f"{len(rows)} pages. A historical entry is read against its original date and source, rather than as a new measurement.", "",
+        out += [f"## {group}", "", f"{len(rows)} pages. " + (
+            "Generated inventories describe the inputs and revision their producer recorded; a checked-in snapshot is not a live service report."
+            if group == "Generated reference" else
+            "Current status and append-only entries share a file. Read the latest scoped item without erasing earlier history."
+            if group == "Living status or append-only ledger" else
+            "Read a historical entry against its original date and source, including later corrections; its presence does not certify its truth."
+        ), "",
                 "| Page | Plain-language context |", "|---|---|"]
         for path, title, key in rows:
             topic = by_id[key]

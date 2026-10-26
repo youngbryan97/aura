@@ -19,11 +19,13 @@ unhealthy typed conditions (K6), degradation count.
 
 ## Why it survives
 
-Appends are a single 512-byte memcpy into a `MAP_SHARED` mapping. The kernel
-owns the pages the instant they are written — no fsync, no syscalls, nothing
-on the event loop. SIGKILL, OOM-kill, and segfaults cannot erase them; only
-whole-machine loss can. `tests/test_flight_recorder.py::test_frames_survive_sigkill`
-proves this on a real killed subprocess, not a simulation.
+The append path writes fixed-size 512-byte frames to a shared memory-mapped
+file. This avoids a per-frame fsync on the event loop. The retained pages
+can survive an abrupt process exit;
+`tests/test_flight_recorder.py::test_frames_survive_sigkill` checks one real
+SIGKILL recovery case. That test does not establish immunity to every OOM
+scenario, filesystem failure, corruption, host crash or power loss. A
+memory-mapped write is not itself a durable-storage guarantee.
 
 ## The death report
 
@@ -55,7 +57,8 @@ Graceful shutdown stamps a clean marker in the ring header
 
 ## Honesty guarantees
 
-- Per-slot CRCs: a torn write is skipped, never misread.
+- Per-slot CRCs detect covered corruption/torn-write cases; a CRC is not a
+  cryptographic integrity proof or a guarantee against every collision.
 - An unreadable previous ring is reported as unreadable, not invented.
 - A clean shutdown produces no death note at all.
 - A death before the first frame is reported as "died during boot".

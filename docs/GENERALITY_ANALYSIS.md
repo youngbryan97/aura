@@ -1,16 +1,5 @@
 # What would have to be true, who would say so, and what is already known
 
-<!-- reader-navigation:start -->
-> **In plain English:** The reasoning programmes investigate whether extra computation or learned internal representations improve answers on tasks not used to choose the method.
->
-> **Why it matters:** A slower or more elaborate process is useful only if it produces a measurable benefit that survives relevant checks.
->
-> **In everyday use:** On a difficult constraint problem, a better internal method should increase correct answers or expose uncertainty rather than only generate longer prose.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#reasoning) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#reasoning) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
-<!-- reader-navigation:end -->
-
 Written 2026-08-28, after building the induction and transfer work and being
 told — correctly — that the decomposition and the research had been skipped.
 

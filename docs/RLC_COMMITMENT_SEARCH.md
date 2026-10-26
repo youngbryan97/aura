@@ -23,23 +23,22 @@ retrospect all of them were predictable from one measurement:
 cos(pass1, pass2) = 0.9994
 ```
 
-Iterating a fixed operator on its own output is a contraction. It reaches
-its fixed point in one step, so depth 8 computes what depth 1 computed.
-More depth on a contraction is a longer identity function. The frozen-loop
-refutation, vanilla beating every latent arm, and "recurrence itself is the
-damage" are all the same finding seen from different angles.
+The retained cosine value shows nearly aligned vectors in that measurement.
+It does not prove the update is a contraction. For example, `F(x)=2x` preserves
+cosine direction while expanding distances. A contraction claim needs a bound
+`||F(x)-F(y)|| <= q ||x-y||` with `q < 1` on the declared domain; a near-one
+cosine between successive states does not supply that bound.
 
-The question that survives is why chain-of-thought works, since it
-demonstrably does. The usual answer — "more computation" — cannot be right,
-because the latent loop is also more computation and buys nothing.
+The frozen-loop results support a no-gain conclusion under their tested
+conditions. They do not rule out every recurrent architecture or explain all
+chain-of-thought gains. [Wei et al.](https://arxiv.org/abs/2201.11903) measured
+intermediate reasoning steps on their stated tasks; those gains do not isolate
+“irreversible commitment” as the sole cause.
 
-**A chain of thought is a sequence of irreversible commitments.** Emitting a
-token collapses a distribution; every later pass conditions on a decision
-that cannot be unmade, and the hypothesis space monotonically shrinks. That
-is an information-theoretic act, not an arithmetic one. Latent recurrence
-bought computation *without commitment* — it carries a superposition forward
-and smooths it, and averaging a superposition is exactly the contraction we
-measured.
+This programme tests explicit constraints that narrow a declared candidate
+set. The useful question is whether that mechanism improves answers at the
+matched budget. The retained rejection-sampling gain and failed prompt-
+conditioned exclusion comparison above keep their own task and method scope.
 
 ## The commitment ratchet
 

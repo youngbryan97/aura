@@ -82,10 +82,10 @@ the recognised text, the recogniser's uncertainty, and — the most useful term
 for follow-ups — whether a conversation was already open.
 
 The decision is **a ladder, not a score**. A score needs weights, and weights
-nobody measured are opinions with decimal points; worse, a score is
-unfalsifiable in the field, where the only report you get is "it answered when
-it shouldn't have". Each rung is a rule someone can read and argue with, and
-every verdict carries the reasons that produced it.
+nobody measured are opinions with decimal points; unmeasured weights are not a validated decision rule. A learned score can
+be tested against labeled device-directed speech; this implementation uses
+readable rules whose verdicts carry their reasons. Those rules still need
+false-accept and false-reject measurements in realistic room conditions.
 
 ```
 0  explicit    the user opened the floor (focused mode, push-to-talk)

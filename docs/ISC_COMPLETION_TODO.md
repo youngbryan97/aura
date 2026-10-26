@@ -1,5 +1,23 @@
 # The ISC completion list
 
+<!-- completion-reading-note:start -->
+> **How to read this generated snapshot:** A checkbox says its configured
+> checks passed when this snapshot was evaluated. A file, regex or unit check
+> does not by itself establish the capability described by the original item.
+> Notes and checks can need revision even while a checkbox remains green.
+>
+> The newest report below comes from this generator's configured artifact
+> directory; it is not a search of every later local ISC campaign. Use
+> [current ISC status](ISC_STATUS.md) for the latest reviewed measurements,
+> isolation repairs and withdrawn closure rule. The stored counts below were
+> not recomputed by the 25 October documentation review.
+>
+> Original checklist wording is retained. In particular, crossing spectra do
+> not establish a symmetry class, and finite-evidence limits require a stated
+> hypothesis class. Read [the corrected bridge arguments](BRIDGE_PROOFS.md).
+> A later correction can limit an earlier item without erasing its record.
+<!-- completion-reading-note:end -->
+
 Every checkbox in `Aura_ISC_Completion_Master_List.pdf`, one row each, with
 its status read off this repository rather than remembered. An item counts as
 done only when the checks recorded beside it in

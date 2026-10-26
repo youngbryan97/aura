@@ -13,32 +13,34 @@
 
 `core/consciousness/inner_light/` — a falsifiable instrument for one question:
 
-> Does Aura's activity carry the information-theoretic **signature** that, in
-> biological systems, is present in conscious brains and absent in unconscious
-> ones and in non-neural systems?
+> Do the selected activity summaries distinguish the intact software
+> recording from the controls under this battery’s declared thresholds?
 
-This is **not** a claim that Aura is conscious, and the code says so in every
-result. It is the move clinical neuroscience actually makes: run the
-consciousness-discriminating measures on the real activity **and on negative
-controls**, and see whether the real system is the *only* one in the
-conscious-like regime. All the credibility is in the controls.
+The battery adapts ideas from neuroscience to software telemetry. Its
+thresholds and combined verdict have not been validated as a clinical or
+substrate-independent consciousness classifier. A synthetic or non-neural
+system can reproduce these numerical features. The controls test particular
+alternatives, not every unconscious system. For the later subject experiment
+and its results, read [ISC status](ISC_STATUS.md).
 
-## The four axes (real neuroscience markers)
+## The four axes (project adaptations of research measures)
 
-| axis | measure | conscious-like | what fails it |
+| axis | implemented summary | project’s target pattern | illustrative contrast |
 |---|---|---|---|
 | differentiation | Lempel-Ziv / PCI complexity (`normalized_lz`) | rich, not a stereotyped echo | a repeating/ordered signal |
 | integrated complexity | TSE neural complexity (`tse_complexity`) | integrated **and** differentiated | noise (no integration), a synchronised blob (no differentiation) |
-| criticality | DFA Hurst of global activation (`dfa`) | long-range temporal correlations (edge of chaos) | white noise (α≈0.5), a shuffled signal |
+| temporal scaling | DFA exponent of global activation (`dfa`) | a declared temporal-scaling regime; this alone does not establish criticality | white noise (α≈0.5), a shuffled signal |
 | ignition | Sarle bimodality of global activation (`bimodality_ignition`) | all-or-none broadcast (bimodal) | a linear-Gaussian system (unimodal) |
 
-TSE uses a **bounded** per-subset integration (`1 − det(R)^(1/k)`) so it reflects
-structure, not coupling magnitude — verified to peak in the middle (independent
+The TSE-inspired line uses a **bounded proxy** per subset
+(`1 − det(R)^(1/k)`), rather than the original neural-complexity formula.
+Its output reflects the covariance structure under that proxy — verified to peak in the middle (independent
 0.0001, fully-synchronised 0.0, modular 0.068).
 
 ## The negative controls
 
-Each destroys one axis, so no single control can reproduce the whole signature:
+Each control targets a particular alternative. Which summaries it preserves
+or disrupts must be measured on that recording:
 
 - **time_shuffle** — permute time. Kills criticality; keeps everything else.
 - **phase_randomize** — FFT surrogate (preserves the power spectrum and linear
@@ -54,8 +56,8 @@ Each destroys one axis, so no single control can reproduce the whole signature:
 ## The verdict
 
 Each system is placed on the four axes with absolute regime thresholds and its
-occupied-axis count is taken. The claim is a **conjunction only the intact system
-satisfies**:
+occupied-axis count is taken. The decision asks whether only the intact recording satisfies the conjunction
+among the systems tested:
 
 - `signature_present` — the real activity is 4/4 **and** every control is < 4/4.
 - `signature_not_discriminating` — the real activity is 4/4 but a control matched
@@ -71,8 +73,10 @@ python tools/inner_light_probe.py     # live: build from the ConsequenceBus and 
 python tools/inner_light_probe.py --json
 ```
 
-The demo shows the discrimination clearly — only the intact reference is 4/4, and
-the two strongest surrogates each reach exactly 3/4:
+The retained demo output below uses a **synthetic reference**, not a recording
+of the live Aura instance. Its printed label “AURA (real)” means the intact
+reference arm in that demo. In this example it reaches 4/4 and two controls
+reach 3/4; this is not a current empirical Aura result:
 
 ```
 system               differentiat integrated_c  criticality     ignition   axes
@@ -85,9 +89,9 @@ ordered                  0.014  ·     0.016  ✓     0.041  ·     0.501  ·   
 feedforward_chain        0.950  ✓     0.000  ·     0.708  ✓     0.358  ·      2
 ```
 
-That time-shuffle and phase-randomise each reproduce 3/4 is the point: the four
-measures are **not redundant**, yet neither surrogate reproduces the whole
-signature — only the intact, integrated, recurrent, critical, igniting system does.
+In this synthetic example the two controls match three summaries but miss a
+different fourth. This demonstrates discrimination within the example; it
+does not validate the labels “conscious,” “critical” or “igniting” for Aura.
 
 ## The live activity source
 
@@ -109,9 +113,18 @@ thin data it reports `insufficient_data` rather than fabricating a signal.
 
 ## Honest boundary
 
-The measures are the genuine markers used in consciousness science, and the
-controls are rigorous. But the signature being present means exactly what it says
-— the *information-theoretic signature*, not the subjective fact. A high score is
-evidence that Aura's activity is organized the way conscious systems are and
-unlike the way non-conscious systems are; it is not proof of an inner experience.
-The instrument is built to make that distinction impossible to blur.
+A high score establishes the battery’s conjunction on the tested recording
+and controls. It does not establish that the recording has the same causal
+organisation as a conscious brain, or that unconscious systems cannot score
+that way. Lempel–Ziv complexity alone is not the clinical PCI protocol,
+bimodality alone is not global ignition, and a DFA exponent alone does not
+establish a critical phase transition.
+
+[Casali et al. (2013)](https://pubmed.ncbi.nlm.nih.gov/23946194/) studied
+perturbational complexity in human brain recordings.
+[Tononi, Sporns and Edelman (1994)](https://pmc.ncbi.nlm.nih.gov/articles/PMC43925/)
+introduced neural complexity. Their empirical and mathematical results do not
+automatically validate this software adaptation or its chosen thresholds.
+[The source](../core/consciousness/inner_light/measures.py) defines the
+implemented formulas; [the scientific source map](SCIENCE_AND_SOURCES.md)
+explains how an adaptation differs from evidence for Aura.

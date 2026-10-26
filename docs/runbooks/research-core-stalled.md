@@ -19,15 +19,22 @@
 - `logs/` may show `tenant_boundary mismatch` or `research_core` initialization errors.
 
 ## Diagnosis
-- Verify the core is registered: `python -c "from core.container import ServiceContainer; print(ServiceContainer.get('research_core', default=None))"`
+- A separate Python process cannot establish resident registration. For an
+  isolated source diagnostic, this snippet inspects its own container: `python -c "from core.container import ServiceContainer; print(ServiceContainer.get('research_core', default=None))"`
 - Confirm tenant stamp matches: `cat ~/.aura/research_core/tenant.json` (or whatever workdir is configured).
 - Check the prediction ledger advanced recently: `python -c "from core.runtime.prediction_ledger import get_prediction_ledger; print(get_prediction_ledger().count())"`
 - Run a single cycle manually: `python -c "from core.research_core.registry import register_research_core; r = register_research_core(); print(r.run_cycle().to_dict())"`
 - Inspect the holdout vault: `python -c "from core.research_core.registry import register_research_core; r = register_research_core(); print(r.vault.size())"`
 
 ## Safe mitigation
-- Re-trigger one cycle manually using the snippet above. A successful cycle re-establishes baseline.
-- If the gate is rejecting every candidate, widen `cfg.max_regression` or set the `critical_metrics` to a smaller subset until the model recovers.
+- The snippets above create or inspect services in the invoking process;
+  they are not a remote control for the resident app. A manual cycle is
+  stateful work and may collide with the active owner. Run only in an isolated
+  campaign or an authorised maintenance window.
+- If every candidate is rejected, inspect the failing criteria and retained
+  candidate/baseline evidence. Do not widen `cfg.max_regression` or remove
+  critical metrics merely to obtain a promotion; a changed acceptance rule
+  needs a declared new evaluation.
 - If the LatticeLM is producing NaN losses, restart from the last known-good checkpoint via `LatticeTrainer.load_checkpoint(...)`.
 
 ## Unsafe mitigation (last resort)

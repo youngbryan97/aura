@@ -11,12 +11,18 @@
 > [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
-which repairs consequence history shared between experimental arms. Retain
-the recorded scores, but recheck paired results under repaired isolation before
-presenting them as clean causal confirmation. See
-[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
+**25 October isolation update:** the seed-23 outputs predate repairs to shared
+consequence history (`dcdcd637c`), degradation history (`3e9211d3f`) and restored
+bound-method ownership (`517c4807c`). Retain the recorded scores, but recheck
+paired results under repaired isolation before presenting clean causal
+confirmation. The least-domain rule stays withdrawn; the later `96487c6f1`
+addendum names K*, a numeric margin and a second closure test.
+[Current status](ISC_STATUS.md) records these limits.
 
+The [reconciled bridge arguments](BRIDGE_PROOFS.md) require their explicit
+assumptions: conditional non-identifiability does not make scientific evidence
+irrelevant, and crossing spectra alone do not establish symmetry. The earlier
+rationale below is preserved as a dated record, not a new universal proof.
 
 Status: Guide · Current solver reconciled 25 October 2026
 
@@ -48,7 +54,7 @@ The additional parity reading uses these requirements from the same module:
 
 | Ground | What the implementation reads |
 |---|---|
-| Carrier | An authoritative carrier report finding a carrier or symmetry class, with the required cut and control evidence |
+| Carrier | An authoritative carrier report finding a carrier or symmetry class, with required cut/control evidence and interventional closure `CLOSED` on its seed |
 | Markers | Passing `perturbational_complexity`, `reentry` and `global_access` battery lines |
 | Reports | Measured report grounding that holds, from a run with the printed state readings withheld |
 | Structure | Content experiment identifies one relational structure, including tracking under displacement |

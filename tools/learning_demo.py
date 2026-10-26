@@ -1,26 +1,18 @@
 #!/usr/bin/env python3
 """tools/learning_demo.py — reproducible weight-compounding demo for outsiders.
 
-One command, one machine, no trust required: a small local model teaches
-itself verifiable reasoning with its own exact checkers, twice, and every
-claim lands in a tamper-evident ledger you can verify yourself.
+The demo samples checked task answers, trains a LoRA, evaluates it on a
+separate task battery and records promotion or refusal. Later cycles can
+build on a promoted artifact. Checkers cover declared tasks and answer formats;
+their presence does not rule out bugs, overfitting or reward exploitation.
 
-What it does (bounded, ~20-40 min on Apple Silicon):
-  1. self-play: sample K attempts per task at temperature, exact-check them,
-     keep (correct, incorrect) contrasts as DPO pairs — the verifier is the
-     reward, so there is nothing to hack;
-  2. cycle 1: DPO-train a LoRA on those pairs, gate it on a SEALED held-out
-     battery (fresh seeds, never in training), promote only if capability
-     held, fuse + publish;
-  3. re-harvest with the promoted model, then cycle 2 trains ON TOP of
-     cycle 1's published artifact — that chain is the compounding claim;
-  4. print the capability curve, the lineage verdict, and the ledger
-     integrity check. Refusals and flat curves are printed with the same
-     prominence as gains: the demo shows the DISCIPLINE, whatever the number.
-
-Requirements: Apple Silicon Mac, this repo's venv (`make setup`), ~4GB free
-RAM, ~5GB free disk. The model auto-downloads from Hugging Face on first run
-if not already present locally.
+This loads and trains a local model and may download it on first use. It
+requires an explicitly available model lane and measured host headroom. Do not
+start it alongside the resident Aura model or an owned campaign without
+coordinating resources. Duration, RAM and disk use depend on the chosen model
+and configuration; the old fixed resource/timing claims were not general
+qualification evidence. Retain the workspace's raw responses, evaluation
+reports, cycle receipts and lineage checks when interpreting a result.
 
 Run it:  make demo-learning        (or: python tools/learning_demo.py)
 Audit it afterwards: every artifact lives under --workspace, including raw

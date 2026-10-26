@@ -4644,3 +4644,15 @@ are pushed. Focused tests and smoke passed; live validation remains open.
 The 2026-09-06 queue replay's latent episode failed after 520.6 seconds with
 4736 generated tokens and no accepted answer. An alternate response followed.
 This does not establish RLC success, broad reasoning gain, or frontier parity.
+
+
+## Documentation reconciliation, 25 October 2026
+
+The F05 “promotion is disabled” sentence above records the earlier evaluation.
+Current source distinguishes safe Tier 0/1 auto-repair, enabled by default,
+from broader repair-lab promotion requiring explicit opt-in. Production mode
+permits tier-gated mutation; it does not grant every source path authority.
+See [the reconciled RSI guide](RSI_ARCHITECTURE.md) and its linked admission
+and policy owners. This source review does not close F05: a successful,
+source-bound promoted repair and its required validation remain evidence
+obligations. No repair or resident-model experiment was run for this doc pass.

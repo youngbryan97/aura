@@ -1,7 +1,7 @@
 # GitHub Topics
 
 These are the topics **currently set** on the repository, verified against
-the live settings on 2026-08-01. An earlier version of this file listed a
+the GitHub API on 2026-10-25. An earlier version of this file listed a
 wishlist that never matched what was actually configured.
 
 GitHub caps topics at 20 and all 20 are in use, so adding one means dropping

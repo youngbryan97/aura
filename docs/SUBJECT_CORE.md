@@ -11,11 +11,17 @@
 > [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
-which repairs consequence history shared between experimental arms. Retain
-the recorded scores, but recheck paired results under repaired isolation before
-presenting them as clean causal confirmation. See
-[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
+**25 October current reading:** the seed-23 outputs predate repairs to
+shared consequence history (`dcdcd637c`), degradation history (`3e9211d3f`)
+and snapshot-bound methods (`517c4807c`). Retain the scores as recorded;
+paired results need rechecking under repaired isolation. The least-domain
+closure margin was withdrawn at `72dd0d703`. The later `96487c6f1` addendum
+now declares K*, a numeric margin about 0.0196 and a separate interventional
+closure requirement. The later `5bc357b8c` account reports 284 unchanged
+discovery swaps and repairs service-reference ownership. Fresh held-out
+confirmation remains required; neither commit supplies a replacement battery verdict.
+[Current ISC status](ISC_STATUS.md) links the source-hashed updates and
+separates method repair from a replacement campaign.
 
 
 Status: Guide · Current reading reconciled 25 October 2026

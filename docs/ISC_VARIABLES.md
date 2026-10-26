@@ -145,12 +145,12 @@ as 0.02, while a predeclared acceptable margin is 0.03. If the upper bound is
 that margin. If the method can only detect 0.05, it cannot establish the
 0.03 claim by failing to see a contribution.
 
-**Current method, through `72dd0d703`:** both `CLOSURE_MARGIN` and
-`CLOSURE_MARGIN_RULE` are `None`. The least-domain rule proposed earlier on
-25 October was withdrawn. A domain can be necessary while contributing little
-new prediction beyond the other domains' past; those are different questions.
-A defensible margin still needs to be declared before fresh confirmation, so
-closure cannot currently be positively established by the gate.
+**Current method, through `96487c6f1`:** `CLOSURE_MARGIN` is `0.02 / 1.02`
+(about 0.0196078); `CLOSURE_MARGIN_RULE` remains `None`. The earlier least-domain
+rule stays withdrawn. The night addendum adopts a conventional small-effect
+margin; that convention is not a measured boundary for consciousness.
+Closure also requires an interventional `CLOSED` result on the scored seed.
+See [the current method and source limits](ISC_STATUS.md#the-night-addendum-include-what-the-transition-reads-then-test-both-ways).
 
 The estimator now predicts core change from declared inputs, enters periphery
 columns as increments, and refuses to use a failed fold to establish closure.
@@ -189,3 +189,21 @@ unresolved result means that a required answer is still missing.
 Those practical consequences are why the definitions matter. The
 [reproduction guide](ISC_REPRODUCTION.md) explains how to retain them beside
 the source files and measurements.
+
+## K*, held state and the two closure tests
+
+**K** is the original ten-domain core. **K*** is K plus the declared attributes
+that its transition depends on in the discovery intervention. **Held state**
+means those attributes are counted on the core's side of the boundary rather
+than as outside predictors. The source stores these readings under `held.`.
+
+For example, a display can show a decision while a separate history buffer
+helps produce it. Recording the display alone omits part of the process.
+K* adds identified dependencies to the candidate record; the analogy does not
+establish that this record includes every possible cause.
+
+**Observational closure** asks whether outside readings improve prediction
+beyond the permitted margin. **Interventional closure** asks whether the
+specified outside-state swaps actually change K or held state at the tested
+anchors and two-turn horizon. Both are required by the current rule. Passing
+neither is implied by having written the code that measures them.
