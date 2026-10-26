@@ -621,18 +621,52 @@ def observations(model: str = "") -> int:
         return len(_reasoning_window_for(model))
 
 
+def _drop_what_was_learned() -> None:
+    """Empty every window this process holds. The caller holds ``_lock``."""
+
+    _observed.clear()
+    _observed_by_model.clear()
+    _rates.clear()
+    _read_rates.clear()
+    _delivery_costs.clear()
+    _proved_insufficient_by_model.clear()
+    _finished_within_by_model.clear()
+    # Keyed by how many readings there were, so a window emptied and refilled
+    # to the same count would be answered from the old one.
+    _MONOTONE_CACHE.clear()
+
+
+def reset_for_test() -> None:
+    """Start a test with nothing measured, taking back nothing already on disk.
+
+    Every test process shares one state root, and the store there holds what
+    earlier runs recorded. A gate test that never measured anything sized its
+    Cortex deadline on twelve decode readings at ten tokens a second, left by
+    some other test, and stretched its caller's 196 seconds to 443. Unlike
+    ``forget`` this leaves the file alone; a proof written during the test is
+    still taken back, because only the stamp already there is marked as read.
+    """
+
+    global _restored, _last_seen_store_mtime, _since_write
+    target = _store_path()
+    try:
+        stamp = target.stat().st_mtime_ns if target is not None else -1
+    except OSError:
+        # not a failure: no store yet is the usual case.
+        stamp = -1
+    with _lock:
+        _drop_what_was_learned()
+        _restored = True
+        _last_seen_store_mtime = stamp
+        _since_write = 0
+
+
 def forget() -> None:
     """Drop what has been learned. For tests and for a model swap."""
 
     global _restored, _last_seen_store_mtime
     with _lock:
-        _observed.clear()
-        _observed_by_model.clear()
-        _rates.clear()
-        _read_rates.clear()
-        _delivery_costs.clear()
-        _proved_insufficient_by_model.clear()
-        _finished_within_by_model.clear()
+        _drop_what_was_learned()
         # And forget having read the store, or a re-read would take it back.
         _last_seen_store_mtime = -1
         # Stops THIS process taking the readings back on the next call.

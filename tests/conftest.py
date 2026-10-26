@@ -1524,6 +1524,7 @@ _TEST_SCOPED_RESET_FUNCTIONS = (
     ("core.affect.what_winning_earned", "reset_for_test"),
     ("core.affect.what_it_was_worth", "reset_for_test"),
     ("core.soma.good_news", "reset_for_test"),
+    ("core.brain.llm.thinking_reserve", "reset_for_test"),
 )
 
 
