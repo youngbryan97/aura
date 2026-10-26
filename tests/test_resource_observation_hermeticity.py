@@ -472,11 +472,26 @@ def test_lane_decisions_are_invariant_to_host_api_failure(
     resource_observer.configure_memory(total_bytes=64 * GIB, available_bytes=8 * GIB)
     expected = _decision_signature(LaneAdmissionController(observer=resource_observer))
 
-    def host_access_forbidden(*_args, **_kwargs):
-        raise AssertionError("lane admission reached host state")
+    # The patch lands on the psutil module, which every thread in the process
+    # shares. In a loaded run a thread an earlier test left polling memory hit
+    # it and this test errored with lane admission nowhere on the stack.
+    # `admit` runs on the caller's thread, so only this thread is forbidden.
+    import threading
 
-    monkeypatch.setattr("core.runtime.resource_observation.psutil.virtual_memory", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_observation.psutil.process_iter", host_access_forbidden)
+    from core.runtime.resource_observation import psutil as host
+
+    here = threading.get_ident()
+
+    def forbidden_here(real):
+        def guarded(*args, **kwargs):
+            if threading.get_ident() == here:
+                raise AssertionError("lane admission reached host state")
+            return real(*args, **kwargs)
+
+        return guarded
+
+    monkeypatch.setattr(host, "virtual_memory", forbidden_here(host.virtual_memory))
+    monkeypatch.setattr(host, "process_iter", forbidden_here(host.process_iter))
 
     actual = _decision_signature(LaneAdmissionController(observer=resource_observer))
     assert actual == expected

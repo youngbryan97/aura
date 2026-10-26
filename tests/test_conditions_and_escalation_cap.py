@@ -200,8 +200,13 @@ class TestEscalationCap:
                 )
 
     def test_fresh_window_escalates_again(self, fail_closed_unit, monkeypatch):
+        from core.runtime.errors import get_escalation_governor
+
         monkeypatch.setenv("AURA_ESCALATION_CAP_WINDOW_S", "0.05")
-        import time as _time
+        # The test moves the governor's clock. On the real one, four calls
+        # under a loaded suite outlasted the 50 ms window before the fourth.
+        now = [1_000.0]
+        monkeypatch.setattr(get_escalation_governor(), "_clock", lambda: now[0])
 
         for _ in range(3):
             with pytest.raises(RuntimeError):
@@ -218,7 +223,7 @@ class TestEscalationCap:
             action="unit test",
         )
         assert record.severity == "degraded"
-        _time.sleep(0.06)
+        now[0] += 0.06
         with pytest.raises(RuntimeError, match="CRITICAL SERVICE FAILURE"):
             record_degradation(
                 fail_closed_unit,

@@ -307,6 +307,10 @@ class _EscalationGovernor:
     again. Kill switch: AURA_ESCALATION_CAP=0 (never suppresses).
     """
 
+    #: Elapsed time, not the date. A window on the wall clock moves when the
+    #: clock is set, and a test cannot step it without sleeping through it.
+    _clock = staticmethod(time.monotonic)
+
     def __init__(self) -> None:
         self._allowed: dict[tuple[str, str], list[float]] = {}
         self._suppressed: dict[tuple[str, str], int] = {}
@@ -351,7 +355,7 @@ class _EscalationGovernor:
         if not enabled:
             return True
         key = (str(subsystem), str(error_type))
-        now = time.time()
+        now = self._clock()
         with self._lock:
             allowed = [t for t in self._allowed.get(key, []) if (now - t) <= window_s]
             if len(allowed) < cap_n:
