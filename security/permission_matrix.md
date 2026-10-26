@@ -1,114 +1,58 @@
-# Aura Permission Matrix
+# Aura permission and authority matrix
 
-*Reviewed against the tree: 2026-08-01. See [documentation status map](../docs/DOC_STATUS.md) for how to read this file.*
+Status: Reference · Implemented boundaries reconciled 25 October 2026
 
-## Overview
+Aura’s current platform posture is a local, single-operator installation.
+The earlier User/Operator/Admin/Research table described a proposed role
+hierarchy; it did not correspond to an implemented multi-user RBAC system.
+A runtime mode is a capability posture, not an authenticated user role.
+See [platform posture](../docs/PLATFORM_POSTURE.md).
 
-This document defines the Role-Based Access Control (RBAC) model for Aura.
-Every operator/user interaction with Aura is governed by these permissions.
+## Distinguish the authorities
 
-## Roles
+| Boundary | Actual owner | What it establishes | What it does not establish |
+|---|---|---|---|
+| Local HTTP/WebSocket access | [Local API boundary](../docs/LOCAL_API_TRUST_BOUNDARY.md) | Checks peer, literal host/origin and supported credentials under the declared policy | General trust from loopback peer or a UI header alone |
+| Master API credential | [Request-security code](../interface/server.py) and route checks | Authenticates the configured owner surface where accepted | Per-user tenant isolation or an admin/operator role hierarchy |
+| Paired device | [Device routes](../interface/routes/devices.py), [pairing registry](../core/security/device_pairing.py) | Stored, scoped and revocable device access | An unrestricted grant to every owner endpoint |
+| Consequential effect | [Authority gateway](../core/executive/authority_gateway.py), [Unified Will](../core/governance/will.py) | Required action-authorisation and outcome contract | Semantic correctness of the proposed task or a universal no-bypass proof |
+| Runtime mode | [Mode manifests](../core/runtime/mode.py) | Declared capability/autonomy ceiling for the process | Immediate reconfiguration from an export in another shell |
+| Process spawn role | [Process privileges](../core/runtime/process_privilege.py) | Declared admission constraints for supported source roles | An OS sandbox, per-user RBAC or complete coverage of unknown roles |
+| Standing denial | [Standing directives](../core/governance/standing_directives.py) | Refuses matching tools/paths on consuming routes | A permission grant or proof every possible effect route consults it |
+| Model request | [Local request contract](../core/brain/request_contract.py) | Local inference routing; remote-only model requests are refused | A switch enabling cloud-model fallback |
 
-| Role | Description | Default |
-|------|-------------|---------|
-| **User** | End user interacting with Aura via chat | ✅ Default |
-| **Operator** | System administrator managing Aura | Requires config |
-| **Admin** | Full administrative access | Requires config |
-| **Research** | Research mode with sandboxed capabilities | Requires `AURA_MODE=research` |
+## Ordinary operations
 
-## Permission Matrix
+Conversation, memory export/deletion, model settings, diagnostics and device
+administration have route-specific access checks. Do not infer permission
+from a column in an aspirational table. Inspect the route and test its
+accepted and denied principals against the installed revision.
 
-### Conversation & Memory
+For example, a paired phone may be allowed conversation access while being
+refused a memory-management or administrative path. The paired-device token’s
+scope must remain authoritative at that route; asking in chat cannot expand it.
+An owner’s authority to request an action also does not establish that the
+requested action is safe, permitted by standing directives or successfully done.
 
-| Permission | User | Operator | Admin | Research |
-|-----------|:----:|:--------:|:-----:|:--------:|
-| Chat with Aura | ✅ | ✅ | ✅ | ✅ |
-| View own conversation history | ✅ | ✅ | ✅ | ✅ |
-| View all conversation history | ❌ | ✅ | ✅ | ❌ |
-| Delete own conversations | ✅ | ✅ | ✅ | ✅ |
-| Delete all conversations | ❌ | ❌ | ✅ | ❌ |
-| Read own memories | ✅ | ✅ | ✅ | Sandbox |
-| Read all memories | ❌ | ✅ | ✅ | Sandbox |
-| Write memories | ✅ (own) | ✅ | ✅ | Sandbox |
-| Delete memories | ❌ | ❌ | ✅ | ❌ |
-| Export memories | ✅ (own) | ✅ | ✅ | ✅ |
+## Configuration and live controls
 
-### Tool & Skill Execution
+The process reads its own environment and supported settings stores.
+`AURA_MODE`, `AURA_AUTONOMY_LEVEL` and `AURA_FOREGROUND_ONLY` affect their
+consumers; assigning them in an unrelated shell does not alter a live Aura
+process. Use a supported live setting where implemented, otherwise an
+authorised future launch. Follow [the override policy](../HUMAN_OVERRIDE_POLICY.md).
 
-| Permission | User | Operator | Admin | Research |
-|-----------|:----:|:--------:|:-----:|:--------:|
-| Read-only tools (clock, calc) | ✅ | ✅ | ✅ | ✅ |
-| File read (workspace) | ✅ | ✅ | ✅ | ✅ |
-| File write (workspace) | Limited | ✅ | ✅ | Sandbox |
-| File access (outside workspace) | ❌ | ✅ | ✅ | ❌ |
-| Shell (sandboxed) | ❌ | ✅ | ✅ | Sandbox |
-| Shell (unrestricted) | ❌ | ❌ | ✅ | ❌ |
-| Browser (read) | ✅ | ✅ | ✅ | Sandbox |
-| Browser (interact) | ❌ | ✅ | ✅ | Sandbox |
-| Network (external) | ❌ | ✅ | ✅ | ❌ |
+Standing directives are deny rules, not a grant mechanism. A directive can
+narrow an action’s authority; it cannot by itself mint device credentials,
+change an OS permission, bypass a sandbox or authorise remote inference.
 
-### System Administration
+## Verify the boundary you intend to claim
 
-| Permission | User | Operator | Admin | Research |
-|-----------|:----:|:--------:|:-----:|:--------:|
-| View health status | ✅ | ✅ | ✅ | ✅ |
-| View detailed diagnostics | ❌ | ✅ | ✅ | ✅ |
-| Change runtime mode | ❌ | ✅ | ✅ | ❌ |
-| Change model | ❌ | ✅ | ✅ | ✅ |
-| Enable/disable cloud fallback | ❌ | ✅ | ✅ | ❌ |
-| Manage feature flags | ❌ | Limited | ✅ | Limited |
-| Install plugins/skills | ❌ | ❌ | ✅ | ❌ |
-| Remove plugins/skills | ❌ | ❌ | ✅ | ❌ |
-| Trigger self-repair | ❌ | Approve | ✅ | Sandbox |
-| Trigger self-modification | ❌ | ❌ | ✅ | ❌ |
-| Backup/restore | ❌ | ✅ | ✅ | ❌ |
-| View audit logs | ❌ | ✅ | ✅ | ✅ |
-| Shutdown Aura | ❌ | ✅ | ✅ | ✅ |
+Keep the source revision, principal, request, decision and resulting effect
+in the evidence. Verify refused requests never reach their protected effect,
+and that permitted recovery remains usable. Static lint and a policy table
+do not establish the outcome of every live request.
 
-## Operator Configuration
-
-Permissions are configured in two places, neither of them an ad-hoc
-environment variable.
-
-**Prohibitions** are standing directives, written to
-`data/governance/standing_directives.json` and read from disk by the authority
-gateway on every consequential action. `kind=tool` refuses a tool; `kind=path`
-refuses a filesystem location; `scope=write` refuses only mutation, `scope=any`
-refuses reads as well. There is no grant counterpart — see
-[../TOOL_USE_POLICY.md](../TOOL_USE_POLICY.md).
-
-**Runtime posture** comes from the mode and the feature flags:
-
-```bash
-# Production posture: unsigned skills refused, self-modification off
-AURA_MODE=production
-
-# No autonomous behaviour at all
-AURA_AUTONOMY_LEVEL=0
-
-# No background work
-AURA_FOREGROUND_ONLY=1
-
-# Any flag in core/governance/feature_flags.py, by name
-AURA_FLAG_WORKSPACE_JAIL_ENABLED=1
-```
-
-Confirmation for a destructive effect is not configurable. The authority
-gateway sets `additional_confirmation_required` from the effect scope in code,
-so no setting and no amount of context compaction removes it.
-
-## Capability Statements
-
-An operator/user should be able to express:
-
-```text
-Aura may read this folder.
-Aura may not write outside this workspace.
-Aura may use browser but not shell.
-Aura may use shell but not network.
-Aura may remember project facts but not secrets.
-Aura may propose patches but not apply them.
-Aura may use cloud fallback only for non-private prompts.
-```
-
-Each of these maps to a specific permission configuration.
+The project has not established a multi-tenant RBAC or OIDC/SAML deployment.
+Adding one would require a new identity, storage and per-route authorisation
+contract and its own acceptance evidence.

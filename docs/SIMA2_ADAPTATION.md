@@ -55,6 +55,11 @@ experience trains the next generation. On its training games it scores 65%
 
 ## What Aura has, faculty by faculty
 
+These labels describe the implementation and dated tests below, not matched
+performance against [SIMA 2’s published experiments](https://arxiv.org/abs/2512.04797).
+A generated-room success does not establish reliable play in arbitrary
+commercial games or completion of a current presentation run.
+
 Status: **have** (built and wired to screen work), **part** (built, not
 wired to screen work, or covering part of it), **none**.
 
@@ -199,8 +204,10 @@ Leading was 11/30 before the field of view was measurable, against 20/30 for
 not leading at all: the lead was a drift in pixels carried over the steps to
 arrival, and it aimed past the edge of the view, where a thing cannot be
 steered toward because it cannot be seen. The two chasing intervals overlap,
-so leading is not yet PROVEN better — what is measured is that it is no longer
-worse, and the units are right.
+so this comparison does not establish that leading is better. Overlapping
+intervals also do not establish equivalence or non-inferiority: that would
+need a declared margin and an appropriate comparison. The point estimates
+and sample sizes are the result reported here.
 
 The room sweep that measures the view turns back through everything it turned.
 Without that it left her facing away from the two things an "ask which one"

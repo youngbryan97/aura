@@ -1,5 +1,14 @@
 # SLSA Supply-Chain Provenance — Aura Cognitive Runtime
 
+**25 October evidence qualification:** GitHub’s Releases API currently lists
+zero published releases. Workflow code for signing/notarisation does not prove
+that a published artifact has passed it. The dependency-provenance table below
+includes the intended model-weight manifest; `MODEL_MANIFEST.json` is not a
+current complete weight-checksum contract. Current model identity uses its
+artifact profile and declared receipts, as [the model card](../MODEL_CARD.md)
+explains. Preserve the framework/target language below with this distinction.
+
+
 ## SLSA Level Target: Level 2 (Verified Build)
 
 ### Level 1: Documentation ✅

@@ -61,7 +61,8 @@ was no. What survived maps onto real incidents:
 Lockdep's four hazards: order inversion (observed *and* declared-rank),
 sync lock held across an await, self-deadlock, and loop-blocking holds.
 `assert_no_locks_held()` guards blocking operations; every `fsync` in the
-runtime goes through it.
+instrumented runtime paths consult it; coverage must be checked before
+claiming every filesystem call is guarded.
 
 ## Wave 2 — LLVM: verification and pass management
 
@@ -84,7 +85,8 @@ seam rather than a rewrite of a load-bearing loop.
 
 | Module | Adopted | The idea |
 |---|---|---|
-| [`core/runtime/reconcile.py`](../core/runtime/reconcile.py) | controller-runtime | **Level-triggered, not edge-triggered.** A reconciler never trusts the event; it reads current state and steps toward desired. Missing an event costs latency, never correctness. |
+| [`core/runtime/reconcile.py`](../core/runtime/reconcile.py) | controller-runtime | **Level-triggered, not edge-triggered.** A reconciler never trusts the event; it reads current state and steps toward desired. It can recover a missed event if the desired state remains observable and
+reconciliation continues; failures of those assumptions still need handling. |
 | [`core/runtime/admission.py`](../core/runtime/admission.py) | Admission webhooks | Mutation before validation, always. Validators may not mutate. Failure policy is declared per hook — silence must not mean consent. |
 | [`core/runtime/quota.py`](../core/runtime/quota.py) | ResourceQuota, LimitRange | Requests vs limits, which is what produces QoS classes. Enforced at *admission*, because a budget checked at the point of use is checked where somebody remembered. |
 | [`core/runtime/eviction.py`](../core/runtime/eviction.py) | kubelet eviction, PDB | Soft thresholds with grace periods and hard thresholds without; reclaim before eviction; disruption budgets refuse taking the last member. |

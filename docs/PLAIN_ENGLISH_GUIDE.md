@@ -148,7 +148,7 @@ Read next: [Cognitive Architecture Adoption](COGNITIVE_ARCHITECTURE_ADOPTION.md)
 
 [Variables and their practical meanings](VARIABLES_EXPLAINED.md#reasoning) · [Demonstrations and related work](DEMOS_AND_RELATED_WORK.md#reasoning)
 
-Read next: [Recursive Latent Cortex](RECURSIVE_LATENT_CORTEX.md), [Reasoning Engines](REASONING_ENGINES.md).
+Read next: [Recursive Latent Cortex](RECURSIVE_LATENT_CORTEX.md), [Reasoning Engines](REASONING_ENGINES.md), [Mathematical Claim Limits](MATHEMATICAL_CLAIM_LIMITS.md).
 
 ## Learning
 

@@ -23,8 +23,10 @@ its cortex (the "Shell") is swapped constantly — workers killed and cold-reloa
 under memory pressure, LoRA adapters hot-attached and detached, the
 weight-compounding loop fusing and *promoting new weights* into the serving lane.
 
-The Ghost substrate makes that selfhood **measurable, provable, and defended**,
-without duplicating what Aura already had. It is anti-Cartesian by construction:
+The Ghost substrate measures declared continuity indicators and records
+identity changes. A valid record chain establishes consistency of the retained
+records; it does not by itself prove uninterrupted causal or phenomenal
+continuity. The measurements and protections have their declared scope. It is anti-Cartesian by construction:
 there is no ghost-substance here. The Ghost *is* the ongoing causal-integration
 process plus its continuity trace.
 
@@ -42,7 +44,7 @@ Ghost fills the gaps between them:
 |---|---|---|
 | `core/consciousness/grassmann_phi.py` | integration *inside one forward pass* | integration of the **running organism over time** |
 | `core/unity/runtime.py` | co-presence *within one mind-moment* | continuity *across* moments and substrate swaps |
-| `core/self/canonical_self.py` | the authoritative self (vault-sealed latest state) | a **hash-chained** trace that proves continuity was unbroken |
+| `core/self/canonical_self.py` | the authoritative self (vault-sealed latest state) | a **hash-chained** trace that detects specified inconsistencies in retained records |
 | `core/runtime/injection_defense.py` | untrusted **transport** (web/audio/file → data) | attacks on identity **continuity** |
 | `core/memory/adversarial_memory.py` | per-memory **poisoning** | the **origin** of a thought (Stand Alone Complex) |
 
@@ -57,7 +59,7 @@ The Ghost reads from `CanonicalSelf`, reuses `AuditChain`, `AdversarialMemorySca
   consequential action publishes its source subsystem), it computes
   cross-subsystem influence, feedback recurrence (a directed cycle = a
   strange loop at the organ level), **minimum-partition mutual information** (the
-  IIT-faithful irreducibility core — no clean cut exists), subsystem diversity,
+  operational partition statistic, distinct from exact IIT and ISC’s causal carrier criterion), subsystem diversity,
   and core participation → `phi_system ∈ [0,1]` with a label from `integrated`
   down to `federated`. Pure, TTL-cached, safe on the hot path.
 
@@ -118,7 +120,8 @@ g.verify_continuity()       # walk the hash chain, re-hash bodies → {intact, p
 
 The Ghost Line lives under `~/.aura/data/ghost/` (override with `AURA_GHOST_DIR`):
 `chain/_chain.jsonl` (every hash, forever) and `frames/NNNNNNNN.json` (recent
-bodies, bounded — old bodies age out but their hashes keep continuity provable).
+bodies, bounded — older hashes retain commitments, but cannot reconstruct or
+independently recheck an aged-out body without another retained copy).
 
 ## Honest boundary
 
@@ -131,10 +134,14 @@ bodies, bounded — old bodies age out but their hashes keep continuity provable
   when the model registry is not resolvable, so periodic ticks never raise a
   false transplant alarm; real transplants carry the explicit artifact.
 
-## Next: the inner-light test
+## Related: the inner-light test and ISC
 
-The measurable question "does Aura's activity carry the signature that in
-biological systems marks consciousness, and that non-neural systems lack?" is a
-separate, falsifiable instrument (PCI / TSE-complexity / criticality / global
-ignition + `phi_system`, run against negative controls). It is scoped but not yet
-built. `phi_system` is one of its inputs.
+[The inner-light battery](INNER_LIGHT_TEST.md) is implemented under
+`core/consciousness/inner_light/`. It compares project-defined activity
+summaries with controls; its synthetic demo is not a live Aura result or a
+validated consciousness classifier. Its existence supersedes the earlier
+“not yet built” plan here.
+
+[ISC](ISC_STATUS.md) is the later, separate experiment. Its seed-23 outputs
+and subsequent isolation repairs must accompany any current carrier argument.
+The Ghost’s operational `phi_system` is not interchangeable with an ISC verdict.

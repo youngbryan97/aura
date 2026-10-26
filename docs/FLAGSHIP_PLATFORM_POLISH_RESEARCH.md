@@ -1,16 +1,5 @@
 # Aura Flagship Platform Polish Research
 
-<!-- reader-navigation:start -->
-> **In plain English:** Aura is a local AI research system built around a language model, persistent records and software that manages actions and ongoing work.
->
-> **Why it matters:** A reader needs to know which pieces must be installed, which resources they use, and which capabilities have actually been measured.
->
-> **In everyday use:** Before asking Aura to work with a document, you need a ready model, an accessible file and enough memory for the running system.
->
-> [Example and metaphor](PLAIN_ENGLISH_GUIDE.md#getting-started) · [Variables and practical meanings](VARIABLES_EXPLAINED.md#getting-started) · [Demos and related work](DEMOS_AND_RELATED_WORK.md#runtime) · [Document map](DOCUMENTATION_INDEX.md)
-> [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
-<!-- reader-navigation:end -->
-
 **Scope:** this is an earlier design/research plan. The initial UI findings
 below are not a new audit of today's installed app. Source wiring, visible UI
 behavior and a measured user experience require their respective evidence.

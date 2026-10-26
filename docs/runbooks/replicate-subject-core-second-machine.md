@@ -15,6 +15,12 @@ A result that survives only on the machine it was measured on is a result about
 that machine. This is the procedure for running the frozen campaign somewhere
 else and reading the two runs against each other.
 
+**Protocol identity:** the command example below describes the earlier frozen
+campaign interface. For the current v5/v6 manifest, repaired arm isolation
+and model-bound report basis, start with [ISC reproduction](../ISC_REPRODUCTION.md)
+and [current status](../ISC_STATUS.md). Choose an independent host and budget;
+this page does not authorise an extra campaign beside the resident model.
+
 ## Before you start
 
 The second machine needs the same source, the same configuration and the same
@@ -60,13 +66,13 @@ question and is the auxiliary robustness test, not the replication.
 ## How to read the comparison
 
 Two runs on one machine already differ — irreducibility moved 0.028 and the
-lesion deficit 0.122 between two of ours. So one number here against one number
-there says nothing. The tool reports every measure twice: the spread between
+lesion deficit 0.122 between two of ours. One run per host cannot separate host effects from run variation. The tool reports every measure twice: the spread between
 runs on one host, and the spread between hosts.
 
-- **Between smaller than within.** No machine effect on that measure. This is
-  the answer you want.
-- **Between larger than within.** A machine effect, named in
+- **Between smaller than within.** The observed host spread is smaller than
+  the observed within-host spread. This descriptive comparison does not
+  establish absence of a host effect or equivalence.
+- **Between larger than within.** The tool flags a possible host difference in
   `measures_with_a_machine_effect`. If the apparent integrated subject
   disappears under small timing differences, that is the result — record it,
   do not tune around it.
@@ -79,7 +85,7 @@ runs on one host, and the spread between hosts.
 
 To separate the machine from the run you need at least two runs per machine.
 With one run each, `within_machine_spread` is empty and every gap reads as
-`None` rather than as a machine effect, which is honest and useless.
+`None` rather than as a machine effect, which records that the comparison is unavailable.
 
 ## If the second machine cannot run it
 

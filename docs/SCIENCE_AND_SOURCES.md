@@ -159,3 +159,24 @@ again when preparing a submission. This pass verifies the stated source
 connections; it is not a completed publication or a systematic review of every
 research field. The [writing rules](WRITING_RULES.md) apply this evidence
 discipline to future documentation updates.
+
+## Mathematical and comparative claims need their assumptions
+
+[The mathematical corrections](MATHEMATICAL_CLAIM_LIMITS.md) distinguish
+representability, finite-budget reach, a tested implementation and a universal
+theorem. It records counterexamples to the earlier authoring-regress and
+decision-sensitivity claims. Mathematical names cannot substitute for their
+assumptions: Rice’s theorem is not a ban on proving a particular patch safe,
+and an unknown task distribution does not by itself prove no optimum exists.
+
+| Source | Relevance | Access and limit |
+|---|---|---|
+| Baldan, Ranzato and Zhang (2021), [Intensional Kleene and Rice theorems](https://arxiv.org/abs/2105.14579) · `baldan2021intensional` | States the classical extensional scope before studying abstract program semantics | Abstract checked; no claim here that every program property is undecidable |
+| Blum (1967), [A machine-independent theory of complexity](https://ntrs.nasa.gov/citations/19670048768) · `blum1967complexity` | Existence of functions exhibiting speedup under declared complexity assumptions | Bibliographic record and a later research statement checked; publisher full text inaccessible in this pass |
+| Everitt, Lattimore and Hutter (2014), [Free lunch under the universal distribution](https://arxiv.org/abs/1608.04544) · `everitt2014freelunch` | Shows why the optimisation distribution matters | Abstract checked; does not license a blanket no-improvement theorem for Aura |
+| Tononi, Sporns and Edelman (1994), [A measure for brain complexity](https://pmc.ncbi.nlm.nih.gov/articles/PMC43925/) · `tononi1994complexity` | Neural-complexity precedent | Bibliographic record checked; Aura’s determinant-based proxy is not the original formula |
+| [Dafny reference manual](https://dafny.org/latest/DafnyRef/DafnyRef) | Explicit program specifications and verification obligations | Official documentation checked; no Dafny verification of Aura is claimed |
+
+The [inner-light guide](INNER_LIGHT_TEST.md) now identifies its synthetic demo
+and project-defined thresholds. Neither its four-axis conjunction nor a
+shared term such as PCI inherits clinical validation from the original study.

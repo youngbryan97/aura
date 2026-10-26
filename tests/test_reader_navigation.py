@@ -43,3 +43,18 @@ def test_deep_page_links_stay_inside_the_repository():
 def test_a_page_without_a_title_is_left_as_written():
     original = 'A preserved fragment without a page heading.\n'
     assert with_card(original, f'{OPEN}\n> Note.\n{CLOSE}') == original
+
+
+def test_a_reading_card_cannot_hide_a_historical_status():
+    original = '# Earlier audit\n\nStatus: Historical\n\nA retained result.\n'
+    card = f'{OPEN}\n' + '> Reading note.\n' * 80 + CLOSE
+    assert category('docs/earlier_audit.md', with_card(original, card)) == 'Historical or frozen record'
+
+
+def test_current_obligations_are_not_labelled_a_frozen_record():
+    assert category('docs/AURA_1_0_MASTER_TODO.md') == 'Living status or append-only ledger'
+    assert category('docs/AURA_EXECUTION_TRACKER.md') == 'Living status or append-only ledger'
+
+
+def test_the_requirement_docket_is_regenerated_rather_than_hand_edited():
+    assert category('docs/AURA_REMAINING_DOCKET.md') == 'Generated reference'

@@ -9,10 +9,9 @@ machine and how much is the run.
 
 So this takes run directories, groups them by the host they ran on, and reports
 each measure two ways: the spread between runs on one machine, and the spread
-between machines. A machine effect that is smaller than the within-machine
-spread is not a machine effect. One that is larger is the scientifically
-important case the specification names — an apparent integrated subject that
-disappears under small timing differences.
+between machines. The between/within-spread comparison is a descriptive flag, not an
+inferential test establishing a host effect or its absence. More runs and
+a declared uncertainty model are needed for a machine-effect conclusion.
 
 It refuses to compare runs that are not the same experiment. Two runs of
 different campaigns, or of the same campaign on different code, are two

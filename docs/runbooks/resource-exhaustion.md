@@ -27,24 +27,30 @@
 
 2. Check resource governor status:
    ```bash
-   grep "resource_governor" logs/aura.log | tail -20
+   grep "resource_governor" ~/.aura/logs/*.log | tail -20
    ```
 
 3. Check token budget utilization:
    ```bash
-   grep "token_budget" logs/aura.log | tail -10
+   grep "token_budget" ~/.aura/logs/*.log | tail -10
    ```
 
 ## Response
 
-1. **Reduce load**: Kill background tasks
+1. **Reduce admitted work through its owning scheduler.** Identify the
+   resident model and campaign owners; do not kill unrelated processes.
+   The following setting applies to a future launch, not another running shell:
    ```bash
    export AURA_FOREGROUND_ONLY=1
    ```
 
-2. **Restart with lower resource profile**: Reduce model tier
+2. **Choose a smaller validated profile for a later authorised restart.**
+   Preserve state and logs; do not create a competing model load.
 
-3. **If OOM killed**: Check `dmesg` for OOM details; restart Aura
+3. **If a process was OOM-killed**, retain the host’s pressure/crash records.
+   On macOS use the memory incident records and unified logs; `dmesg` is not
+   the reference macOS diagnostic. Verify the old owner has exited before
+   an authorised replacement starts.
 
 ## Prevention
 

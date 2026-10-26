@@ -402,3 +402,14 @@ that every scientific argument about experience is impossible.
 
 A project-defined evidence weight or score is not automatically a calibrated
 Bayesian likelihood ratio. Source: [the hypothesis-pair discussion](phenomenology/README.md).
+
+## Assumptions behind a mathematical claim
+
+A formula needs its domain and decision rule. An unchanged winning action does
+not establish an unchanged score; near-aligned vectors do not prove a
+contractive update; and an available predecessor does not guarantee better
+performance under one fixed shared budget.
+
+[The mathematical-claim guide](MATHEMATICAL_CLAIM_LIMITS.md) gives plain-English
+counterexamples, the corrected assumptions and their practical consequences.
+A unit test over finite examples cannot supply a missing universal proof.

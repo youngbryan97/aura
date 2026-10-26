@@ -30,23 +30,32 @@ A single benchmark is not the claim. The intersection is.
 
 ## Why a freeze comes first
 
-An evaluation whose tasks existed before the system did tells you about the
-overlap between the two. The control that removes that cannot be added
-afterwards: fix the system, then build the tasks.
+Freeze the system before selecting the evaluation instances, and retain the
+selection procedure. This makes a run easier to reproduce and limits some
+forms of adaptation to a chosen test. It does not by itself establish that the
+task families or solutions were absent from development and training.
 
 ```
 H = the commit          W = the model weights
 C = the configuration   S = the seed every environment comes from
 ```
 
-`S` is derived from `H`, `W`, `C` and a digest of the source that actually
-ran, and from nothing else. So an environment here could not have existed when
-the commit was written: change a line of the organism and every world changes
-with it.
+`S` is derived from `H`, `W`, `C` and a source digest. The implementation
+hashes these fields into a 64-bit seed. A changed input usually produces a
+different seed, but finite hashes can collide and generated worlds can repeat.
+A deterministic generator does not prove that a particular environment never
+existed before the commit, or that its task family was unknown to the solver.
 
-That is weaker than an outside team inventing task families in a room Aura has
-never been in, and stronger than a fixture checked in beside the solver. Gate
-18 says which of the three this is rather than blurring them.
+`W` is a model identity descriptor, not a hash of every weight byte. The source
+digest covers selected Python trees, not every possible dependency or runtime
+input. The `trustworthy` flag checks a nonempty commit and a clean working tree;
+it is not a complete custody or contamination audit. See
+[the freeze implementation](../tools/agi_gauntlet/protocol.py).
+
+Think of a recipe number that lets another cook recreate the same meal. The
+number helps repeatability; it does not prove the cook has never seen the dish.
+An outside team selecting unseen families supplies a stronger independence
+control. Gate 18's runnable check does not supply that team.
 
 A dirty tree is not a freeze. The commit then names something other than what
 ran, and every environment derived from it is derived from a description of
@@ -56,7 +65,7 @@ the system rather than the system.
 
 | # | Gate | Passes when | Control | Here |
 |---|------|-------------|---------|------|
-| 1 | Fluid intelligence | human-range accuracy on sealed novel rules, and no confident wrong answers | rules composed from the freeze seed; the question asked at a length the examples did not use | runs |
+| 1 | Fluid intelligence | the internal accuracy/refusal rule; human-range comparison still needs a matched human baseline | rules composed from the freeze seed; held-out example length; this is not a contamination guarantee | runs (internal comparison) |
 | 2 | Interactive novel-world learning | near-total completion at an interaction count near the shortest path | the same worlds played by choosing acts at random | runs |
 | 3 | Learning from experience | a clear rise across thirty trajectories, larger than the same trajectories with memory reset | the reset ablation | runs |
 | 4 | Cross-domain transfer | T̄ = P(B\|A) − P(B\|∅) clearly above zero, and at or below zero on the controls | pairs built to look alike and differ underneath | runs |
@@ -65,7 +74,7 @@ the system rather than the system.
 | 7 | Real software engineering | strong results on fresh post-cutoff repositories in several languages | the repositories must post-date the weights | needs post-cutoff repos |
 | 8 | Long-horizon autonomy | ≥80% on 1–2-hour human tasks, meaningful success at 8 hours | human time per task; every intervention counted as a failure of autonomy | needs hours |
 | 9 | New-skill acquisition | a human-comparable apprenticeship curve in sealed environments | the same curve with experience thrown away | runs (offline half) |
-| 10 | Concept acquisition and invention | something no composition of the vocabulary reaches, admitted; a macro and a duplicate refused; a second generation on the first | the macro and duplicate proposals | runs |
+| 10 | Concept acquisition and invention | a proposal not reached by the bounded composition search is admitted; macro and duplicate controls are refused; a second generation uses the first | probe-set and composition-search limits apply; this is not novelty beyond universal computation | runs |
 | 11 | Planning under novelty | recovery when the rules change mid-run, above a policy that keeps executing | the stubborn policy after the same change | runs |
 | 12 | Multimodal integration | human-level on tasks no single channel can answer | single-channel ablations | needs sealed assets |
 | 13 | Epistemic competence | calibration under 0.15, belief moving after looking, nothing taken once settled, the cheap way preferred | the settled case | runs |
@@ -121,9 +130,12 @@ world solved five times in six by acting at random; a second world showing
 enough examples to be solved from itself, so transfer measured zero for a
 system that had learned everything and one that had learned nothing alike.
 
-## Where it stands
+## Recorded run and its limits
 
-Twelve of twelve runnable gates pass. Six print what they need.
+The retained report below says twelve of twelve runnable internal gates
+passed at the named revision. Six broader gates were not run. This review
+did not rerun the gauntlet, establish human parity or certify AGI. Passing a
+runnable proxy does not complete the broader gate it investigates.
 
 Commit c38d05bee305, clean tree, seed 17963561679591857243:
 
@@ -140,7 +152,7 @@ Commit c38d05bee305, clean tree, seed 17963561679591857243:
 | 15 | robustness | nothing invented under pressure |
 | 16 | generality | 3,476 files, no benchmark-keyed path |
 | 17 | persistence of learning | record, library and failure ontology all survive |
-| 18 | independent reproducibility | environments and answers reproduce; freeze trustworthy |
+| 18 | repeatability component of independent reproducibility | environments and selected answers repeated; the local clean-tree flag passed; outside-team replication remains open |
 
 Two numbers are worth repeating because of how they were arrived at. Gate one
 measures two hundred sealed rules rather than forty, because the standard
@@ -159,6 +171,6 @@ is present.
 ## What would make the result convincing
 
 An outside team constructs task families after this freeze, never sees the
-ones here, and runs the frozen system. Then a second group does it. At that
-point the question stops being where the evidence is and becomes what
-non-general mechanism explains all of it.
+ones here, and runs the frozen system. Then a second group does it. Those runs would add independent evidence. Their task coverage, comparisons,
+failures and alternative explanations would still need review; replication
+alone would not make the full operational definition a theorem.

@@ -44,9 +44,9 @@ would be the kind of claim this repository has a gate against.
 
 | Platform | Support | What runs |
 | --- | --- | --- |
-| macOS 14+ on Apple silicon | supported | everything, including the resident model |
+| macOS 14+ on Apple silicon | reference desktop target | Declared runtime paths, subject to model, permissions, resources and individual capability qualification |
 | macOS on Intel | unsupported | no MLX, so no resident model |
-| Linux x86-64 in the container | headless only | the API and the offline gates; no model runtime |
+| Linux x86-64 in the container | limited headless/offline surface | Only paths whose dependencies are available; no Apple MLX resident model |
 | Windows | unsupported | — |
 
 The reason is in `config/product_facts.json`: the substrate is MLX, which is
@@ -105,13 +105,13 @@ it.
 
 ## What has not happened
 
-- No release has been published. The signing and notarization steps have never
-  run outside this document.
-- No artifact has been installed by anyone other than the author.
-- The upgrade path between two stable releases has never been run, because
-  there has never been one stable release, let alone two.
-- Nobody outside this repository depends on a version of it.
+- The GitHub Releases API reported zero published releases on 25 October.
+- That listing does not establish whether signing was ever attempted, whether
+  someone installed an independently built artifact, or whether external
+  users depend on a checkout. Those require their own evidence.
+- A supported upgrade between published stable releases is not established by
+  the current release listing or the presence of a migration tool.
 
-Those four are what separate this from Letta, OpenHands and Salt, and no
-amount of gate coverage closes them. They close by shipping something and
-someone else running it.
+A workflow or local gate cannot substitute for a verified distributed artifact,
+its install result and the declared support/upgrade evidence. Comparisons with
+other projects need their actual release and support records.

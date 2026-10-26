@@ -1,5 +1,15 @@
 # Aura Threat Model
 
+**Current evidence scope, 25 October:** threat severities and planned review
+cadences below are assessments, not proof that reviews ran or every control
+is complete. Plugin hash allowlisting is not publisher-signature verification;
+model structural identity is not a complete weight-file checksum. The
+[permission reference](permission_matrix.md) now describes the actual local
+owner and paired-device boundaries rather than the earlier proposed RBAC
+roles. See [the model card](../MODEL_CARD.md) for artifact identity and
+[the security policy](../SECURITY.md) for the private reporting route.
+
+
 ## 1. System Overview
 
 Aura is a locally-deployed autonomous AI cognitive runtime with:
@@ -36,7 +46,7 @@ Aura is a locally-deployed autonomous AI cognitive runtime with:
 | T05 | **Model-provider compromise** | AML.T0042 | High | Inference is local only. Every lane the router can fall back to — Cortex, Solver, Brainstem, Reflex — is a local model; `allow_cloud_fallback` is coerced to `False` in `core/brain/request_contract.py` whatever a caller passes | ✅ Mitigated |
 | T06 | **Model denial of service** | AML.T0029 | Medium | Resource governor; token budgets; Metal semaphore; timeout enforcement | ✅ Mitigated |
 | T07 | **Excessive agency** | OWASP-LLM-08 | Critical | Unified Will; AuthorityGateway; operator permission matrix; fail-closed defaults | ✅ Mitigated |
-| T08 | **Unsafe self-modification** | AML.T0044 | Critical | Self-modification disabled in production mode; gated by feature flag + Will | ✅ Mitigated |
+| T08 | **Unsafe self-modification** | AML.T0044 | Critical | Production permits tier-gated low-risk repair; broader promotion uses separate opt-in; sealed paths are refused | Partial — verify path coverage and repair evidence |
 | T09 | **Capability-token leakage** | - | High | Secrets never included in model context; env var isolation; log sanitization | ✅ Mitigated |
 | T10 | **Workspace escape** | - | Critical | Path validation; sandbox chroot; permission matrix bounds workspace | ✅ Mitigated |
 | T11 | **Data exfiltration through generated output** | AML.T0048 | High | Outbound requests pass `core/runtime/network_gateway.py`; `core/security/egress_privacy.py` reads the body before it leaves — credentials never go anywhere, personal identifiers only to a destination that is not a stranger | ✅ Mitigated |

@@ -19,7 +19,14 @@ The [retained-constraint design](G_SEMANTIC_CONSTRAINT_DESIGN.md) derives the
 bounded correctness conditions and separates numerical fitting, capacity
 expansion and fresh transfer. It adds no new master-ledger identifiers.
 
-## Current promotion path, 2026-09-28
+## v7 promotion snapshot, 28–29 September 2026
+
+This section retains the state of that candidate at that point. Its “not run”
+entries and running-campaign references are not today's whole-project status.
+Later candidates and G09 results are recorded in the
+[current master ledger](AURA_1_0_MASTER_TODO.md). Qualification belongs to the
+named candidate and mechanism, so a later closure does not retroactively pass
+these earlier controls.
 
 One v7 candidate follows the stages below in order. The model-active fit
 finished and its source-only residual was independently replayed. The first
@@ -27,9 +34,9 @@ three-request fitted reference arm generated three exact procedures and
 answers; its baseline arm stopped without a row under the original time bound.
 A source-matched one-request grouped replay matched the individual scorer.
 The [recovery record](evidence/G03_V7_CAUSAL_GROUP_RECOVERY_2026-09-29.md)
-separates those observations from the fresh grouped micro campaign now running.
+separates those observations from the fresh grouped micro campaign running at that date.
 
-| Stage | Current state | Required result before advancing |
+| Stage | State at this snapshot | Required result before advancing |
 | --- | --- | --- |
 | Fit and independent replay | Complete for source-only selection | Complete source-only schedule, exact model/source identities, checked weights, and replayed calibration selection. No held answers used to select a checkpoint. |
 | Three unseen-construction requests | Fitted arm 3/3; controls incomplete | The [frozen target-blind protocol](evidence/G04_V7_TARGET_BLIND_MICRO_PROTOCOL_2026-09-28.md), with fitted, base, and fitted source-erasure arms. Report all three interpretations and controls individually. |

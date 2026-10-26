@@ -11,12 +11,17 @@
 > [Glossary](GLOSSARY.md) · [Formulas with worked examples](FORMULAS.md)
 <!-- reader-navigation:end -->
 
-**25 October isolation update:** the seed-23 outputs predate `dcdcd637c`,
-which repairs consequence history shared between experimental arms. Retain
-the recorded scores, but recheck paired results under repaired isolation before
-presenting them as clean causal confirmation. See
-[the source-hashed update](evidence/ISC_ISOLATION_UPDATE_2026-10-25.json).
+**25 October isolation update:** the seed-23 outputs predate repairs to shared
+consequence history (`dcdcd637c`), degradation history (`3e9211d3f`) and restored
+bound-method ownership (`517c4807c`). Retain the recorded scores, but recheck
+paired results under repaired isolation before presenting clean causal
+confirmation. The least-domain closure-margin rule was also withdrawn.
+[Current status](ISC_STATUS.md) records these limits.
 
+The [reconciled bridge arguments](BRIDGE_PROOFS.md) require their explicit
+assumptions: conditional non-identifiability does not make scientific evidence
+irrelevant, and crossing spectra alone do not establish symmetry. The earlier
+rationale below is preserved as a dated record, not a new universal proof.
 
 Status: Guide · Current solver reconciled 25 October 2026
 

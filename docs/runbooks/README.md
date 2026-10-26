@@ -11,8 +11,16 @@
 > [Glossary](../GLOSSARY.md) · [Formulas with worked examples](../FORMULAS.md)
 <!-- reader-navigation:end -->
 
-Each scenario below has a single runbook documenting symptoms, diagnosis,
-safe mitigation, unsafe mitigation, rollback, and verification.
+Each scenario below has a runbook documenting symptoms, diagnosis,
+mitigation, rollback and verification. Those procedures are not a fresh
+recovery receipt for the current process. Start with source/process identity,
+existing ownership and preserved logs. A shell environment assignment does
+not reconfigure an already-running process.
+
+Do not restart the resident app, restore live state or launch a replacement
+model while a campaign owns it. Use an authorised lifecycle window and the
+[recovery procedure](disaster-recovery.md). Bundle fields are diagnostic
+examples; missing or CLI-local data must not be reported as live runtime truth.
 
 | Scenario | Runbook |
 | --- | --- |
@@ -53,8 +61,8 @@ safe mitigation, unsafe mitigation, rollback, and verification.
 
 ## Observed on the live runtime
 
-The five above the line are classes we plan for. These five actually
-happened, on this machine, with forensics to match. They are the ones worth
+The table above includes anticipated incident classes. The entries below
+record particular observed incidents, with their dates and source context. They are the ones worth
 reading before an incident rather than during one.
 
 | Scenario | Runbook | Status |

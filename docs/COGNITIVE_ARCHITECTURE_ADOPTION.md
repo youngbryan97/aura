@@ -79,8 +79,10 @@ chunking safe to leave switched on.
 The second criticism is **over-generalisation**: a chunk firing in situations
 its originating episode did not cover, giving a confident wrong answer. That is
 why `ChunkStore.record_outcome` exists and why `p_correct` is *measured* rather
-than assumed. A chunk that fires often and is wrong has a negative EV and is
-retracted by the same rule that catches the expensive ones.
+than assumed. A lower measured correctness rate reduces EV. It need not make EV negative:
+with `p_correct=0.1`, `cost_saved=100` and `match_cost=1`, EV is still 9.
+Correctness and harm constraints therefore need their own acceptance rule;
+this cost formula alone cannot guarantee that inaccurate chunks are removed.
 
 Above the exact chunker sits a Tier 2 generalization layer, wired into live
 deliberation with the seam method held as a gate.
@@ -106,8 +108,8 @@ a constant 0.4 to every candidate and the ranking was importance-only. It could
 not have discriminated, and it drifted further from usable every day.
 
 A better constant would not fix it. *Any* absolute-epoch formulation carries
-the same bug. ACT-R's base-level equation is scale-free — it depends only on
-elapsed time — so it cannot saturate and has no epoch to go stale.
+the same bug. ACT-R's base-level equation is based on elapsed time, so it avoids that particular fixed-epoch defect.
+Implementation clamps, zero-age handling and fitted parameters still matter.
 
 ### The equations
 

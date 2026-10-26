@@ -30,8 +30,8 @@ safeguard instead.
 
 | Tag | Meaning |
 |-----|---------|
-| **LIVE** | Already real in Aura today — cited module |
-| **BUILD** | Net-new, genuinely buildable, not yet built |
+| **LIVE** | Present in the recorded source pass — cited module; present execution needs a receipt |
+| **BUILD** | Proposed at the recorded design stage; check later source/status before treating it as still absent |
 | **EXTEND** | Partially exists; a bounded delta makes it real |
 | **BUILT** | Built this session and now living in its home organ (relocated out of the old `core/fictional_ai_*` silo) |
 | **REFUSE** | We will not build the character's defining trait (control-failure / attack); we build the safeguard form instead |

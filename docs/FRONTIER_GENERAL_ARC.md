@@ -20,37 +20,32 @@ the claim falsifiable with a measured trend line.
 
 ## The wall, stated exactly
 
-Making the resident cortex's *weights* match a frontier model's raw pretrained
-capability is off the table — the pretraining compute gap is orders of
-magnitude, LoRA does not close it, and self-training on unverifiable outputs
-collapses models. That wall is real and stays real.
+The project has not established frontier-level performance for either the
+resident weights or the complete system. Pretraining scale, fine-tuning and
+verification quality constrain what a small local model can do; they do not
+supply a general impossibility proof. “LoRA cannot close any gap” and
+“self-training always collapses” were broader than the evidence here.
 
-## The reframe
+## The research routes
 
-The goal was never frontier weights. It is **frontier-general Aura** — the
-organism, not the cortex. The field has proven systems beat weights three
-ways, and she already owns the seeds of each:
+1. **Inference computation:** search, multiple candidates and verification can
+   improve answers on some tasks. Extra computation can also waste time or
+   hurt performance. Aura’s frozen-loop campaigns found no gain under their
+   conditions; later typed semantic and kept-procedure results use different
+   mechanisms. [Current outcomes](RECURSIVE_LATENT_CORTEX.md).
+2. **Better evaluation and grounding:** retrieval, citations and outcome
+   observations can make some errors detectable. A citation or a rubric score
+   is not a universal verifier; source quality, interpretation and outcome
+   checks still matter.
+3. **Retained learning:** checked procedures and evaluated training can make
+   earlier work useful later. Errors in routing, grading and retention can
+   still compound. [DeepSeek-R1](https://arxiv.org/abs/2501.12948) reports its
+   own reinforcement-learning experiments; it does not validate Aura’s loop
+   or establish “zero collapse risk.”
 
-1. **Test-time compute scaling** (the o1/R1 lesson): reasoning quality
-   scales with inference compute spent per problem. EXISTS in embryo:
-   `core/brain/reasoning_amplifier_v2.py` already does
-   problem-model → N attempts → verify → search/repair → judge → receipt,
-   with demand-based budget allocation coupled to Φ/surprise
-   (`_resolve_compute_budget`). Wired live via `reasoning_strategies`.
-
-2. **The verifier boundary is movable** — the deep lever. "Frontier-
-   competitive on *verifiable* reasoning" treats verifiability as fixed; it
-   is not. Factuality → retrieval+citation (CitationEngine exists). Agency →
-   outcome ledgers (exists). Prediction → **the universal verifier**: reality
-   grades every forecast (`expectation_feedback` exists as the seam). Taste →
-   rubric ensembles + debate (courtroom exists). The ceiling rises exactly
-   as fast as verification expands — and that rate becomes a number.
-
-3. **Compounding that cannot collapse**: verified reasoning traces distilled
-   into procedural memory (reusable strategies indexed by problem shape,
-   injected at inference — zero collapse risk), periodically distilled INTO
-   weights via the proven CRSM→LoRA loop. R1 showed verifiable-reward
-   training transfers to general reasoning; her loop can compound it.
+These are proposed routes with bounded evidence, not guarantees of frontier
+parity. G09 passed its registered two-domain broad-gain criterion; G12 remains
+the separate named-system comparison.
 
 ## Operational definition (the falsifiable goal)
 

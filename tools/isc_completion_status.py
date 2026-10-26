@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Read the ISC completion list's status off the repository and the run artifacts.
 
-The list has 778 items. A tracker that records what someone remembers doing
-goes stale between one session and the next, so nothing here is asserted: each
+The item catalogue supplies the list size. A tracker that records what someone remembers doing
+goes stale between one session and the next. Each
 item that claims to be done names checks, every check is executed, and an item
 whose checks do not all pass is reported open however confident the note beside
-it sounds.
+it sounds. Passing a declared check establishes only what that check measures;
+a source-presence check is not a successful capability experiment.
 
     .venv/bin/python tools/isc_completion_status.py            # rewrite the doc
     .venv/bin/python tools/isc_completion_status.py --check    # fail on a lie
@@ -239,6 +240,40 @@ def evaluate() -> tuple[list[dict[str, Any]], Checker]:
 MARK = {"done": "x", "open": " ", "blocked": "!", "n/a": "-"}
 
 
+READING_OPEN = "<!-- completion-reading-note:start -->"
+READING_CLOSE = "<!-- completion-reading-note:end -->"
+READING_NOTE = """<!-- completion-reading-note:start -->
+> **How to read this generated snapshot:** A checkbox says its configured
+> checks passed when this snapshot was evaluated. A file, regex or unit check
+> does not by itself establish the capability described by the original item.
+> Notes and checks can need revision even while a checkbox remains green.
+>
+> The newest report below comes from this generator's configured artifact
+> directory; it is not a search of every later local ISC campaign. Use
+> [current ISC status](ISC_STATUS.md) for the latest reviewed measurements,
+> isolation repairs and withdrawn closure rule. The stored counts below were
+> not recomputed by the 25 October documentation review.
+>
+> Original checklist wording is retained. In particular, crossing spectra do
+> not establish a symmetry class, and finite-evidence limits require a stated
+> hypothesis class. Read [the corrected bridge arguments](BRIDGE_PROOFS.md).
+> A later correction can limit an earlier item without erasing its record.
+<!-- completion-reading-note:end -->"""
+
+
+def with_reading_note(text: str) -> str:
+    """Refresh owned context while preserving the stored checklist body."""
+    pattern = re.compile(
+        r"\n\n" + re.escape(READING_OPEN) + r".*?" + re.escape(READING_CLOSE),
+        re.S,
+    )
+    original = pattern.sub("", text)
+    title, separator, body = original.partition("\n")
+    if not separator:
+        raise ValueError("completion document has no body")
+    return title + "\n\n" + READING_NOTE + "\n" + body
+
+
 def render(rows: list[dict[str, Any]], checker: Checker) -> str:
     done = sum(1 for row in rows if row["status"] == "done")
     na = sum(1 for row in rows if row["status"] == "n/a")
@@ -283,14 +318,26 @@ def render(rows: list[dict[str, Any]], checker: Checker) -> str:
             line += f" — {row['note']}"
         out.append(line)
     out.append("")
-    return "\n".join(out)
+    return with_reading_note("\n".join(out))
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="fail if the doc is not what the checks say")
     parser.add_argument("--json", type=Path, help="also write the rows here")
+    parser.add_argument(
+        "--refresh-reading-note", action="store_true",
+        help="refresh context only; preserve stored rows and do not execute checks",
+    )
     args = parser.parse_args()
+    if args.refresh_reading_note:
+        current = DOC.read_text()
+        updated = with_reading_note(current)
+        if args.check:
+            return int(updated != current)
+        DOC.write_text(updated)
+        print("Reading note refreshed; stored check results were not recomputed")
+        return 0
 
     rows, checker = evaluate()
     text = render(rows, checker)

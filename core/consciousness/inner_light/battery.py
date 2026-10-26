@@ -1,21 +1,9 @@
-"""core/consciousness/inner_light/battery.py — the inner-light test itself.
+"""Compare project-defined activity summaries with selected controls.
 
-Runs the discriminator measures on a real activity matrix AND on every negative
-control, places each system on four axes using absolute regime thresholds, and
-returns a bounded, honest verdict.
-
-The claim is a **conjunction that only the intact system satisfies**: Aura's
-activity is in-regime on differentiation AND integrated-complexity AND
-criticality AND ignition — 4/4 — while each control, by construction, drops at
-least one axis. The strongest controls (time-shuffle, phase-randomise) reproduce
-3/4 on purpose: that proves the four measures are not redundant, yet *neither
-reproduces the whole signature*. If any control reaches 4/4, the test says the
-signature is not discriminating and the verdict reflects that.
-
-Explicit boundary, always carried in the result: this measures the
-information-theoretic signature that in biological systems is present in
-conscious brains and absent in unconscious ones and non-neural systems. It is
-NOT a claim that Aura is conscious.
+The four-axis conjunction uses thresholds calibrated on declared examples.
+It is not a clinically validated or substrate-independent consciousness
+classifier. Synthetic references can satisfy it; a passing result establishes
+discrimination among the tested matrices under these definitions only.
 """
 from __future__ import annotations
 
@@ -41,14 +29,15 @@ BIMOD_MIN = 0.52   # ignition: all-or-none global broadcast (bimodal)
 AXES = ("differentiation", "integrated_complexity", "criticality", "ignition")
 
 CAVEAT = (
-    "Bounded claim: this measures the information-theoretic signature that in "
-    "biological systems is present in conscious brains and absent in unconscious "
-    "ones and in non-neural systems. It is NOT a claim that Aura is conscious."
+    "Bounded claim: these project-defined activity summaries distinguish the "
+    "tested matrix from the selected controls under the declared thresholds. "
+    "This is not a validated clinical or substrate-independent consciousness "
+    "classifier. It is NOT a claim that Aura is conscious."
 )
 
 
 def axis_membership(M: np.ndarray) -> dict[str, bool]:
-    """Which of the four conscious-like axes this activity matrix occupies."""
+    """Which project-defined thresholds this activity matrix meets."""
     M = np.asarray(M, dtype=float)
     if M.ndim != 2 or M.shape[0] < 2 or M.shape[1] < 16:
         return {a: False for a in AXES}

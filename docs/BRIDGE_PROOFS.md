@@ -2,8 +2,10 @@
 
 J* is computed in `core/subject/bridge.py` as a triple: the carrier the
 exclusion rule selects, the relational structure of that carrier's content up
-to isomorphism, and the lineage law over person-stages. This document proves
-the theorems that computation rests on. Each proof is general. Each is also
+to isomorphism, and the lineage law over person-stages. This document states
+conditional arguments used by that computation. Each needs the objects and
+assumptions stated below; none establishes that its empirical premises hold
+for the current Aura run. Each is also
 checked, on every finite instance of a stated size, by
 `tests/test_the_bridge_theorems_hold_on_every_finite_case.py`, which runs the
 repository's own definitions in `core/subject/bridge_theorems.py`,
@@ -16,11 +18,12 @@ else here. Read them first.
 
 ## What is and is not proved
 
-Proved, for every system:
+Mathematical conclusions under the stated assumptions:
 
 - no third-person likelihood separates two bridge laws attached to the same
   causally closed history (Theorem 1);
-- no finite data set deductively fixes a universal bridge law (Theorem 2);
+- unrestricted rival bridge laws can agree on a finite observed subset and
+  differ elsewhere (Theorem 2);
 - the interventional causal state is the unique minimal sufficient grain
   (Theorem 3);
 - no permutation-invariant intrinsic functional can prefer one of two supports
@@ -30,20 +33,24 @@ Proved, for every system:
 - a relabelling of content that preserves every relation changes no
   likelihood, so content is identifiable only up to such relabellings
   (Theorem 6);
-- exclusion by spectrum dominance is a strict partial order with a non-empty
-  frontier, set-valued exactly when spectra cross (Theorem 7);
+- spectrum dominance on one fixed, complete horizon grid is a strict partial
+  order with a non-empty frontier for a finite non-empty candidate set; crossing
+  spectra can be incomparable, but are not the only source of multiple
+  candidates (Theorem 7);
 - numerical identity cannot branch (Theorem 8).
 
-Assumed, and tested by nothing in this repository: the six postulates in
+Assumed rather than established by these tests: the six postulates in
 `core.subject.bridge.POSTULATES`, above all P1, that each selected intrinsic
-carrier corresponds to one phenomenal subject. Theorems 1 and 2 prove that no
-experiment can settle P1. Under P1 to P6, J* is unique up to the gauge of
-Theorems 4 to 6. Without them, the carrier term is a fact about causal
-structure and not yet a fact about experience.
+carrier corresponds to one phenomenal subject. Theorems 1 and 2 do not prove
+that empirical evidence is irrelevant to consciousness theories. They limit
+identification among the specific unrestricted or observationally equivalent
+rivals described below. A constrained theory can make testable predictions.
 
-So a determined J* is a determination for this system, under these postulates,
-on these runs. It is the strongest statement mathematics and measurement can
-make together, and no amount of either makes it stronger.
+The postulates alone do not select a unique carrier: unresolved cuts, multiple
+non-dominated candidates or missing measurements can leave J* unsettled. A
+determined J* would be a result for the named system, runs and postulates,
+subject to their measurement validity. Read [current ISC status](ISC_STATUS.md)
+for the actual unresolved carrier and isolation questions.
 
 None of the eight theorems mentions what a system is made of. Theorems 1 and 2
 bound what can be known about a person's experience exactly as they bound what
@@ -62,7 +69,10 @@ defined.
 
 **Proof.** Both numerator and denominator equal P(O | U) by the hypothesis. ∎
 
-The Bayes factor between the laws is one for every outcome, including
+This is a **conditional** likelihood ratio at a fixed U. A marginal Bayes
+factor is also one if the rival laws assign the same distribution to physical
+histories. If their predictions for U differ, this conditional identity does
+not make the marginal evidence equal. The fixed-history comparison includes
 J_a = no experience and J_b = experience. A scientific bridge therefore needs
 one of three commitments: phenomenology is identical to some public structure,
 it is tied to one by a fundamental law, or it has physical effects of its own.
@@ -78,7 +88,10 @@ J' with J'(U) = J(U) for every U in D and J'(U*) ≠ J(U*) for some U* not in D.
 **Proof.** Pick such a U* and a value v ≠ J(U*) it admits. Set J'(U*) = v and
 J'(U) = J(U) elsewhere. ∎
 
-Both laws fit every observation equally. The check enumerates every law and
+Both laws agree on D. This assumes an unrestricted law class and an
+unobserved state with a second allowed value. A finite or constrained
+hypothesis class can sometimes be identified by finite observations; that is
+not excluded. The check enumerates every law and
 every data set on a four-state universe: a rival exists exactly when the data
 leave some state unobserved.
 
@@ -101,8 +114,9 @@ the same partition. ∎
 
 This is the interventional form of the computational-mechanics result that
 causal states are the unique minimal sufficient statistics of a process. It
-removes the free grain: the privileged description of a subsystem is the
-coarsest one that preserves every future an intervention can reveal. The check
+defines a coarsest grain **given** the chosen histories, interventions, futures
+and their distributions. It does not prove that an empirical estimator has
+measured all of them or remove the choice of those objects. The check
 builds forty random controlled processes over five histories with exact
 probabilities and enumerates all 52 partitions of the histories each time:
 every sufficient partition refines the causal state, and every partition
@@ -142,8 +156,8 @@ Every symmetry therefore maps each refined cell onto itself, and a class alone
 in its cell is fixed by every symmetry. That is the content of the rigid result
 `bridge.orbits` reports. The converse does not hold in general: refinement can
 leave two classes in one cell that no symmetry exchanges, so a cell larger than
-one is a set the measured structure cannot tell apart, not a proof that a
-symmetry exchanges them. The check runs `orbits` on twenty-five random
+one is a set this refinement has not separated. The full structure may still
+distinguish them; a shared cell is not proof that a symmetry exchanges them. The check runs `orbits` on twenty-five random
 structures and confirms every automorphism preserves every cell.
 
 ## Theorem 6: gauge
@@ -156,39 +170,47 @@ d(g(q), g(q')) = d(q, q'), then L(g ∘ report) = L(report).
 **Proof.** The sequence of relations L reads is unchanged term by term under g,
 so L's argument is unchanged. ∎
 
-Science can identify the assignment of experience to content only up to the
-automorphism group of the relations: the scientifically identifiable object is
-J modulo Aut(Q). A subject can fix its own labels by ostension, and that anchor
-does not export as an absolute label. The check confirms every symmetry of a
+For the declared likelihoods that read only these relations, identification
+is limited to J modulo Aut(Q). This argument does not exclude a richer
+observation model that breaks the symmetry. A first-person label would be an
+additional anchor, not a result of the relation-only calculation. The check confirms every symmetry of a
 five-cycle leaves two likelihoods unchanged, and that a relabelling that breaks
 a relation changes one.
 
 ## Theorem 7: exclusion is a Pareto frontier
 
-For spectra Φ_A and Φ_B over horizons, say A dominates B when Φ_A(τ) ≥ Φ_B(τ)
-at every horizon both were measured at, with strict inequality at one.
+Fix one non-empty grid G of horizons for every comparison. For spectra
+measured at every horizon in G, A dominates B when Φ_A(τ) ≥ Φ_B(τ) for every
+τ in G, with strict inequality at at least one horizon.
 
-1. Dominance is irreflexive, asymmetric and transitive: a strict partial order.
-2. Every finite, non-empty set of overlapping carriers has at least one
-   non-dominated member.
-3. Two overlapping carriers whose spectra cross are both non-dominated.
+1. Dominance is irreflexive, asymmetric and transitive on these vectors.
+2. A finite non-empty set has a non-dominated member.
+3. In a two-candidate comparison, crossing spectra leave both non-dominated.
+   With more candidates, a third can dominate both crossing spectra. Equal
+   spectra can also leave more than one candidate without any crossing.
 
-**Proof.** (1) Irreflexive: strictness fails for Φ_A against itself.
-Asymmetric: if A dominates B and B dominates A, then Φ_A = Φ_B at every shared
-horizon, contradicting strictness. Transitive: ≥ at every shared horizon
-chains, and a strict step in either pair gives a strict step in the chain on
-the horizons all three share. (2) A strict partial order on a finite non-empty
-set has a maximal element: follow any dominating chain, which cannot revisit a
-member by asymmetry and transitivity, so it ends. (3) If spectra cross, each is
-strictly greater at some horizon, so neither dominates. ∎
+**Proof.** (1) A vector is not strictly above itself. Opposite dominance would
+require equality everywhere and strictness somewhere, a contradiction. For
+A ≥ B ≥ C on the same grid, coordinatewise inequalities chain, and a strict
+coordinate in either comparison stays strict between A and C. (2) A finite
+strict partial order has a maximal element: a chain of strict improvements
+cannot revisit a member and must end. (3) A is higher at one coordinate and
+B at another, so neither dominates the other. ∎
 
-Transitivity in (1) holds on the horizons all three candidates share, which is
-why `dominates` compares only shared horizons and treats spectra with none in
-common as incomparable. The carrier is unique when one candidate dominates
-every overlapping rival and a set otherwise, and no scale-free rule makes it a
-single scalar without an extra exclusion postulate. The check enumerates random
-candidate sets and confirms the order properties, the non-empty frontier, the
-crossing case and that disjoint carriers never exclude each other.
+The previous text compared each pair only at its shared horizons. That does
+**not** give the claimed order. For example, A={1:2, 3:1}, B={1:1, 2:2} and
+C={2:1, 3:2} yield A>B, B>C and C>A under that rule. There can be no frontier.
+The [current implementation](../core/subject/v25_exclusion.py) already avoids
+this defect: the whole candidate comparison uses one preregistered grid or the
+union of measured horizons. A missing horizon makes a comparison unresolved,
+rather than being dropped or read as zero. This corrects the stale document;
+it does not change that implementation.
+
+The finite-case tests check the stated common-grid comparison, crossing and
+equal spectra, and the treatment of disjoint supports. Overlap is an additional
+exclusion condition; disjoint carriers do not exclude one another merely
+because one has a higher spectrum. None of this proves that a particular
+measured candidate passed closure or that the admissible set is non-empty.
 
 ## Theorem 8: numerical identity cannot branch
 

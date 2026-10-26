@@ -31,12 +31,14 @@
 
 3. Check for ungoverned action paths:
    ```bash
-   grep "ungoverned" logs/aura.log | tail -20
+   rg "ungoverned" ~/.aura/logs/
    ```
 
 ## Response
 
-1. **Disable autonomous behavior immediately**:
+1. **Contain the affected action lane through its supported live control.**
+   The assignments below apply to a future launch; exporting them in another
+   shell does not disable the current process:
    ```bash
    export AURA_AUTONOMY_LEVEL=0
    # or

@@ -5,9 +5,11 @@
 Aura keeps four things: what she needs for continuity, safety receipts,
 diagnostics, and whatever you asked her to remember.
 
-Nothing else. Retention here is a design constraint rather than a promise —
-the classes below decide what gets written at all, so data that falls
-outside them is never collected and never has to be deleted.
+These are retention requirements for the stores named below, especially
+`ContinuousExperienceStream` in `core/consciousness/continuous_experience.py`.
+They are not an exhaustive inventory or a demonstrated claim that no other
+data is collected. Experiment artifacts, caches, exports and external-service
+records need their own handling, as [the data card](../DATA_CARD.md) explains.
 
 ## Retention Classes
 

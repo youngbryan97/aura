@@ -199,8 +199,8 @@ THE_GATES: tuple[Gate, ...] = (
         "more often than a wrong guess where the evidence does not settle "
         "it — ten refusals to every confident wrong answer, until a human "
         "baseline says what that ratio should be",
-        "the rules are composed from the freeze seed, so no instance existed "
-        "before the commit; the question is asked at a length the examples "
+        "the rules are composed from the freeze seed for repeatability; this does not certify novelty "
+        "or contamination control; the question is asked at a length the examples "
         "did not use",
         run=_r.fluid_intelligence,
     ),
@@ -264,7 +264,7 @@ run=_r.transfer,
         10,
         "concept acquisition and invention",
         "develop a distinction the evaluator did not supply, and reason with it",
-        "a proposal no composition of the existing vocabulary reaches, "
+        "a proposal the bounded composition search does not reach on its probe set, "
         "admitted; a macro and a duplicate refused; and a second generation "
         "built on the first",
         "the macro and duplicate proposals. A vocabulary that admits "

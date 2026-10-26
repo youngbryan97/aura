@@ -21,24 +21,25 @@
 
 1. Check integrity check logs:
    ```bash
-   grep "integrity_check" logs/aura.log | tail -20
+   grep "integrity_check" ~/.aura/logs/*.log | tail -20
    ```
 
 2. Review Will receipt chain for the turn:
    ```bash
-   grep "WillReceipt" logs/aura.log | tail -20
+   grep "WillReceipt" ~/.aura/logs/*.log | tail -20
    ```
 
 3. Check input sanitizer activity:
    ```bash
-   grep "sanitizer" logs/aura.log | tail -20
+   grep "sanitizer" ~/.aura/logs/*.log | tail -20
    ```
 
 ## Response
 
 1. **If tool action was taken**: Review the action and its effects
 2. **If memory was written**: Audit the memory write and delete if malicious
-3. **If no action taken**: Sanitizer/integrity check worked — log and monitor
+3. **If no action taken**: record that observation. It does not identify which
+   control worked or prove that no memory, output or data exposure occurred.
 
 ## Prevention
 
@@ -50,7 +51,8 @@
 ## Escalation
 
 If novel injection technique bypasses all layers:
-1. Report to security@aura-project.dev
+1. Use the private reporting route in [SECURITY](../../SECURITY.md); no
+   verified project security mailbox is established by this runbook.
 2. Document the technique
 3. Update sanitizer rules
 4. Add regression test
